@@ -1,4 +1,5 @@
-
+# This file is part of thiago pbueno's pyrddl.
+# https://github.com/thiagopbueno/pyrddl
 
 from typing import Dict, List, Sequence, Tuple, Union
 
