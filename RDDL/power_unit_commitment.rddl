@@ -51,8 +51,8 @@ domain power_gen {
 		temperature     : { state-fluent, real, default = 20 };
 		
 		// Derived and intermediate
-		demand          : { derived-fluent, real };
-		fulfilledDemand : { interm-fluent,  real };
+		fulfilledDemand : { interm-fluent, real, level=1};
+		demand          : { derived-fluent, real, level=1 };
 		
 		// Observations - real
 		obsTemp : { observ-fluent, real };
@@ -90,15 +90,25 @@ domain power_gen {
 		forall_{?p : plant} [ curProd(?p) <= PROD_UNITS_MAX(?p) ];
 	};
 }
-        
+
+non-fluents power_gen3 {
+    domain = power_gen;
+
+    objects {
+		plant : {p1, p2, p3};
+	};
+}
+
 // Specify three power plants with default settings
 instance inst_power_gen {
 
 	domain = power_gen;
-	
-	objects { 
-		plant : {p1, p2, p3};
-	};
+
+	non-fluents = power_gen3;
+
+	//objects {
+	//	plant : {p1, p2, p3};
+	//};
   
 	init-state { 
 		temperature = 10;

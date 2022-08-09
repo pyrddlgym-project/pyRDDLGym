@@ -1,21 +1,33 @@
-from Parser import parser
+from Parser import parser2 as parser
+from Parser import RDDLReader as RDDLReader
+import sys
 
-#DOMAIN = 'power_unit_commitment.rddl'
-DOMAIN = 'ThiagosReservoir.rddl'
+DOMAIN = 'power_unit_commitment.rddl'
+# DOMAIN = 'ThiagosReservoir.rddl'
+# DOMAIN = 'Thiagos_Mars_Rover.rddl'
+# DOMAIN = 'Thiagos_HVAC.rddl'
+
 
 def main():
-    domain = ""
-    with open('RDDL/'+DOMAIN) as file:
-        domain = file.read()
 
-    MyRDDLParser = parser.RDDLParser()
+    MyReader = RDDLReader.RDDLReader('RDDL/power_unit_commitment_domain.rddl',
+                                     'RDDL/power_unit_commitment_instance.rddl')
+    domain = MyReader.rddltxt
+
+    MyLexer = parser.RDDLlex()
+    MyLexer.build()
+    MyLexer.input(domain)
+    # [token for token in MyLexer._lexer]
+
+
+    # build parser
+    MyRDDLParser = parser.RDDLParser(None, True)
     MyRDDLParser.build()
-    rddl = MyRDDLParser.parse(domain)
-    print(rddl)
 
-    print("test")
-
-
+    # parse RDDL file
+    rddl_ast = MyRDDLParser.parse(domain)
+    # print(rddl_ast.domain.cpfs[1])
+    # print("e")
 
 
 

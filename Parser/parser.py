@@ -8,13 +8,13 @@ import tempfile
 
 from ply import lex, yacc
 
-from pyrddl.rddl import RDDL
-from pyrddl.domain import Domain
-from pyrddl.nonfluents import NonFluents
-from pyrddl.instance import Instance
-from pyrddl.pvariable import PVariable
-from pyrddl.expr import Expression
-from pyrddl.cpf import CPF
+from Parser.rddl import RDDL
+from Parser.domain import Domain
+from Parser.nonfluents import NonFluents
+from Parser.instance import Instance
+from Parser.pvariable import PVariable
+from Parser.expr import Expression
+from Parser.cpf import CPF
 
 
 alpha = r'[A-Za-z]'
@@ -65,6 +65,7 @@ class RDDLlex(object):
             'reward': 'REWARD',
             'forall': 'FORALL',
             'exists': 'EXISTS',
+            # 'sum': 'SUM',
             'true': 'TRUE',
             'false': 'FALSE',
             'if': 'IF',
@@ -229,6 +230,7 @@ class RDDLParser(object):
             ('left', 'ASSIGN_EQUAL'),
             ('left', 'EXISTS'),
             ('left', 'FORALL'),
+            # ('left', 'SUM'),
             ('left', 'AGG_OPER'),
             ('left', 'EQUIV'),
             ('left', 'IMPLY'),
@@ -342,7 +344,8 @@ class RDDLParser(object):
         '''pvar_def : nonfluent_def
                     | statefluent_def
                     | actionfluent_def
-                    | intermfluent_def'''
+                    | intermfluent_def
+                    | derivedfluent_def'''
         p[0] = p[1]
 
     def p_nonfluent_def(self, p):
@@ -376,8 +379,18 @@ class RDDLParser(object):
             p[0] = PVariable(name=p[1], fluent_type='interm-fluent', range_type=p[9], param_types=p[3], level=p[13])
         else:
             p[0] = PVariable(name=p[1], fluent_type='interm-fluent', range_type=p[6], level=p[10])
+        print(p[0].name, p[0].param_types)
+
+    def p_derivedfluent_def(self, p):
+        '''derivedfluent_def : IDENT LPAREN param_list RPAREN COLON LCURLY DERIVED_FLUENT COMMA type_spec COMMA LEVEL ASSIGN_EQUAL range_const RCURLY SEMI
+                            | IDENT COLON LCURLY DERIVED_FLUENT COMMA type_spec COMMA LEVEL ASSIGN_EQUAL range_const RCURLY SEMI'''
+        if len(p) == 16:
+            p[0] = PVariable(name=p[1], fluent_type='derived-fluent', range_type=p[9], param_types=p[3], level=p[13])
+        else:
+            p[0] = PVariable(name=p[1], fluent_type='derived-fluent', range_type=p[6], level=p[10])
 
     def p_cpf_section(self, p):
+        '''cpf_section : cpf_header LCURLY cpf_list RCURLY SEMI'''
         '''cpf_section : cpf_header LCURLY cpf_list RCURLY SEMI'''
         p[0] = ('cpfs', (p[1], p[3]))
         self._print_verbose('cpfs')

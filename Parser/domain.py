@@ -2,10 +2,10 @@
 # https://github.com/thiagopbueno/pyrddl
 
 
-from pyrddl import utils
-from pyrddl.pvariable import PVariable
-from pyrddl.cpf import CPF
-from pyrddl.expr import Expression
+from Parser import utils
+from Parser.pvariable import PVariable
+from Parser.cpf import CPF
+from Parser.expr import Expression
 
 from typing import Dict, List, Sequence, Optional, Tuple
 
