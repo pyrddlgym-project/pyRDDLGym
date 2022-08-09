@@ -45,6 +45,7 @@ domain reservoir {
 		rainfall(res):   {interm-fluent, real, level=1}; // How much rainfall is there in this time step?
 		overflow(res):   {interm-fluent, real, level=1}; // Is there any excess overflow (over the rim)?
 		inflow(res):     {interm-fluent, real, level=2}; // How much res receives from upstream reservoirs?
+		test:            {derived-fluent, real, level=2}; // unused test fluent
 
 		// State fluents
 		rlevel(res): {state-fluent, real, default = 50.0 }; // Reservoir level for res
