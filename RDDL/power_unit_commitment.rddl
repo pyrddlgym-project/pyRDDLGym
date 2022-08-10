@@ -51,8 +51,8 @@ domain power_gen {
 		temperature     : { state-fluent, real, default = 20 };
 		
 		// Derived and intermediate
-		fulfilledDemand : { interm-fluent, real, level=1};
-		demand          : { derived-fluent, real, level=1 };
+		//fulfilledDemand : { interm-fluent, real, level=1};
+		//demand          : { derived-fluent, real, level=1 };
 		
 		// Observations - real
 		obsTemp : { observ-fluent, real };
