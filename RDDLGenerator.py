@@ -8,36 +8,36 @@ class RDDLGenerator(object):
 
     def GenerateRDDL(self):
         d = self.AST.domain
-        self.buffer += self.__print_block_header(d.name)
-        self.buffer += '\n'
+        # self.buffer += self.__print_block_header(d.name)
+        # self.buffer += '\n'
 
         # requirements
-        if d.requirements:
-            self.buffer += self.__print_requirements(d.requirements)
+        # if d.requirements:
+        #     self.buffer += self.__print_requirements(d.requirements)
         self.buffer += '\n\n'
 
         # types
-        if d.types:
-            self.buffer += self.__print_types([t[0] for t in d.types])
-        self.buffer += '\n\n'
+        # if d.types:
+        #     self.buffer += self.__print_types([t[0] for t in d.types])
+        # self.buffer += '\n\n'
 
         # pvars
-        self.buffer += self.__print_pvariables(d)
-        self.buffer += '\n\n'
+        # self.buffer += self.__print_pvariables(d)
+        # self.buffer += '\n\n'
 
         # cpfs
         # state_cpfs
         self.buffer += self.__print_cpfs(d)
-        self.buffer += '\n\n'
+        # self.buffer += '\n\n'
 
         # reward
-        self.buffer += self.__print_reward(d.reward)
-        self.buffer += '\n\n'
+        # self.buffer += self.__print_reward(d.reward)
+        # self.buffer += '\n\n'
 
         # constraints
-        self.buffer += self.__print_constraints(d)
+        # self.buffer += self.__print_constraints(d)
 
-        self.buffer += '};\n'
+        # self.buffer += '};\n'
 
         return self.buffer
 
@@ -132,7 +132,10 @@ class RDDLGenerator(object):
             for child in expr.args:
                 arg_list.append(self.__scan_expr_tree(child))
             op = expr.etype[1]
-            return temp + arg_list[0] + op + arg_list[1]
+            if len(arg_list) == 1:
+                return temp + op + arg_list[0]
+            else:
+                return temp + arg_list[0] + op + arg_list[1]
         if expr.etype[0] == 'control':
             # if
             if_txt = self.__scan_expr_tree(expr.args[0])
@@ -163,8 +166,12 @@ class RDDLGenerator(object):
             temp = temp + ', '.join(arg_list) + ']'
             return temp
         if expr.etype[0] == 'aggregation':
-            inner_expr = self.__scan_expr_tree(expr.args[1])
-            temp += expr.etype[1] + '_{' + ' : '.join(expr.args[0][1]) + '} [' + inner_expr + ']'
+            inner_expr = self.__scan_expr_tree(expr.args[-1])
+            vars = []
+            for arg in expr.args[:-1]:
+                vars.append(' : '.join(arg[1]))
+            temp += expr.etype[1] + '_{' + ' , '.join(vars) + '} [' + inner_expr + ']'
+            #temp += expr.etype[1] + '_{' + ' : '.join(expr.args[0][1]) + '} [' + inner_expr + ']'
             return temp
         else:
             for child in expr.args:
