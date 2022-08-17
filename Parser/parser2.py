@@ -229,7 +229,6 @@ class RDDLParser(object):
             ('left', 'ASSIGN_EQUAL'),
             ('left', 'EXISTS'),
             ('left', 'FORALL'),
-            # ('left', 'SUM'),
             ('left', 'AGG_OPER'),
             ('left', 'EQUIV'),
             ('left', 'IMPLY'),

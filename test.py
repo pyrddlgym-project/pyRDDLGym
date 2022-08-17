@@ -34,10 +34,6 @@ def main():
     rddl = generator.GenerateRDDL()
     print(rddl)
 
-    # print(rddl_ast.domain.cpfs[1])
-    # print("e")
-
-
 
 if __name__ == "__main__":
     main()
