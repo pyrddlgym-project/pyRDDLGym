@@ -1,5 +1,3 @@
-# This file is part of thiago pbueno's pyrddl.
-# https://github.com/thiagopbueno/pyrddl
 
 
 import logging
