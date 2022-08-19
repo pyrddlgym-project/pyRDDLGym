@@ -1,0 +1,44 @@
+////////////////////////////////////////////////////////////////////////
+// A simple propositional 2-slice DBN (variables are not parameterized).
+//
+// Author: Scott Sanner (ssanner [at] gmail.com)
+////////////////////////////////////////////////////////////////////////
+domain prop_dbn {
+
+	requirements = { reward-deterministic };
+
+	pvariables {
+		p : { state-fluent,  bool, default = false };
+		q : { state-fluent,  bool, default = false };
+		r : { state-fluent,  bool, default = false };
+		a : { action-fluent, bool, default = false };
+	};
+
+	cpfs {
+		// Some standard Bernoulli conditional probability tables
+		p' = if (p ^ r) then Bernoulli(.9) else Bernoulli(.3);
+
+		q' = if (q ^ r) then Bernoulli(.9)
+						else if (a) then Bernoulli(.3) else Bernoulli(.8);
+
+		// KronDelta is like a DiracDelta, but for discrete data (boolean or int)
+		r' = if (~q) then KronDelta(r) else KronDelta(r <=> q);
+	};
+
+	// A boolean functions as a 0/1 integer when a numerical value is needed
+	reward = p + q - r; // a boolean functions as a 0/1 integer when a numerical value is needed
+}
+
+instance inst_dbn {
+
+	domain = prop_dbn;
+	init-state {
+		p = true;  // could also just say 'p' by itself
+		q = false; // default so unnecessary, could also say '~q' by itself
+		r;         // same as r = true
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 20;
+	discount = 0.9;
+}
