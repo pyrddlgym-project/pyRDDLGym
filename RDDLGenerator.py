@@ -8,36 +8,35 @@ class RDDLGenerator(object):
 
     def GenerateRDDL(self):
         d = self.AST.domain
-        # self.buffer += self.__print_block_header(d.name)
-        # self.buffer += '\n'
+        self.buffer += self.__print_block_header(d.name)
+        self.buffer += '\n'
 
         # requirements
-        # if d.requirements:
-        #     self.buffer += self.__print_requirements(d.requirements)
+        if d.requirements:
+            self.buffer += self.__print_requirements(d.requirements)
         self.buffer += '\n\n'
 
         # types
-        # if d.types:
-        #     self.buffer += self.__print_types([t[0] for t in d.types])
-        # self.buffer += '\n\n'
+        if d.types:
+            self.buffer += self.__print_types([t[0] for t in d.types])
+        self.buffer += '\n\n'
 
         # pvars
-        # self.buffer += self.__print_pvariables(d)
-        # self.buffer += '\n\n'
+        self.buffer += self.__print_pvariables(d)
+        self.buffer += '\n\n'
 
         # cpfs
-        # state_cpfs
         self.buffer += self.__print_cpfs(d)
-        # self.buffer += '\n\n'
+        self.buffer += '\n\n'
 
         # reward
-        # self.buffer += self.__print_reward(d.reward)
-        # self.buffer += '\n\n'
+        self.buffer += self.__print_reward(d.reward)
+        self.buffer += '\n\n'
 
         # constraints
-        # self.buffer += self.__print_constraints(d)
+        self.buffer += self.__print_constraints(d)
 
-        # self.buffer += '};\n'
+        self.buffer += '};\n'
 
         return self.buffer
 
@@ -170,8 +169,7 @@ class RDDLGenerator(object):
             vars = []
             for arg in expr.args[:-1]:
                 vars.append(' : '.join(arg[1]))
-            temp += expr.etype[1] + '_{' + ' , '.join(vars) + '} [' + inner_expr + ']'
-            #temp += expr.etype[1] + '_{' + ' : '.join(expr.args[0][1]) + '} [' + inner_expr + ']'
+            temp += '(' + expr.etype[1] + '_{' + ' , '.join(vars) + '} [' + inner_expr + '])'
             return temp
         else:
             for child in expr.args:

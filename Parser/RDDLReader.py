@@ -4,7 +4,9 @@ class RDDLReader(object):
 
     comment = r'\/\/.*?\n'
     comment_ws = r'(\s*?\n\s*?)+'
-    domain_block = r'(?s)domain.*?\{.*?types.*?pvariables.*?cpfs.*?reward.*?\};.*?\}[^;]'
+    domain_block = r'(?s)domain.*?\{.*?pvariables.*?cpfs.*?reward.*?;.*?\}[^;]'
+    # domain_block = r'(?s)domain.*?\{.*?types.*?pvariables.*?cpfs.*?reward.*?\};.*?\}[^;]'
+    nonfluent_in_domain = r'(?s)\{\s*?non-fluent,.*?\};'
     nonfluent_block = r'(?s)non-fluents[^=]*?\{.*?\}[^;]'
     instance_block = r'(?s)instance.*?\{.*\}[^;]'
 
@@ -25,9 +27,12 @@ class RDDLReader(object):
         if m is None:
             raise Exception("Syntax Error in domain block")
 
-        m = re.search(self.nonfluent_block, dom_txt)
-        if m is None:
-            raise Exception("Syntax Error in non-fluents block")
+        domaintxt = m.group(0)
+        m = re.search(self.nonfluent_in_domain, domaintxt)
+        if m is not None:
+            m = re.search(self.nonfluent_block, dom_txt)
+            if m is None:
+                raise Exception("Syntax Error in non-fluents block")
 
         m = re.search(self.instance_block, dom_txt)
         if m is None:
