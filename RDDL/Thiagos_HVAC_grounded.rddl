@@ -1,0 +1,156 @@
+domain hvac_vav_fix{
+
+    pvariables {
+        //Constants
+        ADJ_r1_r2 : { non-fluent, bool, default = false };
+        ADJ_r2_r1 : { non-fluent, bool, default = false };
+        ADJ_r1_r3 : { non-fluent, bool, default = false };
+        ADJ_r3_r1 : { non-fluent, bool, default = false };
+        ADJ_r3_r2 : { non-fluent, bool, default = false };
+        ADJ_r2_r3 : { non-fluent, bool, default = false };
+
+        ADJ_OUTSIDE_r1 : { non-fluent, bool, default = false };
+        ADJ_OUTSIDE_r2 : { non-fluent, bool, default = false };
+        ADJ_OUTSIDE_r3 : { non-fluent, bool, default = false };
+
+        ADJ_HALL_r1 : { non-fluent, bool, default = false };
+        ADJ_HALL_r2 : { non-fluent, bool, default = false };
+        ADJ_HALL_r3 : { non-fluent, bool, default = false };
+
+        R_OUTSIDE_r1 : { non-fluent, real, default = 4};
+        R_OUTSIDE_r2 : { non-fluent, real, default = 4};
+        R_OUTSIDE_r3 : { non-fluent, real, default = 4};
+
+        R_HALL_r1 : { non-fluent, real, default = 2};
+        R_HALL_r2 : { non-fluent, real, default = 2};
+        R_HALL_r3 : { non-fluent, real, default = 2};
+
+        R_WALL_r1_r2 : { non-fluent, real, default = 1.5 };
+        R_WALL_r2_r1 : { non-fluent, real, default = 1.5 };
+        R_WALL_r2_r3 : { non-fluent, real, default = 1.5 };
+        R_WALL_r3_r2 : { non-fluent, real, default = 1.5 };
+        R_WALL_r1_r3 : { non-fluent, real, default = 1.5 };
+        R_WALL_r3_r1 : { non-fluent, real, default = 1.5 };
+
+        IS_ROOM_r1 : { non-fluent, bool, default = false };
+        IS_ROOM_r2 : { non-fluent, bool, default = false };
+        IS_ROOM_r3 : { non-fluent, bool, default = false };
+
+        CAP_r1 : { non-fluent, real, default = 80 };
+        CAP_r2 : { non-fluent, real, default = 80 };
+        CAP_r3 : { non-fluent, real, default = 80 };
+
+        CAP_AIR : { non-fluent, real, default = 1.006 };
+        COST_AIR : { non-fluent, real, default = 1 };
+        TIME_DELTA : { non-fluent, real, default = 1 };
+        TEMP_AIR : { non-fluent, real, default = 40 };
+
+        TEMP_UP_r1 : { non-fluent, real, default = 23.5 };
+        TEMP_UP_r2 : { non-fluent, real, default = 23.5 };
+        TEMP_UP_r3 : { non-fluent, real, default = 23.5 };
+
+        TEMP_LOW_r1 : { non-fluent, real, default = 20.0 };
+        TEMP_LOW_r2 : { non-fluent, real, default = 20.0 };
+        TEMP_LOW_r3 : { non-fluent, real, default = 20.0 };
+
+        TEMP_OUTSIDE_r1 : { non-fluent, real, default = 6.0 };
+        TEMP_OUTSIDE_r2 : { non-fluent, real, default = 6.0 };
+        TEMP_OUTSIDE_r3 : { non-fluent, real, default = 6.0 };
+
+        TEMP_HALL_r1 : { non-fluent, real, default = 10.0 };
+        TEMP_HALL_r2 : { non-fluent, real, default = 10.0 };
+        TEMP_HALL_r3 : { non-fluent, real, default = 10.0 };
+
+        PENALTY : { non-fluent, real, default = 20000 };
+
+        AIR_MAX_r1 : { non-fluent, real, default = 10.0 };
+        AIR_MAX_r2 : { non-fluent, real, default = 10.0 };
+        AIR_MAX_r3 : { non-fluent, real, default = 10.0 };
+
+        TEMP_r1: { state-fluent, real, default = 10.0 };
+        TEMP_r2: { state-fluent, real, default = 10.0 };
+        TEMP_r3: { state-fluent, real, default = 10.0 };
+
+        AIR_r1: { action-fluent, real, default = 0.0 };
+        AIR_r2: { action-fluent, real, default = 0.0 };
+        AIR_r3: { action-fluent, real, default = 0.0 };
+    };
+
+    cpfs {
+        //State
+        TEMP_r1' = TEMP_r1 + TIME_DELTA/CAP_r1 *
+            (AIR_r1 * CAP_AIR * (TEMP_AIR - TEMP_r1) * IS_ROOM_r1'
+            + (ADJ_r1_r1 | ADJ_r1_r1) * (TEMP_r1 - TEMP_r1) / R_WALL_r1_r1
+            + (ADJ_r1_r2 | ADJ_r2_r1) * (TEMP_r2 - TEMP_r1) / R_WALL_r1_r2
+            + (ADJ_r1_r3 | ADJ_r3_r1) * (TEMP_r3 - TEMP_r1) / R_WALL_r1_r3
+            + ADJ_OUTSIDE_r1*(TEMP_OUTSIDE_r1 - TEMP_r1)/ R_OUTSIDE_r1
+            + ADJ_HALL_r1*(TEMP_HALL_r1-TEMP_r1)/R_HALL_r1);
+
+        TEMP_r2' = TEMP_r2 + TIME_DELTA/CAP_r2 *
+            (AIR_r2 * CAP_AIR * (TEMP_AIR - TEMP_r2) * IS_ROOM_r2
+            + (ADJ_r2_r1 | ADJ_r1_r2) * (TEMP_r1 - TEMP_r2) / R_WALL_r2_r1
+            + (ADJ_r2_r2 | ADJ_r2_r2) * (TEMP_r2 - TEMP_r2) / R_WALL_r2_r2
+            + (ADJ_r2_r3 | ADJ_r3_r2) * (TEMP_r3 - TEMP_r2) / R_WALL_r2_r3
+            + ADJ_OUTSIDE_r2*(TEMP_OUTSIDE_r2 - TEMP_r2)/ R_OUTSIDE_r2
+            + ADJ_HALL_r2*(TEMP_HALL_r2-TEMP_r2)/R_HALL_r2);
+
+        TEMP_r3' = TEMP_r3 + TIME_DELTA/CAP_r3 *
+            (AIR_r3 * CAP_AIR * (TEMP_AIR - TEMP_r3) * IS_ROOM_r3
+            + (ADJ_r3_r1 | ADJ_r1_r3) * (TEMP_r1 - TEMP_r3) / R_WALL_r3_r1
+            + (ADJ_r3_r2 | ADJ_r2_r3) * (TEMP_r2 - TEMP_r3) / R_WALL_r3_r2
+            + (ADJ_r3_r3 | ADJ_r3_r3) * (TEMP_r3 - TEMP_r3) / R_WALL_r3_r3
+            + ADJ_OUTSIDE_r3*(TEMP_OUTSIDE_r3 - TEMP_r3)/ R_OUTSIDE_r3
+            + ADJ_HALL_r3*(TEMP_HALL_r3-TEMP_r3)/R_HALL_r3);
+
+
+    };
+
+    reward = - [IS_ROOM_r1*(AIR_r1 * COST_AIR
+        + ((TEMP_r1 < TEMP_LOW_r1) | (TEMP_r1 > TEMP_UP_r1)) * PENALTY)
+        + 10.0*abs[((TEMP_UP_r1 + TEMP_LOW_r1)/2.0) - TEMP_r1]]
+            - [IS_ROOM_r2*(AIR_r2 * COST_AIR
+        + ((TEMP_r2 < TEMP_LOW_r2) | (TEMP_r2 > TEMP_UP_r2)) * PENALTY)
+        + 10.0*abs[((TEMP_UP_r2 + TEMP_LOW_r2)/2.0) - TEMP_r2]]
+            - [IS_ROOM_r3*(AIR_r3 * COST_AIR
+        + ((TEMP_r3 < TEMP_LOW_r3) | (TEMP_r3 > TEMP_UP_r3)) * PENALTY)
+        + 10.0*abs[((TEMP_UP_r3 + TEMP_LOW_r3)/2.0) - TEMP_r3]];
+
+
+    action-preconditions{
+        AIR_r1 >= 0;
+        AIR_r2 >= 0;
+        AIR_r3 >= 0;
+        AIR_r1 <= AIR_MAX_r1;
+        AIR_r2 <= AIR_MAX_r2;
+        AIR_r3 <= AIR_MAX_r3;
+    };
+}
+
+
+non-fluents nf_hvac_vav_fix{
+    domain = hvac_vav_fix;
+    objects{
+
+    };
+
+    non-fluents {
+        //Define rooms
+        IS_ROOM_r1 = true; IS_ROOM_r2 = true; IS_ROOM_r3 = true;
+
+        //Define the adjacency
+        ADJ_r1_r2 = true; ADJ_r2_r3 = true;
+
+        ADJ_OUTSIDE_r1 = true; ADJ_OUTSIDE_r3 = true;
+
+        ADJ_HALL_r1 = true; ADJ_HALL_r2 = true; ADJ_HALL_r3 = true;
+    };
+}
+
+instance inst_hvac_vav_fix{
+    domain = hvac_vav_fix;
+    non-fluents = nf_hvac_vav_fix;
+
+    max-nondef-actions = pos-inf;
+    horizon = 20;
+    discount = 1.0;
+}
