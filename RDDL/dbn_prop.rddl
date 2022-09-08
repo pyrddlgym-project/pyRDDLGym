@@ -22,16 +22,28 @@ domain prop_dbn {
 						else if (a) then Bernoulli(.3) else Bernoulli(.8);
 
 		// KronDelta is like a DiracDelta, but for discrete data (boolean or int)
-		r' = if (~q) then KronDelta(r) else KronDelta(r <=> q);
+		//r' = if (~q) then KronDelta(r) else KronDelta(r <=> q);
+		r' = if (~q) then KronDelta(r) else KronDelta(q);
 	};
 
 	// A boolean functions as a 0/1 integer when a numerical value is needed
 	reward = p + q - r; // a boolean functions as a 0/1 integer when a numerical value is needed
 }
 
+non-fluents dbn3 {
+    domain = prop_dbn;
+
+    objects {
+
+	};
+}
+
 instance inst_dbn {
 
 	domain = prop_dbn;
+
+	non-fluents = dbn3;
+
 	init-state {
 		p = true;  // could also just say 'p' by itself
 		q = false; // default so unnecessary, could also say '~q' by itself

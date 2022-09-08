@@ -56,5 +56,39 @@ def test_xadd():
     return
 
 
+def test_xadd_ayal():
+    context = XADD()
+    p, q, r, a = sp.S('p'), sp.S('q'), sp.S('r'), sp.S('a')
+
+    dec_expr_a = a <= 0.5
+    xadd_as_list_a = [dec_expr_a, [sp.S(0)], [sp.S(0.3)]]
+    node1: int = context.build_initial_xadd(xadd_as_list_a)
+    # print(f"Node 1:\n{context.get_exist_node(node1)}")
+
+    dec_expr_q = q <= 0.5
+    xadd_as_list_q = [dec_expr_q, [sp.S(0)], xadd_as_list_a]
+    node2: int = context.build_initial_xadd(xadd_as_list_q)
+    # print(f"Node 2:\n{context.get_exist_node(node2)}")
+
+    dec_expr_a = a <= 0.5
+    xadd_as_list_a = [dec_expr_a, [sp.S(0)], [sp.S(0.3)]]
+    node3: int = context.build_initial_xadd(xadd_as_list_a)
+
+    dec_expr_p = p <= 0.5
+    xadd_as_list_p = [dec_expr_p, [sp.S(0)], [sp.S(0.3)]]
+    node4: int = context.build_initial_xadd(xadd_as_list_p)
+
+    node_sum = context.apply(node3, node4, op='sum')
+    # print(f"sum :\n{context.get_exist_node(node_sum)}")
+
+    print(xadd_as_list_p)
+    print(xadd_as_list_p * 2)
+
+
+
+
+    return
+
+
 if __name__ == "__main__":
-    test_xadd()
+    test_xadd_ayal()
