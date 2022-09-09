@@ -2,10 +2,10 @@
 # https://github.com/thiagopbueno/pyrddl
 
 
-from pyrddl import utils
-from pyrddl.pvariable import PVariable
-from pyrddl.cpf import CPF
-from pyrddl.expr import Expression
+from Parser import utils
+from Parser.pvariable import PVariable
+from Parser.cpf import CPF
+from Parser.expr import Expression
 
 from typing import Dict, List, Sequence, Optional, Tuple
 
@@ -45,6 +45,10 @@ class Domain(object):
         self.preconds = sections.get('preconds', [])
         self.invariants = sections.get('invariants', [])
         self.constraints = sections.get('constraints', [])
+
+    # @property
+    # def Requirements(self):
+    #     return self.requirements
 
     def build(self):
         self._build_preconditions_table()
@@ -141,12 +145,25 @@ class Domain(object):
         return { str(pvar): pvar for pvar in self.pvariables if pvar.is_intermediate_fluent() }
 
     @property
+    def derived_fluents(self) -> Dict[str, PVariable]:
+        '''Returns derived-fluent pvariables.'''
+        return {str(pvar): pvar for pvar in self.pvariables if pvar.is_derived_fluent()}
+
+    @property
     def intermediate_cpfs(self) -> List[CPF]:
         '''Returns list of intermediate-fluent CPFs in level order.'''
         _, cpfs = self.cpfs
         interm_cpfs = [cpf for cpf in cpfs if cpf.name in self.intermediate_fluents]
         interm_cpfs = sorted(interm_cpfs, key=lambda cpf: (self.intermediate_fluents[cpf.name].level, cpf.name))
         return interm_cpfs
+
+    @property
+    def derived_cpfs(self) -> List[CPF]:
+        '''Returns list of intermediate-fluent CPFs in level order.'''
+        _, cpfs = self.cpfs
+        der_cpfs = [cpf for cpf in cpfs if cpf.name in self.derived_fluents]
+        der_cpfs = sorted(der_cpfs, key=lambda cpf: (self.derived_fluents[cpf.name].level, cpf.name))
+        return der_cpfs
 
     def get_intermediate_cpf(self, name):
         for cpf in self.intermediate_cpfs:
