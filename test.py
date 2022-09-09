@@ -1,17 +1,15 @@
-import RDDLGenerator
-from Parser import parser2 as parser
+from Parser import parser as parser
 from Parser import RDDLReader as RDDLReader
-from Parser import RDDLGrounder as RDDLGrounder
-from xaddpy.Translator.Translator import XADDTranslator
-import sys
+import Grounder.RDDLGrounder as RDDLGrounder
 
 # DOMAIN = 'power_unit_commitment.rddl'
 
 # DOMAIN = 'ThiagosReservoir.rddl'
 # DOMAIN = 'Thiagos_Mars_Rover.rddl'
-#DOMAIN = 'Thiagos_HVAC.rddl'
+# DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'dbn_prop.rddl'
-DOMAIN = 'wildfire_mdp.rddl'
+DOMAIN = 'Thiagos_HVAC_grounded.rddl'
+# DOMAIN = 'wildfire_mdp.rddl'
 
 def main():
 
@@ -36,12 +34,15 @@ def main():
     # MyXADDTranslator = XADDTranslator(rddl_ast)
     # MyXADDTranslator.Translate()
 
-    grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
-    grounder.Ground()
-    grounder.InitGround()
+    grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
+    # grounder = RDDLGrounder(rddl_ast)
+    # grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
+    model = grounder.Ground()
+    # grounder.InitGround()
+
     # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
     # rddl = generator.GenerateRDDL()
-    # print(rddl)
+    print(rddl)
 
 
 if __name__ == "__main__":
