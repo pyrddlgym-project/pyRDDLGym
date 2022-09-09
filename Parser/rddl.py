@@ -1,9 +1,9 @@
 # This file is part of thiago pbueno's pyrddl.
 # https://github.com/thiagopbueno/pyrddl
 
-from pyrddl.domain import Domain
-from pyrddl.instance import Instance
-from pyrddl.nonfluents import NonFluents
+from Parser.domain import Domain
+from Parser.instance import Instance
+from Parser.nonfluents import NonFluents
 
 import collections
 import itertools

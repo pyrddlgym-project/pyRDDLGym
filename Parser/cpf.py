@@ -2,8 +2,8 @@
 # https://github.com/thiagopbueno/pyrddl
 
 
-from pyrddl.expr import Expression
-from pyrddl.pvariable import PVariable
+from Parser.expr import Expression
+from Parser.pvariable import PVariable
 
 from typing import Tuple, List
 

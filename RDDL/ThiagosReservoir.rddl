@@ -1,0 +1,149 @@
+////////////////////////////////////////////////////////////////////
+// The problem models the active maintenance of water levels in
+// a Reservoir system with uncertain rainfall and nonlinear
+// evaporation rates as a function of water level.  The objective
+// is to maintain all reservoir levels within a desired safe range.
+//
+// The state of each reservoir is the water level (rlevel).  The
+// actions are to set the outflows of each reservoir.  Rewards
+// are summed per reservoir and optimal when the water level is
+// within predefined upper and lower bounds.
+//
+// Author: Ga Wu, Buser Say inspired by Aswin Raghavan's RDDL model
+////////////////////////////////////////////////////////////////////
+
+domain reservoir {
+
+	requirements = {
+		concurrent,           // x and y directions move independently and simultaneously
+		reward-deterministic, // this domain does not use a stochastic reward
+		intermediate-nodes,   // this domain uses intermediate pvariable nodes
+		constrained-state     // this domain uses state constraints
+	};
+
+	types {
+		res: object;
+		res2 :object;
+	};
+
+	pvariables {
+
+		// Constants
+		MAX_RES_CAP(res, res2): { non-fluent, real, default = 100.0 }; // Beyond this amount, water spills over
+		UPPER_BOUND(res): { non-fluent, real, default = 80.0 };  // The upper bound for a safe reservoir level
+		LOWER_BOUND(res): { non-fluent, real, default = 20.0 };  // The lower bound for a safe reservoir level
+		RAIN_SHAPE(res):  { non-fluent, real, default = 25.0 };  // Gamma shape parameter for rainfall
+		RAIN_SCALE(res):  { non-fluent, real, default = 25.0 };  // Gamma scale paramater for rainfall
+		DOWNSTREAM(res,res): { non-fluent, bool, default = false }; // Indicates 2nd res is downstream of 1st res
+		SINK_RES(res):    { non-fluent, bool, default = false }; // This is a "sink" water source (sea, ocean)
+		MAX_WATER_EVAP_FRAC_PER_TIME_UNIT: { non-fluent, real, default = 0.05 }; // Maximum fraction of evaporation
+
+		LOW_PENALTY(res) : { non-fluent, real, default =  -5.0 }; // Penalty per unit of level < LOWER_BOUND
+		HIGH_PENALTY(res): { non-fluent, real, default = -10.0 }; // Penalty per unit of level > UPPER_BOUND
+
+		// Intermediate fluents
+		evaporated(res): {interm-fluent, real, level=1}; // How much evaporates from res in this time step?
+		rainfall(res):   {interm-fluent, real, level=1}; // How much rainfall is there in this time step?
+		overflow(res):   {interm-fluent, real, level=1}; // Is there any excess overflow (over the rim)?
+		inflow(res):     {interm-fluent, real, level=2}; // How much res receives from upstream reservoirs?
+		test:            {derived-fluent, real, level=2}; // unused test fluent
+
+		// State fluents
+		rlevel(res): {state-fluent, real, default = 50.0 }; // Reservoir level for res
+
+		// Action fluents
+		outflow(res): { action-fluent, real, default = 0.0 }; // Action to set outflow of res
+	};
+
+	cpfs {
+		// Gamma is non-negative, Gamma expected value is SHAPE*SCALE, variance is SHAPE*SCALE^2
+		rainfall(?r) = Gamma(RAIN_SHAPE(?r), RAIN_SCALE(?r));
+
+		evaporated(?r) = MAX_WATER_EVAP_FRAC_PER_TIME_UNIT
+		                 *[(rlevel(?r)*rlevel(?r))/(MAX_RES_CAP(?r)*MAX_RES_CAP(?r))]
+		                 *rlevel(?r);
+
+		// Consider MAX_RES_CAP=90, rlevel=100, outflow=4, then the excess overflow is 6 units
+		// Consider MAX_RES_CAP=100, rlevel=90, outflow=4, then the excess overflow is 0 units
+		overflow(?r) = max[0, rlevel(?r) - outflow(?r) - MAX_RES_CAP(?r)];
+
+		inflow(?r) = sum_{?up : res} [DOWNSTREAM(?up,?r)*(outflow(?up) + overflow(?up))];
+
+		rlevel'(?r) = max[0.0, rlevel(?r) + rainfall(?r) - evaporated(?r) - outflow(?r) - overflow(?r) + inflow(?r)];
+	};
+
+	reward = sum_{?r: res} [if (rlevel'(?r)>=LOWER_BOUND(?r) ^ (rlevel'(?r)<=UPPER_BOUND(?r)))
+									then 0
+ 									else if (rlevel'(?r)<=LOWER_BOUND(?r))
+ 										then LOW_PENALTY(?r)*(LOWER_BOUND(?r)-rlevel'(?r))
+										else HIGH_PENALTY(?r)*(rlevel'(?r)-UPPER_BOUND(?r))];
+
+	action-preconditions {
+
+		forall_{?r : res} outflow(?r) <= rlevel(?r);
+		forall_{?r : res} outflow(?r) >= 0;
+
+	};
+
+	state-invariants {
+
+		forall_{?r : res} rlevel(?r) >= 0;
+		forall_{?up : res} (sum_{?down : res} DOWNSTREAM(?up,?down)) <= 1;
+	};
+}
+
+non-fluents res8 {
+	domain = reservoir;
+	objects{
+		res: {t1,t2,t3,t4,t5,t6,t7,t8};
+	};
+	non-fluents {
+		RAIN_SHAPE(t1) = 1.0;
+		RAIN_SCALE(t1) = 5.0;
+		RAIN_SHAPE(t2) = 1.0;
+		RAIN_SCALE(t2) = 3.0;
+		RAIN_SHAPE(t3) = 1.0;
+		RAIN_SCALE(t3) = 9.0;
+		RAIN_SHAPE(t4) = 1.0;
+		RAIN_SCALE(t4) = 7.0;
+		RAIN_SHAPE(t5) = 1.0;
+		RAIN_SCALE(t5) = 15.0;
+		RAIN_SHAPE(t6) = 1.0;
+		RAIN_SCALE(t6) = 13.0;
+		RAIN_SHAPE(t7) = 1.0;
+		RAIN_SCALE(t7) = 25.0;
+		RAIN_SHAPE(t8) = 1.0;
+		RAIN_SCALE(t8) = 30.0;
+		MAX_RES_CAP(t3) = 200.0;
+		UPPER_BOUND(t3) = 180.0;
+		MAX_RES_CAP(t4) = 300.0;
+		UPPER_BOUND(t4) = 280.0;
+		MAX_RES_CAP(t5) = 400.0;
+		UPPER_BOUND(t5) = 380.0;
+		MAX_RES_CAP(t6) = 500.0;
+		UPPER_BOUND(t6) = 480.0;
+		MAX_RES_CAP(t7) = 800.0;
+		UPPER_BOUND(t7) = 780.0;
+		MAX_RES_CAP(t8) = 1000.0;
+		UPPER_BOUND(t8) = 980.0;
+		DOWNSTREAM(t1,t6);
+		DOWNSTREAM(t2,t3);
+		DOWNSTREAM(t3,t5);
+		DOWNSTREAM(t4,t8);
+		DOWNSTREAM(t5,t7);
+		DOWNSTREAM(t6,t7);
+		DOWNSTREAM(t7,t8);
+		SINK_RES(t8);
+	};
+}
+
+instance inst_reservoir_res8 {
+	domain = reservoir;
+	non-fluents = res8;
+	init-state{
+		rlevel(t1) = 75.0;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 40;
+	discount = 1.0;
+}
