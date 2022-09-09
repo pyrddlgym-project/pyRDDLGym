@@ -1,5 +1,5 @@
 import Parser.expr
-from Parser.parser2 import RDDLParser
+from Parser.parser import RDDLParser
 
 class RDDLGenerator(object):
     def __init__(self, RDDL_AST):
