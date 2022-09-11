@@ -4,7 +4,6 @@ import numpy as np
 import random
 
 from Grounder.RDDLModel import PlanningModel
-from Grounder.RDDLGrounder import RDDLGrounder
 from Parser.expr import Expression
 
 
@@ -178,10 +177,7 @@ class RDDLSimulator:
         elif op == '*':
             return arg1 * arg2
         elif op == '/':
-            if isinstance(arg1, float) or isinstance(arg2, float):
-                return arg1 / arg2  # int -> float
-            else:
-                return arg1 // arg2  # int / int
+            return arg1 / arg2  # int -> float
         else:
             raise Exception('Invalid arithmetic operator {}.'.format(op) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
@@ -243,6 +239,8 @@ class RDDLSimulator:
                 raise Exception('Func {} requires one arg.'.format(name) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             arg = self._sample(args[0], subs)
+            if isinstance(arg, bool):  # bool -> int
+                arg = int(arg)  
             return RDDLSimulator.KNOWN_UNARY[name](arg)
         
         elif name in RDDLSimulator.KNOWN_BINARY:
@@ -251,6 +249,10 @@ class RDDLSimulator:
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             arg1 = self._sample(args[0], subs)
             arg2 = self._sample(args[1], subs)
+            if isinstance(arg1, bool):  # bool -> int
+                arg1 = int(arg1)  
+            if isinstance(arg2, bool):
+                arg2 = int(arg2)
             return RDDLSimulator.KNOWN_BINARY[name](arg1, arg2)
         
         else:

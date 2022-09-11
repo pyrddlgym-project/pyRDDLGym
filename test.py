@@ -40,17 +40,29 @@ def main():
     model = grounder.Ground()
     pprint(vars(model))
     
+    good_policy = True
     sampler = RDDLSimulator(model)
-    print(sampler.reset_state())
-
+    state = sampler.reset_state()
     for _ in range(50):
         sampler.check_state_invariants()
-
-        actions = {'AIR_r1': 8., 'AIR_r2': 8., 'AIR_r3': 8.}
-        next_state = sampler.sample_next_state(actions)
+        actions = {'AIR_r1': 0., 'AIR_r2': 0., 'AIR_r3': 0.}
+        if good_policy:
+            if state['TEMP_r1'] < 20.5:
+                actions['AIR_r1'] = 5.
+            if state['TEMP_r2'] < 20.5:
+                actions['AIR_r2'] = 5.
+            if state['TEMP_r3'] < 20.5:
+                actions['AIR_r3'] = 5.
+            if state['TEMP_r1'] > 23.:
+                actions['AIR_r1'] = 0.
+            if state['TEMP_r2'] > 23.:
+                actions['AIR_r2'] = 0.
+            if state['TEMP_r3'] > 23.:
+                actions['AIR_r3'] = 0.
+        state = sampler.sample_next_state(actions)
         reward = sampler.sample_reward()
         sampler.update_state()
-        print(next_state)
+        print(state)
         print(reward)
     
     IS_ROOM_r1 = True
