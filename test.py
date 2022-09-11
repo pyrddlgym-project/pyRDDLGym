@@ -43,8 +43,9 @@ def main():
     
     good_policy = True
     sampler = RDDLSimulator(model)
-    for h in range(1):
+    for h in range(100):
         state = sampler.reset_state()
+        total_reward = 0.
         for _ in range(20):
             sampler.check_state_invariants()
             actions = {'AIR_r1': 0., 'AIR_r2': 0., 'AIR_r3': 0.}
@@ -67,6 +68,8 @@ def main():
             if h == 0:
                 print(state)
                 print(reward)
+            total_reward += reward
+        print('trial {}, total reward {}'.format(h, total_reward))
     
     # grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
     # grounder.Ground()

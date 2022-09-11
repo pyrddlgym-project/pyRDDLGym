@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Sized
 import math
 import numpy as np
 import random
@@ -87,6 +87,7 @@ class RDDLSimulator:
     #          existential (exists, forall)
     #          =>, <=>
     # TODO:    switch and enum
+    #          replace isinstance checks with something better (polymorphism)
     @staticmethod
     def _print_stack_trace(expr):
         return '...\n' + str(expr) + '\n...'
@@ -135,7 +136,7 @@ class RDDLSimulator:
         
     def _sample_relational(self, expr, eop, subs):
         args = expr.args
-        if not isinstance(args, tuple):
+        if not isinstance(args, Sized):
             raise Exception('Expression args are invalid.' + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         if len(args) != 2:
@@ -144,11 +145,9 @@ class RDDLSimulator:
         
         arg1 = self._sample(args[0], subs)
         arg2 = self._sample(args[1], subs)
-        if isinstance(arg1, bool):  # bool -> int
-            arg1 = int(arg1)
-        if isinstance(arg2, bool):
-            arg2 = int(arg2)
-            
+        arg1 = 1 * arg1  # bool -> int
+        arg2 = 1 * arg2
+        
         if eop == '>=':
             return arg1 >= arg2
         elif eop == '<=':
@@ -165,12 +164,26 @@ class RDDLSimulator:
             raise Exception('Relational operator {} is not supported.'.format(eop) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
     
+    def _sample_arithmetic(self, expr, eop, subs):
+        args = expr.args        
+        if len(args) == 1 and eop == '-':
+            arg = self._sample(args[0], subs)
+            return -1 * arg  # bool -> int
+        elif len(args) == 2:
+            if eop == '*':
+                return self._sample_short_circuit_product(expr, *args, subs)
+            else:
+                arg1 = self._sample(args[0], subs)
+                arg2 = self._sample(args[1], subs)
+                return RDDLSimulator._apply_arithmetic_rule(expr, arg1, arg2, eop)        
+        else:
+            raise Exception('Arithmetic expression {} cannot be evaluated.'.format(eop) + 
+                            '\n' + RDDLSimulator._print_stack_trace(expr))
+    
     @staticmethod
     def _apply_arithmetic_rule(expr, arg1, arg2, op):
-        if isinstance(arg1, bool):  # bool -> int
-            arg1 = int(arg1)
-        if isinstance(arg2, bool):
-            arg2 = int(arg2)
+        arg1 = 1 * arg1  # bool -> int
+        arg2 = 1 * arg2
             
         if op == '+':
             return arg1 + arg2
@@ -183,22 +196,21 @@ class RDDLSimulator:
         else:
             raise Exception('Invalid arithmetic operator {}.'.format(op) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
-        
-    def _sample_arithmetic(self, expr, eop, subs):
-        args = expr.args        
-        if len(args) == 1 and eop == '-':
-            arg = self._sample(args[0], subs)
-            if isinstance(arg, bool):  # bool -> int
-                arg = int(arg)
-            return -arg
-        elif len(args) == 2:
-            arg1 = self._sample(args[0], subs)
-            arg2 = self._sample(args[1], subs)
-            return RDDLSimulator._apply_arithmetic_rule(expr, arg1, arg2, eop)        
-        else:
-            raise Exception('Arithmetic expression {} cannot be evaluated.'.format(eop) + 
-                            '\n' + RDDLSimulator._print_stack_trace(expr))
     
+    def _sample_short_circuit_product(self, expr, expr1, expr2, subs):
+        if expr2.is_constant_expression() or expr2.is_pvariable_expression():  # TODO: is this ok?
+            expr1, expr2 = expr2, expr1
+        
+        arg1 = self._sample(expr1, subs)
+        arg1 = 1 * arg1  # bool -> int
+        if arg1 == 0:
+            return arg1
+        
+        arg2 = self._sample(expr2, subs)
+        arg2 = 1 * arg2  # bool -> int
+        return arg1 * arg2
+    
+    # functions
     KNOWN_UNARY = {        
         'abs': abs,
         'sgn': lambda x: math.copysign(1, x),
@@ -232,7 +244,7 @@ class RDDLSimulator:
         args = expr.args
         if isinstance(args, Expression):
             args = (args,)
-        if not isinstance(args, Iterable):
+        elif not isinstance(args, Sized):
             raise Exception('Func args are invalid.' + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
@@ -241,8 +253,7 @@ class RDDLSimulator:
                 raise Exception('Func {} requires one arg.'.format(name) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             arg = self._sample(args[0], subs)
-            if isinstance(arg, bool):  # bool -> int
-                arg = int(arg)  
+            arg = 1 * arg  # bool -> int
             return RDDLSimulator.KNOWN_UNARY[name](arg)
         
         elif name in RDDLSimulator.KNOWN_BINARY:
@@ -251,10 +262,8 @@ class RDDLSimulator:
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             arg1 = self._sample(args[0], subs)
             arg2 = self._sample(args[1], subs)
-            if isinstance(arg1, bool):  # bool -> int
-                arg1 = int(arg1)  
-            if isinstance(arg2, bool):
-                arg2 = int(arg2)
+            arg1 = 1 * arg1  # bool -> int
+            arg2 = 1 * arg2
             return RDDLSimulator.KNOWN_BINARY[name](arg1, arg2)
         
         else:
@@ -391,7 +400,7 @@ class RDDLSimulator:
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         arg = self._sample(args[0], subs)
-        if not (isinstance(arg, int) or isinstance(arg, bool)):
+        if not isinstance(arg, (int, bool)):
             raise Exception('KronDelta requires integer or boolean parameter.')
         return arg
     
