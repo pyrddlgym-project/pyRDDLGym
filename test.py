@@ -39,50 +39,35 @@ def main():
     grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
     model = grounder.Ground()
     pprint(vars(model))
+    print(type(model.cpforder))
     
     good_policy = True
     sampler = RDDLSimulator(model)
-    state = sampler.reset_state()
-    for _ in range(50):
-        sampler.check_state_invariants()
-        actions = {'AIR_r1': 0., 'AIR_r2': 0., 'AIR_r3': 0.}
-        if good_policy:
-            if state['TEMP_r1'] < 20.5:
-                actions['AIR_r1'] = 5.
-            if state['TEMP_r2'] < 20.5:
-                actions['AIR_r2'] = 5.
-            if state['TEMP_r3'] < 20.5:
-                actions['AIR_r3'] = 5.
-            if state['TEMP_r1'] > 23.:
-                actions['AIR_r1'] = 0.
-            if state['TEMP_r2'] > 23.:
-                actions['AIR_r2'] = 0.
-            if state['TEMP_r3'] > 23.:
-                actions['AIR_r3'] = 0.
-        state = sampler.sample_next_state(actions)
-        reward = sampler.sample_reward()
-        sampler.update_state()
-        print(state)
-        print(reward)
+    for h in range(1):
+        state = sampler.reset_state()
+        for _ in range(20):
+            sampler.check_state_invariants()
+            actions = {'AIR_r1': 0., 'AIR_r2': 0., 'AIR_r3': 0.}
+            if good_policy:
+                if state['TEMP_r1'] < 20.5:
+                    actions['AIR_r1'] = 5.
+                if state['TEMP_r2'] < 20.5:
+                    actions['AIR_r2'] = 5.
+                if state['TEMP_r3'] < 20.5:
+                    actions['AIR_r3'] = 5.
+                if state['TEMP_r1'] > 23.:
+                    actions['AIR_r1'] = 0.
+                if state['TEMP_r2'] > 23.:
+                    actions['AIR_r2'] = 0.
+                if state['TEMP_r3'] > 23.:
+                    actions['AIR_r3'] = 0.
+            state = sampler.sample_next_state(actions)
+            reward = sampler.sample_reward()
+            sampler.update_state()
+            if h == 0:
+                print(state)
+                print(reward)
     
-    IS_ROOM_r1 = True
-    AIR_r1 = 0.
-    COST_AIR = 1
-    TEMP_r1 = 10.
-    TEMP_LOW_r1 = 20.
-    TEMP_UP_r1 = 23.5
-    PENALTY = 20000
-    IS_ROOM_r2 = True
-    AIR_r2 = 0.
-    TEMP_r2 = 10.
-    TEMP_LOW_r2 = 20.
-    TEMP_LOW_r3 = 20.
-    TEMP_UP_r2 = 23.5
-    TEMP_UP_r3 = 23.5
-    IS_ROOM_r3 = True
-    AIR_r3 = 0.
-    TEMP_r3 = 10.
-            
     # grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
     # grounder.Ground()
     # pprint(vars(grounder))

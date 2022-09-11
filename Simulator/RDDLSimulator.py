@@ -14,9 +14,11 @@ class RDDLSimulator:
         
         :param model: the RDDL model
         '''
-        self._model = model
+        self._model = model        
+        self._order_cpfs = sorted(self._model.cpforder.keys())
+        
         self._subs = {}
-        self._next_state = None
+        self._next_state = None        
         
     def reset_state(self):
         '''Resets the state variables to their initial values.'''
@@ -51,8 +53,8 @@ class RDDLSimulator:
         self._model.actions = actions
         subs = self._update_subs()  
         next_state = {}
-        for order, cpfs in self._model.cpforder.items():
-            for cpf in cpfs: 
+        for order in self._order_cpfs:
+            for cpf in self._model.cpforder[order]: 
                 if cpf in self._model.next_state:
                     primed_cpf = self._model.next_state[cpf]
                     expr = self._model.cpfs[primed_cpf].expr
@@ -194,7 +196,7 @@ class RDDLSimulator:
             arg2 = self._sample(args[1], subs)
             return RDDLSimulator._apply_arithmetic_rule(expr, arg1, arg2, eop)        
         else:
-            raise Exception('Arithmetic expression {} requires two args.'.format(eop) + 
+            raise Exception('Arithmetic expression {} cannot be evaluated.'.format(eop) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
     
     KNOWN_UNARY = {        
@@ -291,7 +293,7 @@ class RDDLSimulator:
         if len(args) == 1 and eop == '~':
             arg = self._sample(args[0], subs)
             if not isinstance(arg, bool):
-                raise Exception('Binary negation requires boolean expression.' + 
+                raise Exception('Binary negation requires boolean arg.' + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             return not arg
         elif len(args) == 2:
@@ -303,7 +305,7 @@ class RDDLSimulator:
                 raise Exception('Binary operator {} is not supported.'.format(eop) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
         else:
-            raise Exception('Arithmetic expression {} not defined with > 2 args'.format(eop) + 
+            raise Exception('Logical expression {} cannot be evaluated.'.format(eop) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
     def _sample_short_circuit(self, expr, expr1, expr2, op, subs):
@@ -312,7 +314,7 @@ class RDDLSimulator:
         
         arg1 = self._sample(expr1, subs)
         if not isinstance(arg1, bool):
-            raise Exception('Condition must evaluate to bool, {} provided.'.format(arg1) + 
+            raise Exception('Binary operator {} requires boolean arg, {} provided.'.format(op, arg1) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         if op == '|' and arg1:
             return True
@@ -321,7 +323,7 @@ class RDDLSimulator:
         
         arg2 = self._sample(expr2, subs)
         if not isinstance(arg1, bool):
-            raise Exception('Condition must evaluate to bool, {} provided.'.format(arg2) + 
+            raise Exception('Binary operator {} requires boolean arg, {} provided.'.format(op, arg2) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         return arg2
         
@@ -329,7 +331,7 @@ class RDDLSimulator:
         arg1 = self._sample(arg1, subs)
         arg2 = self._sample(arg2, subs)
         if not (isinstance(arg1, bool) and isinstance(arg2, bool)):
-            raise Exception('Xor requires boolean expressions.' + 
+            raise Exception('Xor requires boolean args.' + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         return arg1 != arg2
     
@@ -337,7 +339,7 @@ class RDDLSimulator:
     def _sample_control(self, expr, eop, subs):
         args = expr.args
         if eop != 'if':
-            raise Exception('Only if statement is supported, not {}.'.format(eop) + 
+            raise Exception('Control type {} is not supported.'.format(eop) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         if len(args) != 3:
             raise Exception('If statement requires three args.' + 
@@ -345,7 +347,7 @@ class RDDLSimulator:
         
         cond = self._sample(args[0], subs)
         if not isinstance(cond, bool):
-            raise Exception('Condition must evaluate to bool, {} provided.'.format(cond) + 
+            raise Exception('If condition must evaluate to bool, {} provided.'.format(cond) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         return self._sample(args[1 if cond else 2], subs)
         
