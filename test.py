@@ -8,8 +8,8 @@ import Grounder.RDDLGrounder as RDDLGrounder
 # DOMAIN = 'Thiagos_Mars_Rover.rddl'
 # DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'dbn_prop.rddl'
-DOMAIN = 'Thiagos_HVAC_grounded.rddl'
-# DOMAIN = 'wildfire_mdp.rddl'
+# DOMAIN = 'Thiagos_HVAC_grounded.rddl'
+DOMAIN = 'wildfire_mdp.rddl'
 
 def main():
 
@@ -36,9 +36,12 @@ def main():
 
     grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
     # grounder = RDDLGrounder(rddl_ast)
-    # grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
     model = grounder.Ground()
     # grounder.InitGround()
+
+    grounder2 = RDDLGrounder.RDDLGrounder(rddl_ast)
+    model2 = grounder2.Ground()
+
 
     # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
     # rddl = generator.GenerateRDDL()
