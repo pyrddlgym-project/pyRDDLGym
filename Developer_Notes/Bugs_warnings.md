@@ -3,7 +3,7 @@
 post variable grounding, in the cpf expression
 we still see ?x , ?y, ?x2, etc. unsure if this is intentionally or pending
 completion.
-### possible fix
+### possible fix  : nested dicts
 during recursion of the expression tree, we would
 need to update our dictionary for other variables (?x2, ?y2)
 that obey the conditions in the cpf. These variables may have a
@@ -17,4 +17,5 @@ SO...I think what we need is a dict of dicts. example:
 {(?x,?y):{ (x1,y2) : { (?x2,?y2): { ... }}}
 The leaf values in this nested dictionary would be a dictionary with 
 only key values , which is in effect a list. Not the most elegant, but 
-manages our needs , I think. 
+manages our needs , I think. Each time we recurse, we add a dict, 
+each time we return, we remove the lowest level of that dictionary (still needs thought)
