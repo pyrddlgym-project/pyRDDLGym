@@ -194,6 +194,7 @@ class RDDLGrounder(Grounder):
                 for cpfs in self.AST.domain.cpfs[1]:
                     if cpfs.pvar[1][0] == name +'\'':
                         cpf = cpfs
+                        # break #added to avoid going over all cpfs, as soon as we have the target one, we stop the loop
                 # ground state, init state and cpf
                 for g in grounded:
                     self.states[g] = pvariable.default
