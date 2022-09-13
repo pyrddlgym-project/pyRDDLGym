@@ -1,13 +1,20 @@
+
+
 # overall
 
-Grounding , sim-intf
+todo  LATER: handle type matching in expressions 
+
+Handle nested sum, product, exists operations. 
+    this will apply to cpfs, reward, constraints
 
 # Simulator interface
 reach out to Mike
-# Grounding reward
 
-## for Thiagos HVAC domain
+# Grounding CPFS
 
-### Sum statements
-Could leave as an expression to be evaluated during runtime
-or convert to a possible over-nested tree of sum statements
+In a for loop, need to expand the dictionary for aggregate ops
+
+use the grounding dictionaries in the recursion and ground subseq.
+if a non-fluent check fails, stop that grounding chain, and
+return. When the leaf is reached, add to the successfully grounded
+list (passed through the recursions)
