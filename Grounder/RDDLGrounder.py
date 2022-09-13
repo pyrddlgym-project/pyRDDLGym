@@ -190,18 +190,11 @@ class RDDLGrounder(Grounder):
                 for g in grounded:
                     self.nonfluents[g] = pvariable.default
             elif pvariable.fluent_type == 'state-fluent':
-                # find cpf
-                for cpfs in self.AST.domain.cpfs[1]:
-                    if cpfs.pvar[1][0] == name +'\'':
-                        cpf = cpfs
-                        # break #added to avoid going over all cpfs, as soon as we have the target one, we stop the loop
-                # ground state, init state and cpf
                 for g in grounded:
                     self.states[g] = pvariable.default
                     l = len(name)
                     next_state = g[:l] + '\'' + g[l:]
                     self.nextstates[next_state] = g
-                    self._groundCPF(name, cpf, g)
             elif pvariable.fluent_type == 'action-fluent':
                 for g in grounded:
                     self.actions[g] = pvariable.default
@@ -211,7 +204,26 @@ class RDDLGrounder(Grounder):
             elif pvariable.fluent_type == 'interm-fluent':
                 for g in grounded:
                     self.interm[g] = pvariable.default
-
+        #----NOW LOOP AGAIN, with all the state variable and property grounding options done
+        #---this lets us ground the cpfs, rewards and constraints more easily
+        for pvariable in self.AST.domain.pvariables:
+            name = pvariable.name
+            if pvariable.arity > 0:
+                variations = self._groundObjects(pvariable.param_types)
+                grounded = self._generateName(name, variations)
+            else:
+                grounded = [name]
+            if pvariable.fluent_type == 'state-fluent':
+                # find cpf
+                for cpfs in self.AST.domain.cpfs[1]:
+                    if cpfs.pvar[1][0] == name +'\'':
+                        cpf = cpfs
+                        break #added to avoid going over all cpfs, as soon as we have the target one, we stop the loop
+                # ground state, init state and cpf
+                for g in grounded:
+                    l = len(name)
+                    next_state = g[:l] + '\'' + g[l:]
+                    self._groundCPF(name, cpf, g)
         return
 
     def _groundObjects(self, args):
@@ -268,7 +280,6 @@ class RDDLGrounder(Grounder):
         args_dic = {}
         for i in range(len(args)):
             args_dic[args[i]] = variable_args[i]
-
         # parse cpf w.r.t cpf args and variables
         # print(cpf)
         new_cpf = copy.deepcopy(cpf)
@@ -280,17 +291,28 @@ class RDDLGrounder(Grounder):
 
         new_pvar = ('pvar_expr', (new_name, None))
         new_cpf.pvar = new_pvar
-        self._scan_expr_tree(new_cpf.expr, args_dic)
+        new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
         print(new_cpf)
 
         return new_cpf
 
 
     def _scan_expr_tree(self, expr, dic):
+        """
+        Args:
+            expr:
+            list_dic:
+        Returns:
+        :Summary:
+        """
+
         if isinstance(expr, tuple):
-            return
-        if expr.etype[0] == 'pvar':
-            if len(expr.args[1]) > 0:
+            pass # return is at end of function
+        elif expr.etype[0] == 'pvar':
+            if expr.args[1] == None: #should really be etype = constant in parsed tree
+                #then it is a constant
+                pass #return statement is at end of func as per coding conventions
+            elif len(expr.args[1]) > 0:
                 new_name = expr.args[0] + '('
                 for arg in expr.args[1]:
                     if arg in dic:
@@ -300,10 +322,15 @@ class RDDLGrounder(Grounder):
                 new_name = new_name[:-1] + ')'
                 expr = Expression(('pvar_expr', (new_name, None)))
         elif expr.etype[0] == 'constant':
-            return
+            pass #the return statement is at the end
         else:
+            new_children = []
             for child in expr.args:
-                self._scan_expr_tree(child, dic)
+                new_children.append(self._scan_expr_tree(child, dic))
+            #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
+            expr = Expression((expr.etype[1], tuple(new_children)))
+        #--end else
+        return expr
 
     def _groundReward(self):
         return
