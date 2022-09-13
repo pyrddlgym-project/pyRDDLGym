@@ -323,6 +323,28 @@ class RDDLGrounder(Grounder):
                 expr = Expression(('pvar_expr', (new_name, None)))
         elif expr.etype[0] == 'constant':
             pass #the return statement is at the end
+        elif expr.etype[0] in ['arithmetic','boolean','relational']:
+            new_children = []
+            for child in expr.args:
+                new_children.append(self._scan_expr_tree(child, dic))
+            #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
+            expr = Expression((expr.etype[1], tuple(new_children)))
+        elif expr.etype[0] in ['sum','prod']:
+            #need to do a for loop through the objects, and pass in
+            # a NEW dictionary (keep the old copy to recover state)
+            pass
+            # new_children = []
+            # for child in expr.args:
+            #     new_children.append(self._scan_expr_tree(child, dic))
+            # #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
+            # expr = Expression((expr.etype[1], tuple(new_children)))
+        elif expr.etype[0] in ['max', 'min','avg']:
+            # need to instantiate the arguments in the list
+            pass
+        elif expr.etype[0] in ['forall', 'exists']:
+            # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
+            # need to chain expressions...ugh this can be a deep tree
+            pass
         else:
             new_children = []
             for child in expr.args:
