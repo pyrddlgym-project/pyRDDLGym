@@ -1,14 +1,16 @@
 from Parser import parser as parser
 from Parser import RDDLReader as RDDLReader
 import Grounder.RDDLGrounder as RDDLGrounder
+from Visualizer.MarsRoverDisplay import MarsRoverDisplay
 
 # DOMAIN = 'power_unit_commitment.rddl'
 
 # DOMAIN = 'ThiagosReservoir.rddl'
-# DOMAIN = 'Thiagos_Mars_Rover.rddl'
+DOMAIN = 'Thiagos_Mars_Rover.rddl'
+# DOMAIN = 'Thiagos_Mars_Rover_grounded.rddl'
 # DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'dbn_prop.rddl'
-DOMAIN = 'Thiagos_HVAC_grounded.rddl'
+# DOMAIN = 'Thiagos_HVAC_grounded.rddl'
 # DOMAIN = 'wildfire_mdp.rddl'
 
 def main():
@@ -31,6 +33,8 @@ def main():
     # parse RDDL file
     rddl_ast = MyRDDLParser.parse(domain)
 
+
+
     # MyXADDTranslator = XADDTranslator(rddl_ast)
     # MyXADDTranslator.Translate()
 
@@ -40,9 +44,12 @@ def main():
     model = grounder.Ground()
     # grounder.InitGround()
 
+    marsVisual = MarsRoverDisplay(model,[128,128])
+
+
     # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
     # rddl = generator.GenerateRDDL()
-    print(rddl)
+    # print(rddl)
 
 
 if __name__ == "__main__":
