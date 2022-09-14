@@ -2,12 +2,15 @@ domain hvac_vav_fix{
 
     pvariables {
         //Constants
+        ADJ_r1_r1 : { non-fluent, bool, default = false };
+        ADJ_r2_r2 : { non-fluent, bool, default = false };
         ADJ_r1_r2 : { non-fluent, bool, default = false };
         ADJ_r2_r1 : { non-fluent, bool, default = false };
         ADJ_r1_r3 : { non-fluent, bool, default = false };
         ADJ_r3_r1 : { non-fluent, bool, default = false };
         ADJ_r3_r2 : { non-fluent, bool, default = false };
         ADJ_r2_r3 : { non-fluent, bool, default = false };
+        ADJ_r3_r3 : { non-fluent, bool, default = false };
 
         ADJ_OUTSIDE_r1 : { non-fluent, bool, default = false };
         ADJ_OUTSIDE_r2 : { non-fluent, bool, default = false };
@@ -25,12 +28,15 @@ domain hvac_vav_fix{
         R_HALL_r2 : { non-fluent, real, default = 2};
         R_HALL_r3 : { non-fluent, real, default = 2};
 
+		R_WALL_r1_r1 : { non-fluent, real, default = 1.5 };
+		R_WALL_r2_r2 : { non-fluent, real, default = 1.5 };
         R_WALL_r1_r2 : { non-fluent, real, default = 1.5 };
         R_WALL_r2_r1 : { non-fluent, real, default = 1.5 };
         R_WALL_r2_r3 : { non-fluent, real, default = 1.5 };
         R_WALL_r3_r2 : { non-fluent, real, default = 1.5 };
         R_WALL_r1_r3 : { non-fluent, real, default = 1.5 };
         R_WALL_r3_r1 : { non-fluent, real, default = 1.5 };
+        R_WALL_r3_r3 : { non-fluent, real, default = 1.5 };
 
         IS_ROOM_r1 : { non-fluent, bool, default = false };
         IS_ROOM_r2 : { non-fluent, bool, default = false };
@@ -86,12 +92,12 @@ domain hvac_vav_fix{
     cpfs {
         //State
         TEMP_r1' = TEMP_r1 + TIME_DELTA/CAP_r1 *
-            (AIR_r1 * CAP_AIR * (TEMP_AIR - TEMP_r1) * IS_ROOM_r1'
+            (AIR_r1 * CAP_AIR * (TEMP_AIR - TEMP_r1) * IS_ROOM_r1
             + (ADJ_r1_r1 | ADJ_r1_r1) * (TEMP_r1 - TEMP_r1) / R_WALL_r1_r1
             + (ADJ_r1_r2 | ADJ_r2_r1) * (TEMP_r2 - TEMP_r1) / R_WALL_r1_r2
             + (ADJ_r1_r3 | ADJ_r3_r1) * (TEMP_r3 - TEMP_r1) / R_WALL_r1_r3
             + ADJ_OUTSIDE_r1*(TEMP_OUTSIDE_r1 - TEMP_r1)/ R_OUTSIDE_r1
-            + ADJ_HALL_r1*(TEMP_HALL_r1-TEMP_r1)/R_HALL_r1);
+            + ADJ_HALL_r1*(TEMP_HALL_r1 - TEMP_r1)/R_HALL_r1);
 
         TEMP_r2' = TEMP_r2 + TIME_DELTA/CAP_r2 *
             (AIR_r2 * CAP_AIR * (TEMP_AIR - TEMP_r2) * IS_ROOM_r2
@@ -99,7 +105,7 @@ domain hvac_vav_fix{
             + (ADJ_r2_r2 | ADJ_r2_r2) * (TEMP_r2 - TEMP_r2) / R_WALL_r2_r2
             + (ADJ_r2_r3 | ADJ_r3_r2) * (TEMP_r3 - TEMP_r2) / R_WALL_r2_r3
             + ADJ_OUTSIDE_r2*(TEMP_OUTSIDE_r2 - TEMP_r2)/ R_OUTSIDE_r2
-            + ADJ_HALL_r2*(TEMP_HALL_r2-TEMP_r2)/R_HALL_r2);
+            + ADJ_HALL_r2*(TEMP_HALL_r2 - TEMP_r2)/R_HALL_r2);
 
         TEMP_r3' = TEMP_r3 + TIME_DELTA/CAP_r3 *
             (AIR_r3 * CAP_AIR * (TEMP_AIR - TEMP_r3) * IS_ROOM_r3
@@ -107,8 +113,8 @@ domain hvac_vav_fix{
             + (ADJ_r3_r2 | ADJ_r2_r3) * (TEMP_r2 - TEMP_r3) / R_WALL_r3_r2
             + (ADJ_r3_r3 | ADJ_r3_r3) * (TEMP_r3 - TEMP_r3) / R_WALL_r3_r3
             + ADJ_OUTSIDE_r3*(TEMP_OUTSIDE_r3 - TEMP_r3)/ R_OUTSIDE_r3
-            + ADJ_HALL_r3*(TEMP_HALL_r3-TEMP_r3)/R_HALL_r3);
-
+            + ADJ_HALL_r3*(TEMP_HALL_r3 - TEMP_r3)/R_HALL_r3);
+		
         //TEST_DERIVED1 = 3*5;
         //TEST_DERIVED2 = TEST_DERIVED1 * 10;
         //TEST_DERIVEDN = 15;
@@ -151,7 +157,6 @@ non-fluents nf_hvac_vav_fix{
     objects{
 
     };
-
     non-fluents {
         //Define rooms
         IS_ROOM_r1 = true; IS_ROOM_r2 = true; IS_ROOM_r3 = true;
