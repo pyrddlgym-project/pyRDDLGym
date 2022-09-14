@@ -5,6 +5,9 @@ from abc import ABCMeta, abstractmethod
 from Grounder.RDDLModel import RDDLModel
 # import RDDLModel
 
+AGGREG_OPERATION_STRING_LIST = ["sum","prod","max","min","avg"]
+AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["+","*","max","min","+"]
+
 
 class Grounder(metaclass=ABCMeta):
     @abstractmethod
@@ -329,21 +332,39 @@ class RDDLGrounder(Grounder):
                 new_children.append(self._scan_expr_tree(child, dic))
             #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
             expr = Expression((expr.etype[1], tuple(new_children)))
-        elif expr.etype[0] in ['sum','prod']:
-            #need to do a for loop through the objects, and pass in
-            # a NEW dictionary (keep the old copy to recover state)
-            pass
-            # new_children = []
-            # for child in expr.args:
-            #     new_children.append(self._scan_expr_tree(child, dic))
-            # #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
-            # expr = Expression((expr.etype[1], tuple(new_children)))
-        elif expr.etype[0] in ['max', 'min','avg']:
-            # need to instantiate the arguments in the list
-            pass
-        elif expr.etype[0] in ['forall', 'exists']:
-            # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
-            # need to chain expressions...ugh this can be a deep tree
+        elif expr.etype[0] == "aggregation":
+            if expr.etype[1] in AGGREG_OPERATION_STRING_LIST:
+                aggreg_type_idx = AGGREG_OPERATION_STRING_LIST.index(expr.etype[1])
+                #determine what the recursive op is for the aggreg type. Eg: sum = "+"
+                aggreg_recursive_operation_string = AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST[aggreg_type_idx]
+
+                #need to do a for loop through the objects, and pass in
+                # a NEW dictionary (keep the old copy to recover state)
+                #--only for average, we need to first "/ n ", for all others
+                # we need to decide the symbol "+" or "*" and iterative
+                # build a tree over the objects specd in the dict, using a for loop
+                # need to ground ofcourse. We update the dictionary, and call the
+                # the expression on the other argument, which can require further nesting handling
+                #---first let's collect the instances like (?x,?y) = (x1,y3) that satisfy the set definition passed in
+                object_instances_set = set()
+                instances_def_args = expr.args[0]
+                if instances_def_args[0] == 'typed_var': #then we iterate over the objects of this type
+                    var_key_string = instances_def_args[1][0]#like ?x
+                    object_type = instances_def_args[1][1]
+                    object_instances_set.update(self.objects[object_type])
+                #FIRST if this is an average, we need a "/ |set|" on the second arg
+                #todo ...could create another "sum" expression and recursively call :-)
+
+                pass
+            elif expr.etype[1] in ['forall', 'exists']:
+                # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
+                # need to chain expressions...ugh this can be a deep tree
+                pass
+        elif expr.etype[0] == "control": #if statements and such
+            #https://en.wikipedia.org/wiki/Abstract_syntax_tree
+            # condition, if, else... NOTE WE DO Support multiple else ifs, which I guess
+            # is just many if conditions, and one else condition. I assume we DO require an else condition?
+            # or do we manually have to insert an else with "default" value for cpfs ??
             pass
         else:
             new_children = []
