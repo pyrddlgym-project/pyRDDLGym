@@ -2,6 +2,7 @@ from Parser import parser as parser
 from Parser import RDDLReader as RDDLReader
 import Grounder.RDDLGrounder as RDDLGrounder
 from Simulator.RDDLSimulator import RDDLSimulator
+from Simulator.DependencyAnalysis import DependencyAnalysis
 
 DOMAIN = 'power_unit_commitment.rddl'
 
@@ -39,11 +40,15 @@ def main():
     grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
     model = grounder.Ground()
     pprint(vars(model))
-    print(type(model.cpforder))
+    
+    sortnodes = DependencyAnalysis(model).compute_levels()
+    print(sortnodes)
     
     good_policy = True
     sampler = RDDLSimulator(model)
-    for h in range(100):
+    loops = 1
+        
+    for h in range(loops):
         state = sampler.reset_state()
         total_reward = 0.
         for _ in range(20):
@@ -70,7 +75,7 @@ def main():
                 print(reward)
             total_reward += reward
         print('trial {}, total reward {}'.format(h, total_reward))
-    
+        
     # grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
     # grounder.Ground()
     # pprint(vars(grounder))

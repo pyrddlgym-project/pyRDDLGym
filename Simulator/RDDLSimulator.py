@@ -1,39 +1,41 @@
 from collections.abc import Sized
 import math
 import numpy as np
-import random
+from typing import Dict
 
 from Grounder.RDDLModel import PlanningModel
-from Parser.expr import Expression
+from Parser.expr import Expression, Value
+
+Args = Dict[str, Value]
 
 
 class RDDLSimulator:
     
-    def __init__(self, model: PlanningModel):
+    def __init__(self, model: PlanningModel, rng=np.random.default_rng()) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param model: the RDDL model
         '''
         self._model = model        
+        self._rng = rng
         self._order_cpfs = sorted(self._model.cpforder.keys())
+        self._action_fluents = set(self._model.actions.keys())
         
-        self._subs = {}
-        self._next_state = None        
-        
-    def reset_state(self):
+        self._subs = self._model.nonfluents.copy()  
+        self._next_state = None
+    
+    def reset_state(self) -> Args:
         '''Resets the state variables to their initial values.'''
         self._model.states = self._model.init_state
         self._next_state = None
         return self._model.states
     
-    def _update_subs(self):
-        self._subs.clear()
-        self._subs.update(self._model.nonfluents)
+    def _update_subs(self) -> Args:
         self._subs.update(self._model.states)
         self._subs.update(self._model.actions)        
         return self._subs
         
-    def check_state_invariants(self):
+    def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants for the current state variables are not satisfied.'''
         subs = self._update_subs()
         for idx, invariant in enumerate(self._model.invariants):
@@ -43,13 +45,17 @@ class RDDLSimulator:
             if not sample:
                 raise Exception('State invariant #{} failed to be satisfied.'.format(idx + 1))
         
-    def sample_next_state(self, actions):
+    def sample_next_state(self, actions: Args) -> Args:
         '''Samples and returns the next state from the cpfs.
         
         :param actions: a dict mapping current action fluents to their values
         '''
         if self._next_state is not None:
             raise Exception('A state has already been sampled: call update_state to update it.')
+        if self._action_fluents != set(actions.keys()):
+            raise Exception('Action fluents provided are not valid. Expected: {}, got: {}.'.format(
+                self._action_fluents, set(actions.keys())))
+            
         self._model.actions = actions
         subs = self._update_subs()  
         next_state = {}
@@ -69,13 +75,13 @@ class RDDLSimulator:
         self._next_state = next_state
         return next_state
     
-    def sample_reward(self):
+    def sample_reward(self) -> float:
         '''Samples the current reward given the current state and action.'''
         expr = self._model.reward
         subs = self._update_subs()
         return float(self._sample(expr, subs))
     
-    def update_state(self):
+    def update_state(self) -> None:
         '''Updates the state of the simulation to the sampled state.'''
         if self._next_state is None:
             raise Exception('Next state not sampled yet: call sample_next_state first.')
@@ -133,7 +139,7 @@ class RDDLSimulator:
             raise Exception('Variable {} is not defined.'.format(var) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         return subs[var]
-        
+    
     def _sample_relational(self, expr, eop, subs):
         args = expr.args
         if not isinstance(args, Sized):
@@ -270,32 +276,6 @@ class RDDLSimulator:
             raise Exception('Func {} is not supported.'.format(name) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))   
     
-    # def _sample_aggregation(self, expr, eop, subs):
-    #     if eop == 'sum': 
-    #         eop = '+'
-    #     elif eop == 'prod': 
-    #         eop = '*'
-    #     elif eop != 'min' and eop != 'max':
-    #         raise Exception('Aggregation op {} is not supported.'.format(eop))
-    #
-    #     args = expr.args
-    #     if len(args) <= 1:
-    #         raise Exception('Aggregation must contain at least one var and one arg.')
-    #
-    #     typed_vars = args[:-1]
-    #     subexpr = args[-1]
-    #     names = [var for _, (var, obj) in typed_vars]
-    #     subs = [self._ground.objects[obj] for _, (var, obj) in typed_vars]
-    #     agg = None
-    #     for i, sub in enumerate(itertools.product(*subs)):
-    #         subs.update(zip(names, sub))
-    #         term = self._sample(subexpr, subs)
-    #         agg = RDDLSimulator._update_arithmetic(agg, term, eop) if i else term
-    #
-    #     for name in names:
-    #         del subs[name]
-    #     return agg
-    
     # logical expressions
     def _sample_logical(self, expr, eop, subs):
         args = expr.args
@@ -325,6 +305,7 @@ class RDDLSimulator:
         if not isinstance(arg1, bool):
             raise Exception('Binary operator {} requires boolean arg, {} provided.'.format(op, arg1) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         if op == '|' and arg1:
             return True
         elif op == '^' and not arg1:
@@ -426,7 +407,7 @@ class RDDLSimulator:
             raise Exception('Uniform bounds do not satisfy {} <= {}.'.format(lb, ub) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
-        return random.uniform(lb, ub)      
+        return self._rng.uniform(lb, ub)      
     
     def _sample_bernoulli(self, expr, subs):
         args = expr.args
@@ -439,7 +420,7 @@ class RDDLSimulator:
             raise Exception('Bernoulli parameter p should be in [0, 1], found = {}.'.format(p) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
-        return random.random() <= p
+        return self._rng.uniform() <= p
     
     def _sample_normal(self, expr, subs):
         args = expr.args
@@ -454,7 +435,7 @@ class RDDLSimulator:
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         stdev = math.sqrt(var)
         
-        return np.random.normal(loc=mean, scale=stdev)
+        return self._rng.normal(loc=mean, scale=stdev)
     
     def _sample_poisson(self, expr, subs):
         args = expr.args
@@ -467,7 +448,7 @@ class RDDLSimulator:
             raise Exception('Rate of Poisson {} is not positive.'.format(rate) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
-        return np.random.poisson(lam=rate)
+        return self._rng.poisson(lam=rate)
     
     def _sample_exponential(self, expr, subs):
         args = expr.args
@@ -480,7 +461,7 @@ class RDDLSimulator:
             raise Exception('Rate of Exponential {} is not positive.'.format(scale) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
-        return np.random.exponential(scale=scale)
+        return self._rng.exponential(scale=scale)
     
     def _sample_weibull(self, expr, subs):
         args = expr.args
@@ -498,7 +479,7 @@ class RDDLSimulator:
             raise Exception('Scale of Weibull {} is not positive.'.format(scale) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
-        return scale * np.random.weibull(shape)
+        return scale * self._rng.weibull(shape)
     
     def _sample_gamma(self, expr, subs):
         args = expr.args
@@ -516,5 +497,5 @@ class RDDLSimulator:
             raise Exception('Scale of Gamma {} is not positive.'.format(scale) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
-        return np.random.gamma(shape=shape, scale=scale)
+        return self._rng.gamma(shape=shape, scale=scale)
     
