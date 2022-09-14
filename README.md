@@ -26,3 +26,9 @@ Bug fix:
   * power unit commitment domain had non-fluent ambiguity definition in instance (implicit in instance)
   * Aggregation union precedence parsing still exists (the bug is traced back to the JAVA code).<br/> 
   Temp fix: put parenthesis around aggregations - (sum_{}[])
+
+Known issues:
+* derived fluents are not fully implemented in the parser, no leveling reasoning.
+* Interim fluents are not parsed correctly.
+* Preconditions are not parsed correctly.
+* Mathematical arithmetic operations are parsed incorrectly if there are no passing spaces.
