@@ -120,7 +120,7 @@ domain hvac_vav_fix{
         TEST_DERIVEDN = 15;
         fulfilledDemand1 = TEMP_r1 * AIR_r1;
         fulfilledDemand2 = fulfilledDemand1 * AIR_r2;
-        fulfilledDemandN = AIR_r1 * Air_r2;
+        fulfilledDemandN = AIR_r1 * AIR_r2;
 
     };
 
