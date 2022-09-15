@@ -94,7 +94,7 @@ class RDDLGroundedGrounder(Grounder):
                     self._cpforder[0].append(name)
             elif pvariable.fluent_type == 'derived-fluent':
                 cpf = None
-                for cpfs in self._AST.domain.dervied_cpfs[1]:
+                for cpfs in self._AST.domain.derived_cpfs:
                     if cpfs.pvar[1][0] == name:
                         cpf = cpfs
                 if cpf is not None:
@@ -109,7 +109,7 @@ class RDDLGroundedGrounder(Grounder):
                         self._cpforder[level] = [name]
             elif pvariable.fluent_type == 'interm-fluent':
                 cpf = None
-                for cpfs in self._AST.domain.intermediate_cpfs[1]:
+                for cpfs in self._AST.domain.intermediate_cpfs:
                     if cpfs.pvar[1][0] == name:
                         cpf = cpfs
                 if cpf is not None:

@@ -47,12 +47,14 @@ def main():
     good_policy = True
     sampler = RDDLSimulator(model)
     loops = 1
-        
+    
+    print('\nstarting simulation')
     for h in range(loops):
         state = sampler.reset_state()
         total_reward = 0.
         for _ in range(20):
             sampler.check_state_invariants()
+            sampler.check_action_preconditions()
             actions = {'AIR_r1': 0., 'AIR_r2': 0., 'AIR_r3': 0.}
             if good_policy:
                 if state['TEMP_r1'] < 20.5:
@@ -71,8 +73,11 @@ def main():
             reward = sampler.sample_reward()
             sampler.update_state()
             if h == 0:
-                print(state)
-                print(reward)
+                print('state = {}'.format(state))
+                print('reward = {}'.format(reward))
+                print('derived = {}'.format(model.derived))
+                print('interm = {}'.format(model.interm))
+                print('')
             total_reward += reward
         print('trial {}, total reward {}'.format(h, total_reward))
         

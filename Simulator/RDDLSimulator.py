@@ -18,21 +18,30 @@ class RDDLSimulator:
         '''
         self._model = model        
         self._rng = rng
+        
         self._order_cpfs = sorted(self._model.cpforder.keys())
         self._action_fluents = set(self._model.actions.keys())
+        self._init_actions = self._model.actions.copy()
         
-        self._subs = self._model.nonfluents.copy()  
+        self._subs = self._model.nonfluents.copy()  # these won't change
         self._next_state = None
     
     def reset_state(self) -> Args:
         '''Resets the state variables to their initial values.'''
         self._model.states = self._model.init_state
+        self._model.actions = self._init_actions
+        for var in self._model.interm.keys():  # TODO: unless can be default (parser throws error)
+            self._model.interm[var] = None
+        for var in self._model.derived.keys():
+            self._model.derived[var] = None
         self._next_state = None
         return self._model.states
     
     def _update_subs(self) -> Args:
         self._subs.update(self._model.states)
-        self._subs.update(self._model.actions)        
+        self._subs.update(self._model.actions)  
+        self._subs.update(self._model.interm)    
+        self._subs.update(self._model.derived)    
         return self._subs
         
     def check_state_invariants(self) -> None:
@@ -41,10 +50,24 @@ class RDDLSimulator:
         for idx, invariant in enumerate(self._model.invariants):
             sample = self._sample(invariant, subs)
             if not isinstance(sample, bool):
-                raise Exception('State invariant must evaluate to bool, {} provided.'.format(sample))
+                raise Exception('State invariant must evaluate to bool, got {}.'.format(sample) + 
+                                '\n' + RDDLSimulator._print_stack_trace(invariant))
             if not sample:
-                raise Exception('State invariant #{} failed to be satisfied.'.format(idx + 1))
-        
+                raise Exception('State invariant {} is not satisfied.'.format(idx + 1) + 
+                                '\n' + RDDLSimulator._print_stack_trace(invariant))
+    
+    def check_action_preconditions(self) -> None:
+        '''Throws an exception if the action preconditions are not satisfied.'''
+        subs = self._update_subs()
+        for idx, precondition in enumerate(self._model.preconditions):
+            sample = self._sample(precondition, subs)
+            if not isinstance(sample, bool):
+                raise Exception('Action precondition must evaluate to bool, got {}.'.format(sample) + 
+                                '\n' + RDDLSimulator._print_stack_trace(precondition))
+            if not sample:
+                raise Exception('Action precondition {} is not satisfied.'.format(idx + 1) + 
+                                '\n' + RDDLSimulator._print_stack_trace(precondition))
+    
     def sample_next_state(self, actions: Args) -> Args:
         '''Samples and returns the next state from the cpfs.
         
@@ -53,7 +76,7 @@ class RDDLSimulator:
         if self._next_state is not None:
             raise Exception('A state has already been sampled: call update_state to update it.')
         if self._action_fluents != set(actions.keys()):
-            raise Exception('Action fluents provided are not valid. Expected: {}, got: {}.'.format(
+            raise Exception('Action fluents provided are not valid. Expected {}, got {}.'.format(
                 self._action_fluents, set(actions.keys())))
             
         self._model.actions = actions
@@ -64,14 +87,24 @@ class RDDLSimulator:
                 if cpf in self._model.next_state:
                     primed_cpf = self._model.next_state[cpf]
                     expr = self._model.cpfs[primed_cpf].expr
-                    sample = self._sample(expr, self._subs)
+                    sample = self._sample(expr, subs)
                     if primed_cpf not in self._model.prev_state:
-                        raise Exception('Internal error: var {} not in prev_state.'.format(primed_cpf))
-                    next_state[self._model.prev_state[primed_cpf]] = sample                    
+                        raise Exception('Internal error: variable {} is not in prev_state.'.format(primed_cpf))
+                    next_state[self._model.prev_state[primed_cpf]] = sample   
+                    subs[primed_cpf] = sample  # TODO: don't know if we need this             
                 elif cpf in self._model.interm:
-                    raise Exception('Interm vars not supported yet.')  # TODO: implement this
+                    expr = self._model.cpfs[cpf].expr
+                    sample = self._sample(expr, subs)
+                    subs[cpf] = sample
+                    self._model.interm[cpf] = sample
+                elif cpf in self._model.derived:
+                    expr = self._model.cpfs[cpf].expr
+                    sample = self._sample(expr, subs)
+                    subs[cpf] = sample
+                    self._model.derived[cpf] = sample
                 else:
-                    raise Exception('Undefined cpf {}.'.format(cpf))                
+                    raise Exception('CPF {} is not defined in the instance.'.format(cpf))     
+                           
         self._next_state = next_state
         return next_state
     
@@ -84,7 +117,7 @@ class RDDLSimulator:
     def update_state(self) -> None:
         '''Updates the state of the simulation to the sampled state.'''
         if self._next_state is None:
-            raise Exception('Next state not sampled yet: call sample_next_state first.')
+            raise Exception('Next state has not been sampled: call sample_next_state first.')
         self._model.states = self._next_state
         self._next_state = None
     
@@ -118,10 +151,10 @@ class RDDLSimulator:
             elif etype == 'randomvar':
                 return self._sample_random(expr, eop, subs)
             else:
-                raise Exception('Expression type {} is not supported.'.format(etype) + 
+                raise Exception('Internal error: expression type {} is not supported.'.format(etype) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
         else:
-            raise Exception('Type {} is not an expression.'.format(expr) + 
+            raise Exception('Internal error: type {} is not supported.'.format(expr) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
 
     # simple expressions
@@ -131,14 +164,19 @@ class RDDLSimulator:
     def _sample_pvar(self, expr, name, subs):
         args = expr.args
         if len(args) != 2:
-            raise Exception('Malformed pvar def {}.'.format(expr) + 
+            raise Exception('Internal error: malformed pvar def {}.'.format(expr) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         var = args[0]
         if var not in subs:
-            raise Exception('Variable {} is not defined.'.format(var) + 
+            raise Exception('Variable {} is not defined in the instance.'.format(var) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
-        return subs[var]
+        val = subs[var]
+        
+        if val is None:
+            raise Exception('The value of variable {} is not set.'.format(var) + 
+                            '\n' + RDDLSimulator._print_stack_trace(expr))
+        return val
     
     def _sample_relational(self, expr, eop, subs):
         args = expr.args
@@ -200,7 +238,7 @@ class RDDLSimulator:
         elif op == '/':
             return arg1 / arg2  # int -> float
         else:
-            raise Exception('Invalid arithmetic operator {}.'.format(op) + 
+            raise Exception('Arithmetic operator {} is not supported.'.format(op) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
     
     def _sample_short_circuit_product(self, expr, expr1, expr2, subs):
@@ -251,12 +289,12 @@ class RDDLSimulator:
         if isinstance(args, Expression):
             args = (args,)
         elif not isinstance(args, Sized):
-            raise Exception('Func args are invalid.' + 
+            raise Exception('Internal error: function {} args are invalid.'.format(name) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         if name in RDDLSimulator.KNOWN_UNARY:
             if len(args) != 1:
-                raise Exception('Func {} requires one arg.'.format(name) + 
+                raise Exception('Function {} requires one arg.'.format(name) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             arg = self._sample(args[0], subs)
             arg = 1 * arg  # bool -> int
@@ -264,7 +302,7 @@ class RDDLSimulator:
         
         elif name in RDDLSimulator.KNOWN_BINARY:
             if len(args) != 2:
-                raise Exception('Func {} requires two args.'.format(name) + 
+                raise Exception('Function {} requires two args.'.format(name) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             arg1 = self._sample(args[0], subs)
             arg2 = self._sample(args[1], subs)
@@ -273,7 +311,7 @@ class RDDLSimulator:
             return RDDLSimulator.KNOWN_BINARY[name](arg1, arg2)
         
         else:
-            raise Exception('Func {} is not supported.'.format(name) + 
+            raise Exception('Function {} is not supported.'.format(name) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))   
     
     # logical expressions
@@ -282,7 +320,7 @@ class RDDLSimulator:
         if len(args) == 1 and eop == '~':
             arg = self._sample(args[0], subs)
             if not isinstance(arg, bool):
-                raise Exception('Binary negation requires boolean arg.' + 
+                raise Exception('Logical negation requires boolean arg, got {}.'.format(arg) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
             return not arg
         elif len(args) == 2:
@@ -291,7 +329,7 @@ class RDDLSimulator:
             elif eop == '~':
                 return self._sample_xor(expr, *args, subs)
             else:  # TODO: do we need =>, <=> for grounded?
-                raise Exception('Binary operator {} is not supported.'.format(eop) + 
+                raise Exception('Logical operator {} is not supported.'.format(eop) + 
                                 '\n' + RDDLSimulator._print_stack_trace(expr))
         else:
             raise Exception('Logical expression {} cannot be evaluated.'.format(eop) + 
@@ -303,7 +341,7 @@ class RDDLSimulator:
         
         arg1 = self._sample(expr1, subs)
         if not isinstance(arg1, bool):
-            raise Exception('Binary operator {} requires boolean arg, {} provided.'.format(op, arg1) + 
+            raise Exception('Logical operator {} requires boolean arg, got {}.'.format(op, arg1) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
             
         if op == '|' and arg1:
@@ -313,7 +351,7 @@ class RDDLSimulator:
         
         arg2 = self._sample(expr2, subs)
         if not isinstance(arg1, bool):
-            raise Exception('Binary operator {} requires boolean arg, {} provided.'.format(op, arg2) + 
+            raise Exception('Logical operator {} requires boolean arg, got {}.'.format(op, arg2) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         return arg2
         
@@ -321,7 +359,7 @@ class RDDLSimulator:
         arg1 = self._sample(arg1, subs)
         arg2 = self._sample(arg2, subs)
         if not (isinstance(arg1, bool) and isinstance(arg2, bool)):
-            raise Exception('Xor requires boolean args.' + 
+            raise Exception('Xor requires boolean args, got {} and {}.'.format(arg1, arg2) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         return arg1 != arg2
     
@@ -337,7 +375,7 @@ class RDDLSimulator:
         
         cond = self._sample(args[0], subs)
         if not isinstance(cond, bool):
-            raise Exception('If condition must evaluate to bool, {} provided.'.format(cond) + 
+            raise Exception('If condition must evaluate to bool, got {}.'.format(cond) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         return self._sample(args[1 if cond else 2], subs)
         
@@ -362,13 +400,13 @@ class RDDLSimulator:
         elif name == 'Gamma':
             return self._sample_gamma(expr, subs)
         elif name == 'Discrete':  # TODO, implement Discrete
-            raise Exception('Discrete not yet supported...' + 
+            raise Exception('Internal error: Discrete not yet supported...' + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         elif name == 'Multinomial':  # TODO, implement Multinomial
-            raise Exception('Multinomial not yet supported...' + 
+            raise Exception('Internal error: Multinomial not yet supported...' + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))            
         elif name == 'Dirichlet':  # TODO, implement Dirichlet
-            raise Exception('Dirichlet not yet supported.' + 
+            raise Exception('Internal error: Dirichlet not yet supported...' + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))     
         else:
             raise Exception('Distribution {} is not supported.'.format(name) + 
@@ -382,7 +420,7 @@ class RDDLSimulator:
         
         arg = self._sample(args[0], subs)
         if not isinstance(arg, (int, bool)):
-            raise Exception('KronDelta requires integer or boolean parameter.')
+            raise Exception('KronDelta requires int or boolean parameter, got {}.'.format(arg))
         return arg
     
     def _sample_dirac_delta(self, expr, subs):
@@ -393,7 +431,7 @@ class RDDLSimulator:
             
         arg = self._sample(args[0], subs)
         if not isinstance(arg, float):
-            raise Exception('DiracDelta requires float parameter.')
+            raise Exception('DiracDelta requires float parameter, got {}.'.format(arg))
         return arg
     
     def _sample_uniform(self, expr, subs):
@@ -417,7 +455,7 @@ class RDDLSimulator:
             
         p = float(self._sample(args[0], subs))
         if not (0 <= p <= 1):
-            raise Exception('Bernoulli parameter p should be in [0, 1], found = {}.'.format(p) + 
+            raise Exception('Bernoulli parameter p should be in [0, 1], got {}.'.format(p) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         return self._rng.uniform() <= p
@@ -431,7 +469,7 @@ class RDDLSimulator:
         mean = float(self._sample(args[0], subs))
         var = float(self._sample(args[1], subs))
         if not (var >= 0.):
-            raise Exception('Variance of Normal {} is not positive.'.format(var) + 
+            raise Exception('Normal variance {} is not positive.'.format(var) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         stdev = math.sqrt(var)
         
@@ -445,7 +483,7 @@ class RDDLSimulator:
             
         rate = float(self._sample(args[0], subs))
         if not (rate >= 0.):
-            raise Exception('Rate of Poisson {} is not positive.'.format(rate) + 
+            raise Exception('Poisson rate {} is not positive.'.format(rate) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         return self._rng.poisson(lam=rate)
@@ -458,7 +496,7 @@ class RDDLSimulator:
             
         scale = float(self._sample(args[0], subs))
         if not (scale > 0.):
-            raise Exception('Rate of Exponential {} is not positive.'.format(scale) + 
+            raise Exception('Exponential rate {} is not positive.'.format(scale) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         return self._rng.exponential(scale=scale)
@@ -471,12 +509,12 @@ class RDDLSimulator:
             
         shape = float(self._sample(args[0], subs))
         if not (shape > 0.):
-            raise Exception('Shape of Weibull {} is not positive.'.format(shape) + 
+            raise Exception('Weibull shape {} is not positive.'.format(shape) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         scale = float(self._sample(args[1], subs))
         if not (scale > 0.):
-            raise Exception('Scale of Weibull {} is not positive.'.format(scale) + 
+            raise Exception('Weibull scale {} is not positive.'.format(scale) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         return scale * self._rng.weibull(shape)
@@ -489,12 +527,12 @@ class RDDLSimulator:
             
         shape = float(self._sample(args[0], subs))
         if not (shape > 0.):
-            raise Exception('Shape of Gamma {} is not positive.'.format(shape) + 
+            raise Exception('Gamma shape {} is not positive.'.format(shape) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         scale = float(self._sample(args[1], subs))
         if not (scale > 0.):
-            raise Exception('Scale of Gamma {} is not positive.'.format(scale) + 
+            raise Exception('Gamma scale {} is not positive.'.format(scale) + 
                             '\n' + RDDLSimulator._print_stack_trace(expr))
         
         return self._rng.gamma(shape=shape, scale=scale)
