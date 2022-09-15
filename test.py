@@ -6,8 +6,8 @@ from Visualizer.MarsRoverDisplay import MarsRoverDisplay
 # DOMAIN = 'power_unit_commitment.rddl'
 
 # DOMAIN = 'ThiagosReservoir.rddl'
-DOMAIN = 'Thiagos_Mars_Rover.rddl'
-# DOMAIN = 'Thiagos_Mars_Rover_grounded.rddl'
+# DOMAIN = 'Thiagos_Mars_Rover.rddl'
+DOMAIN = 'Thiagos_Mars_Rover_grounded.rddl'
 # DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'dbn_prop.rddl'
 # DOMAIN = 'Thiagos_HVAC_grounded.rddl'
