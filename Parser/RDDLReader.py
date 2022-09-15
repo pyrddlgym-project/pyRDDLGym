@@ -5,7 +5,6 @@ class RDDLReader(object):
     comment = r'\/\/.*?\n'
     comment_ws = r'(\s*?\n\s*?)+'
     domain_block = r'(?s)domain.*?\{.*?pvariables.*?cpfs.*?reward.*?;.*?\}[^;]'
-    # domain_block = r'(?s)domain.*?\{.*?types.*?pvariables.*?cpfs.*?reward.*?\};.*?\}[^;]'
     nonfluent_in_domain = r'(?s)\{\s*?non-fluent,.*?\};'
     nonfluent_block = r'(?s)non-fluents[^=]*?\{.*?\}[^;]'
     instance_block = r'(?s)instance.*?\{.*\}[^;]'
