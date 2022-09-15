@@ -374,7 +374,7 @@ class RDDLParser(object):
         if len(p) == 13:
             p[0] = PVariable(name=p[1], fluent_type='interm-fluent', range_type=p[6], param_types=p[2], level=p[10])
         else:
-            p[0] = PVariable(name=p[1], fluent_type='interm-fluent', range_type=p[6], param_types=p[2])
+            p[0] = PVariable(name=p[1], fluent_type='interm-fluent', range_type=p[6], param_types=p[2], level=1)
 
     def p_derivedfluent_def(self, p):
         '''derivedfluent_def : IDENT param_list LCURLY DERIVED_FLUENT COMMA type_spec COMMA LEVEL ASSIGN_EQUAL range_const RCURLY SEMI
@@ -382,7 +382,7 @@ class RDDLParser(object):
         if len(p) == 13:
             p[0] = PVariable(name=p[1], fluent_type='derived-fluent', range_type=p[6], param_types=p[2], level=p[10])
         else:
-            p[0] = PVariable(name=p[1], fluent_type='derived-fluent', range_type=p[6], param_types=p[2])
+            p[0] = PVariable(name=p[1], fluent_type='derived-fluent', range_type=p[6], param_types=p[2], level=1)
 
     def p_observfluent_def(self, p):
         '''observfluent_def : IDENT param_list LCURLY OBSERVATION COMMA type_spec RCURLY SEMI'''

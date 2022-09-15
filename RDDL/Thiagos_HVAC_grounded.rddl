@@ -81,12 +81,12 @@ domain hvac_vav_fix{
         AIR_r2: { action-fluent, real, default = 0.0 };
         AIR_r3: { action-fluent, real, default = 0.0 };
 
-        //TEST_DERIVED1 : { derived-fluent, real, level=1};
-        //TEST_DERIVED2 : { derived-fluent, real, level=2};
-        //TEST_DERIVEDN : { derived-fluent, real};
-        //fulfilledDemand1 : { interm-fluent, real, level=1};
-        //fulfilledDemand2 : { interm-fluent, real, level=2};
-        //fulfilledDemandN : { interm-fluent, real};
+        TEST_DERIVED1 : { derived-fluent, real, level=1};
+        TEST_DERIVED2 : { derived-fluent, real, level=2};
+        TEST_DERIVEDN : { derived-fluent, real};
+        fulfilledDemand1 : { interm-fluent, real, level=1};
+        fulfilledDemand2 : { interm-fluent, real, level=2};
+        fulfilledDemandN : { interm-fluent, real};
     };
 
     cpfs {
@@ -115,12 +115,12 @@ domain hvac_vav_fix{
             + ADJ_OUTSIDE_r3*(TEMP_OUTSIDE_r3 - TEMP_r3)/ R_OUTSIDE_r3
             + ADJ_HALL_r3*(TEMP_HALL_r3 - TEMP_r3)/R_HALL_r3);
 		
-        //TEST_DERIVED1 = 3*5;
-        //TEST_DERIVED2 = TEST_DERIVED1 * 10;
-        //TEST_DERIVEDN = 15;
-        //fulfilledDemand1 = TEMP_r1 * AIR_r1;
-        //fulfilledDemand2 = fulfilledDemand1 * AIR_r2;
-        //fulfilledDemandN = AIR_r1 * Air_r2;
+        TEST_DERIVED1 = 3*5;
+        TEST_DERIVED2 = TEST_DERIVED1 * 10;
+        TEST_DERIVEDN = 15;
+        fulfilledDemand1 = TEMP_r1 * AIR_r1;
+        fulfilledDemand2 = fulfilledDemand1 * AIR_r2;
+        fulfilledDemandN = AIR_r1 * Air_r2;
 
     };
 
@@ -135,14 +135,14 @@ domain hvac_vav_fix{
         + 10.0*abs[((TEMP_UP_r3 + TEMP_LOW_r3)/2.0) - TEMP_r3]];
 
 
-    //action-preconditions{
-    //    AIR_r1 >= 0;
-    //    AIR_r2 >= 0;
-    //    AIR_r3 >= 0;
-    //    AIR_r1 <= AIR_MAX_r1;
-    //    AIR_r2 <= AIR_MAX_r2;
-    //    AIR_r3 <= AIR_MAX_r3;
-    //};
+    action-preconditions{
+        AIR_r1 >= 0;
+        AIR_r2 >= 0;
+        AIR_r3 >= 0;
+        AIR_r1 <= AIR_MAX_r1;
+        AIR_r2 <= AIR_MAX_r2;
+        AIR_r3 <= AIR_MAX_r3;
+    };
 
     state-invariants{
         TEMP_r1 >= 0;
