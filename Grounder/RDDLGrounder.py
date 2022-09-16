@@ -3,6 +3,7 @@ import copy
 from Parser.expr import Expression
 from abc import ABCMeta, abstractmethod
 from Grounder.RDDLModel import RDDLModel
+import itertools
 # import RDDLModel
 
 AGGREG_OPERATION_STRING_LIST = ["sum","prod","max","min","avg"]
@@ -299,7 +300,35 @@ class RDDLGrounder(Grounder):
 
         return new_cpf
 
+    #===================================================
+    def do_aggregate_expression_nesting(self,original_dict, new_variables_list, instances_list,\
+                                operation_string,expression):
+        """
+        Args:
+            original_dict:
+            new_variables_list:
+            instances_set:
+            operation_string:
+            expression:
+        Returns:
+        Summary: expands the dictionary with the object instances for the variables passed in;
+        NOTE that the order of variables, and order of elements in each entry of instances_set should line up.
+        With the expanded dictionary, creates an expression of the type specified in "operation_String"
+        the lhs (first) argument would be an instance from the set, and rhs would be from
+        recursively calling this function with a reduced set, and the original dictionary.
+        """
 
+        lhs_updated_dict = copy.deepcopy(original_dict)
+        lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+        #todo create expression for lhs, and then rhs recursively call this
+        
+
+
+
+
+
+
+            #===================================================
     def _scan_expr_tree(self, expr, dic):
         """
         Args:
@@ -337,7 +366,6 @@ class RDDLGrounder(Grounder):
                 aggreg_type_idx = AGGREG_OPERATION_STRING_LIST.index(expr.etype[1])
                 #determine what the recursive op is for the aggreg type. Eg: sum = "+"
                 aggreg_recursive_operation_string = AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST[aggreg_type_idx]
-
                 #need to do a for loop through the objects, and pass in
                 # a NEW dictionary (keep the old copy to recover state)
                 #--only for average, we need to first "/ n ", for all others
@@ -346,15 +374,34 @@ class RDDLGrounder(Grounder):
                 # need to ground ofcourse. We update the dictionary, and call the
                 # the expression on the other argument, which can require further nesting handling
                 #---first let's collect the instances like (?x,?y) = (x1,y3) that satisfy the set definition passed in
-                object_instances_set = set()
+                object_instances_list = []
                 instances_def_args = expr.args[0]
-                if instances_def_args[0] == 'typed_var': #then we iterate over the objects of this type
-                    var_key_string = instances_def_args[1][0]#like ?x
-                    object_type = instances_def_args[1][1]
-                    object_instances_set.update(self.objects[object_type])
+                if instances_def_args[0] == 'typed_var': #then we iterate over the objects specified
+                    # all even indexes (incl 0) are variable names, all odd indexes are object types
+                    var_key_strings_list = [instances_def_args[1][2*x] for x in range(int(len(instances_def_args[1])/2)) ]#like ?x
+                    object_type_list = [instances_def_args[1][2*x+1] for x in range(int(len(instances_def_args[1])/2)) ]
+                    instance_tuples = [tuple([x]) for x in self.objects[object_type_list[0]]]
+                    for var_idx in range(1,len(var_key_strings_list)):
+                        instance_tuples = [tuple(list(instance_tuples[i])+ [self.objects[object_type_list[var_idx]][j]]) \
+                                            for i in range(len(instance_tuples)) for j in range(len(self.objects[object_type_list[var_idx]]))]
+                    object_instances_list.append(instance_tuples)
+                    # todo
+                    expr = self.do_aggregate_expression_nesting(dic,var_key_strings_list,object_instances_list,
+                                aggreg_recursive_operation_string,expr.args[0])
+
+                    # for obj_inst in object_instances_set:
+                    #     new_dict = copy.deepcopy(dic)
+                    #     new_dict[var_key_string] = obj_inst
+                        # todo need lhs outside for loop. the for loop
+                        # delves into the other entries after first. each function
+                        # call returns a handle to the RHS arg. The lhs is added
+                        # in that function call. SO even the lhs, first case CAN BE I
+                        # in that function.
+
+
                 #FIRST if this is an average, we need a "/ |set|" on the second arg
                 #todo ...could create another "sum" expression and recursively call :-)
-
+                # todo NEED to build a binary tree recursively for +,*, etc
                 pass
             elif expr.etype[1] in ['forall', 'exists']:
                 # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
@@ -375,6 +422,9 @@ class RDDLGrounder(Grounder):
         #--end else
         return expr
 
+    #===============================================
+
+    #===============================================
     def _groundReward(self):
         return
 
