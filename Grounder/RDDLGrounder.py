@@ -386,7 +386,8 @@ class RDDLGrounder(Grounder):
             #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
             expr = Expression((expr.etype[1], tuple(new_children)))
         elif expr.etype[0] == "aggregation":
-            if expr.etype[1] in AGGREG_OPERATION_STRING_LIST:
+            aggreg_type = expr.etype[1]
+            if aggreg_type in AGGREG_OPERATION_STRING_LIST:
                 aggreg_type_idx = AGGREG_OPERATION_STRING_LIST.index(expr.etype[1])
                 #determine what the recursive op is for the aggreg type. Eg: sum = "+"
                 aggreg_recursive_operation_string = AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST[aggreg_type_idx]
@@ -406,10 +407,17 @@ class RDDLGrounder(Grounder):
                     object_instances_list= instance_tuples
                     expr = self.do_aggregate_expression_nesting(dic,var_key_strings_list,object_instances_list,
                                 aggreg_recursive_operation_string,expr.args[1]) #last arg is the expression with which the aggregation is done
+                    if aggreg_type == "avg":
+                        num_instances = len(instance_tuples)  # needed if this is an "Avg" operation
+                        #then the 'expr' becomes lhs argument and we add a "\ |set_size|" operation
+                        children_list = [expr,Expression(('number', num_instances))]
+                        #note "expr" would have been an aggregate sum already, the "aggreg_recursive_operation_string" is set for that
+                        expr = Expression(("/", tuple(children_list)))
+
+
                 #end if arg[0] is typed_var
             elif expr.etype[1] in ['forall', 'exists']:
                 # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
-                # need to chain expressions...ugh this can be a deep tree
                 pass
         elif expr.etype[0] == "control": #if statements and such
             #https://en.wikipedia.org/wiki/Abstract_syntax_tree
