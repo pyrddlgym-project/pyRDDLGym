@@ -318,17 +318,41 @@ class RDDLGrounder(Grounder):
         recursively calling this function with a reduced set, and the original dictionary.
         """
 
-        lhs_updated_dict = copy.deepcopy(original_dict)
-        lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
-        #todo create expression for lhs, and then rhs recursively call this
-        
 
+        #todo create expression with the type passed in
+        # the first argument (lhs) will have an updated dictionary based on the objects spec'd
+        # in the set definition (gets one instance added to the dictionary). We can scan_expression on it
+        # for the second arg (righ hand side), we will recursively call this func with a reduced set of objects
+        if len(instances_list) == 1:
+            # this case CAN happen, if there is only one object of the type specified
+            # which can be due to misspec or due to a difficult constraint satisfaction in set definition,
+            # that varies over instances
+            updated_dict = copy.deepcopy(original_dict)
+            updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            new_expr = self._scan_expr_tree(expression,updated_dict)
+        elif len(instances_list) == 2:  # normal base case
+            new_children = []
+            lhs_updated_dict = copy.deepcopy(original_dict)
+            lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            new_children.append(self._scan_expr_tree(expression,lhs_updated_dict))
+            rhs_updated_dict = copy.deepcopy(original_dict)
+            rhs_updated_dict.update(dict(zip(new_variables_list, instances_list[1])))
+            new_children.append(self._scan_expr_tree(expression, rhs_updated_dict))
+            new_expr = Expression((operation_string, tuple(new_children)))
+        else: # recursive case
+            new_children = []
+            lhs_updated_dict = copy.deepcopy(original_dict)
+            lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            instances_list = instances_list[1:] #remove the first element before the recursion, simple.
+            new_children.append(self._scan_expr_tree(expression,lhs_updated_dict))
+            new_children.append(self.do_aggregate_expression_nesting(
+                original_dict, new_variables_list, instances_list, \
+                operation_string, expression ))
+            new_expr = Expression((operation_string, tuple(new_children)))
+        #---end else
+        return new_expr
 
-
-
-
-
-            #===================================================
+        #===================================================
     def _scan_expr_tree(self, expr, dic):
         """
         Args:
@@ -366,13 +390,8 @@ class RDDLGrounder(Grounder):
                 aggreg_type_idx = AGGREG_OPERATION_STRING_LIST.index(expr.etype[1])
                 #determine what the recursive op is for the aggreg type. Eg: sum = "+"
                 aggreg_recursive_operation_string = AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST[aggreg_type_idx]
-                #need to do a for loop through the objects, and pass in
-                # a NEW dictionary (keep the old copy to recover state)
-                #--only for average, we need to first "/ n ", for all others
-                # we need to decide the symbol "+" or "*" and iterative
-                # build a tree over the objects specd in the dict, using a for loop
-                # need to ground ofcourse. We update the dictionary, and call the
-                # the expression on the other argument, which can require further nesting handling
+                #--todo only for average operation, we need to first "/ n ", for all others
+                # we need to decide the recursive operation symbol "+" or "*" and iterative
                 #---first let's collect the instances like (?x,?y) = (x1,y3) that satisfy the set definition passed in
                 object_instances_list = []
                 instances_def_args = expr.args[0]
@@ -384,25 +403,10 @@ class RDDLGrounder(Grounder):
                     for var_idx in range(1,len(var_key_strings_list)):
                         instance_tuples = [tuple(list(instance_tuples[i])+ [self.objects[object_type_list[var_idx]][j]]) \
                                             for i in range(len(instance_tuples)) for j in range(len(self.objects[object_type_list[var_idx]]))]
-                    object_instances_list.append(instance_tuples)
-                    # todo
+                    object_instances_list= instance_tuples
                     expr = self.do_aggregate_expression_nesting(dic,var_key_strings_list,object_instances_list,
-                                aggreg_recursive_operation_string,expr.args[0])
-
-                    # for obj_inst in object_instances_set:
-                    #     new_dict = copy.deepcopy(dic)
-                    #     new_dict[var_key_string] = obj_inst
-                        # todo need lhs outside for loop. the for loop
-                        # delves into the other entries after first. each function
-                        # call returns a handle to the RHS arg. The lhs is added
-                        # in that function call. SO even the lhs, first case CAN BE I
-                        # in that function.
-
-
-                #FIRST if this is an average, we need a "/ |set|" on the second arg
-                #todo ...could create another "sum" expression and recursively call :-)
-                # todo NEED to build a binary tree recursively for +,*, etc
-                pass
+                                aggreg_recursive_operation_string,expr.args[1]) #last arg is the expression with which the aggregation is done
+                #end if arg[0] is typed_var
             elif expr.etype[1] in ['forall', 'exists']:
                 # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
                 # need to chain expressions...ugh this can be a deep tree
