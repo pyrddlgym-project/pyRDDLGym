@@ -129,6 +129,7 @@ domain hvac_vav_fix{
         + 10.0*abs[((TEMP_UP_r3 + TEMP_LOW_r3)/2.0) - TEMP_r3]];
 
 
+
     //action-preconditions{
     //    AIR_r1 >= 0;
     //    AIR_r2 >= 0;
