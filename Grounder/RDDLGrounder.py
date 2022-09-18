@@ -476,39 +476,6 @@ class RDDLGrounder(Grounder):
                     #--end if type is average
                 #--- end if obj type aggregation
 
-            #unnecessary , can fold into the aggregate function handling code
-            # elif expr.etype[1] in ['forall', 'exists']:
-            #     # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
-            #     quantifier_type = expr.etype[1]
-            #     if quantifier_type in QUANTIFIER_OPERATION_STRING_LIST:
-            #         quantifier_type_idx = QUANTIFIER_OPERATION_STRING_LIST.index(quantifier_type)
-            #         # determine what the recursive op is , either "&" or "|"
-            #         quantifier_recursive_operation_string = QUANTIFIER_RECURSIVE_OPERATION_STRING_MAPPED_LIST[quantifier_type_idx]
-            #         object_instances_list = []
-            #         instances_def_args = expr.args[0]
-            #         if instances_def_args[0] == 'typed_var':  # then we iterate over the objects specified
-            #             # all even indexes (incl 0) are variable names, all odd indexes are object types
-            #             var_key_strings_list = [instances_def_args[1][2 * x] for x in
-            #                                     range(int(len(instances_def_args[1]) / 2))]  # like ?x
-            #             object_type_list = [instances_def_args[1][2 * x + 1] for x in
-            #                                 range(int(len(instances_def_args[1]) / 2))]
-            #             instance_tuples = [tuple([x]) for x in self.objects[object_type_list[0]]]
-            #             for var_idx in range(1, len(var_key_strings_list)):
-            #                 instance_tuples = [
-            #                     tuple(list(instance_tuples[i]) + [self.objects[object_type_list[var_idx]][j]]) \
-            #                     for i in range(len(instance_tuples)) for j in
-            #                     range(len(self.objects[object_type_list[var_idx]]))]
-            #             object_instances_list = instance_tuples
-            #             expr = self.do_aggregate_expression_nesting(dic, var_key_strings_list, object_instances_list,
-            #                                                         aggreg_recursive_operation_string, expr.args[
-            #                                                             1])  # last arg is the expression with which the aggregation is done
-            #             if aggreg_type == "avg":
-            #                 num_instances = len(instance_tuples)  # needed if this is an "Avg" operation
-            #                 # then the 'expr' becomes lhs argument and we add a "\ |set_size|" operation
-            #                 children_list = [expr, Expression(('number', num_instances))]
-            #                 # note "expr" would have been an aggregate sum already, the "aggreg_recursive_operation_string" is set for that
-            #                 expr = Expression(("/", tuple(children_list)))
-
         elif expr.etype[0] == "control": #if statements and such
             #https://en.wikipedia.org/wiki/Abstract_syntax_tree
             # condition, if, else... NOTE WE DO Support multiple else ifs, which I guess
