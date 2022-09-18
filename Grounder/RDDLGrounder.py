@@ -6,8 +6,14 @@ from Grounder.RDDLModel import RDDLModel
 import itertools
 # import RDDLModel
 
-AGGREG_OPERATION_STRING_LIST = ["sum","prod","max","min","avg"]
-AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["+","*","max","min","+"]
+# AGGREG_OPERATION_STRING_LIST = ["sum","prod","max","min","avg"]
+# AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["+","*","max","min","+"]
+# QUANTIFIER_OPERATION_STRING_LIST = ["forall","exists"]
+# QUANTIFIER_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["&","|"]
+
+AGGREG_OPERATION_STRING_LIST = ["sum","prod","max","min","avg","forall","exists"]
+AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["+","*","max","min","+","&","|"]
+
 
 
 class Grounder(metaclass=ABCMeta):
@@ -352,6 +358,57 @@ class RDDLGrounder(Grounder):
         #---end else
         return new_expr
 
+    # ===================================================
+    def do_quantifier_expression_nesting(self, original_dict, new_variables_list, instances_list, \
+                                        operation_string, expression):
+        """
+        Args:
+            original_dict:
+            new_variables_list:
+            instances_set:
+            operation_string:
+            expression:
+        Returns:
+        Summary: expands the dictionary with the object instances for the variables passed in;
+        NOTE that the order of variables, and order of elements in each entry of instances_set should line up.
+        With the expanded dictionary, creates an expression of the type specified in "operation_String"
+        the lhs (first) argument would be an instance from the set, and rhs would be from
+        recursively calling this function with a reduced set, and the original dictionary.
+        """
+
+        # todo create expression with the type passed in
+        # the first argument (lhs) will have an updated dictionary based on the objects spec'd
+        # in the set definition (gets one instance added to the dictionary). We can scan_expression on it
+        # for the second arg (righ hand side), we will recursively call this func with a reduced set of objects
+        if len(instances_list) == 1:
+            # this case CAN happen, if there is only one object of the type specified
+            # which can be due to misspec or due to a difficult constraint satisfaction in set definition,
+            # that varies over instances
+            updated_dict = copy.deepcopy(original_dict)
+            updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            new_expr = self._scan_expr_tree(expression, updated_dict)
+        elif len(instances_list) == 2:  # normal base case
+            new_children = []
+            lhs_updated_dict = copy.deepcopy(original_dict)
+            lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            new_children.append(self._scan_expr_tree(expression, lhs_updated_dict))
+            rhs_updated_dict = copy.deepcopy(original_dict)
+            rhs_updated_dict.update(dict(zip(new_variables_list, instances_list[1])))
+            new_children.append(self._scan_expr_tree(expression, rhs_updated_dict))
+            new_expr = Expression((operation_string, tuple(new_children)))
+        else:  # recursive case
+            new_children = []
+            lhs_updated_dict = copy.deepcopy(original_dict)
+            lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            instances_list = instances_list[1:]  # remove the first element before the recursion, simple.
+            new_children.append(self._scan_expr_tree(expression, lhs_updated_dict))
+            new_children.append(self.do_aggregate_expression_nesting(
+                original_dict, new_variables_list, instances_list, \
+                operation_string, expression))
+            new_expr = Expression((operation_string, tuple(new_children)))
+        # ---end else
+        return new_expr
+
         #===================================================
     def _scan_expr_tree(self, expr, dic):
         """
@@ -386,6 +443,9 @@ class RDDLGrounder(Grounder):
             #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
             expr = Expression((expr.etype[1], tuple(new_children)))
         elif expr.etype[0] == "aggregation":
+            #TODO: as of now the code assumes all the leaf variables/constants are of the right types, or can be reasonably
+            # casted into the right type (eg: bool->int or v.v.)
+            # however, some type checking would be nice in subsequent versions, and give feedback to the language writer for debugging.
             aggreg_type = expr.etype[1]
             if aggreg_type in AGGREG_OPERATION_STRING_LIST:
                 aggreg_type_idx = AGGREG_OPERATION_STRING_LIST.index(expr.etype[1])
@@ -413,12 +473,42 @@ class RDDLGrounder(Grounder):
                         children_list = [expr,Expression(('number', num_instances))]
                         #note "expr" would have been an aggregate sum already, the "aggreg_recursive_operation_string" is set for that
                         expr = Expression(("/", tuple(children_list)))
+                    #--end if type is average
+                #--- end if obj type aggregation
 
+            #unnecessary , can fold into the aggregate function handling code
+            # elif expr.etype[1] in ['forall', 'exists']:
+            #     # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
+            #     quantifier_type = expr.etype[1]
+            #     if quantifier_type in QUANTIFIER_OPERATION_STRING_LIST:
+            #         quantifier_type_idx = QUANTIFIER_OPERATION_STRING_LIST.index(quantifier_type)
+            #         # determine what the recursive op is , either "&" or "|"
+            #         quantifier_recursive_operation_string = QUANTIFIER_RECURSIVE_OPERATION_STRING_MAPPED_LIST[quantifier_type_idx]
+            #         object_instances_list = []
+            #         instances_def_args = expr.args[0]
+            #         if instances_def_args[0] == 'typed_var':  # then we iterate over the objects specified
+            #             # all even indexes (incl 0) are variable names, all odd indexes are object types
+            #             var_key_strings_list = [instances_def_args[1][2 * x] for x in
+            #                                     range(int(len(instances_def_args[1]) / 2))]  # like ?x
+            #             object_type_list = [instances_def_args[1][2 * x + 1] for x in
+            #                                 range(int(len(instances_def_args[1]) / 2))]
+            #             instance_tuples = [tuple([x]) for x in self.objects[object_type_list[0]]]
+            #             for var_idx in range(1, len(var_key_strings_list)):
+            #                 instance_tuples = [
+            #                     tuple(list(instance_tuples[i]) + [self.objects[object_type_list[var_idx]][j]]) \
+            #                     for i in range(len(instance_tuples)) for j in
+            #                     range(len(self.objects[object_type_list[var_idx]]))]
+            #             object_instances_list = instance_tuples
+            #             expr = self.do_aggregate_expression_nesting(dic, var_key_strings_list, object_instances_list,
+            #                                                         aggreg_recursive_operation_string, expr.args[
+            #                                                             1])  # last arg is the expression with which the aggregation is done
+            #             if aggreg_type == "avg":
+            #                 num_instances = len(instance_tuples)  # needed if this is an "Avg" operation
+            #                 # then the 'expr' becomes lhs argument and we add a "\ |set_size|" operation
+            #                 children_list = [expr, Expression(('number', num_instances))]
+            #                 # note "expr" would have been an aggregate sum already, the "aggreg_recursive_operation_string" is set for that
+            #                 expr = Expression(("/", tuple(children_list)))
 
-                #end if arg[0] is typed_var
-            elif expr.etype[1] in ['forall', 'exists']:
-                # I think this is also a for loop and a logical "&"(forall) or "|"(exists)
-                pass
         elif expr.etype[0] == "control": #if statements and such
             #https://en.wikipedia.org/wiki/Abstract_syntax_tree
             # condition, if, else... NOTE WE DO Support multiple else ifs, which I guess
