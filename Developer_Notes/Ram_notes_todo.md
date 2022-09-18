@@ -7,6 +7,10 @@ todo  LATER: handle type matching in expressions
 Handle nested sum, product, exists operations. 
     this will apply to cpfs, reward, constraints
 
+Handle AVG which is / n first 
+
+Handle For all, and Exists statements
+
 # Simulator interface
 reach out to Mike
 
