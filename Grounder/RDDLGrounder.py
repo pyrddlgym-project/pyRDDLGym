@@ -13,6 +13,7 @@ import itertools
 
 AGGREG_OPERATION_LIST = ["prod", "sum", "avg", "minimum", "maximum", "forall", "exists"]
 AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = ["*", "+", "+", "<", ">", "&", "|"]
+AGGREG_OP_TO_STRING_DICT = dict(zip(AGGREG_OPERATION_LIST,AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST))
 
 
 
@@ -346,7 +347,7 @@ class RDDLGrounder(Grounder):
             #even if it is a max or min operation, when there are only 2 left, we just do "> or <"
             new_expr = Expression((operation_string, tuple(new_children)))
         else: # recursive case
-            if operation_string not in ["<",">"]: #those ">,<" are for the min and max respectively
+            if operation_string in ["+","*","&","|"]: #those ">,<" are for the min and max respectively
                 new_children = []
                 lhs_updated_dict = copy.deepcopy(original_dict)
                 lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
@@ -417,10 +418,9 @@ class RDDLGrounder(Grounder):
             # casted into the right type (eg: bool->int or v.v.)
             # however, some type checking would be nice in subsequent versions, and give feedback to the language writer for debugging.
             aggreg_type = expr.etype[1]
-            if aggreg_type in AGGREG_OPERATION_LIST:
-                aggreg_type_idx = AGGREG_OPERATION_LIST.index(expr.etype[1])
+            if aggreg_type in AGGREG_OP_TO_STRING_DICT:
                 #determine what the recursive op is for the aggreg type. Eg: sum = "+"
-                aggreg_recursive_operation_string = AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST[aggreg_type_idx]
+                aggreg_recursive_operation_string = AGGREG_OP_TO_STRING_DICT[aggreg_type]
                 #--todo only for average operation, we need to first "/ n ", for all others
                 # we need to decide the recursive operation symbol "+" or "*" and iterative
                 #---first let's collect the instances like (?x,?y) = (x1,y3) that satisfy the set definition passed in
