@@ -7,7 +7,8 @@ import Grounder.RDDLGrounder as RDDLGrounder
 # DOMAIN = 'ThiagosReservoir.rddl'
 # DOMAIN = 'Thiagos_Mars_Rover.rddl'
 # DOMAIN = 'dbn_prop.rddl'
-DOMAIN = 'RamMod_Thiagos_HVAC.rddl'
+# DOMAIN = 'RamMod_Thiagos_HVAC.rddl'
+DOMAIN = 'RamMod_smaller_Thiagos_HVAC.rddl'
 # DOMAIN = 'RamMod_Thiagos_HVAC_grounded.rddl'
 
 # DOMAIN = 'Thiagos_HVAC.rddl'
@@ -48,8 +49,9 @@ def main():
 
     # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
     # rddl = generator.GenerateRDDL()
-    print(rddl)
+    # print(rddl)
 
+    print("reached end of test.py")
 
 if __name__ == "__main__":
     main()
