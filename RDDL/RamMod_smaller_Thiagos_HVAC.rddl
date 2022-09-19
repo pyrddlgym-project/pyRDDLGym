@@ -53,7 +53,7 @@ domain hvac_vav_fix{
         TEMP'(?s) =
             TEMP(?s) + TIME_DELTA/CAP(?s) *
             (AIR(?s) * CAP_AIR * (TEMP_AIR - TEMP(?s)) * IS_ROOM(?s)
-            + (sum_{?p : space} [(ADJ(?s, ?p) | ADJ(?p, ?s)) * (TEMP(?p) - TEMP(?s)) / R_WALL(?s, ?p)])
+            + (min_{?p : space} [(ADJ(?s, ?p) | ADJ(?p, ?s)) * (TEMP(?p) - TEMP(?s)) / R_WALL(?s, ?p)])
             + ADJ_OUTSIDE(?s)*(TEMP_OUTSIDE(?s) - TEMP(?s))/ R_OUTSIDE(?s)
             + ADJ_HALL(?s)*(TEMP_HALL(?s) - TEMP(?s))/R_HALL(?s)) ;
     };
