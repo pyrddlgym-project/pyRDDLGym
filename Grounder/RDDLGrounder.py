@@ -11,7 +11,7 @@ import itertools
 # QUANTIFIER_OPERATION_STRING_LIST = ["forall","exists"]
 # QUANTIFIER_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["&","|"]
 
-AGGREG_OPERATION_LIST = ["prod", "sum", "avg", "min", "max", "forall", "exists"]
+AGGREG_OPERATION_LIST = ["prod", "sum", "avg", "minimum", "maximum", "forall", "exists"]
 AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = ["*", "+", "+", "<", ">", "&", "|"]
 
 
@@ -346,7 +346,7 @@ class RDDLGrounder(Grounder):
             #even if it is a max or min operation, when there are only 2 left, we just do "> or <"
             new_expr = Expression((operation_string, tuple(new_children)))
         else: # recursive case
-            if operation_string not in ["<",">"]: #those are for the min and max respectively
+            if operation_string not in ["<",">"]: #those ">,<" are for the min and max respectively
                 new_children = []
                 lhs_updated_dict = copy.deepcopy(original_dict)
                 lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
@@ -366,14 +366,14 @@ class RDDLGrounder(Grounder):
                 rhs_updated_dict = copy.deepcopy(original_dict)
                 rhs_updated_dict.update(dict(zip(new_variables_list, instances_list[1])))
                 rhs_comparison_arg = self._scan_expr_tree(expression,rhs_updated_dict)
-                comparison_expression = Expression((operation_string,lhs_comparison_arg,rhs_comparison_arg))
-                new_expr = Expression(("if", comparison_expression,
+                comparison_expression = Expression((operation_string,(lhs_comparison_arg,rhs_comparison_arg)))
+                new_expr = Expression(("if", (comparison_expression,
                                        self.do_aggregate_expression_nesting(original_dict, new_variables_list,
                                                     [instances_list[0]]+instances_list[2:], operation_string, expression),
                                        self.do_aggregate_expression_nesting(original_dict, new_variables_list,
                                                                             [instances_list[1]] + instances_list[2:],
                                                                             operation_string, expression)
-                                       ))
+                                              )))
 
         #---end else
         return new_expr
