@@ -5,10 +5,14 @@ class PlanningModel(metaclass=ABCMeta):
         self._AST = None
         self._nonfluents = None
         self._states = None
+        # new
+        self._statesranges = None
         self._nextstates = None
         self._prevstates = None
         self._initstate = None
         self._actions = None
+        # new
+        self._actionsranges = None
         self._derived = None
         self._interm = None
         self._cpfs = None
@@ -16,6 +20,11 @@ class PlanningModel(metaclass=ABCMeta):
         self._reward = None
         self._preconditions = None
         self._invariants = None
+
+        #new definitions
+        self._max_allowed_actions = None
+        self._horizon = None
+        self._discount = None
 
     def SetAST(self, AST):
         self._AST = AST
@@ -35,6 +44,14 @@ class PlanningModel(metaclass=ABCMeta):
     @states.setter
     def states(self, val):
         self._states = val
+
+    @property
+    def statesranges(self):
+        return self._statesranges
+
+    @statesranges.setter
+    def statesranges(self, value):
+        self._statesranges = value
 
     @property
     def next_state(self):
@@ -67,6 +84,14 @@ class PlanningModel(metaclass=ABCMeta):
     @actions.setter
     def actions(self, val):
         self._actions = val
+
+    @property
+    def actionsranges(self):
+        return self._actionsranges
+
+    @actionsranges.setter
+    def actionsranges(self, value):
+        self._actionsranges = value
 
     @property
     def derived(self):
@@ -124,6 +149,29 @@ class PlanningModel(metaclass=ABCMeta):
     def invariants(self, val):
         self._invariants = val
 
+    @property
+    def discount(self):
+        return self._discount
+
+    @discount.setter
+    def discount(self, val):
+        self._discount = val
+
+    @property
+    def horizon(self):
+        return self._horizon
+
+    @horizon.setter
+    def horizon(self, val):
+        self._horizon = val
+
+    @property
+    def max_allowed_actions(self):
+        return self._max_allowed_actions
+
+    @max_allowed_actions.setter
+    def max_allowed_actions(self, val):
+        self._max_allowed_actions = val
 
 
 class RDDLModel(PlanningModel):
