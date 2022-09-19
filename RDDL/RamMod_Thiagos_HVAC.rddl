@@ -55,7 +55,7 @@ domain hvac_vav_fix{
             (AIR(?s) * CAP_AIR * (TEMP_AIR - TEMP(?s)) * IS_ROOM(?s)
             + (max_{?p : space} [(ADJ(?s, ?p) | ADJ(?p, ?s)) * (TEMP(?p) - TEMP(?s)) / R_WALL(?s, ?p)])
             + ADJ_OUTSIDE(?s)*(TEMP_OUTSIDE(?s) - TEMP(?s))/ R_OUTSIDE(?s)
-            + ADJ_HALL(?s)*(TEMP_HALL(?s)-TEMP(?s))/R_HALL(?s)) ;
+            + ADJ_HALL(?s)*(TEMP_HALL(?s) - TEMP(?s))/R_HALL(?s)) ;
     };
 
     reward = - (sum_{?s : space} IS_ROOM(?s)*(AIR(?s) * COST_AIR

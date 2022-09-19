@@ -232,7 +232,7 @@ class RDDLGrounder(Grounder):
                 # ground state, init state and cpf
                 for g in grounded:
                     l = len(name)
-                    next_state = g[:l] + '\'' + g[l:]
+                    # next_state = g[:l] + '\'' + g[l:]
                     self._groundCPF(name, cpf, g)
         return
 
@@ -396,13 +396,13 @@ class RDDLGrounder(Grounder):
                 #then it is a constant
                 pass #return statement is at end of func as per coding conventions
             elif len(expr.args[1]) > 0:
-                new_name = expr.args[0] + '('
+                new_name = expr.args[0] + '_'
                 for arg in expr.args[1]:
                     if arg in dic:
-                        new_name = new_name + dic[arg] + ','
+                        new_name = new_name + dic[arg] + '_'
                     else:
-                        new_name = new_name + arg + ','
-                new_name = new_name[:-1] + ')'
+                        new_name = new_name + arg + '_'
+                new_name = new_name[:-1]
                 expr = Expression(('pvar_expr', (new_name, None)))
         elif expr.etype[0] == 'constant':
             pass #the return statement is at the end
