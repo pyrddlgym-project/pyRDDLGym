@@ -26,7 +26,7 @@ class DependencyAnalysis:
                 if root_var not in graph:
                     graph[root_var] = set()
                 graph[root_var].add(var)
-        else:
+        elif etype != 'constant':
             for arg in args:
                 self._update_call_graph(graph, root_var, arg)
     
