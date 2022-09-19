@@ -7,8 +7,8 @@ import Grounder.RDDLGrounder as RDDLGrounder
 # DOMAIN = 'ThiagosReservoir.rddl'
 # DOMAIN = 'Thiagos_Mars_Rover.rddl'
 # DOMAIN = 'dbn_prop.rddl'
-# DOMAIN = 'RamMod_Thiagos_HVAC.rddl'
-DOMAIN = 'RamMod_Thiagos_HVAC_grounded.rddl'
+DOMAIN = 'RamMod_Thiagos_HVAC.rddl'
+# DOMAIN = 'RamMod_Thiagos_HVAC_grounded.rddl'
 
 # DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'Thiagos_HVAC_grounded.rddl'
