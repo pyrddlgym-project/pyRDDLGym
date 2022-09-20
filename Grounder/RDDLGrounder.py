@@ -3,6 +3,7 @@ import copy
 from Parser.expr import Expression
 from abc import ABCMeta, abstractmethod
 from Grounder.RDDLModel import RDDLModel
+import warnings
 import itertools
 # import RDDLModel
 
@@ -242,6 +243,7 @@ class RDDLGrounder(Grounder):
                     self.interm[g] = pvariable.default
         #----NOW LOOP AGAIN, with all the state variable and property grounding options done
         #---this lets us ground the cpfs, rewards and constraints more easily
+        all_grounded_cpfs = []
         for pvariable in self.AST.domain.pvariables:
             name = pvariable.name
             if pvariable.arity > 0:
@@ -251,15 +253,22 @@ class RDDLGrounder(Grounder):
                 grounded = [name]
             if pvariable.fluent_type == 'state-fluent':
                 # find cpf
+                cpf = None
                 for cpfs in self.AST.domain.cpfs[1]:
                     if cpfs.pvar[1][0] == name +'\'':
                         cpf = cpfs
                         break #added to avoid going over all cpfs, as soon as we have the target one, we stop the loop
                 # ground state, init state and cpf
+                #raise a warning if no cpf found
+                if cpf == None:
+                    warnings.warn("No conditional prob func found for "+name)
                 for g in grounded:
-                    l = len(name)
+                    # l = len(name)
                     # next_state = g[:l] + '\'' + g[l:]
-                    self._groundCPF(name, cpf, g)
+                    all_grounded_cpfs.append(self._groundCPF(name, cpf, g))
+        #---end second for loop through the pvariables for grounding cpf
+        #update the RDDL model to be the grounded expressions
+        self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs) #replacing the previous lifted entries
         return
 
     def _groundObjects(self, args):
