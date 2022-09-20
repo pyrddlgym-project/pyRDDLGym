@@ -43,6 +43,8 @@ class RDDLGroundedGrounder(Grounder):
         self._preconditions = []
         self._invariants = []
 
+        self._actionsranges = {}
+        self._statesranges = {}
 
 
     def Ground(self):
@@ -82,7 +84,28 @@ class RDDLGroundedGrounder(Grounder):
         model.derived = self._derived
         model.interm = self._interm
 
+        # new properties
+        model.max_allowed_actions = self._groundMaxActions()
+        model.horizon = self._groundHorizon()
+        model.discount = self._groundDiscount()
+        model.actionsranges = self._actionsranges
+        model.statesranges = self._statesranges
+        # new properties
+
         return model
+
+    def _groundHorizon(self):
+        return self._AST.instance.horizon
+
+    def _groundMaxActions(self):
+        numactions = self._AST.instance.max_nondef_actions
+        if numactions == "pos-inf":
+            return len(self._actions)
+        else:
+            return int(numactions)
+
+    def _groundDiscount(self):
+        return self._AST.instance.discount
 
     def _groundPvariables(self):
         for pvariable in self._AST.domain.pvariables:
@@ -91,6 +114,7 @@ class RDDLGroundedGrounder(Grounder):
                 self._nonfluents[name] = pvariable.default
             elif pvariable.fluent_type == 'action-fluent':
                 self._actions[name] = pvariable.default
+                self._actionsranges[name] = pvariable.range
             elif pvariable.fluent_type == 'state-fluent':
                 cpf = None
                 next_state = name + '\''
@@ -99,13 +123,14 @@ class RDDLGroundedGrounder(Grounder):
                         cpf = cpfs
                 if cpf is not None:
                     self._states[name] = pvariable.default
+                    self._statesranges[name] = pvariable.range
                     self._nextstates[name] = next_state
                     self._prevstates[next_state] = name
                     self._cpfs[next_state] = cpf
                     self._cpforder[0].append(name)
             elif pvariable.fluent_type == 'derived-fluent':
                 cpf = None
-                for cpfs in self._AST.domain.dervied_cpfs[1]:
+                for cpfs in self._AST.domain.derived_cpfs:
                     if cpfs.pvar[1][0] == name:
                         cpf = cpfs
                 if cpf is not None:
@@ -120,7 +145,7 @@ class RDDLGroundedGrounder(Grounder):
                         self._cpforder[level] = [name]
             elif pvariable.fluent_type == 'interm-fluent':
                 cpf = None
-                for cpfs in self._AST.domain.intermediate_cpfs[1]:
+                for cpfs in self._AST.domain.intermediate_cpfs:
                     if cpfs.pvar[1][0] == name:
                         cpf = cpfs
                 if cpf is not None:
