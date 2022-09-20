@@ -269,6 +269,7 @@ class RDDLGrounder(Grounder):
         #---end second for loop through the pvariables for grounding cpf
         #update the RDDL model to be the grounded expressions
         self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs) #replacing the previous lifted entries
+        self.AST.domain.reward = self._scan_expr_tree(self.AST.domain.reward,{})#empty dictionary at this level
         return
 
     def _groundObjects(self, args):
