@@ -2,10 +2,7 @@
 
 # overall
 
-need to update the rddl object with those cpfs
-that you grounded. Put into the expressions under cpfs
-
-Parse reward,
+abs(.) is not grounded correctly
 
 Parse State constraints, action constraints, state-action constraints
 
