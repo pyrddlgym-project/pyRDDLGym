@@ -22,8 +22,8 @@ domain recsim_ecosystem_welfare {
 		item-feature(item, feature) : { interm-fluent, real, level = 4 };
 		item-affinity(item, consumer) : { interm-fluent, real, level = 5 };
 		item-by(provider, item) : { interm-fluent, bool, level = 3 };
-		item-gen-randomness(item):  { interm-fluent, real, level = 1 };
-		item-feature-randomness(item):  { interm-fluent, real, level = 1 };
+		item-gen-randomness(item):  { state-fluent, real, default = 0.0 };
+		item-feature-randomness(item):  { state-fluent, real, default = 0.0 };
 		item-gen-cdf(provider) : { interm-fluent, bool, level = 2 };
 		provider-sat-norm: { interm-fluent, real, level = 1 };
 
@@ -39,16 +39,16 @@ domain recsim_ecosystem_welfare {
 
 		// 1:
     // Consumer satisfaction is inversely proportional to the Euclidan distance between their affinity and the item features.
-    item-affinity'(?c, ?i) = MAX-AFFINITY - pow[(sum_{?f: feature} [pow[CONSUMER-AFFINITY(?c, ?f) - item-feature'(?i, ?f), 2.0]]), 0.5];
-    consumer-satisfaction'(?c) = (sum_{?i: item} [item-affinity'(?i, ?c) * recommend'(?c, ?i)]);
+    item-affinity(?c, ?i) = MAX-AFFINITY - pow[(sum_{?f: feature} [pow[CONSUMER-AFFINITY(?c, ?f) - item-feature(?i, ?f), 2.0]]), 0.5];
+    consumer-satisfaction'(?c) = (sum_{?i: item} [item-affinity(?i, ?c) * recommend'(?c, ?i)]);
 
     // 2:
 	  // Provider satisfaction is driven by the number they are recommended with a backwards-discounted "memory".
-		provider-satisfaction'(?p) = PROVIDER-DISCOUNT(?p) * provider-satisfaction(?p) + (sum_{?c: consumer, ?i: item}[recommend'(?c, ?i) ^ item-by'(?p, ?i)]);
+		provider-satisfaction'(?p) = PROVIDER-DISCOUNT(?p) * provider-satisfaction(?p) + (sum_{?c: consumer, ?i: item}[recommend'(?c, ?i) ^ item-by(?p, ?i)]);
 
 		// CDF according to ordering defined by LESS. This will be used later for item generation.
-		provider-sat-norm' = sum_{?p: provider}[provider-satisfaction'(?p)]; // Normalizing constant.
-		item-gen-cdf'(?p) = (provider-satisfaction'(?p) + (sum_{?q: provider} [provider-satisfaction'(?q)  * LESS(?q, ?p)]))/provider-sat-norm'; 
+		provider-sat-norm = sum_{?p: provider}[provider-satisfaction(?p)]; // Normalizing constant.
+		item-gen-cdf(?p) = (provider-satisfaction(?p) + (sum_{?q: provider} [provider-satisfaction(?q)  * LESS(?q, ?p)]))/provider-sat-norm; 
 
 		// 3:
 		// The recommender system maintains a limited inventory of items (say we can index/process so many items in a given day).
@@ -56,17 +56,17 @@ domain recsim_ecosystem_welfare {
 		// satisfaction. Essentially, unsatisfied providers will become unrecommendable.
 		// Sample a provider for each item slot with CDF sampling.
 		item-gen-randomness'(?i) = Uniform(0.0, 1.0);
-		item-by'(?p, ?i) = (item-gen-cdf'(?p) <= (item-gen-randomness'(?i)) ^ (item-gen-randomness'(?i) < (sum_{?q: provider} [item-gen-cdf'(?q) * NEXT-PROVIDER(?p, ?q)])));
+		item-by(?p, ?i) = (item-gen-cdf(?p) <= (item-gen-randomness(?i)) ^ (item-gen-randomness(?i) < (sum_{?q: provider} [item-gen-cdf(?q) * NEXT-PROVIDER(?p, ?q)])));
 		// Generate item features based on provider competence. 
 		item-feature-randomness'(?i, ?f) = Normal(0.0, 1.0);
-		item-feature'(?i, ?f) = item-feature-randomness'(?i, ?f) + (sum_{?p: provider}[item-by'(?p, ?i) * provider-competence'(?p, ?f)]);
+		item-feature(?i, ?f) = item-feature-randomness(?i, ?f) + (sum_{?p: provider}[item-by(?p, ?i) * provider-competence(?p, ?f)]);
 	};
 
 	reward = sum_{?c: consumer} [ consumer-satisfaction(?c) ];
 
  	action-preconditions {
 
-		forall_{?c : consumer} [(sum_{?i : item} recommend(?c, ?i))] == 1;
+		forall_{?c : consumer} [(sum_{?i : item} recommend(?c, ?i)) == 1];
 	};
 }
 
