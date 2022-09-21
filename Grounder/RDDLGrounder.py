@@ -27,6 +27,7 @@ class RDDLGroundedGrounder(Grounder):
         self._cpforder = {0 : []}
         self._derived = {}
         self._interm = {}
+        self._objects = {}
 
         self._reward = None
         self._preconditions = []
@@ -41,6 +42,8 @@ class RDDLGroundedGrounder(Grounder):
 
         # initialize the Model object
         model = RDDLModel()
+
+        self._getObjects()
 
         # ground pvariables and appropriate cpfs if applicable
         # update pvariables
@@ -79,9 +82,18 @@ class RDDLGroundedGrounder(Grounder):
         model.discount = self._groundDiscount()
         model.actionsranges = self._actionsranges
         model.statesranges = self._statesranges
+        model.objects = self._objects
         # new properties
 
         return model
+
+    def _getObjects(self):
+        self._objects = {}
+        try:
+            for type in self._AST.non_fluents.objects:
+                self._objects[type[0]] = type[1]
+        except:
+            return
 
     def _groundHorizon(self):
         return self._AST.instance.horizon
