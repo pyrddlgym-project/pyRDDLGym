@@ -488,6 +488,14 @@ class RDDLGrounder(Grounder):
                              self._scan_expr_tree(expr.args[2],dic)]
             #todo verify the elif statements are in args[2] and what happens if no "else"
             expr = Expression(("if", tuple(children_list)))
+        # elif expr.etype[0] == "func" and expr.etype[1] == "abs":
+        #     expr = Expression((expr.etype[0], ("abs",[self._scan_expr_tree(expr.args[0], dic)] )))#only one arg for abs
+        elif expr.etype[0] == "func":
+            new_children = []
+            for child in expr.args:
+                new_children.append(self._scan_expr_tree(child, dic))
+            expr = Expression((expr.etype[0], (expr.etype[1],new_children )))#only one arg for abs
+
         else:
             new_children = []
             for child in expr.args:
