@@ -30,7 +30,8 @@ class RDDLSimulator:
         
         self._subs = self._model.nonfluents.copy()  # these won't change
         self._next_state = None
-    
+
+
     def reset_state(self) -> Args:
         '''Resets the state variables to their initial values.'''
         self._model.states = self._model.init_state
@@ -126,12 +127,15 @@ class RDDLSimulator:
         subs = self._update_subs()
         return float(self._sample(expr, subs))
     
-    def update_state(self) -> None:
+    def update_state(self, forced_state = None) -> None:
         '''Updates the state of the simulation to the sampled state.'''
-        if self._next_state is None:
-            raise RDDLRuntimeError(
-                'Next state has not been sampled: call sample_next_state.')
-        self._model.states = self._next_state
+        if forced_state is None:
+            if self._next_state is None:
+                raise RDDLRuntimeError(
+                    'Next state has not been sampled: call sample_next_state.')
+            self._model.states = self._next_state
+        else:
+            self._model.states = forced_state
         self._next_state = None
     
     # start of sampling subroutines
@@ -374,6 +378,7 @@ class RDDLSimulator:
             expr1, expr2 = expr2, expr1
         
         arg1 = self._sample(expr1, subs)
+        print(type(arg1))
         if not isinstance(arg1, bool):
             raise TypeError(
                 'Logical operator {} requires boolean arg, got {}.'.format(op, arg1) + 
