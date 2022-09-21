@@ -11,6 +11,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._prevstates = None
         self._initstate = None
         self._actions = None
+        self._objects = None
         # new
         self._actionsranges = None
         self._derived = None
@@ -28,6 +29,14 @@ class PlanningModel(metaclass=ABCMeta):
 
     def SetAST(self, AST):
         self._AST = AST
+
+    @property
+    def objects(self):
+        return self._objects
+
+    @objects.setter
+    def objects(self, value):
+        self._objects = value
 
     @property
     def nonfluents(self):
