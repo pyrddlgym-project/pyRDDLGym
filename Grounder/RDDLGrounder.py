@@ -3,7 +3,19 @@ import copy
 from Parser.expr import Expression
 from abc import ABCMeta, abstractmethod
 from Grounder.RDDLModel import RDDLModel
+import warnings
+import itertools
 # import RDDLModel
+
+# AGGREG_OPERATION_STRING_LIST = ["sum","prod","max","min","avg"]
+# AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["+","*","max","min","+"]
+# QUANTIFIER_OPERATION_STRING_LIST = ["forall","exists"]
+# QUANTIFIER_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["&","|"]
+
+AGGREG_OPERATION_LIST = ["prod", "sum", "avg", "minimum", "maximum", "forall", "exists"]
+AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = ["*", "+", "+", "<", ">", "&", "|"]
+AGGREG_OP_TO_STRING_DICT = dict(zip(AGGREG_OPERATION_LIST,AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST))
+
 
 
 class Grounder(metaclass=ABCMeta):
@@ -215,17 +227,11 @@ class RDDLGrounder(Grounder):
                 for g in grounded:
                     self.nonfluents[g] = pvariable.default
             elif pvariable.fluent_type == 'state-fluent':
-                # find cpf
-                for cpfs in self.AST.domain.cpfs[1]:
-                    if cpfs.pvar[1][0] == name +'\'':
-                        cpf = cpfs
-                # ground state, init state and cpf
                 for g in grounded:
                     self.states[g] = pvariable.default
                     l = len(name)
                     next_state = g[:l] + '\'' + g[l:]
                     self.nextstates[next_state] = g
-                    self._groundCPF(name, cpf, g)
             elif pvariable.fluent_type == 'action-fluent':
                 for g in grounded:
                     self.actions[g] = pvariable.default
@@ -235,7 +241,35 @@ class RDDLGrounder(Grounder):
             elif pvariable.fluent_type == 'interm-fluent':
                 for g in grounded:
                     self.interm[g] = pvariable.default
-
+        #----NOW LOOP AGAIN, with all the state variable and property grounding options done
+        #---this lets us ground the cpfs, rewards and constraints more easily
+        all_grounded_cpfs = []
+        for pvariable in self.AST.domain.pvariables:
+            name = pvariable.name
+            if pvariable.arity > 0:
+                variations = self._groundObjects(pvariable.param_types)
+                grounded = self._generateName(name, variations)
+            else:
+                grounded = [name]
+            if pvariable.fluent_type == 'state-fluent':
+                # find cpf
+                cpf = None
+                for cpfs in self.AST.domain.cpfs[1]:
+                    if cpfs.pvar[1][0] == name +'\'':
+                        cpf = cpfs
+                        break #added to avoid going over all cpfs, as soon as we have the target one, we stop the loop
+                # ground state, init state and cpf
+                #raise a warning if no cpf found
+                if cpf == None:
+                    warnings.warn("No conditional prob func found for "+name)
+                for g in grounded:
+                    # l = len(name)
+                    # next_state = g[:l] + '\'' + g[l:]
+                    all_grounded_cpfs.append(self._groundCPF(name, cpf, g))
+        #---end second for loop through the pvariables for grounding cpf
+        #update the RDDL model to be the grounded expressions
+        self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs) #replacing the previous lifted entries
+        self.AST.domain.reward = self._scan_expr_tree(self.AST.domain.reward,{})#empty dictionary at this level
         return
 
     def _groundObjects(self, args):
@@ -292,7 +326,6 @@ class RDDLGrounder(Grounder):
         args_dic = {}
         for i in range(len(args)):
             args_dic[args[i]] = variable_args[i]
-
         # parse cpf w.r.t cpf args and variables
         # print(cpf)
         new_cpf = copy.deepcopy(cpf)
@@ -304,31 +337,177 @@ class RDDLGrounder(Grounder):
 
         new_pvar = ('pvar_expr', (new_name, None))
         new_cpf.pvar = new_pvar
-        self._scan_expr_tree(new_cpf.expr, args_dic)
-        #print(new_cpf)
+        new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
+        print(new_cpf)
 
         return new_cpf
 
+    #===================================================
+    def do_aggregate_expression_nesting(self,original_dict, new_variables_list, instances_list,\
+                                operation_string,expression):
+        """
+        Args:
+            original_dict:
+            new_variables_list:
+            instances_list:
+            operation_string:
+            expression:
+        Returns:
+        Summary: expands the dictionary with the object instances for the variables passed in;
+        NOTE that the order of variables, and order of elements in each entry of instances_set should line up.
+        With the expanded dictionary, creates an expression of the type specified in "operation_String"
+        the lhs (first) argument would be an instance from the set, and rhs would be from
+        recursively calling this function with a reduced set, and the original dictionary.
+        """
+
+        #todo create expression with the type passed in
+        # the first argument (lhs) will have an updated dictionary based on the objects spec'd
+        # in the set definition (gets one instance added to the dictionary). We can scan_expression on it
+        # for the second arg (righ hand side), we will recursively call this func with a reduced set of objects
+        if len(instances_list) == 1:
+            # this case CAN happen, if there is only one object of the type specified
+            # which can be due to misspec or due to a difficult constraint satisfaction in set definition,
+            # that varies over instances
+            updated_dict = copy.deepcopy(original_dict)
+            updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            new_expr = self._scan_expr_tree(expression,updated_dict)
+        elif len(instances_list) == 2:  # normal base case
+            new_children = []
+            lhs_updated_dict = copy.deepcopy(original_dict)
+            lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+            new_children.append(self._scan_expr_tree(expression,lhs_updated_dict))
+            rhs_updated_dict = copy.deepcopy(original_dict)
+            rhs_updated_dict.update(dict(zip(new_variables_list, instances_list[1])))
+            new_children.append(self._scan_expr_tree(expression, rhs_updated_dict))
+            #even if it is a max or min operation, when there are only 2 left, we just do "> or <"
+            new_expr = Expression((operation_string, tuple(new_children)))
+        else: # recursive case
+            if operation_string in ["+","*","&","|"]: #those ">,<" are for the min and max respectively
+                new_children = []
+                lhs_updated_dict = copy.deepcopy(original_dict)
+                lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+                instances_list = instances_list[1:] #remove the first element before the recursion, simple.
+                new_children.append(self._scan_expr_tree(expression,lhs_updated_dict))
+                new_children.append(self.do_aggregate_expression_nesting(
+                    original_dict, new_variables_list, instances_list, \
+                    operation_string, expression ))
+                new_expr = Expression((operation_string, tuple(new_children)))
+            else: # handling the min and max case
+                # this is done by comparing two at a time, and recursively calling with the remainder of the list
+                # keeping the one that "wins" the comparison. Eg: if (a > b) then (>, [a,rest of list]) else (>, [b,rest of list])
+                # I assume if they are equal, we have a default behavior in the simulator (eg: take first arg)
+                lhs_updated_dict = copy.deepcopy(original_dict)
+                lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+                lhs_comparison_arg = self._scan_expr_tree(expression,lhs_updated_dict)
+                rhs_updated_dict = copy.deepcopy(original_dict)
+                rhs_updated_dict.update(dict(zip(new_variables_list, instances_list[1])))
+                rhs_comparison_arg = self._scan_expr_tree(expression,rhs_updated_dict)
+                comparison_expression = Expression((operation_string,(lhs_comparison_arg,rhs_comparison_arg)))
+                new_expr = Expression(("if", (comparison_expression,
+                                       self.do_aggregate_expression_nesting(original_dict, new_variables_list,
+                                                    [instances_list[0]]+instances_list[2:], operation_string, expression),
+                                       self.do_aggregate_expression_nesting(original_dict, new_variables_list,
+                                                                            [instances_list[1]] + instances_list[2:],
+                                                                            operation_string, expression)
+                                              )))
+
+        #---end else
+        return new_expr
+
+    # ===================================================
 
     def _scan_expr_tree(self, expr, dic):
+        """
+        Args:
+            expr:
+            list_dic:
+        Returns:
+        :Summary:
+        """
+
         if isinstance(expr, tuple):
-            return
-        if expr.etype[0] == 'pvar':
-            if len(expr.args[1]) > 0:
-                new_name = expr.args[0] + '('
+            pass # return is at end of function
+        elif expr.etype[0] == 'pvar':
+            if expr.args[1] == None: #should really be etype = constant in parsed tree
+                #then it is a constant
+                pass #return statement is at end of func as per coding conventions
+            elif len(expr.args[1]) > 0:
+                new_name = expr.args[0] + '_'
                 for arg in expr.args[1]:
                     if arg in dic:
-                        new_name = new_name + dic[arg] + ','
+                        new_name = new_name + dic[arg] + '_'
                     else:
-                        new_name = new_name + arg + ','
-                new_name = new_name[:-1] + ')'
+                        new_name = new_name + arg + '_'
+                new_name = new_name[:-1]
                 expr = Expression(('pvar_expr', (new_name, None)))
         elif expr.etype[0] == 'constant':
-            return
-        else:
+            pass #the return statement is at the end
+        elif expr.etype[0] in ['arithmetic','boolean','relational']:
+            new_children = []
             for child in expr.args:
-                self._scan_expr_tree(child, dic)
+                new_children.append(self._scan_expr_tree(child, dic))
+            #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
+            expr = Expression((expr.etype[1], tuple(new_children)))
+        elif expr.etype[0] == "aggregation":
+            #TODO: as of now the code assumes all the leaf variables/constants are of the right types, or can be reasonably
+            # casted into the right type (eg: bool->int or v.v.)
+            # however, some type checking would be nice in subsequent versions, and give feedback to the language writer for debugging.
+            aggreg_type = expr.etype[1]
+            if aggreg_type in AGGREG_OP_TO_STRING_DICT:
+                #determine what the recursive op is for the aggreg type. Eg: sum = "+"
+                aggreg_recursive_operation_string = AGGREG_OP_TO_STRING_DICT[aggreg_type]
+                #--todo only for average operation, we need to first "/ n ", for all others
+                # we need to decide the recursive operation symbol "+" or "*" and iterative
+                #---first let's collect the instances like (?x,?y) = (x1,y3) that satisfy the set definition passed in
+                object_instances_list = []
+                instances_def_args = expr.args[0]
+                if instances_def_args[0] == 'typed_var': #then we iterate over the objects specified
+                    # all even indexes (incl 0) are variable names, all odd indexes are object types
+                    var_key_strings_list = [instances_def_args[1][2*x] for x in range(int(len(instances_def_args[1])/2)) ]#like ?x
+                    object_type_list = [instances_def_args[1][2*x+1] for x in range(int(len(instances_def_args[1])/2)) ]
+                    instance_tuples = [tuple([x]) for x in self.objects[object_type_list[0]]]
+                    for var_idx in range(1,len(var_key_strings_list)):
+                        instance_tuples = [tuple(list(instance_tuples[i])+ [self.objects[object_type_list[var_idx]][j]]) \
+                                            for i in range(len(instance_tuples)) for j in range(len(self.objects[object_type_list[var_idx]]))]
+                    object_instances_list= instance_tuples
+                    expr = self.do_aggregate_expression_nesting(dic,var_key_strings_list,object_instances_list,
+                                aggreg_recursive_operation_string,expr.args[1]) #last arg is the expression with which the aggregation is done
+                    if aggreg_type == "avg":
+                        num_instances = len(instance_tuples)  # needed if this is an "Avg" operation
+                        #then the 'expr' becomes lhs argument and we add a "\ |set_size|" operation
+                        children_list = [expr,Expression(('number', num_instances))]
+                        #note "expr" would have been an aggregate sum already, the "aggreg_recursive_operation_string" is set for that
+                        expr = Expression(("/", tuple(children_list)))
+                    #--end if type is average
+                #--- end if obj type aggregation
 
+        elif expr.etype[0] == "control": #if statements and such
+            # the three arguments are "if" condition, true , and false results
+            children_list = [self._scan_expr_tree(expr.args[0],dic),
+                             self._scan_expr_tree(expr.args[1],dic),
+                             self._scan_expr_tree(expr.args[2],dic)]
+            #todo verify the elif statements are in args[2] and what happens if no "else"
+            expr = Expression(("if", tuple(children_list)))
+        # elif expr.etype[0] == "func" and expr.etype[1] == "abs":
+        #     expr = Expression((expr.etype[0], ("abs",[self._scan_expr_tree(expr.args[0], dic)] )))#only one arg for abs
+        elif expr.etype[0] == "func":
+            new_children = []
+            for child in expr.args:
+                new_children.append(self._scan_expr_tree(child, dic))
+            expr = Expression((expr.etype[0], (expr.etype[1],new_children )))#only one arg for abs
+
+        else:
+            new_children = []
+            for child in expr.args:
+                new_children.append(self._scan_expr_tree(child, dic))
+            #if we reached here the expression is either a +,*, or comparator (>,<) or aggregator (sum, product)
+            expr = Expression((expr.etype[1], tuple(new_children)))
+        #--end else
+        return expr
+
+    #===============================================
+
+    #===============================================
     def _groundReward(self):
         return
 
