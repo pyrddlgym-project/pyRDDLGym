@@ -157,7 +157,7 @@ domain hvac_vav_fix{
 non-fluents nf_hvac_vav_fix{
     domain = hvac_vav_fix;
     objects{
-
+        space : { r1, r2, r3 };
     };
     non-fluents {
         //Define rooms
