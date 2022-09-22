@@ -39,44 +39,52 @@ domain hvac_vav_fix{
         //TEMP'(?s) = (sum_{?s : space} [TEMP_AIR + TEMP(?s)]) + IS_ROOM(?s);
 
         //State
-        TEMP'(?s) = TEMP(?s) + TIME_DELTA/CAP(?s) *
+        //TEMP'(?s) =
+        //    if (IS_ROOM(?s))
+        //        then TEMP(?s) + TIME_DELTA/CAP(?s) *
+        //        (AIR(?s) * CAP_AIR * (TEMP_AIR - TEMP(?s)) * IS_ROOM(?s)
+        //        + (max_{?p : space} [(ADJ(?s, ?p) | ADJ(?p, ?s)) * (TEMP(?p) - TEMP(?s)) / R_WALL(?s, ?p)])
+        //        + ADJ_OUTSIDE(?s)*(TEMP_OUTSIDE(?s) - TEMP(?s))/ R_OUTSIDE(?s)
+        //        + ADJ_HALL(?s)*(TEMP_HALL(?s)-TEMP(?s))/R_HALL(?s))
+        //    else
+        //        TEMP(?s) + TEMP(?s) ;
+
+
+        TEMP'(?s) =
+            TEMP(?s) + TIME_DELTA/CAP(?s) *
             (AIR(?s) * CAP_AIR * (TEMP_AIR - TEMP(?s)) * IS_ROOM(?s)
             + (min_{?p : space} [(ADJ(?s, ?p) | ADJ(?p, ?s)) * (TEMP(?p) - TEMP(?s)) / R_WALL(?s, ?p)])
             + ADJ_OUTSIDE(?s)*(TEMP_OUTSIDE(?s) - TEMP(?s))/ R_OUTSIDE(?s)
-            + ADJ_HALL(?s)*(TEMP_HALL(?s)-TEMP(?s))/R_HALL(?s));
+            + ADJ_HALL(?s)*(TEMP_HALL(?s) - TEMP(?s))/R_HALL(?s)) ;
     };
 
-    reward = - (sum_{?s : space} IS_ROOM(?s)*(AIR(?s) * COST_AIR
+    reward =  - (sum_{?s : space} IS_ROOM(?s)*(AIR(?s) * COST_AIR
         + ((TEMP(?s) < TEMP_LOW(?s)) | (TEMP(?s) > TEMP_UP(?s))) * PENALTY)
         + 10.0*abs[((TEMP_UP(?s) + TEMP_LOW(?s))/2.0) - TEMP(?s)]);
 
-    action-preconditions{
-        forall_{?s : space} [ AIR(?s) >= 0 ];
-        forall_{?s : space} [ AIR(?s) <= AIR_MAX(?s)];
-    };
+    //action-preconditions{
+    //    forall_{?s : space} [ AIR(?s) >= 0 ];
+    //    forall_{?s : space} [ AIR(?s) <= AIR_MAX(?s)];
+    //};
 }
 
 
 non-fluents nf_hvac_vav_fix{
     domain = hvac_vav_fix;
     objects{
-        space : { r1, r2, r3, r4, r5, r6 };
+        space : { r1, r2, r3 };
     };
 
     non-fluents {
         //Define rooms
         IS_ROOM(r1) = true;IS_ROOM(r2) = true;IS_ROOM(r3) = true;
-        IS_ROOM(r4) = true;IS_ROOM(r5) = true;IS_ROOM(r6) = true;
 
         //Define the adjacency
-        ADJ(r1, r2) = true;ADJ(r1, r4) = true;ADJ(r2, r3) = true;
-        ADJ(r2, r5) = true;ADJ(r3, r6) = true;ADJ(r4, r5) = true;
-        ADJ(r5, r6) = true;
+        ADJ(r1, r2) = true; ADJ(r2, r3) = true;
 
         ADJ_OUTSIDE(r1) = true;ADJ_OUTSIDE(r3) = true;
-        ADJ_OUTSIDE(r4) = true;ADJ_OUTSIDE(r6) = true;
+
         ADJ_HALL(r1) = true;ADJ_HALL(r2) = true;ADJ_HALL(r3) = true;
-        ADJ_HALL(r4) = true;ADJ_HALL(r5) = true;ADJ_HALL(r6) = true;
     };
 }
 

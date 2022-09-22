@@ -1,4 +1,9 @@
 
+.idea/
+
+*.pyc
+
+
 .project
 .pydevproject
 *.pyc
