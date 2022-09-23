@@ -204,6 +204,7 @@ class RDDLGrounder(Grounder):
         super(RDDLGrounder, self).__init__()
         self.AST = RDDL_AST
         self.objects = {}
+        self._objects = {}#taken from Ayal's grounded grounder. private copy of objects
         self.objects_rev = {}
         self.nonfluents = {}
         self.states = {}
@@ -213,11 +214,21 @@ class RDDLGrounder(Grounder):
         self.derived = {}
         self.interm = {}
 
+    #===============================================
+    def _getObjects(self):
+        self._objects = {}
+        try:
+            for type in self._AST.non_fluents.objects:
+                self._objects[type[0]] = type[1]
+        except:
+            return
+    #===============================================
 
     def Ground(self):
         # get all the objects is the problem
         self.objects = {}
         self.objects_rev = {}
+        self._getObjects()#for private copy of objects, copying Ayal's code in grounded grounder
         if self.AST.non_fluents.objects[0] is None:
             self.objects = None
             self.objects_rev = None
@@ -282,7 +293,34 @@ class RDDLGrounder(Grounder):
         #update the RDDL model to be the grounded expressions
         self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs) #replacing the previous lifted entries
         self.AST.domain.reward = self._scan_expr_tree(self.AST.domain.reward,{})#empty dictionary at this level
-        return
+
+
+        model = RDDLModel()
+        # update model object
+        model.states = self._states
+        model.actions = self._actions
+        model.nonfluents = self._nonfluents
+        model.next_state = self._nextstates
+        model.prev_state = self._prevstates
+        model.init_state = self._init_state
+        model.cpfs = self._cpfs
+        model.cpforder = self._cpforder
+        model.reward = self._reward
+        model.preconditions = self._preconditions
+        model.invariants = self._invariants
+        model.derived = self._derived
+        model.interm = self._interm
+
+        # new properties
+        model.max_allowed_actions = self._groundMaxActions()
+        model.horizon = self._groundHorizon()
+        model.discount = self._groundDiscount()
+        model.actionsranges = self._actionsranges
+        model.statesranges = self._statesranges
+        model.objects = self._objects
+        # new properties
+
+        return model
 
     def _groundObjects(self, args):
         list = []
