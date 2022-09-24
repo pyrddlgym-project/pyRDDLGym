@@ -217,7 +217,7 @@ class RDDLGrounder(Grounder):
 
     def Ground(self):
         # get all the objects is the problem
-        self._groundObjects()
+        self._extract_objects()
         self._groundNonfluents()
         # ground pvariables
         self._groundPvariables()
@@ -255,7 +255,7 @@ class RDDLGrounder(Grounder):
 
         return model
     #===============================================
-    def _groundObjects(self, args):
+    def _extract_objects(self):
         """
 
         """
@@ -269,23 +269,28 @@ class RDDLGrounder(Grounder):
                 self.objects[type[0]] = type[1]
                 for obj in type[1]:
                     self.objects_rev[obj] = type[0]
-        # previous code--leave for now
-        # list = []
-        # new_list = []
-        # for type in args:
-        #     objs = self.objects[type]
-        #
-        #     if len(list) == 0:
-        #         new_list = [[obj] for obj in objs]
-        #     else:
-        #         for l in list:
-        #             for obj in objs:
-        #                 new_l = l.copy()
-        #                 new_l.append(obj)
-        #                 new_list.append(new_l)
-        #     list = new_list
-        #     new_list = []
-        # return list
+    #===============================================
+    def _groundObjects(self, args):
+        """
+
+        """
+
+        list = []
+        new_list = []
+        for type in args:
+            objs = self.objects[type]
+
+            if len(list) == 0:
+                new_list = [[obj] for obj in objs]
+            else:
+                for l in list:
+                    for obj in objs:
+                        new_l = l.copy()
+                        new_l.append(obj)
+                        new_list.append(new_l)
+            list = new_list
+            new_list = []
+        return list
 
     #======================================================
     def _generateName(self, name, list):
@@ -295,11 +300,11 @@ class RDDLGrounder(Grounder):
         return names
     #======================================================
     def _groundNonfluents(self):
-        if hasattr(self._AST.non_fluents, "init_non_fluent"):
-            for init_vals in self._AST.non_fluents.init_non_fluent:
+        if hasattr(self.AST.non_fluents, "init_non_fluent"):
+            for init_vals in self.AST.non_fluents.init_non_fluent:
                 key = init_vals[0][0]
                 val = init_vals[1]
-                self._nonfluents[key] = val
+                self.nonfluents[key] = val
     #======================================================
     def _groundPvariables(self):
         """
@@ -379,36 +384,47 @@ class RDDLGrounder(Grounder):
                 for g in grounded:
                     # l = len(name)
                     # next_state = g[:l] + '\'' + g[l:]
-                    all_grounded_cpfs.append(self._groundCPF(name, cpf, g))
+                    all_grounded_cpfs.append(self._ground_single_CPF(name, cpf, g))
         # ---end second for loop through the pvariables for grounding cpf
         # update the RDDL model to be the grounded expressions
         self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs)  # replacing the previous lifted entries
 
-    # def _deprec_groundCPF(self, name, cpf, variable):
-    #     # map arguments to actual objects
-    #     args = cpf.pvar[1][1]
-    #     if args is None:
-    #         return cpf
-    #     variable_args = variable[len(name)+1:-1].split(',')
-    #     args = cpf.pvar[1][1]
-    #     args_dic = {}
-    #     for i in range(len(args)):
-    #         args_dic[args[i]] = variable_args[i]
-    #     # parse cpf w.r.t cpf args and variables
-    #     # print(cpf)
-    #     new_cpf = copy.deepcopy(cpf)
-    #     # fix name
-    #     new_name = new_cpf.pvar[1][0] + "("
-    #     for arg in new_cpf.pvar[1][1]:
-    #         new_name = new_name + args_dic[arg]+','
-    #     new_name = new_name[:-1] + ')'
-    #
-    #     new_pvar = ('pvar_expr', (new_name, None))
-    #     new_cpf.pvar = new_pvar
-    #     new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
-    #     print(new_cpf)
-    #
-    #     return new_cpf
+    #===========================================================
+    def _ground_single_CPF(self, name, cpf, variable):
+        """
+
+        Args:
+            name:
+            cpf:
+            variable:
+
+        Returns:
+
+        """
+        # map arguments to actual objects
+        args = cpf.pvar[1][1]
+        if args is None:
+            return cpf
+        variable_args = variable[len(name)+1:-1].split(',')
+        args = cpf.pvar[1][1]
+        args_dic = {}
+        for i in range(len(args)):
+            args_dic[args[i]] = variable_args[i]
+        # parse cpf w.r.t cpf args and variables
+        # print(cpf)
+        new_cpf = copy.deepcopy(cpf)
+        # fix name
+        new_name = new_cpf.pvar[1][0] + "("
+        for arg in new_cpf.pvar[1][1]:
+            new_name = new_name + args_dic[arg]+','
+        new_name = new_name[:-1] + ')'
+
+        new_pvar = ('pvar_expr', (new_name, None))
+        new_cpf.pvar = new_pvar
+        new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
+        print(new_cpf)
+
+        return new_cpf
 
     #===================================================
     def do_aggregate_expression_nesting(self,original_dict, new_variables_list, instances_list,\
@@ -590,15 +606,15 @@ class RDDLGrounder(Grounder):
         return self._AST.instance.discount
     #===============================================
     def _groundPreConstraints(self):
-        if hasattr(self._AST.domain, "preconds"):
+        if hasattr(self.AST.domain, "preconds"):
             #todo verify expression parsing and test
-            for precond in self._AST.domain.preconds:
-                self._preconditions.append(precond)
+            for precond in self.AST.domain.preconds:
+                self.preconditions.append(precond)
 
         #todo verify expression parsing and test
-        if hasattr(self._AST.domain, "invariants"):
-            for inv in self._AST.domain.invariants:
-                self._invariants.append(inv)
+        if hasattr(self.AST.domain, "invariants"):
+            for inv in self.AST.domain.invariants:
+                self.invariants.append(inv)
     #===============================================
 
     def _groundConstraints(self):
