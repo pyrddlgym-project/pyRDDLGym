@@ -500,8 +500,8 @@ class RDDLGrounder(Grounder):
     return Expression(
         (expr.etype[0], (expr.etype[1], new_children)))  # Only one arg for abs.
 
-  def _scan_expr_tree_randomvar(self, expr, dic):
-    raise NotImplementedError('Random variable grounding not implemented.')
+  # def _scan_expr_tree_randomvar(self, expr, dic):
+  #   raise NotImplementedError('Random variable grounding not implemented.')
 
   def _scan_expr_tree_aggregation(self, expr, dic):
     # TODO: as of now the code assumes all the leaf variables/constants are.
@@ -570,7 +570,8 @@ class RDDLGrounder(Grounder):
         'relational': self._scan_expr_tree_abr,
         'aggregation': self._scan_expr_tree_aggregation,
         'control': self._scan_expr_tree_control,
-        'randomvar': self._scan_expr_tree_randomvar
+        # Random vars can be ground in the same way as functions.
+        'randomvar': self._scan_expr_tree_func
     }
     if isinstance(expr, tuple):
       expression_type = 'noop'
