@@ -207,11 +207,21 @@ class RDDLGrounder(Grounder):
         self.objects_rev = {}
         self.nonfluents = {}
         self.states = {}
+        self.statesranges = {}
         self.nextstates = {}
+        self.prevstates = {}
+        self.initstates = {}
         self.dynamicstate = {}
         self.actions = {}
+        self.actionsranges = {}
+        self.cpfs = {}
+        self.cpforder = {0: []}
         self.derived = {}
         self.interm = {}
+        self.reward = None
+        self.preconditions = []
+        self.invariants = []
+
 
     #===============================================
 
@@ -219,11 +229,12 @@ class RDDLGrounder(Grounder):
         # get all the objects is the problem
         self._extract_objects()
         self._groundNonfluents()
+        self._groundInitState()
         # ground pvariables
-        self._groundPvariables()
-        self._groundCPF()
+        # self._groundPvariables()
+        self._groundPvariablesAndCPF()
         self.AST.domain.reward = self._scan_expr_tree(self.AST.domain.reward,{})#empty dictionary at this level
-        self._groundPreConstraints()
+        self._groundConstraints()
 
         model = RDDLModel()
         # update model object
@@ -241,13 +252,10 @@ class RDDLGrounder(Grounder):
         model.derived = self.derived
         model.interm = self.interm
         model.objects = self.objects
+        model.maxallowedactions = self._get_num_max_actions()
+        model.horizon = self._get_horizon()
+        model.discount = self._get_discount()
 
-
-        #todo new properties, and functions to support
-
-        # model.maxallowedactions = self.groundMaxActions()
-        # model.horizon = self.groundHorizon()
-        # model.discount = self.groundDiscount()
         # model.actionsranges = self.actionsranges
         # model.statesranges = self.statesranges
 
@@ -312,29 +320,54 @@ class RDDLGrounder(Grounder):
         """
         for pvariable in self.AST.domain.pvariables:
             name = pvariable.name
-            if pvariable.arity > 0:
-                variations = self._groundObjects(pvariable.param_types)
-                grounded = self._generateName(name, variations)
-            else:
-                grounded = [name]
             if pvariable.fluent_type == 'non-fluent':
-                for g in grounded:
-                    self.nonfluents[g] = pvariable.default
-            elif pvariable.fluent_type == 'state-fluent':
-                for g in grounded:
-                    self.states[g] = pvariable.default
-                    l = len(name)
-                    next_state = g[:l] + '\'' + g[l:]
-                    self.nextstates[next_state] = g
+                self.nonfluents[name] = pvariable.default
             elif pvariable.fluent_type == 'action-fluent':
-                for g in grounded:
-                    self.actions[g] = pvariable.default
+                self.actions[name] = pvariable.default
+                self.actionsranges[name] = pvariable.range
+            elif pvariable.fluent_type == 'state-fluent':
+                cpf = None
+                next_state = name + '\''
+                for cpfs in self.AST.domain.cpfs[1]:
+                    if cpfs.pvar[1][0] == next_state:
+                        cpf = cpfs
+                if cpf is not None:
+                    self.states[name] = pvariable.default
+                    self.statesranges[name] = pvariable.range
+                    self.nextstates[name] = next_state
+                    self.prevstates[next_state] = name
+                    self.cpfs[next_state] = cpf
+                    self.cpforder[0].append(name)
             elif pvariable.fluent_type == 'derived-fluent':
-                for g in grounded:
-                    self.derived[g] = pvariable.default
+                cpf = None
+                for cpfs in self.AST.domain.derived_cpfs:
+                    if cpfs.pvar[1][0] == name:
+                        cpf = cpfs
+                if cpf is not None:
+                    self.derived[name] = pvariable.default
+                    self.cpfs[name] = cpf
+                    level = pvariable.level
+                    if level is None:
+                        level = 1
+                    if level in self.cpforder:
+                        self.cpforder[level].append(name)
+                    else:
+                        self.cpforder[level] = [name]
             elif pvariable.fluent_type == 'interm-fluent':
-                for g in grounded:
-                    self.interm[g] = pvariable.default
+                cpf = None
+                for cpfs in self.AST.domain.intermediate_cpfs:
+                    if cpfs.pvar[1][0] == name:
+                        cpf = cpfs
+                if cpf is not None:
+                    self.interm[name] = pvariable.default
+                    self.cpfs[name] = cpf
+                    level = pvariable.level
+                    if level is None:
+                        level = 1
+                    if level in self.cpforder:
+                        self.cpforder[level].append(name)
+                    else:
+                        self.cpforder[level] = [name]
 
 
     #======================================================
@@ -357,11 +390,12 @@ class RDDLGrounder(Grounder):
             val = init_vals[1]
             self.dynamicstate[key] = val
 
-
-    def _groundCPF(self):
+    #=================================================
+    def _groundPvariablesAndCPF(self):
         """
 
         """
+
         all_grounded_cpfs = []
         for pvariable in self.AST.domain.pvariables:
             name = pvariable.name
@@ -370,23 +404,75 @@ class RDDLGrounder(Grounder):
                 grounded = self._generateName(name, variations)
             else:
                 grounded = [name]
-            if pvariable.fluent_type == 'state-fluent':
-                # find cpf
+                #todo merge martin's code check for abuse of arity
+            if pvariable.fluent_type == 'non-fluent':
+                for g in grounded:
+                    self.nonfluents[g] = pvariable.default
+            elif pvariable.fluent_type == 'action-fluent':
+                for g in grounded:
+                    self.actions[g] = pvariable.default
+                    self.actionsranges[g] = pvariable.range
+            elif pvariable.fluent_type == 'state-fluent':
                 cpf = None
+                next_state = name + '\''
                 for cpfs in self.AST.domain.cpfs[1]:
-                    if cpfs.pvar[1][0] == name + '\'':
+                    if cpfs.pvar[1][0] == next_state:
                         cpf = cpfs
-                        break  # added to avoid going over all cpfs, as soon as we have the target one, we stop the loop
-                # ground state, init state and cpf
-                # raise a warning if no cpf found
+                        break;
                 if cpf == None:
                     warnings.warn("No conditional prob func found for " + name)
                 for g in grounded:
-                    # l = len(name)
-                    # next_state = g[:l] + '\'' + g[l:]
-                    all_grounded_cpfs.append(self._ground_single_CPF(name, cpf, g))
-        # ---end second for loop through the pvariables for grounding cpf
-        # update the RDDL model to be the grounded expressions
+                    grounded_cpf = self._ground_single_CPF(name, cpf, g)
+                    all_grounded_cpfs.append(grounded_cpf)
+                    next_state = g + '\'' #update to grounded version, satisfied single-variables too (i.e. not a type)
+                    self.states[g] = pvariable.default
+                    self.statesranges[g] = pvariable.range
+                    self.nextstates[g] = next_state
+                    self.prevstates[next_state] = g
+                    self.cpfs[next_state] = grounded_cpf
+                    self.cpforder[0].append(g)
+            elif pvariable.fluent_type == 'derived-fluent':
+                cpf = None
+                for cpfs in self.AST.domain.derived_cpfs:
+                    if cpfs.pvar[1][0] == name:
+                        cpf = cpfs
+                        break
+                if cpf == None:
+                    warnings.warn("No conditional prob func found for " + name)
+                for g in grounded:
+                    grounded_cpf = self._ground_single_CPF(name, cpf, g)
+                    all_grounded_cpfs.append(grounded_cpf)
+                    self.derived[g] = pvariable.default
+                    self.cpfs[g] = grounded_cpf
+                    level = pvariable.level
+                    if level is None:
+                        level = 1
+                    if level in self.cpforder:
+                        self.cpforder[level].append(g)
+                    else:
+                        self.cpforder[level] = [g]
+
+            elif pvariable.fluent_type == 'interm-fluent':
+                cpf = None
+                for cpfs in self.AST.domain.intermediate_cpfs:
+                    if cpfs.pvar[1][0] == name:
+                        cpf = cpfs
+                        break
+                if cpf == None:
+                    warnings.warn("No conditional prob func found for " + name)
+                for g in grounded:
+                    grounded_cpf = self._ground_single_CPF(name, cpf, g)
+                    all_grounded_cpfs.append(grounded_cpf)
+                    self.interm[g] = pvariable.default
+                    self.cpfs[g] = grounded_cpf
+                    level = pvariable.level
+                    if level is None:
+                        level = 1
+                    if level in self.cpforder:
+                        self.cpforder[level].append(g)
+                    else:
+                        self.cpforder[level] = [g]
+        #---end loop through pvars
         self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs)  # replacing the previous lifted entries
 
     #===========================================================
@@ -589,34 +675,42 @@ class RDDLGrounder(Grounder):
         #--end else
         return expr
 
+
+    #===============================================
+    def _groundConstraints(self):
+        if hasattr(self.AST.domain, "preconds"):
+            for precond in self.AST.domain.preconds:
+                self.preconditions.append(self._scan_expr_tree(precond,{}))
+
+        if hasattr(self.AST.domain, "constraints"):
+            for constraint in self.AST.domain.preconds:
+                self.preconditions.append(self._scan_expr_tree(constraint,{}))
+
+        if hasattr(self.AST.domain, "invariants"):
+            for inv in self.AST.domain.invariants:
+                self.invariants.append(self._scan_expr_tree(inv,{}))
+    #===============================================
+    def _groundInitState(self):
+        self.initstate = self.states.copy()
+        if hasattr(self.AST.instance, "init_state"):
+            for init_vals in self.AST.instance.init_state:
+                key = init_vals[0][0]
+                val = init_vals[1]
+                self.initstate[key] = val
+    #===============================================
+    def _get_horizon(self):
+        return self.AST.instance.horizon
     #===============================================
 
-    def _groundHorizon(self):
-        return self._AST.instance.horizon
-
-    def _groundMaxActions(self):
-        numactions = self._AST.instance.max_nondef_actions
+    def _get_num_max_actions(self):
+        numactions = self.AST.instance.max_nondef_actions
         if numactions == "pos-inf":
-            return len(self._actions)
+            return len(self.actions)
         else:
             return int(numactions)
     #===============================================
 
-    def _groundDiscount(self):
-        return self._AST.instance.discount
+    def _get_discount(self):
+        return self.AST.instance.discount
     #===============================================
-    def _groundPreConstraints(self):
-        if hasattr(self.AST.domain, "preconds"):
-            #todo verify expression parsing and test
-            for precond in self.AST.domain.preconds:
-                self.preconditions.append(precond)
-
-        #todo verify expression parsing and test
-        if hasattr(self.AST.domain, "invariants"):
-            for inv in self.AST.domain.invariants:
-                self.invariants.append(inv)
-    #===============================================
-
-    def _groundConstraints(self):
-        return
 
