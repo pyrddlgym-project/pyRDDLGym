@@ -2,9 +2,9 @@
 
 # overall
 
-unblock martin, see his recsim branch
+The constraints are still lifted, debug
 
-abs(.) is not grounded correctly
+Test for interim and derived vars. Take example from Ayals test rddl file
 
 Parse State constraints, action constraints, state-action constraints
 
