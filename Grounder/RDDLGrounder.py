@@ -703,7 +703,11 @@ class RDDLGrounder(Grounder):
     #===============================================
 
     def _get_num_max_actions(self):
-        numactions = self.AST.instance.max_nondef_actions
+        try:
+            numactions = self.AST.instance.max_nondef_actions
+        except AttributeError: #was not set
+            numactions = "pos-inf"
+        #--end try-catch
         if numactions == "pos-inf":
             return len(self.actions)
         else:
