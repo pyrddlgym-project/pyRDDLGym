@@ -492,15 +492,17 @@ class RDDLGrounder(Grounder):
         args = cpf.pvar[1][1]
         if args is None:
             return cpf
-        variable_args = variable[len(name)+1:-1].split(',')
-        args = cpf.pvar[1][1]
+        variable_args = variable[len(name) + 1:-1].split(',')
         args_dic = {}
-        for i in range(len(args)):
-            args_dic[args[i]] = variable_args[i]
-        # parse cpf w.r.t cpf args and variables
-        # print(cpf)
+        if len(args) != len(variable_args):
+            raise ValueError(
+                f'Ground instance {variable} is of arity {len(variable_args)} but '
+                f'was expected to be of arity {len(args)} according to declaration.')
+        for arg, vararg in zip(args, variable_args):
+            args_dic[arg] = vararg
+        # Parse cpf w.r.t cpf args and variables.
         new_cpf = copy.deepcopy(cpf)
-        # fix name
+        # Fix name.
         new_name = new_cpf.pvar[1][0] + "("
         for arg in new_cpf.pvar[1][1]:
             new_name = new_name + args_dic[arg]+','
