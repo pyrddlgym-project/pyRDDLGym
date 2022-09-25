@@ -2,7 +2,9 @@
 
 # overall
 
-abs(.) is not grounded correctly
+The constraints are still lifted, debug
+
+Test for interim and derived vars. Take example from Ayals test rddl file
 
 Parse State constraints, action constraints, state-action constraints
 
