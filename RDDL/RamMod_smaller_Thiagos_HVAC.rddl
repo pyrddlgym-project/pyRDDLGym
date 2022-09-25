@@ -62,10 +62,14 @@ domain hvac_vav_fix{
         + ((TEMP(?s) < TEMP_LOW(?s)) | (TEMP(?s) > TEMP_UP(?s))) * PENALTY)
         + 10.0*abs[((TEMP_UP(?s) + TEMP_LOW(?s))/2.0) - TEMP(?s)]);
 
-    //action-preconditions{
-    //    forall_{?s : space} [ AIR(?s) >= 0 ];
-    //    forall_{?s : space} [ AIR(?s) <= AIR_MAX(?s)];
-    //};
+    action-preconditions{
+        forall_{?s : space} [ AIR(?s) >= 0 ];
+        forall_{?s : space} [ AIR(?s) <= AIR_MAX(?s)];
+    };
+
+    state-action-constraints{
+        forall_{?s : space} [ TEMP(?s) >= -100 ];
+    };
 }
 
 
