@@ -1,0 +1,12 @@
+
+.idea/
+
+*.pyc
+
+
+.project
+.pydevproject
+*.pyc
+*.out
+.gitignore.bak
+Parser/parsetab.py
