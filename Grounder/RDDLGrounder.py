@@ -512,13 +512,8 @@ class RDDLGrounder(Grounder):
 
         new_pvar = ('pvar_expr', (new_name, None))
         new_cpf.pvar = new_pvar
-<<<<<<< HEAD
-        self._scan_expr_tree(new_cpf.expr, args_dic)
-        # print(new_cpf)
-=======
         new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
         print(new_cpf)
->>>>>>> 84f0fdc92283c079344cb10557fde0aa1e1cb4f7
 
         return new_cpf
 
