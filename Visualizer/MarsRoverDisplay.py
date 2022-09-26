@@ -5,10 +5,14 @@ from Visualizer.StateViz import StateViz
 from Grounder.RDDLModel import RDDLModel
 
 class MarsRoverDisplay(StateViz):
-    def __init__(self, model: RDDLModel, resolution: [int,int]) -> None:
+    def __init__(self, model: RDDLModel, grid_size: [int, int], resolution: [int,int], ) -> None:
         self._model= model
         self._states = model.states
         self._nonfluents = model.nonfluents
+        self._grid_size = grid_size
+        self._resolution = resolution
+        
+        self._actions = None
 
 
         # Temp varaible until grounder is completated
@@ -46,6 +50,13 @@ class MarsRoverDisplay(StateViz):
 
         print(rover_location)
         print(picture_point_locaiton)
+
+        plt.axes()
+        circle = plt.Circle((0, 0), radius=0.75, fc='y')
+        plt.gca().add_patch(circle)
+
+        plt.show()
+
         
 
     def render():

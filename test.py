@@ -44,7 +44,7 @@ def main():
     model = grounder.Ground()
     # grounder.InitGround()
 
-    marsVisual = MarsRoverDisplay(model,[128,128])
+    marsVisual = MarsRoverDisplay(model,grid_size=[41,41],resolution=[128,128])
 
 
     # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
