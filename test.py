@@ -1,28 +1,15 @@
 from Parser import parser as parser
 from Parser import RDDLReader as RDDLReader
 import Grounder.RDDLGrounder as RDDLGrounder
-<<<<<<< HEAD
 from Visualizer.MarsRoverDisplay import MarsRoverDisplay
-=======
-from Simulator.RDDLSimulator import RDDLSimulator
->>>>>>> 84f0fdc92283c079344cb10557fde0aa1e1cb4f7
 
 DOMAIN = 'power_unit_commitment.rddl'
 
 # DOMAIN = 'ThiagosReservoir.rddl'
 # DOMAIN = 'Thiagos_Mars_Rover.rddl'
-<<<<<<< HEAD
 DOMAIN = 'Thiagos_Mars_Rover_grounded.rddl'
 # DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'dbn_prop.rddl'
-=======
-# DOMAIN = 'dbn_prop.rddl'
-# DOMAIN = 'RamMod_Thiagos_HVAC.rddl'
-DOMAIN = 'RamMod_smaller_Thiagos_HVAC.rddl'
-# DOMAIN = 'RamMod_Thiagos_HVAC_grounded.rddl'
-
-# DOMAIN = 'Thiagos_HVAC.rddl'
->>>>>>> 84f0fdc92283c079344cb10557fde0aa1e1cb4f7
 # DOMAIN = 'Thiagos_HVAC_grounded.rddl'
 # DOMAIN = 'wildfire_mdp.rddl'
 
@@ -98,7 +85,6 @@ def main():
     # pprint(vars(grounder))
     
     # grounder.InitGround()
-<<<<<<< HEAD
 
     marsVisual = MarsRoverDisplay(model,grid_size=[41,41],resolution=[128,128])
 
@@ -106,11 +92,6 @@ def main():
     # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
     # rddl = generator.GenerateRDDL()
     # print(rddl)
-=======
-    # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
-    # rddl = generator.GenerateRDDL()
-    
->>>>>>> 84f0fdc92283c079344cb10557fde0aa1e1cb4f7
 
     print("reached end of test.py")
 
