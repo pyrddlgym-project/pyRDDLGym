@@ -86,19 +86,21 @@ class RDDLSimulator:
         if self._next_state is not None:
             raise RDDLRuntimeError(
                 'A state has already been sampled: call update_state to update it.')
-        if self._action_fluents != set(actions.keys()):
-            raise ValueError(
-                'Action fluents are not valid. Expected {}, got {}.'.format(
-                    self._action_fluents, set(actions.keys())))
-            
-        self._model.actions = actions
+
+        actions_with_defaults = {}
+        for k, default_action in self._init_actions.items():
+            actions_with_defaults[k] = actions[k] if k in actions else default_action
+        self._model.actions = actions_with_defaults
         subs = self._update_subs()  
         next_state = {}
-        for order in self._order_cpfs:
+        local_order = list(self._order_cpfs.copy())
+        local_order.remove(0)
+        local_order.append(0) 
+        for order in local_order:
             for cpf in self._model.cpforder[order]: 
                 if cpf in self._model.next_state:
                     primed_cpf = self._model.next_state[cpf]
-                    expr = self._model.cpfs[primed_cpf].expr
+                    expr = self._model.cpfs[primed_cpf]
                     sample = self._sample(expr, subs)
                     if primed_cpf not in self._model.prev_state:
                         raise KeyError(
@@ -106,12 +108,12 @@ class RDDLSimulator:
                     next_state[self._model.prev_state[primed_cpf]] = sample   
                     subs[primed_cpf] = sample  # TODO: don't know if we need this             
                 elif cpf in self._model.interm:
-                    expr = self._model.cpfs[cpf].expr
+                    expr = self._model.cpfs[cpf]
                     sample = self._sample(expr, subs)
                     subs[cpf] = sample
                     self._model.interm[cpf] = sample
                 elif cpf in self._model.derived:
-                    expr = self._model.cpfs[cpf].expr
+                    expr = self._model.cpfs[cpf]
                     sample = self._sample(expr, subs)
                     subs[cpf] = sample
                     self._model.derived[cpf] = sample
@@ -378,7 +380,6 @@ class RDDLSimulator:
             expr1, expr2 = expr2, expr1
         
         arg1 = self._sample(expr1, subs)
-        print(type(arg1))
         if not isinstance(arg1, bool):
             raise TypeError(
                 'Logical operator {} requires boolean arg, got {}.'.format(op, arg1) + 
