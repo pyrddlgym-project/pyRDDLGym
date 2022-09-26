@@ -159,7 +159,7 @@ class Domain(object):
 
     @property
     def derived_cpfs(self) -> List[CPF]:
-        '''Returns list of intermediate-fluent CPFs in level order.'''
+        '''Returns list of derived-fluent CPFs in level order.'''
         _, cpfs = self.cpfs
         der_cpfs = [cpf for cpf in cpfs if cpf.name in self.derived_fluents]
         der_cpfs = sorted(der_cpfs, key=lambda cpf: (self.derived_fluents[cpf.name].level, cpf.name))
@@ -167,6 +167,11 @@ class Domain(object):
 
     def get_intermediate_cpf(self, name):
         for cpf in self.intermediate_cpfs:
+            if cpf.name == name:
+                return cpf
+
+    def get_derived_cpf(self, name):
+        for cpf in self.derived_cpfs:
             if cpf.name == name:
                 return cpf
 
@@ -215,6 +220,16 @@ class Domain(object):
         interm_fluents = self.intermediate_fluents.values()
         key = lambda pvar: (pvar.level, pvar.name)
         return [str(pvar) for pvar in sorted(interm_fluents, key=key)]
+
+    @property
+    def derived_fluent_ordering(self) -> List[str]:
+        '''The list of derived-fluent names in canonical order.
+        Returns:
+            List[str]: A list of fluent names.
+        '''
+        derived_fluents = self.derived_fluents.values()
+        key = lambda pvar: (pvar.level, pvar.name)
+        return [str(pvar) for pvar in sorted(derived_fluents, key=key)]
 
     @property
     def next_state_fluent_ordering(self) -> List[str]:
