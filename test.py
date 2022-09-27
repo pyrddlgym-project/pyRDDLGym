@@ -6,8 +6,9 @@ from Visualizer.MarsRoverDisplay import MarsRoverDisplay
 DOMAIN = 'power_unit_commitment.rddl'
 
 # DOMAIN = 'ThiagosReservoir.rddl'
+DOMAIN = 'ThiagosReservoir_grounded.rddl'
 # DOMAIN = 'Thiagos_Mars_Rover.rddl'
-DOMAIN = 'Thiagos_Mars_Rover_grounded.rddl'
+# DOMAIN = 'Thiagos_Mars_Rover_grounded.rddl'
 # DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'dbn_prop.rddl'
 # DOMAIN = 'Thiagos_HVAC_grounded.rddl'
@@ -81,12 +82,12 @@ def main():
     #     print('trial {}, total reward {}'.format(h, total_reward))
         
     grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
-    grounder.Ground()
-    # pprint(vars(grounder))
-    
-    # grounder.InitGround()
+    model = grounder.Ground()
+    # marsVisual = MarsRoverDisplay(model, grid_size=[50,50], resolution=[500,500])
+    # marsVisual.display_img(duration=0.5)
+    # marsVisual.save_img('./pict2.png')
+    # print(model._nonfluents)
 
-    marsVisual = MarsRoverDisplay(model,grid_size=[41,41],resolution=[128,128])
 
 
     # generator = RDDLGenerator.RDDLGenerator(rddl_ast)
