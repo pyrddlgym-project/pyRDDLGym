@@ -108,6 +108,7 @@ non-fluents pics3 {
 	// Three pictures
 	objects {
 		picture-point : {p1, p2, p3};
+		rover: {r1};
 	};
 
 	non-fluents {
@@ -140,8 +141,8 @@ instance inst_simple_mars_rover_pics3 {
 	non-fluents = pics3;
 
 	init-state {
-		xPos = 0.0;
-		yPos = 0.0;
+		xPos_r1 = 0.0;
+		yPos_r1 = 0.0;
 		time = 0.0;
 	};
 

@@ -108,6 +108,7 @@ non-fluents pics3 {
 	// Three pictures
 	objects {
 		picture-point : {p1, p2, p3};
+		rover:{r1};
 	};
 
 	non-fluents {

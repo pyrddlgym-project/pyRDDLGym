@@ -11,7 +11,7 @@ from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
 
 import Visualizer
 
-class MarsRoverDisplay(StateViz):
+class ReservoirDisplay(StateViz):
     def __init__(self, model: RDDLModel, grid_size: Optional[int] = [50,50], resolution: Optional[int] = [500,500]) -> None:
 
         self._model= model
@@ -35,8 +35,6 @@ class MarsRoverDisplay(StateViz):
         pict_taken ={o:None for o in self._objects['picture-point']}
         rover_location = {o:[None,None] for o in self._objects['rover']}
 
-        print(self._nonfluents)
-
         # style of fluent(p1)
         for k,v in self._states.items():
             if 'picTaken(' in k:
@@ -58,26 +56,6 @@ class MarsRoverDisplay(StateViz):
             elif 'PICT_VALUE_' in k:
                 point = k.split('_')[2]
                 picture_point_locaiton[point][2] = v
-
-        # # style of fluent_p1
-        # for k,v in self._nonfluents.items():
-        #     if 'PICT_XPOS(' in k:
-        #         point_lst = k[k.find("(")+1:k.find(")")]
-        #         point = point_lst.split(',')[0]
-        #         # point = k.split('_')[2]
-        #         picture_point_locaiton[point][0] = v
-        #     elif 'PICT_YPOS(' in k:
-        #         point_lst = k[k.find("(")+1:k.find(")")]
-        #         point = point_lst.split(',')[0]
-        #         # point = k.split('_')[2]
-        #         picture_point_locaiton[point][1] = v
-        #     elif 'PICT_VALUE(' in k:
-        #         point_lst = k[k.find("(")+1:k.find(")")]
-        #         point = point_lst.split(',')[0]
-        #         # point = k.split('_')[2]
-        #         picture_point_locaiton[point][2] = v
-        
-        print(picture_point_locaiton)
 
         # need to change for later, currently only single rover possible
         for k,v in self._states.items():
@@ -145,7 +123,7 @@ class MarsRoverDisplay(StateViz):
     
 
     def save_img(self, path:str ='./pict.png') -> None:
-
+        
         im = Image.fromarray(self._data)
         im.save(path)
         
