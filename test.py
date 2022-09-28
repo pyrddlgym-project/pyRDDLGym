@@ -2,6 +2,7 @@ from Parser import parser as parser
 from Parser import RDDLReader as RDDLReader
 import Grounder.RDDLGrounder as RDDLGrounder
 from Visualizer.MarsRoverDisplay import MarsRoverDisplay
+from Visualizer.ReservoirDisplay import ReservoirDisplay
 
 DOMAIN = 'power_unit_commitment.rddl'
 
@@ -81,12 +82,18 @@ def main():
     #         total_reward += reward
     #     print('trial {}, total reward {}'.format(h, total_reward))
         
-    grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
+    grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
     model = grounder.Ground()
     # marsVisual = MarsRoverDisplay(model, grid_size=[50,50], resolution=[500,500])
     # marsVisual.display_img(duration=0.5)
     # marsVisual.save_img('./pict2.png')
-    # print(model._nonfluents)
+
+    reservoirVisual = ReservoirDisplay(model, grid_size=[50,50], resolution=[500,500])
+
+
+    print(model._nonfluents)
+    print(model._states)
+    print(model._objects)
 
 
 

@@ -27,92 +27,262 @@ class ReservoirDisplay(StateViz):
         self._render_frame = None
         self._data = None
 
+        # self.render()
         self.render()
 
-   
+    
     def build_object_layout(self) -> dict:
-        picture_point_locaiton = {o:[None,None,None] for o in self._objects['picture-point']}
-        pict_taken ={o:None for o in self._objects['picture-point']}
-        rover_location = {o:[None,None] for o in self._objects['rover']}
+        
+        max_res_cap = {o:None for o in self._objects['res']}
+        upper_bound = {o:None for o in self._objects['res']}
+        lower_bound = {o:None for o in self._objects['res']}
+        rain_shape = {o:None for o in self._objects['res']}
+        rain_scale = {o:None for o in self._objects['res']}
+        downstream = {o:None for o in self._objects['res']}
+        sink_res = {o:None for o in self._objects['res']}
 
-        # style of fluent(p1)
-        for k,v in self._states.items():
-            if 'picTaken(' in k:
-                point_lst = k[k.find("(")+1:k.find(")")]
-                point = point_lst.split(',')[0]
-                taken = v
-                pict_taken[point] = taken
+        rlevel = {o:None for o in self._objects['res']}
 
-        # update point location to exclude ones already b
-
-        # style of fluent_p1
+        # add none-fluents
         for k,v in self._nonfluents.items():
-            if 'PICT_XPOS_' in k:
+            if 'RAIN_SHAPE_' in k:
                 point = k.split('_')[2]
-                picture_point_locaiton[point][0] = v
-            elif 'PICT_YPOS_' in k:
+                rain_shape[point] = v
+            elif 'MAX_RES_CAP_' in k:
+                point = k.split('_')[3]
+                max_res_cap[point] = v
+            elif 'UPPER_BOUND_' in k:
                 point = k.split('_')[2]
-                picture_point_locaiton[point][1] = v
-            elif 'PICT_VALUE_' in k:
+                upper_bound[point] = v
+            elif 'LOWER_BOUND_' in k:
                 point = k.split('_')[2]
-                picture_point_locaiton[point][2] = v
+                lower_bound[point] = v
+            elif 'RAIN_SHAPE_' in k:
+                point = k.split('_')[2]
+                rain_shape[point] = v
+            elif 'RAIN_SCALE_' in k:
+                point = k.split('_')[2]
+                rain_scale[point] = v
+            elif 'DOWNSTREAM_' in k:
+                point = k.split('_')[1]
+                v = k.split('_')[2]
+                downstream[point] = v
+            elif 'SINK_RES_' in k:
+                point = k.split('_')[2]
+                sink_res[point] = v
 
-        # need to change for later, currently only single rover possible
-        for k,v in self._states.items():
-            if 'xPos' == k:
-                rover_location['r1'][0] = v
-            elif 'yPos' == k:
-                rover_location['r1'][1] = v
+        # add states
+        for k, v in self._states.items():
+            if 'rlevel' in k:
+                rlevel['t1'] = 75
 
+        # adding defaults
+        for o in self._objects['res']:
+            if rain_shape[o] == None:
+                rain_shape[o] = self._nonfluents['RAIN_SHAPE']
+            if max_res_cap[o] == None:
+                max_res_cap[o] = self._nonfluents['MAX_RES_CAP']
+            if upper_bound[o] == None:
+                upper_bound[o] = self._nonfluents['UPPER_BOUND']
+            if lower_bound[o] == None:
+                lower_bound[o] = self._nonfluents['LOWER_BOUND']
+            if rain_shape[o] == None:
+                rain_shape[o] = self._nonfluents['RAIN_SHAPE']
+            if rain_scale[o] == None:
+                rain_scale[o] = self._nonfluents['RAIN_SCALE']
+            if rlevel[o] == None:
+                rlevel[o] = self._states['rlevel']
+            if sink_res[o] == None:
+                sink_res[o] = False
 
-        object_layout = {'picture_point':picture_point_locaiton, 'picture_taken':pict_taken, 'rover_location':rover_location}
-
+        object_layout = {'rain_shape': rain_shape, 'rain_scale': rain_scale, 'max_res_cap':max_res_cap, 'rlevel':rlevel,
+                         'upper_bound':upper_bound, 'lower_bound':lower_bound, 'downstream':downstream, 'sink_res':sink_res
+                         }
         return object_layout
+    
 
+    def render_single_fig(self, res : str, render_text : str) -> tuple:
+
+        curr_t = res
+
+        plt.rcParams['axes.facecolor']='white'
+        fig = plt.figure(figsize = (12,12))
+        ax = plt.gca()
+        plt.text(11, 11, "%s" % curr_t, color='black', fontsize = 35)
+        plt.xlim([-0.1,12])
+        plt.ylim([-0.1,12])
+        plt.axis('scaled')
+        plt.axis('off')
+
+        rlevel = self._object_layout['rlevel'][curr_t]
+        rain_scale = self._object_layout['rain_scale'][curr_t]
+        rain_shape = self._object_layout['rain_shape'][curr_t]
+
+        max_res_cap = self._object_layout['max_res_cap'][curr_t]
+        upper_bound = self._object_layout['upper_bound'][curr_t]
+        lower_bound = self._object_layout['lower_bound'][curr_t]
+
+        sink_res = self._object_layout['sink_res'][curr_t]
+        downstream = self._object_layout['downstream'][curr_t]
+
+        maxL = [0, max_res_cap/100]
+        maxR = [10, max_res_cap/100]
+        upL = [0, upper_bound/100]
+        upR = [10, upper_bound/100]
+        lowL = [0, lower_bound/100]
+        lowR = [10, lower_bound/100]
+
+        line_max = plt.Line2D((maxL[0], maxR[0]),(maxL[1], maxR[1]), ls='--', color='black',lw=3)
+        line_up = plt.Line2D((upL[0], upR[0]),(upL[1], upR[1]), ls='--', color='orange',lw=3)
+        line_low = plt.Line2D((lowL[0], lowR[0]),(lowL[1], lowR[1]), ls='--', color='orange',lw=3)
+        lineL = plt.Line2D((0, 0), (10, 0), color='black',lw=5)
+        lineR = plt.Line2D((10, 10), (10, 0), color='black',lw=5)
+        lineB = plt.Line2D((0, 10), (0, 0), color='black',lw=5)
+
+        water_rect = plt.Rectangle((0,0), 10, rlevel/100, fc='royalblue')
+        res_rect = plt.Rectangle((0,rlevel/100), 10, 10-rlevel/100, fc='lightgrey', alpha=0.5)
+        scale_rect = plt.Rectangle((0,10), 5, 2, fc='deepskyblue', alpha=rain_scale/100)
+        shape_rect = plt.Rectangle((5,10), 5, 2, fc='darkcyan', alpha=rain_shape/100)
+
+        lineU = plt.Line2D((10, 12), (2, 2), color='black',lw=5)
+        lineD = plt.Line2D((10, 12), (0, 0), color='black',lw=5)
+        conn_shape = plt.Rectangle((10,0), 2, 2, fc='royalblue')
+        if sink_res:
+            land_shape = plt.Rectangle((10,2), 2, 8, fc='royalblue')
+        else:
+            land_shape = plt.Rectangle((10,2), 2, 8, fc='darkgoldenrod')
+
+        ax.add_patch(water_rect)
+        ax.add_patch(res_rect)
+        ax.add_patch(scale_rect)
+        ax.add_patch(shape_rect)
+        
+        ax.add_line(line_max)
+        ax.add_line(line_up)
+        ax.add_line(line_low)
+        ax.add_line(lineL)
+        ax.add_line(lineR)
+        ax.add_line(lineB)
+
+        ax.add_line(lineU)
+        ax.add_line(lineD)
+        ax.add_patch(conn_shape)
+        ax.add_patch(land_shape)
+
+        # self.build_res_fill(fig, ax, self._object_layout['rlevel'][curr_t], self._object_layout['rain_scale'][curr_t], self._object_layout['rain_shape'][curr_t])
+        # self.build_res_shape(fig, ax, self._object_layout['max_res_cap'][curr_t], self._object_layout['upper_bound'][curr_t], self._object_layout['lower_bound'][curr_t])
+        # self.build_conn_shape(fig, ax, self._object_layout['sink_res'][curr_t], self._object_layout['downstream'][curr_t])
+
+        if render_text:
+            plt.text(0.1, 11.5, "Rain Scale: %s" % round(rain_scale, 2), color='black', fontsize = 22)        
+            plt.text(5.1, 0.1, "Water Level: %s" % round(rlevel, 2), color='black', fontsize = 22)
+            plt.text(5.1, 11.5, "Rain Shape %s" % round(rain_shape, 2), color='black', fontsize = 22)
+
+            plt.text(5.1, max_res_cap/100+0.1, "MAX RES CAP: %s" % round(max_res_cap, 2), color='black', fontsize = 22)
+            plt.text(0.1, upper_bound/100+0.1, "Upper Bound: %s" % round(upper_bound, 2), color='black', fontsize = 22)
+            plt.text(0.1, lower_bound/100+0.1, "Lower Bound: %s" % round(lower_bound, 2), color='black', fontsize = 22)
+
+        plt.text(10.1, 0.1, "Down: %s" % downstream, color='black', fontsize = 15)
+        plt.text(10.1, 2.1, "Sink: %s" % sink_res, color='black', fontsize = 15)
+
+        fig.canvas.draw()
+        return fig, ax
+
+    def fig2npa(self, fig):
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        return data
         
 
     def render(self, display:bool = True) -> np.ndarray:
-
         self._object_layout = self.build_object_layout()
-    
-        px = 1/plt.rcParams['figure.dpi']
-        fig = plt.figure(figsize=(self._resolution[0]*px,self._resolution[1]*px))
-        ax = plt.gca()
 
-        for k,v in self._object_layout['picture_point'].items():
-            if self._object_layout['picture_taken'][k] == False:
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=0.5)
-            else:
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
-            ax.add_patch(p_point)
+        layout_data = []
+        for res in self._objects['res']:
+            curr_t = res
+            fig, ax = self.render_single_fig(curr_t, render_text=True)
+            layout_data.append(self.fig2npa(fig))
+            plt.close()
         
-        rover_img_path = self._asset_path + '/assets/mars-rover.png'
-        rover_logo = plt_img.imread(rover_img_path)
-        rover_logo_zoom = self._resolution[0]*0.05/rover_logo.shape[0]
-
-        for k,v in self._object_layout['rover_location'].items():
-            imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
-            ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
-            ax.add_artist(ab)
-            # r_point = plt.Rectangle((v[0],v[1]), 1, 1, fc='navy')
-            # ax.add_patch(r_point)
-
-        plt.axis('scaled')
+        print(layout_data[0].shape)
+        
+        plt.imshow(layout_data[0], interpolation='nearest')
         plt.axis('off')
-        plt.xlim([self._grid_size[0]//2,-self._grid_size[0]//2])
-        plt.ylim([self._grid_size[1]//2,-self._grid_size[1]//2])
-
-        fig.canvas.draw()
-
-        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
+        plt.show(block=False)
+        plt.pause(20)
         plt.close()
 
-        self._data = data
-   
-        return data
+
+
+        
+
+        # fig1, ax1 = self.render_single_fig(curr_t, render_text=True)
+
+        
+
+        # plt.show()
+
+
+
+    # def build_res_shape(self, fig, ax, max_res_cap, upper_bound, lower_bound):
+        
+
+    #     line_max = plt.Line2D((maxL[0], maxR[0]),(maxL[1], maxR[1]), ls='--', color='black',lw=3)
+    #     line_up = plt.Line2D((upL[0], upR[0]),(upL[1], upR[1]), ls='--', color='orange',lw=3)
+    #     line_low = plt.Line2D((lowL[0], lowR[0]),(lowL[1], lowR[1]), ls='--', color='orange',lw=3)
+    #     lineL = plt.Line2D((0, 0), (10, 0), color='black',lw=5)
+    #     lineR = plt.Line2D((10, 10), (10, 0), color='black',lw=5)
+    #     lineB = plt.Line2D((0, 10), (0, 0), color='black',lw=5)
+  
+    #     ax.add_line(line_max)
+    #     plt.text(5.1, max_res_cap/100+0.1, "MAX RES CAP: %s" % round(max_res_cap, 2), color='black', fontsize = 22)
+
+    #     ax.add_line(line_up)
+    #     plt.text(0.1, upper_bound/100+0.1, "Upper Bound: %s" % round(upper_bound, 2), color='black', fontsize = 22)
+
+    #     ax.add_line(line_low)
+    #     plt.text(0.1, lower_bound/100+0.1, "Lower Bound: %s" % round(lower_bound, 2), color='black', fontsize = 22)
+        
+    #     ax.add_line(lineL)
+    #     ax.add_line(lineR)
+    #     ax.add_line(lineB)
+        
+
+        
+    # def build_res_fill(self, fig, ax, rlevel, rain_scale, rain_shape):
+
+    #     water_rect = plt.Rectangle((0,0), 10, rlevel/100, fc='royalblue')
+    #     res_rect = plt.Rectangle((0,rlevel/100), 10, 10-rlevel/100, fc='lightgrey', alpha=0.5)
+    #     scale_rect = plt.Rectangle((0,10), 5, 2, fc='deepskyblue', alpha=rain_scale/100)
+    #     shape_rect = plt.Rectangle((5,10), 5, 2, fc='darkcyan', alpha=rain_shape/100)
+
+    #     ax.add_patch(water_rect)
+    #     plt.text(5.1, 0.1, "Water Level: %s" % round(rlevel, 2), color='black', fontsize = 22)
+
+    #     ax.add_patch(res_rect)
+    #     ax.add_patch(scale_rect)
+    #     plt.text(0.1, 11.5, "Rain Scale: %s" % round(rain_scale, 2), color='black', fontsize = 22)
+
+    #     ax.add_patch(shape_rect)
+    #     plt.text(5.1, 11.5, "Rain Shape %s" % round(rain_shape, 2), color='black', fontsize = 22)
     
+    # def build_conn_shape(self, fig, ax, sink_res, downstream):
+    #     lineU = plt.Line2D((10, 12), (2, 2), color='black',lw=5)
+    #     lineD = plt.Line2D((10, 12), (0, 0), color='black',lw=5)
+    #     conn_shape = plt.Rectangle((10,0), 2, 2, fc='royalblue')
+    #     if sink_res:
+    #         land_shape = plt.Rectangle((10,2), 2, 8, fc='royalblue')
+    #     else:
+    #         land_shape = plt.Rectangle((10,2), 2, 8, fc='darkgoldenrod')
+    #     ax.add_line(lineU)
+    #     ax.add_line(lineD)
+    #     ax.add_patch(conn_shape)
+    #     plt.text(10.1, 0.1, "Down: %s" % downstream, color='black', fontsize = 15)
+
+    #     ax.add_patch(land_shape)
+    #     plt.text(10.1, 2.1, "Sink: %s" % sink_res, color='black', fontsize = 15)
+       
+
     def display_img(self, duration:float = 0.5) -> None:
 
         plt.imshow(self._data, interpolation='nearest')
@@ -126,6 +296,70 @@ class ReservoirDisplay(StateViz):
         
         im = Image.fromarray(self._data)
         im.save(path)
+        
+
+
+
+
+   
+  
+        
+
+    # def render(self, display:bool = True) -> np.ndarray:
+
+    #     self._object_layout = self.build_object_layout()
+    
+    #     px = 1/plt.rcParams['figure.dpi']
+    #     fig = plt.figure(figsize=(self._resolution[0]*px,self._resolution[1]*px))
+    #     ax = plt.gca()
+
+    #     for k,v in self._object_layout['picture_point'].items():
+    #         if self._object_layout['picture_taken'][k] == False:
+    #             p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=0.5)
+    #         else:
+    #             p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
+    #         ax.add_patch(p_point)
+        
+    #     rover_img_path = self._asset_path + '/assets/mars-rover.png'
+    #     rover_logo = plt_img.imread(rover_img_path)
+    #     rover_logo_zoom = self._resolution[0]*0.05/rover_logo.shape[0]
+
+    #     for k,v in self._object_layout['rover_location'].items():
+    #         imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
+    #         ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
+    #         ax.add_artist(ab)
+    #         # r_point = plt.Rectangle((v[0],v[1]), 1, 1, fc='navy')
+    #         # ax.add_patch(r_point)
+
+    #     plt.axis('scaled')
+    #     plt.axis('off')
+    #     plt.xlim([self._grid_size[0]//2,-self._grid_size[0]//2])
+    #     plt.ylim([self._grid_size[1]//2,-self._grid_size[1]//2])
+
+    #     fig.canvas.draw()
+
+    #     data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    #     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+    #     plt.close()
+
+    #     self._data = data
+   
+    #     return data
+    
+    # def display_img(self, duration:float = 0.5) -> None:
+
+    #     plt.imshow(self._data, interpolation='nearest')
+    #     plt.axis('off')
+    #     plt.show(block=False)
+    #     plt.pause(duration)
+    #     plt.close()
+    
+
+    # def save_img(self, path:str ='./pict.png') -> None:
+        
+    #     im = Image.fromarray(self._data)
+    #     im.save(path)
         
 
     

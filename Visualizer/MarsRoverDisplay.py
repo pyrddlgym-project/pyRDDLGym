@@ -121,8 +121,8 @@ class MarsRoverDisplay(StateViz):
 
         plt.axis('scaled')
         plt.axis('off')
-        plt.xlim([self._grid_size[0]//2,-self._grid_size[0]//2])
-        plt.ylim([self._grid_size[1]//2,-self._grid_size[1]//2])
+        plt.xlim([-self._grid_size[0]//2, self._grid_size[0]//2])
+        plt.ylim([-self._grid_size[1]//2, self._grid_size[1]//2])
 
         fig.canvas.draw()
 
