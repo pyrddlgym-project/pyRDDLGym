@@ -286,7 +286,7 @@ class RDDLGrounder(Grounder):
   def _generate_name(self, name, variation_list):
     names = []
     for variation in variation_list:
-      names.append(name + '(' + ','.join(variation) + ')')
+      names.append(name + '_' + '_'.join(variation))
     return names
 
   def _ground_non_fluents(self):
@@ -338,24 +338,6 @@ class RDDLGrounder(Grounder):
         self._ground_interm(pvariable, self.AST.domain.derived_cpfs)
       elif pvariable.fluent_type == 'interm-fluent':
         self._ground_interm(pvariable, self.AST.domain.intermediate_cpfs)
-
-  def _init_ground(self):
-    # init non fluents
-    if hasattr(self.AST.non_fluents, 'init_non_fluent'):
-      for init_vals in self.AST.non_fluents.init_non_fluent:
-        key = init_vals[0][0] + '(' + ','.join(init_vals[0][1]) + ')'
-        val = init_vals[1]
-        self.nonfluents[key] = val
-
-    # init state
-    self.dynamicstate = self.states.copy()
-    for init_vals in self.AST.instance.init_state:
-      if init_vals[0][1] is not None:
-        key = init_vals[0][0] + '(' + ','.join(init_vals[0][1]) + ')'
-      else:
-        key = init_vals[0][0]
-      val = init_vals[1]
-      self.dynamicstate[key] = val
 
   def _ground_pvariables_and_cpf(self):
     """
@@ -446,7 +428,7 @@ class RDDLGrounder(Grounder):
     args = cpf.pvar[1][1]
     if args is None:
       return self._scan_expr_tree(cpf.expr, {})
-    variable_args = variable[len(name) + 1:-1].split(',')
+    variable_args = variable[len(name)+1:].split('_')
     args_dic = {}
     if len(args) != len(variable_args):
       raise ValueError(
@@ -457,11 +439,8 @@ class RDDLGrounder(Grounder):
     # Parse cpf w.r.t cpf args and variables.
     new_cpf = copy.deepcopy(cpf)
     # Fix name.
-    new_name = new_cpf.pvar[1][0] + '('
-    for arg in new_cpf.pvar[1][1]:
-      new_name = new_name + args_dic[arg] + ','
-    new_name = new_name[:-1] + ')'
-
+    new_name = self._generate_name(new_cpf.pvar[1][0],
+        [args_dic[arg] for arg in new_cpf.pvar[1][1]])
     new_pvar = ('pvar_expr', (new_name, None))
     new_cpf.pvar = new_pvar
     new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
