@@ -289,6 +289,14 @@ class RDDLGrounder(Grounder):
       names.append(name + '(' + ','.join(variation) + ')')
     return names
 
+  def _get_name_to_param_dict(self, name, variation_list):
+    grounded_name_to_params_dict = {}
+    for variation in variation_list:
+      grounded_name = name + '(' + ','.join(variation) + ')'
+      grounded_name_to_params_dict[grounded_name] = variation
+    return grounded_name_to_params_dict
+
+
   def _ground_non_fluents(self):
     if not hasattr(self.AST.non_fluents, 'init_non_fluent'):
       return
@@ -365,10 +373,13 @@ class RDDLGrounder(Grounder):
     for pvariable in self.AST.domain.pvariables:
       name = pvariable.name
       if pvariable.arity > 0:
-        variations = self._ground_objects(pvariable.param_types)
+        # In line below, if we leave as an iterator object, will be empty after one iteration. Hence "list(.)"
+        variations = list(self._ground_objects(pvariable.param_types))
         grounded = self._generate_name(name, variations)
+        grounded_name_to_params_dict = self._get_name_to_param_dict(name, variations)
       else:
         grounded = [name]
+        grounded_name_to_params_dict = {name:[]}
         # todo merge martin's code check for abuse of arity
       if pvariable.fluent_type == 'non-fluent':
         for g in grounded:
@@ -388,7 +399,7 @@ class RDDLGrounder(Grounder):
           warnings.warn('No conditional prob func found for ' + name)
 
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf(name, cpf, g)
+          grounded_cpf = self._ground_single_cpf( cpf, g,grounded_name_to_params_dict[g])
           all_grounded_cpfs.append(grounded_cpf)
           next_state = g + '\''  # update to grounded version, satisfied single-variables too (i.e. not a type)
           self.states[g] = pvariable.default
@@ -406,7 +417,7 @@ class RDDLGrounder(Grounder):
         if cpf is None:
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf(name, cpf, g)
+          grounded_cpf = self._ground_single_cpf( cpf, g,grounded_name_to_params_dict[name])
           all_grounded_cpfs.append(grounded_cpf)
           self.derived[g] = pvariable.default
           self.cpfs[g] = grounded_cpf
@@ -427,7 +438,7 @@ class RDDLGrounder(Grounder):
         if cpf is None:
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf(name, cpf, g)
+          grounded_cpf = self._ground_single_cpf( cpf, g,grounded_name_to_params_dict[name])
           all_grounded_cpfs.append(grounded_cpf)
           self.interm[g] = pvariable.default
           self.cpfs[g] = grounded_cpf
@@ -441,12 +452,11 @@ class RDDLGrounder(Grounder):
     self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs
                            )  # replacing the previous lifted entries
 
-  def _ground_single_cpf(self, name, cpf, variable):
+  def _ground_single_cpf(self, cpf, variable,variable_args):
     """Map arguments to actual objects."""
     args = cpf.pvar[1][1]
     if args is None:
       return self._scan_expr_tree(cpf.expr, {})
-    variable_args = variable[len(name) + 1:-1].split(',')
     args_dic = {}
     if len(args) != len(variable_args):
       raise ValueError(
@@ -465,7 +475,6 @@ class RDDLGrounder(Grounder):
     new_pvar = ('pvar_expr', (new_name, None))
     new_cpf.pvar = new_pvar
     new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
-
     return new_cpf
 
   def do_aggregate_expression_nesting(self, original_dict, new_variables_list,
