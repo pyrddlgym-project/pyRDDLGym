@@ -283,11 +283,18 @@ class RDDLGrounder(Grounder):
     objects_by_type = [self.objects[obj_type] for obj_type in args]
     return itertools.product(*objects_by_type)
 
-  def _generate_name(self, name, variation_list):
+  def _generate_grounded_names(self, name, variation_list, return_grounding_param_dict = False):
     names = []
+    grounded_name_to_params_dict = {}
     for variation in variation_list:
-      names.append(name + '_' + '_'.join(variation))
-    return names
+      grounded_name = name + '_' + '_'.join(variation)
+      names.append(grounded_name)
+      grounded_name_to_params_dict[grounded_name] = variation
+    if return_grounding_param_dict:
+      return names, grounded_name_to_params_dict
+    else: # in some calls to _generate_name, we do not care about the param dict, hence this
+      return names
+
 
   def _ground_non_fluents(self):
     if not hasattr(self.AST.non_fluents, 'init_non_fluent'):
@@ -347,10 +354,13 @@ class RDDLGrounder(Grounder):
     for pvariable in self.AST.domain.pvariables:
       name = pvariable.name
       if pvariable.arity > 0:
-        variations = self._ground_objects(pvariable.param_types)
-        grounded = self._generate_name(name, variations)
+        # In line below, if we leave as an iterator object, will be empty after one iteration. Hence "list(.)"
+        variations = list(self._ground_objects(pvariable.param_types))
+        grounded, grounded_name_to_params_dict = self._generate_grounded_names(name,
+                                                    variations, return_grounding_param_dict=True)
       else:
         grounded = [name]
+        grounded_name_to_params_dict = {name:[]}
         # todo merge martin's code check for abuse of arity
       if pvariable.fluent_type == 'non-fluent':
         for g in grounded:
@@ -370,7 +380,7 @@ class RDDLGrounder(Grounder):
           warnings.warn('No conditional prob func found for ' + name)
 
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf(name, cpf, g)
+          grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[g])
           all_grounded_cpfs.append(grounded_cpf)
           next_state = g + '\''  # update to grounded version, satisfied single-variables too (i.e. not a type)
           self.states[g] = pvariable.default
@@ -388,7 +398,7 @@ class RDDLGrounder(Grounder):
         if cpf is None:
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf(name, cpf, g)
+          grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[name])
           all_grounded_cpfs.append(grounded_cpf)
           self.derived[g] = pvariable.default
           self.cpfs[g] = grounded_cpf
@@ -409,7 +419,7 @@ class RDDLGrounder(Grounder):
         if cpf is None:
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf(name, cpf, g)
+          grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[name])
           all_grounded_cpfs.append(grounded_cpf)
           self.interm[g] = pvariable.default
           self.cpfs[g] = grounded_cpf
@@ -423,12 +433,11 @@ class RDDLGrounder(Grounder):
     self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs
                            )  # replacing the previous lifted entries
 
-  def _ground_single_cpf(self, name, cpf, variable):
+  def _ground_single_cpf(self, cpf, variable, variable_args):
     """Map arguments to actual objects."""
     args = cpf.pvar[1][1]
     if args is None:
       return self._scan_expr_tree(cpf.expr, {})
-    variable_args = variable[len(name)+1:].split('_')
     args_dic = {}
     if len(args) != len(variable_args):
       raise ValueError(
@@ -439,12 +448,11 @@ class RDDLGrounder(Grounder):
     # Parse cpf w.r.t cpf args and variables.
     new_cpf = copy.deepcopy(cpf)
     # Fix name.
-    new_name = self._generate_name(new_cpf.pvar[1][0],
-        [args_dic[arg] for arg in new_cpf.pvar[1][1]])
+    new_name = self._generate_grounded_names(new_cpf.pvar[1][0],
+                                             [args_dic[arg] for arg in new_cpf.pvar[1][1]])
     new_pvar = ('pvar_expr', (new_name, None))
     new_cpf.pvar = new_pvar
     new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
-
     return new_cpf
 
   def do_aggregate_expression_nesting(self, original_dict, new_variables_list,
@@ -511,7 +519,7 @@ class RDDLGrounder(Grounder):
         new_expr = Expression((operation_string, tuple(new_children)))
       else:  # Handling the min and max case.
         # this is done by comparing two at a time, and recursively calling with the remainder of the list
-        # keeping the one that "wins" the comparison. Eg: if (a > b) then (>, [a,rest of list]) else (>, [b,rest of list])
+        # keeping the one that "wins" the comparison. Eg: if (a > b) then (>, [a, rest of list]) else (>, [b, rest of list])
         # I assume if they are equal, we have a default behavior in the simulator (eg: take first arg)
         lhs_updated_dict = copy.deepcopy(original_dict)
         lhs_updated_dict.update(
@@ -545,7 +553,7 @@ class RDDLGrounder(Grounder):
       pass
     elif expr.args[1]:
       variation = [dic[arg] for arg in expr.args[1]]
-      new_name = self._generate_name(expr.args[0], [variation])[0]
+      new_name = self._generate_grounded_names(expr.args[0], [variation])[0]
       expr = Expression(('pvar_expr', (new_name, None)))
     else:
       raise ValueError(f'Malformed expression {str(expr)}.')
@@ -587,7 +595,7 @@ class RDDLGrounder(Grounder):
       aggreg_recursive_operation_string = AGGREG_OP_TO_STRING_DICT[aggreg_type]
       # TODO: only for average operation, we need to first "/ n " for all others
       # we need to decide the recursive operation symbol "+" or "*" and iterate.
-      # First let's collect the instances like (?x,?y) = (x1,y3) that satisfy,
+      # First let's collect the instances like (?x,?y) = (x1, y3) that satisfy,
       # the set definition passed in.
       object_instances_list = []
       instances_def_args = []
