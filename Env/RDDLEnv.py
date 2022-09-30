@@ -85,30 +85,53 @@ class RDDLEnv(gym.Env):
 
 
     def step(self, at):
+
+        # make sure the action length is of currect size
         action_length = len(at)
         if (action_length > self._NumConcurrentActions):
             raise Exception(
                 "Invalid action, expected maximum of {} entries, {} were were given".format(self._NumConcurrentActions,
                                                                                             action_length))
 
+        # check that all actions preconditions are satisfied
+        try:
+            self.sampler.check_action_preconditions()
+        except:
+
+
+        # set full action vector
         action = copy.deepcopy(self.defaultAction)
         for act in at:
             action[act] = at[act]
+
+        # sample next state and reward
         state = self.sampler.sample_next_state(action)
         reward = self.sampler.sample_reward()
-        self.sampler.update_state()
+
+        # check if the state is within the invariant constraints
+        try:
+            self.sampler.check_state_invariants()
+            self.sampler.update_state()
+        except:
+            # update state with corrected values
+            self.sampler.update_state()
+
+
+        # update step horizon
         self.currentH += 1
         if self.currentH == self.horizon:
             done = True
         else:
             done = False
+
         return state, reward, done, {}
 
     def reset(self):
         self.total_reward = 0
         self.currentH = 0
-        self.state = self.sampler.reset_state()
-        return self.state
+        # self.state = self.sampler.reset_state()
+        return self.sampler.reset_state()
+        # return self.state
 
     def render(self):
         pass
