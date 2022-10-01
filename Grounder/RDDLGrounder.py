@@ -268,6 +268,8 @@ class RDDLGrounder(Grounder):
   def _extract_objects(self):
     """
     """
+
+
     self.objects = {}
     self.objects_rev = {}
     if self.AST.non_fluents.objects[0] is None:
@@ -571,8 +573,7 @@ class RDDLGrounder(Grounder):
         self._scan_expr_tree(expr.args[1], dic),
         self._scan_expr_tree(expr.args[2], dic)
     ]
-    # TODO: verify the elif statements are in args[2] and what
-    # happens if no "else".
+    # TODO: add default case when no "else". For now, we are safe, as else is expected in rddl
     return Expression(('if', tuple(children_list)))
 
   def _scan_expr_tree_func(self, expr, dic):
