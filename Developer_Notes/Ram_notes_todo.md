@@ -2,13 +2,7 @@
 
 # overall
 
-The constraints are still lifted, debug
-
-Test for interim and derived vars. Take example from Ayals test rddl file
-
-Parse State constraints, action constraints, state-action constraints
-
-todo  LATER: handle type matching in expressions
+Type checking, perhaps v2.0
 
 # clean ups
 
