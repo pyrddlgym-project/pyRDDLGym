@@ -240,8 +240,7 @@ class RDDLGrounder(Grounder):
     self._ground_init_state()
     # ground pvariables
     # self._groundPvariables()
-    self.AST.domain.reward = self._scan_expr_tree(
-        self.AST.domain.reward, {})  # empty dictionary at this level
+    self.reward = self._scan_expr_tree(self.AST.domain.reward, {}) # empty args dictionary
     self._ground_constraints()
 
     model = RDDLModel()
@@ -434,10 +433,10 @@ class RDDLGrounder(Grounder):
             self.cpforder[level].append(g)
           else:
             self.cpforder[level] = [g]
-    self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
-                           )  # replacing the previous lifted entries
-    self.AST.domain.derived_cpfs = all_grounded_derived_cpfs
-    self.AST.domain.intermediate_cpfs = all_grounded_interim_cpfs
+    # self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
+    #                        )  # replacing the previous lifted entries
+    # self.AST.domain.derived_cpfs = all_grounded_derived_cpfs
+    # self.AST.domain.intermediate_cpfs = all_grounded_interim_cpfs
 
   def _ground_single_cpf(self, cpf, variable, variable_args):
     """Map arguments to actual objects."""
