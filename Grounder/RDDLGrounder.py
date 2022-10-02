@@ -443,6 +443,7 @@ class RDDLGrounder(Grounder):
     args = cpf.pvar[1][1]
     new_cpf = copy.deepcopy(cpf)
     if args is None:
+      new_cpf.expr = self._scan_expr_tree(new_cpf.expr, {})
       return new_cpf
     args_dic = {}
     if len(args) != len(variable_args):
