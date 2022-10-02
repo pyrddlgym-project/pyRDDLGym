@@ -401,7 +401,7 @@ class RDDLGrounder(Grounder):
         if cpf is None:
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[name])
+          grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[g])
           all_grounded_derived_cpfs.append(grounded_cpf)
           self.derived[g] = pvariable.default
           self.cpfs[g] = grounded_cpf.expr
@@ -422,7 +422,7 @@ class RDDLGrounder(Grounder):
         if cpf is None:
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
-          grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[name])
+          grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[g])
           all_grounded_interim_cpfs.append(grounded_cpf)
           self.interm[g] = pvariable.default
           self.cpfs[g] = grounded_cpf.expr
@@ -441,8 +441,9 @@ class RDDLGrounder(Grounder):
   def _ground_single_cpf(self, cpf, variable, variable_args):
     """Map arguments to actual objects."""
     args = cpf.pvar[1][1]
+    new_cpf = copy.deepcopy(cpf)
     if args is None:
-      return self._scan_expr_tree(cpf.expr, {})
+      return new_cpf
     args_dic = {}
     if len(args) != len(variable_args):
       raise ValueError(
@@ -451,7 +452,6 @@ class RDDLGrounder(Grounder):
     for arg, vararg in zip(args, variable_args):
       args_dic[arg] = vararg
     # Parse cpf w.r.t cpf args and variables.
-    new_cpf = copy.deepcopy(cpf)
     # Fix name.
     new_name = self._generate_grounded_names(new_cpf.pvar[1][0],
                                              [args_dic[arg] for arg in new_cpf.pvar[1][1]])
