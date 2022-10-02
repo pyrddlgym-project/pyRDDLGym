@@ -145,7 +145,7 @@ class RDDLGroundedGrounder(Grounder):
           self._statesranges[name] = pvariable.range
           self._nextstates[name] = next_state
           self._prevstates[next_state] = name
-          self._cpfs[next_state] = cpf
+          self._cpfs[next_state] = cpf.expr
           self._cpforder[0].append(name)
       elif pvariable.fluent_type == 'derived-fluent':
         cpf = None
@@ -154,7 +154,7 @@ class RDDLGroundedGrounder(Grounder):
             cpf = cpfs
         if cpf is not None:
           self._derived[name] = pvariable.default
-          self._cpfs[name] = cpf
+          self._cpfs[name] = cpf.expr #sim expects expression here.
           level = pvariable.level
           if level is None:
             level = 1
@@ -169,7 +169,7 @@ class RDDLGroundedGrounder(Grounder):
             cpf = cpfs
         if cpf is not None:
           self._interm[name] = pvariable.default
-          self._cpfs[name] = cpf
+          self._cpfs[name] = cpf.expr
           level = pvariable.level
           if level is None:
             level = 1
@@ -313,7 +313,7 @@ class RDDLGrounder(Grounder):
         cpf = cpfs
     if cpf is not None:
       self.derived[pvariable.name] = pvariable.default
-      self.cpfs[pvariable.name] = cpf
+      self.cpfs[pvariable.name] = cpf.expr
       level = pvariable.level
       if level is None:
         level = 1
@@ -341,7 +341,7 @@ class RDDLGrounder(Grounder):
           self.statesranges[name] = pvariable.range
           self.nextstates[name] = next_state
           self.prevstates[next_state] = name
-          self.cpfs[next_state] = cpf
+          self.cpfs[next_state] = cpf.expr
           self.cpforder[0].append(name)
       elif pvariable.fluent_type == 'derived-fluent':
         self._ground_interm(pvariable, self.AST.domain.derived_cpfs)
@@ -352,7 +352,9 @@ class RDDLGrounder(Grounder):
     """
     """
 
-    all_grounded_cpfs = []
+    all_grounded_state_cpfs = []
+    all_grounded_interim_cpfs = []
+    all_grounded_derived_cpfs = []
     for pvariable in self.AST.domain.pvariables:
       name = pvariable.name
       if pvariable.arity > 0:
@@ -383,13 +385,13 @@ class RDDLGrounder(Grounder):
 
         for g in grounded:
           grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[g])
-          all_grounded_cpfs.append(grounded_cpf)
+          all_grounded_state_cpfs.append(grounded_cpf)
           next_state = g + '\''  # update to grounded version, satisfied single-variables too (i.e. not a type)
           self.states[g] = pvariable.default
           self.statesranges[g] = pvariable.range
           self.nextstates[g] = next_state
           self.prevstates[next_state] = g
-          self.cpfs[next_state] = grounded_cpf
+          self.cpfs[next_state] = grounded_cpf.expr
           self.cpforder[0].append(g)
       elif pvariable.fluent_type == 'derived-fluent':
         cpf = None
@@ -401,9 +403,9 @@ class RDDLGrounder(Grounder):
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
           grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[name])
-          all_grounded_cpfs.append(grounded_cpf)
+          all_grounded_derived_cpfs.append(grounded_cpf)
           self.derived[g] = pvariable.default
-          self.cpfs[g] = grounded_cpf
+          self.cpfs[g] = grounded_cpf.expr
           level = pvariable.level
           if level is None:
             level = 1
@@ -422,9 +424,9 @@ class RDDLGrounder(Grounder):
           warnings.warn('No conditional prob func found for ' + name)
         for g in grounded:
           grounded_cpf = self._ground_single_cpf( cpf, g, grounded_name_to_params_dict[name])
-          all_grounded_cpfs.append(grounded_cpf)
+          all_grounded_interim_cpfs.append(grounded_cpf)
           self.interm[g] = pvariable.default
-          self.cpfs[g] = grounded_cpf
+          self.cpfs[g] = grounded_cpf.expr
           level = pvariable.level
           if level is None:
             level = 1
@@ -432,8 +434,10 @@ class RDDLGrounder(Grounder):
             self.cpforder[level].append(g)
           else:
             self.cpforder[level] = [g]
-    self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_cpfs
+    self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
                            )  # replacing the previous lifted entries
+    self.AST.domain.derived_cpfs = all_grounded_derived_cpfs
+    self.AST.domain.intermediate_cpfs = all_grounded_interim_cpfs
 
   def _ground_single_cpf(self, cpf, variable, variable_args):
     """Map arguments to actual objects."""
@@ -454,7 +458,7 @@ class RDDLGrounder(Grounder):
                                              [args_dic[arg] for arg in new_cpf.pvar[1][1]])
     new_pvar = ('pvar_expr', (new_name, None))
     new_cpf.pvar = new_pvar
-    new_cpf = self._scan_expr_tree(new_cpf.expr, args_dic)
+    new_cpf.expr = self._scan_expr_tree(new_cpf.expr, args_dic)
     return new_cpf
 
   def do_aggregate_expression_nesting(self, original_dict, new_variables_list,
