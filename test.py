@@ -15,7 +15,7 @@ DOMAIN = 'RamMod_smaller_Thiagos_HVAC.rddl'
 # DOMAIN = 'Thiagos_HVAC.rddl'
 # DOMAIN = 'Thiagos_HVAC_grounded.rddl'
 # DOMAIN = 'wildfire_mdp.rddl'
-
+DOMAIN = 'recsim_ecosystem_welfare.rddl'
 
 def main():
 
@@ -40,17 +40,33 @@ def main():
     # MyXADDTranslator.Translate()
 
     from pprint import pprint
-    # grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
-    # model = grounder.Ground()
+    grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
+    model = grounder.Ground()
+    # print(model.states)
+    # print(model.init_state)
+    # for cpf_key, primed_cpf in model.interm.items():
+    #     expr = model.cpfs[primed_cpf]
+    #     print(primed_cpf, expr)
+    # print(model.cpfs)
     # pprint(vars(model))
-    #
+    # #
     # good_policy = True
-    # sampler = RDDLSimulator(model)
-    # loops = 1
-    #
-    # print('\nstarting simulation')
-    # for h in range(loops):
-    #     state = sampler.reset_state()
+    sampler = RDDLSimulator(model)
+    loops = 1
+    # 
+    print('\nstarting simulation')
+    for h in range(loops):
+        state = sampler.reset_state()
+        print(state)
+        action = {
+        'recommend(c1, i1)': True,
+        'recommend(c2, i2)': True,
+        'recommend(c3, i3)': True,
+        'recommend(c4, i4)': True,
+        'recommend(c5, i5)': True,        
+        }      
+        state = sampler.sample_next_state(action)
+        print(state)
     #     total_reward = 0.
     #     for _ in range(2000):
     #         sampler.check_state_invariants()
@@ -81,8 +97,8 @@ def main():
     #         total_reward += reward
     #     print('trial {}, total reward {}'.format(h, total_reward))
         
-    grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
-    grounder.Ground()
+    # grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
+    # grounder.Ground()
     # pprint(vars(grounder))
     
     # grounder.InitGround()
