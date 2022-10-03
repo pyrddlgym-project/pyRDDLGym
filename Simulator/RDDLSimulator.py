@@ -641,21 +641,6 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             if var is not None and loc is not None:
                 self._bounds[var][loc] = lim
 
-    # def check_state_invariants(self) -> None:
-    #     '''Throws an exception if the state invariants are not satisfied.'''
-    #     # TODO: fix this method
-    #     subs = self._update_subs()
-    #     for idx, invariant in enumerate(self._model.invariants):
-    #         sample = self._sample(invariant, subs)
-    #         if not isinstance(sample, bool):
-    #             raise TypeError(
-    #                 'State invariant must evaluate to bool, got {}.'.format(sample) +
-    #                 '\n' + RDDLSimulator._print_stack_trace(invariant))
-    #         if not sample:
-    #             raise RDDLRuntimeError(
-    #                 'State invariant {} is not satisfied.'.format(idx + 1) +
-    #                 '\n' + RDDLSimulator._print_stack_trace(invariant))
-
     def get_bounds(self, left_arg, right_arg, op, is_action=True):
         variable = None
         lim = 0
