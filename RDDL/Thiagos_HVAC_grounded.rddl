@@ -116,12 +116,12 @@ domain hvac_vav_fix{
             + ADJ_HALL_r3*(TEMP_HALL_r3 - TEMP_r3)/R_HALL_r3);
 		
 
-        TEST_DERIVED1 = 3*5;
-        TEST_DERIVED2 = TEST_DERIVED1 * 10;
-        TEST_DERIVEDN = 15;
-        fulfilledDemand1 = TEMP_r1 * AIR_r1;
-        fulfilledDemand2 = fulfilledDemand1 * AIR_r2;
-        fulfilledDemandN = AIR_r1 * AIR_r2;
+        //TEST_DERIVED1 = 3*5;
+        //TEST_DERIVED2 = TEST_DERIVED1 * 10;
+        //TEST_DERIVEDN = 15;
+        //fulfilledDemand1 = TEMP_r1 * AIR_r1;
+        //fulfilledDemand2 = fulfilledDemand1 * AIR_r2;
+        //fulfilledDemandN = AIR_r1 * AIR_r2;
 
 
     };
