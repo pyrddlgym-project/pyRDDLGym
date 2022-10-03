@@ -145,7 +145,9 @@ class RDDLGroundedGrounder(Grounder):
           self._statesranges[name] = pvariable.range
           self._nextstates[name] = next_state
           self._prevstates[next_state] = name
-          self._cpfs[next_state] = cpf
+          # self._cpfs[next_state] = cpf
+          # something has changed and the above no longer works.
+          self._cpfs[next_state] = cpf.expr
           self._cpforder[0].append(name)
       elif pvariable.fluent_type == 'derived-fluent':
         cpf = None
@@ -154,6 +156,7 @@ class RDDLGroundedGrounder(Grounder):
             cpf = cpfs
         if cpf is not None:
           self._derived[name] = pvariable.default
+          # TODO: change cpf to cpf.expr?
           self._cpfs[name] = cpf
           level = pvariable.level
           if level is None:
@@ -169,6 +172,7 @@ class RDDLGroundedGrounder(Grounder):
             cpf = cpfs
         if cpf is not None:
           self._interm[name] = pvariable.default
+          # TODO: change cpf to cpf.expr?
           self._cpfs[name] = cpf
           level = pvariable.level
           if level is None:
