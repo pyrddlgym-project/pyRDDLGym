@@ -3,6 +3,7 @@ from Parser import RDDLReader as RDDLReader
 import Grounder.RDDLGrounder as RDDLGrounder
 from Visualizer.MarsRoverDisplay import MarsRoverDisplay
 from Visualizer.ReservoirDisplay import ReservoirDisplay
+from Visualizer.HVACDisplay import HVACDisplay
 
 DOMAIN = 'power_unit_commitment.rddl'
 
@@ -88,7 +89,9 @@ def main():
     # marsVisual.display_img(duration=0.5)
     # marsVisual.save_img('./pict2.png')
 
-    reservoirVisual = ReservoirDisplay(model, grid_size=[50,50], resolution=[500,500])
+    # reservoirVisual = ReservoirDisplay(model, grid_size=[50,50], resolution=[500,500])
+
+    HVACVisual = HVACDisplay(model, grid_size=[50,50], resolution=[500,500])
 
 
     # print(model._nonfluents)

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.image as plt_img
 from PIL import Image
+import networkx as nx
 
 from Visualizer.StateViz import StateViz
 from Grounder.RDDLModel import RDDLModel
@@ -14,7 +15,7 @@ import Visualizer
 
 import sys
 
-class ReservoirDisplay(StateViz):
+class HVACDisplay(StateViz):
     def __init__(self, model: RDDLModel, grid_size: Optional[int] = [50,50], resolution: Optional[int] = [500,500]) -> None:
 
         self._model= model
@@ -110,106 +111,120 @@ class ReservoirDisplay(StateViz):
 
     def init_canvas_info(self):
         interval = self._interval
-        objects_set = set(self._objects['res'])
-        sink_res_set = set([k for k, v in self._object_layout['sink_res'].items() if v == True])
-
-        all_child_set = []
-        for i in self._object_layout['downstream'].values():
-            all_child_set += i
-        all_child_set = set(all_child_set) - sink_res_set
-
-        all_root_set = objects_set - all_child_set - sink_res_set
-
-        level_list = [list(all_root_set)]
-        visited_nodes = objects_set.copy() - all_child_set
-
-        top_set = all_root_set
-        bot_set = set()
-        while len(visited_nodes) < len(objects_set):
-            for i in top_set:
-                for j in self._object_layout['downstream'][i]:
-                    bot_set.add(j)
-                    visited_nodes.add(j)
-            level_list.append(list(bot_set))
-            top_set = bot_set
-            bot_set = set()
         
-        level_list.append(list(sink_res_set))
 
-        row_num = len(level_list)
-        col_num = max(len(i) for i in level_list)
+        # objects_set = set(self._objects['res'])
+        # sink_res_set = set([k for k, v in self._object_layout['sink_res'].items() if v == True])
 
-        canvas_size = (col_num*interval, row_num*interval)
-        init_points = {}
-        for i in range(len(level_list)):
-            for j in range(len(level_list[i])):
-                init_x = 0 + interval*j
-                init_y = canvas_size[1] - interval*(i+1)    
-                init_points[level_list[i][j]] = (init_x, init_y)
-        conn_points = {}
-        
-        canvas_info = {'canvas_size':canvas_size, 'init_points':init_points}
+        zone_list = self._objects['zone']
+        heater_list = self._objects['heater']
 
+        room_grid_size = (max(len(zone_list), len(heater_list)), max(len(zone_list), len(heater_list))+1)
+
+        room_center = ( room_grid_size[0] * self._interval / 2 ,  (room_grid_size[1]-1) * self._interval / 2 + interval)
+
+        start_points_zone = []
+
+        for i in range(room_grid_size[0] -1):
+            for j in range(room_grid_size[1]):
+                start_points_zone.append( (i*15, j*15) )
+
+        start_points_heater = []
+        for i in range(room_grid_size[0]):
+            start_points_heater.append( (i*15, 0) )
+            
+
+        # rank start point by distance from center
+        start_points_zone.sort(key=lambda x: abs(x[0] + interval/2 - room_center[0]) + abs(x[1] + interval/2 - room_center[1]))
+        start_points_heater.sort(key=lambda x: abs(x[0] + interval/2 - room_center[0]) + abs(x[1] + interval/2 - room_center[1]))
+        # rank by number of adj rooms
+        zone_list.sort(reverse=True, key=lambda x: len(self._object_layout['adj_zone'][x]))
+        heater_list.sort(reverse=True, key=lambda x: len(self._object_layout['adj_heater'][x]))
+
+    
+
+        zone_init_points = {zone_list[i]:start_points_zone[i] for i in range(len(zone_list))}
+        heater_init_points = {heater_list[i]:start_points_heater[i] for i in range(len(heater_list))}
+
+
+
+        canvas_info = {'canvas_size':(room_grid_size[0]*interval, room_grid_size[1]*interval), 'zone_init_points':zone_init_points, 'heater_init_points':heater_init_points}
 
         return canvas_info
-        
 
-
-
-        # print(level_list)
-        # print(self._object_layout['downstream'])
-        # print(sink_res_set)
-        # print(all_child_set)
-        # print(all_root_set)
-
-        
-
-        # node_links = {}
-        # for o in self._objects['res']:
-        #     for k,v in self._object_layout['downstream'].items():
-
-
-        # plt.rcParams['axes.facecolor']='white'
-        # fig_size = (num_row * 12, num_col*12)
-        # fig = plt.figure(fig_size)
-        # ax = plt.gca()
-        # plt.xlim([-0.1, fig_size[1]])
-        # plt.ylim([-0.1, fig_size[1]])
-        # plt.axis('scaled')
-        # plt.axis('off')
-        # return fig, ax
 
     def render_conn(self):
         fig = self._fig
         ax = self._ax
-        downstream = self._object_layout['downstream']
-        init_points = self._canvas_info['init_points']
+        adj_zone = self._object_layout['adj_zone']
+        adj_heater = self._object_layout['adj_heater']
+        zone_init_points = self._canvas_info['zone_init_points']
+        heater_init_points = self._canvas_info['heater_init_points']
+
+
         interval = self._interval*2/3
 
-        print(downstream)
-        print(init_points)
-
-        for k,v in downstream.items():
-            top_point = (init_points[k][0] + interval/2, init_points[k][1])
+        zone_line_list = []
+        for k,v in adj_zone.items():
+            from_point = (zone_init_points[k][0] + interval/2, zone_init_points[k][1]+ interval/2)
             for p in v:
-                bot_point = (init_points[p][0] + interval/2, init_points[p][1] + interval*1.25)
-                style = mpatches.ArrowStyle('Fancy', head_length=2, head_width=2, tail_width=0.01)
-                arrow = mpatches.FancyArrowPatch(top_point, bot_point, arrowstyle=style, color='k')
-                ax.add_patch(arrow)
+                to_point = (zone_init_points[p][0] + interval/2, zone_init_points[p][1] + interval/2)
+                line = plt.Line2D((from_point[0], to_point[0]),(from_point[1], to_point[1]), ls='-', color='black',lw=2)
+                ax.add_line(line)
+        for k,v in adj_heater.items():
+            from_point = (heater_init_points[k][0] + interval/2, heater_init_points[k][1]+ interval/2)
+            for p in v:
+                to_point = (zone_init_points[p][0] + interval/2, zone_init_points[p][1] + interval/2)
+                line = plt.Line2D((from_point[0], to_point[0]),(from_point[1], to_point[1]), ls='-', color='red',lw=2)
+                ax.add_line(line)
 
                 
-        plt.show()
-        sys.exit()
 
 
-
-    def render_res(self, res : str) -> tuple:
+    def render_zone(self, zone : str) -> tuple:
 
         fig = self._fig
         ax = self._ax
-        interval = self._interval*2/3
-        curr_t = res
-        init_x, init_y = self._canvas_info['init_points'][curr_t]
+        
+        
+        curr_z = zone
+
+        vol_ratio = self._object_layout['zone_vol'][curr_z] / 500
+
+        interval = self._interval*2/3 
+        length = interval * vol_ratio
+
+        
+
+
+        init_x, init_y = self._canvas_info['zone_init_points'][curr_z]
+        center_x = init_x + self._interval/2
+        center_y = init_y + self._interval/2
+        
+        print(init_x, init_y)
+        print(center_x, center_y)
+
+
+        init_x = center_x - length
+        init_y = center_y - length
+
+        print(init_x, init_y)
+
+
+
+        background_rect = plt.Rectangle((init_x, init_y), interval, interval, fc='blue', alpha=1, zorder=5)
+        ax.add_patch(background_rect)
+
+        # plt.show()
+        print('here')
+   
+        
+        
+
+
+
+
+        return
 
         # print(curr_t, init_x, init_y)
         # sys.exit()
@@ -225,15 +240,15 @@ class ReservoirDisplay(StateViz):
 
 
 
-        rlevel = self._object_layout['rlevel'][curr_t]
-        rain_scale = self._object_layout['rain_scale'][curr_t]
-        rain_shape = self._object_layout['rain_shape'][curr_t]
+        rlevel = self._object_layout['rlevel'][curr_z]
+        rain_scale = self._object_layout['rain_scale'][curr_z]
+        rain_shape = self._object_layout['rain_shape'][curr_z]
 
-        max_res_cap = self._object_layout['max_res_cap'][curr_t]
-        upper_bound = self._object_layout['upper_bound'][curr_t]
-        lower_bound = self._object_layout['lower_bound'][curr_t]
+        max_res_cap = self._object_layout['max_res_cap'][curr_z]
+        upper_bound = self._object_layout['upper_bound'][curr_z]
+        lower_bound = self._object_layout['lower_bound'][curr_z]
 
-        sink_res = self._object_layout['sink_res'][curr_t]
+        sink_res = self._object_layout['sink_res'][curr_z]
         # downstream = self._object_layout['downstream'][curr_t]
 
         maxL = [init_x, max_res_cap/100+init_y]
@@ -288,7 +303,7 @@ class ReservoirDisplay(StateViz):
         else:
             land_shape = plt.Rectangle((init_x + interval, init_y), interval/4, interval, fc='darkgoldenrod')
 
-        plt.text(init_x+interval*1.1, init_y+interval*1.1, "%s" % curr_t, color='black', fontsize = 5)
+        plt.text(init_x+interval*1.1, init_y+interval*1.1, "%s" % curr_z, color='black', fontsize = 5)
 
         ax.add_patch(water_rect)
         ax.add_patch(res_rect)
@@ -334,21 +349,43 @@ class ReservoirDisplay(StateViz):
         
 
     def render(self, display:bool = True) -> np.ndarray:
-        self._object_layout = self.build_object_layout()
+
+
+
+
+        # self._object_layout = self.build_object_layout()
+
+        self._object_layout = {'temp_zone_max':25, 'temp_zone_min':15, 'temp_out':30, 'zone_vol':{'z1':255, 'z2':100, 'z3': 500}, 
+                                'sigma':{'z1':0.1, 'z2':0.5, 'z3':0.7}, 'temp_zone':{'z1':10, 'z2':20, 'z3':30}, 'heater_vol':{'h1':25, 'h2':30, 'h3':40},
+                                'adj_zone':{'z1':['z2'], 'z2':['z1','z3'], 'z3':['z2']}, 'adj_heater':{'h1':['z1'], 'h2':['z3']}}
+        self._objects = {'zone':['z1', 'z2', 'z3'], 'heater':['h1','h2']}
         self._canvas_info = self.init_canvas_info()
+                           
+
+        
         canvas_size = self._canvas_info['canvas_size']
 
-        self._fig = plt.figure(figsize = (canvas_size[0]/10, canvas_size[1]/10), dpi=500)
+        self._fig = plt.figure(figsize = (canvas_size[0]/10, canvas_size[1]/10), dpi=200)
         self._ax = plt.gca()
-
+        
         plt.xlim([0,canvas_size[0]])
         plt.ylim([0,canvas_size[1]])
-        plt.axis('scaled')
-        plt.axis('off')
+        # plt.axis('scaled')
+        # plt.axis('off')
 
 
-        # plt.show()
-        # sys.exit()
+        print(self._objects)
+        print(self._object_layout)
+        print(self._canvas_info)
+
+        
+        self.render_conn()
+        self.render_zone('z1')
+        self.render_zone('z2')
+        self.render_zone('z3')
+
+        plt.show()
+        sys.exit()
 
 
 
@@ -374,73 +411,7 @@ class ReservoirDisplay(StateViz):
 
         
 
-        # fig1, ax1 = self.render_single_fig(curr_t, render_text=True)
-
-        
-
-        # plt.show()
-
-
-
-    # def build_res_shape(self, fig, ax, max_res_cap, upper_bound, lower_bound):
-        
-
-    #     line_max = plt.Line2D((maxL[0], maxR[0]),(maxL[1], maxR[1]), ls='--', color='black',lw=3)
-    #     line_up = plt.Line2D((upL[0], upR[0]),(upL[1], upR[1]), ls='--', color='orange',lw=3)
-    #     line_low = plt.Line2D((lowL[0], lowR[0]),(lowL[1], lowR[1]), ls='--', color='orange',lw=3)
-    #     lineL = plt.Line2D((0, 0), (10, 0), color='black',lw=5)
-    #     lineR = plt.Line2D((10, 10), (10, 0), color='black',lw=5)
-    #     lineB = plt.Line2D((0, 10), (0, 0), color='black',lw=5)
-  
-    #     ax.add_line(line_max)
-    #     plt.text(5.1, max_res_cap/100+0.1, "MAX RES CAP: %s" % round(max_res_cap, 2), color='black', fontsize = 22)
-
-    #     ax.add_line(line_up)
-    #     plt.text(0.1, upper_bound/100+0.1, "Upper Bound: %s" % round(upper_bound, 2), color='black', fontsize = 22)
-
-    #     ax.add_line(line_low)
-    #     plt.text(0.1, lower_bound/100+0.1, "Lower Bound: %s" % round(lower_bound, 2), color='black', fontsize = 22)
-        
-    #     ax.add_line(lineL)
-    #     ax.add_line(lineR)
-    #     ax.add_line(lineB)
-        
-
-        
-    # def build_res_fill(self, fig, ax, rlevel, rain_scale, rain_shape):
-
-    #     water_rect = plt.Rectangle((0,0), 10, rlevel/100, fc='royalblue')
-    #     res_rect = plt.Rectangle((0,rlevel/100), 10, 10-rlevel/100, fc='lightgrey', alpha=0.5)
-    #     scale_rect = plt.Rectangle((0,10), 5, 2, fc='deepskyblue', alpha=rain_scale/100)
-    #     shape_rect = plt.Rectangle((5,10), 5, 2, fc='darkcyan', alpha=rain_shape/100)
-
-    #     ax.add_patch(water_rect)
-    #     plt.text(5.1, 0.1, "Water Level: %s" % round(rlevel, 2), color='black', fontsize = 22)
-
-    #     ax.add_patch(res_rect)
-    #     ax.add_patch(scale_rect)
-    #     plt.text(0.1, 11.5, "Rain Scale: %s" % round(rain_scale, 2), color='black', fontsize = 22)
-
-    #     ax.add_patch(shape_rect)
-    #     plt.text(5.1, 11.5, "Rain Shape %s" % round(rain_shape, 2), color='black', fontsize = 22)
-    
-    # def build_conn_shape(self, fig, ax, sink_res, downstream):
-    #     lineU = plt.Line2D((10, 12), (2, 2), color='black',lw=5)
-    #     lineD = plt.Line2D((10, 12), (0, 0), color='black',lw=5)
-    #     conn_shape = plt.Rectangle((10,0), 2, 2, fc='royalblue')
-    #     if sink_res:
-    #         land_shape = plt.Rectangle((10,2), 2, 8, fc='royalblue')
-    #     else:
-    #         land_shape = plt.Rectangle((10,2), 2, 8, fc='darkgoldenrod')
-    #     ax.add_line(lineU)
-    #     ax.add_line(lineD)
-    #     ax.add_patch(conn_shape)
-    #     plt.text(10.1, 0.1, "Down: %s" % downstream, color='black', fontsize = 15)
-
-    #     ax.add_patch(land_shape)
-    #     plt.text(10.1, 2.1, "Sink: %s" % sink_res, color='black', fontsize = 15)
-       
-
+ 
     def display_img(self, duration:float = 0.5) -> None:
 
         plt.imshow(self._data, interpolation='nearest')
@@ -458,67 +429,6 @@ class ReservoirDisplay(StateViz):
 
 
 
-
-   
-  
-        
-
-    # def render(self, display:bool = True) -> np.ndarray:
-
-    #     self._object_layout = self.build_object_layout()
-    
-    #     px = 1/plt.rcParams['figure.dpi']
-    #     fig = plt.figure(figsize=(self._resolution[0]*px,self._resolution[1]*px))
-    #     ax = plt.gca()
-
-    #     for k,v in self._object_layout['picture_point'].items():
-    #         if self._object_layout['picture_taken'][k] == False:
-    #             p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=0.5)
-    #         else:
-    #             p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
-    #         ax.add_patch(p_point)
-        
-    #     rover_img_path = self._asset_path + '/assets/mars-rover.png'
-    #     rover_logo = plt_img.imread(rover_img_path)
-    #     rover_logo_zoom = self._resolution[0]*0.05/rover_logo.shape[0]
-
-    #     for k,v in self._object_layout['rover_location'].items():
-    #         imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
-    #         ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
-    #         ax.add_artist(ab)
-    #         # r_point = plt.Rectangle((v[0],v[1]), 1, 1, fc='navy')
-    #         # ax.add_patch(r_point)
-
-    #     plt.axis('scaled')
-    #     plt.axis('off')
-    #     plt.xlim([self._grid_size[0]//2,-self._grid_size[0]//2])
-    #     plt.ylim([self._grid_size[1]//2,-self._grid_size[1]//2])
-
-    #     fig.canvas.draw()
-
-    #     data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    #     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-    #     plt.close()
-
-    #     self._data = data
-   
-    #     return data
-    
-    # def display_img(self, duration:float = 0.5) -> None:
-
-    #     plt.imshow(self._data, interpolation='nearest')
-    #     plt.axis('off')
-    #     plt.show(block=False)
-    #     plt.pause(duration)
-    #     plt.close()
-    
-
-    # def save_img(self, path:str ='./pict.png') -> None:
-        
-    #     im = Image.fromarray(self._data)
-    #     im.save(path)
-        
 
     
 
