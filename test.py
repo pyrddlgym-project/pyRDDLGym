@@ -91,9 +91,9 @@ def main():
     reservoirVisual = ReservoirDisplay(model, grid_size=[50,50], resolution=[500,500])
 
 
-    print(model._nonfluents)
-    print(model._states)
-    print(model._objects)
+    # print(model._nonfluents)
+    # print(model._states)
+    # print(model._objects)
 
 
 

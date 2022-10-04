@@ -93,21 +93,33 @@ domain reservoir {
 non-fluents res10 {
     domain = reservoir;
     objects{
-        res: {t1,t2, t10};
+        res: {t1,t2,t3,t10};
     };
     non-fluents {
         RAIN_SHAPE_t1 = 2.763;
         RAIN_SCALE_t1 = 5.281;
+        RAIN_SHAPE_t2 = 2.763;
+        RAIN_SCALE_t2 = 5.281;
+        RAIN_SHAPE_t3 = 2.763;
+        RAIN_SCALE_t3 = 5.281;
         RAIN_SHAPE_t10 = 2.188;
         RAIN_SCALE_t10 = 9.322;
         MAX_RES_CAP_t1 = 723.359;
         UPPER_BOUND_t1 = 568.608;
         LOWER_BOUND_t1 = 74.798;
+        MAX_RES_CAP_t2 = 723.359;
+        UPPER_BOUND_t2 = 568.608;
+        LOWER_BOUND_t2 = 74.798;
+        MAX_RES_CAP_t3 = 723.359;
+        UPPER_BOUND_t3 = 568.608;
+        LOWER_BOUND_t3 = 74.798;
         MAX_RES_CAP_t10 = 627.932;
         UPPER_BOUND_t10 = 511.543;
         LOWER_BOUND_t10 = 75.233;
         DOWNSTREAM_t1_t2;
         DOWNSTREAM_t2_t10;
+        DOWNSTREAM_t3_t10;
+        DOWNSTREAM_t1_t3;
         SINK_RES_t10;        
     };
 }
