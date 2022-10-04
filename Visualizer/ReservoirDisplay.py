@@ -338,9 +338,9 @@ class ReservoirDisplay(StateViz):
         self._canvas_info = self.init_canvas_info()
         canvas_size = self._canvas_info['canvas_size']
 
-        self._fig = plt.figure(figsize = (canvas_size[0]/10, canvas_size[1]/10), dpi=200)
+        self._fig = plt.figure(figsize = (canvas_size[0]/10, canvas_size[1]/10), dpi=500)
         self._ax = plt.gca()
-        
+
         plt.xlim([0,canvas_size[0]])
         plt.ylim([0,canvas_size[1]])
         plt.axis('scaled')
