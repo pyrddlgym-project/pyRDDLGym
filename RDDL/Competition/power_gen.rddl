@@ -1,0 +1,112 @@
+////////////////////////////////////////////////////////////////////
+// A simple power generation problem loosely modeled on the 
+// problem of unit commitment.
+//
+// A number of power producers cooperate to meet daily demand that 
+// fluctuates according to the maximum temperature on a given day.
+// A cost is incurred for every unit of power produced and income
+// is received for every unit consumed by the demand.  There 
+// is a large penalty for failing to meet demand on a given
+// day and there are per-power plant penalties for deviating from 
+// the previous day's production at each plant -- some plants
+// must pay higher operating costs for changes in production.
+// Power generation is in integer units, consumption is real,
+// and time steps are assumed to span 24 hours.       
+//
+// Some issues that could be addressed in more complex models
+// (power line load limits and losses, uncertainty and constraints
+// in production by source -- thermal, nuclear, renewables)
+// are discussed here:
+//
+//   http://en.wikipedia.org/wiki/Power_system_simulation  
+//
+// This version is in RDDL 2.0 format.
+//
+// Author: Scott Sanner (ssanner@gmail.com)
+//
+////////////////////////////////////////////////////////////////////
+domain power_gen {
+
+	types {
+		plant : object;
+	};
+	
+	pvariables { 
+    	
+		// Constants
+		PROD_UNITS_MIN(plant)      : { non-fluent, int,  default = 0   };
+		PROD_UNITS_MAX(plant)      : { non-fluent, int,  default = 10  };
+		PROD_CHANGE_PENALTY(plant) : { non-fluent, real, default = 1.0 };
+		COST_PER_UNIT(plant)       : { non-fluent, real, default = 5.0 };
+		INCOME_PER_UNIT            : { non-fluent, real, default = 8.0 };
+		TEMP_VARIANCE              : { non-fluent, real, default = 5.0 };
+		OBS_VARIANCE               : { non-fluent, real, default = 5.0 };
+		DEMAND_EXP_COEF            : { non-fluent, real, default = 0.01 };
+		MIN_DEMAND_TEMP            : { non-fluent, real, default = 11.7 };
+		MIN_CONSUMPTION            : { non-fluent, real, default = 2 };
+		UNFULFILLED_DEMAND_PENALTY : { non-fluent, real, default = 1000.0 };
+    	
+		// State - int and real
+		prevProd(plant) : { state-fluent, int, default = 0 };
+		temperature     : { state-fluent, real, default = 20 };
+		
+		// Derived and intermediate
+		demand          : { derived-fluent, real };
+		fulfilledDemand : { interm-fluent,  real };
+		
+		// Observations - real
+		obsTemp : { observ-fluent, real };
+		
+		// Action - int
+		curProd(plant) : { action-fluent, int, default = 0 };		
+	};
+	
+	cpfs {
+
+		// State
+		prevProd'(?p) = curProd(?p);
+		temperature'  = Normal(temperature, TEMP_VARIANCE);
+		
+		// Demand -- a function of the current temperature,
+		//           empirically a U-shaped function with a minimum
+		//           at 11.7 C, here we use a simple quadratic model.
+		demand = MIN_CONSUMPTION + DEMAND_EXP_COEF * pow[ temperature - MIN_DEMAND_TEMP , 2 ];
+		fulfilledDemand = min[ demand, (sum_{?p : plant} curProd(?p)) ]; 
+		
+		// Observations
+		obsTemp = Normal(temperature', OBS_VARIANCE);
+	};
+  
+	// cost of supply per plant, demand income, demand exceeds supply penality, steady-state penalties   
+	reward = - (sum_{?p : plant} curProd(?p) * COST_PER_UNIT(?p))
+		     + (fulfilledDemand * INCOME_PER_UNIT)
+		     - (if (demand > fulfilledDemand) then UNFULFILLED_DEMAND_PENALTY else 0.0 )
+		     + (sum_{?p : plant} abs[ curProd(?p) - prevProd(?p) ] * PROD_CHANGE_PENALTY(?p) );
+	
+	action-preconditions {
+
+		// Production amounts within bounds 
+		forall_{?p : plant} [ curProd(?p) >= PROD_UNITS_MIN(?p) ];
+		forall_{?p : plant} [ curProd(?p) <= PROD_UNITS_MAX(?p) ];
+	};
+}
+        
+// Specify three power plants with default settings
+instance inst_power_gen {
+
+	domain = power_gen;
+	
+	objects { 
+		plant : {p1, p2, p3};
+	};
+  
+	init-state { 
+		temperature = 10;
+	};
+  
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+  
+	horizon  = 40;
+	discount = 1.0;
+}
