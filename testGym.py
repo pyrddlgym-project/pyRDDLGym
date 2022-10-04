@@ -1,26 +1,19 @@
 from Env import RDDLEnv as RDDLEnv
+from Policies.Agents import RandomAgent
 import numpy as np
+import random
 
 PROBLEM = 'RDDL/Thiagos_HVAC_grounded.rddl'
-
-def sample_actions(action_space):
-    s = action_space.sample()
-    action = {}
-    for sample in s:
-        if (np.random.choice(2, 1)[0]):
-            action[sample] = s[sample][0]
-    return action
 
 def main():
     steps = 30
     myEnv = RDDLEnv.RDDLEnv(PROBLEM)
-    action_space = myEnv.action_space
-    # max_actions = myEnv.NumConcurrentActions
+    agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
 
     total_reward = 0
     state = myEnv.reset()
     for step in range(steps):
-        action = sample_actions(action_space)
+        action = agent.sample_action()
 
         next_state, reward, done, info = myEnv.step(action)
         total_reward += reward
