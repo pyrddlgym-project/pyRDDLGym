@@ -1,0 +1,243 @@
+///////////////////////////////////////////////////////////////////////////////
+//
+// Drone RDDL domain
+//
+///////////////////////////////////////////////////////////////////////////////
+
+domain simple_aircraft_with_roll{
+
+types {
+    aircraft - object;
+    // speed_ctl - object;
+    // pitch_ctl - object;
+    // accelerating - speed_ctl;
+    // cruising - speed_ctl;
+    // decelerating - speed_ctl;
+    // upwards - pitch_ctl;
+    // level - pitch_ctl;
+    // downwards - pitch_ctl;
+
+};
+
+pvariables {
+
+    CONTROLLABLE(aircraft) : { non-fluent, bool, default = false} // which aircraft can be controlled
+    
+    // Bounds on the position of the aircraft
+    MIN_X : { non-fluent, real, deafult = -50000.0}
+    MAX_X : { non-fluent, real, deafult = 50000.0}
+    MIN_Y : { non-fluent, real, deafult = -50000.0}
+    MAX_Y : { non-fluent, real, deafult = 50000.0}
+    MIN_Z : { non-fluent, real, deafult = -50000.0}
+    MAX_Z : { non-fluent, real, deafult = 50000.0}
+
+
+    // meters / sec^2
+    GRAVITY : { non-fluent, real, deafult = 9.8}
+
+    // Bounds on pitch and roll angle and speed
+    // MIN_YAW(aircraft) : { non-fluent, real, deafult = 0.0}
+    // MAX_YAW(aircraft) : { non-fluent, real, deafult = 1.0}
+    MIN_PITCH(aircraft) : { non-fluent, real, deafult = -1.22}
+    MAX_PITCH(aircraft) : { non-fluent, real, deafult = 1.22}
+    MIN_SPEED(aircraft) : { non-fluent, real, deafult = -1.75}
+    MAX_SPEED(aircraft) : { non-fluent, real, deafult = 1.75}
+    MIN_ROLL(aircraft) : { non-fluent, real, deafult = 51.4}
+    MAX_ROLL(aircraft) : { non-fluent, real, deafult = 514.0}
+    MIN_G_LOAD(aircraft) : { non-fluent, real, deafult = 1.0}
+    MAX_G_LOAD(aircraft) : { non-fluent, real, deafult = 8.0}
+
+    // Coordinates
+    pos_x(aircraft) : { state-fluent, real, default = 0.0 };
+    pos_y(aircraft) : { state-fluent, real, default = 0.0 }; 
+    pos_z(aircraft) : { state-fluent, real, default = 0.0 };  
+
+    // Drone state
+    g_load(aircraft) : { state-fluent, real, default = 0.0 };
+    // weight(aircraft) : { state-fluent, real, default = 0.0 };
+    // fuel(aircraft) : { state-fluent, real, default = 0.0 };
+
+    // Control variables
+    psi(aircraft) : { state-fluent, real, default = 0.0 };    // yaw
+    theta(aircraft) : { state-fluent, real, default = 0.0 };  // pitch
+    phi(aircraft) : { state-fluent, real, default = 0.0 };    // roll
+    phi_c(aircraft) : { state-fluent, real, default = 0.0 };  // target roll
+
+    // Speed
+    vel(aircraft) : { state-fluent, real, default = 0.0 };
+
+    // Rates at which control variables change (per second)
+    // radians / sec
+    yaw_rate(aircraft) : { state-fluent, real, default = 0.0 };
+    pitch_rate(aircraft) : { state-fluent, real, default = 0.0 };
+    roll_rate(aircraft) : { state-fluent, real, default = 0.0 };
+
+    // meters / sec
+    speed_rate(aircraft) : { state-fluent, real, default = 0.0 };
+
+
+    // auxiliary variables to track control of
+    speed_control_cruising(aircraft) : { state-fluent, bool, default = true };
+    speed_control_accelerating(aircraft) : { state-fluent, bool, default = false };
+    speed_control_decelerating(aircraft) : { state-fluent, bool, default = false };
+    pitch_control_level(aircraft) : { state-fluent, bool, default = true };
+    pitch_control_upwards(aircraft) : { state-fluent, bool, default = false };
+    pitch_control_downwards(aircraft) : { state-fluent, bool, default = false };
+
+    // actions
+    increase_g_load(aircraft) : {action-fluent, bool, default = false};
+    decrease_g_load(aircraft) : {action-fluent, bool, default = false};
+    reset_g_load(aircraft) : {action-fluent, bool, default = false};
+    accelerate(aircraft) : {action-fluent, bool, default = false};
+    decelerate(aircraft) : {action-fluent, bool, default = false};
+    cruise(aircraft) : {action-fluent, bool, default = false};
+    pull_lever(aircraft) : {action-fluent, bool, default = false};
+    push_lever(aircraft) : {action-fluent, bool, default = false};
+    neutral_lever(aircraft) : {action-fluent, bool, default = false};
+
+    
+
+};
+
+cpfs {
+
+    // Change over the control variables
+
+    // position changes for each time step
+    pos_x'(?a) = pos_x(?a) + vel(?a) * cos(psi(?a));
+    pos_y'(?a) = pos_y(?a) + vel(?a) * sin(psi(?a));
+    pos_z'(?a) = pos_z(?a) + vel(?a) + sin(theta(?a));
+
+    // velocity changes for each time step
+    vel'(?a) = 
+        if (speed_control_accelerating(?a) ^ vel(?a) <= MAX_SPEED(?a))
+            then vel(?a) + speed_rate(?a)
+        elif (speed_control_decelerating(?a) ^ vel(?a) <= MAX_SPEED(?a))
+            then vel(?a) - speed_rate(?a)
+        else vel(?a)
+    
+    // yaw changes when pitch upwards
+    psi'(?a) = 
+        if (pitch_control_upwards(?a))
+            then psi(?a) + yaw_rate(?a)
+        else
+            psi(?a)
+
+    // roll changes 
+    phi'(?a) = 
+        if (phi_c(?a) > phi(?a))
+            then phi(?a) + roll_rate(?a)
+        elif (phi_c(?a) < phi(?a))
+            then phi(?a) - roll_rate(?a)
+        else phi(?)
+    
+    // pitch change when move upwards and downwards
+    theta'(?a) = 
+        if (pitch_control_upwards(?a) ^ theta(?a) <= max_pitch(?a))
+            then theta(?a) + pitch_rate(?a)
+        elif (pitch_control_downwards(?a) ^ theta(?a) <= max_pitch(?a))
+            then theta(?a) - pitch_rate(?a)
+        else theta(?a)
+    
+    // yaw rate changes when move upwards
+    yaw_rate'(?a) = 
+        if (pitch_control_upwards(?a))
+            then yaw_rate(?a) + (tan(phi(?a)) / vel(?a)) * GRAVITY
+        else yaw_rate(?a)
+    
+    // g_load change
+    g_load'(?a) = 
+        if (g_load(?a) <= MAX_G_LOAD ^ CONTROLLABLE(?a) ^ increase_g_load(?a))
+            then g_load(?a) + 0.1
+        elif (g_load(?a) > MIN_G_LOAD ^ CONTROLLABLE(?a) ^ decrease_g_load(?a))
+            then g_load(?a) - 0.1
+        elif (CONTROLLABLE(?a) ^ reset_g_load(?a))
+            then 1.0
+        else
+            g_load(?a);
+    
+    // target control changes
+    phi_c'(?a) =  
+        if (g_load(?a) <= MAX_G_LOAD ^ CONTROLLABLE(?a) ^ increase_g_load(?a))
+            then acos(1.0 / (g_load(?a) + 0.1))
+        elif (g_load(?a) > MIN_G_LOAD ^ CONTROLLABLE(?a) ^ decrease_g_load(?a))
+            then acos(1.0 / (g_load(?a) - 0.1))
+        elif (CONTROLLABLE(?a) ^ reset_g_load(?a))
+            then 0.0
+        else
+            phi_c'(?a);
+
+    // Instantaneous actions
+
+    speed_control_accelerating(?a)' = 
+        if (CONTROLLABLE(?a) ^ speed_control_cruising(?a) ^ accelerate(?a))
+            then true
+        elif (CONTROLLABLE(?a) ^ speed_control_accelerating(?a) ^ cruising(?a))
+            then false
+        else speed_control_accelerating(?a);
+    
+    speed_control_decelerating(?a)' = 
+        if (CONTROLLABLE(?a) ^ speed_control_cruising(?a) ^ decelerate(?a))
+            then true
+        elif (CONTROLLABLE(?a) ^ speed_control_decelerating(?a) ^ cruising(?a))
+            then false
+        else speed_control_decelerating(?a);
+    
+    speed_control_cruising(?a)' = 
+        if (CONTROLLABLE(?a) ^ cruising(?a))
+            then true
+        else false;
+    
+    pitch_control_upwards(?a)' =
+        if (CONTROLLABLE(?a) ^ pitch_control_level(?a) ^ pull_lever(?a))
+            then true
+        elif (CONTROLLABLE(?a) ^ pitch_control_upwards(?a) ^ netural_lever(?a))
+            then false
+        else pitch_control_upwards(?a)
+    
+    pitch_control_downwards(?a)' =
+        if (CONTROLLABLE(?a) ^ pitch_control_level(?a) ^ push_lever(?a))
+            then true
+        elif (CONTROLLABLE(?a) ^ pitch_control_downwards(?a) ^ netural_lever(?a))
+            then false
+        else pitch_control_downwards(?a)
+    
+    pitch_control_level(?a)' =
+        if (CONTROLLABLE(?a) ^ neutral_lever(?a))
+            then true
+        else false;
+    
+
+};
+
+state-invariants {
+    // boundries of the aircarft locations
+    forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
+                            pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
+                            pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
+
+    // other variable bounds
+    forall_{?a : aircraft}[ g_load(?a) <= MAX_G_LOAD ^ pos_x(?a) >= MIN_G_LOAD ^ 
+                            phi(?a) <= MAX_ROLL ^ phi(?a) >= MIN_ROLL ^
+                            phi_c(?a) <= MAX_ROLL ^ phi_c(?a) >= MIN_ROLL ];
+};
+
+reward = 0;
+
+action-preconditions {
+    // Max of one action per aircraft.
+	forall_{?a : aircraft} [(increase_g_load(?a) + decrease_g_load(?a) + reset_g_load(?a) +
+                            accelerate(?a) + decelerate(?a) + cruise(?a) + 
+                            pull_lever(?a) + push_lever(?a) + neutral_lever(?a))  == 1];
+    
+    // Need to cruise before accelrate or decelerate
+    forall_{?a : aircaft} ~[speed_control_accelerating(?a) ^ decelerate(?a)];
+    forall_{?a : aircaft} ~[speed_control_decelerating(?a) ^ accelerate(?a)];
+
+    // Need to level before upwards and downwards
+    forall_{?a : aircaft} ~[pitch_control_upwards(?a) ^ push_lever(?a)];
+    forall_{?a : aircaft} ~[pitch_control_downwards(?a) ^ pull_lever(?a)];
+
+};
+
+};
