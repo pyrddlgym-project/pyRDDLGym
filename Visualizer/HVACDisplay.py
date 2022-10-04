@@ -191,16 +191,21 @@ class HVACDisplay(StateViz):
 
         vol_ratio = self._object_layout['zone_vol'][curr_z] / 500
 
+        print(vol_ratio)
+
+        init_x, init_y = self._canvas_info['zone_init_points'][curr_z]
+        center_x = init_x + self._interval/2
+        center_y = init_y + self._interval/2
+
         interval = self._interval*2/3 
         length = interval * vol_ratio
 
         
 
 
-        init_x, init_y = self._canvas_info['zone_init_points'][curr_z]
-        center_x = init_x + self._interval/2
-        center_y = init_y + self._interval/2
         
+        
+        print(length)
         print(init_x, init_y)
         print(center_x, center_y)
 
@@ -212,7 +217,7 @@ class HVACDisplay(StateViz):
 
 
 
-        background_rect = plt.Rectangle((init_x, init_y), interval, interval, fc='blue', alpha=1, zorder=5)
+        background_rect = plt.Rectangle((init_x, init_y), length, length, fc='blue', alpha=1, zorder=5)
         ax.add_patch(background_rect)
 
         # plt.show()
