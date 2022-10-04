@@ -90,8 +90,13 @@ class RDDLEnv(gym.Env):
         self.observation_space = state_space
 
         # TODO
-        # set the visualizer
+        # set the visualizer, the next line should be changed for the default behaviour - TextVix
+        self._visualizer = None
+        self.state = None
 
+    def set_visualizer(self, viz):
+        # set the vizualizer with self.model
+        self._visualizer = viz
 
     def step(self, at):
 
@@ -134,6 +139,9 @@ class RDDLEnv(gym.Env):
         else:
             done = False
 
+        # for visualization purposes
+        self.state = state
+
         return state, reward, done, {}
 
     def reset(self):
@@ -142,7 +150,8 @@ class RDDLEnv(gym.Env):
         return self.sampler.reset_state()
 
     def render(self):
-        pass
+        if self._visualizer is not None:
+            pass
 
     @property
     def NumConcurrentActions(self):
