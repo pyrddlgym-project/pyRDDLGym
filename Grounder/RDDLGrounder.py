@@ -461,8 +461,7 @@ class RDDLGrounder(Grounder):
     new_cpf.expr = self._scan_expr_tree(new_cpf.expr, args_dic)
     return new_cpf
 
-<<<<<<< HEAD
-        """
+    """
 
         all_grounded_cpfs = []
         for pvariable in self.AST.domain.pvariables:
@@ -546,7 +545,7 @@ class RDDLGrounder(Grounder):
 
     # ===========================================================
     def _ground_single_CPF(self, name, cpf, variable):
-        """
+      """
 
         Args:
             name:
@@ -555,7 +554,7 @@ class RDDLGrounder(Grounder):
 
         Returns:
 
-        """
+      """
         # map arguments to actual objects
         args = cpf.pvar[1][1]
         if args is None:
@@ -587,12 +586,6 @@ class RDDLGrounder(Grounder):
     def do_aggregate_expression_nesting(self, original_dict, new_variables_list, instances_list, \
                                         operation_string, expression):
         """
-=======
-  def do_aggregate_expression_nesting(self, original_dict, new_variables_list,
-                                      instances_list, operation_string,
-                                      expression):
-    """
->>>>>>> main
         Args:
             original_dict:
             new_variables_list:
