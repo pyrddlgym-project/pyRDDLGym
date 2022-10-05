@@ -4,10 +4,12 @@ import numpy as np
 import random
 
 PROBLEM = 'RDDL/Thiagos_HVAC_grounded.rddl'
+PROBLEM = 'RDDL/Thiagos_Mars_Rover.rddl'
+PROBLEM = 'RDDL/Thiagos_HVAC.rddl'
 
 def main():
     steps = 30
-    myEnv = RDDLEnv.RDDLEnv(PROBLEM)
+    myEnv = RDDLEnv.RDDLEnv(PROBLEM, is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
 
     total_reward = 0
