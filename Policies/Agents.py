@@ -1,6 +1,8 @@
 from abc import ABCMeta, abstractmethod
 import random
 
+import gym
+
 
 class BaseAgent(metaclass=ABCMeta):
 
@@ -19,5 +21,11 @@ class RandomAgent(BaseAgent):
         action = {}
         selected_actions = random.sample(list(s), self.num_actions)
         for sample in selected_actions:
-            action[sample] = s[sample][0].item()
+            if isinstance(self.action_space[sample], gym.spaces.Box):
+                action[sample] = s[sample][0].item()
+            elif isinstance(self.action_space[sample], gym.spaces.Discrete):
+                if str(self.action_space[sample]) == 'Discrete(2)':
+                    action[sample] = bool(s[sample])
+                else:
+                    action[sample] = s[sample]
         return action
