@@ -262,7 +262,28 @@ class RDDLGrounder(Grounder):
     model.maxallowedactions = self._get_num_max_actions()
     model.horizon = self._get_horizon()
     model.discount = self._get_discount()
+
+    # new stuff
+    model.actionsranges = self.actionsranges
+    model.statesranges = self.statesranges
+    model.max_allowed_actions = self._groundMaxActions()
+    model.horizon = self._groundHorizon()
+    model.discount = self._groundDiscount()
+
     return model
+
+  def _groundHorizon(self):
+    return self.AST.instance.horizon
+
+  def _groundMaxActions(self):
+    numactions = self.AST.instance.max_nondef_actions
+    if numactions == 'pos-inf':
+      return len(self.actions)
+    else:
+      return int(numactions)
+
+  def _groundDiscount(self):
+    return self.AST.instance.discount
 
   def _extract_objects(self):
     """
