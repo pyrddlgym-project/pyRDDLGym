@@ -23,13 +23,12 @@ domain reservoir {
 
 	types {
 		res: object;
-		res2 :object;
 	};
 
 	pvariables {
 
 		// Constants
-		MAX_RES_CAP(res, res2): { non-fluent, real, default = 100.0 }; // Beyond this amount, water spills over
+		MAX_RES_CAP(res): { non-fluent, real, default = 100.0 }; // Beyond this amount, water spills over
 		UPPER_BOUND(res): { non-fluent, real, default = 80.0 };  // The upper bound for a safe reservoir level
 		LOWER_BOUND(res): { non-fluent, real, default = 20.0 };  // The lower bound for a safe reservoir level
 		RAIN_SHAPE(res):  { non-fluent, real, default = 25.0 };  // Gamma shape parameter for rainfall

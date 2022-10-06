@@ -12,6 +12,8 @@ from Parser import RDDLReader as RDDLReader
 import Grounder.RDDLGrounder as RDDLGrounder
 from Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 
+from Visualizer.TextViz import TextVisualizer
+
 class RDDLEnv(gym.Env):
     def __init__(self, domain, instance=None, is_grounded=False):
         super(RDDLEnv, self).__init__()
@@ -98,12 +100,12 @@ class RDDLEnv(gym.Env):
 
         # TODO
         # set the visualizer, the next line should be changed for the default behaviour - TextVix
-        self._visualizer = None
+        self._visualizer = TextVisualizer(self.model)
         self.state = None
 
     def set_visualizer(self, viz):
         # set the vizualizer with self.model
-        self._visualizer = viz
+        self._visualizer = viz(self._model)
 
     def step(self, at):
 
@@ -156,9 +158,12 @@ class RDDLEnv(gym.Env):
         self.currentH = 0
         return self.sampler.reset_state()
 
-    def render(self):
+    def render(self, *args):
         if self._visualizer is not None:
-            pass
+            return self._visualizer.render(*args)
+            
+
+
 
     @property
     def NumConcurrentActions(self):

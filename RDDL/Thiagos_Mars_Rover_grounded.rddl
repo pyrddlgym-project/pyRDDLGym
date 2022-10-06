@@ -108,7 +108,7 @@ non-fluents pics3 {
 	// Three pictures
 	objects {
 		picture-point : {p1, p2, p3};
-		rover:{r1};
+		rover: {r1};
 	};
 
 	non-fluents {
@@ -116,20 +116,20 @@ non-fluents pics3 {
     	MAX_TIME = 12.0;
 		MOVE_VARIANCE_MULT = 0.1;
 
-		PICT_XPOS(p1)  =  1.0;
-		PICT_YPOS(p1)  = -1.0;
-		PICT_VALUE(p1) =  5.0;
-		PICT_ERROR_ALLOW(p1) = 2;
+		PICT_XPOS_p1  =  1.0;
+		PICT_YPOS_p1  = -1.0;
+		PICT_VALUE_p1 =  5.0;
+		PICT_ERROR_ALLOW_p1 = 2;
 
-		PICT_XPOS(p2)  =  1.0;
-		PICT_YPOS(p2)  =  1.0;
-		PICT_VALUE(p2) = 10.0;
-		PICT_ERROR_ALLOW(p2) = .2; // Fairly tight constraints given noise
+		PICT_XPOS_p2  =  1.0;
+		PICT_YPOS_p2  =  1.0;
+		PICT_VALUE_p2 = 10.0;
+		PICT_ERROR_ALLOW_p2 = .2; // Fairly tight constraints given noise
 
-		PICT_XPOS(p3)  =  2.0;
-		PICT_YPOS(p3)  = -1.0;
-		PICT_VALUE(p3) =  7.0;
-		PICT_ERROR_ALLOW(p3) = 1.5;
+		PICT_XPOS_p3  =  2.0;
+		PICT_YPOS_p3  = -1.0;
+		PICT_VALUE_p3 =  7.0;
+		PICT_ERROR_ALLOW_p3 = 1.5;
 
 	};
 }
@@ -141,8 +141,8 @@ instance inst_simple_mars_rover_pics3 {
 	non-fluents = pics3;
 
 	init-state {
-		xPos = 0.0;
-		yPos = 0.0;
+		xPos_r1 = 0.0;
+		yPos_r1 = 0.0;
 		time = 0.0;
 	};
 
