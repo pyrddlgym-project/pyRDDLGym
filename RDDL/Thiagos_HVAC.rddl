@@ -84,6 +84,7 @@ instance inst_hvac_vav_fix{
     domain = hvac_vav_fix;
     non-fluents = nf_hvac_vav_fix;
 
+    max-nondef-actions = pos-inf;
     horizon = 20;
     discount = 1.0;
 }

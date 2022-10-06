@@ -15,7 +15,7 @@ from Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 from Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
-    def __init__(self, domain, instance=None):
+    def __init__(self, domain, instance=None, is_grounded=False):
         super(RDDLEnv, self).__init__()
 
         # max allowed action value
@@ -36,7 +36,10 @@ class RDDLEnv(gym.Env):
         rddl_ast = MyRDDLParser.parse(domain)
 
         # ground domain
-        grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
+        if is_grounded == True:
+            grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
+        else:
+            grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
         self.model = grounder.Ground()
 
         # define the model sampler
@@ -57,6 +60,7 @@ class RDDLEnv(gym.Env):
 
         # define the actions bounds
         action_space = Dict()
+        # action_space_range = {}
         for act in self.model.actions:
             range = self.model.actionsranges[act]
             if range == 'real':
@@ -71,7 +75,10 @@ class RDDLEnv(gym.Env):
                 action_space[act] = Discrete(2*self.BigM + 1 ,start = -self.BigM)
             else:
                 raise Exception("unknown action range in gym environment init")
+            # action_space_range[act] = range
+
         self.action_space = action_space
+        # self.action_space_range = action_space_range
 
         # define the states bounds
         state_space = Dict()
