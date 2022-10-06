@@ -343,32 +343,6 @@ class RDDLGrounder(Grounder):
       else:
         self.cpforder[level] = [pvariable.name]
 
-  def _ground_pvariables(self):
-    for pvariable in self.AST.domain.pvariables:
-      name = pvariable.name
-      if pvariable.fluent_type == 'non-fluent':
-        self.nonfluents[name] = pvariable.default
-      elif pvariable.fluent_type == 'action-fluent':
-        self.actions[name] = pvariable.default
-        self.actionsranges[name] = pvariable.range
-      elif pvariable.fluent_type == 'state-fluent':
-        cpf = None
-        next_state = name + '\''
-        for cpfs in self.AST.domain.cpfs[1]:
-          if cpfs.pvar[1][0] == next_state:
-            cpf = cpfs
-        if cpf is not None:
-          self.states[name] = pvariable.default
-          self.statesranges[name] = pvariable.range
-          self.nextstates[name] = next_state
-          self.prevstates[next_state] = name
-          self.cpfs[next_state] = cpf.expr
-          self.cpforder[0].append(name)
-      elif pvariable.fluent_type == 'derived-fluent':
-        self._ground_interm(pvariable, self.AST.domain.derived_cpfs)
-      elif pvariable.fluent_type == 'interm-fluent':
-        self._ground_interm(pvariable, self.AST.domain.intermediate_cpfs)
-
   def _ground_pvariables_and_cpf(self):
     """"""
 
