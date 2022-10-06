@@ -260,30 +260,25 @@ class RDDLGrounder(Grounder):
     model.derived = self.derived
     model.interm = self.interm
     model.objects = self.objects
-    model.maxallowedactions = self._get_num_max_actions()
-    model.horizon = self._get_horizon()
-    model.discount = self._get_discount()
-
-    # new stuff
     model.actionsranges = self.actionsranges
     model.statesranges = self.statesranges
-    model.max_allowed_actions = self._groundMaxActions()
-    model.horizon = self._groundHorizon()
-    model.discount = self._groundDiscount()
+    model.max_allowed_actions = self._ground_max_actions()
+    model.horizon = self._ground_horizon()
+    model.discount = self._ground_discount()
 
     return model
 
-  def _groundHorizon(self):
+  def _ground_horizon(self):
     return self.AST.instance.horizon
 
-  def _groundMaxActions(self):
+  def _ground_max_actions(self):
     numactions = self.AST.instance.max_nondef_actions
     if numactions == 'pos-inf':
       return len(self.actions)
     else:
       return int(numactions)
 
-  def _groundDiscount(self):
+  def _ground_discount(self):
     return self.AST.instance.discount
 
   def _extract_objects(self):
@@ -347,32 +342,6 @@ class RDDLGrounder(Grounder):
         self.cpforder[level].append(pvariable.name)
       else:
         self.cpforder[level] = [pvariable.name]
-
-  def _ground_pvariables(self):
-    for pvariable in self.AST.domain.pvariables:
-      name = pvariable.name
-      if pvariable.fluent_type == 'non-fluent':
-        self.nonfluents[name] = pvariable.default
-      elif pvariable.fluent_type == 'action-fluent':
-        self.actions[name] = pvariable.default
-        self.actionsranges[name] = pvariable.range
-      elif pvariable.fluent_type == 'state-fluent':
-        cpf = None
-        next_state = name + '\''
-        for cpfs in self.AST.domain.cpfs[1]:
-          if cpfs.pvar[1][0] == next_state:
-            cpf = cpfs
-        if cpf is not None:
-          self.states[name] = pvariable.default
-          self.statesranges[name] = pvariable.range
-          self.nextstates[name] = next_state
-          self.prevstates[next_state] = name
-          self.cpfs[next_state] = cpf.expr
-          self.cpforder[0].append(name)
-      elif pvariable.fluent_type == 'derived-fluent':
-        self._ground_interm(pvariable, self.AST.domain.derived_cpfs)
-      elif pvariable.fluent_type == 'interm-fluent':
-        self._ground_interm(pvariable, self.AST.domain.intermediate_cpfs)
 
   def _ground_pvariables_and_cpf(self):
     """"""
@@ -725,18 +694,4 @@ class RDDLGrounder(Grounder):
         val = init_vals[1]
         self.initstate[key] = val
 
-  def _get_horizon(self):
-    return self.AST.instance.horizon
 
-  def _get_num_max_actions(self):
-    try:
-      numactions = self.AST.instance.max_nondef_actions
-    except AttributeError:  # was not set
-      numactions = 'pos-inf'
-    if numactions == 'pos-inf':
-      return len(self.actions)
-    else:
-      return int(numactions)
-
-  def _get_discount(self):
-    return self.AST.instance.discount
