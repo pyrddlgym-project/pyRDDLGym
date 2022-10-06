@@ -21,3 +21,20 @@ class RandomAgent(BaseAgent):
         for sample in selected_actions:
             action[sample] = s[sample][0].item()
         return action
+
+    # used to test rover, delete later
+    def sample_action_rover(self, state=None):
+        s = self.action_space.sample()
+        action = {}
+        selected_actions = random.sample(list(s), self.num_actions)
+        for sample in selected_actions:
+            # print(s[sample])
+            if sample == 'snapPicture':
+                if s[sample] == 1:
+                    action[sample] = True
+                else:
+                    action[sample] = False
+            else: 
+                action[sample] = s[sample][0].item()
+        return action
+    
