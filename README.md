@@ -7,7 +7,7 @@ Requirements:
 * sympy==1.6.2
 * tqdm
 * numpy
-* 
+* matplotlib
 
 Features
 * support added for separate domain and instance (+non-fluents) files
