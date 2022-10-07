@@ -16,7 +16,6 @@ class TextVisualizer(StateViz):
     def __init__(self, model: RDDLModel) -> None:
 
         self._model= model
-        self._states = model.states
         self._nonfluents = model.nonfluents
         self._objects = model.objects
         self._interval = 10
@@ -29,8 +28,8 @@ class TextVisualizer(StateViz):
     def build_nonfluents_layout(self):
         return self._nonfluents
     
-    def build_states_layout(self):
-        return self._states
+    def build_states_layout(self, states):
+        return states
     
     def init_canvas(self, figure_size, dpi):
         self._fig = plt.figure(figsize = figure_size, dpi=dpi)
@@ -45,7 +44,7 @@ class TextVisualizer(StateViz):
     def render(self, state, figure_size = [5, 10], dpi = 100, fontsize = 8):
         
         nonfluent_layout = self.build_nonfluents_layout()
-        state_layout = self.build_states_layout()
+        state_layout = self.build_states_layout(state)
         text_layout = {'nonfluents': nonfluent_layout, 'state': state_layout}
         fig, ax = self.init_canvas(figure_size, dpi)
 
