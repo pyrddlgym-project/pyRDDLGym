@@ -1,6 +1,5 @@
 import copy
 import sys
-import warnings
 
 import gym
 from gym.spaces import Discrete, Dict, Box
@@ -105,7 +104,7 @@ class RDDLEnv(gym.Env):
 
     def set_visualizer(self, viz):
         # set the vizualizer with self.model
-        self._visualizer = viz(self._model)
+        self._visualizer = viz(self.model)
 
     def step(self, at):
 
@@ -156,14 +155,14 @@ class RDDLEnv(gym.Env):
     def reset(self):
         self.total_reward = 0
         self.currentH = 0
-        return self.sampler.reset_state()
+        self.state = self.sampler.reset_state()
+        return self.state
 
-    def render(self, *args):
+    # def render(self, *args):
+    def render(self,):
         if self._visualizer is not None:
-            return self._visualizer.render(*args)
-            
-
-
+            # print(self.state)
+            return self._visualizer.render(self.state)
 
     @property
     def NumConcurrentActions(self):
