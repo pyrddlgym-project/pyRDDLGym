@@ -1,8 +1,10 @@
 from typing import List, Dict, Tuple, Optional
+import time
 
 import matplotlib.pyplot as plt
-import numpy as np
 import matplotlib.image as plt_img
+from matplotlib import animation
+import numpy as np
 from PIL import Image
 
 from Visualizer.StateViz import StateViz
@@ -66,6 +68,8 @@ class MarsRoverVisualizer(StateViz):
         ax = plt.gca()
         plt.xlim([-figure_size[0]//2, figure_size[0]//2])
         plt.ylim([-figure_size[1]//2, figure_size[1]//2])
+        self._fig = fig
+        self._ax = ax
         return fig, ax
 
     def build_object_layout(self):
@@ -77,7 +81,7 @@ class MarsRoverVisualizer(StateViz):
         state_layout = self.build_states_layout(state)
         fig, ax = self.init_canvas(figure_size, dpi)
         plt.axis('scaled')
-        # plt.axis('off')
+        plt.axis('off')
 
 
         for k,v in nonfluent_layout['picture_point_location'].items():
@@ -97,8 +101,71 @@ class MarsRoverVisualizer(StateViz):
             ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
             ax.add_artist(ab)
 
-        print(state)
-        plt.show()
+        ax.set_position((0, 0, 1, 1))
+        fig.canvas.draw()
+
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        self._data = data
+
+        img = Image.fromarray(data)
+
+        plt.close()
+
+        return img
+
+        # plt.show(block=False)
+
+        # print(state)
+        # plt.show()
+        # plt.close()
+
+        # plt.close()
+    
+    def gen_inter_state(self, beg_state, end_state, steps):
+
+        state_buffer = []
+        beg_x = beg_state['xPos']
+        beg_y = beg_state['yPos']
+        end_x = end_state['xPos']
+        end_y = end_state['yPos']
+
+        if (beg_x, beg_y) == (end_x, end_y):
+            state_buffer = [beg_state, end_state]
+        else:
+            for i in range(steps):
+                x = beg_x + 1/steps*(end_x - beg_x)*i
+                y = beg_y + 1/steps*(end_y - beg_y)*i
+                state = beg_state.copy()
+                state['xPos'] = x
+                state['yPos'] = y
+                state_buffer.append(state)
+            state_buffer.append(end_state)
+
+        return state_buffer
+    
+    def animate_buffer(self, states_buffer):
+
+        img_list = [self.render(states_buffer[i]) for i in range(len(states_buffer))]
+        
+        img_list[0].save('temp_result.gif', save_all=True,optimize=False, append_images=img_list[1:], loop=0)
+
+        # def anime(i):
+        #     print(states_buffer[i])
+        #     plt.cla()
+        #     self.render(states_buffer[i])
+        #     plt.tight_layout()
+            
+        # anim = animation.FuncAnimation(self._fig, anime, interval=10)
+
+        # plt.show()
+
+
+
+
+
+
 
 
     

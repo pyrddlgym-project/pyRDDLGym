@@ -61,9 +61,21 @@ def main():
         'picTaken_p1': True, 'picTaken_p2': True, 'picTaken_p3': False}
     state5 = {'xPos': 3.0, 'yPos': -15.0, 'time': 0.0, 
         'picTaken_p1': True, 'picTaken_p2': True, 'picTaken_p3': True}
-    
 
-    visualizer.render(state5)
+    states_list = [state0, state1, state2, state3, state4, state5]
+    states_buffer = []
+
+    for i in range(len(states_list) - 1):
+        states_buffer += visualizer.gen_inter_state(states_list[i], states_list[i+1], 10)
+
+    visualizer.animate_buffer(states_buffer)
+    
+    # for i in states_buffer:
+    #     visualizer.render(i)
+
+
+    # visualizer.render(state5)
+    # visualizer.gen_inter_state(state1, state2, 10)
 
     # myEnv = RDDLEnv.RDDLEnv(PROBLEM)
     # state = myEnv.reset()
