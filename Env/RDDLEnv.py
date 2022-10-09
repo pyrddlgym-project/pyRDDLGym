@@ -4,6 +4,10 @@ import sys
 import gym
 from gym.spaces import Discrete, Dict, Box
 import numpy as np
+# from PIL import ImageDraw, ImageTk
+# import matplotlib.pyplot as plt
+import tkinter
+import pygame
 
 import Simulator.RDDLSimulator
 from Parser import parser as parser
@@ -101,6 +105,12 @@ class RDDLEnv(gym.Env):
         # set the visualizer, the next line should be changed for the default behaviour - TextVix
         self._visualizer = TextVisualizer(self.model)
         self.state = None
+        self.image = None
+        # self.window = tkinter.Tk()
+        self.window = None
+        self.to_render = False
+        self.image_size = None
+        # pygame.init()
 
     def set_visualizer(self, viz):
         # set the vizualizer with self.model
@@ -156,13 +166,55 @@ class RDDLEnv(gym.Env):
         self.total_reward = 0
         self.currentH = 0
         self.state = self.sampler.reset_state()
+
+        # if self.to_render:
+        image = self._visualizer.render(self.state)
+        self.image_size = image.size
+            # self.window = pygame.display.set_mode((image.size[0], image.size[1]))
+        # self.image = None
         return self.state
 
-    # def render(self, *args):
-    def render(self,):
+    def pilImageToSurface(self, pilImage):
+        return pygame.image.fromstring(
+            pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
+
+    def render(self):
         if self._visualizer is not None:
-            # print(self.state)
-            return self._visualizer.render(self.state)
+            if not self.to_render:
+                self.to_render = True
+                pygame.init()
+                self.window = pygame.display.set_mode((self.image_size[0], self.image_size[1]))
+            image = self._visualizer.render(self.state)
+            self.window.fill(0)
+            pygameSurface = self.pilImageToSurface(image)
+            self.window.blit(pygameSurface, (0, 0))
+            pygame.display.flip()
+            # return image
+            # this_images = pygame.image.fromstring(image.data, image.size, image.mode)
+
+            # self.window.geometry('%dx%d' % (image.size[0], image.size[1]))
+            # tkpi = ImageTk.PhotoImage(image)
+            # label_image = tkinter.Label(self.window, image=tkpi)
+            # label_image.pack()
+            # label_image.place(x=0, y=0, width=image.size[0], height=image.size[1])
+            # self.window.title("title")
+            # self.window.mainloop()
+            # if self.image is not None:
+            #     self.image.destroy()
+            # self.image = label_image
+
+
+
+            # if self.image is not None:
+            #     plt.close()
+                # self.image.close()
+            # self.image = self._visualizer.render(self.state)
+            # plt.close()
+            # plt.imshow(self.image)
+            # plt.show()
+            # self.image.show()
+            # self.image.close()
+
 
     @property
     def NumConcurrentActions(self):
