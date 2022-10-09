@@ -61,6 +61,7 @@ class TextVisualizer(StateViz):
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
         self._data = data
+        plt.close()
 
         img = Image.fromarray(data)
 
