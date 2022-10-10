@@ -300,30 +300,33 @@ class RDDLGrounder(Grounder):
     return itertools.product(*objects_by_type)
 
   def _generate_grounded_names(self,
-                               name,
+                               base_name,
                                variation_list,
                                return_grounding_param_dict=False):
-    names = []
+    all_grounded_names = []
+    prime_var = "\'" in base_name
+    base_name = base_name.strip("\'")
     grounded_name_to_params_dict = {}
     for variation in variation_list:
-      grounded_name = name + '_' + '_'.join(variation)
-      names.append(grounded_name)
+      grounded_name = base_name + '_' + '_'.join(variation)
+      if prime_var: grounded_name += "\'"
+      all_grounded_names.append(grounded_name)
       grounded_name_to_params_dict[grounded_name] = variation
     if return_grounding_param_dict:
-      return names, grounded_name_to_params_dict
+      return all_grounded_names, grounded_name_to_params_dict
     else:  # in some calls to _generate_name, we do not care about the param dict, hence this
-      return names
+      return all_grounded_names
 
   def _ground_non_fluents(self):
     if not hasattr(self.AST.non_fluents, 'init_non_fluent'):
       return
     for init_vals in self.AST.non_fluents.init_non_fluent:
       name = init_vals[0][0]
-      variations = [init_vals[0][1]]
+      variations_list = [init_vals[0][1]]
       val = init_vals[1]
-      if variations[0] is not None:
+      if variations_list[0] is not None:
         name = self._generate_grounded_names(
-            name, variations, return_grounding_param_dict=False)[0]
+            name, variations_list, return_grounding_param_dict=False)[0]
 
       self.nonfluents[name] = val
 
@@ -453,8 +456,9 @@ class RDDLGrounder(Grounder):
       args_dic[arg] = vararg
     # Parse cpf w.r.t cpf args and variables.
     # Fix name.
-    new_name = self._generate_grounded_names(
-        new_cpf.pvar[1][0], [args_dic[arg] for arg in new_cpf.pvar[1][1]])
+    cpf_base_name = new_cpf.pvar[1][0]
+    cpf_name_grounding_variation = [[args_dic[arg] for arg in new_cpf.pvar[1][1]]]#must be a nested list for func call
+    new_name = self._generate_grounded_names( cpf_base_name,cpf_name_grounding_variation)
     new_pvar = ('pvar_expr', (new_name, None))
     new_cpf.pvar = new_pvar
     new_cpf.expr = self._scan_expr_tree(new_cpf.expr, args_dic)
@@ -556,8 +560,8 @@ class RDDLGrounder(Grounder):
       # This is a constant.
       pass
     elif expr.args[1]:
-      variation = [dic[arg] for arg in expr.args[1]]
-      new_name = self._generate_grounded_names(expr.args[0], [variation])[0]
+      variation_list = [[dic[arg] for arg in expr.args[1]]]
+      new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
       expr = Expression(('pvar_expr', (new_name, None)))
     else:
       raise ValueError(f'Malformed expression {str(expr)}.')
