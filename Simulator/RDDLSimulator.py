@@ -304,10 +304,10 @@ class RDDLSimulator:
     @staticmethod
     def _ieee754_division(arg1, arg2):  # TODO: is nan valid
         if arg1 != arg1 or arg2 != arg2:
-            return math.nan
+            raise ArithmeticError('NaN value encountered.')
         elif arg2 == 0:
             if arg1 == 0:
-                return math.nan
+                raise ArithmeticError('NaN value encountered.')
             elif arg1 < 0:
                 return -math.inf
             else:
