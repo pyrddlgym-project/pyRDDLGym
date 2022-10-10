@@ -14,7 +14,7 @@ domain mars_rover_science_mission {
 
     requirements = {
         reward-deterministic
-        };
+    };
 
     types {
 		drone : object;
@@ -34,7 +34,7 @@ domain mars_rover_science_mission {
         MINERAL_POS_Y(mineral): { non-fluent, real, default = 0 };            // mineral y location
 
         // interm & derived fluents
-        power(drone) : {derived-fluent, real};                          // derived fluent for control input norm calculation
+        power(drone) : { derived-fluent, real };                          // derived fluent for control input norm calculation
         u_x(drone) : { derived-fluent, real };                          // derived fluent for norm saturated x control
         u_y(drone) : { derived-fluent, real };                          // derived fluent for norm saturated y control
 
@@ -54,13 +54,12 @@ domain mars_rover_science_mission {
     cpfs {
 
         power(?d) = sqrt[ pow[power_x(?d), 2] + power_y(?d), 2];
-        u_x(?d) = if(power(?d) > = MAX_POWER(?d))
+        u_x(?d) = if(power(?d) >= MAX_POWER(?d))
                     then MAX_POWER(?d) * power_x(?d) / power(?d)
                     else power_x(?d);
-
-        u_y = if(power(?d) > = MAX_POWER(?d))
-                then MAX_POWER(?d) * power_y(?d) / power(?d)
-                else power_y(?d);
+        u_y(?d) = if(power(?d) >= MAX_POWER(?d))
+                	then MAX_POWER(?d) * power_y(?d) / power(?d)
+                	else power_y(?d);
 
         vel_x'(?d) = vel_x(?d) + SCALE_FACTOR * u_x(?d);
         vel_y'(?d) = vel_y(?d) + SCALE_FACTOR * u_y(?d);
@@ -76,31 +75,29 @@ domain mars_rover_science_mission {
     // R = -sum u_x^2 + u_y^2 + sum minerals harvested - sum harvested minerals
     reward = -sum_{?d : drone} [ pow[u_x(?d), 2] + pow[u_x(?d), 2]] + 
              sum_{?m : mineral }[if(exists_{?d : drone}
-                        [(sqrt [ pow[pos_x(?d)-MINERAL_POS_X(?m),2] + pow[pos_y(?d)-MINERAL_POS_Y(?m),2]] < MINERAL_AREA(?m)) ^ harvest(?d)])
+                        [(sqrt[pow[pos_x(?d)-MINERAL_POS_X(?m),2] + pow[pos_y(?d)-MINERAL_POS_Y(?m),2]] < MINERAL_AREA(?m)) ^ harvest(?d)])
                             then MINERAL_VALUE(?m)
                             else 0.0]
              - sum_{?d : drone} [harvest(?d)];
 
-    state-invariants {
-
-        forall_{?m : mineral} MINERAL_AREA(?m) > 0;
-        
-    };
+    //state-invariants {
+//
+  //      forall_{?m : mineral} MINERAL_AREA(?m) > 0;
+   //     
+    //};
 
     action-preconditions {
 
         // harvest can be executed only in the vacinity of a mineral, and only for that mineral
-        forall_{?d : drone}[
-            if (exists_{?m : mineral})[
-                (sqrt [pow[pos_x(?d)-MINERAL_POS_X(?m), 2] + pow[pos_y(?d)-MINERAL_POS_Y(?m), 2]] < MINERAL_AREA(?m))^ harvest(?d)
-            ] then true
-            else false
-        ];
+        //forall_{?d : drone}[
+        //    if (exists_{?m : mineral})
+         //   	[(sqrt[pow[pos_x(?d) - MINERAL_POS_X(?m), 2] + pow[pos_y(?d)-MINERAL_POS_Y(?m), 2]] < MINERAL_AREA(?m)) ^ harvest(?d)] 
+         //   		then true
+         //   		else false
+        //];
 
         // cannot harvest minerals and accelerate at the same time
         forall_{?d : drone} [forall_{?m : mineral} [~mineral_harvested(?m) | ~power_x(?d) ^ ~power_y(?d)]];
 
     };
-
-
-
+}
