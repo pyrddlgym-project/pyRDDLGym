@@ -659,7 +659,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         for action in model.actions:
             self._bounds[action] = [-self.BigM, self.BigM]
 
-        # actions and states bounds extraction
+        # actions and states bounds extraction for gym's action and state spaces repots only!
         # currently supports only linear in\equality constraints
         for action_precond in model.preconditions:
             if action_precond.etype[0] != 'rational':

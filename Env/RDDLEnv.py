@@ -134,6 +134,8 @@ class RDDLEnv(gym.Env):
         state = self.sampler.sample_next_state(action)
         reward = self.sampler.sample_reward()
 
+        # TODO: The following chunk of code should be removed and replaced only by self.sampler.check_state_invariants()
+
         # check if the state is within the invariant constraints
         for st in state:
             if self.model.statesranges[st] == 'real':
