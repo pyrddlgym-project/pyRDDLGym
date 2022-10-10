@@ -295,12 +295,26 @@ class RDDLSimulator:
         elif op == '*':
             return arg1 * arg2
         elif op == '/':
-            return arg1 / arg2  # int -> float
+            return RDDLSimulator._ieee754_division(arg1, arg2) 
         else:
             raise RDDLNotImplementedError(
                 'Arithmetic operator {} is not supported.'.format(op) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
     
+    @staticmethod
+    def _ieee754_division(arg1, arg2):  # TODO: is nan valid
+        if arg1 != arg1 or arg2 != arg2:
+            return math.nan
+        elif arg2 == 0:
+            if arg1 == 0:
+                return math.nan
+            elif arg1 < 0:
+                return -math.inf
+            else:
+                return math.inf
+        else:
+            return arg1 / arg2  # int -> float
+        
     def _sample_short_circuit_product(self, expr, expr1, expr2, subs):
         if expr2.is_constant_expression() or expr2.is_pvariable_expression():  # TODO: is this ok?
             expr1, expr2 = expr2, expr1
