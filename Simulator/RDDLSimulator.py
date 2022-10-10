@@ -60,7 +60,7 @@ class RDDLSimulator:
         self._action_fluents = set(self._model.actions.keys())
         self._init_actions = self._model.actions.copy()
         
-        self._subs = self._model.nonfluents.copy()  # these won't change
+        self._subs = self._model.nonfluents.copy()  # these won't chang
         self._next_state = None
 
     def reset_state(self) -> Args:
