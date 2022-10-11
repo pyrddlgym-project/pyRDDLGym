@@ -25,7 +25,7 @@ class RDDLUndefinedVariableError(SyntaxError):
     pass
 
 
-class RDDLInvalidNumberOfArgumentsError(ValueError):
+class RDDLInvalidNumberOfArgumentsError(SyntaxError):
     pass
 
 
@@ -295,12 +295,28 @@ class RDDLSimulator:
         elif op == '*':
             return arg1 * arg2
         elif op == '/':
-            return arg1 / arg2  # int -> float
+            return RDDLSimulator._ieee754_division(expr, arg1, arg2) 
         else:
             raise RDDLNotImplementedError(
                 'Arithmetic operator {} is not supported.'.format(op) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
     
+    @staticmethod
+    def _ieee754_division(expr, arg1, arg2):
+        if arg1 != arg1 or arg2 != arg2:
+            raise ArithmeticError('NaN value encountered in division.' + 
+                                  '\n' + RDDLSimulator._print_stack_trace(expr))
+        elif arg2 == 0:
+            if arg1 == 0:
+                raise ArithmeticError('NaN value encountered in division.' + 
+                                      '\n' + RDDLSimulator._print_stack_trace(expr))
+            elif arg1 < 0:
+                return -math.inf
+            else:
+                return math.inf
+        else:
+            return arg1 / arg2  # int -> float
+        
     def _sample_short_circuit_product(self, expr, expr1, expr2, subs):
         if expr2.is_constant_expression() or expr2.is_pvariable_expression():  # TODO: is this ok?
             expr1, expr2 = expr2, expr1
@@ -361,7 +377,12 @@ class RDDLSimulator:
                             
             arg = self._sample(args[0], subs)
             arg = 1 * arg  # bool -> int
-            return RDDLSimulator.KNOWN_UNARY[name](arg)
+            try:
+                return RDDLSimulator.KNOWN_UNARY[name](arg)
+            except:
+                raise RDDLValueOutOfRangeError(
+                    'Function {} could not be evaluated with arg {}.'.format(name, arg) + 
+                    '\n' + RDDLSimulator._print_stack_trace(expr))
         
         elif name in RDDLSimulator.KNOWN_BINARY:
             if len(args) != 2:
@@ -373,7 +394,13 @@ class RDDLSimulator:
             arg2 = self._sample(args[1], subs)
             arg1 = 1 * arg1  # bool -> int
             arg2 = 1 * arg2
-            return RDDLSimulator.KNOWN_BINARY[name](arg1, arg2)
+            try:
+                return RDDLSimulator.KNOWN_BINARY[name](arg1, arg2)
+            except:
+                raise RDDLValueOutOfRangeError(
+                    'Function {} could not be evaluated with args {} and {}.'.format(
+                        name, arg1, arg2) + 
+                    '\n' + RDDLSimulator._print_stack_trace(expr))
         
         else:
             raise RDDLNotImplementedError(
@@ -659,7 +686,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         for action in model.actions:
             self._bounds[action] = [-self.BigM, self.BigM]
 
-        # actions and states bounds extraction
+        # actions and states bounds extraction for gym's action and state spaces repots only!
         # currently supports only linear in\equality constraints
         for action_precond in model.preconditions:
             if action_precond.etype[0] != 'rational':
