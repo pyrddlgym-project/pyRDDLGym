@@ -80,21 +80,18 @@ domain mars_rover_science_mission {
                             else 0.0]
              - sum_{?d : drone} [harvest(?d)];
 
-    //state-invariants {
-//
-  //      forall_{?m : mineral} MINERAL_AREA(?m) > 0;
-   //
-    //};
+    state-invariants {
+        forall_{?m : mineral} MINERAL_AREA(?m) > 0;  
+    };
 
     action-preconditions {
 
         // harvest can be executed only in the vacinity of a mineral, and only for that mineral
-        //forall_{?d : drone}[
-        //    if (exists_{?m : mineral})
-         //   	[(sqrt[pow[pos_x(?d) - MINERAL_POS_X(?m), 2] + pow[pos_y(?d)-MINERAL_POS_Y(?m), 2]] < MINERAL_AREA(?m)) ^ harvest(?d)]
-         //   		then true
-         //   		else false
-        //];
+        forall_{?d : drone}[
+            if (exists_{?m : mineral}
+           	[(sqrt[pow[pos_x(?d) - MINERAL_POS_X(?m), 2] + pow[pos_y(?d)-MINERAL_POS_Y(?m), 2]] < MINERAL_AREA(?m)) ^ harvest(?d)])
+            		then true
+            		else false];
 
         // cannot harvest minerals and accelerate at the same time
         forall_{?d : drone} [forall_{?m : mineral} [~mineral_harvested(?m) | ~power_x(?d) ^ ~power_y(?d)]];
