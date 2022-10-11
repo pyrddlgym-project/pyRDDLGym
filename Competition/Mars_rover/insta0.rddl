@@ -18,6 +18,14 @@ non-fluents rover2 {
 		drone : { d1 };
 		mineral : { m1, m2 };
 	};
+
+	non-fluents {
+        MINERAL_POS_X(m1) = 5;
+		MINERAL_POS_Y(m1) = 5;
+		MINERAL_POS_X(m2) = -5;
+		MINERAL_POS_Y(m2) = -5;
+	};
+
 }
 
 // Specify three power plants with default settings
@@ -28,10 +36,10 @@ instance inst_mars_rover {
 	non-fluents = rover2;
 
 	init-state {
-		MINERAL_POS_X(m1) = 5;
-		MINERAL_POS_Y(m1) = 5;
-		MINERAL_POS_X(m2) = -5;
-		MINERAL_POS_Y(m2) = -5;
+		vel_x(d1) = 0;
+        vel_y(d1) = 0;
+        pos_x(d1) = 0;
+        pos_y(d1) = 0;
 	};
 
   	// State-action constraints above are sufficient
