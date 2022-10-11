@@ -54,6 +54,7 @@ domain mars_rover_science_mission {
     cpfs {
 
         power(?d) = sqrt[ pow[power_x(?d), 2] + pow[power_y(?d), 2]];
+
         u_x(?d) = if(power(?d) >= MAX_POWER(?d))
                     then MAX_POWER(?d) * power_x(?d) / power(?d)
                     else power_x(?d);
@@ -81,20 +82,14 @@ domain mars_rover_science_mission {
              - sum_{?d : drone} [harvest(?d)];
 
     state-invariants {
-        forall_{?m : mineral} MINERAL_AREA(?m) > 0;  
+        forall_{?m : mineral} MINERAL_AREA(?m) > 0;
     };
 
     action-preconditions {
-
-        // harvest can be executed only in the vacinity of a mineral, and only for that mineral
-        forall_{?d : drone}[
-            if (exists_{?m : mineral}
-           	[(sqrt[pow[pos_x(?d) - MINERAL_POS_X(?m), 2] + pow[pos_y(?d)-MINERAL_POS_Y(?m), 2]] < MINERAL_AREA(?m)) ^ harvest(?d)])
-            		then true
-            		else false];
-
-        // cannot harvest minerals and accelerate at the same time
-        forall_{?d : drone} [forall_{?m : mineral} [~mineral_harvested(?m) | ~power_x(?d) ^ ~power_y(?d)]];
-
+        forall_{?d : drone} [ power_x(?d) >= -MAX_POWER(?d) ];
+        forall_{?d : drone} [ power_x(?d) <= MAX_POWER(?d) ];
+        forall_{?d : drone} [ power_y(?d) >= -MAX_POWER(?d) ];
+        forall_{?d : drone} [ power_y(?d) <= MAX_POWER(?d) ];
     };
+
 }
