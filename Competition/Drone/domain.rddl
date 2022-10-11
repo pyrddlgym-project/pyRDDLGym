@@ -216,22 +216,17 @@ cpfs {
 
 state-invariants {
     // boundries of the aircarft locations
-    // forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
-    //                         pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
-    //                         pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
-    
-
+    forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
+                            pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
+                            pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
 };
 
 reward = sum_{?a : aircraft} [sqrt[pow[(pos_x(?a) - goal_x(?a)),2] + 
                                    pow[(pos_y(?a) - goal_y(?a)),2] +
                                    pow[(pos_z(?a) - goal_z(?a)),2]] ];
 
-state-action-constraints {
+action-preconditions {
     // Max of one action per aircraft.
-	// forall_{?a : aircraft} [(increase_g_load(?a) + decrease_g_load(?a) + reset_g_load(?a) +
-    //                         accelerate(?a) + decelerate(?a) + cruise(?a) + 
-    //                        pull_lever(?a) + push_lever(?a) + neutral_lever(?a))  == 1];
     forall_{?a : aircraft} [(accelerate(?a) + decelerate(?a) + cruise(?a) +
                              pull_lever(?a) + push_lever(?a) + neutral_lever(?a) + 
                              increase_g_load(?a) + decrease_g_load(?a) + reset_g_load(?a)) <= 1];
@@ -242,11 +237,6 @@ state-action-constraints {
     forall_{?a : aircraft} [decelerate(?a) => speed_control_cruising(?a)];
     forall_{?a : aircraft} [pull_lever(?a) => pitch_control_level(?a)];
     forall_{?a : aircraft} [push_lever(?a) => pitch_control_level(?a)];
-    //forall_{?a : aircaft} ~[speed_control_decelerating(?a) ^ accelerate(?a)];
-
-    forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
-                            pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
-                            pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
 
 };
 
