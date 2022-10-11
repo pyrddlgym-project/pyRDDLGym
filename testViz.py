@@ -67,6 +67,7 @@ def main():
 
     for i in range(len(states_list) - 1):
         states_buffer += visualizer.gen_inter_state(states_list[i], states_list[i+1], 10)
+        visualizer.render(states_list[i])
 
     visualizer.animate_buffer(states_buffer)
     
