@@ -13,18 +13,23 @@ from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
 
 import Visualizer
 
+
+
 class MarsRoverVisualizer(StateViz):
-    def __init__(self, model: RDDLModel) -> None:
+    def __init__(self, model: RDDLModel, figure_size = [50, 50], dpi = 20, fontsize = 8) -> None:
 
         self._model= model
         self._states = model.states
         self._nonfluents = model.nonfluents
         self._objects = model.objects
+        self._figure_size = figure_size
+        self._dpi = dpi
         self._interval = 10
         self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])      
         self._object_layout = None
-        self._fig = None
-        self._ax = None
+        # self._fig = None
+        # self._ax = None
+        self._fig, self._ax = self.init_canvas()
         self._data = None
     
     def build_nonfluents_layout(self):
@@ -63,11 +68,15 @@ class MarsRoverVisualizer(StateViz):
 
         return {'picture_taken':pict_taken, 'rover_location':rover_location}
 
-    def init_canvas(self, figure_size, dpi):
-        fig = plt.figure(figsize = figure_size, dpi = dpi)
+    def init_canvas(self):
+        fig = plt.figure(figsize = self._figure_size, dpi = self._dpi)
         ax = plt.gca()
-        plt.xlim([-figure_size[0]//2, figure_size[0]//2])
-        plt.ylim([-figure_size[1]//2, figure_size[1]//2])
+        # plt.xlim([-self._figure_size[0]//2, self._figure_size[0]//2])
+        # plt.ylim([-self._figure_size[1]//2, self._figure_size[1]//2])
+        # plt.axis('scaled')
+        # plt.axis('off')
+        # plt.ion()
+
         self._fig = fig
         self._ax = ax
         return fig, ax
@@ -75,53 +84,53 @@ class MarsRoverVisualizer(StateViz):
     def build_object_layout(self):
         return {'nonfluents_layout':self.build_nonfluents_layout(), 'states_layout':self.build_states_layout()}
 
-    def render(self, state, figure_size = [50, 50], dpi = 100, fontsize = 8):
+    def render(self, state):
+
+        plt.cla()
+    
         self._state = state
         nonfluent_layout = self.build_nonfluents_layout()
         state_layout = self.build_states_layout(state)
-        fig, ax = self.init_canvas(figure_size, dpi)
+        # fig, ax = self.init_canvas(figure_size, dpi)
+
+        plt.xlim([-self._figure_size[0]//2, self._figure_size[0]//2])
+        plt.ylim([-self._figure_size[1]//2, self._figure_size[1]//2])
         plt.axis('scaled')
         plt.axis('off')
-
 
         for k,v in nonfluent_layout['picture_point_location'].items():
             if state_layout['picture_taken'][k] == False:
                 p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=0.5)
             else:
                 p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
-            ax.add_patch(p_point)
+            self._ax.add_patch(p_point)
 
 
         rover_img_path = self._asset_path + '/assets/mars-rover.png'
         rover_logo = plt_img.imread(rover_img_path)
-        rover_logo_zoom = rover_logo.shape[0]/(dpi*90)
+        rover_logo_zoom = rover_logo.shape[0]/(self._dpi*90)
 
         for k,v in state_layout['rover_location'].items():
             imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
             ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
-            ax.add_artist(ab)
+            self._ax.add_artist(ab)
 
-        ax.set_position((0, 0, 1, 1))
-        fig.canvas.draw()
+        self._ax.set_position((0, 0, 1, 1))
+        self._fig.canvas.draw()
+        
 
-        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        data = np.frombuffer(self._fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(self._fig.canvas.get_width_height()[::-1] + (3,))
+
+        # self._fig.canvas.flush_events()
 
         self._data = data
 
         img = Image.fromarray(data)
 
-        plt.close()
-
         return img
 
-        # plt.show(block=False)
-
-        # print(state)
-        # plt.show()
-        # plt.close()
-
-        # plt.close()
+ 
     
     def gen_inter_state(self, beg_state, end_state, steps):
 
@@ -147,21 +156,26 @@ class MarsRoverVisualizer(StateViz):
     
     def animate_buffer(self, states_buffer):
 
-        img_list = [self.render(states_buffer[i]) for i in range(len(states_buffer))]
-        
-        img_list[0].save('temp_result.gif', save_all=True,optimize=False, append_images=img_list[1:], loop=0)
+        # img_list = [self.render(states_buffer[i]) for i in range(len(states_buffer))]
 
-        # def anime(i):
-        #     print(states_buffer[i])
-        #     plt.cla()
-        #     self.render(states_buffer[i])
-        #     plt.tight_layout()
+        # img_list[0].save('temp_result.gif', save_all=True,optimize=False, append_images=img_list[1:], loop=0)
+
+
+        def anime(i):
+            self.render(states_buffer[i])
+            print('here')
             
-        # anim = animation.FuncAnimation(self._fig, anime, interval=10)
+        anim = animation.FuncAnimation(self._fig, anime, interval=200)
+
+        plt.show()
+        plt.close()
 
         # plt.show()
 
+        # img = self.render(states_buffer[0])
+        # img.save('./img_folder/0.png')
 
+        return
 
 
 
