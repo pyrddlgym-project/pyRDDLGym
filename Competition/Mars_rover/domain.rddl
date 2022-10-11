@@ -64,8 +64,8 @@ domain mars_rover_science_mission {
 
         vel_x'(?d) = vel_x(?d) + SCALE_FACTOR * u_x(?d);
         vel_y'(?d) = vel_y(?d) + SCALE_FACTOR * u_y(?d);
-        pos_x'(?d) = pos_x(?d) + SCALE_FACTOR * vel_x'(?d);
-        pos_y'(?d) = pos_y(?d) + SCALE_FACTOR * vel_y'(?d);
+        pos_x'(?d) = pos_x(?d) + SCALE_FACTOR * vel_x(?d);
+        pos_y'(?d) = pos_y(?d) + SCALE_FACTOR * vel_y(?d);
 
         mineral_harvested'(?m) = mineral_harvested(?m) |
                 ~mineral_harvested(?m) ^ [exists_{?d : drone}
