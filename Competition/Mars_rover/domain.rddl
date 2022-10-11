@@ -74,7 +74,7 @@ domain mars_rover_science_mission {
     };
 
     // R = -sum u_x^2 + u_y^2 + sum minerals harvested - sum harvested minerals
-    reward = [-sum_{?d : drone} [ pow[u_x(?d), 2] + pow[u_x(?d), 2]]] +
+    reward = [-sum_{?d : drone} [ pow[u_x(?d), 2] + pow[u_y(?d), 2]]] +
              [sum_{?m : mineral }[if (exists_{?d : drone}
                         [(sqrt[pow[pos_x(?d)-MINERAL_POS_X(?m),2] + pow[pos_y(?d)-MINERAL_POS_Y(?m),2]] < MINERAL_AREA(?m)) ^ harvest(?d)])
                             then MINERAL_VALUE(?m)
