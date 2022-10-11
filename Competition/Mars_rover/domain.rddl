@@ -64,25 +64,25 @@ domain mars_rover_science_mission {
 
         vel_x'(?d) = vel_x(?d) + SCALE_FACTOR * u_x(?d);
         vel_y'(?d) = vel_y(?d) + SCALE_FACTOR * u_y(?d);
-        pos_x'(?d) = pos_x(?d) + SCALE_FACTOR * vel_x'(?d);
-        pos_y'(?d) = pos_y(?d) + SCALE_FACTOR * vel_y'(?d);
+        pos_x'(?d) = pos_x(?d) + SCALE_FACTOR * vel_x(?d);
+        pos_y'(?d) = pos_y(?d) + SCALE_FACTOR * vel_y(?d);
 
         mineral_harvested'(?m) = mineral_harvested(?m) |
-                ~mineral_harvested(?m) ^ exists_{?d : drone}
-                    [sqrt [ pow[pos_x(?d)-MINERAL_POS_X(?m),2] + pow[pos_y(?d)-MINERAL_POS_Y(?m),2]] < MINERAL_AREA(?m) ^ harvest(?d)];
+                ~mineral_harvested(?m) ^ [exists_{?d : drone}
+                    [sqrt [ pow[pos_x(?d)-MINERAL_POS_X(?m),2] + pow[pos_y(?d)-MINERAL_POS_Y(?m),2]] < MINERAL_AREA(?m) ^ harvest(?d)]];
 
     };
 
     // R = -sum u_x^2 + u_y^2 + sum minerals harvested - sum harvested minerals
-    reward = -sum_{?d : drone} [ pow[u_x(?d), 2] + pow[u_x(?d), 2]] +
-             sum_{?m : mineral }[if(exists_{?d : drone}
+    reward = [-sum_{?d : drone} [ pow[u_x(?d), 2] + pow[u_x(?d), 2]]] +
+             [sum_{?m : mineral }[if (exists_{?d : drone}
                         [(sqrt[pow[pos_x(?d)-MINERAL_POS_X(?m),2] + pow[pos_y(?d)-MINERAL_POS_Y(?m),2]] < MINERAL_AREA(?m)) ^ harvest(?d)])
                             then MINERAL_VALUE(?m)
-                            else 0.0]
-             - sum_{?d : drone} [harvest(?d)];
+                            else 0.0]]
+             - [sum_{?d : drone} [harvest(?d)]];
 
     state-invariants {
-        forall_{?m : mineral} MINERAL_AREA(?m) > 0;
+        forall_{?m : mineral} [MINERAL_AREA(?m) > 0 ];
     };
 
     action-preconditions {
