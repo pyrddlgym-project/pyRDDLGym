@@ -4,16 +4,15 @@ A toolkit for auto-generation of OpenAI Gym environments from RDDL description f
 
 Requirements:
 * ply
-* sympy==1.6.2
 * tqdm
 * numpy
 * matplotlib
+* pygame
 
 Features
 * support added for separate domain and instance (+non-fluents) files
 * informative exception is raised when there is a problem with a block (domain, non-fluents, instance)
 * RDDL text generator from parsed ast (partial support of the language)
-* XADD support
 
 Bug fix:
 * Parsing:
