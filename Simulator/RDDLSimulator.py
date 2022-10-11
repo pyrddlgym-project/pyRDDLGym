@@ -420,10 +420,14 @@ class RDDLSimulator:
         
         elif len(args) == 2:
             if eop == '|' or eop == '^':
-                return self._sample_short_circuit(expr, *args, eop, subs)
+                return self._sample_short_circuit_and_or(expr, *args, eop, subs)
             elif eop == '~':
                 return self._sample_xor(expr, *args, subs)
-            else:  # TODO: do we need =>, <=> for grounded?
+            elif eop == '=>':
+                return self._sample_short_circuit_implies(expr, *args, subs)
+            elif eop == '<=>':
+                return self._sample_equivalent(expr, *args, subs)
+            else:
                 raise RDDLNotImplementedError(
                     'Logical operator {} is not supported.'.format(eop) + 
                     '\n' + RDDLSimulator._print_stack_trace(expr))
@@ -433,7 +437,7 @@ class RDDLSimulator:
                 'Logical operator {} require 2 args, got {}'.format(eop, len(args)) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         
-    def _sample_short_circuit(self, expr, expr1, expr2, op, subs):
+    def _sample_short_circuit_and_or(self, expr, expr1, expr2, op, subs):
         if expr2.is_constant_expression() or expr2.is_pvariable_expression():  # TODO: is this ok?
             expr1, expr2 = expr2, expr1
         
@@ -464,6 +468,32 @@ class RDDLSimulator:
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         return arg1 != arg2
     
+    def _sample_short_circuit_implies(self, expr, arg1, arg2, subs):
+        arg1 = self._sample(arg1, subs)
+        if not isinstance(arg1, bool):
+            raise RDDLTypeError(
+                'Logical operator => requires boolean arg, got {}.'.format(arg1) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr)) 
+        
+        if not arg1:
+            return True
+        
+        arg2 = self._sample(arg2, subs)
+        if not isinstance(arg2, bool):
+            raise RDDLTypeError(
+                'Logical operator => requires boolean args, got {} and {}.'.format(arg1, arg2) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr)) 
+        return arg2
+    
+    def _sample_equivalent(self, expr, arg1, arg2, subs):
+        arg1 = self._sample(arg1, subs)
+        arg2 = self._sample(arg2, subs)
+        if not (isinstance(arg1, bool) and isinstance(arg2, bool)):
+            raise RDDLTypeError(
+                '<=> requires boolean args, got {} and {}.'.format(arg1, arg2) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        return arg1 == arg2
+        
     # control
     def _sample_control(self, expr, eop, subs):
         args = expr.args
