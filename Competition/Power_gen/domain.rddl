@@ -76,7 +76,7 @@ domain power_gen {
 	};
   
 	// cost of supply per plant, demand income, demand exceeds supply penality, steady-state penalties   
-	reward = - (sum_{?p : plant} prod(?p) * COST_PER_UNIT(?p))
+	reward = [-(sum_{?p : plant} prod(?p) * COST_PER_UNIT(?p))]
 		     + (fulfilledDemand * INCOME_PER_UNIT)
 		     - (if (demand > fulfilledDemand) then UNFULFILLED_DEMAND_PENALTY else 0.0 )
 		     + (sum_{?p : plant} abs[ prod(?p) - prevProd(?p) ] * PROD_CHANGE_PENALTY(?p) );
