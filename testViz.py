@@ -39,7 +39,8 @@ def main():
     print(model._states)
     print(model._nonfluents)
 
-    visualizer = MarsRoverVisualizer(model)
+    # visualizer = MarsRoverVisualizer(model)
+    visualizer = TextVisualizer(model,display=True)
 
     nonfluents = {'MAX_TIME': 12.0, 'MOVE_VARIANCE_MULT': 0.1, 'PICT_XPOS_p1': 1.0, 
         'PICT_YPOS_p1': -1.0, 'PICT_VALUE_p1': 5.0, 'PICT_ERROR_ALLOW_p1': 2, 
@@ -64,12 +65,26 @@ def main():
 
     states_list = [state0, state1, state2, state3, state4, state5]
     states_buffer = []
+    img_list = []
 
     for i in range(len(states_list) - 1):
-        states_buffer += visualizer.gen_inter_state(states_list[i], states_list[i+1], 10)
-        visualizer.render(states_list[i])
+    #     states_buffer += visualizer.gen_inter_state(states_list[i], states_list[i+1], 10)
+        img_list.append(visualizer.render(states_list[i]))
 
-    visualizer.animate_buffer(states_buffer)
+    for i in range(len(img_list)):
+        img = img_list[i]
+        img.save('./img_folder/rover_'+str(i)+'.png')
+
+    for i in range(len(img_list)):
+        img = img_list[i]
+        img.save('./img_folder/text_'+str(i)+'.png')        
+        
+
+    # visualizer.display_img(img_list[0])
+
+    # visualizer.animate_buffer(states_buffer)
+
+    # print('xxxxxxxx')
     
     # for i in states_buffer:
     #     visualizer.render(i)

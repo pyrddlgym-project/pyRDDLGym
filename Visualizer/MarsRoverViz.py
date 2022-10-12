@@ -1,5 +1,7 @@
 from typing import List, Dict, Tuple, Optional
 import time
+import threading
+import multiprocessing
 
 import matplotlib.pyplot as plt
 import matplotlib.image as plt_img
@@ -16,7 +18,7 @@ import Visualizer
 
 
 class MarsRoverVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, figure_size = [50, 50], dpi = 20, fontsize = 8) -> None:
+    def __init__(self, model: RDDLModel, figure_size = [50, 50], dpi = 20, fontsize = 8, display=False) -> None:
 
         self._model= model
         self._states = model.states
@@ -24,13 +26,14 @@ class MarsRoverVisualizer(StateViz):
         self._objects = model.objects
         self._figure_size = figure_size
         self._dpi = dpi
+        self._fontsize = fontsize
         self._interval = 10
         self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])      
         self._object_layout = None
-        # self._fig = None
-        # self._ax = None
-        self._fig, self._ax = self.init_canvas()
+        self._fig, self._ax = None, None
         self._data = None
+        self._img = None
+        # self._states_queue = []
     
     def build_nonfluents_layout(self):
         picture_point_locaiton = {o:[None,None,None] for o in self._objects['picture-point']}
@@ -68,35 +71,43 @@ class MarsRoverVisualizer(StateViz):
 
         return {'picture_taken':pict_taken, 'rover_location':rover_location}
 
-    def init_canvas(self):
-        fig = plt.figure(figsize = self._figure_size, dpi = self._dpi)
+    def init_canvas(self, figure_size, dpi):
+        fig = plt.figure(figsize = figure_size, dpi = dpi)
         ax = plt.gca()
-        # plt.xlim([-self._figure_size[0]//2, self._figure_size[0]//2])
-        # plt.ylim([-self._figure_size[1]//2, self._figure_size[1]//2])
-        # plt.axis('scaled')
-        # plt.axis('off')
-        # plt.ion()
-
-        self._fig = fig
-        self._ax = ax
+        plt.xlim([-figure_size[0]//2, figure_size[0]//2])
+        plt.ylim([-figure_size[1]//2, figure_size[1]//2])
+        plt.axis('scaled')
+        plt.axis('off')
         return fig, ax
 
     def build_object_layout(self):
         return {'nonfluents_layout':self.build_nonfluents_layout(), 'states_layout':self.build_states_layout()}
 
+    def convert2img(self, fig, ax):
+        
+        ax.set_position((0, 0, 1, 1))
+        fig.canvas.draw()
+
+
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        img = Image.fromarray(data)
+
+        self._data = data
+        self._img = img
+
+        return img
+
     def render(self, state):
 
-        plt.cla()
+        self.states = state
+
+        self._fig, self._ax = self.init_canvas(self._figure_size, self._dpi)
     
-        self._state = state
         nonfluent_layout = self.build_nonfluents_layout()
         state_layout = self.build_states_layout(state)
-        # fig, ax = self.init_canvas(figure_size, dpi)
 
-        plt.xlim([-self._figure_size[0]//2, self._figure_size[0]//2])
-        plt.ylim([-self._figure_size[1]//2, self._figure_size[1]//2])
-        plt.axis('scaled')
-        plt.axis('off')
 
         for k,v in nonfluent_layout['picture_point_location'].items():
             if state_layout['picture_taken'][k] == False:
@@ -115,18 +126,13 @@ class MarsRoverVisualizer(StateViz):
             ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
             self._ax.add_artist(ab)
 
-        self._ax.set_position((0, 0, 1, 1))
-        self._fig.canvas.draw()
-        
 
-        data = np.frombuffer(self._fig.canvas.tostring_rgb(), dtype=np.uint8)
-        data = data.reshape(self._fig.canvas.get_width_height()[::-1] + (3,))
+        img = self.convert2img(self._fig, self._ax)
 
-        # self._fig.canvas.flush_events()
+        self._ax.cla()
+        plt.close()
 
-        self._data = data
-
-        img = Image.fromarray(data)
+        # plt.show()
 
         return img
 
@@ -154,28 +160,29 @@ class MarsRoverVisualizer(StateViz):
 
         return state_buffer
     
-    def animate_buffer(self, states_buffer):
+    # def animate_buffer(self, states_buffer):
 
-        # img_list = [self.render(states_buffer[i]) for i in range(len(states_buffer))]
+    #     threading.Thread(target=self.animate_buffer).start()
 
-        # img_list[0].save('temp_result.gif', save_all=True,optimize=False, append_images=img_list[1:], loop=0)
+    #     # img_list = [self.render(states_buffer[i]) for i in range(len(states_buffer))]
+
+    #     # img_list[0].save('temp_result.gif', save_all=True,optimize=False, append_images=img_list[1:], loop=0)
 
 
-        def anime(i):
-            self.render(states_buffer[i])
-            print('here')
+    #     def anime(i):
+    #         self.render(states_buffer[i])
             
-        anim = animation.FuncAnimation(self._fig, anime, interval=200)
+    #     anim = animation.FuncAnimation(self._fig, anime, interval=200)
 
-        plt.show()
-        plt.close()
+    #     plt.show()
 
-        # plt.show()
 
-        # img = self.render(states_buffer[0])
-        # img.save('./img_folder/0.png')
+    #     # plt.show()
 
-        return
+    #     # img = self.render(states_buffer[0])
+    #     # img.save('./img_folder/0.png')
+
+    #     return
 
 
 
