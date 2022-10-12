@@ -309,25 +309,20 @@ class RDDLSimulator:
         elif op == '*':
             return arg1 * arg2
         elif op == '/':
-            return RDDLSimulator._ieee754_division(expr, arg1, arg2) 
+            return RDDLSimulator._safe_division(expr, arg1, arg2) 
         else:
             raise RDDLNotImplementedError(
                 'Arithmetic operator {} is not supported.'.format(op) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
-    def _ieee754_division(expr, arg1, arg2):
+    def _safe_division(expr, arg1, arg2):
         if arg1 != arg1 or arg2 != arg2:
-            raise ArithmeticError('NaN value encountered in division.' + 
+            raise ArithmeticError('NaN values in division.' + 
                                   '\n' + RDDLSimulator._print_stack_trace(expr))
         elif arg2 == 0:
-            if arg1 == 0:
-                raise ArithmeticError('NaN value encountered in division.' + 
-                                      '\n' + RDDLSimulator._print_stack_trace(expr))
-            elif arg1 < 0:
-                return -math.inf
-            else:
-                return math.inf
+            raise ArithmeticError('Division by zero.' + 
+                                  '\n' + RDDLSimulator._print_stack_trace(expr))
         else:
             return arg1 / arg2  # int -> float
         
