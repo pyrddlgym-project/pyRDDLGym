@@ -5,6 +5,7 @@ from typing import Dict
 
 from Grounder.RDDLModel import PlanningModel
 from Parser.expr import Expression, Value
+from Simulator.RDDLDependencyAnalysis import RDDLDependencyAnalysis
 
 Args = Dict[str, Value]
 
@@ -47,20 +48,35 @@ class RDDLActionPreconditionNotSatisfiedError(ValueError):
 
 class RDDLSimulator:
     
-    def __init__(self, model: PlanningModel, rng=np.random.default_rng()) -> None:
+    def __init__(self,
+                 model: PlanningModel,
+                 rng=np.random.default_rng(),
+                 do_dependency_analysis: bool=True) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param model: the RDDL model
         :param rng: the random number generator
+        :param do_dependency_analysis: whether levels are computed automatically
         '''
         self._model = model        
         self._rng = rng
         
-        self._order_cpfs = sorted(self._model.cpforder.keys())
+        # perform a dependency analysis using topological sort
+        if do_dependency_analysis:
+            dep_analysis = RDDLDependencyAnalysis(self._model)
+            self.cpforder = dep_analysis.compute_levels()
+            print(self.cpforder)
+        else:
+            self.cpforder = self._model.cpforder
+        self._order_cpfs = list(sorted(self.cpforder.keys()))
+        if not do_dependency_analysis:
+            self._order_cpfs.remove(0)
+            self._order_cpfs.append(0) 
+            
         self._action_fluents = set(self._model.actions.keys())
         self._init_actions = self._model.actions.copy()
         
-        self._subs = self._model.nonfluents.copy()  # these won't chang
+        self._subs = self._model.nonfluents.copy()  # these won't change
         self._next_state = None
 
     def reset_state(self) -> Args:
@@ -129,11 +145,9 @@ class RDDLSimulator:
         
         subs = self._update_subs()        
         next_state = {}
-        local_order = list(self._order_cpfs.copy())
-        local_order.remove(0)
-        local_order.append(0) 
-        for order in local_order:
-            for cpf in self._model.cpforder[order]: 
+                
+        for order in self._order_cpfs:
+            for cpf in self.cpforder[order]: 
                 if cpf in self._model.next_state:
                     primed_cpf = self._model.next_state[cpf]
                     expr = self._model.cpfs[primed_cpf]
@@ -295,25 +309,20 @@ class RDDLSimulator:
         elif op == '*':
             return arg1 * arg2
         elif op == '/':
-            return RDDLSimulator._ieee754_division(expr, arg1, arg2) 
+            return RDDLSimulator._safe_division(expr, arg1, arg2) 
         else:
             raise RDDLNotImplementedError(
                 'Arithmetic operator {} is not supported.'.format(op) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
-    def _ieee754_division(expr, arg1, arg2):
+    def _safe_division(expr, arg1, arg2):
         if arg1 != arg1 or arg2 != arg2:
-            raise ArithmeticError('NaN value encountered in division.' + 
+            raise ArithmeticError('NaN values in division.' + 
                                   '\n' + RDDLSimulator._print_stack_trace(expr))
         elif arg2 == 0:
-            if arg1 == 0:
-                raise ArithmeticError('NaN value encountered in division.' + 
-                                      '\n' + RDDLSimulator._print_stack_trace(expr))
-            elif arg1 < 0:
-                return -math.inf
-            else:
-                return math.inf
+            raise ArithmeticError('Division by zero.' + 
+                                  '\n' + RDDLSimulator._print_stack_trace(expr))
         else:
             return arg1 / arg2  # int -> float
         
