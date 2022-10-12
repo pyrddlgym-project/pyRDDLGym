@@ -3,8 +3,6 @@ from typing import Dict, List, Set
 from Grounder.RDDLModel import PlanningModel
 from Parser.expr import Expression
 
-AdjacencyList = Dict[str, Set[str]]
-
 
 class RDDLCyclicDependencyInCPFError(SyntaxError):
     pass
@@ -24,7 +22,7 @@ class RDDLDependencyAnalysis:
         return '...\n' + str(expr) + '\n...'
     
     # dependency analysis
-    def build_call_graph(self) -> AdjacencyList:
+    def build_call_graph(self) -> Dict[str, Set[str]]:
         graph = {}
         for var, expr in self._model.cpfs.items():
             self._update_call_graph(graph, var, expr)
@@ -54,7 +52,7 @@ class RDDLDependencyAnalysis:
                 self._update_call_graph(graph, root_var, arg)
     
     # topological sort
-    def compute_levels(self) -> Dict[int, str]:
+    def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
         order = []
         temp = set()
@@ -65,7 +63,7 @@ class RDDLDependencyAnalysis:
         order = [var for var in order if var in self._model.cpfs]
         order = [(self._model.prev_state[var] if var in self._model.prev_state else var) 
                  for var in order]
-        order = [[var] for var in order]
+        order = [{var} for var in order]
         levels = dict(enumerate(order))
         return levels
         
