@@ -1,7 +1,7 @@
 import abc
 import copy
 import itertools
-import warnings
+# import warnings
 
 from Grounder.RDDLModel import RDDLModel
 from Parser.expr import Expression
@@ -29,16 +29,24 @@ class RDDLUndefinedVariableError(SyntaxError):
     pass
 
 
+class RDDLMissingCPFDefinitionError(SyntaxError):
+    pass
+
+
+class RDDLInvalidNumberOfArgumentsError(SyntaxError):
+    pass
+
+
 class Grounder(metaclass=abc.ABCMeta):
 
   @abc.abstractmethod
-  def Ground(self):
+  def Ground(self) -> RDDLModel:
     pass
 
 
 class RDDLGrounder(Grounder):
 
-    def __init__(self, RDDL_AST):
+    def __init__(self, RDDL_AST) -> None:
         super(RDDLGrounder, self).__init__()
         self.AST = RDDL_AST
         self.objects = {}
@@ -60,7 +68,7 @@ class RDDLGrounder(Grounder):
         self.preconditions = []
         self.invariants = []
 
-    def Ground(self):
+    def Ground(self) -> RDDLModel:
         self._extract_objects()
         self._ground_non_fluents()
         self._ground_pvariables_and_cpf()
@@ -90,7 +98,6 @@ class RDDLGrounder(Grounder):
         model.max_allowed_actions = self._ground_max_actions()
         model.horizon = self._ground_horizon()
         model.discount = self._ground_discount()
-    
         return model
 
     def _ground_horizon(self):
@@ -203,7 +210,8 @@ class RDDLGrounder(Grounder):
                         cpf = cpfs
                         break
                 if cpf is None:
-                    warnings.warn('No conditional prob func found for ' + name)
+                    raise RDDLMissingCPFDefinitionError(
+                        'CPF {} is missing its definition.'.format(name))
     
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
@@ -224,7 +232,8 @@ class RDDLGrounder(Grounder):
                         cpf = cpfs
                         break
                 if cpf is None:
-                    warnings.warn('No conditional prob func found for ' + name)
+                    raise RDDLMissingCPFDefinitionError(
+                        'CPF {} is missing its definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -246,7 +255,8 @@ class RDDLGrounder(Grounder):
                         cpf = cpfs
                         break
                 if cpf is None:
-                    warnings.warn('No conditional prob func found for ' + name)
+                    raise RDDLMissingCPFDefinitionError(
+                        'CPF {} is missing its definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -273,7 +283,7 @@ class RDDLGrounder(Grounder):
             new_cpf.expr = self._scan_expr_tree(new_cpf.expr, {})
             return new_cpf
         if len(args) != len(variable_args):
-            raise ValueError(
+            raise RDDLInvalidNumberOfArgumentsError(
                 f'Ground instance {variable} is of arity {len(variable_args)} but '
                 f'was expected to be of arity {len(args)} according to declaration.')
         args_dic = dict(zip(args, variable_args))
@@ -282,7 +292,7 @@ class RDDLGrounder(Grounder):
         # Fix name.
         cpf_base_name = new_cpf.pvar[1][0]
         cpf_name_grounding_variation = [[args_dic[arg] for arg in new_cpf.pvar[1][1]]]  # must be a nested list for func call
-        new_name = self._generate_grounded_names( cpf_base_name,cpf_name_grounding_variation)
+        new_name = self._generate_grounded_names(cpf_base_name, cpf_name_grounding_variation)
         new_pvar = ('pvar_expr', (new_name, None))
         new_cpf.pvar = new_pvar
         new_cpf.expr = self._scan_expr_tree(new_cpf.expr, args_dic)
@@ -381,7 +391,7 @@ class RDDLGrounder(Grounder):
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
             expr = Expression(('pvar_expr', (new_name, None)))
         else:
-            raise ValueError(f'Malformed expression {str(expr)}.')
+            raise SyntaxError(f'Malformed expression {str(expr)}.')
         return expr
 
     def _scan_expr_tree_abr(self, expr, dic):
@@ -508,11 +518,10 @@ class RDDLGrounder(Grounder):
         if hasattr(self.AST.instance, 'init_state'):
             for init_vals in self.AST.instance.init_state:
                 (key, subs), val = init_vals
-                if subs is not None and len(subs) > 0:
+                if subs:
                     key = key + '_' + '_'.join(subs)
                 if key not in self.initstate:
                     raise RDDLUndefinedVariableError(
                         'Variable {} defined in init-state is not a state fluent.'.format(key))
                 self.initstate[key] = val
-
 
