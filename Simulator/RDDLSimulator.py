@@ -51,25 +51,25 @@ class RDDLSimulator:
     def __init__(self,
                  model: PlanningModel,
                  rng=np.random.default_rng(),
-                 do_dependency_analysis: bool=True) -> None:
+                 compute_levels: bool=True) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param model: the RDDL model
         :param rng: the random number generator
-        :param do_dependency_analysis: whether levels are computed automatically
+        :param compute_levels: whether levels are computed automatically
         '''
         self._model = model        
         self._rng = rng
         
         # perform a dependency analysis using topological sort
-        if do_dependency_analysis:
-            dep_analysis = RDDLDependencyAnalysis(self._model)
+        dep_analysis = RDDLDependencyAnalysis(self._model)
+        if compute_levels:
             self.cpforder = dep_analysis.compute_levels()
-            print(self.cpforder)
         else:
+            dep_analysis.build_call_graph()  # check validity of fluents
             self.cpforder = self._model.cpforder
         self._order_cpfs = list(sorted(self.cpforder.keys()))
-        if not do_dependency_analysis:
+        if not compute_levels:
             self._order_cpfs.remove(0)
             self._order_cpfs.append(0) 
             
