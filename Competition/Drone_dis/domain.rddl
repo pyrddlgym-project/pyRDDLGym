@@ -27,13 +27,13 @@ pvariables {
 
     SCALE_FACTOR  : { non-fluent, real, default = 0.1 };          // time scale factor for dynamic equations
 
-    // bounds on actions
-    MIN_VEL(aircraft) : {non-fluent, real, default = -1.0};
-    MAX_VEL(aircraft) : {non-fluent, real, default = 1.0};
-    MIN_PHI(aircraft) : {non-fluent, real, default = -1.0};
-    MAX_PHI(aircraft) : {non-fluent, real, default = 1.0};
-    MIN_THETA(aircraft) : {non-fluent, real, default = -1.0};
-    MAX_THETA(aircraft) : {non-fluent, real, default = 1.0};
+    // bounds for Rates
+    INC_VEL(aircraft) : {non-fluent, real, default = 1.0};
+    DEC_VEL(aircraft) : {non-fluent, real, default = -1.0};
+    INC_PHI(aircraft) : {non-fluent, real, default = 1.0};
+    DEC_PHI(aircraft) : {non-fluent, real, default = -1.0};
+    INC_THETA(aircraft) : {non-fluent, real, default = 1.0};
+    DEC_THETA(aircraft) : {non-fluent, real, default = -1.0};
 
     // goal position
     GOAL_X(aircraft) : {non-fluent, real, default = 100.0};
@@ -54,9 +54,16 @@ pvariables {
     psi(aircraft) : { state-fluent, real, default = 0.0 };    // yaw
 
     // actions
-    set_vel(aircraft)  :  { action-fluent, real, default = 0.0 };
-    set_phi(aircraft)  :  { action-fluent, real, default = 0.0 };
-    set_theta(aircraft)  :  { action-fluent, real, default = 0.0 };
+    // set_vel(aircraft)  :  { action-fluent, real, default = 0.0 };
+    // set_phi(aircraft)  :  { action-fluent, real, default = 0.0 };
+    // set_theta(aircraft)  :  { action-fluent, real, default = 0.0 };
+
+    increase_vel(aircraft) : { action-fluent,  bool, default = false};
+    decrease_vel(aircraft) : { action-fluent,  bool, default = false};
+    increase_phi(aircraft) : { action-fluent,  bool, default = false};
+    decrease_phi(aircraft) : { action-fluent,  bool, default = false};
+    increase_theta(aircraft) : { action-fluent,  bool, default = false};
+    decrease_theta(aircraft) : { action-fluent,  bool, default = false};
    
 };
 
@@ -68,11 +75,28 @@ cpfs {
     pos_z'(?a) = pos_z(?a) + SCALE_FACTOR * vel(?a) * sin[theta(?a)];
 
     // velocity
-    vel'(?a) = vel(?a) + SCALE_FACTOR * max[min[set_vel(?a), MAX_VEL(?a)], MIN_VEL(?a)];
+    vel'(?a) = 
+        if (increase_vel(?a))
+            then vel(?a) + SCALE_FACTOR * INC_VEL(?a)
+        else if (decrease_vel(?a))
+            then vel(?a) + SCALE_FACTOR * DEC_VEL(?a)
+        else vel(?a);
 
     // angle changes
-    phi'(?a) = phi(?a) + SCALE_FACTOR * max[min[set_phi(?a), MAX_PHI(?a)], MIN_PHI(?a)];
-    theta'(?a) = theta(?a) + SCALE_FACTOR * max[min[set_theta(?a), MAX_THETA(?a)], MIN_THETA(?a)];
+    phi'(?a) = 
+        if (increase_phi(?a))
+            then phi(?a) + SCALE_FACTOR * INC_PHI(?a)
+        else if (decrease_vel(?a))
+            then phi(?a) + SCALE_FACTOR * DEC_PHI(?a)
+        else phi(?a);
+
+     theta'(?a) = 
+        if (increase_theta(?a))
+            then theta(?a) + SCALE_FACTOR * INC_THETA(?a)
+        else if (decrease_theta(?a))
+            then theta(?a) + SCALE_FACTOR * DEC_THETA(?a)
+        else theta(?a);
+
     psi'(?a) = psi(?a) + SCALE_FACTOR * (tan[phi(?a)] / vel(?a)) * GRAVITY;
 
 };
@@ -86,10 +110,11 @@ action-preconditions {
     forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
                             pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
                             pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
-    // boundries for set vel 
-    forall_{?a : aircraft}[ set_vel(?a) <= MAX_VEL(?a) ^ set_vel(?a) >= MIN_VEL(?a)];
-    forall_{?a : aircraft}[ set_phi(?a) <= MAX_PHI(?a) ^ set_phi(?a) >= MIN_PHI(?a)];
-    forall_{?a : aircraft}[ set_theta(?a) <= MAX_THETA(?a) ^ set_theta(?a) >= MIN_THETA(?a)];
+
+    forall_{?a : aircraft} [(increase_vel(?a) +  decrease_vel(?a)) <= 1];
+    forall_{?a : aircraft} [(increase_phi(?a) +  decrease_phi(?a)) <= 1];
+    forall_{?a : aircraft} [(increase_theta(?a) +  decrease_theta(?a)) <= 1];
+
 };
 
 }
