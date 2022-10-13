@@ -65,21 +65,21 @@ cpfs {
     // position changes for each time step
     pos_x'(?a) = pos_x(?a) + SCALE_FACTOR * vel(?a) * cos[psi(?a)];
     pos_y'(?a) = pos_y(?a) + SCALE_FACTOR * vel(?a) * sin[psi(?a)];
-    pos_z'(?a) = pos_z(?a) + SCALE_FACTOR * vel(?a) + sin[theta(?a)];
+    pos_z'(?a) = pos_z(?a) + SCALE_FACTOR * vel(?a) * sin[theta(?a)];
 
     // velocity
-    vel'(?a) = vel(?a) + SCALE_FACTOR * set_vel(?a);
+    vel'(?a) = vel(?a) + SCALE_FACTOR * max[min[set_vel(?a), MAX_VEL(?a)], MIN_VEL(?a)];
 
     // angle changes
-    phi'(?a) = phi(?a) + SCALE_FACTOR * set_phi(?a);
-    theta'(?a) = theta(?a) + SCALE_FACTOR * set_theta(?a);
+    phi'(?a) = phi(?a) + SCALE_FACTOR * max[min[set_phi(?a), MAX_PHI(?a)], MIN_PHI(?a)];
+    theta'(?a) = theta(?a) + SCALE_FACTOR * max[min[set_theta(?a), MAX_THETA(?a)], MIN_THETA(?a)];
     psi'(?a) = psi(?a) + SCALE_FACTOR * (tan[phi(?a)] / vel(?a)) * GRAVITY;
 
 };
 
-reward = sum_{?a : aircraft} [sqrt[pow[(pos_x(?a) - GOAL_X(?a)),2] + 
+reward = sum_{?a : aircraft} [ 1 / (sqrt[pow[(pos_x(?a) - GOAL_X(?a)),2] + 
                                    pow[(pos_y(?a) - GOAL_Y(?a)),2] +
-                                   pow[(pos_z(?a) - GOAL_Z(?a)),2]] ];
+                                   pow[(pos_z(?a) - GOAL_Z(?a)),2]]) ];
 
 action-preconditions {
     // boundries of the aircarft locations
