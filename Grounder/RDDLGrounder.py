@@ -699,7 +699,7 @@ class RDDLGrounder(Grounder):
     if hasattr(self.AST.instance, 'init_state'):
       for init_vals in self.AST.instance.init_state:
         (key, subs), val = init_vals
-        if subs is not None:
+        if subs is not None and len(subs) > 0:
             key = key + '_' + '_'.join(subs)
         if key not in self.initstate:
             raise RDDLUndefinedVariableError(
