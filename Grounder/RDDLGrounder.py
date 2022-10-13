@@ -23,6 +23,10 @@ AGGREG_OP_TO_STRING_DICT = dict(
     zip(AGGREG_OPERATION_LIST, AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST))
 
 
+class RDDLUndefinedVariableError(SyntaxError):
+    pass
+
+
 class Grounder(metaclass=abc.ABCMeta):
 
   @abc.abstractmethod
@@ -694,8 +698,12 @@ class RDDLGrounder(Grounder):
     self.initstate = self.states.copy()
     if hasattr(self.AST.instance, 'init_state'):
       for init_vals in self.AST.instance.init_state:
-        key = init_vals[0][0]
-        val = init_vals[1]
+        (key, subs), val = init_vals
+        if subs is not None:
+            key = key + '_' + '_'.join(subs)
+        if key not in self.initstate:
+            raise RDDLUndefinedVariableError(
+                'Variable {} defined in init-state is not a state fluent.'.format(key))
         self.initstate[key] = val
 
 
