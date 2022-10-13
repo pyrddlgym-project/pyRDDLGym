@@ -44,7 +44,7 @@ instance simple_drone_p0 {
         pos_z(a1) = 0.0;
 
 
-        vel(a1) = 0.9;
+        vel(a1) = 0.1;
 
         psi(a1) = 0.0;
         phi(a1) = 0.0;
