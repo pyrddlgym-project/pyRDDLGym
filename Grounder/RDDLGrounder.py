@@ -13,6 +13,8 @@ from Parser.expr import Expression
 # QUANTIFIER_OPERATION_STRING_LIST = ["forall","exists"]
 # QUANTIFIER_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["&","|"]
 
+PRIME = '\''
+
 AGGREG_OPERATION_LIST = [
     'prod', 'sum', 'avg', 'minimum', 'maximum', 'forall', 'exists'
 ]
@@ -63,7 +65,6 @@ class RDDLGrounder(Grounder):
         self._ground_non_fluents()
         self._ground_pvariables_and_cpf()
         self._ground_init_state()
-        # ground pvariables
         # self._groundPvariables()
         self.reward = self._scan_expr_tree(self.AST.domain.reward, {})  # empty args dictionary
         self._ground_constraints()
@@ -126,13 +127,13 @@ class RDDLGrounder(Grounder):
                                  variation_list,
                                  return_grounding_param_dict=False):
         all_grounded_names = []
-        prime_var = "\'" in base_name
-        base_name = base_name.strip("\'")
+        prime_var = PRIME in base_name
+        base_name = base_name.strip(PRIME)
         grounded_name_to_params_dict = {}
         for variation in variation_list:
             grounded_name = base_name + '_' + '_'.join(variation)
             if prime_var: 
-                grounded_name += "\'"
+                grounded_name += PRIME
             all_grounded_names.append(grounded_name)
             grounded_name_to_params_dict[grounded_name] = variation
         if return_grounding_param_dict:
@@ -196,7 +197,7 @@ class RDDLGrounder(Grounder):
               
             elif pvariable.fluent_type == 'state-fluent':
                 cpf = None
-                next_state = name + '\''
+                next_state = name + PRIME
                 for cpfs in self.AST.domain.cpfs[1]:
                     if cpfs.pvar[1][0] == next_state:
                         cpf = cpfs
@@ -208,7 +209,7 @@ class RDDLGrounder(Grounder):
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_state_cpfs.append(grounded_cpf)
-                    next_state = g + '\''  # update to grounded version, satisfied single-variables too (i.e. not a type)
+                    next_state = g + PRIME  # update to grounded version, satisfied single-variables too (i.e. not a type)
                     self.states[g] = pvariable.default
                     self.statesranges[g] = pvariable.range
                     self.nextstates[g] = next_state
@@ -271,13 +272,11 @@ class RDDLGrounder(Grounder):
         if args is None:
             new_cpf.expr = self._scan_expr_tree(new_cpf.expr, {})
             return new_cpf
-        args_dic = {}
         if len(args) != len(variable_args):
             raise ValueError(
                 f'Ground instance {variable} is of arity {len(variable_args)} but '
                 f'was expected to be of arity {len(args)} according to declaration.')
-        for arg, vararg in zip(args, variable_args):
-            args_dic[arg] = vararg
+        args_dic = dict(zip(args, variable_args))
             
         # Parse cpf w.r.t cpf args and variables.
         # Fix name.
@@ -333,7 +332,7 @@ class RDDLGrounder(Grounder):
             # even if it is a max or min operation, when there are only 2 left, we just do "> or <"
             new_expr = Expression((operation_string, tuple(new_children)))
         else:  # recursive case
-            if operation_string in {'+', '*', '&', '|'}:  # those ">,<" are for the min and max respectively
+            if operation_string in {'+', '*', '^', '|'}:  # those ">,<" are for the min and max respectively
                 new_children = []
                 lhs_updated_dict = copy.deepcopy(original_dict)
                 lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
