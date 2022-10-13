@@ -30,10 +30,10 @@ pvariables {
     // bounds for Rates
     MIN_VEL(aircraft) : {non-fluent, int, default = -1};
     MAX_VEL(aircraft) : {non-fluent, int, default = 1};
-    MIN_PHI(aircraft) : {non-fluent, int, default = -1};
-    MAX_PHI(aircraft) : {non-fluent, int, default = 1};
-    MIN_THETA(aircraft) : {non-fluent, int, default = -1};
-    MAX_THETA(aircraft) : {non-fluent, int, default = 1};
+    MIN_PHI(aircraft) : {non-fluent, real, default = -1.0};
+    MAX_PHI(aircraft) : {non-fluent, real, default = 1.0};
+    MIN_THETA(aircraft) : {non-fluent, real, default = -1.0};
+    MAX_THETA(aircraft) : {non-fluent, real, default = 1.0};
 
     // goal position
     GOAL_X(aircraft) : {non-fluent, real, default = 100.0};
@@ -55,8 +55,8 @@ pvariables {
 
     // actions
     set_vel(aircraft)  :  { action-fluent, int, default = 0 };
-    set_phi(aircraft)  :  { action-fluent, int, default = 0 };
-    set_theta(aircraft)  :  { action-fluent, int, default = 0 };
+    set_phi(aircraft)  :  { action-fluent, real, default = 0.0 };
+    set_theta(aircraft)  :  { action-fluent, real, default = 0.0 };
    
 };
 
