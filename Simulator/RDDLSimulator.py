@@ -1,7 +1,7 @@
 from collections.abc import Sized
 import math
 import numpy as np
-from typing import Dict
+from typing import Dict, Tuple
 
 from Grounder.RDDLModel import PlanningModel
 from Parser.expr import Expression, Value
@@ -50,7 +50,7 @@ class RDDLSimulator:
     
     def __init__(self,
                  model: PlanningModel,
-                 rng=np.random.default_rng(),
+                 rng: np.random.Generator=np.random.default_rng(),
                  compute_levels: bool=True) -> None:
         '''Creates a new simulator for the given RDDL model.
         
@@ -61,12 +61,12 @@ class RDDLSimulator:
         self._model = model        
         self._rng = rng
         
-        # perform a dependency analysis using topological sort
+        # perform a dependency analysis
         dep_analysis = RDDLDependencyAnalysis(self._model)
         if compute_levels:
-            self.cpforder = dep_analysis.compute_levels()
+            self.cpforder = dep_analysis.compute_levels()  # topological sort
         else:
-            dep_analysis.build_call_graph()  # check validity of fluents
+            dep_analysis.build_call_graph()  # just check validity of fluents
             self.cpforder = self._model.cpforder
         self._order_cpfs = list(sorted(self.cpforder.keys()))
         if not compute_levels:
@@ -193,7 +193,6 @@ class RDDLSimulator:
     # start of sampling subroutines
     # skipped: aggregations (sum, prod)
     #          existential (exists, forall)
-    #          =>, <=>
     # TODO:    replace isinstance checks with something better (polymorphism)    
     def _sample(self, expr, subs):
         if isinstance(expr, Expression):
@@ -318,11 +317,13 @@ class RDDLSimulator:
     @staticmethod
     def _safe_division(expr, arg1, arg2):
         if arg1 != arg1 or arg2 != arg2:
-            raise ArithmeticError('NaN values in division.' + 
-                                  '\n' + RDDLSimulator._print_stack_trace(expr))
+            raise ArithmeticError(
+                'Invalid (NaN) values in quotient: {} and {}.'.format(arg1, arg2) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
         elif arg2 == 0:
-            raise ArithmeticError('Division by zero.' + 
-                                  '\n' + RDDLSimulator._print_stack_trace(expr))
+            raise ArithmeticError(
+                'Division by zero.' + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
         else:
             return arg1 / arg2  # int -> float
         
@@ -710,8 +711,12 @@ class RDDLSimulator:
     
 class RDDLSimulatorWConstraints(RDDLSimulator):
 
-    def __init__(self, model: PlanningModel, rng=np.random.default_rng(), max_bound=1000):
-        super().__init__(model, rng)
+    def __init__(self,
+                 model: PlanningModel,
+                 rng: np.random.Generator=np.random.default_rng(),
+                 compute_levels: bool=True,
+                 max_bound: float=1000.0) -> None:
+        super().__init__(model, rng, compute_levels)
         
         self.epsilon = 0.001
         self.BigM = float(max_bound)
@@ -741,7 +746,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             if var is not None and loc is not None:
                 self._bounds[var][loc] = lim
 
-    def get_bounds(self, left_arg, right_arg, op, is_action=True):
+    def get_bounds(self, left_arg, right_arg, op, is_action=True) -> Tuple[str, float, int]:
         variable = None
         lim = 0
         loc = None
