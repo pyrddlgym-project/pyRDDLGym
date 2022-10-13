@@ -128,7 +128,10 @@ class RDDLGrounder(Grounder):
     def _ground_objects(self, args):
         objects_by_type = [self.objects[obj_type] for obj_type in args]
         return itertools.product(*objects_by_type)
-
+    
+    def _append_variation_to_name(self, base_name, variation):
+        return base_name + '_' + '_'.join(variation)
+        
     def _generate_grounded_names(self,
                                  base_name,
                                  variation_list,
@@ -138,7 +141,7 @@ class RDDLGrounder(Grounder):
         base_name = base_name.strip(PRIME)
         grounded_name_to_params_dict = {}
         for variation in variation_list:
-            grounded_name = base_name + '_' + '_'.join(variation)
+            grounded_name = self._append_variation_to_name(base_name, variation)
             if prime_var: 
                 grounded_name += PRIME
             all_grounded_names.append(grounded_name)
@@ -377,7 +380,6 @@ class RDDLGrounder(Grounder):
                                 [instances_list[1]] + instances_list[2:],
                                 operation_string, expression))))
     
-        # ---end else
         return new_expr
 
     def _scan_expr_tree_pvar(self, expr: Expression, dic) -> Expression:
@@ -519,9 +521,9 @@ class RDDLGrounder(Grounder):
             for init_vals in self.AST.instance.init_state:
                 (key, subs), val = init_vals
                 if subs:
-                    key = key + '_' + '_'.join(subs)
+                    key = self._append_variation_to_name(key, subs)
                 if key not in self.initstate:
                     raise RDDLUndefinedVariableError(
-                        'Variable {} defined in init-state is not a state fluent.'.format(key))
+                        'Variable {} referenced in init-state is not a state fluent.'.format(key))
                 self.initstate[key] = val
 
