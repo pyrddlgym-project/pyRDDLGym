@@ -34,7 +34,7 @@ domain power_gen {
 	pvariables { 
     	
 		// Constants
-		PROD_UNITS_MIN(plant)      : { non-fluent, int,  default = 0   };
+		PROD_UNITS_MIN(plant)      : { non-fluent, int,  default = 3   };
 		PROD_UNITS_MAX(plant)      : { non-fluent, int,  default = 10  };
 		PROD_CHANGE_PENALTY(plant) : { non-fluent, real, default = 1.0 };
 		COST_PER_UNIT(plant)       : { non-fluent, real, default = 5.0 };
@@ -50,7 +50,7 @@ domain power_gen {
 		curProd(plant) : { action-fluent, int, default = 0 };
 
 		// State - int and real
-		prevProd(plant) : { state-fluent, int, default = 0 };
+		prevProd(plant) : { state-fluent, int, default = 5 };
 		temperature     : { state-fluent, real, default = 20 };
 		
 		// Derived and intermediate

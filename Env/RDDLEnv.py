@@ -191,6 +191,7 @@ class RDDLEnv(gym.Env):
             pygameSurface = self.pilImageToSurface(image)
             self.window.blit(pygameSurface, (0, 0))
             pygame.display.flip()
+        return image
             # return image
             # this_images = pygame.image.fromstring(image.data, image.size, image.mode)
 

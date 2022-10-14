@@ -6,13 +6,23 @@ class StateViz(metaclass=ABCMeta):
         pass
     
     # @abstractmethod
-    # def build_object_layout(self):
-    #     pass
-
-    # @abstractmethod
-    # def display_img(self):
+    # def build_nonfluents_layout(self):
     #     pass
     
     # @abstractmethod
-    # def save_img(self):
+    # def build_states_layout(self):
     #     pass
+
+    # @abstractmethod
+    # def init_canvas(self):
+    #     pass
+    
+    # @abstractmethod
+    # def build_object_layout(self):
+    #     pass
+    
+    # @abstractmethod
+    # def convert2img(self):
+    #     pass
+    
+

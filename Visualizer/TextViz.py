@@ -27,7 +27,8 @@ class TextVisualizer(StateViz):
         self._fontsize =fontsize
         self._interval = 10
         self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
-        self._object_layout = None
+        self._nonfluents_layout = None
+        self._states_layout = None
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
@@ -51,9 +52,6 @@ class TextVisualizer(StateViz):
         plt.axis('off')
         return fig, ax
         
-    def build_object_layout(self):
-        return {'nonfluents_layout':self.build_nonfluents_layout(), 'states_layout':self.build_states_layout()}
-
     def convert2img(self, fig, ax):
         
         ax.set_position((0, 0, 1, 1))
@@ -77,6 +75,7 @@ class TextVisualizer(StateViz):
         
         state_layout = self.build_states_layout(state)
         text_layout = {'state': state_layout}
+
         text_str = pprint.pformat(text_layout)[1:-1]
         self._ax.text(self._interval*0.5, self._figure_size[1]*self._interval*0.95, text_str, 
                 horizontalalignment='left', verticalalignment='top', wrap=True, fontsize = self._fontsize)

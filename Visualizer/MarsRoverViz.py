@@ -1,7 +1,6 @@
 from typing import List, Dict, Tuple, Optional
 import time
-import threading
-import multiprocessing
+import math
 
 import matplotlib.pyplot as plt
 import matplotlib.image as plt_img
@@ -29,47 +28,55 @@ class MarsRoverVisualizer(StateViz):
         self._fontsize = fontsize
         self._interval = 10
         self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])      
-        self._object_layout = None
+        self._nonfluent_layout = None
+        self._state_layout = None
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
-        # self._states_queue = []
+
+        print(self._states)
+        print(self._nonfluents)
     
-    def build_nonfluents_layout(self):
-        picture_point_locaiton = {o:[None,None,None] for o in self._objects['picture-point']}
+    def build_nonfluents_layout(self):       
+
+        mineral_locaiton = {o:[None,None,None,None] for o in self._objects['mineral']}
 
         # style of fluent_p1
         for k,v in self._nonfluents.items():
-            if 'PICT_XPOS_' in k:
+            if 'MINERAL_POS_X_' in k:
+                point = k.split('_')[3]
+                mineral_locaiton[point][0] = v
+            elif 'MINERAL_POS_Y_' in k:
+                point = k.split('_')[3]
+                mineral_locaiton[point][1] = v
+            elif 'MINERAL_AREA_' in k:
                 point = k.split('_')[2]
-                picture_point_locaiton[point][0] = v
-            elif 'PICT_YPOS_' in k:
+                mineral_locaiton[point][2] = v
+            elif 'MINERAL_VALUE_' in k:
                 point = k.split('_')[2]
-                picture_point_locaiton[point][1] = v
-            elif 'PICT_VALUE_' in k:
-                point = k.split('_')[2]
-                picture_point_locaiton[point][2] = v    
+                mineral_locaiton[point][3] = v    
 
-        return {'picture_point_location' : picture_point_locaiton}
+        return {'mineral_location' : mineral_locaiton}
     
     def build_states_layout(self, state):
-        rover_location = {o:[None,None] for o in self._objects['rover']}
-        pict_taken ={o:None for o in self._objects['picture-point']}
+        rover_location = {o:[None,None] for o in self._objects['drone']}
+        mineral_harvested ={o:None for o in self._objects['mineral']}
         
 
         for k,v in state.items():
-            if 'xPos' == k:
-                rover_location['r1'][0] = v
-            elif 'yPos' == k:
-                rover_location['r1'][1] = v
+            if 'pos_x_' in k:
+                point = k.split('_')[2]
+                rover_location[point][0] = v
+            elif 'pos_y_' in k:
+                point = k.split('_')[2]
+                rover_location[point][1] = v
 
         for k,v in state.items():
-            if 'picTaken_' in k:
-                point = k.split('_')[1]
-                taken = v
-                pict_taken[point] = taken
+            if 'mineral_harvested_' in k:
+                point = k.split('_')[2]
+                mineral_harvested[point] = v
 
-        return {'picture_taken':pict_taken, 'rover_location':rover_location}
+        return {'mineral_harvested':mineral_harvested, 'rover_location':rover_location}
 
     def init_canvas(self, figure_size, dpi):
         fig = plt.figure(figsize = figure_size, dpi = dpi)
@@ -79,9 +86,6 @@ class MarsRoverVisualizer(StateViz):
         plt.axis('scaled')
         plt.axis('off')
         return fig, ax
-
-    def build_object_layout(self):
-        return {'nonfluents_layout':self.build_nonfluents_layout(), 'states_layout':self.build_states_layout()}
 
     def convert2img(self, fig, ax):
         
@@ -102,16 +106,22 @@ class MarsRoverVisualizer(StateViz):
     def render(self, state):
 
         self.states = state
-
         self._fig, self._ax = self.init_canvas(self._figure_size, self._dpi)
     
         nonfluent_layout = self.build_nonfluents_layout()
         state_layout = self.build_states_layout(state)
 
+        self._nonfluent_layout = nonfluent_layout
+        self._state_layout = state_layout
 
-        for k,v in nonfluent_layout['picture_point_location'].items():
-            if state_layout['picture_taken'][k] == False:
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=0.5)
+
+        
+
+        max_value = max([v[3] for k, v in nonfluent_layout['mineral_location'].items()])
+        for k,v in nonfluent_layout['mineral_location'].items():
+            if state_layout['mineral_harvested'][k] == False:
+                value = nonfluent_layout['mineral_location'][k][3]/max_value
+                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=value)
             else:
                 p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
             self._ax.add_patch(p_point)
@@ -130,9 +140,8 @@ class MarsRoverVisualizer(StateViz):
         img = self.convert2img(self._fig, self._ax)
 
         self._ax.cla()
+        plt.cla()
         plt.close()
-
-        # plt.show()
 
         return img
 
