@@ -35,7 +35,15 @@ class RDDLMissingCPFDefinitionError(SyntaxError):
     pass
 
 
+class RDDLInvalidExpressionError(SyntaxError):
+    pass
+
+
 class RDDLInvalidNumberOfArgumentsError(SyntaxError):
+    pass
+
+
+class RDDLValueOutOfRangeError(ValueError):
     pass
 
 
@@ -103,7 +111,10 @@ class RDDLGrounder(Grounder):
         return model
 
     def _ground_horizon(self):
-        return self.AST.instance.horizon
+        horizon = self.AST.instance.horizon
+        if not (horizon >= 0):
+            raise RDDLValueOutOfRangeError(
+                'Rollout horizon {} in the instance is not >= 0.'.format(horizon))
 
     def _ground_max_actions(self):
         numactions = self.AST.instance.max_nondef_actions
@@ -113,7 +124,10 @@ class RDDLGrounder(Grounder):
             return int(numactions)
 
     def _ground_discount(self):
-        return self.AST.instance.discount
+        discount = self.AST.instance.discount
+        if not (0. <= discount <= 1.):
+            raise RDDLValueOutOfRangeError(
+                'Discount factor {} in the instance is not in [0, 1].'.format(discount))
 
     def _extract_objects(self):
         if self.AST.non_fluents.objects[0] is None:
@@ -399,7 +413,7 @@ class RDDLGrounder(Grounder):
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
             expr = Expression(('pvar_expr', (new_name, None)))
         else:
-            raise SyntaxError(f'Malformed expression {str(expr)}.')
+            raise RDDLInvalidExpressionError(f'Malformed expression {str(expr)}.')
         return expr
 
     def _scan_expr_tree_abr(self, expr, dic):

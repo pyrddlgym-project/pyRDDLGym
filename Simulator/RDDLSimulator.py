@@ -156,7 +156,7 @@ class RDDLSimulator:
                         raise KeyError(
                             'Internal error: variable {} is not in prev_state.'.format(primed_cpf))
                     next_state[self._model.prev_state[primed_cpf]] = sample   
-                    subs[primed_cpf] = sample  # TODO: don't know if we need this             
+                    subs[primed_cpf] = sample  # we do need this            
                 elif cpf in self._model.interm:
                     expr = self._model.cpfs[cpf]
                     sample = self._sample(expr, subs)
@@ -543,15 +543,15 @@ class RDDLSimulator:
             return self._sample_weibull(expr, subs)        
         elif name == 'Gamma':
             return self._sample_gamma(expr, subs)
-        elif name == 'Discrete':  # TODO, implement Discrete
+        elif name == 'Discrete':  # no support for enum
             raise RDDLNotImplementedError(
                 'Discrete is not supported.' + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
-        elif name == 'Multinomial':  # TODO, implement Multinomial
+        elif name == 'Multinomial':  # no support for enum
             raise RDDLNotImplementedError(
                 'Multinomial is not supported.' + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))            
-        elif name == 'Dirichlet':  # TODO, implement Dirichlet
+        elif name == 'Dirichlet':  # no support for enum
             raise RDDLNotImplementedError(
                 'Dirichlet is not supported.' + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))     
