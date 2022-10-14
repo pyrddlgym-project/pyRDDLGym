@@ -144,7 +144,13 @@ class RDDLGrounder(Grounder):
                     self.objects_rev[obj] = type[0]
 
     def _ground_objects(self, args):
-        objects_by_type = [self.objects[obj_type] for obj_type in args]
+        objects_by_type = []
+        for obj_type in args:
+            if obj_type not in self.objects:
+                raise RDDLUndefinedVariableError(
+                    'Object {} is not defined: should be one of {}.'.format(
+                        obj_type, list(self.objects.keys())))
+            objects_by_type.append(self.objects[obj_type])
         return itertools.product(*objects_by_type)
     
     def _append_variation_to_name(self, base_name, variation):
@@ -407,11 +413,13 @@ class RDDLGrounder(Grounder):
             # This is a constant.
             pass
         elif expr.args[1]:
+            variation_list = []
             for arg in expr.args[1]:
                 if arg not in dic:
                     raise RDDLUndefinedVariableError(
                         'Parameter {} is not defined in call to {}.'.format(arg, expr.args[0]))
-            variation_list = [[dic[arg] for arg in expr.args[1]]]
+                variation_list.append(dic[arg])
+            variation_list = [variation_list]
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
             expr = Expression(('pvar_expr', (new_name, None)))
         else:
