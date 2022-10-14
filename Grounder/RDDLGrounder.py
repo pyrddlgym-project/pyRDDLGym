@@ -115,6 +115,7 @@ class RDDLGrounder(Grounder):
         if not (horizon >= 0):
             raise RDDLValueOutOfRangeError(
                 'Rollout horizon {} in the instance is not >= 0.'.format(horizon))
+        return horizon
 
     def _ground_max_actions(self):
         numactions = self.AST.instance.max_nondef_actions
@@ -128,6 +129,7 @@ class RDDLGrounder(Grounder):
         if not (0. <= discount <= 1.):
             raise RDDLValueOutOfRangeError(
                 'Discount factor {} in the instance is not in [0, 1].'.format(discount))
+        return discount
 
     def _extract_objects(self):
         if self.AST.non_fluents.objects[0] is None:
