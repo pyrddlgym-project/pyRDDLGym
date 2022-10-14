@@ -43,6 +43,10 @@ instance inst_power_gen {
   
 	init-state { 
 		temperature = 10;
+		prevProd(p1) = 5;
+		prevProd(p1) = 7;
+		prevProd(p1) = 9;
+
 	};
   
   	// State-action constraints above are sufficient
