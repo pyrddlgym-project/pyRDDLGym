@@ -22,7 +22,9 @@ AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = [
     '*', '+', '+', '<', '>', '^', '|'
 ]
 AGGREG_OP_TO_STRING_DICT = dict(
-    zip(AGGREG_OPERATION_LIST, AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST))
+    zip(AGGREG_OPERATION_LIST,
+        AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST)
+)
 
 
 class RDDLUndefinedVariableError(SyntaxError):
@@ -214,7 +216,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing its definition.'.format(name))
+                        'CPF {} is missing a valid definition.'.format(name))
     
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
@@ -236,7 +238,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing its definition.'.format(name))
+                        'CPF {} is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -259,7 +261,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing its definition.'.format(name))
+                        'CPF {} is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -389,6 +391,10 @@ class RDDLGrounder(Grounder):
             # This is a constant.
             pass
         elif expr.args[1]:
+            for arg in expr.args[1]:
+                if arg not in dic:
+                    raise RDDLUndefinedVariableError(
+                        'Parameter {} is not defined in call to {}.'.format(arg, expr.args[0]))
             variation_list = [[dic[arg] for arg in expr.args[1]]]
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
             expr = Expression(('pvar_expr', (new_name, None)))
