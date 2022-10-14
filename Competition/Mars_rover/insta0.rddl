@@ -40,13 +40,13 @@ instance inst_mars_rover {
 	non-fluents = rover2;
 
 	init-state {
-		vel_x(d1) = 10;
-        vel_y(d1) = 10;
+		vel_x(d1) = 1;
+        vel_y(d1) = 1;
         pos_x(d1) = 0;
         pos_y(d1) = 0;
 
-		vel_x(d2) = 10;
-        vel_y(d2) = 10;
+		vel_x(d2) = 2;
+        vel_y(d2) = 2;
         pos_x(d2) = 3;
         pos_y(d2) = 3;
 	};

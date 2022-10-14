@@ -15,7 +15,7 @@ import Visualizer
 import sys
 
 class PowerGenVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, dpi = 50, fontsize = 8, display=False) -> None:
+    def __init__(self, model: RDDLModel, dpi = 20, fontsize = 8, display=False) -> None:
 
         self._model= model
         self._states = model.states
@@ -100,8 +100,8 @@ class PowerGenVisualizer(StateViz):
     def init_canvas(self, figure_size, dpi):
         fig = plt.figure(figsize = figure_size, dpi = dpi)
         ax = plt.gca()
-        plt.xlim([0, figure_size[0]])
-        plt.ylim([0, figure_size[1]])
+        plt.xlim([-5, figure_size[0]])
+        plt.ylim([-5, figure_size[1]])
         plt.axis('scaled')
         plt.axis('off')
         return fig, ax
@@ -137,9 +137,9 @@ class PowerGenVisualizer(StateViz):
         line_max = plt.Line2D((maxL[0], maxR[0]),(maxL[1], maxR[1]), ls='--', color='orange',lw=set_lw,zorder=3)
         line_up = plt.Line2D((upL[0], upR[0]),(upL[1], upR[1]), ls='--', color='black',lw=set_lw, zorder=3)
         line_low = plt.Line2D((lowL[0], lowR[0]),(lowL[1], lowR[1]), ls='--', color='orange',lw=set_lw, zorder=3)
-        lineL = plt.Line2D((init_x, upL[0]), (init_y, upL[1]), color='black',lw=set_lw)
-        lineR = plt.Line2D((init_x+interval, upR[0]), (init_y, upR[1]), color='black',lw=set_lw)
-        lineB = plt.Line2D((init_x, init_x+interval), (init_y, init_y), color='black',lw=set_lw)
+        lineL = plt.Line2D((init_x, upL[0]), (init_y, upL[1]), color='black',lw=set_lw, zorder=3)
+        lineR = plt.Line2D((init_x+interval, upR[0]), (init_y, upR[1]), color='black',lw=set_lw, zorder=3)
+        lineB = plt.Line2D((init_x, init_x+interval), (init_y, init_y), color='black',lw=set_lw, zorder=3)
 
 
         ax.add_line(line_max)
@@ -150,9 +150,9 @@ class PowerGenVisualizer(StateViz):
         ax.add_line(lineB)
         
         prod_rect = plt.Rectangle((init_x, init_y), interval, prev_prod/prod_max*interval, fc='limegreen', zorder=2)
-        temp_rect = plt.Rectangle((init_x, init_y), interval, interval*1.2, fc='firebrick', alpha= min(temp,100)/100)
-        cost_rect = plt.Rectangle((init_x, upL[1]), interval/2, interval/5, fc='deepskyblue', alpha= min(unit_cost,10)/10)
-        pen_rect = plt.Rectangle((init_x + interval/2,upL[1]), interval/2, interval/5, fc='darkcyan', alpha=min(change_penalty,10)/10)
+        temp_rect = plt.Rectangle((init_x, init_y), interval, interval*1.2, fc='firebrick', alpha= min(temp,100)/100, zorder=2)
+        cost_rect = plt.Rectangle((init_x, upL[1]), interval/2, interval/5, fc='deepskyblue', alpha= min(unit_cost,10)/10, zorder=2)
+        pen_rect = plt.Rectangle((init_x + interval/2,upL[1]), interval/2, interval/5, fc='darkcyan', alpha=min(change_penalty,10)/10, zorder=2)
 
         ax.add_patch(prod_rect)
         ax.add_patch(temp_rect)
