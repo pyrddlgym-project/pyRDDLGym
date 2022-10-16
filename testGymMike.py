@@ -3,7 +3,7 @@ from Policies.Agents import RandomAgent
 import numpy as np
 import random
 
-FOLDER = 'Competition/Drone_mix/'
+FOLDER = 'Competition/Cartpole/'
 
 
 def main():
@@ -13,6 +13,9 @@ def main():
     
     from pprint import pprint
     pprint(vars(myEnv.model))
+    for key, cpf in myEnv.model.cpfs.items():
+        print('\n' + key)
+        print(cpf)
     
     total_reward = 0
     state = myEnv.reset()
