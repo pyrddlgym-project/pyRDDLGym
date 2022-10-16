@@ -20,10 +20,10 @@ instance inst_cart_pole {
 	non-fluents = cart_pole_vars;
 
 	init-state {
-	    pos = 0;
-        vel = 0;
-        ang_pos = 0;
-        ang_vel = 0;
+	    pos = 0.0;
+        vel = 0.0;
+        ang_pos = 0.0;
+        ang_vel = 0.0;
 	};
 
   	// State-action constraints above are sufficient

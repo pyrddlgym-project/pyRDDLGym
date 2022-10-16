@@ -3,7 +3,7 @@ from Policies.Agents import RandomAgent
 import numpy as np
 import random
 
-FOLDER = 'Competition/Cartpole/'
+FOLDER = 'Competition/MountainCar/'
 
 
 def main():
