@@ -15,7 +15,7 @@ FOLDER = 'Competition/Drone/Drone_con/'
 
 
 def main():
-    steps = 2
+    steps = 1000
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'insta0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
     # myEnv.set_visualizer(PowerGenVisualizer)
@@ -33,7 +33,7 @@ def main():
 
         img = myEnv.render()
 
-        img.save('./img_folder/drone/'+str(step)+'.png')
+        # img.save('./img_folder/drone/'+str(step)+'.png')
 
         action = agent.sample_action()
 
@@ -48,9 +48,7 @@ def main():
         print('next_state = {}'.format(next_state))
         print('derived = {}'.format(myEnv.model.derived))
         print('interm = {}'.format(myEnv.model.interm))
-        state = next_state
-        break
-        
+        state = next_state       
 
 
     print("episode ended with reward {}".format(total_reward))
