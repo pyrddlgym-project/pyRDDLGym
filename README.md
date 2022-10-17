@@ -2,19 +2,19 @@
 
 A toolkit for auto-generation of OpenAI Gym environments from RDDL description files. 
 
-Requirements:
+###Requirements:
 * ply
 * tqdm
 * numpy
 * matplotlib
 * pygame
 
-Features
+###Features
 * support added for separate domain and instance (+non-fluents) files
 * informative exception is raised when there is a problem with a block (domain, non-fluents, instance)
 * RDDL text generator from parsed ast (partial support of the language)
 
-Bug fix:
+####Bug fix:
 * Parsing:
   * param_list was not properly defined, now defined as '(' str_list ')' or empty
   * interm-fluent was not defined without level parameter
@@ -30,3 +30,11 @@ Bug fix:
 
 Known issues:
 * Mathematical arithmetic operations are parsed incorrectly if there are no passing spaces.
+
+##License
+
+##Contributors
+- Michael Gimelfarb (University of Toronto, CA)
+- Sriram Gopalakrishnan (Arizona State University/J.P. Morgan, USA)
+- Martin Mladenov (Google, BR)
+- Jack Liu (University of Toronto, CA)
