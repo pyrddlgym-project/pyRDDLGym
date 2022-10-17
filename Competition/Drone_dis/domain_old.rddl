@@ -24,7 +24,6 @@ pvariables {
     MAX_Z : { non-fluent, real, default = 50000.0};
 
     SCALE_FACTOR  : { non-fluent, real, default = 0.1 };          // time scale factor for dynamic equations
-    RANDOM_WALK_COEFF : {non-fluent, real, default = 0.1 };       // variance constant for random walk of non controllable drones
     VEL_REG     : {non-fluent, real, default = 0.001};            // regularizatino factor when dividing by zero velocity
 
     // bounds on actions
@@ -62,31 +61,17 @@ pvariables {
 cpfs {
 
     // position changes for each time step
-    pos_x'(?a) = if (CONTROLLABLE(?a))
-                 then pos_x(?a) + SCALE_FACTOR * vel(?a) * cos[psi(?a)]
-                 else pos_x(?a) + Normal(0.0, RANDOM_WALK_COEFF);
-    pos_y'(?a) = if (CONTROLLABLE(?a))
-                 then pos_y(?a) + SCALE_FACTOR * vel(?a) * sin[psi(?a)]
-                 else pos_y(?a) + Normal(0.0, RANDOM_WALK_COEFF);
-    pos_z'(?a) = if (CONTROLLABLE(?a))
-                 then pos_z(?a) + SCALE_FACTOR * vel(?a) * sin[theta(?a)]
-                 else pos_z(?a) + Normal(0.0, RANDOM_WALK_COEFF);
+    pos_x'(?a) = pos_x(?a) + SCALE_FACTOR * vel(?a) * cos[psi(?a)];
+    pos_y'(?a) = pos_y(?a) + SCALE_FACTOR * vel(?a) * sin[psi(?a)];
+    pos_z'(?a) = pos_z(?a) + SCALE_FACTOR * vel(?a) * sin[theta(?a)];
 
     // velocity
-    vel'(?a) = if (CONTROLLABLE(?a))
-               then vel(?a) + SCALE_FACTOR * max[min[set_acc(?a), MAX_ACC(?a)], MIN_ACC(?a)]
-               else vel(?a) + Normal(0.0, RANDOM_WALK_COEFF);
+    vel'(?a) = vel(?a) + SCALE_FACTOR * max[min[set_acc(?a), MAX_ACC(?a)], MIN_ACC(?a)];
 
     // angle changes
-    phi'(?a) = if (CONTROLLABLE(?a))
-               then phi(?a) + SCALE_FACTOR * max[min[set_phi(?a), MAX_PHI(?a)], MIN_PHI(?a)]
-               else phi(?a) + Normal(0.0, RANDOM_WALK_COEFF);
-    theta'(?a) = if (CONTROLLABLE(?a))
-                 then theta(?a) + SCALE_FACTOR * max[min[set_theta(?a), MAX_THETA(?a)], MIN_THETA(?a)]
-                 else theta(?a) + Normal(0.0, RANDOM_WALK_COEFF);
-    psi'(?a) = if (CONTROLLABLE(?a))
-               then psi(?a) + SCALE_FACTOR * (tan[phi(?a)] / (vel(?a)+VEL_REG)) * GRAVITY
-               else psi(?a) + Normal(0.0, RANDOM_WALK_COEFF);
+    phi'(?a) = phi(?a) + SCALE_FACTOR * max[min[set_phi(?a), MAX_PHI(?a)], MIN_PHI(?a)];
+    theta'(?a) = theta(?a) + SCALE_FACTOR * max[min[set_theta(?a), MAX_THETA(?a)], MIN_THETA(?a)];
+    psi'(?a) = psi(?a) + SCALE_FACTOR * (tan[phi(?a)] / (vel(?a)+VEL_REG)) * GRAVITY;
 
 };
 
@@ -100,16 +85,9 @@ reward = -sum_{?a : aircraft} [CONTROLLABLE(?a) * [sqrt[pow[(pos_x(?a) - GOAL_X(
 
 state-invariants {
     // boundaries of the aircraft locations
-    forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ];
-    forall_{?a : aircraft}[ pos_x(?a) >= MIN_X ];
-    forall_{?a : aircraft}[ pos_y(?a) <= MAX_Y ];
-    forall_{?a : aircraft}[ pos_y(?a) >= MIN_Y ];
-    forall_{?a : aircraft}[ pos_z(?a) <= MAX_Z ];
-    forall_{?a : aircraft}[ pos_z(?a) >= MIN_Z ];
-
-    //forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
-    //                        pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
-    //                        pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
+    forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
+                            pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
+                            pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
     };
 
 action-preconditions {
