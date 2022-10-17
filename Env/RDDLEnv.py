@@ -193,35 +193,6 @@ class RDDLEnv(gym.Env):
             pygameSurface = self.pilImageToSurface(image)
             self.window.blit(pygameSurface, (0, 0))
             pygame.display.flip()
-<<<<<<< HEAD
-        return image
-            # return image
-            # this_images = pygame.image.fromstring(image.data, image.size, image.mode)
-
-            # self.window.geometry('%dx%d' % (image.size[0], image.size[1]))
-            # tkpi = ImageTk.PhotoImage(image)
-            # label_image = tkinter.Label(self.window, image=tkpi)
-            # label_image.pack()
-            # label_image.place(x=0, y=0, width=image.size[0], height=image.size[1])
-            # self.window.title("title")
-            # self.window.mainloop()
-            # if self.image is not None:
-            #     self.image.destroy()
-            # self.image = label_image
-
-
-
-            # if self.image is not None:
-            #     plt.close()
-                # self.image.close()
-            # self.image = self._visualizer.render(self.state)
-            # plt.close()
-            # plt.imshow(self.image)
-            # plt.show()
-            # self.image.show()
-            # self.image.close()
-=======
->>>>>>> 0222ff43787b68e856dece15dbd4de3f5d3075b4
 
 
     @property
