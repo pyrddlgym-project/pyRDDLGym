@@ -10,10 +10,10 @@ def main():
     steps = 1000
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'insta0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
-    
+
     from pprint import pprint
     pprint(vars(myEnv.model))
-    
+
     total_reward = 0
     state = myEnv.reset()
     for step in range(steps):
