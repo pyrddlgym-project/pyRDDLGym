@@ -15,7 +15,6 @@ class MountainCarVisualizer(StateViz):
         self._model = model
         self._figure_size = figure_size
         
-        self._states = model.states
         self._nonfluents = model.nonfluents
     
     def init_canvas(self, figure_size):
@@ -46,11 +45,11 @@ class MountainCarVisualizer(StateViz):
         l, r, t, b = -carwidth / 2, carwidth / 2, carheight, 0
         coords = []
         for c in [(l, b), (l, t), (r, t), (r, b)]:
-            c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * self._states['pos']))
+            c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * state['pos']))
             coords.append(
                 (
-                    c[0] + (self._states['pos'] - self._nonfluents['MIN_POS']) * scale,
-                    c[1] + clearance + (np.sin(3 * self._states['pos']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale,
+                    c[0] + (state['pos'] - self._nonfluents['MIN_POS']) * scale,
+                    c[1] + clearance + (np.sin(3 * state['pos']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale,
                 )
             )
 
@@ -58,10 +57,10 @@ class MountainCarVisualizer(StateViz):
         gfxdraw.filled_polygon(surf, coords, (0, 0, 0))
         
         for c in [(carwidth / 4, 0), (-carwidth / 4, 0)]:
-            c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * self._states['pos']))
+            c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * state['pos']))
             wheel = (
-                int(c[0] + (self._states['pos'] - self._nonfluents['MIN_POS']) * scale),
-                int(c[1] + clearance + (np.sin(3 * self._states['pos']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale),
+                int(c[0] + (state['pos'] - self._nonfluents['MIN_POS']) * scale),
+                int(c[1] + clearance + (np.sin(3 * state['pos']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale),
             )
             gfxdraw.aacircle(
                 surf, wheel[0], wheel[1], int(carheight / 2.5), (128, 128, 128)

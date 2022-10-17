@@ -14,7 +14,6 @@ class CartPoleVisualizer(StateViz):
         self._model = model
         self._figure_size = figure_size
         
-        self._states = model.states
         self._nonfluents = model.nonfluents
     
     def init_canvas(self, figure_size):
@@ -40,7 +39,7 @@ class CartPoleVisualizer(StateViz):
         axleoffset = cartheight / 4.0
         
         surf.fill((255, 255, 255))
-        cartx = self._states['pos'] * scale + self._figure_size[0] / 2.0  # MIDDLE OF CART
+        cartx = state['pos'] * scale + self._figure_size[0] / 2.0  # MIDDLE OF CART
         carty = 100  # TOP OF CART
         cart_coords = [(l, b), (l, t), (r, t), (r, b)]
         cart_coords = [(c[0] + cartx, c[1] + carty) for c in cart_coords]
@@ -50,7 +49,7 @@ class CartPoleVisualizer(StateViz):
         l, r, t, b = -polewidth / 2, polewidth / 2, polelen - polewidth / 2, -polewidth / 2
         pole_coords = []
         for coord in [(l, b), (l, t), (r, t), (r, b)]:
-            coord = pygame.math.Vector2(coord).rotate_rad(-self._states['ang_pos'])
+            coord = pygame.math.Vector2(coord).rotate_rad(-state['ang_pos'])
             coord = (coord[0] + cartx, coord[1] + carty + axleoffset)
             pole_coords.append(coord)
         gfxdraw.aapolygon(surf, pole_coords, (202, 152, 101))
