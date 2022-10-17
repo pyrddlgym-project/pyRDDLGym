@@ -5,9 +5,9 @@ from Policies.Agents import RandomAgent
 # PROBLEM = 'RDDL/Thiagos_HVAC_grounded.rddl'
 # PROBLEM = 'RDDL/Thiagos_Mars_Rover.rddl'
 # PROBLEM = 'RDDL/Thiagos_HVAC.rddl'
-FOLDER = 'Competition/Power_gen/'
+# FOLDER = 'Competition/Power_gen/'
 # FOLDER = 'Competition/Mars_rover/'
-# FOLDER = 'Competition/drone_mix/'
+FOLDER = 'Competition/drone_mix/'
 
 def main():
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER+'domain.rddl', instance=FOLDER+'instance0.rddl', is_grounded=False)
