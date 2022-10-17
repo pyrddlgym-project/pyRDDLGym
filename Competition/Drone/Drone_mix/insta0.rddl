@@ -1,5 +1,5 @@
 non-fluents nf_simple_drone_p0{
-	domain = simple_drone;
+	domain = kinematic_drones_mix;
 
 	objects {
 		aircraft : {a1};
@@ -27,7 +27,7 @@ non-fluents nf_simple_drone_p0{
 }
 
 instance simple_drone_p0 {
-	domain = simple_drone;
+	domain = kinematic_drones_mix;
 	non-fluents = nf_simple_drone_p0;
 	
 	init-state {
