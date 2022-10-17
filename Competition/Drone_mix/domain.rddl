@@ -75,8 +75,8 @@ cpfs {
     
     // velocity
     vel'(?a) = if (CONTROLLABLE(?a))
-               then vel(?a) + SCALE_FACTOR * max[min[set_acc(?a), MAX_ACC(?a)], MIN_ACC(?a)]
-               else vel(?a) + Normal(0.0, RANDOM_WALK_COEFF);
+               then max[0, vel(?a) + SCALE_FACTOR * max[min[set_acc(?a), MAX_ACC(?a)], MIN_ACC(?a)]]
+               else max[0, vel(?a) + Normal(0.0, RANDOM_WALK_COEFF)];
 
     // angle changes
     phi'(?a) = if (CONTROLLABLE(?a))
@@ -95,11 +95,6 @@ reward = -sum_{?a : aircraft} [CONTROLLABLE(?a) * [sqrt[pow[(pos_x(?a) - GOAL_X(
                                    pow[(pos_y(?a) - GOAL_Y(?a)),2] +
                                    pow[(pos_z(?a) - GOAL_Z(?a)),2]]] ];
 
-
-//reward = sum_{?a : aircraft} [ 1 / (sqrt[pow[(pos_x(?a) - GOAL_X(?a)),2] +
-//                                   pow[(pos_y(?a) - GOAL_Y(?a)),2] +
-//                                   pow[(pos_z(?a) - GOAL_Z(?a)),2]]) ];
-
 state-invariants {
     // boundaries of the aircraft locations
     forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ];
@@ -108,11 +103,7 @@ state-invariants {
     forall_{?a : aircraft}[ pos_y(?a) >= MIN_Y ];
     forall_{?a : aircraft}[ pos_z(?a) <= MAX_Z ];
     forall_{?a : aircraft}[ pos_z(?a) >= MIN_Z ];
-
-    //forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
-    //                        pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
-    //                        pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
-    };
+};
 
 action-preconditions {
     // boundaries for set acc
