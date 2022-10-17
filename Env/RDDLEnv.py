@@ -179,3 +179,7 @@ class RDDLEnv(gym.Env):
 
     def clip(self, val, low, high):
         return max(min(val, high), low)
+
+    @property
+    def non_fluents(self):
+        return self.model.nonfluents
