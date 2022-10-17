@@ -1,0 +1,204 @@
+from typing import List, Dict, Tuple, Optional
+import time
+import math
+
+import matplotlib.pyplot as plt
+import matplotlib.image as plt_img
+from matplotlib import animation
+import numpy as np
+from PIL import Image
+
+from Visualizer.StateViz import StateViz
+from Grounder.RDDLModel import RDDLModel
+from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
+
+import Visualizer
+
+
+
+class DroneVisualizer(StateViz):
+    def __init__(self, model: RDDLModel, figure_size = [50, 50], dpi = 50, fontsize = 8, display=False) -> None:
+
+        self._model= model
+        self._states = model.states
+        self._nonfluents = model.nonfluents
+        self._objects = model.objects
+        self._figure_size = figure_size
+        self._dpi = dpi
+        self._fontsize = fontsize
+        self._interval = 10
+        self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])      
+        self._nonfluent_layout = None
+        self._state_layout = None
+        self._fig, self._ax = None, None
+        self._data = None
+        self._img = None
+
+        print(self._states)
+        print(self._nonfluents)
+        print(self._objects)
+    
+    def build_nonfluents_layout(self):       
+
+        goal_location = {o:[None,None,None] for o in self._objects['aircraft']}
+
+        for k,v in self._nonfluents.items():
+            if 'GOAL_X_' in k:
+                point = k.split('_')[2]
+                goal_location[point][0] = v
+            elif 'GOAL_Y_' in k:
+                point = k.split('_')[2]
+                goal_location[point][1] = v
+            elif 'GOAL_Z_' in k:
+                point = k.split('_')[2]
+                goal_location[point][2] = v
+
+        return {'goal_location' : goal_location}
+    
+    def build_states_layout(self, state):
+        drone_location = {o:[None,None,None] for o in self._objects['aircraft']}
+        velocity = {o:None for o in self._objects['aircraft']}        
+
+        for k,v in state.items():
+            if 'pos_x_' in k:
+                point = k.split('_')[2]
+                drone_location[point][0] = v
+            elif 'pos_y_' in k:
+                point = k.split('_')[2]
+                drone_location[point][1] = v
+            elif 'pos_z_' in k:
+                point = k.split('_')[2]
+                drone_location[point][2] = v
+            elif 'vel_' in k:
+                point = k.split('_')[1]
+                velocity[point] = v
+
+        return {'drone_location' : drone_location, 'velocity':velocity}
+
+    def init_canvas(self, figure_size, dpi):
+        fig = plt.figure(figsize = figure_size, dpi = dpi)
+        ax = fig.add_subplot(projection='3d')
+
+        ax.axes.set_xlim3d(left=-figure_size[0]//2, right=figure_size[0]//2) 
+        ax.axes.set_ylim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2) 
+        ax.axes.set_zlim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2)
+
+        plt.axis('scaled')
+        # plt.axis('off')
+
+        plt.show()     
+
+        return fig, ax
+
+    def convert2img(self, fig, ax):
+        
+        ax.set_position((0, 0, 1, 1))
+        fig.canvas.draw()
+
+
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        img = Image.fromarray(data)
+
+        self._data = data
+        self._img = img
+
+        return img
+
+    def render(self, state):
+
+        self.states = state
+        self._fig, self._ax = self.init_canvas(self._figure_size, self._dpi)
+    
+        nonfluent_layout = self.build_nonfluents_layout()
+        state_layout = self.build_states_layout(state)
+
+        self._nonfluent_layout = nonfluent_layout
+        self._state_layout = state_layout
+
+        
+        
+
+        max_value = max([v[3] for k, v in nonfluent_layout['mineral_location'].items()])
+        for k,v in nonfluent_layout['mineral_location'].items():
+            if state_layout['mineral_harvested'][k] == False:
+                value = nonfluent_layout['mineral_location'][k][3]/max_value
+                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=value)
+            else:
+                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
+            self._ax.add_patch(p_point)
+
+
+        rover_img_path = self._asset_path + '/assets/mars-rover.png'
+        rover_logo = plt_img.imread(rover_img_path)
+        rover_logo_zoom = rover_logo.shape[0]/(self._dpi*90)
+
+        for k,v in state_layout['rover_location'].items():
+            imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
+            ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
+            self._ax.add_artist(ab)
+
+
+        img = self.convert2img(self._fig, self._ax)
+
+        self._ax.cla()
+        plt.cla()
+        plt.close()
+
+        return img
+
+ 
+    
+    def gen_inter_state(self, beg_state, end_state, steps):
+
+        state_buffer = []
+        beg_x = beg_state['xPos']
+        beg_y = beg_state['yPos']
+        end_x = end_state['xPos']
+        end_y = end_state['yPos']
+
+        if (beg_x, beg_y) == (end_x, end_y):
+            state_buffer = [beg_state, end_state]
+        else:
+            for i in range(steps):
+                x = beg_x + 1/steps*(end_x - beg_x)*i
+                y = beg_y + 1/steps*(end_y - beg_y)*i
+                state = beg_state.copy()
+                state['xPos'] = x
+                state['yPos'] = y
+                state_buffer.append(state)
+            state_buffer.append(end_state)
+
+        return state_buffer
+    
+    # def animate_buffer(self, states_buffer):
+
+    #     threading.Thread(target=self.animate_buffer).start()
+
+    #     # img_list = [self.render(states_buffer[i]) for i in range(len(states_buffer))]
+
+    #     # img_list[0].save('temp_result.gif', save_all=True,optimize=False, append_images=img_list[1:], loop=0)
+
+
+    #     def anime(i):
+    #         self.render(states_buffer[i])
+            
+    #     anim = animation.FuncAnimation(self._fig, anime, interval=200)
+
+    #     plt.show()
+
+
+    #     # plt.show()
+
+    #     # img = self.render(states_buffer[0])
+    #     # img.save('./img_folder/0.png')
+
+    #     return
+
+
+
+
+
+
+    

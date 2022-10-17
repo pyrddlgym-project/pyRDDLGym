@@ -33,9 +33,6 @@ class MarsRoverVisualizer(StateViz):
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
-
-        print(self._states)
-        print(self._nonfluents)
     
     def build_nonfluents_layout(self):       
 
