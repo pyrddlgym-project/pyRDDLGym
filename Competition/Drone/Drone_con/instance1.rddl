@@ -1,8 +1,8 @@
 non-fluents nf_simple_drone_p0{
-	domain = kinematic_drones_mix;
+	domain = kinematic_drones_con;
 
 	objects {
-		aircraft : {a1};
+		aircraft : {a1, a2, a3};
 	};
 
 	non-fluents {
@@ -18,6 +18,14 @@ non-fluents nf_simple_drone_p0{
 
         SCALE_FACTOR = 0.1;
 
+        // Speed bounds
+        MIN_VEL(a1) = -1.0;
+        MAX_VEL(a1) = 1.0;
+        MIN_PHI(a1) = -1.0;
+        MAX_PHI(a1) = 1.0;
+        MIN_THETA(a1) = -1.0;
+        MAX_THETA(a1) = 1.0;
+
         GOAL_X(a1) = 50.0;
         GOAL_Y(a1) = 50.0;
         GOAL_z(a1) = 50.0;
@@ -27,7 +35,7 @@ non-fluents nf_simple_drone_p0{
 }
 
 instance simple_drone_p0 {
-	domain = kinematic_drones_mix;
+	domain = kinematic_drones_con;
 	non-fluents = nf_simple_drone_p0;
 	
 	init-state {
