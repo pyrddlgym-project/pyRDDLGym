@@ -23,6 +23,7 @@ class RDDLEnv(gym.Env):
 
         # max allowed action value
         self.BigM = 100
+        self.done = False
 
         # read and parser domain and instance
         if instance is None:
@@ -46,7 +47,7 @@ class RDDLEnv(gym.Env):
         self.model = grounder.Ground()
 
         # define the model sampler
-        self.sampler = RDDLSimulatorWConstraints(self.model, max_bound=self.BigM)
+        self.sampler = RDDLSimulatorWConstraints(self.model)#, max_bound=self.BigM)
 
         # set the horizon
         self.horizon = self.model.horizon
@@ -63,7 +64,6 @@ class RDDLEnv(gym.Env):
 
         # define the actions bounds
         action_space = Dict()
-        # action_space_range = {}
         for act in self.model.actions:
             range = self.model.actionsranges[act]
             if range == 'real':
@@ -78,10 +78,8 @@ class RDDLEnv(gym.Env):
                 action_space[act] = Discrete(2*self.BigM + 1 ,start = -self.BigM)
             else:
                 raise Exception("unknown action range in gym environment init")
-            # action_space_range[act] = range
 
         self.action_space = action_space
-        # self.action_space_range = action_space_range
 
         # define the states bounds
         state_space = Dict()
@@ -101,7 +99,6 @@ class RDDLEnv(gym.Env):
                 raise Exception("unknown state range in gym environment init")
         self.observation_space = state_space
 
-        # TODO
         # set the visualizer, the next line should be changed for the default behaviour - TextVix
         self._visualizer = TextVisualizer(self.model)
         self.state = None
@@ -117,6 +114,9 @@ class RDDLEnv(gym.Env):
         self._visualizer = viz(self.model)
 
     def step(self, at):
+
+        if self.done:
+            return self.state, 0, self.done, {}
 
         # make sure the action length is of currect size
         action_length = len(at)
@@ -137,37 +137,39 @@ class RDDLEnv(gym.Env):
         # TODO: The following chunk of code should be removed and replaced only by self.sampler.check_state_invariants()
 
         # check if the state is within the invariant constraints
-        for st in state:
-            if self.model.statesranges[st] == 'real':
-                state[st] = self.clip(state[st], self.sampler.bounds[st][0], self.sampler.bounds[st][1])
+        # for st in state:
+        #     if self.model.statesranges[st] == 'real':
+        #         state[st] = self.clip(state[st], self.sampler.bounds[st][0], self.sampler.bounds[st][1])
 
         self.sampler.update_state(state)
+        self.sampler.check_state_invariants()
 
         # check for non-linear constraint violation
-        try:
-            self.sampler.check_state_invariants()
-        except Exception:
-            if isinstance(sys.exc_info()[1], Simulator.RDDLSimulator.RDDLRuntimeError):
-                print("WARNING:",sys.exc_info()[1])
-            else:
-                raise Exception("Error in state constraint validation").with_traceback(sys.exc_info()[2])
+        # try:
+        #     self.sampler.check_state_invariants()
+        # except Exception:
+        #     if isinstance(sys.exc_info()[1], Simulator.RDDLSimulator.RDDLRuntimeError):
+        #         print("WARNING:",sys.exc_info()[1])
+        #     else:
+        #         raise Exception("Error in state constraint validation").with_traceback(sys.exc_info()[2])
 
         # update step horizon
         self.currentH += 1
         if self.currentH == self.horizon:
-            done = True
-        else:
-            done = False
+            self.done = True
+        # else:
+        #     done = False
 
         # for visualization purposes
         self.state = state
 
-        return state, reward, done, {}
+        return state, reward, self.done, {}
 
     def reset(self):
         self.total_reward = 0
         self.currentH = 0
         self.state = self.sampler.reset_state()
+        self.done = False
 
         # if self.to_render:
         image = self._visualizer.render(self.state)
@@ -191,31 +193,6 @@ class RDDLEnv(gym.Env):
             pygameSurface = self.pilImageToSurface(image)
             self.window.blit(pygameSurface, (0, 0))
             pygame.display.flip()
-            # return image
-            # this_images = pygame.image.fromstring(image.data, image.size, image.mode)
-
-            # self.window.geometry('%dx%d' % (image.size[0], image.size[1]))
-            # tkpi = ImageTk.PhotoImage(image)
-            # label_image = tkinter.Label(self.window, image=tkpi)
-            # label_image.pack()
-            # label_image.place(x=0, y=0, width=image.size[0], height=image.size[1])
-            # self.window.title("title")
-            # self.window.mainloop()
-            # if self.image is not None:
-            #     self.image.destroy()
-            # self.image = label_image
-
-
-
-            # if self.image is not None:
-            #     plt.close()
-                # self.image.close()
-            # self.image = self._visualizer.render(self.state)
-            # plt.close()
-            # plt.imshow(self.image)
-            # plt.show()
-            # self.image.show()
-            # self.image.close()
 
 
     @property
