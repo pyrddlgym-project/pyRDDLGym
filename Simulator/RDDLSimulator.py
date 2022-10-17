@@ -721,7 +721,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         self.epsilon = 0.001
         # self.BigM = float(max_bound)
         self.BigM = max_bound
-        self._bounds = {}
+        self._bounds = {}       # TODO handle booleans
         for state in model.states:
             self._bounds[state] = [-self.BigM, self.BigM]
         for derived in model.derived:
@@ -738,11 +738,6 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
 
         for state_inv in model.invariants:
             self._parse_bounds_rec(state_inv, self._model.states)
-            # if state_inv.etype[0] != 'rational':
-            #     pass
-            # var, lim, loc = self.get_bounds(state_inv.args[0], state_inv.args[1], state_inv.etype[1], False)
-            # if var is not None and loc is not None:
-            #     self._bounds[var][loc] = lim
 
     def _parse_bounds_rec(self, cond, search_dict):
         if cond.etype[0] == "boolean" and cond.etype[1] == "^":
