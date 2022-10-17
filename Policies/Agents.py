@@ -24,10 +24,11 @@ class RandomAgent(BaseAgent):
             if isinstance(self.action_space[sample], gym.spaces.Box):
                 action[sample] = s[sample][0].item()
             elif isinstance(self.action_space[sample], gym.spaces.Discrete):
-                if str(self.action_space[sample]) == 'Discrete(2)':
-                    action[sample] = bool(s[sample])
-                else:
-                    action[sample] = s[sample]
+                action[sample] = s[sample]
+                # if str(self.action_space[sample]) == 'Discrete(2)':
+                #     action[sample] = bool(s[sample])
+                # else:
+                #     action[sample] = s[sample]
         return action
 
 

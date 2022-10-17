@@ -22,7 +22,7 @@ class RDDLEnv(gym.Env):
         super(RDDLEnv, self).__init__()
 
         # max allowed action value
-        self.BigM = 100
+        # self.BigM = 100
         self.done = False
 
         # read and parser domain and instance
@@ -67,15 +67,13 @@ class RDDLEnv(gym.Env):
         for act in self.model.actions:
             range = self.model.actionsranges[act]
             if range == 'real':
-                if act in self.sampler.bounds:
-                    action_space[act] = Box(low=self.sampler.bounds[act][0], high=self.sampler.bounds[act][1],
-                                            dtype=np.float32)
-                else:
-                    action_space[act] = Box(low=-self.BigM, high=self.BigM, dtype=np.float32)
+                action_space[act] = Box(low=self.sampler.bounds[act][0], high=self.sampler.bounds[act][1],
+                                        dtype=np.float32)
             elif range == 'bool':
                 action_space[act] = Discrete(2)
             elif range == 'int':
-                action_space[act] = Discrete(2*self.BigM + 1 ,start = -self.BigM)
+                action_space[act] = Discrete(int(self.sampler.bounds[act][1] - self.sampler.bounds[act][0] + 1),
+                                             start=int(self.sampler.bounds[act][0]))
             else:
                 raise Exception("unknown action range in gym environment init")
 
@@ -86,15 +84,13 @@ class RDDLEnv(gym.Env):
         for state in self.model.states:
             range = self.model.statesranges[state]
             if range == 'real':
-                if state in self.sampler.bounds:
                     state_space[state] = Box(low=self.sampler.bounds[state][0], high=self.sampler.bounds[state][1],
                                              dtype=np.float32)
-                else:
-                    state_space[state] = Box(low=-self.BigM, high=self.BigM, dtype=np.float32)
             elif range == 'bool':
                 state_space[state] = Discrete(2)
             elif range == 'int':
-                state_space[state] = Discrete(2 * self.BigM + 1, start=-self.BigM)
+                state_space[state] = Discrete(int(self.sampler.bounds[state][1] - self.sampler.bounds[state][0] + 1),
+                                             start=int(self.sampler.bounds[state][0]))
             else:
                 raise Exception("unknown state range in gym environment init")
         self.observation_space = state_space
@@ -103,11 +99,10 @@ class RDDLEnv(gym.Env):
         self._visualizer = TextVisualizer(self.model)
         self.state = None
         self.image = None
-        # self.window = tkinter.Tk()
         self.window = None
         self.to_render = False
         self.image_size = None
-        # pygame.init()
+
 
     def set_visualizer(self, viz):
         # set the vizualizer with self.model
@@ -128,37 +123,23 @@ class RDDLEnv(gym.Env):
         # set full action vector, values are clipped to be inside the feasible action space
         action = copy.deepcopy(self.defaultAction)
         for act in at:
-            action[act] = self.clip(at[act], self.sampler.bounds[act][0], self.sampler.bounds[act][1])
+            if self.action_space[act] == "Discrete(2)":
+               if self.model.actionsranges[act] == "bool":
+                   action[act] = bool(at[act])
+            else:
+                action[act] = at[act]
 
         # sample next state and reward
         state = self.sampler.sample_next_state(action)
         reward = self.sampler.sample_reward()
 
-        # TODO: The following chunk of code should be removed and replaced only by self.sampler.check_state_invariants()
-
-        # check if the state is within the invariant constraints
-        # for st in state:
-        #     if self.model.statesranges[st] == 'real':
-        #         state[st] = self.clip(state[st], self.sampler.bounds[st][0], self.sampler.bounds[st][1])
-
         self.sampler.update_state(state)
         self.sampler.check_state_invariants()
-
-        # check for non-linear constraint violation
-        # try:
-        #     self.sampler.check_state_invariants()
-        # except Exception:
-        #     if isinstance(sys.exc_info()[1], Simulator.RDDLSimulator.RDDLRuntimeError):
-        #         print("WARNING:",sys.exc_info()[1])
-        #     else:
-        #         raise Exception("Error in state constraint validation").with_traceback(sys.exc_info()[2])
 
         # update step horizon
         self.currentH += 1
         if self.currentH == self.horizon:
             self.done = True
-        # else:
-        #     done = False
 
         # for visualization purposes
         self.state = state
@@ -171,11 +152,8 @@ class RDDLEnv(gym.Env):
         self.state = self.sampler.reset_state()
         self.done = False
 
-        # if self.to_render:
         image = self._visualizer.render(self.state)
         self.image_size = image.size
-            # self.window = pygame.display.set_mode((image.size[0], image.size[1]))
-        # self.image = None
         return self.state
 
     def pilImageToSurface(self, pilImage):
