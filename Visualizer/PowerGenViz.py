@@ -100,8 +100,8 @@ class PowerGenVisualizer(StateViz):
     def init_canvas(self, figure_size, dpi):
         fig = plt.figure(figsize = figure_size, dpi = dpi)
         ax = plt.gca()
-        plt.xlim([-5, figure_size[0]])
-        plt.ylim([-5, figure_size[1]])
+        plt.xlim([-2, figure_size[0]])
+        plt.ylim([-2, figure_size[1]])
         plt.axis('scaled')
         plt.axis('off')
         return fig, ax

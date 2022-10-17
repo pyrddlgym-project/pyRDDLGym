@@ -16,8 +16,8 @@ import Visualizer
 
 
 
-class MarsRoverVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, figure_size = [50, 50], dpi = 20, fontsize = 8, display=False) -> None:
+class DroneVisualizer(StateViz):
+    def __init__(self, model: RDDLModel, figure_size = [50, 50], dpi = 50, fontsize = 8, display=False) -> None:
 
         self._model= model
         self._states = model.states
@@ -33,55 +33,61 @@ class MarsRoverVisualizer(StateViz):
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
+
+        print(self._states)
+        print(self._nonfluents)
+        print(self._objects)
     
     def build_nonfluents_layout(self):       
 
-        mineral_locaiton = {o:[None,None,None,None] for o in self._objects['mineral']}
+        goal_location = {o:[None,None,None] for o in self._objects['aircraft']}
 
-        # style of fluent_p1
         for k,v in self._nonfluents.items():
-            if 'MINERAL_POS_X_' in k:
-                point = k.split('_')[3]
-                mineral_locaiton[point][0] = v
-            elif 'MINERAL_POS_Y_' in k:
-                point = k.split('_')[3]
-                mineral_locaiton[point][1] = v
-            elif 'MINERAL_AREA_' in k:
+            if 'GOAL_X_' in k:
                 point = k.split('_')[2]
-                mineral_locaiton[point][2] = v
-            elif 'MINERAL_VALUE_' in k:
+                goal_location[point][0] = v
+            elif 'GOAL_Y_' in k:
                 point = k.split('_')[2]
-                mineral_locaiton[point][3] = v    
+                goal_location[point][1] = v
+            elif 'GOAL_Z_' in k:
+                point = k.split('_')[2]
+                goal_location[point][2] = v
 
-        return {'mineral_location' : mineral_locaiton}
+        return {'goal_location' : goal_location}
     
     def build_states_layout(self, state):
-        rover_location = {o:[None,None] for o in self._objects['drone']}
-        mineral_harvested ={o:None for o in self._objects['mineral']}
-        
+        drone_location = {o:[None,None,None] for o in self._objects['aircraft']}
+        velocity = {o:None for o in self._objects['aircraft']}        
 
         for k,v in state.items():
             if 'pos_x_' in k:
                 point = k.split('_')[2]
-                rover_location[point][0] = v
+                drone_location[point][0] = v
             elif 'pos_y_' in k:
                 point = k.split('_')[2]
-                rover_location[point][1] = v
-
-        for k,v in state.items():
-            if 'mineral_harvested_' in k:
+                drone_location[point][1] = v
+            elif 'pos_z_' in k:
                 point = k.split('_')[2]
-                mineral_harvested[point] = v
+                drone_location[point][2] = v
+            elif 'vel_' in k:
+                point = k.split('_')[1]
+                velocity[point] = v
 
-        return {'mineral_harvested':mineral_harvested, 'rover_location':rover_location}
+        return {'drone_location' : drone_location, 'velocity':velocity}
 
     def init_canvas(self, figure_size, dpi):
         fig = plt.figure(figsize = figure_size, dpi = dpi)
-        ax = plt.gca()
-        plt.xlim([-figure_size[0]//2, figure_size[0]//2])
-        plt.ylim([-figure_size[1]//2, figure_size[1]//2])
+        ax = fig.add_subplot(projection='3d')
+
+        ax.axes.set_xlim3d(left=-figure_size[0]//2, right=figure_size[0]//2) 
+        ax.axes.set_ylim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2) 
+        ax.axes.set_zlim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2)
+
         plt.axis('scaled')
-        plt.axis('off')
+        # plt.axis('off')
+
+        plt.show()     
+
         return fig, ax
 
     def convert2img(self, fig, ax):
@@ -111,7 +117,7 @@ class MarsRoverVisualizer(StateViz):
         self._nonfluent_layout = nonfluent_layout
         self._state_layout = state_layout
 
-
+        
         
 
         max_value = max([v[3] for k, v in nonfluent_layout['mineral_location'].items()])

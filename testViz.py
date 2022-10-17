@@ -7,16 +7,20 @@ import sys
 
 from Visualizer.PowerGenViz import PowerGenVisualizer
 from Visualizer.MarsRoverViz import MarsRoverVisualizer
+from Visualizer.DroneViz import DroneVisualizer
 
 FOLDER = 'Competition/Power_gen/'
+FOLDER = 'Competition/Mars_rover/'
+FOLDER = 'Competition/Drone/Drone_con/'
 
 
 def main():
-    steps = 100
+    steps = 2
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'insta0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
-    myEnv.set_visualizer(PowerGenVisualizer)
+    # myEnv.set_visualizer(PowerGenVisualizer)
     # myEnv.set_visualizer(MarsRoverVisualizer)
+    myEnv.set_visualizer(DroneVisualizer)
 
    
     from pprint import pprint
@@ -29,7 +33,7 @@ def main():
 
         img = myEnv.render()
 
-        img.save('./img_folder/power/'+str(step)+'.png')
+        img.save('./img_folder/drone/'+str(step)+'.png')
 
         action = agent.sample_action()
 
@@ -45,8 +49,9 @@ def main():
         print('derived = {}'.format(myEnv.model.derived))
         print('interm = {}'.format(myEnv.model.interm))
         state = next_state
-        
         break
+        
+
 
     print("episode ended with reward {}".format(total_reward))
 

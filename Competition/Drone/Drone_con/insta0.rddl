@@ -2,17 +2,17 @@ non-fluents nf_simple_drone_p0{
 	domain = simple_drone;
 
 	objects {
-		aircraft : {a1};
+		aircraft : {a1, a2};
 	};
 
 	non-fluents {
         // Bounds on the position of the aircraft
-        MIN_X = -50000.0;
-        MAX_X = 500000.0;
-        MIN_Y = -500000.0;
-        MAX_Y = 500000.0;
-        MIN_Z = -50000.0;
-        MAX_Z = 50000.0;
+        MIN_X = -500.0;
+        MAX_X = 500.0;
+        MIN_Y = -5000.0;
+        MAX_Y = 500.0;
+        MIN_Z = -500.0;
+        MAX_Z = 500.0;
 
         GRAVITY = 9.8;
 
@@ -30,7 +30,10 @@ non-fluents nf_simple_drone_p0{
         GOAL_Y(a1) = 50.0;
         GOAL_z(a1) = 50.0;
 
-        CONTROLLABLE(a1);
+        GOAL_X(a2) = -50.0;
+        GOAL_Y(a2) = -50.0;
+        GOAL_z(a2) = -50.0;
+
 	};
 }
 
@@ -42,6 +45,10 @@ instance simple_drone_p0 {
 	pos_x(a1) = 0.0;
         pos_y(a1) = 0.0;
         pos_z(a1) = 0.0;
+
+        pos_x(a1) = -10.0;
+        pos_y(a1) = -10.0;
+        pos_z(a1) = -10.0;
 
 
         vel(a1) = 0.1;

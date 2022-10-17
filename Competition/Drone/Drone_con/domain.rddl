@@ -16,12 +16,12 @@ pvariables {
     CONTROLLABLE(aircraft) : { non-fluent, bool, default = false}; // which aircraft can be controlled
 
     // Bounds on the position of the aircraft
-    MIN_X : { non-fluent, real, default = -50000.0};
-    MAX_X : { non-fluent, real, default = 50000.0};
-    MIN_Y : { non-fluent, real, default = -50000.0};
-    MAX_Y : { non-fluent, real, default = 50000.0};
-    MIN_Z : { non-fluent, real, default = -50000.0};
-    MAX_Z : { non-fluent, real, default = 50000.0};
+    MIN_X : { non-fluent, real, default = -500.0};
+    MAX_X : { non-fluent, real, default = 500.0};
+    MIN_Y : { non-fluent, real, default = -500.0};
+    MAX_Y : { non-fluent, real, default = 500.0};
+    MIN_Z : { non-fluent, real, default = -500.0};
+    MAX_Z : { non-fluent, real, default = 500.0};
 
     GRAVITY : { non-fluent, real, default = 9.8};
 
