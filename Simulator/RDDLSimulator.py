@@ -721,7 +721,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         self.epsilon = 0.001
         # self.BigM = float(max_bound)
         self.BigM = max_bound
-        self._bounds = {}       # TODO handle booleans
+        self._bounds = {}
         for state in model.states:
             self._bounds[state] = [-self.BigM, self.BigM]
         for derived in model.derived:
