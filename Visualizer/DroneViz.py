@@ -17,7 +17,7 @@ import Visualizer
 
 
 class DroneVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, figure_size = [50, 50], dpi = 50, fontsize = 8, display=False) -> None:
+    def __init__(self, model: RDDLModel, figure_size = [100, 100], dpi = 10, fontsize = 8, display=False) -> None:
 
         self._model= model
         self._states = model.states
@@ -52,6 +52,8 @@ class DroneVisualizer(StateViz):
             elif 'GOAL_Z_' in k:
                 point = k.split('_')[2]
                 goal_location[point][2] = v
+        
+        print(goal_location)
 
         return {'goal_location' : goal_location}
     
@@ -76,6 +78,9 @@ class DroneVisualizer(StateViz):
         return {'drone_location' : drone_location, 'velocity':velocity}
 
     def init_canvas(self, figure_size, dpi):
+        
+        # plt.rc('axes', labelsize=5000)
+
         fig = plt.figure(figsize = figure_size, dpi = dpi)
         ax = fig.add_subplot(projection='3d')
 
@@ -83,10 +88,14 @@ class DroneVisualizer(StateViz):
         ax.axes.set_ylim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2) 
         ax.axes.set_zlim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2)
 
-        plt.axis('scaled')
-        # plt.axis('off')
+        fig.subplots_adjust(left=0, right=0.1, bottom=0, top=0.1)
 
-        plt.show()     
+        ax.tick_params(labelsize=100)
+
+
+        
+        # plt.axis('scaled')
+        # plt.axis('off')
 
         return fig, ax
 
@@ -117,28 +126,12 @@ class DroneVisualizer(StateViz):
         self._nonfluent_layout = nonfluent_layout
         self._state_layout = state_layout
 
+        for k,v in nonfluent_layout['goal_location'].items():
+            self._ax.plot([v[0]],[v[1]],[v[2]], color='r', marker='X', markersize=200)
+
         
-        
-
-        max_value = max([v[3] for k, v in nonfluent_layout['mineral_location'].items()])
-        for k,v in nonfluent_layout['mineral_location'].items():
-            if state_layout['mineral_harvested'][k] == False:
-                value = nonfluent_layout['mineral_location'][k][3]/max_value
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=value)
-            else:
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
-            self._ax.add_patch(p_point)
-
-
-        rover_img_path = self._asset_path + '/assets/mars-rover.png'
-        rover_logo = plt_img.imread(rover_img_path)
-        rover_logo_zoom = rover_logo.shape[0]/(self._dpi*90)
-
-        for k,v in state_layout['rover_location'].items():
-            imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
-            ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
-            self._ax.add_artist(ab)
-
+        for k,v in state_layout['drone_location'].items():
+            self._ax.plot([v[0]],[v[1]],[v[2]], color='b', marker='o', markersize=200)
 
         img = self.convert2img(self._fig, self._ax)
 
@@ -172,33 +165,5 @@ class DroneVisualizer(StateViz):
 
         return state_buffer
     
-    # def animate_buffer(self, states_buffer):
-
-    #     threading.Thread(target=self.animate_buffer).start()
-
-    #     # img_list = [self.render(states_buffer[i]) for i in range(len(states_buffer))]
-
-    #     # img_list[0].save('temp_result.gif', save_all=True,optimize=False, append_images=img_list[1:], loop=0)
-
-
-    #     def anime(i):
-    #         self.render(states_buffer[i])
-            
-    #     anim = animation.FuncAnimation(self._fig, anime, interval=200)
-
-    #     plt.show()
-
-
-    #     # plt.show()
-
-    #     # img = self.render(states_buffer[0])
-    #     # img.save('./img_folder/0.png')
-
-    #     return
-
-
-
-
-
 
     

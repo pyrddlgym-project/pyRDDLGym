@@ -26,13 +26,13 @@ non-fluents nf_simple_drone_p0{
         MIN_THETA(a1) = -1.0;
         MAX_THETA(a1) = 1.0;
 
-        GOAL_X(a1) = 50.0;
-        GOAL_Y(a1) = 50.0;
-        GOAL_z(a1) = 50.0;
+        GOAL_X(a1) = 25.0;
+        GOAL_Y(a1) = 25.0;
+        GOAL_Z(a1) = 25.0;
 
-        GOAL_X(a2) = -50.0;
-        GOAL_Y(a2) = -50.0;
-        GOAL_z(a2) = -50.0;
+        GOAL_X(a2) = -25.0;
+        GOAL_Y(a2) = -25.0;
+        GOAL_Z(a2) = -25.0;
 
 	};
 }
