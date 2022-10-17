@@ -22,7 +22,9 @@ AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = [
     '*', '+', '+', '<', '>', '^', '|'
 ]
 AGGREG_OP_TO_STRING_DICT = dict(
-    zip(AGGREG_OPERATION_LIST, AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST))
+    zip(AGGREG_OPERATION_LIST,
+        AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST)
+)
 
 
 class RDDLUndefinedVariableError(SyntaxError):
@@ -33,7 +35,15 @@ class RDDLMissingCPFDefinitionError(SyntaxError):
     pass
 
 
+class RDDLInvalidExpressionError(SyntaxError):
+    pass
+
+
 class RDDLInvalidNumberOfArgumentsError(SyntaxError):
+    pass
+
+
+class RDDLValueOutOfRangeError(ValueError):
     pass
 
 
@@ -101,7 +111,11 @@ class RDDLGrounder(Grounder):
         return model
 
     def _ground_horizon(self):
-        return self.AST.instance.horizon
+        horizon = self.AST.instance.horizon
+        if not (horizon >= 0):
+            raise RDDLValueOutOfRangeError(
+                'Rollout horizon {} in the instance is not >= 0.'.format(horizon))
+        return horizon
 
     def _ground_max_actions(self):
         numactions = self.AST.instance.max_nondef_actions
@@ -111,7 +125,11 @@ class RDDLGrounder(Grounder):
             return int(numactions)
 
     def _ground_discount(self):
-        return self.AST.instance.discount
+        discount = self.AST.instance.discount
+        if not (0. <= discount <= 1.):
+            raise RDDLValueOutOfRangeError(
+                'Discount factor {} in the instance is not in [0, 1].'.format(discount))
+        return discount
 
     def _extract_objects(self):
         if self.AST.non_fluents.objects[0] is None:
@@ -126,7 +144,13 @@ class RDDLGrounder(Grounder):
                     self.objects_rev[obj] = type[0]
 
     def _ground_objects(self, args):
-        objects_by_type = [self.objects[obj_type] for obj_type in args]
+        objects_by_type = []
+        for obj_type in args:
+            if obj_type not in self.objects:
+                raise RDDLUndefinedVariableError(
+                    'Object {} is not defined: should be one of {}.'.format(
+                        obj_type, list(self.objects.keys())))
+            objects_by_type.append(self.objects[obj_type])
         return itertools.product(*objects_by_type)
     
     def _append_variation_to_name(self, base_name, variation):
@@ -214,7 +238,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing its definition.'.format(name))
+                        'CPF {} is missing a valid definition.'.format(name))
     
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
@@ -236,7 +260,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing its definition.'.format(name))
+                        'CPF {} is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -259,7 +283,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing its definition.'.format(name))
+                        'CPF {} is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -389,11 +413,17 @@ class RDDLGrounder(Grounder):
             # This is a constant.
             pass
         elif expr.args[1]:
-            variation_list = [[dic[arg] for arg in expr.args[1]]]
+            variation_list = []
+            for arg in expr.args[1]:
+                if arg not in dic:
+                    raise RDDLUndefinedVariableError(
+                        'Parameter {} is not defined in call to {}.'.format(arg, expr.args[0]))
+                variation_list.append(dic[arg])
+            variation_list = [variation_list]
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
             expr = Expression(('pvar_expr', (new_name, None)))
         else:
-            raise SyntaxError(f'Malformed expression {str(expr)}.')
+            raise RDDLInvalidExpressionError(f'Malformed expression {str(expr)}.')
         return expr
 
     def _scan_expr_tree_abr(self, expr, dic):
@@ -508,8 +538,8 @@ class RDDLGrounder(Grounder):
                 self.preconditions.append(self._scan_expr_tree(precond, {}))
     
         if hasattr(self.AST.domain, 'constraints'):
-            for constraint in self.AST.domain.preconds:
-                self.preconditions.append(self._scan_expr_tree(constraint, {}))
+            if self.AST.domain.constraints:
+                raise Exception('Internal error: no support for state-action constraints.')
     
         if hasattr(self.AST.domain, 'invariants'):
             for inv in self.AST.domain.invariants:
