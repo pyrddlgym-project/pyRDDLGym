@@ -3,11 +3,10 @@ from Policies.Agents import RandomAgent
 import numpy as np
 import random
 
-FOLDER = 'Competition/Drone_mix/'
+FOLDER = 'Competition/MountainCar/'
 
 
 def main():
-    steps = 30
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'insta0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
     
@@ -16,7 +15,7 @@ def main():
     
     total_reward = 0
     state = myEnv.reset()
-    for step in range(steps):
+    for step in range(myEnv.model.horizon):
         myEnv.render()
         action = agent.sample_action()
 
