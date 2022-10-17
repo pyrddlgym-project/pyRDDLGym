@@ -538,8 +538,8 @@ class RDDLGrounder(Grounder):
                 self.preconditions.append(self._scan_expr_tree(precond, {}))
     
         if hasattr(self.AST.domain, 'constraints'):
-            for constraint in self.AST.domain.preconds:
-                self.preconditions.append(self._scan_expr_tree(constraint, {}))
+            if self.AST.domain.constraints:
+                raise Exception('Internal error: no support for state-action constraints.')
     
         if hasattr(self.AST.domain, 'invariants'):
             for inv in self.AST.domain.invariants:
