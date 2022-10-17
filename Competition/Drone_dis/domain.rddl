@@ -100,9 +100,16 @@ reward = -sum_{?a : aircraft} [CONTROLLABLE(?a) * [sqrt[pow[(pos_x(?a) - GOAL_X(
 
 state-invariants {
     // boundaries of the aircraft locations
-    forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
-                            pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
-                            pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
+    forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ];
+    forall_{?a : aircraft}[ pos_x(?a) >= MIN_X ];
+    forall_{?a : aircraft}[ pos_y(?a) <= MAX_Y ];
+    forall_{?a : aircraft}[ pos_y(?a) >= MIN_Y ];
+    forall_{?a : aircraft}[ pos_z(?a) <= MAX_Z ];
+    forall_{?a : aircraft}[ pos_z(?a) >= MIN_Z ];
+
+    //forall_{?a : aircraft}[ pos_x(?a) <= MAX_X ^ pos_x(?a) >= MIN_X ^
+    //                        pos_y(?a) <= MAX_Y ^ pos_y(?a) >= MIN_Y ^
+    //                        pos_z(?a) <= MAX_Z ^ pos_x(?a) >= MIN_Z ];
     };
 
 action-preconditions {
