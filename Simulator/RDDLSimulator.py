@@ -715,11 +715,12 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                  model: PlanningModel,
                  rng: np.random.Generator=np.random.default_rng(),
                  compute_levels: bool=True,
-                 max_bound: float=1000.0) -> None:
+                 max_bound: float=np.inf) -> None:
         super().__init__(model, rng, compute_levels)
         
         self.epsilon = 0.001
-        self.BigM = float(max_bound)
+        # self.BigM = float(max_bound)
+        self.BigM = max_bound
         self._bounds = {}
         for state in model.states:
             self._bounds[state] = [-self.BigM, self.BigM]
@@ -733,27 +734,32 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         # actions and states bounds extraction for gym's action and state spaces repots only!
         # currently supports only linear in\equality constraints
         for action_precond in model.preconditions:
-            if action_precond.etype[0] != 'rational':
-                pass
-            var, lim, loc = self.get_bounds(action_precond.args[0], action_precond.args[1], action_precond.etype[1])
-            if var is not None and loc is not None:
-                self._bounds[var][loc] = lim
+            self._parse_bounds_rec(action_precond, self._model.actions)
 
         for state_inv in model.invariants:
-            if state_inv.etype[0] != 'rational':
-                pass
-            var, lim, loc = self.get_bounds(state_inv.args[0], state_inv.args[1], state_inv.etype[1], False)
+            self._parse_bounds_rec(state_inv, self._model.states)
+            # if state_inv.etype[0] != 'rational':
+            #     pass
+            # var, lim, loc = self.get_bounds(state_inv.args[0], state_inv.args[1], state_inv.etype[1], False)
+            # if var is not None and loc is not None:
+            #     self._bounds[var][loc] = lim
+
+    def _parse_bounds_rec(self, cond, search_dict):
+        if cond.etype[0] == "boolean" and cond.etype[1] == "^":
+            self._parse_bounds_rec(cond.args[0], search_dict)     # left term
+            self._parse_bounds_rec(cond.args[1], search_dict)     # right term
+        if cond.etype[0] == "relational":
+            var, lim, loc = self.get_bounds(cond.args[0], cond.args[1], cond.etype[1], search_dict)
             if var is not None and loc is not None:
                 self._bounds[var][loc] = lim
 
-    def get_bounds(self, left_arg, right_arg, op, is_action=True) -> Tuple[str, float, int]:
+
+    def get_bounds(self, left_arg, right_arg, op, search_dict=None) -> Tuple[str, float, int]:
         variable = None
         lim = 0
         loc = None
-        if is_action:
-            search_dict = self._model.actions
-        else:
-            search_dict = self._model.states
+        if search_dict is None:
+            return variable, float(lim), loc
 
         if left_arg.etype[0] == 'pvar':
             name = left_arg.args[0]
