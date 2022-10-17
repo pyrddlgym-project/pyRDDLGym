@@ -33,10 +33,6 @@ class DroneVisualizer(StateViz):
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
-
-        print(self._states)
-        print(self._nonfluents)
-        print(self._objects)
     
     def build_nonfluents_layout(self):       
 
