@@ -63,6 +63,8 @@ class RDDLEnv(gym.Env):
         self.defaultAction = copy.deepcopy(self.model.actions)
 
         # define the actions bounds
+
+
         action_space = Dict()
         for act in self.model.actions:
             range = self.model.actionsranges[act]
@@ -72,8 +74,15 @@ class RDDLEnv(gym.Env):
             elif range == 'bool':
                 action_space[act] = Discrete(2)
             elif range == 'int':
-                action_space[act] = Discrete(int(self.sampler.bounds[act][1] - self.sampler.bounds[act][0] + 1),
-                                             start=int(self.sampler.bounds[act][0]))
+                high = self.sampler.bounds[act][1]
+                if high == np.inf:
+                    high = np.iinfo(np.int32).max
+                low = self.sampler.bounds[act][0]
+                if low == -np.inf:
+                    low = np.iinfo(np.int32).min
+                action_space[act] = Discrete(int(high - low + 1), start=int(low))
+                # action_space[act] = Discrete(int(self.sampler.bounds[act][1] - self.sampler.bounds[act][0] + 1),
+                #                              start=int(self.sampler.bounds[act][0]))
             else:
                 raise Exception("unknown action range in gym environment init")
 
@@ -84,13 +93,20 @@ class RDDLEnv(gym.Env):
         for state in self.model.states:
             range = self.model.statesranges[state]
             if range == 'real':
-                    state_space[state] = Box(low=self.sampler.bounds[state][0], high=self.sampler.bounds[state][1],
-                                             dtype=np.float32)
+                state_space[state] = Box(low=self.sampler.bounds[state][0], high=self.sampler.bounds[state][1],
+                                         dtype=np.float32)
             elif range == 'bool':
                 state_space[state] = Discrete(2)
             elif range == 'int':
-                state_space[state] = Discrete(int(self.sampler.bounds[state][1] - self.sampler.bounds[state][0] + 1),
-                                             start=int(self.sampler.bounds[state][0]))
+                high = self.sampler.bounds[state][1]
+                if high == np.inf:
+                    high = np.iinfo(np.int32).max
+                low = self.sampler.bounds[state][0]
+                if low == -np.inf:
+                    low = np.iinfo(np.int32).min
+                state_space[state] = Discrete(int(high - low + 1), start=int(low))
+                # state_space[state] = Discrete(int(self.sampler.bounds[state][1] - self.sampler.bounds[state][0] + 1),
+                #                              start=int(self.sampler.bounds[state][0]))
             else:
                 raise Exception("unknown state range in gym environment init")
         self.observation_space = state_space
