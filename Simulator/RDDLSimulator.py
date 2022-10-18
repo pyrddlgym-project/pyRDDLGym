@@ -305,7 +305,7 @@ class RDDLSimulator:
             arg = -1 * arg  # bool -> int  
             return arg
         
-        elif args:
+        elif len(args) >= 1:
             if op == '*':
                 return self._sample_short_circuit_product(expr, args, subs)
             elif op == '+':
@@ -475,7 +475,7 @@ class RDDLSimulator:
                     '\n' + RDDLSimulator._print_stack_trace(expr))
             return not arg
         
-        elif args:
+        elif len(args) >= 1:
             if op == '|' or op == '^':
                 return self._sample_short_circuit_and_or(expr, args, op, subs)
             elif len(args) == 2:
@@ -503,7 +503,7 @@ class RDDLSimulator:
                         '\n' + RDDLSimulator._print_stack_trace(expr))
                 if op == '|' and term:
                     return True
-                elif not term:  # '^'
+                elif op == '^' and not term:
                     return False
         
         # evaluate nested expressions (can't optimize the order in general)
@@ -516,7 +516,7 @@ class RDDLSimulator:
                         '\n' + RDDLSimulator._print_stack_trace(expr))
                 if op == '|' and term:
                     return True
-                elif not term:  # '^'
+                elif op == '^' and not term:
                     return False
         
         return op != '|'
