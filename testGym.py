@@ -6,10 +6,10 @@ from Policies.Agents import RandomAgent
 # PROBLEM = 'RDDL/Thiagos_Mars_Rover.rddl'
 # PROBLEM = 'RDDL/Thiagos_HVAC.rddl'
 # FOLDER = 'Competition/Power_gen/'
-# FOLDER = 'Competition/Mars_rover/'
+FOLDER = 'Competition/Mars_rover/'
 # FOLDER = 'Competition/drone_con/'
 # FOLDER = 'Competition/MountainCar/'
-FOLDER = 'Competition/Cartpole/'
+# FOLDER = 'Competition/Cartpole/'
 # FOLDER = 'Competition/Recsim/'
 
 def main():
