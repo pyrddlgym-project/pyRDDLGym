@@ -19,7 +19,7 @@ AGGREG_OPERATION_LIST = [
     'prod', 'sum', 'avg', 'minimum', 'maximum', 'forall', 'exists'
 ]
 AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = [
-    '*', '+', '+', '<', '>', '^', '|'
+    '*', '+', '+', 'min', 'max', '^', '|'
 ]
 AGGREG_OP_TO_STRING_DICT = dict(
     zip(AGGREG_OPERATION_LIST,
