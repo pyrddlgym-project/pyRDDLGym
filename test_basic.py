@@ -7,7 +7,7 @@ FOLDER = 'Competition/MountainCar/'
 
 
 def main():
-    myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'insta0.rddl', is_grounded=False)
+    myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'instance0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
     
     from pprint import pprint
