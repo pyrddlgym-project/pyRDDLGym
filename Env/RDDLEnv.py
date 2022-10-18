@@ -123,7 +123,7 @@ class RDDLEnv(gym.Env):
         # set full action vector, values are clipped to be inside the feasible action space
         action = copy.deepcopy(self.defaultAction)
         for act in at:
-            if self.action_space[act] == "Discrete(2)":
+            if str(self.action_space[act]) == "Discrete(2)":
                if self.model.actionsranges[act] == "bool":
                    action[act] = bool(at[act])
             else:

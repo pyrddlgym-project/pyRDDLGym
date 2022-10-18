@@ -59,7 +59,8 @@ domain mountain_car {
     };
 
     action-preconditions {
-		(action == 0) | (action == 1) | (action == 2);
+        action <= 2;
+        action >= 0;
     };
 
 }
