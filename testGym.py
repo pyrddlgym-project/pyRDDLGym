@@ -5,8 +5,8 @@ from Policies.Agents import RandomAgent
 # PROBLEM = 'RDDL/Thiagos_HVAC_grounded.rddl'
 # PROBLEM = 'RDDL/Thiagos_Mars_Rover.rddl'
 # PROBLEM = 'RDDL/Thiagos_HVAC.rddl'
-# FOLDER = 'Competition/Power_gen/'
-FOLDER = 'Competition/Mars_rover/'
+FOLDER = 'Competition/Power_gen/'
+# FOLDER = 'Competition/Mars_rover/'
 # FOLDER = 'Competition/drone_con/'
 # FOLDER = 'Competition/MountainCar/'
 # FOLDER = 'Competition/Cartpole/'
@@ -18,7 +18,7 @@ def main():
 
     total_reward = 0
     state = myEnv.reset()
-    for step in range(myEnv.horizon+5):
+    for step in range(myEnv.horizon):
         myEnv.render()
         action = agent.sample_action()
         next_state, reward, done, info = myEnv.step(action)
