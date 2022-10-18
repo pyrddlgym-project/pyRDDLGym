@@ -45,6 +45,7 @@ domain cart_pole {
 
        	// actions
        	force_side : { action-fluent, int, default = 0 };      	// whether to apply force to left, right side or none
+       	//test : { action-fluent, bool, default = false };      	// whether to apply force to left, right side or none
     };
 
     cpfs {
@@ -87,7 +88,9 @@ domain cart_pole {
     };
 
     action-preconditions {
-		(force_side == 0) | (force_side == 1);
+        force_side <= 1;
+        force_side >= 0;
+		//(force_side == 0) | (force_side == 1);
     };
 
 }
