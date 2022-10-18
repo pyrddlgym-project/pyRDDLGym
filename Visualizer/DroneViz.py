@@ -49,8 +49,6 @@ class DroneVisualizer(StateViz):
                 point = k.split('_')[2]
                 goal_location[point][2] = v
         
-        print(goal_location)
-
         return {'goal_location' : goal_location}
     
     def build_states_layout(self, state):
