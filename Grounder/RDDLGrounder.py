@@ -362,7 +362,7 @@ class RDDLGrounder(Grounder):
             new_children = []
             for instance_idx in range(len(instances_list)):
                 updated_dict = copy.deepcopy(original_dict)
-                updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
+                updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
                 new_children.append(self._scan_expr_tree(expression, updated_dict))
             #--end for loop through instances
             new_expr = Expression((operation_string, tuple(new_children)))
