@@ -46,6 +46,13 @@ class RDDLActionPreconditionNotSatisfiedError(ValueError):
     pass
 
 
+VALID_ARITHMETIC_OPS = {'+', '-', '*', '/'}
+VALID_RELATIONAL_OPS = {'>=', '>', '<=', '<', '==', '~='}
+VALID_LOGICAL_OPS = {'|', '^', '~', '=>', '<=>'}
+VALID_AGGREGATE_OPS = {'min', 'max'}
+VALID_CONTROL_OPS = {'if'}
+
+
 class RDDLSimulator:
     
     def __init__(self,
@@ -110,7 +117,7 @@ class RDDLSimulator:
                 raise RDDLTypeError(
                     'State invariant must evaluate to bool, got {}.'.format(sample) + 
                     '\n' + RDDLSimulator._print_stack_trace(invariant))
-            if not sample:
+            elif not sample:
                 raise RDDLStateInvariantNotSatisfiedError(
                     'State invariant {} is not satisfied.'.format(idx + 1) + 
                     '\n' + RDDLSimulator._print_stack_trace(invariant))
@@ -124,7 +131,7 @@ class RDDLSimulator:
                 raise RDDLTypeError(
                     'Action precondition must evaluate to bool, got {}.'.format(sample) + 
                     '\n' + RDDLSimulator._print_stack_trace(precondition))
-            if not sample:
+            elif not sample:
                 raise RDDLActionPreconditionNotSatisfiedError(
                     'Action precondition {} is not satisfied.'.format(idx + 1) + 
                     '\n' + RDDLSimulator._print_stack_trace(precondition))
@@ -196,23 +203,25 @@ class RDDLSimulator:
     # TODO:    replace isinstance checks with something better (polymorphism)    
     def _sample(self, expr, subs):
         if isinstance(expr, Expression):
-            etype, eop = expr.etype
+            etype, op = expr.etype
             if etype == 'constant':
                 return self._sample_constant(expr, subs)
             elif etype == 'pvar':
-                return self._sample_pvar(expr, eop, subs)
+                return self._sample_pvar(expr, op, subs)
             elif etype == 'relational':
-                return self._sample_relational(expr, eop, subs)
+                return self._sample_relational(expr, op, subs)
             elif etype == 'arithmetic':
-                return self._sample_arithmetic(expr, eop, subs)
+                return self._sample_arithmetic(expr, op, subs)
+            elif etype == 'aggregation':
+                return self._sample_aggregation(expr, op, subs)
             elif etype == 'func':
-                return self._sample_func(expr, eop, subs)
+                return self._sample_func(expr, op, subs)
             elif etype == 'boolean':
-                return self._sample_logical(expr, eop, subs)
+                return self._sample_logical(expr, op, subs)
             elif etype == 'control':
-                return self._sample_control(expr, eop, subs)
+                return self._sample_control(expr, op, subs)
             elif etype == 'randomvar':
-                return self._sample_random(expr, eop, subs)
+                return self._sample_random(expr, op, subs)
             else:
                 raise RDDLNotImplementedError(
                     'Internal error: expression type {} is not supported.'.format(etype) + 
@@ -230,7 +239,7 @@ class RDDLSimulator:
         args = expr.args
         if len(args) != 2:
             raise RDDLInvalidNumberOfArgumentsError(
-                'Internal error: pvar {} requires 2 args, got {}'.format(expr, len(args)) + 
+                'Internal error: pvar {} requires 2 args, got {}.'.format(expr, len(args)) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         
         var = args[0]
@@ -238,23 +247,30 @@ class RDDLSimulator:
             raise RDDLUndefinedVariableError(
                 'Variable {} is not defined in the instance.'.format(var) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         val = subs[var]
-        
         if val is None:
             raise RDDLUndefinedVariableError(
                 'The value of variable {} is not set.'.format(var) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         return val
     
-    def _sample_relational(self, expr, eop, subs):
+    def _sample_relational(self, expr, op, subs):
+        if op not in VALID_RELATIONAL_OPS:
+            raise RDDLNotImplementedError(
+                'Relational operator {} is not supported: must be one of {}.'.format(
+                    op, VALID_RELATIONAL_OPS) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         args = expr.args
         if not isinstance(args, Sized):
             raise RDDLTypeError(
                 'Internal error: expected Sized, got {}.'.format(type(args)) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
-        if len(args) != 2:
+        elif len(args) != 2:
             raise RDDLInvalidNumberOfArgumentsError(
-                'Relational expression {} requires 2 args, got {}.'.format(eop, len(args)) + 
+                'Relational operator {} requires 2 args, got {}.'.format(op, len(args)) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         
         arg1 = self._sample(args[0], subs)
@@ -262,84 +278,108 @@ class RDDLSimulator:
         arg1 = 1 * arg1  # bool -> int
         arg2 = 1 * arg2
         
-        if eop == '>=':
+        if op == '>=':
             return arg1 >= arg2
-        elif eop == '<=':
+        elif op == '<=':
             return arg1 <= arg2
-        elif eop == '<':
+        elif op == '<':
             return arg1 < arg2
-        elif eop == '>':
+        elif op == '>':
             return arg1 > arg2
-        elif eop == '==':
+        elif op == '==':
             return arg1 == arg2
-        elif eop == '~=':
+        else:  # '!='
             return arg1 != arg2
-        else:
-            raise RDDLNotImplementedError(
-                'Relational operator {} is not supported.'.format(eop) + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
     
-    def _sample_arithmetic(self, expr, eop, subs):
+    def _sample_arithmetic(self, expr, op, subs):
+        if op not in VALID_ARITHMETIC_OPS:
+            raise RDDLNotImplementedError(
+                'Arithmetic operator {} is not supported: must be one of {}.'.format(
+                    op, VALID_ARITHMETIC_OPS) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
         args = expr.args        
-        if len(args) == 1 and eop == '-':
+          
+        if len(args) == 1 and op == '-':
             arg = self._sample(args[0], subs)
-            return -1 * arg  # bool -> int        
-        elif len(args) == 2:
-            if eop == '*':
-                return self._sample_short_circuit_product(expr, *args, subs)
-            else:
+            arg = -1 * arg  # bool -> int  
+            return arg
+        
+        elif args:
+            if op == '*':
+                return self._sample_short_circuit_product(expr, args, subs)
+            elif op == '+':
+                terms = (1 * self._sample(arg, subs) for arg in args)  # bool -> int
+                return sum(terms)
+            elif len(args) == 2:
                 arg1 = self._sample(args[0], subs)
                 arg2 = self._sample(args[1], subs)
-                return RDDLSimulator._apply_arithmetic_rule(expr, arg1, arg2, eop)        
-        else:
-            raise RDDLInvalidNumberOfArgumentsError(
-                'Arithmetic operator {} requires 2 args, got {}'.format(eop, len(args)) + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
-    
-    @staticmethod
-    def _apply_arithmetic_rule(expr, arg1, arg2, op):
-        arg1 = 1 * arg1  # bool -> int
-        arg2 = 1 * arg2
+                arg1 = 1 * arg1  # bool -> int
+                arg2 = 1 * arg2
+                if op == '-':
+                    return arg1 - arg2
+                elif op == '/':
+                    return RDDLSimulator._safe_division(expr, arg1, arg2)
             
-        if op == '+':
-            return arg1 + arg2
-        elif op == '-':
-            return arg1 - arg2
-        elif op == '*':
-            return arg1 * arg2
-        elif op == '/':
-            return RDDLSimulator._safe_division(expr, arg1, arg2) 
-        else:
-            raise RDDLNotImplementedError(
-                'Arithmetic operator {} is not supported.'.format(op) + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
+        raise RDDLInvalidNumberOfArgumentsError(
+            'Arithmetic operator {} does not have the required number of args, got {}.'.format(
+                op, len(args)) + 
+            '\n' + RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _safe_division(expr, arg1, arg2):
         if arg1 != arg1 or arg2 != arg2:
             raise ArithmeticError(
-                'Invalid (NaN) values in quotient: {} and {}.'.format(arg1, arg2) + 
+                'Invalid (NaN) values in quotient, got {} and {}.'.format(arg1, arg2) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         elif arg2 == 0:
             raise ArithmeticError(
                 'Division by zero.' + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
-        else:
-            return arg1 / arg2  # int -> float
         
-    def _sample_short_circuit_product(self, expr, expr1, expr2, subs):
-        if expr2.is_constant_expression() or expr2.is_pvariable_expression():  # TODO: is this ok?
-            expr1, expr2 = expr2, expr1
+        return arg1 / arg2  # int -> float
         
-        arg1 = self._sample(expr1, subs)
-        arg1 = 1 * arg1  # bool -> int
-        if arg1 == 0:
-            return arg1
+    def _sample_short_circuit_product(self, expr, args, subs):
+        product = 1
         
-        arg2 = self._sample(expr2, subs)
-        arg2 = 1 * arg2  # bool -> int
-        return arg1 * arg2
+        # evaluate variables and constants first (these are fast)
+        for arg in args:
+            if arg.is_constant_expression() or arg.is_pvariable_expression():
+                term = self._sample(arg, subs)
+                product *= term  # bool -> int
+                if product == 0:
+                    return product
+        
+        # evaluate nested expressions (can't optimize the order in general)
+        for arg in args:
+            if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
+                term = self._sample(arg, subs)
+                product *= term  # bool -> int
+                if product == 0:
+                    return product
+                
+        return product
     
+    # aggregations
+    def _sample_aggregation(self, expr, op, subs):
+        if op not in VALID_AGGREGATE_OPS:
+            raise RDDLNotImplementedError(
+                'Aggregation operator {} is not supported: must be one of {}.'.format(
+                    op, VALID_AGGREGATE_OPS) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        args = expr.args
+        if not args:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Aggregation operator {} requires at least 1 arg, got {}.'.format(op, len(args)) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        terms = (1 * self._sample(arg, subs) for arg in args)  # bool -> int
+        if op == 'min':
+            return min(terms)
+        else:  # 'max'
+            return max(terms)
+        
     # functions
     KNOWN_UNARY = {        
         'abs': abs,
@@ -382,7 +422,7 @@ class RDDLSimulator:
         if name in RDDLSimulator.KNOWN_UNARY:
             if len(args) != 1:
                 raise RDDLInvalidNumberOfArgumentsError(
-                    'Function {} requires 1 arg, got {}.'.format(name, len(args)) + 
+                    'Unary function {} requires 1 arg, got {}.'.format(name, len(args)) + 
                     '\n' + RDDLSimulator._print_stack_trace(expr))    
                             
             arg = self._sample(args[0], subs)
@@ -391,13 +431,13 @@ class RDDLSimulator:
                 return RDDLSimulator.KNOWN_UNARY[name](arg)
             except:
                 raise RDDLValueOutOfRangeError(
-                    'Function {} could not be evaluated with arg {}.'.format(name, arg) + 
+                    'Unary function {} could not be evaluated with arg {}.'.format(name, arg) + 
                     '\n' + RDDLSimulator._print_stack_trace(expr))
         
         elif name in RDDLSimulator.KNOWN_BINARY:
             if len(args) != 2:
                 raise RDDLInvalidNumberOfArgumentsError(
-                    'Function {} requires 2 args, got {}.'.format(name, len(args)) + 
+                    'Binary function {} requires 2 args, got {}.'.format(name, len(args)) + 
                     '\n' + RDDLSimulator._print_stack_trace(expr))      
                           
             arg1 = self._sample(args[0], subs)
@@ -408,7 +448,7 @@ class RDDLSimulator:
                 return RDDLSimulator.KNOWN_BINARY[name](arg1, arg2)
             except:
                 raise RDDLValueOutOfRangeError(
-                    'Function {} could not be evaluated with args {} and {}.'.format(
+                    'Binary function {} could not be evaluated with args {} and {}.'.format(
                         name, arg1, arg2) + 
                     '\n' + RDDLSimulator._print_stack_trace(expr))
         
@@ -418,64 +458,77 @@ class RDDLSimulator:
                 '\n' + RDDLSimulator._print_stack_trace(expr))   
     
     # logical expressions
-    def _sample_logical(self, expr, eop, subs):
+    def _sample_logical(self, expr, op, subs):
+        if op not in VALID_LOGICAL_OPS:
+            raise RDDLNotImplementedError(
+                'Logical operator {} is not supported: must be one of {}.'.format(
+                    op, VALID_LOGICAL_OPS) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
         args = expr.args
-        if len(args) == 1 and eop == '~':
+        
+        if len(args) == 1 and op == '~':
             arg = self._sample(args[0], subs)
             if not isinstance(arg, bool):
                 raise RDDLTypeError(
-                    'Logical operator {} requires boolean arg, got {}.'.format(eop, arg) + 
+                    'Logical operator {} requires boolean arg, got {}.'.format(op, arg) + 
                     '\n' + RDDLSimulator._print_stack_trace(expr))
             return not arg
         
-        elif len(args) == 2:
-            if eop == '|' or eop == '^':
-                return self._sample_short_circuit_and_or(expr, *args, eop, subs)
-            elif eop == '~':
-                return self._sample_xor(expr, *args, subs)
-            elif eop == '=>':
-                return self._sample_short_circuit_implies(expr, *args, subs)
-            elif eop == '<=>':
-                return self._sample_equivalent(expr, *args, subs)
-            else:
-                raise RDDLNotImplementedError(
-                    'Logical operator {} is not supported.'.format(eop) + 
-                    '\n' + RDDLSimulator._print_stack_trace(expr))
+        elif args:
+            if op == '|' or op == '^':
+                return self._sample_short_circuit_and_or(expr, args, op, subs)
+            elif len(args) == 2:
+                if op == '~':
+                    return self._sample_xor(expr, *args, subs)
+                elif op == '=>':
+                    return self._sample_short_circuit_implies(expr, *args, subs)
+                elif op == '<=>':
+                    return self._sample_equivalent(expr, *args, subs)
                 
-        else:
-            raise RDDLInvalidNumberOfArgumentsError(
-                'Logical operator {} require 2 args, got {}'.format(eop, len(args)) + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
+        raise RDDLInvalidNumberOfArgumentsError(
+            'Logical operator {} does not have the required number of args, got {}.'.format(
+                op, len(args)) + 
+            '\n' + RDDLSimulator._print_stack_trace(expr))
         
-    def _sample_short_circuit_and_or(self, expr, expr1, expr2, op, subs):
-        if expr2.is_constant_expression() or expr2.is_pvariable_expression():  # TODO: is this ok?
-            expr1, expr2 = expr2, expr1
+    def _sample_short_circuit_and_or(self, expr, args, op, subs):
         
-        arg1 = self._sample(expr1, subs)
-        if not isinstance(arg1, bool):
-            raise RDDLTypeError(
-                'Logical operator {} requires boolean arg, got {}.'.format(op, arg1) + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
-            
-        if op == '|' and arg1:
-            return True
-        elif op == '^' and not arg1:
-            return False
+        # evaluate variables and constants first (these are fast)
+        for arg in args:
+            if arg.is_constant_expression() or arg.is_pvariable_expression():
+                term = self._sample(arg, subs)
+                if not isinstance(term, bool):
+                    raise RDDLTypeError(
+                        'Logical operator {} requires boolean arg, got {}.'.format(op, term) + 
+                        '\n' + RDDLSimulator._print_stack_trace(expr))
+                if op == '|' and term:
+                    return True
+                elif not term:  # '^'
+                    return False
         
-        arg2 = self._sample(expr2, subs)
-        if not isinstance(arg1, bool):
-            raise RDDLTypeError(
-                'Logical operator {} requires boolean arg, got {}.'.format(op, arg2) + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
-        return arg2
+        # evaluate nested expressions (can't optimize the order in general)
+        for arg in args:
+            if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
+                term = self._sample(arg, subs)
+                if not isinstance(term, bool):
+                    raise RDDLTypeError(
+                        'Logical operator {} requires boolean arg, got {}.'.format(op, term) + 
+                        '\n' + RDDLSimulator._print_stack_trace(expr))
+                if op == '|' and term:
+                    return True
+                elif not term:  # '^'
+                    return False
         
+        return op != '|'
+    
     def _sample_xor(self, expr, arg1, arg2, subs):
         arg1 = self._sample(arg1, subs)
         arg2 = self._sample(arg2, subs)
         if not (isinstance(arg1, bool) and isinstance(arg2, bool)):
             raise RDDLTypeError(
-                'Xor requires boolean args, got {} and {}.'.format(arg1, arg2) + 
+                'Logical operator ~ requires boolean args, got {} and {}.'.format(arg1, arg2) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         return arg1 != arg2
     
     def _sample_short_circuit_implies(self, expr, arg1, arg2, subs):
@@ -493,6 +546,7 @@ class RDDLSimulator:
             raise RDDLTypeError(
                 'Logical operator => requires boolean args, got {} and {}.'.format(arg1, arg2) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr)) 
+            
         return arg2
     
     def _sample_equivalent(self, expr, arg1, arg2, subs):
@@ -500,28 +554,33 @@ class RDDLSimulator:
         arg2 = self._sample(arg2, subs)
         if not (isinstance(arg1, bool) and isinstance(arg2, bool)):
             raise RDDLTypeError(
-                '<=> requires boolean args, got {} and {}.'.format(arg1, arg2) + 
+                'Logical operator <=> requires boolean args, got {} and {}.'.format(arg1, arg2) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         return arg1 == arg2
         
     # control
-    def _sample_control(self, expr, eop, subs):
-        args = expr.args
-        if eop != 'if':
+    def _sample_control(self, expr, op, subs):
+        if op not in VALID_CONTROL_OPS:
             raise RDDLNotImplementedError(
-                'Control type {} is not supported.'.format(eop) + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
-        if len(args) != 3:
-            raise RDDLInvalidNumberOfArgumentsError(
-                'If statement requires 3 args, got {}.'.format(len(args)) + 
+                'Control structure {} is not supported, must be one of {}.'.format(
+                    op, VALID_CONTROL_OPS) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         
-        cond = self._sample(args[0], subs)
-        if not isinstance(cond, bool):
-            raise RDDLTypeError(
-                'If condition must evaluate to bool, got {}.'.format(cond) + 
+        args = expr.args
+        if len(args) != 3:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'If statement requires 3 statements, got {}.'.format(len(args)) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
-        return self._sample(args[1 if cond else 2], subs)
+        
+        condition = self._sample(args[0], subs)
+        if not isinstance(condition, bool):
+            raise RDDLTypeError(
+                'If condition must evaluate to bool, got {}.'.format(condition) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        branch = args[1 if condition else 2]
+        return self._sample(branch, subs)
         
     # random variables
     def _sample_random(self, expr, name, subs):
@@ -543,19 +602,7 @@ class RDDLSimulator:
             return self._sample_weibull(expr, subs)        
         elif name == 'Gamma':
             return self._sample_gamma(expr, subs)
-        elif name == 'Discrete':  # no support for enum
-            raise RDDLNotImplementedError(
-                'Discrete is not supported.' + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))
-        elif name == 'Multinomial':  # no support for enum
-            raise RDDLNotImplementedError(
-                'Multinomial is not supported.' + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))            
-        elif name == 'Dirichlet':  # no support for enum
-            raise RDDLNotImplementedError(
-                'Dirichlet is not supported.' + 
-                '\n' + RDDLSimulator._print_stack_trace(expr))     
-        else:
+        else:  # no support for enum
             raise RDDLNotImplementedError(
                 'Distribution {} is not supported.'.format(name) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
@@ -572,6 +619,7 @@ class RDDLSimulator:
             raise RDDLTypeError(
                 'KronDelta requires int or boolean parameter, got {}.'.format(arg) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         return arg
     
     def _sample_dirac_delta(self, expr, subs):
@@ -586,6 +634,7 @@ class RDDLSimulator:
             raise RDDLTypeError(
                 'DiracDelta requires float parameter, got {}.'.format(arg) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
+            
         return arg
     
     def _sample_uniform(self, expr, subs):
@@ -632,9 +681,9 @@ class RDDLSimulator:
             raise RDDLValueOutOfRangeError(
                 'Normal variance {} is not positive.'.format(var) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
-        stdev = math.sqrt(var)
-        
-        return self._rng.normal(loc=mean, scale=stdev)
+            
+        scale = math.sqrt(var)
+        return self._rng.normal(loc=mean, scale=scale)
     
     def _sample_poisson(self, expr, subs):
         args = expr.args
@@ -699,7 +748,7 @@ class RDDLSimulator:
             raise RDDLValueOutOfRangeError(
                 'Gamma shape {} is not positive.'.format(shape) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
-        
+            
         scale = float(self._sample(args[1], subs))
         if not (scale > 0.):
             raise RDDLValueOutOfRangeError(
@@ -741,13 +790,12 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
 
     def _parse_bounds_rec(self, cond, search_dict):
         if cond.etype[0] == "boolean" and cond.etype[1] == "^":
-            self._parse_bounds_rec(cond.args[0], search_dict)     # left term
-            self._parse_bounds_rec(cond.args[1], search_dict)     # right term
+            self._parse_bounds_rec(cond.args[0], search_dict)  # left term
+            self._parse_bounds_rec(cond.args[1], search_dict)  # right term
         if cond.etype[0] == "relational":
             var, lim, loc = self.get_bounds(cond.args[0], cond.args[1], cond.etype[1], search_dict)
             if var is not None and loc is not None:
                 self._bounds[var][loc] = lim
-
 
     def get_bounds(self, left_arg, right_arg, op, search_dict=None) -> Tuple[str, float, int]:
         variable = None

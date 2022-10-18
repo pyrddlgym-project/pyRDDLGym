@@ -78,6 +78,7 @@ def main():
     
     from pprint import pprint
     pprint(vars(myEnv.model))
+    print(myEnv.model.reward)
     
     total_reward = 0
     state = myEnv.reset()
@@ -98,6 +99,7 @@ def main():
         
         test_reward, next_test_state, test_derived = mars_rover_update(
             test_state, action)
+        print(test_reward)
         assert test_reward == reward
         assert next_test_state == next_state
         assert test_derived == myEnv.model.derived

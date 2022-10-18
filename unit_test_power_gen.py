@@ -46,6 +46,7 @@ def main():
     
     from pprint import pprint
     pprint(vars(myEnv.model))
+    print(myEnv.model.reward)
     
     total_reward = 0
     state = myEnv.reset()
@@ -67,6 +68,7 @@ def main():
         
         test_reward, next_test_state, test_derived, test_interm = power_gen_update(
             test_state, action)
+        print('reward = {}'.format(test_reward))
         print('next_state = {}'.format(next_test_state))
         print('derived = {}'.format(test_derived))
         print('interm = {}'.format(test_interm))
