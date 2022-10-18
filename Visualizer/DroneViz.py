@@ -73,7 +73,7 @@ class DroneVisualizer(StateViz):
 
     def init_canvas(self, figure_size, dpi):
         
-        # plt.rc('axes', labelsize=5000)
+        # plt.style.use('dark_background')
 
         fig = plt.figure(figsize = figure_size, dpi = dpi)
         ax = fig.add_subplot(projection='3d')
@@ -121,11 +121,11 @@ class DroneVisualizer(StateViz):
         self._state_layout = state_layout
 
         for k,v in nonfluent_layout['goal_location'].items():
-            self._ax.plot([v[0]],[v[1]],[v[2]], color='r', marker='X', markersize=200)
+            self._ax.plot([v[0]],[v[1]],[v[2]], color='seagreen', marker='X', markersize=200)
 
         
         for k,v in state_layout['drone_location'].items():
-            self._ax.plot([v[0]],[v[1]],[v[2]], color='b', marker='o', markersize=200)
+            self._ax.plot([v[0]],[v[1]],[v[2]], color='deepskyblue', marker='>', markersize=200)
 
         img = self.convert2img(self._fig, self._ax)
 

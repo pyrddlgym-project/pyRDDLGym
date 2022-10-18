@@ -150,9 +150,9 @@ class PowerGenVisualizer(StateViz):
         ax.add_line(lineB)
         
         prod_rect = plt.Rectangle((init_x, init_y), interval, prev_prod/prod_max*interval, fc='limegreen', zorder=2)
-        temp_rect = plt.Rectangle((init_x, init_y), interval, interval*1.2, fc='firebrick', alpha= min(temp,100)/100, zorder=2)
-        cost_rect = plt.Rectangle((init_x, upL[1]), interval/2, interval/5, fc='deepskyblue', alpha= min(unit_cost,10)/10, zorder=2)
-        pen_rect = plt.Rectangle((init_x + interval/2,upL[1]), interval/2, interval/5, fc='darkcyan', alpha=min(change_penalty,10)/10, zorder=2)
+        temp_rect = plt.Rectangle((init_x, init_y), interval, interval*1.2, fc='firebrick', alpha= max(min(temp,100),0)/100, zorder=2)
+        cost_rect = plt.Rectangle((init_x, upL[1]), interval/2, interval/5, fc='deepskyblue', alpha= max(min(unit_cost,10),0)/10, zorder=2)
+        pen_rect = plt.Rectangle((init_x + interval/2,upL[1]), interval/2, interval/5, fc='darkcyan', alpha=max(min(change_penalty,10),0)/10, zorder=2)
 
         ax.add_patch(prod_rect)
         ax.add_patch(temp_rect)

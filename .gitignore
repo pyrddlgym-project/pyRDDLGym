@@ -15,5 +15,7 @@ img_folder/
 genViz.py
 genVizSimple.py
 Domain_test/
+genGif.py
+VizRDDL/
 
 
