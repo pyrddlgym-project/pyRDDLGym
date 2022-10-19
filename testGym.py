@@ -7,10 +7,10 @@ from Visualizer.MarsRoverViz import MarsRoverVisualizer
 # PROBLEM = 'RDDL/Thiagos_HVAC.rddl'
 # FOLDER = 'Competition/Power_gen/'
 # FOLDER = 'Competition/Mars_rover/'
-FOLDER = 'Competition/UAVs_mix/'
+# FOLDER = 'Competition/UAVs_mix/'
 # FOLDER = 'Competition/MountainCar/'
 # FOLDER = 'Competition/Cartpole/'
-# FOLDER = 'Competition/Recsim/'
+FOLDER = 'Competition/Recsim/'
 
 
 def main():
