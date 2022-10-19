@@ -9,9 +9,9 @@ FOLDER = 'Competition/Power_gen/'
 
 
 def power_gen_update(state, action):
-    prod_p1 = max(min(action['curProd_p1'], 10), 0)
-    prod_p2 = max(min(action['curProd_p2'], 10), 0)
-    prod_p3 = max(min(action['curProd_p3'], 10), 0)
+    prod_p1 = max(min(action['curProd_p1'], 10), 3)
+    prod_p2 = max(min(action['curProd_p2'], 10), 3)
+    prod_p3 = max(min(action['curProd_p3'], 10), 3)
     next_prevProd_p1 = prod_p1
     next_prevProd_p2 = prod_p2
     next_prevProd_p3 = prod_p3
@@ -23,22 +23,29 @@ def power_gen_update(state, action):
     reward = -(prod_p1 * 5 + prod_p2 * 5 + prod_p3 * 5) + (fulfilledDemand * 8) \
              -(1000. if (demand > fulfilledDemand) else 0.) \
              +(abs(prod_p1 - state['prevProd_p1']) * 1 + abs(prod_p2 - state['prevProd_p2']) * 1 \
-               + abs(prod_p3 - state['prevProd_p3']) * 1);
+               +abs(prod_p3 - state['prevProd_p3']) * 1);
     
-    next_derived = {'prod_p1' : prod_p1,
-                    'prod_p2' : prod_p2,
-                    'prod_p3' : prod_p3,
-                    'demand' : demand}
+    next_derived = {'prod_p1': prod_p1,
+                    'prod_p2': prod_p2,
+                    'prod_p3': prod_p3,
+                    'demand': demand}
     
-    next_interm = {'fulfilledDemand' : fulfilledDemand}
+    next_interm = {'fulfilledDemand': fulfilledDemand}
     
-    next_state = {'prevProd_p1' : next_prevProd_p1,
-                  'prevProd_p2' : next_prevProd_p2,
-                  'prevProd_p3' : next_prevProd_p3,
-                  'temperature' : next_temperature}
+    next_state = {'prevProd_p1': next_prevProd_p1,
+                  'prevProd_p2': next_prevProd_p2,
+                  'prevProd_p3': next_prevProd_p3,
+                  'temperature': next_temperature}
     
     return reward, next_state, next_derived, next_interm
 
+
+def myprintstate(next_test_state, next_state):
+    for key in sorted(next_test_state.keys()):
+        print('key = {}, test = {}, rddl = {}, pass = {}'.format(
+            key, next_test_state[key], next_state[key], next_test_state[key] == next_state[key]))
+
+    
 def main():
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'instance0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
@@ -46,7 +53,9 @@ def main():
     
     from pprint import pprint
     pprint(vars(myEnv.model))
-    print(myEnv.model.reward)
+    for key in myEnv.model.cpfs.keys():
+        print('\n' + key)
+        print(myEnv.model.cpfs[key])
     
     total_reward = 0
     state = myEnv.reset()
@@ -72,10 +81,10 @@ def main():
         print('next_state = {}'.format(next_test_state))
         print('derived = {}'.format(test_derived))
         print('interm = {}'.format(test_interm))
+        assert next_test_state == next_state, myprintstate(next_test_state, next_state)
+        assert test_derived == myEnv.model.derived, myprintstate(test_derived, myEnv.model.derived)
+        assert test_interm == myEnv.model.interm, myprintstate(test_interm, myEnv.model.interm)
         assert test_reward == reward
-        assert next_test_state == next_state
-        assert test_derived == myEnv.model.derived
-        assert test_interm == myEnv.model.interm
         test_state = next_test_state
         
     print("episode ended with reward {}".format(total_reward))
