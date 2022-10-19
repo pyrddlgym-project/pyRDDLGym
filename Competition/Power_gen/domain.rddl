@@ -34,17 +34,16 @@ domain power_gen {
 	pvariables { 
     	
 		// Constants
-		PROD_UNITS_MIN(plant)      : { non-fluent, int,  default = 3   };
-		PROD_UNITS_MAX(plant)      : { non-fluent, int,  default = 10  };
-		PROD_CHANGE_PENALTY(plant) : { non-fluent, real, default = 1.0 };
-		COST_PER_UNIT(plant)       : { non-fluent, real, default = 5.0 };
-		INCOME_PER_UNIT            : { non-fluent, real, default = 8.0 };
-		TEMP_VARIANCE              : { non-fluent, real, default = 5.0 };
-		OBS_VARIANCE               : { non-fluent, real, default = 5.0 };
-		DEMAND_EXP_COEF            : { non-fluent, real, default = 0.01 };
-		MIN_DEMAND_TEMP            : { non-fluent, real, default = 11.7 };
-		MIN_CONSUMPTION            : { non-fluent, real, default = 2 };
-		UNFULFILLED_DEMAND_PENALTY : { non-fluent, real, default = 1000.0 };
+		PROD-UNITS-MIN(plant)      : { non-fluent, int,  default = 3   };
+		PROD-UNITS-MAX(plant)      : { non-fluent, int,  default = 10  };
+		PROD-CHANGE-PENALTY(plant) : { non-fluent, real, default = 1.0 };
+		COST-PER-UNIT(plant)       : { non-fluent, real, default = 5.0 };
+		INCOME-PER-UNIT            : { non-fluent, real, default = 8.0 };
+		TEMP-VARIANCE              : { non-fluent, real, default = 5.0 };
+		DEMAND-EXP-COEF            : { non-fluent, real, default = 0.01 };
+		MIN-DEMAND-TEMP            : { non-fluent, real, default = 11.7 };
+		MIN-CONSUMPTION            : { non-fluent, real, default = 2 };
+		UNFULFILLED-DEMAND-PENALTY : { non-fluent, real, default = 1000.0 };
 
     	// Action - int
 		curProd(plant) : { action-fluent, int, default = 0 };
@@ -63,28 +62,28 @@ domain power_gen {
 	cpfs {
 
 		// State
-		prod(?p) = max[min[curProd(?p), PROD_UNITS_MAX(?p)], PROD_UNITS_MIN(?p)];
+		prod(?p) = max[min[curProd(?p), PROD-UNITS-MAX(?p)], PROD-UNITS-MIN(?p)];
 		prevProd'(?p) = prod(?p);
-		temperature'  = Normal(temperature, TEMP_VARIANCE);
+		temperature'  = Normal(temperature, TEMP-VARIANCE);
 		
 		// Demand -- a function of the current temperature,
 		//           empirically a U-shaped function with a minimum
 		//           at 11.7 C, here we use a simple quadratic model.
-		demand = MIN_CONSUMPTION + DEMAND_EXP_COEF * pow[ temperature - MIN_DEMAND_TEMP , 2 ];
+		demand = MIN-CONSUMPTION + DEMAND-EXP-COEF * pow[ temperature - MIN-DEMAND-TEMP , 2 ];
 		fulfilledDemand = min[ demand, (sum_{?p : plant} prod(?p)) ];
 
 	};
   
 	// cost of supply per plant, demand income, demand exceeds supply penalty, steady-state penalties
-	reward = [-(sum_{?p : plant} prod(?p) * COST_PER_UNIT(?p))]
-		     + (fulfilledDemand * INCOME_PER_UNIT)
-		     - (if (demand > fulfilledDemand) then UNFULFILLED_DEMAND_PENALTY else 0.0 )
-		     + (sum_{?p : plant} abs[ prod(?p) - prevProd(?p) ] * PROD_CHANGE_PENALTY(?p) );
+	reward = [-(sum_{?p : plant} prod(?p) * COST-PER-UNIT(?p))]
+		     + (fulfilledDemand * INCOME-PER-UNIT)
+		     - (if (demand > fulfilledDemand) then UNFULFILLED-DEMAND-PENALTY else 0.0 )
+		     + (sum_{?p : plant} abs[ prod(?p) - prevProd(?p) ] * PROD-CHANGE-PENALTY(?p) );
 	
 	action-preconditions {
 
 		// Production amounts within bounds 
-		forall_{?p : plant} [ curProd(?p) >= PROD_UNITS_MIN(?p) ];
-		forall_{?p : plant} [ curProd(?p) <= PROD_UNITS_MAX(?p) ];
+		forall_{?p : plant} [ curProd(?p) >= PROD-UNITS-MIN(?p) ];
+		forall_{?p : plant} [ curProd(?p) <= PROD-UNITS-MAX(?p) ];
 	};
 }
