@@ -149,8 +149,10 @@ class RDDLEnv(gym.Env):
         state = self.sampler.sample_next_state(action)
         reward = self.sampler.sample_reward()
 
-        self.sampler.update_state(state)
-        self.sampler.check_state_invariants()
+        self.sampler.update_state(state)                    # update the sampler state in order to valuate the new state
+        self.done = self.sampler.check_terminal_states()  # check if a terminal state has been reached
+        if not self.done:
+            self.sampler.check_state_invariants()               # check if the state invariants are satisfied
 
         # update step horizon
         self.currentH += 1
