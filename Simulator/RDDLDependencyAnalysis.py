@@ -59,7 +59,7 @@ class RDDLDependencyAnalysis:
     # topological sort
     def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
-        print(graph)
+
         # topological sort of variables
         order = []
         temp = set()
@@ -77,7 +77,6 @@ class RDDLDependencyAnalysis:
                     levels[var] = max(levels[var], levels[child] + 1)
                 unprimed = self._model.prev_state.get(var, var)
                 result.setdefault(levels[var], set()).add(unprimed)
-        print(result)
         return result
     
     def _sort_variables(self, order, graph, var, unmarked, temp):
