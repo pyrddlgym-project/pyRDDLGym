@@ -69,14 +69,18 @@ class RDDLDependencyAnalysis:
             self._sort_variables(order, graph, var, unmarked, temp)
         
         # stratify levels
-        levels = {var: 0 for var in order}
+        levels = {}
         result = {}
         for var in order:
             if var in self._model.cpfs:
+                level = 0
                 for child in graph[var]:
-                    levels[var] = max(levels[var], levels[child] + 1)
+                    if child in self._model.cpfs:
+                        level = max(level, levels[child] + 1)
                 unprimed = self._model.prev_state.get(var, var)
-                result.setdefault(levels[var], set()).add(unprimed)
+                result.setdefault(level, set()).add(unprimed)
+                levels[var] = level
+        print(result)
         return result
     
     def _sort_variables(self, order, graph, var, unmarked, temp):
