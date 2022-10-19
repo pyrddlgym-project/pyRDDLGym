@@ -56,7 +56,7 @@ domain recsim_ecosystem_welfare {
 		// satisfaction. Essentially, unsatisfied providers will become unrecommendable.
 		// Sample a provider for each item slot with CDF sampling.
 		item-gen-randomness(?i) = Uniform(0.0, 1.0);
-		item-by'(?p, ?i) = (item-gen-cdf(?p) <= (item-gen-randomness(?i)) ^ (item-gen-randomness(?i) < (sum_{?q: provider} [item-gen-cdf(?q) * NEXT-PROVIDER(?p, ?q)])));
+		item-by'(?p, ?i) = ((sum_{?q: provider} [item-gen-cdf(?q) * NEXT-PROVIDER(?q, ?p)])) <= (item-gen-randomness(?i)) ^ (item-gen-randomness(?i) < item-gen-cdf(?p));
 		// Generate item features based on provider competence. 
 		item-feature-randomness(?i, ?f) = Normal(0.0, 1.0);
 		item-feature'(?i, ?f) = item-feature-randomness(?i, ?f) + (sum_{?p: provider}[item-by(?p, ?i) * PROVIDER-COMPETENCE(?p, ?f)]);
