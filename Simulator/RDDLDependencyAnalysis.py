@@ -1,3 +1,4 @@
+import itertools
 from typing import Dict, List, Set
 
 from Grounder.RDDLModel import PlanningModel
@@ -37,16 +38,6 @@ class RDDLDependencyAnalysis:
             
         return graph
     
-    def _assert_valid_variable(self, expr, var):
-        if var not in self._model.derived \
-            and var not in self._model.interm \
-            and var not in self._model.states \
-            and var not in self._model.prev_state \
-            and var not in self._model.actions:
-                raise RDDLUndefinedVariableError(
-                    'Variable {} is not defined in the instance.'.format(var) + 
-                    '\n' + RDDLDependencyAnalysis._print_stack_trace(expr))
-                
     def _update_call_graph(self, graph, root_var, expr, parent_expr):
         etype, _ = expr.etype
         args = expr.args
@@ -61,34 +52,55 @@ class RDDLDependencyAnalysis:
             for arg in args:
                 self._update_call_graph(graph, root_var, arg, parent_expr)
     
+    def _assert_valid_variable(self, expr, var):
+        if var not in self._model.derived \
+            and var not in self._model.interm \
+            and var not in self._model.states \
+            and var not in self._model.prev_state \
+            and var not in self._model.actions:
+                raise RDDLUndefinedVariableError(
+                    'Variable {} is not defined in the instance.'.format(var) + 
+                    '\n' + RDDLDependencyAnalysis._print_stack_trace(expr))
+                
     # topological sort
     def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
+        
+        # topological sort of variables
         order = []
         temp = set()
         unmarked = set(graph.keys()).union(*graph.values())
         while unmarked:
             var = next(iter(unmarked))
             self._sort_variables(order, graph, var, unmarked, temp)
-        order = [var for var in order if var in self._model.cpfs]
-        order = [(self._model.prev_state[var] if var in self._model.prev_state else var) 
-                 for var in order]
-        order = [{var} for var in order]
-        levels = dict(enumerate(order))
-        return levels
         
+        # stratify levels
+        levels = {var: 0 for var in order}
+        result = {}
+        for var in order:
+            if var in self._model.cpfs:
+                for child in graph[var]:
+                    levels[var] = max(levels[var], levels[child] + 1)
+                unprimed = self._model.prev_state.get(var, var)
+                result.setdefault(levels[var], set()).add(unprimed)
+        return result
+    
+    def _has_dependency(self, graph, level, var):
+        return not level.isdisjoint(graph[var])
+    
     def _sort_variables(self, order, graph, var, unmarked, temp):
         if var not in unmarked:
             return
-        if var in temp:
+        elif var in temp:
             raise RDDLCyclicDependencyInCPFError(
                 'CPF {} has a cyclic dependency!'.format(var) + 
                 '\n' + RDDLDependencyAnalysis._print_stack_trace(self._model.cpfs[var]))
-        temp.add(var)
-        if var in graph:
-            for dep in graph[var]:
-                self._sort_variables(order, graph, dep, unmarked, temp)
-        temp.remove(var)
-        unmarked.remove(var)
-        order.append(var)
+        else:
+            temp.add(var)
+            if var in graph:
+                for dep in graph[var]:
+                    self._sort_variables(order, graph, dep, unmarked, temp)
+            temp.remove(var)
+            unmarked.remove(var)
+            order.append(var)
         
