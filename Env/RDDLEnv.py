@@ -188,6 +188,11 @@ class RDDLEnv(gym.Env):
             self.window.blit(pygameSurface, (0, 0))
             pygame.display.flip()
 
+    def close(self):
+        if self.to_render:
+            pygame.display.quit()
+            pygame.quit()
+
 
     @property
     def NumConcurrentActions(self):
