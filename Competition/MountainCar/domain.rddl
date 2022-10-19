@@ -13,17 +13,17 @@ domain mountain_car {
     pvariables {
 
     	// physics constants
-		GRAVITY_MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
-		FORCE_MAG 	: { non-fluent, real, default = 0.001 };		// force applied to the side of the cart
+		GRAVITY-MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
+		FORCE-MAG 	: { non-fluent, real, default = 0.001 };		// force applied to the side of the cart
 
 		// valley shape
 		DEPTH : { non-fluent, real, default = 0.45 };				// depth of the valley
 		
 		// bounds
-		MIN_POS : { non-fluent, real, default = -1.2 };        		// min position of cart
-		MAX_POS : { non-fluent, real, default = 0.6 };			 	// max position of cart
-		MAX_VEL : { non-fluent, real, default = 0.07 };				// max velocity of cart
-		GOAL_MIN : { non-fluent, real, default = 0.5 };				// desired x position of cart
+		MIN-POS : { non-fluent, real, default = -1.2 };        		// min position of cart
+		MAX-POS : { non-fluent, real, default = 0.6 };			 	// max position of cart
+		MAX-VEL : { non-fluent, real, default = 0.07 };				// max velocity of cart
+		GOAL-MIN : { non-fluent, real, default = 0.5 };				// desired x position of cart
 		
 		// interm & derived fluents
 		success : { derived-fluent, bool };                       	// whether the cart reached its goal
@@ -38,14 +38,14 @@ domain mountain_car {
 
     cpfs {
 		// check if we reached the goal
-		success = (pos >= GOAL_MIN) ^ (vel >= 0); 
+		success = (pos >= GOAL-MIN) ^ (vel >= 0);
 		
 		// update position and velocity of the cart
 		vel' = if(success)
 				then 0.0
-				else [max[min[vel + (action - 1) * FORCE_MAG + cos[3 * pos] * (-GRAVITY_MAG) * (3 * DEPTH), 
-						MAX_VEL], -MAX_VEL]];
-		pos' = max[min[pos + vel', MAX_POS], MIN_POS];		
+				else [max[min[vel + (action - 1) * FORCE-MAG + cos[3 * pos] * (-GRAVITY-MAG) * (3 * DEPTH),
+						MAX-VEL], -MAX-VEL]];
+		pos' = max[min[pos + vel', MAX-POS], MIN-POS];
     };
 
     // R = 1 as long as the pole is upright and the cart is not out of bounds
@@ -54,8 +54,8 @@ domain mountain_car {
 				else 0.0;
 
     state-invariants {
-		pos >= MIN_POS ^ pos <= MAX_POS;
-		vel >= -MAX_VEL ^ vel <= MAX_VEL;
+		pos >= MIN-POS ^ pos <= MAX-POS;
+		vel >= -MAX-VEL ^ vel <= MAX-VEL;
     };
 
     action-preconditions {

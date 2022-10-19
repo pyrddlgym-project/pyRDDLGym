@@ -17,80 +17,80 @@ domain cart_pole {
 
     	// forces
 		GRAVITY   : { non-fluent, real, default = 9.8 };        // force of gravity acting down
-		FORCE_MAG : { non-fluent, real, default = 10.0 };		// force applied to the side of the cart
+		FORCE-MAG : { non-fluent, real, default = 10.0 };		// force applied to the side of the cart
 
 		// cart and pole properties
-		CART_MASS : { non-fluent, real, default = 1.0 };        // mass of the cart
-		POLE_MASS : { non-fluent, real, default = 0.1 };		// mass of the pole
-		POLE_LEN  : { non-fluent, real, default = 0.5 }; 		// half of the pole length
+		CART-MASS : { non-fluent, real, default = 1.0 };        // mass of the cart
+		POLE-MASS : { non-fluent, real, default = 0.1 };		// mass of the pole
+		POLE-LEN  : { non-fluent, real, default = 0.5 }; 		// half of the pole length
 		
 		// other constants
-		TIME_STEP : { non-fluent, real, default = 0.02 }; 		// seconds between state updates
-		POS_LIMIT : { non-fluent, real, default = 2.4 };		// limit of cart position
-		ANG_LIMIT : { non-fluent, real, default = 0.2094395 };	// limit of pole angle
+		TIME-STEP : { non-fluent, real, default = 0.02 }; 		// seconds between state updates
+		POS-LIMIT : { non-fluent, real, default = 2.4 };		// limit of cart position
+		ANG-LIMIT : { non-fluent, real, default = 0.2094395 };	// limit of pole angle
 	
 		// interm & derived fluents
 		force : { derived-fluent, real };                       // actual signed force applied to the cart
 		temp : { derived-fluent, real };						// temporary variable
 		acc : { derived-fluent, real };							// position acceleration
-		ang_acc : { derived-fluent, real };						// angular acceleration
-		out_of_bounds : { derived-fluent, bool };				// whether the system is out of bounds
+		ang-acc : { derived-fluent, real };						// angular acceleration
+		out-of-bounds : { derived-fluent, bool };				// whether the system is out of bounds
 		increment : { derived-fluent, real };					// actual state increment accounting for out of bounds
 		
 		// states
        	pos    	: { state-fluent, real, default = 0 };          // cart position
-       	ang_pos	: { state-fluent, real, default = 0 };          // pole angle
+       	ang-pos	: { state-fluent, real, default = 0 };          // pole angle
        	vel   	: { state-fluent, real, default = 0 };          // cart velocity
-       	ang_vel : { state-fluent, real, default = 0 };          // pole angular velocity
+       	ang-vel : { state-fluent, real, default = 0 };          // pole angular velocity
 
        	// actions
-       	force_side : { action-fluent, int, default = 0 };      	// whether to apply force to left, right side or none
+       	force-side : { action-fluent, int, default = 0 };      	// whether to apply force to left, right side or none
        	//test : { action-fluent, bool, default = false };      	// whether to apply force to left, right side or none
     };
 
     cpfs {
 		// the actual signed force on the cart
-		force = if(force_side == 1)
-				 then FORCE_MAG
-				 else -FORCE_MAG;
+		force = if(force-side == 1)
+				 then FORCE-MAG
+				 else -FORCE-MAG;
 		
 		// compute the pole angular acceleration
-		temp = (force + POLE_LEN * pow[ang_vel, 2] * sin[ang_pos]) / (CART_MASS + POLE_MASS);
-		ang_acc = (GRAVITY * sin[ang_pos] - cos[ang_pos] * temp) / (
-            POLE_LEN * ((4.0 / 3.0) - (POLE_MASS * pow[cos[ang_pos], 2] / (CART_MASS + POLE_MASS))));
+		temp = (force + POLE-LEN * pow[ang-vel, 2] * sin[ang-pos]) / (CART-MASS + POLE-MASS);
+		ang-acc = (GRAVITY * sin[ang-pos] - cos[ang-pos] * temp) / (
+            POLE-LEN * ((4.0 / 3.0) - (POLE-MASS * pow[cos[ang-pos], 2] / (CART-MASS + POLE-MASS))));
 		
 		// compute the cart acceleration
-		acc = temp - (POLE_LEN * ang_acc * cos[ang_pos] / (CART_MASS + POLE_MASS));
+		acc = temp - (POLE-LEN * ang-acc * cos[ang-pos] / (CART-MASS + POLE-MASS));
 		
 		// out of bounds checks
-		out_of_bounds = (pos <= -POS_LIMIT) | (pos >= POS_LIMIT) | (ang_pos <= -ANG_LIMIT) | (ang_pos >= ANG_LIMIT);
+		out-of-bounds = (pos <= -POS-LIMIT) | (pos >= POS-LIMIT) | (ang-pos <= -ANG-LIMIT) | (ang-pos >= ANG-LIMIT);
 		
 		// if out of bounds, do not update the state
-		increment = if(out_of_bounds)
+		increment = if(out-of-bounds)
 						then 0.0
-						else TIME_STEP;
+						else TIME-STEP;
 
 		// Euler integration formula
-		pos' = max[min[pos + increment * vel, POS_LIMIT], -POS_LIMIT];		
-		ang_pos' = max[min[ang_pos + increment * ang_vel, ANG_LIMIT], -ANG_LIMIT];
+		pos' = max[min[pos + increment * vel, POS-LIMIT], -POS-LIMIT];
+		ang-pos' = max[min[ang-pos + increment * ang-vel, ANG-LIMIT], -ANG-LIMIT];
 		vel' = vel + increment * acc;
-		ang_vel' = ang_vel + increment * ang_acc;
+		ang-vel' = ang-vel + increment * ang-acc;
     };
 
     // R = 1 as long as the pole is upright and the cart is not out of bounds
-    reward = if(out_of_bounds)
+    reward = if(out-of-bounds)
 				then 0.0
 				else 1.0;
 
     state-invariants {
-		pos >= -POS_LIMIT ^ pos <= POS_LIMIT;
-		ang_pos >= -ANG_LIMIT ^ ang_pos <= ANG_LIMIT;
+		pos >= -POS-LIMIT ^ pos <= POS-LIMIT;
+		ang-pos >= -ANG-LIMIT ^ ang-pos <= ANG-LIMIT;
     };
 
     action-preconditions {
-        force_side <= 1;
-        force_side >= 0;
-		//(force_side == 0) | (force_side == 1);
+        force-side <= 1;
+        force-side >= 0;
+		//(force-side == 0) | (force-side == 1);
     };
 
 }
