@@ -9,8 +9,8 @@ from Visualizer.MarsRoverViz import MarsRoverVisualizer
 # FOLDER = 'Competition/Mars_rover/'
 # FOLDER = 'Competition/UAVs_mix/'
 # FOLDER = 'Competition/MountainCar/'
-# FOLDER = 'Competition/Cartpole/'
-FOLDER = 'Competition/Recsim/'
+FOLDER = 'Competition/Cartpole2/'
+# FOLDER = 'Competition/Recsim/'
 
 
 def main():
@@ -28,6 +28,8 @@ def main():
         print("step {}: reward: {}".format(step, reward))
         print("state_i:", state, "-> state_f:", next_state)
         state = next_state
+        if done:
+            break
     print("episode ended with reward {}".format(total_reward))
 
 

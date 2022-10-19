@@ -107,6 +107,19 @@ class RDDLSimulator:
     @staticmethod
     def _print_stack_trace(expr):
         return '...\n' + str(expr) + '\n...'
+
+    def check_terminal_states(self) -> bool:
+        '''return True if a terminal state has been reached.'''
+        subs = self._update_subs()
+        for idx, terminal in enumerate(self._model.terminals):
+            sample = self._sample(terminal, subs)
+            if not isinstance(sample, bool):
+                raise RDDLTypeError(
+                    'Terminal state condition must evaluate to bool, got {},'.format(sample)+
+                    '\n' + RDDLSimulator._print_stack_trace(terminal))
+            elif sample:
+                return True
+        return False
     
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
