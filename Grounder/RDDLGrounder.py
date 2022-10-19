@@ -16,10 +16,10 @@ from Parser.expr import Expression
 PRIME = '\''
 
 AGGREG_OPERATION_LIST = [
-    'prod', 'sum', 'avg', 'minimum', 'maximum', 'forall', 'exists'
+    'prod', 'sum', 'avg', 'minimum', 'maximum', 'forall', 'exists','min','max'
 ]
 AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = [
-    '*', '+', '+', 'min', 'max', '^', '|'
+    '*', '+', '+', 'min', 'max', '^', '|','min','max'
 ]
 AGGREG_OP_TO_STRING_DICT = dict(
     zip(AGGREG_OPERATION_LIST,
@@ -367,6 +367,8 @@ class RDDLGrounder(Grounder):
                 updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
                 new_children.append(self._scan_expr_tree(expression, updated_dict))
             #--end for loop through instances
+            if "max" in operation_string or "min" in operation_string:
+                print("a")
             new_expr = Expression((operation_string, tuple(new_children)))
         return new_expr
 
@@ -467,6 +469,13 @@ class RDDLGrounder(Grounder):
                     # Note "expr" would have been an aggregate sum already,
                     # the "aggreg_recursive_operation_string" is set for that.
                     expr = Expression(('/', tuple(children_list)))
+            else: #if not instance typed arg, happens for max[a,b]
+                aggreg_recursive_operation_string = AGGREG_OP_TO_STRING_DICT[aggreg_type]
+                new_children = []
+                for arg in expr.args:
+                    new_children.append(self._scan_expr_tree(arg, dic))
+                expr = Expression((aggreg_recursive_operation_string, tuple(new_children)))
+
             return expr
 
     def _scan_expr_tree(self, expr: Expression, dic) -> Expression:
@@ -485,12 +494,19 @@ class RDDLGrounder(Grounder):
             'func': self._scan_expr_tree_func,
             'randomvar': self._scan_expr_tree_func
         }
+
+
         if isinstance(expr, tuple):
             expression_type = 'noop'
         else:
             expression_type = expr.etype[0]
+            print("a")
+
         if expression_type in dispatch_dict.keys():
-            return dispatch_dict[expression_type](expr, dic)
+            if expression_type == 'func' and expr.etype[1] in ["max","min"]:
+                return dispatch_dict['aggregation'](expr, dic)
+            else:
+                return dispatch_dict[expression_type](expr, dic)
         else:
             new_children = []
             for child in expr.args:
