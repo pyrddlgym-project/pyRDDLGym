@@ -18,54 +18,48 @@ class RDDLDependencyAnalysis:
     def __init__(self, model: PlanningModel) -> None:
         self._model = model
     
-    @staticmethod
-    def _print_stack_trace(expr):
-        return '...\n' + str(expr) + '\n...'
-    
     # dependency analysis
     def build_call_graph(self) -> Dict[str, Set[str]]:
         graph = {}
-        for var, expr in self._model.cpfs.items():
-            self._update_call_graph(graph, var, expr, expr)
-        
+        for cpf, expr in self._model.cpfs.items():
+            self._update_call_graph(graph, cpf, expr)
+            if cpf not in graph:  # CPF without dependencies
+                graph[cpf] = set()
+                
         # check validity of reward, constraints etc
         expr = self._model.reward
-        self._update_call_graph({}, '', expr, expr)
+        self._update_call_graph({}, '', expr)
         for expr in self._model.preconditions:
-            self._update_call_graph({}, '', expr, expr)
+            self._update_call_graph({}, '', expr)
         for expr in self._model.invariants:
-            self._update_call_graph({}, '', expr, expr)
+            self._update_call_graph({}, '', expr)
             
         return graph
     
-    def _update_call_graph(self, graph, root_var, expr, parent_expr):
+    def _update_call_graph(self, graph, cpf, expr):
         etype, _ = expr.etype
-        args = expr.args
         if etype == 'pvar':
             var = expr.args[0]
             if var not in self._model.nonfluents:
-                self._assert_valid_variable(parent_expr, var)
-                if root_var not in graph:
-                    graph[root_var] = set()
-                graph[root_var].add(var)
+                self._assert_valid_variable(cpf, var)
+                graph.setdefault(cpf, set()).add(var)
         elif etype != 'constant':
-            for arg in args:
-                self._update_call_graph(graph, root_var, arg, parent_expr)
+            for arg in expr.args:
+                self._update_call_graph(graph, cpf, arg)
     
-    def _assert_valid_variable(self, expr, var):
+    def _assert_valid_variable(self, cpf, var):
         if var not in self._model.derived \
             and var not in self._model.interm \
             and var not in self._model.states \
             and var not in self._model.prev_state \
             and var not in self._model.actions:
                 raise RDDLUndefinedVariableError(
-                    'Variable {} is not defined in the instance.'.format(var) + 
-                    '\n' + RDDLDependencyAnalysis._print_stack_trace(expr))
+                    'Variable {} found in CPF {} is not defined.'.format(var, cpf))
                 
     # topological sort
     def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
-        
+        print(graph)
         # topological sort of variables
         order = []
         temp = set()
@@ -83,18 +77,15 @@ class RDDLDependencyAnalysis:
                     levels[var] = max(levels[var], levels[child] + 1)
                 unprimed = self._model.prev_state.get(var, var)
                 result.setdefault(levels[var], set()).add(unprimed)
+        print(result)
         return result
-    
-    def _has_dependency(self, graph, level, var):
-        return not level.isdisjoint(graph[var])
     
     def _sort_variables(self, order, graph, var, unmarked, temp):
         if var not in unmarked:
             return
         elif var in temp:
             raise RDDLCyclicDependencyInCPFError(
-                'CPF {} has a cyclic dependency!'.format(var) + 
-                '\n' + RDDLDependencyAnalysis._print_stack_trace(self._model.cpfs[var]))
+                'CPF {} has a cyclic dependency.'.format(var))
         else:
             temp.add(var)
             if var in graph:
