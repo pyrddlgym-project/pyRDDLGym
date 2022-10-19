@@ -80,7 +80,6 @@ class RDDLDependencyAnalysis:
                 unprimed = self._model.prev_state.get(var, var)
                 result.setdefault(level, set()).add(unprimed)
                 levels[var] = level
-        print(result)
         return result
     
     def _sort_variables(self, order, graph, var, unmarked, temp):
@@ -88,7 +87,7 @@ class RDDLDependencyAnalysis:
             return
         elif var in temp:
             raise RDDLCyclicDependencyInCPFError(
-                'CPF {} has a cyclic dependency.'.format(var))
+                'Cyclic dependency detected, suspected CPFs {}.'.format(temp))
         else:
             temp.add(var)
             if var in graph:
