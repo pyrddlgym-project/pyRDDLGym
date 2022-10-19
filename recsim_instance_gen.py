@@ -45,12 +45,12 @@ def init_random_user_points(provider_means, num_users, user_stddev):
 def main(*args, **kwargs):
   provider_disp = 64. 
   provider_fan_out = 2
-  num_provider_clusters = 40
+  num_provider_clusters = 15
   num_topics = 2
   provider_clusters = init_random_provider_clusters(provider_disp, provider_fan_out, num_provider_clusters, num_topics)
-  num_users = 2000
+  num_users = 100
   num_docs = num_provider_clusters * 5
-  user_stddev = 20.5
+  user_stddev = 20.5 ** 0.5
   user_locs = init_random_user_points(provider_clusters, num_users, user_stddev)
   providers = [f'p{i+1}' for i in range(num_provider_clusters)]
   users = [f'c{i+1}' for i in range(num_users)]
@@ -58,7 +58,7 @@ def main(*args, **kwargs):
   items = [f'i{i+1}' for i in range(num_docs)]
   item_str = ', '.join(items) 
   user_str = ', '.join(users)
-  provider_str = ', '.join(providers) 
+  provider_str = ', '.join(['pn'] + providers) 
   inst_str = 'non-fluents nf_recsim_ecosystem_welfare__2 {\n'
   inst_str += '\tdomain = recsim_ecosystem_welfare;\n\tobjects {\n'
   inst_str += f'\t\tfeature: {{{features}}};\n'
@@ -85,7 +85,7 @@ def main(*args, **kwargs):
   inst_str += '\tinit-state {\n'
   inst_str += '\t\tprovider-satisfaction(pn) = 0.0;\n'
   inst_str += '\t};\n'
-  inst_str += '\tmax-nondef-actions = 1;\n\thorizon  = 40;\n\tdiscount = 1.0;\n}'
+  inst_str += '\tmax-nondef-actions = 1;\n\thorizon  = 200;\n\tdiscount = 1.0;\n}'
   print(inst_str)
  
 
