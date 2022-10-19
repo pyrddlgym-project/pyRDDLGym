@@ -49,7 +49,7 @@ class RDDLActionPreconditionNotSatisfiedError(ValueError):
 VALID_ARITHMETIC_OPS = {'+', '-', '*', '/'}
 VALID_RELATIONAL_OPS = {'>=', '>', '<=', '<', '==', '~='}
 VALID_LOGICAL_OPS = {'|', '^', '~', '=>', '<=>'}
-VALID_AGGREGATE_OPS = {'min', 'max'}
+VALID_AGGREGATE_OPS = {'minimum', 'maximum'}
 VALID_CONTROL_OPS = {'if'}
 
 
@@ -375,9 +375,9 @@ class RDDLSimulator:
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         
         terms = (1 * self._sample(arg, subs) for arg in args)  # bool -> int
-        if op == 'min':
+        if op == 'minimum':
             return min(terms)
-        else:  # 'max'
+        else:  # 'maximum'
             return max(terms)
         
     # functions
