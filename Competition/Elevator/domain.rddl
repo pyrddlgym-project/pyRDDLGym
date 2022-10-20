@@ -3,8 +3,6 @@
 //
 // Author of the original version: Tom Walsh (thomasjwalsh [at] gmail.com)
 //
-// Edited for competition and translation purposes by Scott Sanner.
-//
 // Edited to allow integer counting of the number of people by Jihwan Jeong.
 //
 // The "elevators" domain has a number of elevators delivering passengers 
@@ -16,7 +14,7 @@
 // can remain stationary (when no actions are chosen), or can open its 
 // door such that people can get on in the next time step. 
 // Once the door opens, the direction of the elevator automatically changes
-// to downwards to deliver pessengers to the bottom floor.
+// to downwards to deliver passengers to the bottom floor.
 // 
 // Each pair of any two elevators have specific precedence given to only one.
 // This is to handle the case when there are multiple elevators on the same 
@@ -24,25 +22,6 @@
 // hop on. An elevator which takes precedence over the other one will be used.
 // Note: An elevator should take no precedence over itself.
 //
-// A passable plan in this domain is to pick up a passenger every time 
-// they appear and take them to the bottom floor.  A better plan includes 
-// having the elevator "hover" near floors where passengers are likely to 
-// arrive and coordinating multiple elevators for passengers from different floors.
-//
-// This domain was designed to support extension to multiple elevators
-// and may be used in either single or multi-elevator mode.
-//
-// Update: 
-// 
-// Edited for to account for penalities for people waiting to be onboard
-// and for the pessengers who haven't got to the bottom floor yet (by Jihwan Jeong).
-//
-// List of updates:
-// 	1. REWARD-DELIVERED is added. This is the unit reward given to each successful 
-//		delivery of a person to their destination. 
-// 	2. PEOPLE-PENALTY-WAITING is added. This is the unit reward given to each person 
-//		awaiting an elevator for pick-up.
-//	3. In the reward block, an agent receives positive rewards for delivering people to their destination. 
 ////////////////////////////////////////////////////////////////////
 
 domain elevators_int_mdp {
@@ -67,7 +46,7 @@ domain elevators_int_mdp {
 		// Penalty for persons in the elevator
 		// Note: a large positive reward is given when people get to their destination
 		IN-ELEVATOR-PENALTY				: { non-fluent, real, default = 1.00 };
-		PEOPLE-PENALTY-WAITING	   		: { non-fluent, real, default = 2.95 };
+		PEOPLE-WAITING-PENALTY	   		: { non-fluent, real, default = 2.95 };
 		REWARD-DELIVERED		   		: { non-fluent, real, default = 30.0 };
 
 		// Useful definitions
@@ -215,7 +194,7 @@ domain elevators_int_mdp {
 		- IN-ELEVATOR-PENALTY * [sum_{?e: elevator} num-person-in-elevator(?e)]
 
 		// Penalty for those who are waiting on all floors
-		- PEOPLE-PENALTY-WAITING * [sum_{?f: floor} num-person-waiting(?f)]
+		- PEOPLE-WAITING-PENALTY * [sum_{?f: floor} num-person-waiting(?f)]
 
 		// Reward for delivering people to the bottom floor
 		+ [sum_{?e2: elevator}
