@@ -90,7 +90,6 @@ domain cart_pole {
     action-preconditions {
         force-side <= 1;
         force-side >= 0;
-		//(force-side == 0) | (force-side == 1);
     };
 
 }

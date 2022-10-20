@@ -75,14 +75,15 @@ domain cart_pole {
     };
 
     state-invariants {
-		pos >= -POS-LIMIT ^ pos <= POS-LIMIT;
-		ang-pos >= -ANG-LIMIT ^ ang-pos <= ANG-LIMIT;
+		pos >= -POS-LIMIT;
+		pos <= POS-LIMIT;
+		ang-pos >= -ANG-LIMIT;
+		ang-pos <= ANG-LIMIT;
     };
 
     action-preconditions {
-        force-side <= 1;
         force-side >= 0;
-		//(force-side == 0) | (force-side == 1);
+		force-side <= 1;
     };
 
 }
