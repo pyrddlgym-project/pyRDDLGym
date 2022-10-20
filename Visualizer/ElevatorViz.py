@@ -64,23 +64,21 @@ class ElevatorVisualizer(StateViz):
         surf.fill((255, 255, 255))
         
         # Building exterior
-        gfxdraw.hline(
-            surf, self._left, self._right, self._top, (0, 0, 0))
-        gfxdraw.hline(
-            surf, self._left, self._right, self._bottom, (0, 0, 0))
-        gfxdraw.vline(
-            surf, self._left, self._top, self._bottom , (0, 0, 0))
-        gfxdraw.vline(
-            surf, self._right, self._top, self._bottom , (0, 0, 0))
+        gfxdraw.box(surf, Rect(COL_SIZE//2, ROW_SIZE//2, self._figure_size[0]-COL_SIZE, self._figure_size[1]-ROW_SIZE), (0, 0, 0))
+        gfxdraw.box(surf, Rect(self._left, self._top, self._right - self._left, self._bottom - self._top), (255, 255, 255))
 
         # Draw the vertical lines for elevator passages
         for i in range(self._n_elev):
             col_offset = 2 * i + 2
-            gfxdraw.vline(
-                surf, self._left + col_offset * COL_SIZE, self._top, self._bottom, (50, 50, 50)
+            gfxdraw.box(
+                surf,
+                Rect(self._left + col_offset * COL_SIZE, self._top, COL_SIZE, self._bottom - self._top),
+                (0, 0, 0, 50),
             )
-            gfxdraw.vline(
-                surf, self._left + (col_offset+1)*COL_SIZE, self._top, self._bottom, (50, 50, 50)
+            gfxdraw.box(
+                surf,
+                Rect(self._left + col_offset * COL_SIZE + int(0.08 * COL_SIZE), self._top, int(0.84 * COL_SIZE), self._bottom - self._top),
+                (255, 255, 255),
             )
 
         # Draw each floor
