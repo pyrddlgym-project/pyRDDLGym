@@ -803,8 +803,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
 
     def _parse_bounds_rec(self, cond, search_dict):
         if cond.etype[0] == "boolean" and cond.etype[1] == "^":
-            self._parse_bounds_rec(cond.args[0], search_dict)  # left term
-            self._parse_bounds_rec(cond.args[1], search_dict)  # right term
+            for arg in cond.args:
+                self._parse_bounds_rec(arg, search_dict)
         if cond.etype[0] == "relational":
             var, lim, loc = self.get_bounds(cond.args[0], cond.args[1], cond.etype[1], search_dict)
             if var is not None and loc is not None:
