@@ -20,12 +20,12 @@ non-fluents rover2 {
 	};
 
 	non-fluents {
-        MINERAL-POS_X(m1) = 5;
-		MINERAL-POS_Y(m1) = 5;
+        MINERAL-POS-X(m1) = 5;
+		MINERAL-POS-Y(m1) = 5;
 		MINERAL-VALUE(m1) = 8;
 		MINERAL-AREA(m1) = 6;
-		MINERAL-POS_X(m2) = -8;
-		MINERAL-POS_Y(m2) = -8;
+		MINERAL-POS-X(m2) = -8;
+		MINERAL-POS-Y(m2) = -8;
 		MINERAL-VALUE(m2) = 5;
 		MINERAL-AREA(m2) = 8;
 	};
@@ -57,4 +57,3 @@ instance inst_mars_rover {
 	horizon  = 40;
 	discount = 1.0;
 }
-

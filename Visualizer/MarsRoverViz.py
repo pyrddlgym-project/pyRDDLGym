@@ -40,37 +40,37 @@ class MarsRoverVisualizer(StateViz):
 
         # style of fluent_p1
         for k,v in self._nonfluents.items():
-            if 'MINERAL_POS_X_' in k:
-                point = k.split('_')[3]
+            if 'MINERAL-POS-X_' in k:
+                point = k.split('_')[1]
                 mineral_locaiton[point][0] = v
-            elif 'MINERAL_POS_Y_' in k:
-                point = k.split('_')[3]
+            elif 'MINERAL-POS-Y_' in k:
+                point = k.split('_')[1]
                 mineral_locaiton[point][1] = v
-            elif 'MINERAL_AREA_' in k:
-                point = k.split('_')[2]
+            elif 'MINERAL-AREA_' in k:
+                point = k.split('_')[1]
                 mineral_locaiton[point][2] = v
-            elif 'MINERAL_VALUE_' in k:
-                point = k.split('_')[2]
-                mineral_locaiton[point][3] = v    
+            elif 'MINERAL-VALUE_' in k:
+                point = k.split('_')[1]
+                mineral_locaiton[point][3] = v
 
         return {'mineral_location' : mineral_locaiton}
     
     def build_states_layout(self, state):
-        rover_location = {o:[None,None] for o in self._objects['drone']}
+        rover_location = {o:[None,None] for o in self._objects['rover']}
         mineral_harvested ={o:None for o in self._objects['mineral']}
         
 
         for k,v in state.items():
-            if 'pos_x_' in k:
-                point = k.split('_')[2]
+            if 'pos-x_' in k:
+                point = k.split('_')[1]
                 rover_location[point][0] = v
-            elif 'pos_y_' in k:
-                point = k.split('_')[2]
+            elif 'pos-y_' in k:
+                point = k.split('_')[1]
                 rover_location[point][1] = v
 
         for k,v in state.items():
-            if 'mineral_harvested_' in k:
-                point = k.split('_')[2]
+            if 'mineral-harvested_' in k:
+                point = k.split('_')[1]
                 mineral_harvested[point] = v
 
         return {'mineral_harvested':mineral_harvested, 'rover_location':rover_location}
@@ -110,29 +110,20 @@ class MarsRoverVisualizer(StateViz):
 
         self._nonfluent_layout = nonfluent_layout
         self._state_layout = state_layout
-
-
         
-
         max_value = max([v[3] for k, v in nonfluent_layout['mineral_location'].items()])
         for k,v in nonfluent_layout['mineral_location'].items():
+            value = nonfluent_layout['mineral_location'][k][3]/max_value
             if state_layout['mineral_harvested'][k] == False:
-                value = nonfluent_layout['mineral_location'][k][3]/max_value
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=value)
+                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, linewidth=10, alpha=max(min(value, 0.9),0.1))
             else:
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
+                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', linewidth=10, fill=False, alpha=max(min(value, 0.9),0.1))
+            plt.text(v[0] - 1 , v[1], "Value: %s" % self._nonfluent_layout['mineral_location'][k][3], color='black', fontsize = 50)
             self._ax.add_patch(p_point)
 
-
-        rover_img_path = self._asset_path + '/assets/mars-rover.png'
-        rover_logo = plt_img.imread(rover_img_path)
-        rover_logo_zoom = rover_logo.shape[0]/(self._dpi*90)
-
         for k,v in state_layout['rover_location'].items():
-            imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
-            ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
-            self._ax.add_artist(ab)
-
+            rover_rec = plt.Rectangle( (v[0], v[1]), 0.5, 0.5, fc='grey', zorder=2)
+            self._ax.add_patch(rover_rec)
 
         img = self.convert2img(self._fig, self._ax)
 

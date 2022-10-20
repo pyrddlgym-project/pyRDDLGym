@@ -16,7 +16,7 @@ non-fluents nf_simple_UAV_p0{
 
         GRAVITY = 9.8;
 
-        SCALE_FACTOR = 0.1;
+        SCALE-FACTOR = 0.1;
 
         // Speed bounds
         MIN-VEL(a1) = -1.0;
