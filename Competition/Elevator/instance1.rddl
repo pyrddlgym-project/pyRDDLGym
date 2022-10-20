@@ -25,8 +25,10 @@ non-fluents elevators3 {
 		REWARD-DELIVERED 		= 30.0;
 		ARRIVE-PARAM(f1) 		= 0.14635538;
 		ARRIVE-PARAM(f2) 		= 0.1;
-		ARRIVE-PARAM(f2) 		= 0.2;
-		ARRIVE-PARAM(f4)		= 0.25;
+		ARRIVE-PARAM(f3) 		= 0.12;
+		ARRIVE-PARAM(f4) 		= 0.13;
+		ARRIVE-PARAM(f5)		= 0.12;
+		ARRIVE-PARAM(f6)		= 0.13;
 		ADJACENT-UP(f0,f1) 		= true;
 		ADJACENT-UP(f1,f2) 		= true;
 		ADJACENT-UP(f2,f3) 		= true;
