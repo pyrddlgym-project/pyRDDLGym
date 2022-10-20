@@ -11,7 +11,7 @@ domain = MyReader.rddltxt
 MyLexer = parser.RDDLlex()
 MyLexer.build()
 MyLexer.input(domain)
-# token_list = [token for token in MyLexer._lexer]
+token_list = [token for token in MyLexer._lexer]
 # print(token_list)
 
 # build parser - built in lexer, non verbose
