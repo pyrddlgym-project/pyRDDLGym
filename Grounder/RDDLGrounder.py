@@ -19,7 +19,7 @@ AGGREG_OPERATION_LIST = [
     'prod', 'sum', 'avg', 'minimum', 'maximum', 'forall', 'exists'
 ]
 AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST = [
-    '*', '+', '+', '<', '>', '^', '|'
+    '*', '+', '+', 'min', 'max', '^', '|'
 ]
 AGGREG_OP_TO_STRING_DICT = dict(
     zip(AGGREG_OPERATION_LIST,
@@ -358,53 +358,18 @@ class RDDLGrounder(Grounder):
             updated_dict = copy.deepcopy(original_dict)
             updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
             new_expr = self._scan_expr_tree(expression, updated_dict)
-        elif len(instances_list) == 2:  # normal base case
+        else: #we now support multi-arity /arguments for all the aggregate operations, min, max, sum, prod,...
             new_children = []
-            lhs_updated_dict = copy.deepcopy(original_dict)
-            lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
-            new_children.append(self._scan_expr_tree(expression, lhs_updated_dict))
-            rhs_updated_dict = copy.deepcopy(original_dict)
-            rhs_updated_dict.update(dict(zip(new_variables_list, instances_list[1])))
-            new_children.append(self._scan_expr_tree(expression, rhs_updated_dict))
-            # even if it is a max or min operation, when there are only 2 left, we just do "> or <"
+            for instance_idx in range(len(instances_list)):
+                updated_dict = copy.deepcopy(original_dict)
+                updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
+                new_children.append(self._scan_expr_tree(expression, updated_dict))
+            #--end for loop through instances
             new_expr = Expression((operation_string, tuple(new_children)))
-        else:  # recursive case
-            if operation_string in {'+', '*', '^', '|'}:  # those ">,<" are for the min and max respectively
-                new_children = []
-                lhs_updated_dict = copy.deepcopy(original_dict)
-                lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
-                instances_list = instances_list[1:]  # remove the first element before the recursion, simple.
-                new_children.append(self._scan_expr_tree(expression, lhs_updated_dict))
-                new_children.append(
-                    self.do_aggregate_expression_nesting(original_dict,
-                                                         new_variables_list,
-                                                         instances_list,
-                                                         operation_string, expression))
-                new_expr = Expression((operation_string, tuple(new_children)))
-            else:  # Handling the min and max case.
-                # this is done by comparing two at a time, and recursively calling with the remainder of the list
-                # keeping the one that "wins" the comparison. Eg: if (a > b) then (>, [a, rest of list]) else (>, [b, rest of list])
-                # I assume if they are equal, we have a default behavior in the simulator (eg: take first arg)
-                lhs_updated_dict = copy.deepcopy(original_dict)
-                lhs_updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
-                lhs_comparison_arg = self._scan_expr_tree(expression, lhs_updated_dict)
-                rhs_updated_dict = copy.deepcopy(original_dict)
-                rhs_updated_dict.update(dict(zip(new_variables_list, instances_list[1])))
-                rhs_comparison_arg = self._scan_expr_tree(expression, rhs_updated_dict)
-                comparison_expression = Expression(
-                    (operation_string, (lhs_comparison_arg, rhs_comparison_arg)))
-                new_expr = Expression(
-                    ('if', (comparison_expression,
-                            self.do_aggregate_expression_nesting(
-                                original_dict, new_variables_list,
-                                [instances_list[0]] + instances_list[2:],
-                                operation_string, expression),
-                            self.do_aggregate_expression_nesting(
-                                original_dict, new_variables_list,
-                                [instances_list[1]] + instances_list[2:],
-                                operation_string, expression))))
-    
         return new_expr
+
+
+
 
     def _scan_expr_tree_pvar(self, expr: Expression, dic) -> Expression:
         """Ground out a pvar expression."""

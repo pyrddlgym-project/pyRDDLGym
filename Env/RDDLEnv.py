@@ -189,6 +189,11 @@ class RDDLEnv(gym.Env):
             pygame.display.flip()
         return image
 
+    def close(self):
+        if self.to_render:
+            pygame.display.quit()
+            pygame.quit()
+
 
     @property
     def NumConcurrentActions(self):
