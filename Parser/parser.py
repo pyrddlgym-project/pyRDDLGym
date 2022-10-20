@@ -36,6 +36,7 @@ class RDDLlex(object):
             'requirements': 'REQUIREMENTS',
             'state-action-constraints': 'STATE_ACTION_CONSTRAINTS',
             'action-preconditions': 'ACTION_PRECONDITIONS',
+            'termination' : 'TERMINATION',
             'state-invariants': 'STATE_INVARIANTS',
             'types': 'TYPES',
             'object': 'OBJECT',
@@ -277,6 +278,7 @@ class RDDLParser(object):
                        | domain_list pvar_section
                        | domain_list cpf_section
                        | domain_list reward_section
+                       | domain_list termination_section
                        | domain_list action_precond_section
                        | domain_list state_action_constraint_section
                        | domain_list state_invariant_section
@@ -416,6 +418,28 @@ class RDDLParser(object):
         '''reward_section : REWARD ASSIGN_EQUAL expr SEMI'''
         p[0] = ('reward', p[3])
         self._print_verbose('reward')
+
+    def p_termination_section(self, p):
+        '''termination_section  : TERMINATION LCURLY termination_list RCURLY SEMI
+                                |  TERMINATION LCURLY RCURLY SEMI'''
+        if len(p) == 6:
+            p[0] = ('terminals', p[3])
+        elif len(p) == 5:
+            p[0] = ('terminals', [])
+        self._print_verbose('termination')
+
+    def p_termination_list(self, p):
+        '''termination_list : termination_list termination_cond_def
+                            | termination_cond_def'''
+        if len(p) == 3:
+            p[1].append(p[2])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_termination_cond_def(self, p):
+        '''termination_cond_def : expr SEMI'''
+        p[0] = p[1]
 
     def p_action_precond_section(self, p):
         '''action_precond_section : ACTION_PRECONDITIONS LCURLY action_precond_list RCURLY SEMI

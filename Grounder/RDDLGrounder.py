@@ -75,6 +75,7 @@ class RDDLGrounder(Grounder):
         self.derived = {}
         self.interm = {}
         self.reward = None
+        self.terminals = []
         self.preconditions = []
         self.invariants = []
 
@@ -98,6 +99,7 @@ class RDDLGrounder(Grounder):
         model.cpfs = self.cpfs
         model.cpforder = self.cpforder
         model.reward = self.reward
+        model.terminals = self.terminals
         model.preconditions = self.preconditions
         model.invariants = self.invariants
         model.derived = self.derived
@@ -498,6 +500,10 @@ class RDDLGrounder(Grounder):
             return Expression((expr.etype[1], tuple(new_children)))
 
     def _ground_constraints(self) -> None:
+        if hasattr(self.AST.domain, 'terminals'):
+            for terminal in self.AST.domain.terminals:
+                self.terminals.append(self._scan_expr_tree(terminal, {}))
+
         if hasattr(self.AST.domain, 'preconds'):
             for precond in self.AST.domain.preconds:
                 self.preconditions.append(self._scan_expr_tree(precond, {}))
