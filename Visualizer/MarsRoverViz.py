@@ -113,11 +113,11 @@ class MarsRoverVisualizer(StateViz):
         
         max_value = max([v[3] for k, v in nonfluent_layout['mineral_location'].items()])
         for k,v in nonfluent_layout['mineral_location'].items():
+            value = nonfluent_layout['mineral_location'][k][3]/max_value
             if state_layout['mineral_harvested'][k] == False:
-                value = nonfluent_layout['mineral_location'][k][3]/max_value
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=value)
+                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, linewidth=10, alpha=max(min(value, 0.9),0.1))
             else:
-                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
+                p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', linewidth=10, fill=False, alpha=max(min(value, 0.9),0.1))
             plt.text(v[0] - 1 , v[1], "Value: %s" % self._nonfluent_layout['mineral_location'][k][3], color='black', fontsize = 50)
             self._ax.add_patch(p_point)
 
