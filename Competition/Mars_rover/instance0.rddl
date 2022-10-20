@@ -5,9 +5,9 @@
 // designated radii) as possible within the time constraints.
 //
 // The movement model is of a second order integrator in 2d
-// The states for each drone is the x,y positions and velocities.
+// The states for each rover is the x,y positions and velocities.
 // The actions are acceleartion in the x,y axes.
-// A third action for each drone is minearl harvesting when possible.
+// A third action for each rover is minearl harvesting when possible.
 //
 ////////////////////////////////////////////////////////////////////
 
@@ -15,19 +15,19 @@ non-fluents rover2 {
     domain = mars_rover_science_mission;
 
     objects {
-		drone : { d1, d2 };
+		rover : { d1, d2 };
 		mineral : { m1, m2 };
 	};
 
 	non-fluents {
-        MINERAL_POS_X(m1) = 5;
-		MINERAL_POS_Y(m1) = 5;
-		MINERAL_VALUE(m1) = 8;
-		MINERAL_AREA(m1) = 6;
-		MINERAL_POS_X(m2) = -8;
-		MINERAL_POS_Y(m2) = -8;
-		MINERAL_VALUE(m2) = 2;
-		MINERAL_AREA(m2) = 8;
+        MINERAL-POS_X(m1) = 5;
+		MINERAL-POS_Y(m1) = 5;
+		MINERAL-VALUE(m1) = 8;
+		MINERAL-AREA(m1) = 6;
+		MINERAL-POS_X(m2) = -8;
+		MINERAL-POS_Y(m2) = -8;
+		MINERAL-VALUE(m2) = 5;
+		MINERAL-AREA(m2) = 8;
 	};
 
 }
@@ -40,15 +40,15 @@ instance inst_mars_rover {
 	non-fluents = rover2;
 
 	init-state {
-		vel_x(d1) = 1;
-        vel_y(d1) = 1;
-        pos_x(d1) = 0;
-        pos_y(d1) = 0;
+		vel-x(d1) = 1;
+        vel-y(d1) = 1;
+        pos-x(d1) = 0;
+        pos-y(d1) = 0;
 
-		vel_x(d2) = 2;
-        vel_y(d2) = 2;
-        pos_x(d2) = 3;
-        pos_y(d2) = 3;
+		vel-x(d2) = 2;
+        vel-y(d2) = 2;
+        pos-x(d2) = 3;
+        pos-y(d2) = 3;
 	};
 
   	// State-action constraints above are sufficient
@@ -57,4 +57,3 @@ instance inst_mars_rover {
 	horizon  = 40;
 	discount = 1.0;
 }
-
