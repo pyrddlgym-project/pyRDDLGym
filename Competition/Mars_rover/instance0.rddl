@@ -26,7 +26,7 @@ non-fluents rover2 {
 		MINERAL_AREA(m1) = 6;
 		MINERAL_POS_X(m2) = -8;
 		MINERAL_POS_Y(m2) = -8;
-		MINERAL_VALUE(m2) = 5;
+		MINERAL_VALUE(m2) = 2;
 		MINERAL_AREA(m2) = 8;
 	};
 
