@@ -5,17 +5,16 @@ class PlanningModel(metaclass=ABCMeta):
         self._AST = None
         self._nonfluents = None
         self._states = None
-        # new
         self._statesranges = None
         self._nextstates = None
         self._prevstates = None
         self._initstate = None
         self._actions = None
         self._objects = None
-        # new
         self._actionsranges = None
         self._derived = None
         self._interm = None
+        self._observ = None
         self._cpfs = None
         self._cpforder = None
         self._reward = None
@@ -118,6 +117,14 @@ class PlanningModel(metaclass=ABCMeta):
     @interm.setter
     def interm(self, val):
         self._interm = val
+
+    @property
+    def observ(self):
+        return self._observ
+
+    @observ.setter
+    def observ(self, value):
+        self._observ = value
 
     @property
     def cpfs(self):
