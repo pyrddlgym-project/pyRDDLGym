@@ -7,12 +7,12 @@ import sys
 
 from Visualizer.PowerGenViz import PowerGenVisualizer
 from Visualizer.MarsRoverViz import MarsRoverVisualizer
-from Visualizer.DroneViz import DroneVisualizer
+from Visualizer.UAVsViz import UAVsVisualizer
 from Visualizer.WildfireViz import WilfireVisualizer
 
-FOLDER = 'Competition/Power_gen/'
-FOLDER = 'Competition/Mars_rover/'
-FOLDER = 'Competition/Drone/Drone_con/'
+# FOLDER = 'Competition/Power_gen/'
+# FOLDER = 'Competition/Mars_rover/'
+# FOLDER = 'Competition/UAVs_con/'
 FOLDER = 'TestingDomain/wildfire/'
 
 
@@ -22,7 +22,7 @@ def main():
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
     # myEnv.set_visualizer(PowerGenVisualizer)
     # myEnv.set_visualizer(MarsRoverVisualizer)
-    # myEnv.set_visualizer(DroneVisualizer)
+    # myEnv.set_visualizer(UAVsVisualizer)
     myEnv.set_visualizer(WilfireVisualizer)
 
    

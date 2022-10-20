@@ -40,37 +40,37 @@ class MarsRoverVisualizer(StateViz):
 
         # style of fluent_p1
         for k,v in self._nonfluents.items():
-            if 'MINERAL_POS_X_' in k:
-                point = k.split('_')[3]
+            if 'MINERAL-POS-X_' in k:
+                point = k.split('_')[1]
                 mineral_locaiton[point][0] = v
-            elif 'MINERAL_POS_Y_' in k:
-                point = k.split('_')[3]
+            elif 'MINERAL-POS-Y_' in k:
+                point = k.split('_')[1]
                 mineral_locaiton[point][1] = v
-            elif 'MINERAL_AREA_' in k:
-                point = k.split('_')[2]
+            elif 'MINERAL-AREA_' in k:
+                point = k.split('_')[1]
                 mineral_locaiton[point][2] = v
-            elif 'MINERAL_VALUE_' in k:
-                point = k.split('_')[2]
-                mineral_locaiton[point][3] = v    
+            elif 'MINERAL-VALUE_' in k:
+                point = k.split('_')[1]
+                mineral_locaiton[point][3] = v
 
         return {'mineral_location' : mineral_locaiton}
     
     def build_states_layout(self, state):
-        rover_location = {o:[None,None] for o in self._objects['drone']}
+        rover_location = {o:[None,None] for o in self._objects['rover']}
         mineral_harvested ={o:None for o in self._objects['mineral']}
         
 
         for k,v in state.items():
-            if 'pos_x_' in k:
-                point = k.split('_')[2]
+            if 'pos-x_' in k:
+                point = k.split('_')[1]
                 rover_location[point][0] = v
-            elif 'pos_y_' in k:
-                point = k.split('_')[2]
+            elif 'pos-y_' in k:
+                point = k.split('_')[1]
                 rover_location[point][1] = v
 
         for k,v in state.items():
-            if 'mineral_harvested_' in k:
-                point = k.split('_')[2]
+            if 'mineral-harvested_' in k:
+                point = k.split('_')[1]
                 mineral_harvested[point] = v
 
         return {'mineral_harvested':mineral_harvested, 'rover_location':rover_location}
