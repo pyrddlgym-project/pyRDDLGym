@@ -10,20 +10,20 @@ from Visualizer.MarsRoverViz import MarsRoverVisualizer
 from Visualizer.UAVsViz import UAVsVisualizer
 from Visualizer.WildfireViz import WilfireVisualizer
 
-FOLDER = 'Competition/Power_gen/'
+# FOLDER = 'Competition/Power_gen/'
 # FOLDER = 'Competition/Mars_rover/'
-# FOLDER = 'Competition/UAVs_con/'
-# FOLDER = 'Competition/Wildfire/'
+# FOLDER = 'Competition/UAVs_mix/'
+FOLDER = 'Competition/Wildfire/'
 
 
 def main():
     steps = 100
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'instance0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
-    myEnv.set_visualizer(PowerGenVisualizer)
+    # myEnv.set_visualizer(PowerGenVisualizer)
     # myEnv.set_visualizer(MarsRoverVisualizer)
     # myEnv.set_visualizer(UAVsVisualizer)
-    # myEnv.set_visualizer(WilfireVisualizer)
+    myEnv.set_visualizer(WilfireVisualizer)
 
    
     from pprint import pprint
