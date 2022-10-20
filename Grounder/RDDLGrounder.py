@@ -327,9 +327,9 @@ class RDDLGrounder(Grounder):
         new_cpf.expr = self._scan_expr_tree(new_cpf.expr, args_dic)
         return new_cpf
 
-    def do_aggregate_expression_nesting(self, original_dict, new_variables_list,
-                                        instances_list, operation_string,
-                                        expression):
+    def do_aggregate_expression_grounding(self, original_dict, new_variables_list,
+                                          instances_list, operation_string,
+                                          expression):
         """Args:
                 original_dict:
                 new_variables_list:
@@ -433,7 +433,7 @@ class RDDLGrounder(Grounder):
                         for j in range(len(self.objects[object_type_list[var_idx]]))
                     ]
                 object_instances_list = instance_tuples
-                expr = self.do_aggregate_expression_nesting(
+                expr = self.do_aggregate_expression_grounding(
                     dic, var_key_strings_list, object_instances_list,
                     aggreg_recursive_operation_string, arg
                 )  # Last arg is the expression with which the aggregation is done.
