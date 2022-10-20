@@ -74,6 +74,7 @@ class RDDLGrounder(Grounder):
         self.cpforder = {0: []}
         self.derived = {}
         self.interm = {}
+        self.observ = {}
         self.reward = None
         self.terminals = []
         self.preconditions = []
@@ -104,6 +105,7 @@ class RDDLGrounder(Grounder):
         model.invariants = self.invariants
         model.derived = self.derived
         model.interm = self.interm
+        model.observ = self.observ
         model.objects = self.objects
         model.actionsranges = self.actionsranges
         model.statesranges = self.statesranges
@@ -209,6 +211,7 @@ class RDDLGrounder(Grounder):
         all_grounded_state_cpfs = []
         all_grounded_interim_cpfs = []
         all_grounded_derived_cpfs = []
+        all_grounded_observ_cpfs = []
         for pvariable in self.AST.domain.pvariables:
             name = pvariable.name
             if pvariable.arity > 0:
@@ -299,6 +302,24 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level].append(g)
                     else:
                         self.cpforder[level] = [g]
+
+            elif pvariable.fluent_type == 'observ-fluent':
+                cpf = None
+                for cpfs in self.AST.domain.observation_cpfs:
+                    if cpfs.pvar[1][0] == name:
+                        cpf = cpfs
+                        break
+                if cpf is None:
+                    raise RDDLMissingCPFDefinitionError(
+                        'CPF {} is missing a valid definition.'.format(name))
+                for g in grounded:
+                    grounded_cpf = self._ground_single_cpf(
+                        cpf, g, grounded_name_to_params_dict[g])
+                    all_grounded_observ_cpfs.append(grounded_cpf)
+                    self.observ[g] = pvariable.default
+                    self.cpfs[g] = grounded_cpf.expr
+                    self.cpforder[0].append(g)
+
         # self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
         #                        )  # replacing the previous lifted entries
         # self.AST.domain.derived_cpfs = all_grounded_derived_cpfs
