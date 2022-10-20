@@ -43,17 +43,17 @@ class PowerGenVisualizer(StateViz):
 
         # add none-fluents
         for k,v in self._nonfluents.items():
-            if 'PROD_UNITS_MIN_' in k:
-                point = k.split('_')[3]
+            if 'PROD-UNITS-MIN_' in k:
+                point = k.split('_')[1]
                 prod_units_min[point] = v
-            elif 'ROD_UNITS_MAX_' in k:
-                point = k.split('_')[3]
+            elif 'ROD-UNITS-MAX_' in k:
+                point = k.split('_')[1]
                 prod_units_max[point] = v
-            elif 'PROD_CHANGE_PENALTY_' in k:
-                point = k.split('_')[3]
+            elif 'PROD-CHANGE-PENALTY_' in k:
+                point = k.split('_')[1]
                 prod_change_penalty [point] = v
-            elif 'COST_PER_UNIT_' in k:
-                point = k.split('_')[3]
+            elif 'COST-PER-UNIT_' in k:
+                point = k.split('_')[1]
                 cost_per_unit[point] = v
 
         return {'prod_units_min':prod_units_min, 'prod_units_max':prod_units_max, 'prod_change_penalty':prod_change_penalty, 'cost_per_unit':cost_per_unit}
