@@ -110,10 +110,7 @@ class MarsRoverVisualizer(StateViz):
 
         self._nonfluent_layout = nonfluent_layout
         self._state_layout = state_layout
-
-
         
-
         max_value = max([v[3] for k, v in nonfluent_layout['mineral_location'].items()])
         for k,v in nonfluent_layout['mineral_location'].items():
             if state_layout['mineral_harvested'][k] == False:
@@ -121,18 +118,12 @@ class MarsRoverVisualizer(StateViz):
                 p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fc='g',fill=True, alpha=value)
             else:
                 p_point = plt.Circle((v[0],v[1]), radius=v[2], ec='forestgreen', fill=False)
+            plt.text(v[0] - 1 , v[1], "Value: %s" % self._nonfluent_layout['mineral_location'][k][3], color='black', fontsize = 50)
             self._ax.add_patch(p_point)
 
-
-        rover_img_path = self._asset_path + '/assets/mars-rover.png'
-        rover_logo = plt_img.imread(rover_img_path)
-        rover_logo_zoom = rover_logo.shape[0]/(self._dpi*90)
-
         for k,v in state_layout['rover_location'].items():
-            imagebox = OffsetImage(rover_logo, zoom=rover_logo_zoom)
-            ab = AnnotationBbox(imagebox, (v[0], v[1]), frameon = False)
-            self._ax.add_artist(ab)
-
+            rover_rec = plt.Rectangle( (v[0], v[1]), 0.5, 0.5, fc='grey', zorder=2)
+            self._ax.add_patch(rover_rec)
 
         img = self.convert2img(self._fig, self._ax)
 

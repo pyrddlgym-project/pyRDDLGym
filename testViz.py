@@ -8,19 +8,22 @@ import sys
 from Visualizer.PowerGenViz import PowerGenVisualizer
 from Visualizer.MarsRoverViz import MarsRoverVisualizer
 from Visualizer.DroneViz import DroneVisualizer
+from Visualizer.WildfireViz import WilfireVisualizer
 
 FOLDER = 'Competition/Power_gen/'
 FOLDER = 'Competition/Mars_rover/'
 FOLDER = 'Competition/Drone/Drone_con/'
+FOLDER = 'TestingDomain/wildfire/'
 
 
 def main():
-    steps = 1000
-    myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'insta0.rddl', is_grounded=False)
+    steps = 100
+    myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'instance0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
     # myEnv.set_visualizer(PowerGenVisualizer)
     # myEnv.set_visualizer(MarsRoverVisualizer)
-    myEnv.set_visualizer(DroneVisualizer)
+    # myEnv.set_visualizer(DroneVisualizer)
+    myEnv.set_visualizer(WilfireVisualizer)
 
    
     from pprint import pprint
@@ -41,6 +44,7 @@ def main():
         total_reward += reward
         # print("step {}: reward: {}".format(step, reward))
         # print("state_i:", state, "-> state_f:", next_state)
+
         print("\nstep = {}".format(step))
         print('reward = {}'.format(reward))
         print('state = {}'.format(state))
@@ -48,6 +52,7 @@ def main():
         print('next_state = {}'.format(next_state))
         print('derived = {}'.format(myEnv.model.derived))
         print('interm = {}'.format(myEnv.model.interm))
+
         state = next_state       
 
 
