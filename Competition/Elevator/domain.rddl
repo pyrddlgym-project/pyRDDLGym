@@ -1,0 +1,226 @@
+////////////////////////////////////////////////////////////////////
+// Elevator Domain
+//
+// Author of the original version: Tom Walsh (thomasjwalsh [at] gmail.com)
+//
+// Edited to allow integer counting of the number of people by Jihwan Jeong.
+//
+// The "elevators" domain has a number of elevators delivering passengers 
+// from different floors to the bottom floor (the only allowable destination).
+// Potential passengers arrive at a floor according to the Poisson arrival 
+// process with a potentially different arrival rate for each floor.  
+//
+// An elevator can move in its current direction if the door is closed,
+// can remain stationary (when no actions are chosen), or can open its 
+// door such that people can get on in the next time step. 
+// Once the door opens, the direction of the elevator automatically changes
+// to downwards to deliver passengers to the bottom floor.
+// 
+// Each pair of any two elevators have specific precedence given to only one.
+// This is to handle the case when there are multiple elevators on the same 
+// floor with their doors open such that people have to choose which one to
+// hop on. An elevator which takes precedence over the other one will be used.
+// Note: An elevator should take no precedence over itself.
+//
+////////////////////////////////////////////////////////////////////
+
+domain elevators_int_mdp {
+	
+	requirements = { 
+		constrained-state,
+		integer-valued,
+		intermediate-nodes,
+		reward-deterministic
+	};
+	
+	types {
+  		elevator : object;
+ 	  	floor    : object;
+	}; 
+	
+	pvariables { 
+	
+		// The rate of Poisson arrival process on each floor (people going down)
+		ARRIVE-PARAM(floor)				: { non-fluent, real, default = 0.0 };
+		
+		// Penalty for persons in the elevator
+		// Note: a large positive reward is given when people get to their destination
+		IN-ELEVATOR-PENALTY				: { non-fluent, real, default = 1.00 };
+		PEOPLE-WAITING-PENALTY	   		: { non-fluent, real, default = 2.95 };
+		REWARD-DELIVERED		   		: { non-fluent, real, default = 30.0 };
+
+		// Useful definitions
+		TOP-FLOOR(floor)          		: { non-fluent, bool, default = false };
+   		BOTTOM-FLOOR(floor)       		: { non-fluent, bool, default = false };
+		ADJACENT-UP(floor, floor) 		: { non-fluent, bool, default = false }; 
+
+		// non-fluents for determining which elevator takes precedence
+		// If PRECENDENCE(e1, e2) is True, it means e1 takes precedence over e2.
+		PRECEDENCE(elevator, elevator)	: { non-fluent, bool, default = false };
+		
+		// Number of persons waiting on each floor or in an elevator
+		num-person-waiting(floor)		: { state-fluent, int, default = 0 };
+		num-person-in-elevator(elevator): { state-fluent, int, default = 0 };
+		
+		// Elevator states
+		elevator-dir-up(elevator) 		: { state-fluent, bool, default = true };
+		elevator-closed(elevator) 		: { state-fluent, bool, default = true };
+		elevator-at-floor(elevator, floor) : { state-fluent, bool, default = false };
+		
+		// Intermediate fluents to help determine state fluents
+		num-arrival(floor)						: { interm-fluent, int, level = 1 }; 
+		num-get-on-elevator(elevator, floor) 	: { interm-fluent, int, level = 1 }; 
+
+		// Actions: the elevator must move in one direction.
+		//          The direction changes when it hits the bottom floor if coming from above, 
+		//          when the elevator reaches the top floor from below, 
+		//			or when the elevator opens the door on an intermediate floor.
+		//			Once the door is open, the elevator can only go down afterwards.
+        //  When multiple actions are chosen for an elevator, we apply the following rule:
+        //      open-door > close-door > move-current-dir
+        //      That is, open-door action will be taken even if close-door or move-current-dir
+        //      are true. 
+		move-current-dir(elevator)     	: { action-fluent, bool, default = false };
+		open-door(elevator)   			: { action-fluent, bool, default = false };
+		close-door(elevator)           	: { action-fluent, bool, default = false };
+		// noop						   	: { action-fluent, bool, default = false };
+	};
+  
+	cpfs {
+
+		// At each time step, we model arrival of people via Poisson process (interm-fluent)
+		// No arrival on the bottom floor
+		num-arrival(?f) = 
+			if (BOTTOM-FLOOR(?f) | ARRIVE-PARAM(?f) == 0) 
+				then 0
+			else Poisson(ARRIVE-PARAM(?f));
+		
+		// Compute the number of people who might be getting on an elevator (interm-fluent)
+		num-get-on-elevator(?e, ?f) = 
+			// no one gets on from the bottom floor or the elevator is not on this floor
+			if ( ~elevator-at-floor(?e, ?f) | BOTTOM-FLOOR(?f) ) then 0
+			
+			// If an elevator has its door open and is going down, then waiting people can get on
+			// Note: if there are multiple such elevators, the one with higher precedence will take people in
+			else if (~elevator-closed(?e) ^ ~elevator-dir-up(?e)) 
+				then if ( ~ [exists_{?e2: elevator} (
+					PRECEDENCE(?e2, ?e) ^ elevator-at-floor(?e2, ?f) ^ ~elevator-closed(?e2) ^ ~elevator-dir-up(?e2)) ] )
+					then num-person-waiting(?f)
+				else 0
+			else 0;
+
+		// Count of people awaiting an elevator on each floor
+		num-person-waiting'(?f) = 
+			// An elevator picks up existing people; newly arrived people will be served at later time steps
+			// Note: if an elevator has its door open, the direction is always downwards, so people should
+			// get on
+			if ( [exists_{?e: elevator} ( elevator-at-floor(?e, ?f) ^ ~elevator-closed(?e) ) ] )
+				then num-arrival(?f)
+			else 
+				num-arrival(?f) + num-person-waiting(?f);
+		
+		// if there are people in the elevator, this will become 0 once it gets to the bottom floor
+		// Otherwise, if the elevator arrives at a floor with people waiting to go down, then those people will get on 
+		num-person-in-elevator'(?e) = 
+			// When the elevator gets to the bottom floor, all people will get off
+			if ( [exists_{?f: floor} ( elevator-at-floor(?e, ?f) ^ BOTTOM-FLOOR(?f) ) ] )
+				then 0
+			// If the elevator door is open and is going down, people can get on to the one that has a higher precedence
+			else num-person-in-elevator(?e) + [sum_{?f: floor} num-get-on-elevator(?e, ?f)];
+		
+		// Elevator needs to be explicitly closed unless it is at the bottom floor
+		elevator-closed'(?e) = 
+			[ exists_{?f: floor} ( BOTTOM-FLOOR(?f) ^ elevator-at-floor(?e, ?f) ) ]
+            | ((elevator-closed(?e) | close-door(?e)) ^ ~open-door(?e));
+
+		// The logic for elevator direction is as follows:
+		// 	(1) if the elevator is at the bottom floor currently, then it's always headed up afterwards
+		// 	(2) if the elevator is at the top floor, then it's headed down afterwards
+		// 	(3) if the elevator opens the door on an intermediate floor, the direction becomes
+		//		to downwards (i.e., if it was going upwards, it'll go down)
+		// 	(4) otherwise, the state persists
+		elevator-dir-up'(?e) =
+			if ( [exists_{?f: floor} ( BOTTOM-FLOOR(?f) ^ elevator-at-floor(?e, ?f) )] )
+				then true
+			else if ( [exists_{?f: floor} ( TOP-FLOOR(?f) ^ elevator-at-floor(?e, ?f) )] | open-door(?e) )
+				then false
+			else 
+				// If not explicitly set then previous direction persists
+				elevator-dir-up(?e);
+		
+		// Elevator movement (not changed from the original version)
+		//
+		// Note: if the elevator should pause at a floor, it can simply open
+		//       do noops (all actions false).
+		elevator-at-floor'(?e, ?f) =
+		
+			//////////////////////////////////////////////////////////////////
+			// Elevator does not move if door is open or elevator does not move
+			//////////////////////////////////////////////////////////////////
+			if (~elevator-closed(?e) | ~move-current-dir(?e) | open-door(?e) | close-door(?e))
+				then elevator-at-floor(?e, ?f)
+
+			//////////////////////////////////////////////////////////////////
+			// These handle the floor that is moved to
+			//////////////////////////////////////////////////////////////////
+			else if (move-current-dir(?e) ^ elevator-dir-up(?e) ^ [exists_{?cur : floor} 
+					 (elevator-at-floor(?e, ?cur) ^ ADJACENT-UP(?cur,?f))])
+				then true
+			else if (move-current-dir(?e) ^ ~elevator-dir-up(?e) ^ [exists_{?cur : floor} 
+						(elevator-at-floor(?e, ?cur) ^ ADJACENT-UP(?f,?cur))])
+				then true
+
+			//////////////////////////////////////////////////////////////////
+			// These handle failed actions -- stay at current floor
+			//////////////////////////////////////////////////////////////////
+			else if (move-current-dir(?e) ^ elevator-dir-up(?e) ^ ~[exists_{?next : floor} 
+					 (elevator-at-floor(?e, ?f) ^ ADJACENT-UP(?f,?next))])
+				then elevator-at-floor(?e, ?f)
+			else if (move-current-dir(?e) ^ ~elevator-dir-up(?e) ^ ~[exists_{?next : floor} 
+						(elevator-at-floor(?e, ?f) ^ ADJACENT-UP(?next,?f))])
+				then elevator-at-floor(?e, ?f)
+
+			//////////////////////////////////////////////////////////////////
+			// Otherwise elevator ?e does not move to floor ?f
+			//////////////////////////////////////////////////////////////////
+			else
+				// If here, state persists
+				false; 
+	};
+  
+  	// Reward is a sum of waiting penalties for those in elevators and at floor
+	reward = 
+		// Penalty for people who haven't got to the bottom floor yet
+		- IN-ELEVATOR-PENALTY * [sum_{?e: elevator} num-person-in-elevator(?e)]
+
+		// Penalty for those who are waiting on all floors
+		- PEOPLE-WAITING-PENALTY * [sum_{?f: floor} num-person-waiting(?f)]
+
+		// Reward for delivering people to the bottom floor
+		+ [sum_{?e2: elevator}
+			REWARD-DELIVERED * 
+				num-person-in-elevator(?e2) * KronDelta(exists_{?f2: floor} [elevator-at-floor(?e2, ?f2) ^ BOTTOM-FLOOR(?f2)] )
+		];
+  	
+	state-invariants {
+		// Can check uniqueness constraint in many ways, but for simulator easiest 
+		// is just to count.
+		forall_{?e : elevator} ([sum_{?f: floor} elevator-at-floor(?e, ?f)] == 1);
+
+		// If e1 takes precedence over e2, e2 should not have higher precendence than e1 (and vice versa)
+		forall_{?e1: elevator, ?e2: elevator} [ (PRECEDENCE(?e1, ?e2) => ~PRECEDENCE(?e2, ?e1)) ^
+												 (PRECEDENCE(?e2, ?e1) => ~PRECEDENCE(?e1, ?e2))];
+
+		// There should be no precedence with itself
+		forall_{?e: elevator} [ ~ PRECEDENCE(?e, ?e) ];
+
+		// All floors except top and bottom must have one adjacent floor above/below
+		forall_{?f : floor} [ TOP-FLOOR(?f) | (sum_{?fup : floor} ADJACENT-UP(?f,?fup)) == 1 ];
+		forall_{?f : floor} [ BOTTOM-FLOOR(?f) | (sum_{?fdown : floor} ADJACENT-UP(?fdown,?f)) == 1 ];
+	};
+
+	action-preconditions {
+		// Max of one action per elevator.
+		forall_{?e : elevator} [(open-door(?e) + close-door(?e) + move-current-dir(?e)) <= 1];
+	};
+}
