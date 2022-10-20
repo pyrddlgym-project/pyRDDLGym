@@ -13,9 +13,11 @@ Parser/parsetab.py
 
 img_folder/
 genViz.py
+testViz.py
 genVizSimple.py
 Domain_test/
 genGif.py
 VizRDDL/
-
+# Competition/
+TestingDomain/
 

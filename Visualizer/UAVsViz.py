@@ -16,8 +16,8 @@ import Visualizer
 
 
 
-class DroneVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, figure_size = [100, 100], dpi = 10, fontsize = 8, display=False) -> None:
+class UAVsVisualizer(StateViz):
+    def __init__(self, model: RDDLModel, figure_size = [200, 200], dpi = 5, fontsize = 8, display=False) -> None:
 
         self._model= model
         self._states = model.states
@@ -39,14 +39,14 @@ class DroneVisualizer(StateViz):
         goal_location = {o:[None,None,None] for o in self._objects['aircraft']}
 
         for k,v in self._nonfluents.items():
-            if 'GOAL_X_' in k:
-                point = k.split('_')[2]
+            if 'GOAL-X_' in k:
+                point = k.split('_')[1]
                 goal_location[point][0] = v
-            elif 'GOAL_Y_' in k:
-                point = k.split('_')[2]
+            elif 'GOAL-Y_' in k:
+                point = k.split('_')[1]
                 goal_location[point][1] = v
-            elif 'GOAL_Z_' in k:
-                point = k.split('_')[2]
+            elif 'GOAL-Z_' in k:
+                point = k.split('_')[1]
                 goal_location[point][2] = v
         
         return {'goal_location' : goal_location}
@@ -56,14 +56,14 @@ class DroneVisualizer(StateViz):
         velocity = {o:None for o in self._objects['aircraft']}        
 
         for k,v in state.items():
-            if 'pos_x_' in k:
-                point = k.split('_')[2]
+            if 'pos-x_' in k:
+                point = k.split('_')[1]
                 drone_location[point][0] = v
-            elif 'pos_y_' in k:
-                point = k.split('_')[2]
+            elif 'pos-y_' in k:
+                point = k.split('_')[1]
                 drone_location[point][1] = v
-            elif 'pos_z_' in k:
-                point = k.split('_')[2]
+            elif 'pos-z_' in k:
+                point = k.split('_')[1]
                 drone_location[point][2] = v
             elif 'vel_' in k:
                 point = k.split('_')[1]
