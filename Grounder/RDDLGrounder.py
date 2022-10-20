@@ -327,47 +327,25 @@ class RDDLGrounder(Grounder):
         new_cpf.expr = self._scan_expr_tree(new_cpf.expr, args_dic)
         return new_cpf
 
-    def do_aggregate_expression_nesting(self, original_dict, new_variables_list,
-                                        instances_list, operation_string,
-                                        expression):
+    def do_aggregate_expression_grounding(self, original_dict, new_variables_list,
+                                          instances_list, operation_string,
+                                          expression):
         """Args:
                 original_dict:
                 new_variables_list:
                 instances_list:
                 operation_string:
                 expression:
-            Returns:
-            Summary: expands the dictionary with the object instances for the
-            variables passed in;
-            NOTE that the order of variables, and order of elements in each entry of
-            instances_set should line up.
-            With the expanded dictionary, creates an expression of the type
-            specified in "operation_String"
-            the lhs (first) argument would be an instance from the set, and rhs
-            would be from
-            recursively calling this function with a reduced set, and the original
-            dictionary.
+            Returns: Grounded expression for aggregation operations (min, max, sum, prod, forall, exists)
         """
-    
-        # todo create expression with the type passed in
-        # the first argument (lhs) will have an updated dictionary based on the objects spec'd
-        # in the set definition (gets one instance added to the dictionary). We can scan_expression on it
-        # for the second arg (righ hand side), we will recursively call this func with a reduced set of objects
-        if len(instances_list) == 1:
-            # this case CAN happen, if there is only one object of the type specified
-            # which can be due to misspec or due to a difficult constraint satisfaction in set definition,
-            # that varies over instances
+
+        new_children = []
+        for instance_idx in range(len(instances_list)):
             updated_dict = copy.deepcopy(original_dict)
-            updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
-            new_expr = self._scan_expr_tree(expression, updated_dict)
-        else: #we now support multi-arity /arguments for all the aggregate operations, min, max, sum, prod,...
-            new_children = []
-            for instance_idx in range(len(instances_list)):
-                updated_dict = copy.deepcopy(original_dict)
-                updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
-                new_children.append(self._scan_expr_tree(expression, updated_dict))
-            #--end for loop through instances
-            new_expr = Expression((operation_string, tuple(new_children)))
+            updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
+            new_children.append(self._scan_expr_tree(expression, updated_dict))
+        #--end for loop through instances
+        new_expr = Expression((operation_string, tuple(new_children)))
         return new_expr
 
 
@@ -455,7 +433,7 @@ class RDDLGrounder(Grounder):
                         for j in range(len(self.objects[object_type_list[var_idx]]))
                     ]
                 object_instances_list = instance_tuples
-                expr = self.do_aggregate_expression_nesting(
+                expr = self.do_aggregate_expression_grounding(
                     dic, var_key_strings_list, object_instances_list,
                     aggreg_recursive_operation_string, arg
                 )  # Last arg is the expression with which the aggregation is done.
