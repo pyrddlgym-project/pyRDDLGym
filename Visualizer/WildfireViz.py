@@ -58,7 +58,7 @@ class WilfireVisualizer(StateViz):
                     x = k.split("_")[1]
                     y = k.split("_")[2]
                     burning.append((x,y))
-            elif 'out-of-fuel_' in k:
+            if 'out-of-fuel_' in k:
                 if v == True:
                     x = k.split("_")[1]
                     y = k.split("_")[2]
@@ -69,8 +69,8 @@ class WilfireVisualizer(StateViz):
 
     def init_canvas_info(self):
         interval = self._interval
-        x_list = self._objects['x_pos']
-        y_list = self._objects['y_pos']
+        x_list = self._objects['x-pos']
+        y_list = self._objects['y-pos']
         grid_size = (int(len(x_list)), int(len(y_list)))
 
         grid_init_points = {}
