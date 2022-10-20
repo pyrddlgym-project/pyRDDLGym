@@ -29,6 +29,7 @@ class Domain(object):
         cpfs (List[:obj:`CPF`]): List of Conditional Probability Functions.
         reward (:obj:`Expression`): Reward function.
         preconds (List[:obj:`Expression`]): List of action preconditions.
+        terminals (List[:obj:`Expression`]): List of termination conditions.
         constraints (List[:obj:`Expression`]): List of state-action constraints.
         invariants (List[:obj:`Expression`]): List of state invariants.
     '''
@@ -43,6 +44,7 @@ class Domain(object):
 
         self.types = sections.get('types', [])
         self.preconds = sections.get('preconds', [])
+        self.terminals = sections.get('terminals', [])
         self.invariants = sections.get('invariants', [])
         self.constraints = sections.get('constraints', [])
 
@@ -53,6 +55,11 @@ class Domain(object):
     def build(self):
         self._build_preconditions_table()
         self._build_action_bound_constraints_table()
+
+    # def _build_termiation_table(self):
+    #     '''build the terminal conditions expressions.'''
+    #     self.local_termination = dict()
+    #     self.global_termination = []
 
     def _build_preconditions_table(self):
         '''Builds the local action precondition expressions.'''

@@ -19,6 +19,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._cpfs = None
         self._cpforder = None
         self._reward = None
+        self._terminals = None
         self._preconditions = None
         self._invariants = None
 
@@ -141,6 +142,14 @@ class PlanningModel(metaclass=ABCMeta):
     @reward.setter
     def reward(self, val):
         self._reward = val
+
+    @property
+    def terminals(self):
+        return self._terminals
+
+    @terminals.setter
+    def terminals(self, value):
+        self._terminals = value
 
     @property
     def preconditions(self):
