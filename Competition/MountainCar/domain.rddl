@@ -26,7 +26,7 @@ domain mountain_car {
 		GOAL-MIN : { non-fluent, real, default = 0.5 };				// desired x position of cart
 		
 		// interm & derived fluents
-		success : { derived-fluent, bool };                       	// whether the cart reached its goal
+		success : { interm-fluent, bool };                       	// whether the cart reached its goal
 				
 		// states
        	pos    	: { state-fluent, real, default = -0.5 };          	// cart position

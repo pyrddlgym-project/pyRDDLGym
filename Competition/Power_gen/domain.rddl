@@ -53,8 +53,8 @@ domain power_gen {
 		temperature     : { state-fluent, real, default = 20 };
 		
 		// Derived and intermediate
-		prod(plant)      : { derived-fluent, real };
-		demand          : { derived-fluent, real };
+		prod(plant)      : { interm-fluent, real };
+		demand          : { interm-fluent, real };
 		fulfilledDemand : { interm-fluent,  real };
 
 	};
