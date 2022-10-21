@@ -57,6 +57,10 @@ domain termination_test {
 		demand          : { derived-fluent, real };
 		fulfilledDemand : { interm-fluent,  real };
 
+		// observation
+		obsTemp : { observ-fluent, real };
+		obsProd(plant) : { observ-fluent, real };
+
 	};
 
 	cpfs {
@@ -71,6 +75,10 @@ domain termination_test {
 		//           at 11.7 C, here we use a simple quadratic model.
 		demand = MIN-CONSUMPTION + DEMAND-EXP-COEF * pow[ temperature - MIN-DEMAND-TEMP , 2 ];
 		fulfilledDemand = min[ demand, (sum_{?p : plant} prod(?p)) ];
+
+		// Observations
+		obsTemp = Normal(temperature', OBS_VARIANCE);
+		obsProd(?p) = Normal(prevProd'(?p), OBS_VARIANCE);
 
 	};
 

@@ -74,6 +74,7 @@ class RDDLGrounder(Grounder):
         self.cpforder = {0: []}
         self.derived = {}
         self.interm = {}
+        self.observ = {}
         self.reward = None
         self.terminals = []
         self.preconditions = []
@@ -104,6 +105,7 @@ class RDDLGrounder(Grounder):
         model.invariants = self.invariants
         model.derived = self.derived
         model.interm = self.interm
+        model.observ = self.observ
         model.objects = self.objects
         model.actionsranges = self.actionsranges
         model.statesranges = self.statesranges
@@ -150,7 +152,7 @@ class RDDLGrounder(Grounder):
         for obj_type in args:
             if obj_type not in self.objects:
                 raise RDDLUndefinedVariableError(
-                    'Object {} is not defined: should be one of {}.'.format(
+                    'Object type {} is not defined: should be one of {}.'.format(
                         obj_type, list(self.objects.keys())))
             objects_by_type.append(self.objects[obj_type])
         return itertools.product(*objects_by_type)
@@ -209,6 +211,7 @@ class RDDLGrounder(Grounder):
         all_grounded_state_cpfs = []
         all_grounded_interim_cpfs = []
         all_grounded_derived_cpfs = []
+        all_grounded_observ_cpfs = []
         for pvariable in self.AST.domain.pvariables:
             name = pvariable.name
             if pvariable.arity > 0:
@@ -240,7 +243,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing a valid definition.'.format(name))
+                        'CPF <{}> is missing a valid definition.'.format(name))
     
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
@@ -262,7 +265,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing a valid definition.'.format(name))
+                        'CPF <{}> is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -285,7 +288,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing a valid definition.'.format(name))
+                        'CPF <{}> is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -299,6 +302,24 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level].append(g)
                     else:
                         self.cpforder[level] = [g]
+
+            elif pvariable.fluent_type == 'observ-fluent':
+                cpf = None
+                for cpfs in self.AST.domain.observation_cpfs:
+                    if cpfs.pvar[1][0] == name:
+                        cpf = cpfs
+                        break
+                if cpf is None:
+                    raise RDDLMissingCPFDefinitionError(
+                        'CPF <{}> is missing a valid definition.'.format(name))
+                for g in grounded:
+                    grounded_cpf = self._ground_single_cpf(
+                        cpf, g, grounded_name_to_params_dict[g])
+                    all_grounded_observ_cpfs.append(grounded_cpf)
+                    self.observ[g] = pvariable.default
+                    self.cpfs[g] = grounded_cpf.expr
+                    self.cpforder[0].append(g)
+
         # self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
         #                        )  # replacing the previous lifted entries
         # self.AST.domain.derived_cpfs = all_grounded_derived_cpfs
@@ -313,7 +334,7 @@ class RDDLGrounder(Grounder):
             return new_cpf
         if len(args) != len(variable_args):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Ground instance {variable} is of arity {len(variable_args)} but '
+                f'Ground instance <{variable}> is of arity {len(variable_args)} but '
                 f'was expected to be of arity {len(args)} according to declaration.')
         args_dic = dict(zip(args, variable_args))
             
@@ -327,47 +348,25 @@ class RDDLGrounder(Grounder):
         new_cpf.expr = self._scan_expr_tree(new_cpf.expr, args_dic)
         return new_cpf
 
-    def do_aggregate_expression_nesting(self, original_dict, new_variables_list,
-                                        instances_list, operation_string,
-                                        expression):
+    def do_aggregate_expression_grounding(self, original_dict, new_variables_list,
+                                          instances_list, operation_string,
+                                          expression):
         """Args:
                 original_dict:
                 new_variables_list:
                 instances_list:
                 operation_string:
                 expression:
-            Returns:
-            Summary: expands the dictionary with the object instances for the
-            variables passed in;
-            NOTE that the order of variables, and order of elements in each entry of
-            instances_set should line up.
-            With the expanded dictionary, creates an expression of the type
-            specified in "operation_String"
-            the lhs (first) argument would be an instance from the set, and rhs
-            would be from
-            recursively calling this function with a reduced set, and the original
-            dictionary.
+            Returns: Grounded expression for aggregation operations (min, max, sum, prod, forall, exists)
         """
-    
-        # todo create expression with the type passed in
-        # the first argument (lhs) will have an updated dictionary based on the objects spec'd
-        # in the set definition (gets one instance added to the dictionary). We can scan_expression on it
-        # for the second arg (righ hand side), we will recursively call this func with a reduced set of objects
-        if len(instances_list) == 1:
-            # this case CAN happen, if there is only one object of the type specified
-            # which can be due to misspec or due to a difficult constraint satisfaction in set definition,
-            # that varies over instances
+
+        new_children = []
+        for instance_idx in range(len(instances_list)):
             updated_dict = copy.deepcopy(original_dict)
-            updated_dict.update(dict(zip(new_variables_list, instances_list[0])))
-            new_expr = self._scan_expr_tree(expression, updated_dict)
-        else: #we now support multi-arity /arguments for all the aggregate operations, min, max, sum, prod,...
-            new_children = []
-            for instance_idx in range(len(instances_list)):
-                updated_dict = copy.deepcopy(original_dict)
-                updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
-                new_children.append(self._scan_expr_tree(expression, updated_dict))
-            #--end for loop through instances
-            new_expr = Expression((operation_string, tuple(new_children)))
+            updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
+            new_children.append(self._scan_expr_tree(expression, updated_dict))
+        #--end for loop through instances
+        new_expr = Expression((operation_string, tuple(new_children)))
         return new_expr
 
 
@@ -384,7 +383,7 @@ class RDDLGrounder(Grounder):
             for arg in expr.args[1]:
                 if arg not in dic:
                     raise RDDLUndefinedVariableError(
-                        'Parameter {} is not defined in call to {}.'.format(arg, expr.args[0]))
+                        'Parameter <{}> is not defined in call to <{}>.'.format(arg, expr.args[0]))
                 variation_list.append(dic[arg])
             variation_list = [variation_list]
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
@@ -455,7 +454,7 @@ class RDDLGrounder(Grounder):
                         for j in range(len(self.objects[object_type_list[var_idx]]))
                     ]
                 object_instances_list = instance_tuples
-                expr = self.do_aggregate_expression_nesting(
+                expr = self.do_aggregate_expression_grounding(
                     dic, var_key_strings_list, object_instances_list,
                     aggreg_recursive_operation_string, arg
                 )  # Last arg is the expression with which the aggregation is done.
@@ -525,6 +524,6 @@ class RDDLGrounder(Grounder):
                     key = self._append_variation_to_name(key, subs)
                 if key not in self.initstate:
                     raise RDDLUndefinedVariableError(
-                        'Variable {} referenced in init-state is not a state fluent.'.format(key))
+                        'Variable <{}> referenced in init-state is not a state fluent.'.format(key))
                 self.initstate[key] = val
 

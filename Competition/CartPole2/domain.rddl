@@ -30,10 +30,10 @@ domain cart_pole {
 		ANG-LIMIT : { non-fluent, real, default = 0.2094395 };	// limit of pole angle
 	
 		// interm & derived fluents
-		force : { derived-fluent, real };                       // actual signed force applied to the cart
-		temp : { derived-fluent, real };						// temporary variable
-		acc : { derived-fluent, real };							// position acceleration
-		ang-acc : { derived-fluent, real };						// angular acceleration
+		force : { interm-fluent, real };                       // actual signed force applied to the cart
+		temp : { interm-fluent, real };						// temporary variable
+		acc : { interm-fluent, real };							// position acceleration
+		ang-acc : { interm-fluent, real };						// angular acceleration
 
 		// states
        	pos    	: { state-fluent, real, default = 0 };          // cart position
@@ -75,14 +75,15 @@ domain cart_pole {
     };
 
     state-invariants {
-		pos >= -POS-LIMIT ^ pos <= POS-LIMIT;
-		ang-pos >= -ANG-LIMIT ^ ang-pos <= ANG-LIMIT;
+		pos >= -POS-LIMIT;
+		pos <= POS-LIMIT;
+		ang-pos >= -ANG-LIMIT;
+		ang-pos <= ANG-LIMIT;
     };
 
     action-preconditions {
-        force-side <= 1;
         force-side >= 0;
-		//(force-side == 0) | (force-side == 1);
+		force-side <= 1;
     };
 
 }

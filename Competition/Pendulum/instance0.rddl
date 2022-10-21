@@ -1,0 +1,32 @@
+////////////////////////////////////////////////////////////////////
+// A simple continuous MDP for the classical pendulum problem.
+//
+// A single robotic arm hangs freely from a central joint located
+// at a fixed position. Action is the torque applied on the joint.
+// The goal is to raise the tip of the arm to a desired height.
+//
+////////////////////////////////////////////////////////////////////
+
+non-fluents pendulum_vars {
+    domain = pendulum;
+}
+
+// Specify pendulum with default settings
+instance inst_pendulum {
+
+	domain = pendulum;
+
+	non-fluents = pendulum_vars;
+
+	init-state {
+	    theta = 0.0;
+		dtheta = 0.0;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 200;
+	discount = 1.0;
+}
+

@@ -56,11 +56,6 @@ class Domain(object):
         self._build_preconditions_table()
         self._build_action_bound_constraints_table()
 
-    # def _build_termiation_table(self):
-    #     '''build the terminal conditions expressions.'''
-    #     self.local_termination = dict()
-    #     self.global_termination = []
-
     def _build_preconditions_table(self):
         '''Builds the local action precondition expressions.'''
         self.local_action_preconditions = dict()
@@ -157,6 +152,12 @@ class Domain(object):
         return {str(pvar): pvar for pvar in self.pvariables if pvar.is_derived_fluent()}
 
     @property
+    def observation_fluents(self) -> Dict[str, PVariable]:
+        '''Returns observ-fluents pvaraibles'''
+        return {str(pvar): pvar for pvar in self.pvariables if pvar.is_observ_fluent()}
+        return
+
+    @property
     def intermediate_cpfs(self) -> List[CPF]:
         '''Returns list of intermediate-fluent CPFs in level order.'''
         _, cpfs = self.cpfs
@@ -170,6 +171,14 @@ class Domain(object):
         _, cpfs = self.cpfs
         der_cpfs = [cpf for cpf in cpfs if cpf.name in self.derived_fluents]
         der_cpfs = sorted(der_cpfs, key=lambda cpf: (self.derived_fluents[cpf.name].level, cpf.name))
+        return der_cpfs
+
+    @property
+    def observation_cpfs(self) -> List[CPF]:
+        '''Returns list of observation_fluents CPFs in level order.'''
+        _, cpfs = self.cpfs
+        der_cpfs = [cpf for cpf in cpfs if cpf.name in self.observation_fluents]
+        der_cpfs = sorted(der_cpfs, key=lambda cpf: (self.observation_fluents[cpf.name].level, cpf.name))
         return der_cpfs
 
     def get_intermediate_cpf(self, name):
