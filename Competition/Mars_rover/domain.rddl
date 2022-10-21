@@ -34,9 +34,9 @@ domain mars_rover_science_mission {
         MINERAL-POS-Y(mineral): { non-fluent, real, default = 0 };            // mineral y location
 
         // interm & derived fluents
-        power(rover) : { derived-fluent, real };                          // derived fluent for control input norm calculation
-        u-x(rover) : { derived-fluent, real };                          // derived fluent for norm saturated x control
-        u-y(rover) : { derived-fluent, real };                          // derived fluent for norm saturated y control
+        power(rover) : { interm-fluent, real };                          // derived fluent for control input norm calculation
+        u-x(rover) : { interm-fluent, real };                          // derived fluent for norm saturated x control
+        u-y(rover) : { interm-fluent, real };                          // derived fluent for norm saturated y control
 
         // states
         vel-x(rover)    : { state-fluent, real, default = 0 };          // rover x direction velocity
