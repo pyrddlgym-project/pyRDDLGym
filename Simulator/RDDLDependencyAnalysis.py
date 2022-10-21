@@ -1,5 +1,6 @@
 import itertools
 from typing import Dict, List, Set
+import warnings
 
 from Grounder.RDDLModel import PlanningModel
 from Parser.expr import Expression
@@ -85,6 +86,10 @@ class RDDLDependencyAnalysis:
     def _check_deps_by_fluent_type(self, graph):
         for cpf, deps in graph.items():
             cpf_type = self.fluent_type(cpf)
+            if cpf_type == 'derived':
+                warnings.warn('The use of derived fluents is discouraged in the current RDDL version: ' + 
+                              'please change the type of fluent <{}> to interm.'.format(cpf),
+                              FutureWarning, stacklevel=2)
             if cpf_type in VALID_DEPENDENCIES:
                 for dep in deps: 
                     dep_type = self.fluent_type(dep)
