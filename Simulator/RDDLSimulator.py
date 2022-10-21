@@ -177,7 +177,7 @@ class RDDLSimulator:
                     sample = self._sample(expr, subs)
                     if primed_cpf not in self._model.prev_state:
                         raise KeyError(
-                            'Internal error: variable {} is not in prev_state.'.format(primed_cpf))
+                            'Internal error: variable <{}> is not in prev_state.'.format(primed_cpf))
                     next_state[self._model.prev_state[primed_cpf]] = sample   
                     subs[primed_cpf] = sample      
                 elif cpf in self._model.interm:
@@ -196,7 +196,7 @@ class RDDLSimulator:
                     subs[cpf] = sample
                     self._model.observ[cpf] = sample
                 else:
-                    raise RDDLUndefinedCPFError('CPF {} is not defined in the instance.'.format(cpf))     
+                    raise RDDLUndefinedCPFError('CPF <{}> is not defined.'.format(cpf))     
                            
         self._next_state = next_state
         return next_state
@@ -266,13 +266,13 @@ class RDDLSimulator:
         var = args[0]
         if var not in subs:
             raise RDDLUndefinedVariableError(
-                'Variable {} is not defined in the instance.'.format(var) + 
+                'Variable <{}> is not defined in the instance.'.format(var) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
             
         val = subs[var]
         if val is None:
             raise RDDLUndefinedVariableError(
-                'The value of variable {} is not set.'.format(var) + 
+                'The value of variable <{}> is not set.'.format(var) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
             
         return val

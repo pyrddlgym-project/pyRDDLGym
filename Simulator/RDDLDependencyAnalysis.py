@@ -71,7 +71,7 @@ class RDDLDependencyAnalysis:
         and var not in self._model.actions \
         and var not in self._model.observ:
             raise RDDLUndefinedVariableError(
-                'Variable {} found in CPF {} is not defined.'.format(var, cpf))
+                'Variable <{}> found in CPF <{}> is not defined.'.format(var, cpf))
     
     def fluent_type(self, fluent: str) -> str:
         if fluent in self._model.actions: return 'action'
