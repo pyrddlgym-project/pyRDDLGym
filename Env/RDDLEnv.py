@@ -168,7 +168,7 @@ class RDDLEnv(gym.Env):
         self.total_reward = 0
         self.currentH = 0
         self.state = self.sampler.reset_state()
-        self.done = False
+        self.done = self.sampler.check_terminal_states()  # check that the initial state is not a terminal one
 
         image = self._visualizer.render(self.state)
         self.image_size = image.size
@@ -178,17 +178,18 @@ class RDDLEnv(gym.Env):
         return pygame.image.fromstring(
             pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
-    def render(self):
+    def render(self, to_display = True):
         if self._visualizer is not None:
-            if not self.to_render:
-                self.to_render = True
-                pygame.init()
-                self.window = pygame.display.set_mode((self.image_size[0], self.image_size[1]))
             image = self._visualizer.render(self.state)
-            self.window.fill(0)
-            pygameSurface = self.pilImageToSurface(image)
-            self.window.blit(pygameSurface, (0, 0))
-            pygame.display.flip()
+            if to_display:
+                if not self.to_render:
+                    self.to_render = True
+                    pygame.init()
+                    self.window = pygame.display.set_mode((self.image_size[0], self.image_size[1]))
+                self.window.fill(0)
+                pygameSurface = self.pilImageToSurface(image)
+                self.window.blit(pygameSurface, (0, 0))
+                pygame.display.flip()
         return image
 
     def close(self):
