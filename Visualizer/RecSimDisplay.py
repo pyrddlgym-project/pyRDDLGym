@@ -42,6 +42,7 @@ class RecSimVisualizer(StateViz):
         self._num_creator_clusters = 40
         self._num_topics = 2
         self._creator_boost_cap = 1.2
+        self._iter = 0
 
     def build_nonfluents_layout(self):
         space_dim = len(self._model.objects['feature'])
@@ -174,6 +175,9 @@ class RecSimVisualizer(StateViz):
         #         horizontalalignment='left', verticalalignment='top', wrap=True, fontsize = self._fontsize)
         
         img = self.convert2img(self._fig, None)
+        img.save(f'frame{self._iter}.png')
+        self._iter += 1
+
 
         # self._ax.cla()
         plt.close()
