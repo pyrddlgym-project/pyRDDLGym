@@ -152,7 +152,7 @@ class RDDLGrounder(Grounder):
         for obj_type in args:
             if obj_type not in self.objects:
                 raise RDDLUndefinedVariableError(
-                    'Object {} is not defined: should be one of {}.'.format(
+                    'Object type {} is not defined: should be one of {}.'.format(
                         obj_type, list(self.objects.keys())))
             objects_by_type.append(self.objects[obj_type])
         return itertools.product(*objects_by_type)
@@ -243,7 +243,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing a valid definition.'.format(name))
+                        'CPF <{}> is missing a valid definition.'.format(name))
     
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
@@ -265,7 +265,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing a valid definition.'.format(name))
+                        'CPF <{}> is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -288,7 +288,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing a valid definition.'.format(name))
+                        'CPF <{}> is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -311,7 +311,7 @@ class RDDLGrounder(Grounder):
                         break
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
-                        'CPF {} is missing a valid definition.'.format(name))
+                        'CPF <{}> is missing a valid definition.'.format(name))
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -334,7 +334,7 @@ class RDDLGrounder(Grounder):
             return new_cpf
         if len(args) != len(variable_args):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Ground instance {variable} is of arity {len(variable_args)} but '
+                f'Ground instance <{variable}> is of arity {len(variable_args)} but '
                 f'was expected to be of arity {len(args)} according to declaration.')
         args_dic = dict(zip(args, variable_args))
             
@@ -383,7 +383,7 @@ class RDDLGrounder(Grounder):
             for arg in expr.args[1]:
                 if arg not in dic:
                     raise RDDLUndefinedVariableError(
-                        'Parameter {} is not defined in call to {}.'.format(arg, expr.args[0]))
+                        'Parameter <{}> is not defined in call to <{}>.'.format(arg, expr.args[0]))
                 variation_list.append(dic[arg])
             variation_list = [variation_list]
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
@@ -524,6 +524,6 @@ class RDDLGrounder(Grounder):
                     key = self._append_variation_to_name(key, subs)
                 if key not in self.initstate:
                     raise RDDLUndefinedVariableError(
-                        'Variable {} referenced in init-state is not a state fluent.'.format(key))
+                        'Variable <{}> referenced in init-state is not a state fluent.'.format(key))
                 self.initstate[key] = val
 
