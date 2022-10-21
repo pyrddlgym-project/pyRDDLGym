@@ -13,6 +13,10 @@ class RDDLUndefinedVariableError(SyntaxError):
     pass
 
 
+class RDDLInvalidDependencyInCPFError(SyntaxError):
+    pass
+
+
 class RDDLDependencyAnalysis:
     
     def __init__(self, model: PlanningModel) -> None:
@@ -25,7 +29,7 @@ class RDDLDependencyAnalysis:
             self._update_call_graph(graph, cpf, expr)
             if cpf not in graph:  # CPF without dependencies
                 graph[cpf] = set()
-                
+
         # check validity of reward, constraints etc
         expr = self._model.reward
         self._update_call_graph({}, '', expr)
@@ -33,7 +37,10 @@ class RDDLDependencyAnalysis:
             self._update_call_graph({}, '', expr)
         for expr in self._model.invariants:
             self._update_call_graph({}, '', expr)
-            
+        
+        # check validity of dependencies according to CPF type
+        self._verify_fluents(graph)
+        
         return graph
     
     def _update_call_graph(self, graph, cpf, expr):
@@ -47,15 +54,42 @@ class RDDLDependencyAnalysis:
             for arg in expr.args:
                 self._update_call_graph(graph, cpf, arg)
     
+    # verification of fluent definitions
+    # TODO: add any additional constraints here
+    def _verify_fluents(self, graph):
+        for cpf, deps in graph.items():
+            
+             # check that next state DND on obs
+            if cpf in self._model.prev_state:
+                for var in deps:
+                    if var in self._model.observ:
+                        raise RDDLInvalidDependencyInCPFError(
+                            'State-fluent {} depends on observ-fluent {}.'.format(cpf, var))
+            
+            # check that interm DND on obs, next_state
+            elif cpf in self._model.interm or cpf in self._model.derived:
+                for var in deps:
+                    if var in self._model.observ:
+                        raise RDDLInvalidDependencyInCPFError(
+                            'Interm-fluent {} depends on observ-fluent {}.'.format(cpf, var))
+                    elif var in self._model.prev_state:
+                        raise RDDLInvalidDependencyInCPFError(
+                            'Interm-fluent {} depends on state-fluent {}.'.format(cpf, var))
+                
+        
     def _assert_valid_variable(self, cpf, var):
         if var not in self._model.derived \
             and var not in self._model.interm \
             and var not in self._model.states \
             and var not in self._model.prev_state \
-            and var not in self._model.actions:
+            and var not in self._model.actions \
+            and var not in self._model.observ:
                 raise RDDLUndefinedVariableError(
                     'Variable {} found in CPF {} is not defined.'.format(var, cpf))
-                
+    
+    def _assert_valid_dependencies(self, cpf, deps):
+        pass
+        
     # topological sort
     def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
@@ -96,4 +130,4 @@ class RDDLDependencyAnalysis:
             temp.remove(var)
             unmarked.remove(var)
             order.append(var)
-        
+    

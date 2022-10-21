@@ -76,9 +76,9 @@ class RDDLSimulator:
             dep_analysis.build_call_graph()  # just check validity of fluents
             self.cpforder = self._model.cpforder
         self._order_cpfs = list(sorted(self.cpforder.keys()))
-        if not compute_levels:
-            self._order_cpfs.remove(0)
-            self._order_cpfs.append(0) 
+        # if not compute_levels: don't think this will work TODO: fix it
+        #    self._order_cpfs.remove(0)
+        #    self._order_cpfs.append(0) 
             
         self._action_fluents = set(self._model.actions.keys())
         self._init_actions = self._model.actions.copy()
@@ -94,6 +94,8 @@ class RDDLSimulator:
             self._model.interm[var] = None
         for var in self._model.derived.keys():
             self._model.derived[var] = None
+        for var in self._model.observ.keys():
+            self._model.observ[var] = None
         self._next_state = None
         return self._model.states
     
@@ -102,6 +104,7 @@ class RDDLSimulator:
         self._subs.update(self._model.actions)  
         self._subs.update(self._model.interm)    
         self._subs.update(self._model.derived)    
+        self._subs.update(self._model.observ)
         return self._subs
         
     @staticmethod
@@ -115,7 +118,7 @@ class RDDLSimulator:
             sample = self._sample(terminal, subs)
             if not isinstance(sample, bool):
                 raise RDDLTypeError(
-                    'Terminal state condition must evaluate to bool, got {},'.format(sample)+
+                    'Terminal state condition must evaluate to bool, got {}.'.format(sample) + 
                     '\n' + RDDLSimulator._print_stack_trace(terminal))
             elif sample:
                 return True
@@ -176,7 +179,7 @@ class RDDLSimulator:
                         raise KeyError(
                             'Internal error: variable {} is not in prev_state.'.format(primed_cpf))
                     next_state[self._model.prev_state[primed_cpf]] = sample   
-                    subs[primed_cpf] = sample  # we do need this            
+                    subs[primed_cpf] = sample      
                 elif cpf in self._model.interm:
                     expr = self._model.cpfs[cpf]
                     sample = self._sample(expr, subs)
@@ -187,6 +190,11 @@ class RDDLSimulator:
                     sample = self._sample(expr, subs)
                     subs[cpf] = sample
                     self._model.derived[cpf] = sample
+                elif cpf in self._model.observ:
+                    expr = self._model.cpfs[cpf]
+                    sample = self._sample(expr, subs)
+                    subs[cpf] = sample
+                    self._model.observ[cpf] = sample
                 else:
                     raise RDDLUndefinedCPFError('CPF {} is not defined in the instance.'.format(cpf))     
                            
