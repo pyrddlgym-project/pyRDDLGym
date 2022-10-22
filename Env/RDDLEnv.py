@@ -147,7 +147,7 @@ class RDDLEnv(gym.Env):
 
         # sample next state and reward
         state, reward, self.done = self.sampler.step(action)
-        
+
         # check if the state invariants are satisfied
         if not self.done:
             self.sampler.check_state_invariants()               
