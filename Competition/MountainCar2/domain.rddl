@@ -48,7 +48,7 @@ domain mountain_car {
 				else 0.0;
 	
 	termination {
-		(pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN);
+		(pos >= GOAL-MIN) ^ (vel >= VEL-MIN);
 	};
 	
     state-invariants {
