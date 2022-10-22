@@ -772,15 +772,16 @@ class RDDLSimulator:
         
         return self._rng.gamma(shape=shape, scale=scale)
 
-    
+
 class RDDLSimulatorWConstraints(RDDLSimulator):
 
     def __init__(self,
                  model: PlanningModel,
-                 rng: np.random.Generator=np.random.default_rng(),
-                 max_bound: float=np.inf) -> None:
-        super().__init__(model, rng)
-        
+                 rng: np.random.Generator = np.random.default_rng(),
+                 compute_levels: bool = True,
+                 max_bound: float = np.inf) -> None:
+        super().__init__(model, rng)#, compute_levels)
+
         self.epsilon = 0.001
         # self.BigM = float(max_bound)
         self.BigM = max_bound
@@ -802,6 +803,12 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         for state_inv in model.invariants:
             self._parse_bounds_rec(state_inv, self._model.states)
 
+        for name in self._bounds:
+            if self._bounds[name][0] > self._bounds[name][1]:
+                raise RDDLValueOutOfRangeError(
+                    'variable {} bounds are invalid, max value cannot be lower than min.'.format(name) +
+                    '\n' + RDDLSimulator._print_stack_trace(self._bounds[name]))
+
     def _parse_bounds_rec(self, cond, search_dict):
         if cond.etype[0] == "boolean" and cond.etype[1] == "^":
             for arg in cond.args:
@@ -809,7 +816,12 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         if cond.etype[0] == "relational":
             var, lim, loc = self.get_bounds(cond.args[0], cond.args[1], cond.etype[1], search_dict)
             if var is not None and loc is not None:
-                self._bounds[var][loc] = lim
+                if loc == 1:
+                    if self._bounds[var][loc] > lim:
+                        self._bounds[var][loc] = lim
+                else:
+                    if self._bounds[var][loc] < lim:
+                        self._bounds[var][loc] = lim
 
     def get_bounds(self, left_arg, right_arg, op, search_dict=None) -> Tuple[str, float, int]:
         variable = None
@@ -818,45 +830,147 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         if search_dict is None:
             return variable, float(lim), loc
 
+        # make sure at least one of the args is a pvar of the correct type
+        act_count = 0
         if left_arg.etype[0] == 'pvar':
-            name = left_arg.args[0]
-            if name in search_dict:
-                variable = name
-                if op in ['<=', '<']:
-                    loc = 1
-                    if op == '<':
-                        lim = -self.epsilon
-                elif op in ['>=', '>']:
-                    loc = 0
-                    if op == '>':
-                        lim = self.epsilon
-            elif name in self._model.nonfluents:
-                lim = self._model.nonfluents[name]
-        elif left_arg.etype[0] == 'constant':
-            lim += left_arg.args
-        else:
-            return variable, float(lim), loc
-
+            if left_arg.args[0] in search_dict:
+                act_count = act_count + 1
         if right_arg.etype[0] == 'pvar':
-            name = right_arg.args[0]
-            if name in search_dict:
-                variable = name
-                if op in ['<=', '<']:
-                    loc = 0
-                    if op == '<':
-                        lim = self.epsilon
-                elif op in ['>=', '>']:
-                    loc = 1
-                    if op == '>':
-                        lim = -self.epsilon
-            elif name in self._model.nonfluents:
-                lim = self._model.nonfluents[name]
-        elif right_arg.etype[0] == 'constant':
-            lim += right_arg.args
-        else:
-            return variable, float(lim), loc
+            if right_arg.args[0] in search_dict:
+                act_count = act_count + 1
+        if act_count == 2:
+            raise RDDLActionPreconditionNotSatisfiedError("error in action-precondition block, " +
+                                                          "constraint {} {} {} does not have a structure of " +
+                                                          "action/state fluent <=/>= f(non-fluents, constants)".format(
+                                                              left_arg.args[0], right_arg.args[0]) +
+                                                          '\n' + RDDLSimulator._print_stack_trace(
+                left_arg.args[0] + op + right_arg.args[0]))
+        if act_count == 0:
+            return None, 0, None
 
-        return variable, float(lim), loc
+        if left_arg.etype[0] == 'pvar':
+            variable = left_arg.args[0]
+            if variable in search_dict:
+                if self.verify_tree_is_box(right_arg):
+                    lim_temp = self._sample(right_arg, self._subs)
+                    lim, loc = self.get_op_code(op, is_right=True)
+                    return variable, float(lim + lim_temp), loc
+                else:
+                    raise RDDLActionPreconditionNotSatisfiedError(
+                        "error in action-precondition block, bound {} must be a function of non-fluents and constants only".format(
+                            right_arg) + "\n" + RDDLSimulator._print_stack_trace(right_arg))
+
+        elif right_arg.etype[0] == 'pvar':
+            variable = right_arg.args[0]
+            if variable in search_dict:
+                if self.verify_tree_is_box(left_arg):
+                    lim_temp = self._sample(left_arg, self._subs)
+                    lim, loc = self.get_op_code(op, is_right=False)
+                    return variable, float(lim + lim_temp), loc
+                else:
+                    raise RDDLActionPreconditionNotSatisfiedError(
+                        "error in action-precondition block, bound {} must be a function of non-fluents and constants only".format(
+                            left_arg) + "\n" + RDDLSimulator._print_stack_trace(right_arg))
+        else:
+            raise RDDLActionPreconditionNotSatisfiedError("error in action-precondition block, " +
+                                                          "constraint {} {} {} does not have a structure of " +
+                                                          "action/state fluent <=/>= f(non-fluents, constants)".format(
+                                                              left_arg.args[0], right_arg.args[0]) +
+                                                          '\n' + RDDLSimulator._print_stack_trace(
+                left_arg.args[0] + op + right_arg.args[0]))
+
+    def verify_tree_is_box(self, expr):
+        if hasattr(expr, 'args') == False:
+            return False
+        if expr.etype[0] == 'pvar':
+            if expr.args[0] in self._model.nonfluents:
+                return True
+            return False
+        if expr.etype[0] == 'constant':
+            return True
+        else:
+            result = True
+            for elem in expr.args:
+                result = result and self.verify_tree_is_box(elem)
+            return result
+
+    def get_op_code(self, op, is_right: bool) -> (float, int):
+        '''
+
+        Args:
+            op: inequality operator
+            is_right: True if the evaluated element is to the left of the inequality, False otherwise
+        Returns:
+            (lim , loc)
+            lim =  zero for soft inequality, minimum real number of strong inequality
+        '''
+        lim = 0
+        if is_right:
+            if op in ['<=', '<']:
+                loc = 1
+                if op == '<':
+                    lim = -self.epsilon
+            elif op in ['>=', '>']:
+                loc = 0
+                if op == '>':
+                    lim = self.epsilon
+        else:
+            if op in ['<=', '<']:
+                loc = 0
+                if op == '<':
+                    lim = self.epsilon
+            elif op in ['>=', '>']:
+                loc = 1
+                if op == '>':
+                    lim = -self.epsilon
+        return (lim, loc)
+
+    # def get_bounds(self, left_arg, right_arg, op, search_dict=None) -> Tuple[str, float, int]:
+    #     variable = None
+    #     lim = 0
+    #     loc = None
+    #     if search_dict is None:
+    #         return variable, float(lim), loc
+    #
+    #     if left_arg.etype[0] == 'pvar':
+    #         name = left_arg.args[0]
+    #         if name in search_dict:
+    #             variable = name
+    #             if op in ['<=', '<']:
+    #                 loc = 1
+    #                 if op == '<':
+    #                     lim = -self.epsilon
+    #             elif op in ['>=', '>']:
+    #                 loc = 0
+    #                 if op == '>':
+    #                     lim = self.epsilon
+    #         elif name in self._model.nonfluents:
+    #             lim = self._model.nonfluents[name]
+    #     elif left_arg.etype[0] == 'constant':
+    #         lim += left_arg.args
+    #     else:
+    #         return variable, float(lim), loc
+    #
+    #     if right_arg.etype[0] == 'pvar':
+    #         name = right_arg.args[0]
+    #         if name in search_dict:
+    #             variable = name
+    #             if op in ['<=', '<']:
+    #                 loc = 0
+    #                 if op == '<':
+    #                     lim = self.epsilon
+    #             elif op in ['>=', '>']:
+    #                 loc = 1
+    #                 if op == '>':
+    #                     lim = -self.epsilon
+    #         elif name in self._model.nonfluents:
+    #             lim = self._model.nonfluents[name]
+    #     elif right_arg.etype[0] == 'constant':
+    #         lim += right_arg.args
+    #     else:
+    #         return variable, float(lim), loc
+    #
+    #     return variable, float(lim), loc
 
     @property
     def bounds(self):
@@ -865,3 +979,4 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
     @bounds.setter
     def bounds(self, value):
         self._bounds = value
+
