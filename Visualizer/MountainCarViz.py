@@ -30,15 +30,15 @@ class MountainCarVisualizer(StateViz):
     def render(self, state):
         screen, surf = self.init_canvas(self._figure_size)
         
-        world_width = self._nonfluents['MAX_POS'] - self._nonfluents['MIN_POS']
+        world_width = self._nonfluents['MAX-POS'] - self._nonfluents['MIN-POS']
         scale = self._figure_size[0] / world_width
         carwidth = 40
         carheight = 20
         
         surf.fill((255, 255, 255))
-        xs = np.linspace(self._nonfluents['MIN_POS'], self._nonfluents['MAX_POS'], 100)
+        xs = np.linspace(self._nonfluents['MIN-POS'], self._nonfluents['MAX-POS'], 100)
         ys = np.sin(3 * xs) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])
-        xys = list(zip((xs - self._nonfluents['MIN_POS']) * scale, ys * scale))
+        xys = list(zip((xs - self._nonfluents['MIN-POS']) * scale, ys * scale))
         pygame.draw.aalines(surf, points=xys, closed=False, color=(0, 0, 0))
         
         clearance = 10
@@ -48,7 +48,7 @@ class MountainCarVisualizer(StateViz):
             c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * state['pos']))
             coords.append(
                 (
-                    c[0] + (state['pos'] - self._nonfluents['MIN_POS']) * scale,
+                    c[0] + (state['pos'] - self._nonfluents['MIN-POS']) * scale,
                     c[1] + clearance + (np.sin(3 * state['pos']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale,
                 )
             )
@@ -59,7 +59,7 @@ class MountainCarVisualizer(StateViz):
         for c in [(carwidth / 4, 0), (-carwidth / 4, 0)]:
             c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * state['pos']))
             wheel = (
-                int(c[0] + (state['pos'] - self._nonfluents['MIN_POS']) * scale),
+                int(c[0] + (state['pos'] - self._nonfluents['MIN-POS']) * scale),
                 int(c[1] + clearance + (np.sin(3 * state['pos']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale),
             )
             gfxdraw.aacircle(
@@ -69,8 +69,8 @@ class MountainCarVisualizer(StateViz):
                 surf, wheel[0], wheel[1], int(carheight / 2.5), (128, 128, 128)
             )
             
-        flagx = int((self._nonfluents['GOAL_MIN'] - self._nonfluents['MIN_POS']) * scale)
-        flagy1 = int((np.sin(3 * self._nonfluents['GOAL_MIN']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale)
+        flagx = int((self._nonfluents['GOAL-MIN'] - self._nonfluents['MIN-POS']) * scale)
+        flagy1 = int((np.sin(3 * self._nonfluents['GOAL-MIN']) * self._nonfluents['DEPTH'] + (1. - self._nonfluents['DEPTH'])) * scale)
         flagy2 = flagy1 + 50
         gfxdraw.vline(surf, flagx, flagy1, flagy2, (0, 0, 0))
         
