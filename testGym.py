@@ -29,8 +29,12 @@ def main():
         action = agent.sample_action()
         next_state, reward, done, info = myEnv.step(action)
         total_reward += reward
-        print("step {}: reward: {}".format(step, reward))
-        print("state_i:", state, "-> state_f:", next_state)
+        print()
+        print('step       = {}'.format(step))
+        print('state      = {}'.format(state))
+        print('action     = {}'.format(action))
+        print('next state = {}'.format(next_state))
+        print('reward     = {}'.format(reward))
         state = next_state
         if done:
             break
