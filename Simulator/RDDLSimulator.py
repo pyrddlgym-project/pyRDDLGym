@@ -857,7 +857,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                     return variable, float(lim + lim_temp), loc
                 else:
                     raise RDDLActionPreconditionNotSatisfiedError(
-                        "error in action-precondition block, bound {} must be a function of non-fluents and constants only".format(
+                        "error in action-precondition block, bound {} must be a determinisic function of non-fluents and constants only".format(
                             right_arg) + "\n" + RDDLSimulator._print_stack_trace(right_arg))
 
         elif right_arg.etype[0] == 'pvar':
@@ -869,7 +869,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                     return variable, float(lim + lim_temp), loc
                 else:
                     raise RDDLActionPreconditionNotSatisfiedError(
-                        "error in action-precondition block, bound {} must be a function of non-fluents and constants only".format(
+                        "error in action-precondition block, bound {} must be a determinisic function of non-fluents and constants only".format(
                             left_arg) + "\n" + RDDLSimulator._print_stack_trace(right_arg))
         else:
             raise RDDLActionPreconditionNotSatisfiedError("error in action-precondition block, " +
@@ -881,6 +881,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
 
     def verify_tree_is_box(self, expr):
         if hasattr(expr, 'args') == False:
+            return False
+        if expr.etype[0] == "randomvar":
             return False
         if expr.etype[0] == 'pvar':
             if expr.args[0] in self._model.nonfluents:
