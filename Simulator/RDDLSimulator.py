@@ -778,7 +778,8 @@ class RDDLSimulator:
         
         return self._rng.gamma(shape=shape, scale=scale)
 
-    
+
+
 class RDDLSimulatorWConstraints(RDDLSimulator):
 
     def __init__(self,
@@ -788,7 +789,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                  max_bound: float=np.inf) -> None:
         super().__init__(model, rng, compute_levels)
         
-        self.epsilon = 0.001
+        # self.epsilon = 0.0001
+        self.epsilon = np.finfo(np.float32).tiny
         # self.BigM = float(max_bound)
         self.BigM = max_bound
         self._bounds = {}
@@ -805,9 +807,16 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         # currently supports only linear in\equality constraints
         for action_precond in model.preconditions:
             self._parse_bounds_rec(action_precond, self._model.actions)
+        # make sure all bounds are valid and there is no case of min > max
 
         for state_inv in model.invariants:
             self._parse_bounds_rec(state_inv, self._model.states)
+
+        for name in self._bounds:
+            if self._bounds[name][0] > self._bounds[name][1]:
+                raise RDDLValueOutOfRangeError(
+                    'variable {} bounds are invalid, max value cannot be lower than min.'.format(name) +
+                    '\n' + RDDLSimulator._print_stack_trace(self._bounds[name]))
 
     def _parse_bounds_rec(self, cond, search_dict):
         if cond.etype[0] == "boolean" and cond.etype[1] == "^":
@@ -816,7 +825,52 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         if cond.etype[0] == "relational":
             var, lim, loc = self.get_bounds(cond.args[0], cond.args[1], cond.etype[1], search_dict)
             if var is not None and loc is not None:
-                self._bounds[var][loc] = lim
+                if loc == 1:
+                    if self._bounds[var][loc] > lim:
+                        self._bounds[var][loc] = lim
+                else:
+                    if self._bounds[var][loc] < lim:
+                        self._bounds[var][loc] = lim
+
+    def calc_arithmetic_expr(self, expr):
+        if expr.etype[0] == "constant":
+            return expr.args
+        elif expr.etype[0] == "pvar":
+            name = expr.args[0]
+            if name in self._model.nonfluents:
+                return self._model.nonfluents[name]
+            else:
+                return None
+        elif expr.etype[0] == 'arithmetic':
+            if expr.etype[1] in ['+']:
+                arg1 = self.calc_arithmetic_expr(expr.args[0])
+                arg2 = self.calc_arithmetic_expr(expr.args[1])
+                if arg1 is not None and arg2 is not None:
+                    return arg1 + arg1
+                return None
+            elif expr.etype[1] in ['-']:
+                arg1 = self.calc_arithmetic_expr(expr.args[0])
+                if len(expr.args) == 1:
+                    if arg1 is not None:
+                        return -arg1
+                if arg1 is not None and arg2 is not None:
+                    return arg1 - arg1
+                return None
+            elif expr.etype[1] in ['*']:
+                arg1 = self.calc_arithmetic_expr(expr.args[0])
+                arg2 = self.calc_arithmetic_expr(expr.args[1])
+                if arg1 is not None and arg2 is not None:
+                    return arg1 * arg1
+                return None
+            elif expr.etype[1] in ['/']:
+                arg1 = self.calc_arithmetic_expr(expr.args[0])
+                arg2 = self.calc_arithmetic_expr(expr.args[1])
+                if arg1 is not None and arg2 is not None:
+                    return arg1 / arg1
+                return None
+            else:
+                return 0
+
 
     def get_bounds(self, left_arg, right_arg, op, search_dict=None) -> Tuple[str, float, int]:
         variable = None
@@ -839,10 +893,11 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                         lim = self.epsilon
             elif name in self._model.nonfluents:
                 lim = self._model.nonfluents[name]
-        elif left_arg.etype[0] == 'constant':
-            lim += left_arg.args
         else:
-            return variable, float(lim), loc
+            lim = self.calc_arithmetic_expr(left_arg)
+            if lim is not None:
+                return variable, float(lim), loc
+            return variable, None, loc
 
         if right_arg.etype[0] == 'pvar':
             name = right_arg.args[0]
@@ -858,10 +913,11 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                         lim = -self.epsilon
             elif name in self._model.nonfluents:
                 lim = self._model.nonfluents[name]
-        elif right_arg.etype[0] == 'constant':
-            lim += right_arg.args
         else:
-            return variable, float(lim), loc
+            lim = self.calc_arithmetic_expr(right_arg)
+            if lim is not None:
+                return variable, float(lim), loc
+            return variable, None, loc
 
         return variable, float(lim), loc
 

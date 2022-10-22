@@ -8,13 +8,13 @@ from Visualizer.MarsRoverViz import MarsRoverVisualizer
 # FOLDER = 'Competition/Power_gen/'
 # FOLDER = 'Competition/Mars_rover/'
 # FOLDER = 'Competition/UAVs_con/'
-FOLDER = 'Competition/Wildfire/'
+# FOLDER = 'Competition/Wildfire/'
 # FOLDER = 'Competition/MountainCar2/'
-# FOLDER = 'Competition/Cartpole/'
+# FOLDER = 'Competition/Cartpole2/'
 # FOLDER = 'Competition/Elevator/'
-# FOLDER = 'Competition/Recsim/'
+FOLDER = 'Competition/Recsim/'
 # FOLDER = 'Competition/Pendulum/'
-
+# FOLDER = 'Competition/test/'
 
 
 def main():
