@@ -57,78 +57,34 @@ class RDDLSimulator:
     
     def __init__(self,
                  model: PlanningModel,
-                 rng: np.random.Generator=np.random.default_rng(),
-                 compute_levels: bool=True) -> None:
+                 rng: np.random.Generator=np.random.default_rng()) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param model: the RDDL model
         :param rng: the random number generator
-        :param compute_levels: whether levels are computed automatically
         '''
         self._model = model        
         self._rng = rng
         
-        # perform a dependency analysis
+        # perform a dependency analysis, do topological sort to compute levels
         dep_analysis = RDDLDependencyAnalysis(self._model)
-        if compute_levels:
-            self.cpforder = dep_analysis.compute_levels()  # topological sort
-        else:
-            dep_analysis.build_call_graph()  # just check validity of fluents
-            self.cpforder = self._model.cpforder
-        self._order_cpfs = list(sorted(self.cpforder.keys()))
-        # if not compute_levels: don't think this will work TODO: fix it
-        #    self._order_cpfs.remove(0)
-        #    self._order_cpfs.append(0) 
+        self.cpforder = dep_analysis.compute_levels()
+        self._order_cpfs = list(sorted(self.cpforder.keys())) 
             
         self._action_fluents = set(self._model.actions.keys())
         self._init_actions = self._model.actions.copy()
         
-        self._subs = self._model.nonfluents.copy()  # these won't change
-        self._next_state = None
+        # non-fluent will never change
+        self._subs = self._model.nonfluents.copy()
 
-    def reset_state(self) -> Args:
-        '''Resets the state variables to their initial values.'''
-        self._model.states = self._model.init_state
-        self._model.actions = self._init_actions
-        for var in self._model.interm.keys():  # TODO: unless can be default (parser throws error)
-            self._model.interm[var] = None
-        for var in self._model.derived.keys():
-            self._model.derived[var] = None
-        for var in self._model.observ.keys():
-            self._model.observ[var] = None
-        self._next_state = None
-        return self._model.states
-    
-    def _update_subs(self) -> Args:
-        self._subs.update(self._model.states)
-        self._subs.update(self._model.actions)  
-        self._subs.update(self._model.interm)    
-        self._subs.update(self._model.derived)    
-        self._subs.update(self._model.observ)
-        return self._subs
-        
     @staticmethod
     def _print_stack_trace(expr):
         return '...\n' + str(expr) + '\n...'
 
-    def check_terminal_states(self) -> bool:
-        '''return True if a terminal state has been reached.'''
-        subs = self._update_subs()
-        for idx, terminal in enumerate(self._model.terminals):
-            sample = self._sample(terminal, subs)
-            if not isinstance(sample, bool):
-                raise RDDLTypeError(
-                    'Terminal state condition must evaluate to bool, got {}.'.format(sample) + 
-                    '\n' + RDDLSimulator._print_stack_trace(terminal))
-            elif sample:
-                return True
-        return False
-    
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
-        subs = self._update_subs()
         for idx, invariant in enumerate(self._model.invariants):
-            sample = self._sample(invariant, subs)
+            sample = self._sample(invariant, self._subs)
             if not isinstance(sample, bool):
                 raise RDDLTypeError(
                     'State invariant must evaluate to bool, got {}.'.format(sample) + 
@@ -140,9 +96,8 @@ class RDDLSimulator:
     
     def check_action_preconditions(self) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
-        subs = self._update_subs()
         for idx, precondition in enumerate(self._model.preconditions):
-            sample = self._sample(precondition, subs)
+            sample = self._sample(precondition, self._subs)
             if not isinstance(sample, bool):
                 raise RDDLTypeError(
                     'Action precondition must evaluate to bool, got {}.'.format(sample) + 
@@ -152,23 +107,66 @@ class RDDLSimulator:
                     'Action precondition {} is not satisfied.'.format(idx + 1) + 
                     '\n' + RDDLSimulator._print_stack_trace(precondition))
     
-    def sample_next_state(self, actions: Args) -> Args:
+    def check_terminal_states(self) -> bool:
+        '''return True if a terminal state has been reached.'''
+        for idx, terminal in enumerate(self._model.terminals):
+            sample = self._sample(terminal, self._subs)
+            if not isinstance(sample, bool):
+                raise RDDLTypeError(
+                    'Terminal state condition must evaluate to bool, got {}.'.format(sample) + 
+                    '\n' + RDDLSimulator._print_stack_trace(terminal))
+            elif sample:
+                return True
+        return False
+    
+    def sample_reward(self) -> float:
+        '''Samples the current reward given the current state and action.'''
+        reward = self._sample(self._model.reward, self._subs)
+        return float(reward)
+    
+    def reset(self) -> Args:
+        '''Resets the state variables to their initial values.'''
+        
+        # states and actions are set to their initial values
+        self._model.states = self._model.init_state
+        self._model.actions = self._init_actions
+        
+        # remaining fluents do not have default or initial values
+        for var in self._model.derived.keys():
+            self._model.derived[var] = None
+        for var in self._model.interm.keys():
+            self._model.interm[var] = None
+        for var in self._model.observ.keys():
+            self._model.observ[var] = None
+            
+        # prepare initial fluent sub table
+        self._subs.update(self._model.states)
+        self._subs.update(self._model.actions)  
+        self._subs.update(self._model.derived)    
+        self._subs.update(self._model.interm)    
+        self._subs.update(self._model.observ)
+        for var in self._model.prev_state.keys():
+            self._subs[var] = None
+        
+        # check termination condition for the initial state
+        done = self.check_terminal_states()
+        
+        return self._model.states, done
+    
+    def step(self, actions: Args) -> Args:
         '''Samples and returns the next state from the cpfs.
         
         :param actions: a dict mapping current action fluents to their values
         '''
-        if self._next_state is not None:
-            raise RDDLRuntimeError(
-                'A state has already been sampled: call update_state to update it.')
-
-        actions_with_defaults = {}
-        for k, default_action in self._init_actions.items():
-            actions_with_defaults[k] = actions[k] if k in actions else default_action
-        self._model.actions = actions_with_defaults
         
-        subs = self._update_subs()        
-        next_state = {}
-                
+        # if actions are missing use their default values
+        self._model.actions = {var: actions.get(var, default_value) 
+                               for var, default_value in self._init_actions.items()}
+        subs = self._subs 
+        subs.update(self._model.actions)   
+        
+        # evaluate all CPFs, record next state fluents, update sub table 
+        next_states = {}
         for order in self._order_cpfs:
             for cpf in self.cpforder[order]: 
                 if cpf in self._model.next_state:
@@ -178,45 +176,41 @@ class RDDLSimulator:
                     if primed_cpf not in self._model.prev_state:
                         raise KeyError(
                             'Internal error: variable <{}> is not in prev_state.'.format(primed_cpf))
-                    next_state[self._model.prev_state[primed_cpf]] = sample   
-                    subs[primed_cpf] = sample      
-                elif cpf in self._model.interm:
-                    expr = self._model.cpfs[cpf]
-                    sample = self._sample(expr, subs)
-                    subs[cpf] = sample
-                    self._model.interm[cpf] = sample
+                    next_states[cpf] = sample   
+                    subs[primed_cpf] = sample   
                 elif cpf in self._model.derived:
                     expr = self._model.cpfs[cpf]
                     sample = self._sample(expr, subs)
-                    subs[cpf] = sample
                     self._model.derived[cpf] = sample
+                    subs[cpf] = sample   
+                elif cpf in self._model.interm:
+                    expr = self._model.cpfs[cpf]
+                    sample = self._sample(expr, subs)
+                    self._model.interm[cpf] = sample
+                    subs[cpf] = sample
                 elif cpf in self._model.observ:
                     expr = self._model.cpfs[cpf]
                     sample = self._sample(expr, subs)
-                    subs[cpf] = sample
                     self._model.observ[cpf] = sample
+                    subs[cpf] = sample
                 else:
                     raise RDDLUndefinedCPFError('CPF <{}> is not defined.'.format(cpf))     
-                           
-        self._next_state = next_state
-        return next_state
-    
-    def sample_reward(self) -> float:
-        '''Samples the current reward given the current state and action.'''
-        expr = self._model.reward
-        subs = self._update_subs()
-        return float(self._sample(expr, subs))
-    
-    def update_state(self, forced_state=None) -> None:
-        '''Updates the state of the simulation to the sampled state.'''
-        if forced_state is None:
-            if self._next_state is None:
-                raise RDDLRuntimeError(
-                    'Next state has not been sampled: call sample_next_state.')
-            self._model.states = self._next_state
-        else:
-            self._model.states = forced_state
-        self._next_state = None
+        
+        # evaluate the immediate reward
+        reward = self.sample_reward()
+        
+        # update the internal model state and the sub table
+        self._model.states = {}
+        for cpf, value in next_states.items():
+            self._model.states[cpf] = value
+            subs[cpf] = value
+            primed_cpf = self._model.next_state[cpf]
+            subs[primed_cpf] = None
+        
+        # check the termination condition
+        done = self.check_terminal_states()
+                
+        return next_states, reward, done
     
     # start of sampling subroutines
     # skipped: aggregations (sum, prod)
@@ -272,7 +266,7 @@ class RDDLSimulator:
         val = subs[var]
         if val is None:
             raise RDDLUndefinedVariableError(
-                'The value of variable <{}> is not set.'.format(var) + 
+                'Variable <{}> is referenced before it has been assigned a value.'.format(var) + 
                 '\n' + RDDLSimulator._print_stack_trace(expr))
             
         return val
@@ -784,9 +778,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
     def __init__(self,
                  model: PlanningModel,
                  rng: np.random.Generator=np.random.default_rng(),
-                 compute_levels: bool=True,
                  max_bound: float=np.inf) -> None:
-        super().__init__(model, rng, compute_levels)
+        super().__init__(model, rng)
         
         self.epsilon = 0.001
         # self.BigM = float(max_bound)

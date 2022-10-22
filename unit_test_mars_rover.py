@@ -28,12 +28,12 @@ def mars_rover_update(state, action):
     else:
         u_y_d2 = action['power-y_d2']
         
-    next_derived = {'power_d1': power_d1,
+    next_interm = {'power_d1': power_d1,
                     'power_d2': power_d2,
-                    'u_x_d1': u_x_d1,
-                    'u_y_d1': u_y_d1,
-                    'u_x_d2': u_x_d2,
-                    'u_y_d2': u_y_d2}
+                    'u-x_d1': u_x_d1,
+                    'u-y_d1': u_y_d1,
+                    'u-x_d2': u_x_d2,
+                    'u-y_d2': u_y_d2}
     
     new_vel_x_d1 = state['vel-x_d1'] + 0.1 * u_x_d1
     new_vel_y_d1 = state['vel-y_d1'] + 0.1 * u_y_d1
@@ -84,13 +84,8 @@ def mars_rover_update(state, action):
     reward = -(u_x_d1 **2 + u_y_d1 ** 2) - (u_x_d2 **2 + u_y_d2 ** 2) + \
             mineral_m1_cond + mineral_m2_cond \
             - 1. * action['harvest_d1'] - 1. * action['harvest_d2']
-    return reward, next_state, next_derived
+    return reward, next_state, next_interm
 
-def myprintstate(next_test_state, next_state):
-    for key in sorted(next_test_state.keys()):
-        print('key = {}, test = {}, rddl = {}, pass = {}'.format(
-            key, next_test_state[key], next_state[key], next_test_state[key] == next_state[key]))
-    
 def main():
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'instance0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
@@ -117,15 +112,13 @@ def main():
         print('state = {}'.format(state))
         print('action = {}'.format(action))
         print('next_state = {}'.format(next_state))
-        print('derived = {}'.format(myEnv.model.derived))
+        print('interm = {}'.format(myEnv.model.interm))
         state = next_state
         
-        test_reward, next_test_state, test_derived = mars_rover_update(
-            test_state, action)
-        print(test_reward)
-        assert next_test_state == next_state, myprintstate(next_test_state, next_state)
+        test_reward, next_test_state, test_interm = mars_rover_update(test_state, action)
         assert test_reward == reward
-        assert test_derived == myEnv.model.derived
+        assert next_test_state == next_state
+        assert test_interm == myEnv.model.interm, str(test_interm) + '\n' + str(myEnv.model.interm)
         test_state = next_test_state
         
     print("episode ended with reward {}".format(total_reward))
