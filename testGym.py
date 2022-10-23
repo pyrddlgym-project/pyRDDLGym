@@ -1,7 +1,7 @@
 from Env import RDDLEnv as RDDLEnv
 from Policies.Agents import RandomAgent
 # from Visualizer.MarsRoverViz import MarsRoverVisualizer
-from Visualizer.PowerGenViz import PowerGenVisualizer
+from Visualizer.RacecarViz import RacecarVisualizer
 
 # PROBLEM = 'RDDL/Thiagos_HVAC_grounded.rddl'
 # PROBLEM = 'RDDL/Thiagos_Mars_Rover.rddl'
@@ -15,14 +15,15 @@ from Visualizer.PowerGenViz import PowerGenVisualizer
 # FOLDER = 'Competition/Elevator/'
 # FOLDER = 'Competition/Recsim/'
 # FOLDER = 'Competition/Pendulum/'
-FOLDER = 'Competition/test/'
+# FOLDER = 'Competition/test/'
+FOLDER = 'Competition/RaceCar/'
 
 
 
 def main():
     myEnv = RDDLEnv.RDDLEnv(domain=FOLDER+'domain.rddl', instance=FOLDER+'instance0.rddl', is_grounded=False)
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
-    myEnv.set_visualizer(PowerGenVisualizer)
+    myEnv.set_visualizer(RacecarVisualizer)
 
     total_reward = 0
     state = myEnv.reset()
