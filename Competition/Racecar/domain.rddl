@@ -14,7 +14,7 @@ domain racecar {
     };
 	
 	types {
-		b: object;
+		b: object;		// boundary of the race track that cannot be crossed by the car
 	};
 	
     pvariables {
