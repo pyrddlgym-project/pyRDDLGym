@@ -813,6 +813,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             self._bounds[interm] = [-self.BigM, self.BigM]
         for action in model.actions:
             self._bounds[action] = [-self.BigM, self.BigM]
+        for obs in model.observ:
+            self._bounds[obs]  = [-self.BigM, self.BigM]
 
         # actions and states bounds extraction for gym's action and state spaces repots only!
         # currently supports only linear in\equality constraints
@@ -1002,4 +1004,12 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
     @bounds.setter
     def bounds(self, value):
         self._bounds = value
+
+    @property
+    def states(self):
+        return self._model.states.copy()
+
+    @property
+    def isPOMDP(self):
+        return self._pomdp
 
