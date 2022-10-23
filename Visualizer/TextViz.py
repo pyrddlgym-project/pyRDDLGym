@@ -1,16 +1,11 @@
-from typing import List, Dict, Tuple, Optional
 import pprint
 
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.image as plt_img
-import pygame
-import threading
 from PIL import Image
 
 from Visualizer.StateViz import StateViz
-from Grounder.RDDLModel import RDDLModel
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
+from Core.Grounder.RDDLModel import RDDLModel
 
 import Visualizer
 
