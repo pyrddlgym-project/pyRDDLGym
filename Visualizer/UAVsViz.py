@@ -1,16 +1,9 @@
-from typing import List, Dict, Tuple, Optional
-import time
-import math
-
 import matplotlib.pyplot as plt
-import matplotlib.image as plt_img
-from matplotlib import animation
 import numpy as np
 from PIL import Image
 
 from Visualizer.StateViz import StateViz
-from Grounder.RDDLModel import RDDLModel
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
+from Core.Grounder.RDDLModel import RDDLModel
 
 import Visualizer
 

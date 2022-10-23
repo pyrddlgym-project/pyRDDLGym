@@ -1,20 +1,14 @@
-from typing import List, Dict, Tuple, Optional
-
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.image as plt_img
 from PIL import Image
 
 from Visualizer.StateViz import StateViz
-from Grounder.RDDLModel import RDDLModel
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
-import matplotlib.patches as mpatches
+from Core.Grounder.RDDLModel import RDDLModel
 
 import Visualizer
 
-import sys
 
-class WilfireVisualizer(StateViz):
+class WildfireVisualizer(StateViz):
     def __init__(self, model: RDDLModel, dpi = 50, fontsize = 8, display=False) -> None:
 
         self._model= model
