@@ -9,10 +9,10 @@ import numpy as np
 from PIL import Image
 # import scipy
 
-import Visualizer
-from Grounder.RDDLModel import RDDLModel
+from Core.Grounder.RDDLModel import RDDLModel
 from Visualizer.StateViz import StateViz
-import math
+
+
 # import math
 
 
