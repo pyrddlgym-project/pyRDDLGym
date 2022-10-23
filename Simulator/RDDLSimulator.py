@@ -406,18 +406,9 @@ class RDDLSimulator:
             return max(terms)
         
     # functions
-    @staticmethod
-    def signum(x):
-        if x < 0:
-            return -1
-        elif x > 0:
-            return 1
-        else:
-            return 0
-        
     KNOWN_UNARY = {        
         'abs': abs,
-        'sgn': signum,
+        'sgn': lambda x: (-1 if x < 0 else (1 if x > 0 else 0)),
         'round': round,
         'floor': math.floor,
         'ceil': math.ceil,
