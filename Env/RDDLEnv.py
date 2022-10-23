@@ -47,7 +47,7 @@ class RDDLEnv(gym.Env):
         self.model = grounder.Ground()
 
         # define the model sampler
-        self.sampler = RDDLSimulatorWConstraints(self.model)#, max_bound=self.BigM)
+        self.sampler = RDDLSimulatorWConstraints(self.model)
 
         # set the horizon
         self.horizon = self.model.horizon
@@ -89,9 +89,16 @@ class RDDLEnv(gym.Env):
         self.action_space = action_space
 
         # define the states bounds
+        if self.sampler.isPOMDP:
+            search_dict = self.model.observ
+            ranges = self.model.observranges
+        else:
+            search_dict = self.model.states
+            ranges = self.model.statesranges
         state_space = Dict()
-        for state in self.model.states:
-            range = self.model.statesranges[state]
+        for state in search_dict:
+            range = ranges[state]
+            # range = self.model.statesranges[state]
             if range == 'real':
                 state_space[state] = Box(low=self.sampler.bounds[state][0], high=self.sampler.bounds[state][1],
                                          dtype=np.float32)
@@ -146,7 +153,8 @@ class RDDLEnv(gym.Env):
                 action[act] = at[act]
 
         # sample next state and reward
-        state, reward, self.done = self.sampler.step(action)
+        obs, reward, self.done = self.sampler.step(action)
+        state = self.sampler.states
 
         # check if the state invariants are satisfied
         if not self.done:
@@ -160,16 +168,18 @@ class RDDLEnv(gym.Env):
         # for visualization purposes
         self.state = state
 
-        return state, reward, self.done, {}
+        return obs, reward, self.done, {}
 
     def reset(self):
         self.total_reward = 0
         self.currentH = 0
-        self.state, self.done = self.sampler.reset()
+        obs, self.done = self.sampler.reset()
+        self.state = self.sampler.states
+
 
         image = self._visualizer.render(self.state)
         self.image_size = image.size
-        return self.state
+        return obs
 
     def pilImageToSurface(self, pilImage):
         return pygame.image.fromstring(
