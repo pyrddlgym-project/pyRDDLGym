@@ -76,7 +76,10 @@ class RDDLSimulator:
         
         # non-fluent will never change
         self._subs = self._model.nonfluents.copy()
-
+        
+        # is a POMDP
+        self._pomdp = bool(self._model.observ)
+        
     @staticmethod
     def _print_stack_trace(expr):
         return '...\n' + str(expr) + '\n...'
@@ -128,8 +131,8 @@ class RDDLSimulator:
         '''Resets the state variables to their initial values.'''
         
         # states and actions are set to their initial values
-        self._model.states = self._model.init_state
-        self._model.actions = self._init_actions
+        self._model.states.update(self._model.init_state)
+        self._model.actions.update(self._init_actions)
         
         # remaining fluents do not have default or initial values
         for var in self._model.derived.keys():
@@ -151,7 +154,10 @@ class RDDLSimulator:
         # check termination condition for the initial state
         done = self.check_terminal_states()
         
-        return self._model.states, done
+        if self._pomdp:
+            return self._model.observ.copy(), done
+        else:
+            return self._model.states.copy(), done
     
     def step(self, actions: Args) -> Args:
         '''Samples and returns the next state from the cpfs.
@@ -166,7 +172,7 @@ class RDDLSimulator:
         subs.update(self._model.actions)   
         
         # evaluate all CPFs, record next state fluents, update sub table 
-        next_states = {}
+        next_states, next_obs = {}, {}
         for order in self._order_cpfs:
             for cpf in self.cpforder[order]: 
                 if cpf in self._model.next_state:
@@ -193,6 +199,7 @@ class RDDLSimulator:
                     sample = self._sample(expr, subs)
                     self._model.observ[cpf] = sample
                     subs[cpf] = sample
+                    next_obs[cpf] = sample
                 else:
                     raise RDDLUndefinedCPFError('CPF <{}> is not defined.'.format(cpf))     
         
@@ -209,8 +216,11 @@ class RDDLSimulator:
         
         # check the termination condition
         done = self.check_terminal_states()
-                
-        return next_states, reward, done
+        
+        if self._pomdp:
+            return next_obs, reward, done
+        else:
+            return next_states, reward, done
     
     # start of sampling subroutines
     # skipped: aggregations (sum, prod)
