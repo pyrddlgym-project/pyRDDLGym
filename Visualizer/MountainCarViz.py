@@ -4,7 +4,7 @@ from PIL import Image
 import pygame
 from pygame import gfxdraw
 
-from Grounder.RDDLModel import RDDLModel
+from Core.Grounder.RDDLModel import RDDLModel
 from Visualizer.StateViz import StateViz
 
 
