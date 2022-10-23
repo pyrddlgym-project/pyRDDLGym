@@ -893,7 +893,9 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         else:
             result = True
             for elem in expr.args:
-                result = result and self.verify_tree_is_box(elem)
+                if not self.verify_tree_is_box(elem):
+                    return False
+                # result = result and self.verify_tree_is_box(elem)
             return result
 
     def get_op_code(self, op, is_right: bool) -> (float, int):

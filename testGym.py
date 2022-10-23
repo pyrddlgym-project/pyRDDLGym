@@ -10,8 +10,8 @@ from Visualizer.MarsRoverViz import MarsRoverVisualizer
 # FOLDER = 'Competition/UAVs_con/'
 # FOLDER = 'Competition/Wildfire/'
 # FOLDER = 'Competition/MountainCar2/'
-FOLDER = 'Competition/Cartpole2/'
-# FOLDER = 'Competition/Elevator/'
+# FOLDER = 'Competition/Cartpole2/'
+FOLDER = 'Competition/Elevator/'
 # FOLDER = 'Competition/Recsim/'
 # FOLDER = 'Competition/Pendulum/'
 
