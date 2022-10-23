@@ -14,12 +14,16 @@ class RDDLInvalidDependencyInCPFError(SyntaxError):
     pass
 
 
-# we generally have state -> derived -> interm -> next state -> obs
+# we generally have state -> derived -> interm -> next state -> obs/reward
 VALID_DEPENDENCIES = {
     'derived': {'state', 'derived'},
     'interm': {'action', 'state', 'derived', 'interm'},
     'next state': {'action', 'state', 'derived', 'interm', 'next state'},
-    'observ': {'action', 'derived', 'interm', 'next state'}
+    'observ': {'action', 'derived', 'interm', 'next state'},
+    'reward': {'action', 'state', 'derived', 'interm', 'next state'},
+    'state invariant': {'state'},
+    'action precondition': {'action'},
+    'termination': {'state'}
 }
 
     
@@ -33,24 +37,28 @@ class RDDLDependencyAnalysis:
     
     # dependency analysis
     def build_call_graph(self) -> Dict[str, Set[str]]:
-        graph = {}
+        
+        # compute call graph of CPs and check validity
+        cpf_graph = {}
         for cpf, expr in self._model.cpfs.items():
-            self._update_call_graph(graph, cpf, expr)
-            if cpf not in graph:  # CPF without dependencies
-                graph[cpf] = set()
-
-        # check validity of reward, constraints etc
-        expr = self._model.reward
-        self._update_call_graph({}, '', expr)
-        for expr in self._model.preconditions:
-            self._update_call_graph({}, '', expr)
-        for expr in self._model.invariants:
-            self._update_call_graph({}, '', expr)
+            self._update_call_graph(cpf_graph, cpf, expr)
+            if cpf not in cpf_graph:
+                cpf_graph[cpf] = set()
+        self._check_deps_by_fluent_type(cpf_graph)
         
-        # check validity of dependencies according to CPF type
-        self._check_deps_by_fluent_type(graph)
-        
-        return graph
+        # check validity of reward, constraints, termination
+        for name, exprs in [
+            ('reward', [self._model.reward]),
+            ('action precondition', self._model.preconditions),
+            ('state invariant', self._model.invariants),
+            ('termination', self._model.terminals)
+        ]:
+            call_graph = {}
+            for expr in exprs:
+                self._update_call_graph(call_graph, name, expr)
+            self._check_deps_by_fluent_type(call_graph)
+            
+        return cpf_graph
     
     def _update_call_graph(self, graph, cpf, expr):
         etype, _ = expr.etype
@@ -81,20 +89,20 @@ class RDDLDependencyAnalysis:
         elif fluent in self._model.derived: return 'derived'
         elif fluent in self._model.prev_state: return 'next state'
         elif fluent in self._model.observ: return 'observ'
-        else: return 'none'
+        else: return fluent
                 
     def _check_deps_by_fluent_type(self, graph):
         for cpf, deps in graph.items():
             cpf_type = self.fluent_type(cpf)
             if cpf_type == 'derived':
-                warnings.warn('The use of derived fluents is discouraged in the current RDDL version: ' + 
+                warnings.warn('The use of derived fluents is discouraged in this RDDL version: ' + 
                               'please change the type of fluent <{}> to interm.'.format(cpf),
                               FutureWarning, stacklevel=2)
             if cpf_type in VALID_DEPENDENCIES:
                 for dep in deps: 
                     dep_type = self.fluent_type(dep)
-                    if dep_type not in VALID_DEPENDENCIES[cpf_type] \
-                    or (self._disallow_state_synchrony and cpf_type == dep_type == 'next state'):
+                    if dep_type not in VALID_DEPENDENCIES[cpf_type] or (
+                        self._disallow_state_synchrony and cpf_type == dep_type == 'next state'):
                         raise RDDLInvalidDependencyInCPFError(
                             '{} fluent <{}> cannot depend on {} fluent <{}>.'.format(
                                 cpf_type, cpf, dep_type, dep))
