@@ -15,6 +15,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._derived = None
         self._interm = None
         self._observ = None
+        self._observranges = None
         self._cpfs = None
         self._cpforder = None
         self._reward = None
@@ -125,6 +126,14 @@ class PlanningModel(metaclass=ABCMeta):
     @observ.setter
     def observ(self, value):
         self._observ = value
+
+    @property
+    def observranges(self):
+        return self._observranges
+
+    @observranges.setter
+    def observranges(self, value):
+        self._observranges = value
 
     @property
     def cpfs(self):
