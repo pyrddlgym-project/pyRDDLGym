@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+# from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from matplotlib.patches import Arrow
+from matplotlib import collections  as mc
+
 #import os
 
 import numpy as np
@@ -10,6 +12,7 @@ from PIL import Image
 import Visualizer
 from Grounder.RDDLModel import RDDLModel
 from Visualizer.StateViz import StateViz
+import math
 # import math
 
 
@@ -23,6 +26,9 @@ class RacecarVisualizer(StateViz):
         
         self._nonfluents = model.nonfluents
         
+        self.fig = plt.figure(figsize=self._figure_size)
+        self.ax = plt.gca()
+        
         # draw boundaries
         obj = model.objects['b']
         X1, X2, Y1, Y2 = [], [], [], []
@@ -31,18 +37,19 @@ class RacecarVisualizer(StateViz):
              X2.append(self._nonfluents['X2_' + o])
              Y1.append(self._nonfluents['Y1_' + o])
              Y2.append(self._nonfluents['Y2_' + o])
+        lines = [[(x1, y1), (x2, y2)] for x1, y1, x2, y2 in zip(X1,Y1, X2, Y2)]
+        lc = mc.LineCollection(lines, linewidths=2)
+        self.ax.add_collection(lc)
+        self.ax.autoscale()
+        self.ax.margins(0.1)
         
-        self.fig = plt.figure(figsize=self._figure_size)
-
-        self.ax = plt.gca()
-        for pt in zip(X1, Y1, X2, Y2):
-            self.ax.plot(*pt)
-            
+        # draw goal        
         goal = plt.Circle((self._nonfluents['GX'], self._nonfluents['GY']),
                           self._nonfluents['RADIUS'],
                           color='g')
         self.ax.add_patch(goal)
         
+        # velocity vector
         self.arrow = Arrow(0, 0, 0, 0, width=0.2 * self._vector_len, color='black')
         self.move = self.ax.add_patch(self.arrow)
 
@@ -76,4 +83,4 @@ class RacecarVisualizer(StateViz):
         img = self.convert2img(self.fig.canvas)
         car.remove()
         return img
-    
+
