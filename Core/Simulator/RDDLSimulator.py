@@ -4,14 +4,14 @@ import numpy as np
 from typing import Dict, Tuple
 
 from Core.Grounder.RDDLModel import PlanningModel
-from Core.Grounder.RDDLException import RDDLActionPreconditionNotSatisfiedError
-from Core.Grounder.RDDLException import RDDLInvalidNumberOfArgumentsError
-from Core.Grounder.RDDLException import RDDLNotImplementedError
-from Core.Grounder.RDDLException import RDDLStateInvariantNotSatisfiedError
-from Core.Grounder.RDDLException import RDDLTypeError
-from Core.Grounder.RDDLException import RDDLUndefinedCPFError
-from Core.Grounder.RDDLException import RDDLUndefinedVariableError
-from Core.Grounder.RDDLException import RDDLValueOutOfRangeError
+from Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
+from Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
+from Core.ErrorHandling.RDDLException import RDDLTypeError
+from Core.ErrorHandling.RDDLException import RDDLUndefinedCPFError
+from Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+from Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from Core.Parser.expr import Expression, Value
 from Core.Simulator.RDDLDependencyAnalysis import RDDLDependencyAnalysis
 

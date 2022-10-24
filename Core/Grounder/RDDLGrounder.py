@@ -4,12 +4,12 @@ import itertools
 import warnings
 
 from Core.Grounder.RDDLModel import RDDLModel
-from Core.Grounder.RDDLException import RDDLInvalidExpressionError
-from Core.Grounder.RDDLException import RDDLInvalidNumberOfArgumentsError
-from Core.Grounder.RDDLException import RDDLNotImplementedError
-from Core.Grounder.RDDLException import RDDLMissingCPFDefinitionError
-from Core.Grounder.RDDLException import RDDLUndefinedVariableError
-from Core.Grounder.RDDLException import RDDLValueOutOfRangeError
+from Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
+from Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
+from Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+from Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from Core.Parser.expr import Expression
 
 # import RDDLModel
