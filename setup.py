@@ -15,7 +15,7 @@
 from setuptools import setup, find_packages
 
 setup(
-      name='rddlgym',
+      name='pyRDDLGym',
       version='1.0.0',
       author="Ayal Taitler, Scott Sanner, Michael Gimelfarb, Sriram Gopalakrishnan, sgopal28@asu.edu, Martin Mladenov,jack liu",
       author_email="ataitler@gmail.com, ssanner@mie.utoronto.ca, mike.gimelfarb@mail.utoronto.ca, mmladenov@google.com, jack.liu.to@gmail.com",
