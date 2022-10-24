@@ -4,18 +4,18 @@ non-fluents nf_recsim_ecosystem_welfare__1 {
 		feature : {f1, f2};
 		item : {i1, i2, i3, i4, i5};
 		consumer: {c1, c2, c3, c4, c5};
-		provider: {p1, p2, p3, px}; // We need to add an extra provider for CDF computation;
+		provider: {p1, p2, p3, pn}; // We need to add an extra provider for CDF computation;
 	};
 	non-fluents {
+		NEXT-PROVIDER(pn, p1);
 		NEXT-PROVIDER(p1, p2);
 		NEXT-PROVIDER(p2, p3);
-		NEXT-PROVIDER(p3, px);
+		LESS(pn, p1);
+		LESS(pn, p2);
+		LESS(pn, p3);
 		LESS(p1, p2);
 		LESS(p1, p3);
-		LESS(p1, px);
 		LESS(p2, p3);
-		LESS(p2, px);
-		LESS(p3, px);
 		PROVIDER-DISCOUNT(px) = 0.0;
 		PROVIDER-COMPETENCE(p1, f1) = 1.0;
 		PROVIDER-COMPETENCE(p1, f2) = 1.0;
@@ -40,6 +40,9 @@ non-fluents nf_recsim_ecosystem_welfare__1 {
 instance recsim_ecosystem_welfare__1 {
 	domain = recsim_ecosystem_welfare;
 	non-fluents = nf_recsim_ecosystem_welfare__1;
+	init-state {
+		provider-satisfaction(pn) = 0.0;
+	};
 	max-nondef-actions = 1;
 	horizon  = 40;
 	discount = 1.0;
