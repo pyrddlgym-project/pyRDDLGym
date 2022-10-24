@@ -2,14 +2,9 @@ from typing import Dict, Set
 import warnings
 
 from Core.Grounder.RDDLModel import PlanningModel
+from Core.Grounder.RDDLException import RDDLInvalidDependencyInCPFError
+from Core.Grounder.RDDLException import RDDLUndefinedVariableError
 
-
-class RDDLUndefinedVariableError(SyntaxError):
-    pass
-
-
-class RDDLInvalidDependencyInCPFError(SyntaxError):
-    pass
 
 
 # we generally have state -> derived -> interm -> next state -> obs/reward
@@ -136,7 +131,8 @@ class RDDLDependencyAnalysis:
             return
         elif var in temp:
             raise RDDLInvalidDependencyInCPFError(
-                'Cyclic dependency detected, suspected CPFs {}.'.format(temp))
+                'Cyclic dependency detected, suspected CPFs <{}>.'.format(
+                    ','.join(temp)))
         else:
             temp.add(var)
             if var in graph:
