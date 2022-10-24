@@ -3,7 +3,11 @@ import re
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, RDDLInstanceNotExist
 
 EXP_DICT = {
-    'Cartpole' : ('A simple continuous MDP for the classical cart-pole system by Rich Sutton.', '/Cartpole/', 'CartPole'),
+    'Cartpole discrete' : ('A simple continuous state MDP for the classical cart-pole system by Rich Sutton, '
+                           'with discrete actions that apply a constant force on either the left ' 
+                           'or right side of the cart.', '/Cartpole/Discrete/', 'CartPole'),
+    'Cartpole continuous' : ('A simple continuous state-action MDP for the classical cart-pole system by Rich Sutton, '
+                             'with actions that describe the continuous force applied to the cart.', '/Cartpole/Continuous/', 'CartPole'),
     'Elevators' : ('The Elevator domain models evening rush hours when people from different floors in '
                    'a building want to go down to the bottom floor using elevators', '/Elevator/', 'Elevator'),
     'MarsRover' : ('Multi Rover Navigation, where a group of agent needs to harvest mineral.', '/Mars_rover/', 'MarsRover'),
