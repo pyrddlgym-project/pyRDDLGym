@@ -3,7 +3,7 @@ from Policies.Agents import RandomAgent
 from Examples.ExampleManager import ExampleManager
 
 # ENV = 'Power generation'
-# ENV = 'MarsRover'
+ENV = 'MarsRover'
 # ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
@@ -12,13 +12,12 @@ from Examples.ExampleManager import ExampleManager
 # ENV = 'Cartpole'
 # ENV = 'Elevators'
 # ENV = 'Recsim'
-# ENV = 'Pendulum'
-ENV = 'RaceCar'
+# ENV = 'RaceCar'
 
 def main():
     # get the environment info
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
-    # set up the environment class
+    # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
     # set up the environment visualizer
     myEnv.set_visualizer(EnvInfo.get_visualizer())
