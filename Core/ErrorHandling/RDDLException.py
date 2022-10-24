@@ -43,3 +43,10 @@ class RDDLUndefinedVariableError(SyntaxError):
 class RDDLValueOutOfRangeError(ValueError):
     pass
 
+
+class RDDLEnvironmentNotExist(ValueError):
+    pass
+
+
+class RDDLInstanceNotExist(ValueError):
+    pass
