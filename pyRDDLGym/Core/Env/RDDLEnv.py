@@ -125,6 +125,7 @@ class RDDLEnv(gym.Env):
     def set_visualizer(self, viz):
         # set the vizualizer with self.model
         self._visualizer = viz(self.model)
+        self.to_render = False
 
     def step(self, at):
 

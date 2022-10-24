@@ -23,7 +23,7 @@ setup(
       license="MIT License",
       url="https://github.com/ataitler/pyRDDLGym",
       packages=find_packages(),
-      install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy', 'gym', 'pygame'],
+      install_requires=['ply', 'pillow>=9.2.0', 'matplotlib==3.5.0', 'numpy', 'gym', 'pygame'],
       python_requires=">=3.6",
       include_package_data=True,
       classifiers=[
