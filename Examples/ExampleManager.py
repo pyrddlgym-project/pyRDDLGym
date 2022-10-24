@@ -7,7 +7,6 @@ EXP_DICT = {
                    'a building want to go down to the bottom floor using elevators', '/Elevator/', 'Elevator'),
     'MarsRover' : ('Multi Rover Navigation, where a group of agent needs to harvest mineral.', '/Mars_rover/', 'MarsRover'),
     'Mountaincar' : ('A simple continuous MDP for the classical mountain car control problem.', '/Mountaincar/', 'MountainCar'),
-    'Pendulum' : ('A simple continuous MDP for the classical pendulum problem.', '/Pendulum/', 'Text'),
     'Power generation' : ('A simple power generation problem loosely modeled on the problem of unit commitment.',
                           '/Power_gen/', 'PowerGen'),
     'RaceCar' : ('A simple continuous MDP for the racecar problem.', '/RaceCar/', 'Racecar'),
