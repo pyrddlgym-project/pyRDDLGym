@@ -71,7 +71,7 @@ class ExampleManager:
     def ListExamples():
         print("Available example environment:")
         for key in EXP_DICT:
-            print(key + " -> " + EXP_DICT[key[0]])
+            print(key + " -> " + EXP_DICT[key][0])
 
     @staticmethod
     def GetEnvInfo(env):
