@@ -16,7 +16,7 @@ from setuptools import setup, find_packages
 
 setup(
       name='pyRDDLGym',
-      version='1.0.0',
+      version='1.0.1',
       author="Ayal Taitler, Scott Sanner, Michael Gimelfarb, Sriram Gopalakrishnan, sgopal28@asu.edu, Martin Mladenov,jack liu",
       author_email="ataitler@gmail.com, ssanner@mie.utoronto.ca, mike.gimelfarb@mail.utoronto.ca, mmladenov@google.com, jack.liu.to@gmail.com",
       description="pyRDDLGym: RDDL automatic generation tool for OpenAI Gym",
@@ -26,6 +26,18 @@ setup(
       install_requires=['ply', 'pillow>=9.2.0', 'matplotlib==3.5.0', 'numpy', 'gym', 'pygame'],
       python_requires=">=3.6",
       include_package_data=True,
+      package_data={'': ['Examples/CartPole/*.rddl',
+                         'Examples/Elevator/*.rddl',
+                         'Examples/Mars_rover/*.rddl',
+                         'Examples/MountainCar/*.rddl',
+                         'Examples/Power_gn/*.rddl',
+                         'Examples/Racecar/*.rddl',
+                         'Examples/Recsim/*.rddl',
+                         'Examples/UAV/Continuous/*.rddl',
+                         'Examples/UAV/Discrete/*.rddl',
+                         'Examples/UAV/Mixed/*.rddl',
+                         'Examples/Wildfire/*.rddl',
+                         ]},
       classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",

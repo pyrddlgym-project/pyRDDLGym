@@ -17,7 +17,6 @@ ENV = 'UAV continuous'
 def main():
     # get the environment info
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
-
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
     # set up the environment visualizer
