@@ -20,47 +20,47 @@ domain mountain_car {
 		DEPTH : { non-fluent, real, default = 0.45 };				// depth of the valley
 		
 		// bounds
-		MIN-POS  : { non-fluent, real, default = -1.2 };        		// min position of cart
-		MAX-POS  : { non-fluent, real, default = 0.6 };			 	// max position of cart
-		MAX-VEL  : { non-fluent, real, default = 0.07 };				// max velocity of cart
+		MIN-POS : { non-fluent, real, default = -1.2 };        		// min position of cart
+		MAX-POS : { non-fluent, real, default = 0.6 };			 	// max position of cart
+		MAX-VEL : { non-fluent, real, default = 0.07 };				// max velocity of cart
 		GOAL-MIN : { non-fluent, real, default = 0.5 };				// desired x position of cart
-		VEL-MIN  : { non-fluent, real, default = 0.0 };				// desired velocity of the cart
 		
+		// interm & derived fluents
+		success : { interm-fluent, bool };                       	// whether the cart reached its goal
+				
 		// states
        	pos    	: { state-fluent, real, default = -0.5 };          	// cart position
        	vel   	: { state-fluent, real, default = 0 };          	// cart velocity
 
        	// actions
-       	action : { action-fluent, real, default = 1 };      		// whether to accelerate left (0), none (1) or right (2)
+       	action : { action-fluent, int, default = 1 };      			// whether to accelerate left (0), none (1) or right (2)
     };
 
     cpfs {
-	
+		// check if we reached the goal
+		success = (pos >= GOAL-MIN) ^ (vel >= 0);
+		
 		// update position and velocity of the cart
-		vel' = [max[min[vel + (action - 1) * FORCE-MAG + cos[3 * pos] * (-GRAVITY-MAG) * (3 * DEPTH), 
-					MAX-VEL], -MAX-VEL]];
+		vel' = if(success)
+				then 0.0
+				else [max[min[vel + (action - 1) * FORCE-MAG + cos[3 * pos] * (-GRAVITY-MAG) * (3 * DEPTH),
+						MAX-VEL], -MAX-VEL]];
 		pos' = max[min[pos + vel', MAX-POS], MIN-POS];
     };
 
     // R = 1 as long as the pole is upright and the cart is not out of bounds
-    reward = if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN))
+    reward = if(success)
 				then 1.0
 				else 0.0;
-	
-	termination {
-		(pos >= GOAL-MIN) ^ (vel >= VEL-MIN);
-	};
-	
+
     state-invariants {
-		pos >= MIN-POS;
-		pos <= MAX-POS;
-		vel >= -MAX-VEL;
-		vel <= MAX-VEL;
+		pos >= MIN-POS ^ pos <= MAX-POS;
+		vel >= -MAX-VEL ^ vel <= MAX-VEL;
     };
 
     action-preconditions {
-        action >= 0;
         action <= 2;
+        action >= 0;
     };
 
 }
