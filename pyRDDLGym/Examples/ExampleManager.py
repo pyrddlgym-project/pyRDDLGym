@@ -61,7 +61,7 @@ class ExampleManager:
         return self.path_to_env + instance
 
     def get_visualizer(self):
-        viz_package_name = 'Visualizer.' + EXP_DICT[self.env][2] + 'Viz'
+        viz_package_name = 'pyRDDLGym.Visualizer.' + EXP_DICT[self.env][2] + 'Viz'
         viz_class_name = EXP_DICT[self.env][2] + 'Visualizer'
         viz_package = __import__(viz_package_name, {}, {}, viz_class_name)
         viz = getattr(viz_package, viz_class_name)
