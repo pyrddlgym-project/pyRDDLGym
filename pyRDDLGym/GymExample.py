@@ -1,6 +1,7 @@
-from pyRDDLGym.Core.Env import RDDLEnv as RDDLEnv
+from pyRDDLGym import RDDLEnv
+from pyRDDLGym import ExampleManager
 from pyRDDLGym.Policies.Agents import RandomAgent
-from pyRDDLGym.Examples.ExampleManager import ExampleManager
+import sys
 
 # ENV = 'Power generation'
 # ENV = 'MarsRover'
@@ -17,6 +18,8 @@ ENV = 'UAV continuous'
 def main():
     # get the environment info
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
+    EnvInfo.ListExamples()
+    sys.exit()
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
     # set up the environment visualizer
