@@ -5,6 +5,7 @@ from typing import Dict, Tuple
 
 from pyRDDLGym.Core.Grounder.RDDLModel import PlanningModel
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
