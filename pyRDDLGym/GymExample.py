@@ -3,8 +3,8 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 # ENV = 'Power generation'
-ENV = 'MarsRover'
-# ENV = 'UAV continuous'
+# ENV = 'MarsRover'
+ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
 # ENV = 'Wildfire'
