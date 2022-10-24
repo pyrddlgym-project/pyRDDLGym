@@ -2,8 +2,8 @@ from typing import Dict, Set
 import warnings
 
 from Core.Grounder.RDDLModel import PlanningModel
-from Core.Grounder.RDDLException import RDDLInvalidDependencyInCPFError
-from Core.Grounder.RDDLException import RDDLUndefinedVariableError
+from Core.ErrorHandling.RDDLException import RDDLInvalidDependencyInCPFError
+from Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
 
 
