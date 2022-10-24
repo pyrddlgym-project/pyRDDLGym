@@ -18,11 +18,12 @@ from Visualizer.StateViz import StateViz
 
 class RacecarVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel, figure_size=(4, 4), car_radius=0.04, vector_len=0.15) -> None:
+    def __init__(self, model: RDDLModel, figure_size=(4, 4), car_radius=0.04, vector_len=0.15, wait_time=100) -> None:
         self._model = model
         self._figure_size = figure_size
         self._car_radius = car_radius
         self._vector_len = vector_len
+        self._wait_time = wait_time
         
         self._nonfluents = model.nonfluents
         
@@ -80,7 +81,13 @@ class RacecarVisualizer(StateViz):
         car = plt.Circle((state['x'], state['y']), self._car_radius)
         self.ax.add_patch(car)
         self.fig.canvas.draw()
+        
+        plt.pause(self._wait_time / 1000.)
+        
         img = self.convert2img(self.fig.canvas)
+        
         car.remove()
+        del car
+        
         return img
 

@@ -1,9 +1,15 @@
 import abc
 import copy
 import itertools
-# import warnings
+import warnings
 
 from Core.Grounder.RDDLModel import RDDLModel
+from Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
+from Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
+from Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+from Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from Core.Parser.expr import Expression
 
 # import RDDLModel
@@ -27,24 +33,6 @@ AGGREG_OP_TO_STRING_DICT = dict(
 )
 
 
-class RDDLUndefinedVariableError(SyntaxError):
-    pass
-
-
-class RDDLMissingCPFDefinitionError(SyntaxError):
-    pass
-
-
-class RDDLInvalidExpressionError(SyntaxError):
-    pass
-
-
-class RDDLInvalidNumberOfArgumentsError(SyntaxError):
-    pass
-
-
-class RDDLValueOutOfRangeError(ValueError):
-    pass
 
 
 class Grounder(metaclass=abc.ABCMeta):
@@ -154,8 +142,8 @@ class RDDLGrounder(Grounder):
         for obj_type in args:
             if obj_type not in self.objects:
                 raise RDDLUndefinedVariableError(
-                    'Object type {} is not defined: should be one of {}.'.format(
-                        obj_type, list(self.objects.keys())))
+                    'Object type <{}> is not defined: should be one of <{}>.'.format(
+                        obj_type, ','.join(self.objects.keys())))
             objects_by_type.append(self.objects[obj_type])
         return itertools.product(*objects_by_type)
     
@@ -392,7 +380,7 @@ class RDDLGrounder(Grounder):
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
             expr = Expression(('pvar_expr', (new_name, None)))
         else:
-            raise RDDLInvalidExpressionError(f'Malformed expression {str(expr)}.')
+            raise RDDLInvalidExpressionError(f'Malformed expression <{str(expr)}>.')
         return expr
 
     def _scan_expr_tree_abr(self, expr, dic):
@@ -512,7 +500,9 @@ class RDDLGrounder(Grounder):
     
         if hasattr(self.AST.domain, 'constraints'):
             if self.AST.domain.constraints:
-                raise Exception('Internal error: no support for state-action constraints.')
+                warnings.warn(
+                    'State-action constraints are not implemented in this RDDL version and will be ignored.',
+                    FutureWarning, stacklevel=2)
     
         if hasattr(self.AST.domain, 'invariants'):
             for inv in self.AST.domain.invariants:
