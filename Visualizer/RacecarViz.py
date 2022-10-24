@@ -18,7 +18,7 @@ from Visualizer.StateViz import StateViz
 
 class RacecarVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel, figure_size=(4, 4), car_radius=0.04, vector_len=0.15, wait_time=1) -> None:
+    def __init__(self, model: RDDLModel, figure_size=(4, 4), car_radius=0.04, vector_len=0.15, wait_time=100) -> None:
         self._model = model
         self._figure_size = figure_size
         self._car_radius = car_radius
