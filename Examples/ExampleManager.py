@@ -1,5 +1,6 @@
 import os
 import re
+from Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, RDDLInstanceNotExist
 
 EXP_DICT = {
     'Cartpole' : ('A simple continuous MDP for the classical cart-pole system by Rich Sutton.', '/Cartpole/', 'CartPole'),
@@ -21,8 +22,8 @@ EXP_DICT = {
 }
 
 
-class RDDLEnvironmentNotExist(ValueError):
-    pass
+# class RDDLEnvironmentNotExist(ValueError):
+#     pass
 
 
 class RDDLInstanceNotExist(ValueError):
