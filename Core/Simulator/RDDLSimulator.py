@@ -4,46 +4,18 @@ import numpy as np
 from typing import Dict, Tuple
 
 from Core.Grounder.RDDLModel import PlanningModel
+from Core.Grounder.RDDLException import RDDLActionPreconditionNotSatisfiedError
+from Core.Grounder.RDDLException import RDDLInvalidNumberOfArgumentsError
+from Core.Grounder.RDDLException import RDDLNotImplementedError
+from Core.Grounder.RDDLException import RDDLStateInvariantNotSatisfiedError
+from Core.Grounder.RDDLException import RDDLTypeError
+from Core.Grounder.RDDLException import RDDLUndefinedCPFError
+from Core.Grounder.RDDLException import RDDLUndefinedVariableError
+from Core.Grounder.RDDLException import RDDLValueOutOfRangeError
 from Core.Parser.expr import Expression, Value
 from Core.Simulator.RDDLDependencyAnalysis import RDDLDependencyAnalysis
 
 Args = Dict[str, Value]
-
-
-class RDDLRuntimeError(RuntimeError):
-    pass
-
-
-class RDDLNotImplementedError(NotImplementedError):
-    pass
-
-
-class RDDLUndefinedCPFError(SyntaxError):
-    pass
-
-
-class RDDLUndefinedVariableError(SyntaxError):
-    pass
-
-
-class RDDLInvalidNumberOfArgumentsError(SyntaxError):
-    pass
-
-
-class RDDLValueOutOfRangeError(ValueError):
-    pass
-
-
-class RDDLTypeError(TypeError):
-    pass
-
-
-class RDDLStateInvariantNotSatisfiedError(ValueError):
-    pass
-
-
-class RDDLActionPreconditionNotSatisfiedError(ValueError):
-    pass
 
 
 VALID_ARITHMETIC_OPS = {'+', '-', '*', '/'}
@@ -818,7 +790,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         for name in self._bounds:
             if self._bounds[name][0] > self._bounds[name][1]:
                 raise RDDLValueOutOfRangeError(
-                    'variable {} bounds are invalid, max value cannot be lower than min.'.format(name) +
+                    'Variable <{}> bounds are invalid, max value cannot be lower than min.'.format(name) +
                     '\n' + RDDLSimulator._print_stack_trace(self._bounds[name]))
 
     def _parse_bounds_rec(self, cond, search_dict):
@@ -851,12 +823,13 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             if right_arg.args[0] in search_dict:
                 act_count = act_count + 1
         if act_count == 2:
-            raise RDDLActionPreconditionNotSatisfiedError("error in action-precondition block, " +
-                                                          "constraint {} {} {} does not have a structure of " +
-                                                          "action/state fluent <=/>= f(non-fluents, constants)".format(
-                                                              left_arg.args[0], right_arg.args[0]) +
-                                                          '\n' + RDDLSimulator._print_stack_trace(
-                left_arg.args[0] + op + right_arg.args[0]))
+            raise RDDLInvalidExpressionError(
+                "Error in action-precondition block, " +
+                "constraint {} {} {} does not have a structure of " +
+                "action/state fluent <=/>= f(non-fluents, constants)".format(
+                left_arg.args[0], right_arg.args[0]) +
+                '\n' + RDDLSimulator._print_stack_trace(
+                    left_arg.args[0] + op + right_arg.args[0]))
         if act_count == 0:
             return None, 0, None
 
@@ -868,8 +841,9 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                     lim, loc = self.get_op_code(op, is_right=True)
                     return variable, float(lim + lim_temp), loc
                 else:
-                    raise RDDLActionPreconditionNotSatisfiedError(
-                        "error in action-precondition block, bound {} must be a determinisic function of non-fluents and constants only".format(
+                    raise RDDLInvalidExpressionError(
+                        "Error in action-precondition block, bound {} must be a " + 
+                        "determinisic function of non-fluents and constants only".format(
                             right_arg) + "\n" + RDDLSimulator._print_stack_trace(right_arg))
 
         elif right_arg.etype[0] == 'pvar':
@@ -880,16 +854,18 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                     lim, loc = self.get_op_code(op, is_right=False)
                     return variable, float(lim + lim_temp), loc
                 else:
-                    raise RDDLActionPreconditionNotSatisfiedError(
-                        "error in action-precondition block, bound {} must be a determinisic function of non-fluents and constants only".format(
+                    raise RDDLInvalidExpressionError(
+                        "Error in action-precondition block, bound {} must be a " + 
+                        "determinisic function of non-fluents and constants only".format(
                             left_arg) + "\n" + RDDLSimulator._print_stack_trace(right_arg))
         else:
-            raise RDDLActionPreconditionNotSatisfiedError("error in action-precondition block, " +
-                                                          "constraint {} {} {} does not have a structure of " +
-                                                          "action/state fluent <=/>= f(non-fluents, constants)".format(
-                                                              left_arg.args[0], right_arg.args[0]) +
-                                                          '\n' + RDDLSimulator._print_stack_trace(
-                left_arg.args[0] + op + right_arg.args[0]))
+            raise RDDLInvalidExpressionError(
+                "Error in action-precondition block, " +
+                "constraint {} {} {} does not have a structure of " +
+                "action/state fluent <=/>= f(non-fluents, constants)".format(
+                        left_arg.args[0], right_arg.args[0]) +
+                '\n' + RDDLSimulator._print_stack_trace(
+                    left_arg.args[0] + op + right_arg.args[0]))
 
     def verify_tree_is_box(self, expr):
         if hasattr(expr, 'args') == False:
