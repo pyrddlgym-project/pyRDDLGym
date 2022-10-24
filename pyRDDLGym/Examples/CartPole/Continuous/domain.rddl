@@ -1,13 +1,13 @@
 ////////////////////////////////////////////////////////////////////
-// A simple continuous MDP for the classical cart-pole system by Rich
-// Sutton. 
+// A simple continuous state-action MDP for the classical cart-pole system 
+// by Rich Sutton as implemented in http://incompleteideas.net/sutton/book/code/pole.c.
 //
 // The goal here is to push a cart on a flat and frictionless surface 
-// left or right by applying a constant force, in order to balance a 
+// left or right by applying a continuous valued force, in order to balance a 
 // pole balanced vertically in the center of the cart.
 //
 ////////////////////////////////////////////////////////////////////
-domain cart_pole {
+domain cart_pole_continuous {
 
     requirements = {
         reward-deterministic
@@ -17,7 +17,7 @@ domain cart_pole {
 
     	// forces
 		GRAVITY   : { non-fluent, real, default = 9.8 };        // force of gravity acting down
-		FORCE-MAG : { non-fluent, real, default = 10.0 };		// force applied to the side of the cart
+		FORCE-MAX : { non-fluent, real, default = 10.0 };		// max force applied to the side of the cart
 
 		// cart and pole properties
 		CART-MASS : { non-fluent, real, default = 1.0 };        // mass of the cart
@@ -30,7 +30,6 @@ domain cart_pole {
 		ANG-LIMIT : { non-fluent, real, default = 0.2094395 };	// limit of pole angle
 	
 		// interm & derived fluents
-		force : { interm-fluent, real };                       // actual signed force applied to the cart
 		temp : { interm-fluent, real };						// temporary variable
 		acc : { interm-fluent, real };							// position acceleration
 		ang-acc : { interm-fluent, real };						// angular acceleration
@@ -42,14 +41,10 @@ domain cart_pole {
        	ang-vel : { state-fluent, real, default = 0 };          // pole angular velocity
 
        	// actions
-       	force-side : { action-fluent, int, default = 0 };      	// whether to apply force to left, right side or none
+       	force : { action-fluent, real, default = 0 };      	// how much force to apply to the side of the cart
     };
 
     cpfs {
-		// the actual signed force on the cart
-		force = if(force-side == 1)
-				 then FORCE-MAG
-				 else -FORCE-MAG;
 		
 		// compute the pole angular acceleration
 		temp = (force + POLE-LEN * pow[ang-vel, 2] * sin[ang-pos]) / (CART-MASS + POLE-MASS);
@@ -75,15 +70,22 @@ domain cart_pole {
     };
 
     state-invariants {
+	
+		// state is within limits
 		pos >= -POS-LIMIT;
 		pos <= POS-LIMIT;
 		ang-pos >= -ANG-LIMIT;
 		ang-pos <= ANG-LIMIT;
+		
+		// system is physically plausible
+		GRAVITY >= 0 ^ FORCE-MAX >= 0;
+		CART-MASS >= 0 ^ POLE-MASS >= 0 ^ POLE-LEN >= 0;
+		TIME-STEP >= 0 ^ POS-LIMIT >= 0 ^ ANG-LIMIT >= 0;
     };
 
     action-preconditions {
-        force-side >= 0;
-		force-side <= 1;
+        force >= -FORCE-MAX;
+		force <= FORCE-MAX;
     };
 
 }
