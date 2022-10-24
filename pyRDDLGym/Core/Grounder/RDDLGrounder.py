@@ -36,9 +36,9 @@ AGGREG_OP_TO_STRING_DICT = dict(
 
 class Grounder(metaclass=abc.ABCMeta):
 
-  @abc.abstractmethod
-  def Ground(self) -> RDDLModel:
-    pass
+    @abc.abstractmethod
+    def Ground(self) -> RDDLModel:
+        pass
 
 
 class RDDLGrounder(Grounder):
@@ -131,10 +131,10 @@ class RDDLGrounder(Grounder):
         else:
             self.objects = {}
             self.objects_rev = {}
-            for type in self.AST.non_fluents.objects:
-                self.objects[type[0]] = type[1]
-                for obj in type[1]:
-                    self.objects_rev[obj] = type[0]
+            for obj_type in self.AST.non_fluents.objects:
+                self.objects[obj_type[0]] = obj_type[1]
+                for obj in obj_type[1]:
+                    self.objects_rev[obj] = obj_type[0]
 
     def _ground_objects(self, args):
         objects_by_type = []
