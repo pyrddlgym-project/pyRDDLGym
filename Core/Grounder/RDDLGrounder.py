@@ -142,8 +142,8 @@ class RDDLGrounder(Grounder):
         for obj_type in args:
             if obj_type not in self.objects:
                 raise RDDLUndefinedVariableError(
-                    'Object type {} is not defined: should be one of {}.'.format(
-                        obj_type, list(self.objects.keys())))
+                    'Object type <{}> is not defined: should be one of <{}>.'.format(
+                        obj_type, ','.join(self.objects.keys())))
             objects_by_type.append(self.objects[obj_type])
         return itertools.product(*objects_by_type)
     
