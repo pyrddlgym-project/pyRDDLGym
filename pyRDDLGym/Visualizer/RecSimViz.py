@@ -8,11 +8,11 @@ import pygame
 import threading
 from PIL import Image
 
-from Visualizer.StateViz import StateViz
-from Grounder.RDDLModel import RDDLModel
+from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
 from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
 
-import Visualizer
+import pyRDDLGym.Visualizer as Visualizer
 
 class RecSimVisualizer(StateViz):
     def __init__(self, model: RDDLModel, figure_size = [5, 10], dpi = 100, fontsize = 10, display=False) -> None:
@@ -127,9 +127,9 @@ class RecSimVisualizer(StateViz):
 
         reward = self._user_satisfaction + 0.1
         rel_sizes = self._creator_satisfaction + 0.1
-        print(self._creator_satisfaction)
+        # print(self._creator_satisfaction)
         rel_sizes = rel_sizes / np.sum(rel_sizes)
-        print(self._user_interests)
+        # print(self._user_interests)
         if self._user_plot is None:
           self._user_plot = self._ax_scatter.scatter(
               self._user_interests[:, 0],
@@ -138,8 +138,8 @@ class RecSimVisualizer(StateViz):
               c=20 * np.sqrt(np.maximum(reward, 0.)),
               cmap='plasma',
               edgecolors='black')
-        print(self._creator_means[:, 0], 
-            self._creator_means[:, 1], rel_sizes)
+        # print(self._creator_means[:, 0],
+        #     self._creator_means[:, 1], rel_sizes)
         self._creator_plot = self._ax_scatter.scatter(
             self._creator_means[:, 0],
             self._creator_means[:, 1],
@@ -175,7 +175,7 @@ class RecSimVisualizer(StateViz):
         #         horizontalalignment='left', verticalalignment='top', wrap=True, fontsize = self._fontsize)
         
         img = self.convert2img(self._fig, None)
-        img.save(f'frame{self._iter}.png')
+        # img.save(f'frame{self._iter}.png')
         self._iter += 1
 
 
