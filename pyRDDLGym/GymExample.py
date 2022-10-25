@@ -4,7 +4,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 
 # ENV = 'Power generation'
 # ENV = 'MarsRover'
-ENV = 'UAV continuous'
+# ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
 # ENV = 'Wildfire'
@@ -12,7 +12,7 @@ ENV = 'UAV continuous'
 # ENV = 'Cartpole'
 # ENV = 'Elevators'
 # ENV = 'Recsim'
-# ENV = 'RaceCar'
+ENV = 'RaceCar'
 
 def main():
     # get the environment info
