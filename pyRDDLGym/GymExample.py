@@ -9,7 +9,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'UAV mixed'
 # ENV = 'Wildfire'
 # ENV = 'Mountaincar'
-# ENV = 'Cartpole'
+# ENV = 'Cartpole continuous'
 # ENV = 'Elevators'
 # ENV = 'Recsim'
 ENV = 'RaceCar'

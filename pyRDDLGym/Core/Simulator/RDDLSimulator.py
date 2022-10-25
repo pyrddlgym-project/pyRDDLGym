@@ -5,6 +5,7 @@ from typing import Dict, Tuple
 
 from pyRDDLGym.Core.Grounder.RDDLModel import PlanningModel
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
@@ -88,7 +89,8 @@ class RDDLSimulator:
             sample = self._sample(terminal, self._subs)
             if not isinstance(sample, bool):
                 raise RDDLTypeError(
-                    'Terminal state condition must evaluate to bool, got {}.'.format(sample) + 
+                    'Terminal state condition {} must evaluate to bool, got {}.'.format(
+                        idx + 1, sample) + 
                     '\n' + RDDLSimulator._print_stack_trace(terminal))
             elif sample:
                 return True

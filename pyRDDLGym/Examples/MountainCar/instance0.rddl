@@ -3,6 +3,10 @@
 // problem. A car is placed at the bottom of a valley, and must be
 // brought to a destination located at the top of a hill by pushing
 // the car left and right. 
+// 
+// This domain originated in Andrew Moore's 1990 PhD thesis found here:
+// https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-209.pdf, and implemented
+// e.g. here: http://incompleteideas.net/MountainCar/MountainCar1.cp.
 ////////////////////////////////////////////////////////////////////
 non-fluents mountain_car_vars {
     domain = mountain_car;

@@ -114,6 +114,7 @@ domain racecar {
 	};
 	
     state-invariants {
+		RADIUS >= 0 ^ MAX-F >= 0 ^ MASS >= 0 ^ DT >= 0;
     };
 
     action-preconditions {

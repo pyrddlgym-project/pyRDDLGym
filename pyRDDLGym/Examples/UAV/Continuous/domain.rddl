@@ -104,6 +104,13 @@ state-invariants {
     forall_{?a : aircraft}[ pos-y(?a) >= MIN-Y ];
     forall_{?a : aircraft}[ pos-z(?a) <= MAX-Z ];
     forall_{?a : aircraft}[ pos-z(?a) >= MIN-Z ];
+	
+	// physics are plausible
+	GRAVITY >= 0 ^ SCALE-FACTOR >= 0 ^ RANDOM-WALK-COEFF >= 0 ^ VEL-REG >= 0;
+	
+	// boundaries are well defined
+	MAX-X >= MIN-X ^ MAX-Y >= MIN-Y ^ MAX-Z >= MIN-Z;
+	forall_{?a : aircraft} [MAX-ACC(?a) >= MIN-ACC(?a) ^ MAX-DELTA-PHI(?a) >= MIN-DELTA-PHI(?a) ^ MAX-DELTA-THETA(?a) >= MIN-DELTA-THETA(?a)];
 };
 
 action-preconditions {
