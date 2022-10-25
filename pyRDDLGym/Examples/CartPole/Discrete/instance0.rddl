@@ -1,0 +1,35 @@
+////////////////////////////////////////////////////////////////////
+// A simple continuous state MDP for the classical cart-pole system 
+// by Rich Sutton as implemented in http://incompleteideas.net/sutton/book/code/pole.c.
+//
+// The goal here is to push a cart on a flat and frictionless surface 
+// left or right by applying a constant force, in order to balance a 
+// pole balanced vertically in the center of the cart.
+//
+////////////////////////////////////////////////////////////////////
+
+non-fluents cart_pole_disc_0 {
+    domain = cart_pole_discrete;
+}
+
+// Specify cart pole with default settings
+instance inst_cart_pole_disc {
+
+	domain = cart_pole_discrete;
+
+	non-fluents = cart_pole_disc_0;
+
+	init-state {
+	    pos = 0.0;
+        vel = 0.0;
+        ang-pos = 0.1;
+        ang-vel = 0.0;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 200;
+	discount = 1.0;
+}
+
