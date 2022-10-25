@@ -1,5 +1,6 @@
-# This file is part of thiago pbueno's pyrddl.
+# This file is based on thiago pbueno's pyrddl.
 # https://github.com/thiagopbueno/pyrddl
+# it was adapted and extended for pyRDDLGym
 
 
 from pyRDDLGym.Core.Parser import utils

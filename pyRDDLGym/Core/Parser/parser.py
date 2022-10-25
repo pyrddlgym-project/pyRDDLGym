@@ -1,6 +1,9 @@
-
+# This file is based on thiago pbueno's pyrddl.
+# https://github.com/thiagopbueno/pyrddl
+# it was adapted and extended for pyRDDLGym
 
 import logging
+
 import os
 import tempfile
 
