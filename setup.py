@@ -24,7 +24,7 @@ setup(
       url="https://github.com/ataitler/pyRDDLGym",
       packages=find_packages(),
       install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy', 'gym', 'pygame'],
-      python_requires=">=3.6",
+      python_requires=">=3.7",
       include_package_data=True,
       package_data={'': ['Examples/CartPole/Continuous/*.rddl',
                          'Examples/CartPole/Discrete/*.rddl',
