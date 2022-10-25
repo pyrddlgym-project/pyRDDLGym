@@ -3,19 +3,19 @@ import re
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, RDDLInstanceNotExist
 
 EXP_DICT = {
-    'Cartpole discrete' : ('A simple continuous state MDP for the classical cart-pole system by Rich Sutton, '
+    'CartPole discrete' : ('A simple continuous state MDP for the classical cart-pole system by Rich Sutton, '
                            'with discrete actions that apply a constant force on either the left ' 
-                           'or right side of the cart.', '/Cartpole/Discrete/', 'CartPole'),
-    'Cartpole continuous' : ('A simple continuous state-action MDP for the classical cart-pole system by Rich Sutton, '
-                             'with actions that describe the continuous force applied to the cart.', '/Cartpole/Continuous/', 'CartPole'),
+                           'or right side of the cart.', '/CartPole/Discrete/', 'CartPole'),
+    'CartPole continuous' : ('A simple continuous state-action MDP for the classical cart-pole system by Rich Sutton, '
+                             'with actions that describe the continuous force applied to the cart.', '/CartPole/Continuous/', 'CartPole'),
     'Elevators' : ('The Elevator domain models evening rush hours when people from different floors in '
                    'a building want to go down to the bottom floor using elevators', '/Elevator/', 'Elevator'),
     'MarsRover' : ('Multi Rover Navigation, where a group of agent needs to harvest mineral.', '/Mars_rover/', 'MarsRover'),
-    'Mountaincar' : ('A simple continuous MDP for the classical mountain car control problem.', '/Mountaincar/', 'MountainCar'),
-    'Power generation' : ('A simple power generation problem loosely modeled on the problem of unit commitment.',
+    'MountainCar' : ('A simple continuous MDP for the classical mountain car control problem.', '/MountainCar/', 'MountainCar'),
+    'PowerGeneration' : ('A simple power generation problem loosely modeled on the problem of unit commitment.',
                           '/Power_gen/', 'PowerGen'),
-    'RaceCar' : ('A simple continuous MDP for the racecar problem.', '/RaceCar/', 'Racecar'),
-    'Recsim' : ('A problem of recommendation systems, with consumers and providers.', '/Recsim/', 'Text'),
+    'RaceCar' : ('A simple continuous MDP for the racecar problem.', '/Racecar/', 'Racecar'),
+    'RecSim' : ('A problem of recommendation systems, with consumers and providers.', '/Recsim/', 'RecSim'),
     'UAV continuous' : ('Continous action space version of multi-UAV problem where a group of UAVs have to reach goal '
                         'positions in  in the 3d Space.', '/UAV/Continuous/', 'UAVs'),
     'UAV discrete' : ('Discrete action space version of multi-UAV problem where a group of UAVs have to reach goal '
