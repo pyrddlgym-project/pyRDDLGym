@@ -5,7 +5,7 @@ A toolkit for auto-generation of OpenAI Gym environments from RDDL description f
 ### Paper
 Our paper is currently in final stages of writing, stay tuned.
 
-###Status
+### Status
 As we support a large subset of RDDL, we list what we do not support:
 * state-action-constraints -- deprecated in favor of state-invariants and action-preconditions (RDDL2.0).
 * action-preconditions are not enforced by the environment, and should be incorporated into the cpfs definitions.
@@ -144,10 +144,10 @@ myEnv = RDDLEnv.RDDLEnv(domain=<domain path>, instance=<instance path>)
 myEnv.set_visualizer(<visualizer object>)
 ```
 
-##License
+## License
 This software is distributed under the MIT License.
 
-##Contributors
+## Contributors
 - Michael Gimelfarb (University of Toronto, CA)
 - Sriram Gopalakrishnan (Arizona State University/J.P. Morgan, USA)
 - Martin Mladenov (Google, BR)
