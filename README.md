@@ -1,4 +1,4 @@
-#pyRDDLGym
+# pyRDDLGym
 
 A toolkit for auto-generation of OpenAI Gym environments from RDDL description files. 
 
