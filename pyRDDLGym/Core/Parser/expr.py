@@ -1,3 +1,7 @@
+# This file is based on thiago pbueno's pyrddl.
+# https://github.com/thiagopbueno/pyrddl
+# it was adapted and extended for pyRDDLGym
+
 from typing import Tuple, Sequence, Set, Union
 
 Value = Union[bool, int, float]
