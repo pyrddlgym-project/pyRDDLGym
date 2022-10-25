@@ -33,7 +33,7 @@ Several RDDL environments are included as examples with pyRDDLGym:
 * UAV mixed
 * Wildfire
 
-Relevant packages in the family:
+Software for related simulators:
 * [rddlsim](https://github.com/ssanner/rddlsim)
 * [rddlgym](https://github.com/thiagopbueno/rddlgym)
 * [pddlgym](https://github.com/tomsilver/pddlgym)
