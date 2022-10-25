@@ -82,7 +82,7 @@ class RacecarVisualizer(StateViz):
         self.ax.add_patch(car)
         self.fig.canvas.draw()
         
-        plt.pause(self._wait_time / 1000.)
+        # plt.pause(self._wait_time / 1000.)
         
         img = self.convert2img(self.fig.canvas)
         
