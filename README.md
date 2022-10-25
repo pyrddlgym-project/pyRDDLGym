@@ -38,6 +38,10 @@ Relevant packages in the family:
 * [rddlgym](https://github.com/thiagopbueno/rddlgym)
 * [pddlgym](https://github.com/tomsilver/pddlgym)
 
+The parser used in this project is based on the parser from 
+Thiago Pbueno's [pyrddl](https://github.com/thiagopbueno/pyrddl)
+(used in [rddlgym](https://github.com/thiagopbueno/rddlgym)).
+
 ### Installation
 
 #### Python version
