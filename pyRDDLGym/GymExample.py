@@ -4,7 +4,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 
 # ENV = 'Power generation'
 # ENV = 'MarsRover'
-ENV = 'UAV continuous'
+# ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
 # ENV = 'Wildfire'
@@ -12,12 +12,11 @@ ENV = 'UAV continuous'
 # ENV = 'Cartpole'
 # ENV = 'Elevators'
 # ENV = 'Recsim'
-# ENV = 'RaceCar'
+ENV = 'RaceCar'
 
 def main():
     # get the environment info
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
-
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
     # set up the environment visualizer
