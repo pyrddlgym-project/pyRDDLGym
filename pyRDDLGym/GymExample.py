@@ -2,17 +2,18 @@ from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
 from pyRDDLGym.Policies.Agents import RandomAgent
 
-# ENV = 'Power generation'
+# ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
 # ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
 # ENV = 'Wildfire'
-# ENV = 'Mountaincar'
-# ENV = 'Cartpole continuous'
+# ENV = 'MountainCar'
+# ENV = 'CartPole continuous'
+# ENV = 'CartPole discrete'
 # ENV = 'Elevators'
-# ENV = 'Recsim'
-ENV = 'RaceCar'
+ENV = 'RecSim'
+# ENV = 'RaceCar'
 
 def main():
     # get the environment info

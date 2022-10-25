@@ -12,7 +12,7 @@ from pyRDDLGym import Visualizer
 
 import sys
 
-class ReservoirDisplay(StateViz):
+class ReservoirVisualizer(StateViz):
     def __init__(self, model: RDDLModel, grid_size: Optional[int] = [50,50], resolution: Optional[int] = [500,500]) -> None:
 
         self._model= model
