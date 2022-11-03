@@ -29,14 +29,16 @@ def main():
     pprint(vars(model))
     
     compiler = JaxCompiler(model)
-    cpfs, reward, xi = compiler.compile()
+    obj = compiler.jax_return(2)
     
-    x = {'pos' : 3.,
-         'vel' : 2.,
-         'TIME-STEP' : 0.1,
-         'jax:xi-1' : 1}
-    print(cpfs['pos\''](x))
-
+    x = {'pos' : 0., 
+         'vel' : 0.} 
+    key = jax.random.PRNGKey(42)
+    
+    # print(jax.make_jaxpr(obj)(x, key))
+    print(obj(x, key))
+    print(jax.grad(obj, has_aux=True)(x, key))
+    
 
 if __name__ == "__main__":
     main()
