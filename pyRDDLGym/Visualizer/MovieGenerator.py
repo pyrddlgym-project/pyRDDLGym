@@ -9,14 +9,16 @@ class MovieGenerator:
                  save_dir: str,
                  env_name: str,
                  max_frames: int,
+                 skip: int=1,
                  frame_duration: int=50,
-                 loop: int=0,
+                 loop: int=0, 
                  save_format: str='png'):
         '''Creates a new movie generator for saving frames to disk, and creating animated GIFs.
         
         :param save_dir: the directory to save images to
         :param env_name: the root name of each image file
         :param max_frames: the max number of frames to save
+        :param skip: how often frames should be recorded
         :param frame_duration: the duration of each frame in the animated GIF
         :param loop: how many times the animated GIF should loop
         :param save_format: the format in which to save individual frames
@@ -25,18 +27,25 @@ class MovieGenerator:
         self.save_path = os.path.join(save_dir, env_name + '_{}' + '.' + save_format)
         self.env_name = env_name
         self.max_frames = max_frames
+        self.skip = skip
         self.frame_duration = frame_duration
         self.loop = loop
         
         self._n_frame = 0
+        self._time = 0
         
     def save_frame(self, image) -> None:
         if self._n_frame >= self.max_frames:
-            return      
+            return     
+        if self._time % self.skip != 0: 
+            self._time += 1
+            return
+        
         file_path = self.save_path.format(
             str(self._n_frame).rjust(10, '0'))
         image.save(file_path)
-        self._n_frame += 1
+        self._n_frame += 1 
+        self._time += 1
     
     def save_gif(self, file_name: str=None):
         if file_name is None:
