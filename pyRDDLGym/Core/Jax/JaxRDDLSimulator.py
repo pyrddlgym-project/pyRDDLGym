@@ -33,7 +33,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         for idx, invariant in enumerate(self._jax_model.invariants):
             sample, self._key = invariant(self._subs, self._key)
             sample = bool(sample)
-            if not sample.dtype:
+            if not sample:
                 raise RDDLStateInvariantNotSatisfiedError(
                     'State invariant {} is not satisfied.'.format(idx + 1) + 
                     '\n' + JaxRDDLSimulator._print_stack_trace(invariant, self._subs, self._key))
@@ -50,7 +50,7 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
-        for idx, terminal in enumerate(self._jax_model.termination):
+        for _, terminal in enumerate(self._jax_model.termination):
             sample, self._key = terminal(self._subs, self._key)
             sample = bool(sample)
             if sample:

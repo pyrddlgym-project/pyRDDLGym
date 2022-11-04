@@ -47,6 +47,8 @@ def main():
         print('action     = {}'.format(action))
         print('next state = {}'.format(next_state))
         print('reward     = {}'.format(reward))
+        jax_sim.check_state_invariants()
+        jax_sim.check_action_preconditions()
         state = next_state
         if done:
             break
