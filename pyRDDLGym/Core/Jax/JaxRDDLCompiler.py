@@ -1,13 +1,13 @@
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
-import numpy as np
+
 from pyRDDLGym.Core.Grounder.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Simulator.RDDLDependencyAnalysis import RDDLDependencyAnalysis
 
 
-class JaxCompiler:
+class JaxRDDLCompiler:
     
     def __init__(self, model: PlanningModel) -> None:
         self._model = model
@@ -15,89 +15,60 @@ class JaxCompiler:
         # perform a dependency analysis, do topological sort to compute levels
         dep_analysis = RDDLDependencyAnalysis(self._model)
         self.cpforder = dep_analysis.compute_levels()
-        self._order_cpfs = list(sorted(self.cpforder.keys())) 
-            
-        self._action_fluents = set(self._model.actions.keys())
-        self._init_actions = self._model.actions.copy()
+        self.order_cpfs = list(sorted(self.cpforder.keys())) 
         
-        # non-fluent will never change
-        self._subs = self._model.nonfluents.copy()
+        # compiled expressions
+        self.invariants = []
+        self.preconditions = []
+        self.termination = []
+        self.reward, self.jit_reward = None, None
+        self.cpfs, self.jit_cpfs = {}, {}
         
-        # is a POMDP
-        self._pomdp = bool(self._model.observ)
+    # start of compilation subroutines of RDDL programs
+    def compile(self) -> None:
+        self.invariants = self._compile_invariants()
+        self.preconditions = self._compile_preconditions()
+        self.termination = self._compile_termination()
+        self.reward, self.jit_reward = self._compile_reward()
+        self.cpfs, self.jit_cpfs = self._compile_cpfs()
+        return self
+        
+    def _compile_invariants(self):
+        tree = list(map(self._jax, self._model.invariants))
+        tree_jit = jax.tree_map(jax.jit, tree)
+        return tree_jit
+        
+    def _compile_preconditions(self):
+        tree = list(map(self._jax, self._model.preconditions))
+        tree_jit = jax.tree_map(jax.jit, tree)
+        return tree_jit
     
-    def _jax_cpfs(self):
-        jax_cpfs = {}  
-        for order in self._order_cpfs:
+    def _compile_termination(self):
+        tree = list(map(self._jax, self._model.terminals))
+        tree_jit = jax.tree_map(jax.jit, tree)
+        return tree_jit
+
+    def _compile_cpfs(self):
+        tree = {}  
+        for order in self.order_cpfs:
             for cpf in self.cpforder[order]: 
                 if cpf in self._model.next_state:
                     primed_cpf = self._model.next_state[cpf]
                     expr = self._model.cpfs[primed_cpf]
-                    jax_cpfs[primed_cpf] = self._jax(expr)
+                    tree[primed_cpf] = self._jax(expr)
                 else:
                     expr = self._model.cpfs[cpf]
-                    jax_cpfs[cpf] = self._jax(expr)
-        return jax_cpfs
+                    tree[cpf] = self._jax(expr)
+        tree_jit = jax.tree_map(jax.jit, tree)        
+        return tree, tree_jit
     
-    def _jax_reward(self):
-        return self._jax(self._model.reward)
+    def _compile_reward(self):
+        reward = self._jax(self._model.reward)
+        reward_jit = jax.jit(reward)
+        return reward, reward_jit
         
-    def _jax_fluent_update(self, jax_cpfs, jax_reward):
-        '''Given the current values of cpfs x, and RNG state key:
-           produces a dict that maps cpf names (including primed state)
-           to (hopefully traced) jax expressions representing their values
-           at the next decision epoch
-        '''        
-
-        def _next_cpf_values(x, key):
-            
-            # evaluate all CPFs and reward in topological order
-            for order in self._order_cpfs:
-                for cpf in self.cpforder[order]: 
-                    if cpf in self._model.next_state:
-                        primed_cpf = self._model.next_state[cpf]
-                        jax_cpf = jax_cpfs[primed_cpf]
-                        sample, key = jax_cpf(x, key)
-                        x = dict(x, **{primed_cpf: sample})
-                    else:
-                        jax_cpf = jax_cpfs[cpf]
-                        sample, key = jax_cpf(x, key)
-                        x = dict(x, **{cpf: sample})
-            reward, key = jax_reward(x, key)
-            
-            # set all primed variables to their unprimed counterparts
-            next_x = {}
-            for order in self._order_cpfs:
-                for cpf in self.cpforder[order]: 
-                    if cpf in self._model.next_state:
-                        primed_cpf = self._model.next_state[cpf]
-                        next_x[cpf] = x[primed_cpf]
-                    else:
-                        next_x[cpf] = x[cpf]
-                        
-            return next_x, reward, key
-        
-        return _next_cpf_values
-    
-    def jax_return(self, n_steps: int):
-        jax_cpfs = self._jax_cpfs()
-        jax_reward = self._jax_reward()        
-        state_update = self._jax_fluent_update(jax_cpfs, jax_reward)
-        
-        def _iterate(_, carry):
-            x, R, key = carry
-            next_x, next_r, next_key = state_update(x, key)
-            next_R = R + next_r
-            next_carry = (next_x, next_R, next_key)
-            return next_carry            
-        
-        def _return(x, key):
-            init_state = (x, 0., key)
-            x, R, key = jax.lax.fori_loop(0, n_steps, _iterate, init_state)
-            return R, (x, key)
-            
-        return jax.jit(_return)
-        
+    # start of compilation subroutines for expressions
+    # skipped: aggregations (sum, prod) for now
     def _jax(self, expr):
         if isinstance(expr, Expression):
             etype, op = expr.etype
@@ -169,7 +140,7 @@ class JaxCompiler:
     def _jax_aggregation(self, expr, op):
         n = len(expr.args)
         args = map(self._jax, expr.args)
-        jaxop, init_val = JaxCompiler.AGGREGATION_OPS[op]
+        jaxop, _ = JaxRDDLCompiler.AGGREGATION_OPS[op]
             
         # simple case of one or two arguments; can produce a compact jaxpr
         if n == 1:
@@ -184,7 +155,7 @@ class JaxCompiler:
     def _jax_arithmetic(self, expr, op):
         
         # can have arbitrary number of args
-        if op in JaxCompiler.AGGREGATION_OPS:
+        if op in JaxRDDLCompiler.AGGREGATION_OPS:
             return self._jax_aggregation(expr, op)
         
         # can only have one or two args
@@ -213,7 +184,7 @@ class JaxCompiler:
     
     def _jax_relational(self, expr, op):
         args = map(self._jax, expr.args)
-        jaxop = JaxCompiler.RELATIONAL_OPS[op]
+        jaxop = JaxRDDLCompiler.RELATIONAL_OPS[op]
         _f = self._jax_agg_2(*args, jaxop)
         return _f
         
@@ -247,12 +218,12 @@ class JaxCompiler:
     def _jax_func(self, expr, op):
         args = map(self._jax, expr.args)
         
-        if op in JaxCompiler.KNOWN_BINARY:
-            jaxop = JaxCompiler.KNOWN_BINARY[op]
+        if op in JaxRDDLCompiler.KNOWN_BINARY:
+            jaxop = JaxRDDLCompiler.KNOWN_BINARY[op]
             _f = self._jax_agg_2(*args, jaxop)
 
-        elif op in JaxCompiler.KNOWN_UNARY:
-            jaxop = JaxCompiler.KNOWN_UNARY[op]
+        elif op in JaxRDDLCompiler.KNOWN_UNARY:
+            jaxop = JaxRDDLCompiler.KNOWN_UNARY[op]
             _f = self._jax_agg_1(*args, jaxop)
             
         return _f
@@ -261,7 +232,7 @@ class JaxCompiler:
     def _jax_logical(self, expr, op):
         
         # can have arbitrary number of args
-        if op in JaxCompiler.AGGREGATION_OPS:
+        if op in JaxRDDLCompiler.AGGREGATION_OPS:
             return self._jax_aggregation(expr, op)
         
         # can only have one or two args (TODO: implement => and <=>)
