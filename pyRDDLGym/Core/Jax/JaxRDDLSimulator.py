@@ -8,6 +8,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedCPFError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Parser.expr import Value
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
+import sys
 
 Args = Dict[str, Value]
 
@@ -76,14 +77,12 @@ class JaxRDDLSimulator(RDDLSimulator):
         self._model.actions = {var: actions.get(var, default_value) 
                                for var, default_value in self._init_actions.items()}
         subs = self._subs 
-        subs.update(self._model.actions)   
-        print(subs)
+        subs.update(self._model.actions)  
         
         # evaluate all CPFs, record next state fluents, update sub table 
         next_states, next_obs = {}, {}
         for order in self._jax_model.order_cpfs:
             for cpf in self._jax_model.cpforder[order]: 
-                print(cpf)
                 if cpf in self._model.next_state:
                     primed_cpf = self._model.next_state[cpf]
                     jaxpr = self._jax_model.jit_cpfs[primed_cpf]

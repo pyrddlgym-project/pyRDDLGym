@@ -6,18 +6,18 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 
 import jax
 
-# ENV = 'PowerGeneration'
-# ENV = 'MarsRover'
+#ENV = 'PowerGeneration'
+#ENV = 'MarsRover'
 # ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-# ENV = 'Wildfire'
+#ENV = 'Wildfire'
 # ENV = 'MountainCar'
-ENV = 'CartPole continuous'
+#ENV = 'CartPole continuous'
 # ENV = 'CartPole discrete'
-# ENV = 'Elevators'
-# ENV = 'RaceCar'
-
+ENV = 'Elevators'
+#ENV = 'RaceCar'
+#ENV = 'RecSim'
 
 def main():
     # get the environment info
@@ -31,6 +31,7 @@ def main():
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
 
     # set up jax compilation
+    print('begin tracing')
     model = myEnv.model
     jax_rddl = JaxRDDLCompiler(model).compile()
     jax_sim = JaxRDDLSimulator(jax_rddl, jax.random.PRNGKey(42))
