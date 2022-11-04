@@ -115,16 +115,17 @@ class RDDLEnv(gym.Env):
 
         # set the visualizer, the next line should be changed for the default behaviour - TextVix
         self._visualizer = TextVisualizer(self.model)
+        self._movie_generator = None
         self.state = None
         self.image = None
         self.window = None
         self.to_render = False
         self.image_size = None
 
-
-    def set_visualizer(self, viz):
+    def set_visualizer(self, viz, movie_gen=None):
         # set the vizualizer with self.model
         self._visualizer = viz(self.model)
+        self._movie_generator = movie_gen
         self.to_render = False
 
     def step(self, at):
@@ -143,8 +144,8 @@ class RDDLEnv(gym.Env):
         action = copy.deepcopy(self.defaultAction)
         for act in at:
             if str(self.action_space[act]) == "Discrete(2)":
-               if self.model.actionsranges[act] == "bool":
-                   action[act] = bool(at[act])
+                if self.model.actionsranges[act] == "bool":
+                    action[act] = bool(at[act])
             else:
                 action[act] = at[act]
 
@@ -172,7 +173,6 @@ class RDDLEnv(gym.Env):
         obs, self.done = self.sampler.reset()
         self.state = self.sampler.states
 
-
         image = self._visualizer.render(self.state)
         self.image_size = image.size
         return obs
@@ -193,12 +193,19 @@ class RDDLEnv(gym.Env):
                 pygameSurface = self.pilImageToSurface(image)
                 self.window.blit(pygameSurface, (0, 0))
                 pygame.display.flip()
+                
+            if self._movie_generator is not None:
+                self._movie_generator.save_frame(image)
+                
         return image
-
+    
     def close(self):
         if self.to_render:
             pygame.display.quit()
             pygame.quit()
+            
+            if self._movie_generator is not None:
+                self._movie_generator.save_gif(self._movie_generator.env_name)
 
 
     @property

@@ -1,6 +1,9 @@
+import os
+
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
 from pyRDDLGym.Policies.Agents import RandomAgent
+from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
 
 # ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
@@ -12,17 +15,21 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'CartPole continuous'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
-ENV = 'RecSim'
-# ENV = 'RaceCar'
+# ENV = 'RecSim'
+ENV = 'RaceCar'
+
 
 def main():
     # get the environment info
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
+    
     # set up the environment visualizer
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
-
+    frames_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Visualizer', 'Frames')
+    myEnv.set_visualizer(EnvInfo.get_visualizer(),
+                         movie_gen=MovieGenerator(frames_path, ENV, 200))
+    
     # set up an example aget
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
 
@@ -43,10 +50,8 @@ def main():
         if done:
             break
     print("episode ended with reward {}".format(total_reward))
+    
     myEnv.close()
-
-
-
 
 
 if __name__ == "__main__":
