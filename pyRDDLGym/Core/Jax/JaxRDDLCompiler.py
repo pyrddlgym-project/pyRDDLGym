@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as jnp
 import jax.random as random
-import numpy as np
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.Parser.expr import Expression
@@ -10,34 +9,17 @@ from pyRDDLGym.Core.Parser.rddl import RDDL
 
 class JaxRDDLCompiler:
     
+    INT = jnp.int32
+    REAL = jnp.float64
+    
     def __init__(self, rddl: RDDL) -> None:
         self.rddl = rddl
         self.domain = rddl.domain
         
-        # extract objects from the domain
-        self.objects, rev_objects = {}, {}
+        # extract objects and free parameters for each variable
+        self.objects, self.pvars, self.states = {}, {}, {}
         for obj, values in rddl.non_fluents.objects:
             self.objects[obj] = dict(zip(values, range(len(values))))
-            rev_objects.update(zip(values, [obj] * len(values))) 
-        
-        # initialization of scalar and pvariables as tensors
-        self.init_values = {}
-        for pvar in rddl.domain.pvariables:
-            name = pvar.name
-            params = pvar.param_types
-            if params is None:
-                self.init_values[name] = pvar.default
-            else:
-                self.init_values[name] = np.zeros(
-                    shape=tuple(len(self.objects[p]) for p in params))            
-        for (name, params), value in rddl.non_fluents.init_non_fluent:
-            if params is not None:
-                coords = tuple(self.objects[rev_objects[p]][p] for p in params)
-                self.init_values[name][coords] = value
-        
-        # determine parameters in the domain of each variables
-        self.pvars = {}
-        self.states = {}
         for pvar in rddl.domain.pvariables:
             name = pvar.name
             if pvar.fluent_type == 'state-fluent':
@@ -45,20 +27,14 @@ class JaxRDDLCompiler:
                 self.states[name] = pvar.name
             self.pvars[name] = pvar.param_types
             
-        # compiled expressions
-        self.invariants = []
-        self.preconditions = []
-        self.termination = []
-        self.reward, self.jit_reward = None, None
-        self.cpfs, self.jit_cpfs = {}, {}
-        
     # start of compilation subroutines of RDDL programs    
     def compile(self) -> None:
-        self.invariants = self._compile_invariants()
-        self.preconditions = self._compile_preconditions()
-        self.termination = self._compile_termination()
-        self.reward, self.jit_reward = self._compile_reward()
-        self.cpfs, self.jit_cpfs = self._compile_cpfs()
+        result = {'invariants': self._compile_invariants(),
+                  'preconds': self._compile_preconditions(),
+                  'terminals': self._compile_termination(),
+                  'reward': self._compile_reward(),
+                  'cpfs': self._compile_cpfs()}
+        return result
         
     def _compile_invariants(self):
         jax_invariants = [self._jax(expr, [], bool) for expr in self.domain.invariants]
@@ -71,9 +47,6 @@ class JaxRDDLCompiler:
     def _compile_termination(self):
         jax_terminals = [self._jax(expr, [], bool) for expr in self.domain.terminals]
         return jax.tree_map(jax.jit, jax_terminals)
-    
-    INT = jnp.int32
-    REAL = jnp.float64
     
     def _compile_cpfs(self):
         jax_cpfs = {}  
@@ -93,20 +66,6 @@ class JaxRDDLCompiler:
         jit_reward = jax.jit(jax_reward)
         return jax_reward, jit_reward
     
-    # sampling procedures    
-    def _sample_reward(self, x, key):
-        return self.jit_reward(x, key)
-    
-    def _sample_cpfs(self, x, key):
-        for cpf, jit_cpf in self.jit_cpfs.items():
-            x[cpf], key = jit_cpf(x, key)
-            
-        x1 = x.copy()
-        for cpf in self.jit_cpfs.keys():
-            unprimed = self.states.get(cpf, cpf)
-            x1[unprimed] = x[cpf]
-        return x1, key
-                
     # start of compilation subroutines for expressions
     @staticmethod
     def _print_stack_trace(expr):
@@ -442,6 +401,34 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             Z = random.normal(key=subkey, shape=mean.shape)
             sample = mean + std * Z
+            return sample, key
+        
+        return _f
+    
+    def _jax_exponential(self, expr, params):
+        expr_scale, = expr.args
+        jax_scale = self._jax(expr_scale, params, JaxRDDLCompiler.REAL)
+        
+        def _f(x, key):
+            scale, key = jax_scale(x, key)
+            key, subkey = random.split(key)
+            Exp1 = random.exponential(key=subkey)
+            sample = scale * Exp1
+            return sample, key
+        
+        return _f
+    
+    def _jax_weibull(self, expr, params):
+        expr_shape, expr_scale = expr.args
+        jax_shape = self._jax(expr_shape, params, JaxRDDLCompiler.REAL)
+        jax_scale = self._jax(expr_scale, params, JaxRDDLCompiler.REAL)
+        
+        def _f(x, key):
+            shape, key = jax_shape(x, key)
+            scale, key = jax_scale(x, key)
+            key, subkey = random.split(key)
+            U = random.uniform(key=subkey)
+            sample = scale * jnp.power(-jnp.log(1.0 - U), 1.0 / shape)
             return sample, key
         
         return _f
