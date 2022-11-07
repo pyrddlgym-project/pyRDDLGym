@@ -256,6 +256,7 @@ class JaxRDDLCompiler:
     # aggregations
     AGGREGATION_OPS = {
         'sum': jnp.sum,
+        'avg' : jnp.mean,
         'prod': jnp.prod,
         'min': jnp.min,
         'max': jnp.max,
