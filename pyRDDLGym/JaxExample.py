@@ -33,11 +33,10 @@ def main():
     # parse RDDL file
     ast = MyRDDLParser.parse(domain)        
     sim = JaxRDDLSimulator(ast, key=jax.random.PRNGKey(42))
-    
     total_reward = 0
     state, done = sim.reset() 
     for step in range(100):
-        action = {'force': np.random.uniform(-1, 1)}
+        action = {'force': np.random.uniform(0, 10)}
         next_state, reward, done = sim.step(action)
         print()
         print('data = {}'.format(sim.subs))

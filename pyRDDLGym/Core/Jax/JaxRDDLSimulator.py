@@ -97,8 +97,14 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs 
         subs.update(actions)
         
-        for cpf, expr in self.cpfs.items():
-            subs[cpf], self.key = expr(subs, self.key)
+        cpf_order = self.rddl.domain.derived_cpfs + \
+                    self.rddl.domain.intermediate_cpfs + \
+                    self.rddl.domain.state_cpfs + \
+                    self.rddl.domain.observation_cpfs 
+                    
+        for cpf in cpf_order:
+            name = cpf.pvar[1][0]
+            subs[name], self.key = self.cpfs[name](subs, self.key)
         next_subs = subs.copy()
         for cpf in self.cpfs.keys():
             unprimed = self.compiler.states.get(cpf, cpf)
