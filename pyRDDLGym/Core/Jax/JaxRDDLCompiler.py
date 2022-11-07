@@ -123,6 +123,7 @@ class JaxRDDLCompiler:
         rhs = symbols[:len(desired_params)]
         
         subscripts = ''.join(lhs) + ' -> ' + rhs
+        new_dims = tuple(new_dims)
         return subscripts, new_dims
     
     def _jax_constant(self, expr, params, dtype):
@@ -133,8 +134,7 @@ class JaxRDDLCompiler:
         def _f(x, key):
             constx = jnp.array(const, dtype)
             sample = jnp.reshape(constx, constx.shape + new_axes) 
-            for i, dim in enumerate(new_dims):
-                sample = jnp.repeat(sample, repeats=dim, axis=len(constx.shape) + i)
+            sample = jnp.broadcast_to(sample, shape=constx.shape + new_dims)
             sample = jnp.einsum(subscripts, sample)
             return sample, key
 
@@ -148,8 +148,7 @@ class JaxRDDLCompiler:
         def _f(x, key):
             varx = jnp.array(x[var], dtype)
             sample = jnp.reshape(varx, varx.shape + new_axes) 
-            for i, dim in enumerate(new_dims):
-                sample = jnp.repeat(sample, repeats=dim, axis=len(varx.shape) + i)
+            sample = jnp.broadcast_to(sample, shape=varx.shape + new_dims)
             sample = jnp.einsum(subscripts, sample)
             return sample, key
         

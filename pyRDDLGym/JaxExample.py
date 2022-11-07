@@ -14,9 +14,9 @@ from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 # ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-#ENV = 'Wildfire'
+ENV = 'Wildfire'
 # ENV = 'MountainCar'
-ENV = 'CartPole continuous'
+#ENV = 'CartPole continuous'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
 # ENV = 'RaceCar'
@@ -36,10 +36,9 @@ def main():
     total_reward = 0
     state, done = sim.reset() 
     for step in range(100):
-        action = {'force': np.random.uniform(0, 10)}
+        action = {'put-out': np.random.uniform(size=(3,3)) < 0.05}
         next_state, reward, done = sim.step(action)
         print()
-        print('data = {}'.format(sim.subs))
         print('step       = {}'.format(step))
         print('state      = {}'.format(state))
         print('action     = {}'.format(action))
