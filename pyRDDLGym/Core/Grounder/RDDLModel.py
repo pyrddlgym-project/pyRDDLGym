@@ -13,7 +13,9 @@ class PlanningModel(metaclass=ABCMeta):
         self._objects = None
         self._actionsranges = None
         self._derived = None
+        self._derivedranges = None
         self._interm = None
+        self._intermranges = None
         self._observ = None
         self._observranges = None
         self._cpfs = None
@@ -112,6 +114,14 @@ class PlanningModel(metaclass=ABCMeta):
         self._derived = val
 
     @property
+    def derivedranges(self):
+        return self._derivedranges
+
+    @derivedranges.setter
+    def derivedranges(self, value):
+        self._derivedranges = value
+
+    @property
     def interm(self):
         return self._interm
 
@@ -119,6 +129,14 @@ class PlanningModel(metaclass=ABCMeta):
     def interm(self, val):
         self._interm = val
 
+    @property
+    def intermranges(self):
+        return self._intermranges
+
+    @intermranges.setter
+    def intermranges(self, value):
+        self._intermranges = value
+    
     @property
     def observ(self):
         return self._observ

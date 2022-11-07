@@ -8,7 +8,6 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedCPFError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Parser.expr import Value
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
-import sys
 
 Args = Dict[str, Value]
 
