@@ -60,7 +60,9 @@ class RDDLGrounder(Grounder):
         self.cpfs = {}
         self.cpforder = {0: []}
         self.derived = {}
+        self.derivedranges = {}
         self.interm = {}
+        self.intermranges = {}
         self.observ = {}
         self.observranges = {}
         self.reward = None
@@ -92,7 +94,9 @@ class RDDLGrounder(Grounder):
         model.preconditions = self.preconditions
         model.invariants = self.invariants
         model.derived = self.derived
+        model.derivedranges = self.derivedranges
         model.interm = self.interm
+        model.intermranges = self.intermranges
         model.observ = self.observ
         model.observranges = self.observranges
         model.objects = self.objects
@@ -260,6 +264,7 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_derived_cpfs.append(grounded_cpf)
                     self.derived[g] = pvariable.default
+                    self.derivedranges[g] = pvariable.range
                     self.cpfs[g] = grounded_cpf.expr
                     level = pvariable.level
                     if level is None:
@@ -283,6 +288,7 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_interim_cpfs.append(grounded_cpf)
                     self.interm[g] = pvariable.default
+                    self.intermranges[g] = pvariable.range
                     self.cpfs[g] = grounded_cpf.expr
                     level = pvariable.level
                     if level is None:

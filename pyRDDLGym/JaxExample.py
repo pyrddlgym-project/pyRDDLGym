@@ -8,16 +8,16 @@ import jax
 
 #ENV = 'PowerGeneration'
 #ENV = 'MarsRover'
-# ENV = 'UAV continuous'
+#ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
 #ENV = 'Wildfire'
 # ENV = 'MountainCar'
 #ENV = 'CartPole continuous'
 # ENV = 'CartPole discrete'
-ENV = 'Elevators'
+#ENV = 'Elevators'
 #ENV = 'RaceCar'
-#ENV = 'RecSim'
+ENV = 'RecSim'
 
 def main():
     # get the environment info
@@ -29,7 +29,9 @@ def main():
     
     # set up an example aget
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
-
+    
+    from pprint import pprint
+    pprint(vars(myEnv.model))
     # set up jax compilation
     print('begin tracing')
     model = myEnv.model
@@ -38,7 +40,7 @@ def main():
     
     total_reward = 0
     state = jax_sim.reset()
-    for step in range(myEnv.horizon):
+    for step in range(200): 
         action = agent.sample_action()
         next_state, reward, done = jax_sim.step(action)
         total_reward += reward
