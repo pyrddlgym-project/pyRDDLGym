@@ -1,0 +1,8 @@
+gym==0.26.1
+jax==0.3.24
+matplotlib==3.5.0
+numpy==1.23.2
+Pillow==9.3.0
+ply==3.11
+pygame==2.1.2
+sympy==1.6.2
