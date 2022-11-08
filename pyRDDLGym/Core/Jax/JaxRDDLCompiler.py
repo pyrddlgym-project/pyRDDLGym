@@ -2,6 +2,8 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.rddl import RDDL
@@ -25,7 +27,7 @@ class JaxRDDLCompiler:
             if pvar.fluent_type == 'state-fluent':
                 name = name + '\''
                 self.states[name] = pvar.name
-            self.pvars[name] = pvar.param_types
+            self.pvars[name] = [] if pvar.param_types is None else pvar.param_types
             
     # start of compilation subroutines of RDDL programs    
     def compile(self) -> None:
@@ -102,11 +104,15 @@ class JaxRDDLCompiler:
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
     # leaves
-    def _map_pvar_subs_to_subscript(self, given_params, desired_params):
+    def _map_pvar_subs_to_subscript(self, given_params, desired_params, expr):
         symbols = 'abcdefghijklmnopqrstuvwxyz'   
-        
-        if given_params is None:
-            given_params = []
+        symbols = symbols + symbols.upper()   
+             
+        if len(desired_params) > len(symbols):
+            raise RDDLNotImplementedError(
+                'Variable <{}> is {}-D, but current version supports up to {}.'.format(
+                    expr.args[0], len(desired_params), len(symbols)) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
         lhs = [None] * len(given_params)
         new_dims = []
@@ -122,13 +128,20 @@ class JaxRDDLCompiler:
                 new_dims.append(new_dim)
         rhs = symbols[:len(desired_params)]
         
+        free_vars = [given_params[i] for i, p in enumerate(lhs) if p is None]
+        if free_vars:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Variable <{}> contains free parameter(s) {}.'.format(
+                    expr.args[0], free_vars) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+                
         subscripts = ''.join(lhs) + ' -> ' + rhs
         new_dims = tuple(new_dims)
         return subscripts, new_dims
     
     def _jax_constant(self, expr, params, dtype):
         const = expr.args
-        subscripts, new_dims = self._map_pvar_subs_to_subscript([], params)
+        subscripts, new_dims = self._map_pvar_subs_to_subscript([], params, expr)
         new_axes = (1,) * len(new_dims)
         
         def _f(x, key):
@@ -142,7 +155,17 @@ class JaxRDDLCompiler:
     
     def _jax_pvar(self, expr, params, dtype):
         var, pvars = expr.args
-        subscripts, new_dims = self._map_pvar_subs_to_subscript(pvars, params)
+        pvars = [] if pvars is None else pvars
+        
+        len_pvars = len(pvars)
+        len_req = len(self.pvars.get(var, []))
+        if len_pvars < len_req:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Variable <{}> requires at least {} parameter arguments, got {}.'.format(
+                    var, len_req, len_pvars) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
+        subscripts, new_dims = self._map_pvar_subs_to_subscript(pvars, params, expr)
         new_axes = (1,) * len(new_dims)
         
         def _f(x, key):
@@ -186,6 +209,12 @@ class JaxRDDLCompiler:
         return _f
         
     def _jax_arithmetic(self, expr, op, params, dtype):
+        if op not in JaxRDDLCompiler.ARITHMETIC_OPS:
+            raise RDDLNotImplementedError(
+                'Arithmetic operator {} is not supported: must be one of {}.'.format(
+                    op, JaxRDDLCompiler.ARITHMETIC_OPS.keys()) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
         args = expr.args
         n = len(args)
         
@@ -201,7 +230,10 @@ class JaxRDDLCompiler:
             jax_op = JaxRDDLCompiler.ARITHMETIC_OPS[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op, dtype)
         
-        raise Exception('e')
+        raise RDDLInvalidNumberOfArgumentsError(
+            'Arithmetic operator {} does not have the required number of args, got {}.'.format(
+                op, n) + 
+            '\n' + JaxRDDLCompiler._print_stack_trace(expr))
     
     # relational expressions
     RELATIONAL_OPS = {
@@ -214,18 +246,26 @@ class JaxRDDLCompiler:
     }
     
     def _jax_relational(self, expr, op, params, dtype):
+        if op not in JaxRDDLCompiler.RELATIONAL_OPS:
+            raise RDDLNotImplementedError(
+                'Relational operator {} is not supported: must be one of {}.'.format(
+                    op, JaxRDDLCompiler.RELATIONAL_OPS.keys()) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
         args = expr.args
         n = len(args)
         
-        if n == 2:
-            lhs, rhs = args
-            jax_lhs = self._jax(lhs, params, JaxRDDLCompiler.REAL)
-            jax_rhs = self._jax(rhs, params, JaxRDDLCompiler.REAL)
-            jax_op = JaxRDDLCompiler.RELATIONAL_OPS[op]
-            return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op, dtype)
+        if n != 2:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Relational operator {} requires 2 args, got {}.'.format(op, n) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         
-        raise Exception('e')
-    
+        lhs, rhs = args
+        jax_lhs = self._jax(lhs, params, JaxRDDLCompiler.REAL)
+        jax_rhs = self._jax(rhs, params, JaxRDDLCompiler.REAL)
+        jax_op = JaxRDDLCompiler.RELATIONAL_OPS[op]
+        return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op, dtype)
+        
     # logical expressions    
     LOGICAL_OPS = {
         '^': jnp.logical_and,
@@ -236,6 +276,12 @@ class JaxRDDLCompiler:
     }
     
     def _jax_logical(self, expr, op, params, dtype):
+        if op not in JaxRDDLCompiler.LOGICAL_OPS:
+            raise RDDLNotImplementedError(
+                'Logical operator {} is not supported: must be one of {}.'.format(
+                    op, JaxRDDLCompiler.LOGICAL_OPS) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))       
+        
         args = expr.args
         n = len(args)
         
@@ -251,12 +297,15 @@ class JaxRDDLCompiler:
             jax_op = JaxRDDLCompiler.LOGICAL_OPS[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op, dtype)
         
-        raise Exception('e')
+        raise RDDLInvalidNumberOfArgumentsError(
+            'Logical operator {} does not have the required number of args, got {}.'.format(
+                op, n) + 
+            '\n' + JaxRDDLCompiler._print_stack_trace(expr))
     
     # aggregations
     AGGREGATION_OPS = {
         'sum': jnp.sum,
-        'avg' : jnp.mean,
+        'avg': jnp.mean,
         'prod': jnp.prod,
         'min': jnp.min,
         'max': jnp.max,
@@ -265,7 +314,13 @@ class JaxRDDLCompiler:
     }
     
     def _jax_aggregation(self, expr, op, params, dtype):
-        *pvars, arg = expr.args
+        if op not in JaxRDDLCompiler.AGGREGATION_OPS:
+            raise RDDLNotImplementedError(
+                'Aggregation operator {} is not supported: must be one of {}.'.format(
+                    op, JaxRDDLCompiler.AGGREGATION_OPS.keys()) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
+        * pvars, arg = expr.args
         pvars = list(map(lambda p: p[1], pvars))        
         new_params = params + pvars
         reduced_axes = tuple(range(len(params), len(new_params)))
@@ -313,24 +368,40 @@ class JaxRDDLCompiler:
         n = len(expr.args)
         
         if op in JaxRDDLCompiler.KNOWN_UNARY:
-            if n == 1:
-                arg, = expr.args
-                jax_expr = self._jax(arg, params, JaxRDDLCompiler.REAL)
-                jax_op = JaxRDDLCompiler.KNOWN_UNARY[op]
-                return JaxRDDLCompiler._jax_unary(jax_expr, jax_op, dtype)
+            if n != 1:
+                raise RDDLInvalidNumberOfArgumentsError(
+                    'Unary function {} requires 1 arg, got {}.'.format(op, n) + 
+                    '\n' + JaxRDDLCompiler._print_stack_trace(expr))    
+                            
+            arg, = expr.args
+            jax_expr = self._jax(arg, params, JaxRDDLCompiler.REAL)
+            jax_op = JaxRDDLCompiler.KNOWN_UNARY[op]
+            return JaxRDDLCompiler._jax_unary(jax_expr, jax_op, dtype)
+            
+        elif op in JaxRDDLCompiler.KNOWN_BINARY:
+            if n != 2:
+                raise RDDLInvalidNumberOfArgumentsError(
+                    'Binary function {} requires 2 args, got {}.'.format(op, n) + 
+                    '\n' + JaxRDDLCompiler._print_stack_trace(expr))  
+                
+            lhs, rhs = expr.args
+            jax_lhs = self._jax(lhs, params, JaxRDDLCompiler.REAL)
+            jax_rhs = self._jax(rhs, params, JaxRDDLCompiler.REAL)
+            jax_op = JaxRDDLCompiler.KNOWN_BINARY[op]
+            return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op, dtype)
         
-        if op in JaxRDDLCompiler.KNOWN_BINARY:
-            if n == 2:
-                lhs, rhs = expr.args
-                jax_lhs = self._jax(lhs, params, JaxRDDLCompiler.REAL)
-                jax_rhs = self._jax(rhs, params, JaxRDDLCompiler.REAL)
-                jax_op = JaxRDDLCompiler.KNOWN_BINARY[op]
-                return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op, dtype)
-        
-        raise Exception('e')
+        raise RDDLNotImplementedError(
+                'Function {} is not supported.'.format(op) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))   
     
     # control flow
     def _jax_control(self, expr, op, params, dtype):
+        if op not in {'if'}:
+            raise RDDLNotImplementedError(
+                'Control flow type <{}> is not supported: must be one of {}.'.format(
+                    op, {'if'}) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
         pred, if_true, if_false = expr.args
         
         jax_pred = self._jax(pred, params, bool)
@@ -338,11 +409,10 @@ class JaxRDDLCompiler:
         jax_false = self._jax(if_false, params, dtype)
         
         def _f(x, key):
-            val, key = jax_pred(x, key)
-            val_true, key = jax_true(x, key)
-            val_false, key = jax_false(x, key)
-            sample = jnp.where(val, val_true, val_false)
-            sample = sample.astype(dtype)
+            predx, key = jax_pred(x, key)
+            truex, key = jax_true(x, key)
+            falsex, key = jax_false(x, key)
+            sample = jnp.where(predx, truex, falsex)
             return sample, key
             
         return _f
@@ -364,9 +434,17 @@ class JaxRDDLCompiler:
         elif name == 'Bernoulli':
             return self._jax_bernoulli(expr, params)
         elif name in {'Poisson', 'Gamma'}:
-            raise Exception('e')
+            
+            # TODO: try these
+            # https://arxiv.org/pdf/1611.01144.pdf?
+            # https://arxiv.org/pdf/2003.01847.pdf?
+            raise RDDLInvalidExpressionError(
+                'Distribution {} is not reparameterizable.'.format(name) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         else:
-            raise Exception('e')
+            raise RDDLNotImplementedError(
+                'Distribution {} is not supported.'.format(name) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         
     def _jax_kron(self, expr, params):
         return self._jax(expr, params, JaxRDDLCompiler.INT)
@@ -379,6 +457,7 @@ class JaxRDDLCompiler:
         jax_lb = self._jax(expr_lb, params, JaxRDDLCompiler.REAL)
         jax_ub = self._jax(expr_ub, params, JaxRDDLCompiler.REAL)
         
+        # U(a, b) = a + (b - a) * xi, where xi ~ U(0, 1)
         def _f(x, key):
             lb, key = jax_lb(x, key)
             ub, key = jax_ub(x, key)
@@ -393,7 +472,8 @@ class JaxRDDLCompiler:
         expr_mean, expr_var = expr.args
         jax_mean = self._jax(expr_mean, params, JaxRDDLCompiler.REAL)
         jax_var = self._jax(expr_var, params, JaxRDDLCompiler.REAL)
-            
+        
+        # N(mu, s^2) = mu + s * N(0, 1)
         def _f(x, key):
             mean, key = jax_mean(x, key)
             var, key = jax_var(x, key)
@@ -409,10 +489,11 @@ class JaxRDDLCompiler:
         expr_scale, = expr.args
         jax_scale = self._jax(expr_scale, params, JaxRDDLCompiler.REAL)
         
+        # Exp(scale) = scale * Exp(1)
         def _f(x, key):
             scale, key = jax_scale(x, key)
             key, subkey = random.split(key)
-            Exp1 = random.exponential(key=subkey)
+            Exp1 = random.exponential(key=subkey, shape=scale.shape)
             sample = scale * Exp1
             return sample, key
         
@@ -423,11 +504,13 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(expr_shape, params, JaxRDDLCompiler.REAL)
         jax_scale = self._jax(expr_scale, params, JaxRDDLCompiler.REAL)
         
+        # W(shape, scale) = scale * (-log(1 - U(0, 1)))^{1 / shape}
+        # TODO: make this numerically stable
         def _f(x, key):
             shape, key = jax_shape(x, key)
             scale, key = jax_scale(x, key)
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey)
+            U = random.uniform(key=subkey, shape=scale.shape)
             sample = scale * jnp.power(-jnp.log(1.0 - U), 1.0 / shape)
             return sample, key
         
@@ -437,6 +520,7 @@ class JaxRDDLCompiler:
         expr_prob, = expr.args
         jax_prob = self._jax(expr_prob, params, JaxRDDLCompiler.REAL)
         
+        # Bernoulli(p) = 1[U(0, 1) < p]
         def _f(x, key):
             prob, key = jax_prob(x, key)
             key, subkey = random.split(key)
