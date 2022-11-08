@@ -28,7 +28,7 @@ non-fluents nf_simple_UAV_p0{
 
         GOAL-X(a1) = 50.0;
         GOAL-Y(a1) = 50.0;
-        GOAL-z(a1) = 50.0;
+        GOAL-Z(a1) = 50.0;
 
         CONTROLLABLE(a1);
 	};
