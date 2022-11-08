@@ -12,7 +12,7 @@ from pyRDDLGym.Core.Parser.rddl import RDDL
 class JaxRDDLCompiler:
     
     INT = jnp.int32
-    REAL = jnp.float64
+    REAL = jnp.float32
     
     def __init__(self, rddl: RDDL) -> None:
         self.rddl = rddl
@@ -73,6 +73,25 @@ class JaxRDDLCompiler:
     def _print_stack_trace(expr):
         return '...\n' + str(expr) + '\n...'
 
+    ERROR_CODES = {
+        'NORMAL': jnp.array([0, 0, 0, 0, 0, 0, 0], dtype=bool),
+        'INVALID_CAST': jnp.array([0, 0, 0, 0, 0, 1], dtype=bool),
+        'INVALID_PARAM_UNIFORM': jnp.array([0, 0, 0, 0, 1, 0], dtype=bool),
+        'INVALID_PARAM_NORMAL': jnp.array([0, 0, 0, 1, 0, 0], dtype=bool),
+        'INVALID_PARAM_EXPONENTIAL': jnp.array([0, 0, 1, 0, 0, 0], dtype=bool),
+        'INVALID_PARAM_WEIBULL': jnp.array([0, 1, 0, 0, 0, 0], dtype=bool),
+        'INVALID_PARAM_BERNOULLI': jnp.array([1, 0, 0, 0, 0, 0], dtype=bool)
+    }
+    
+    INVERSE_ERROR_CODES = {
+        5: 'Type coercion failed: result in intermediate calculations has been truncated.',
+        4: 'Found Uniform(a, b) distribution where a > b.',
+        3: 'Found Normal(m, v^2) distribution where v < 0.',
+        2: 'Found Exponential(s) distribution where s < 0.',
+        1: 'Found Weibull(k, l) distribution where either k < 0 or l < 0.',
+        0: 'Found Bernoulli(p) distribution where p < 0.'
+    }
+    
     def _jax(self, expr, params, dtype):
         if isinstance(expr, Expression):
             etype, op = expr.etype
@@ -143,13 +162,15 @@ class JaxRDDLCompiler:
         const = expr.args
         subscripts, new_dims = self._map_pvar_subs_to_subscript([], params, expr)
         new_axes = (1,) * len(new_dims)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _f(x, key):
-            constx = jnp.array(const, dtype)
-            sample = jnp.reshape(constx, constx.shape + new_axes) 
-            sample = jnp.broadcast_to(sample, shape=constx.shape + new_dims)
+            err = jnp.can_cast(const, dtype, casting='safe') * ERR_CODE
+            const_x = jnp.array(const, dtype)
+            sample = jnp.reshape(const_x, const_x.shape + new_axes) 
+            sample = jnp.broadcast_to(sample, shape=const_x.shape + new_dims)
             sample = jnp.einsum(subscripts, sample)
-            return sample, key
+            return sample, key, err
 
         return _f
     
@@ -167,13 +188,16 @@ class JaxRDDLCompiler:
             
         subscripts, new_dims = self._map_pvar_subs_to_subscript(pvars, params, expr)
         new_axes = (1,) * len(new_dims)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _f(x, key):
-            varx = jnp.array(x[var], dtype)
-            sample = jnp.reshape(varx, varx.shape + new_axes) 
-            sample = jnp.broadcast_to(sample, shape=varx.shape + new_dims)
+            var_x = x[var]
+            err = jnp.can_cast(var_x, dtype, casting='safe') * ERR_CODE
+            var_x = jnp.array(var_x, dtype)
+            sample = jnp.reshape(var_x, var_x.shape + new_axes) 
+            sample = jnp.broadcast_to(sample, shape=var_x.shape + new_dims)
             sample = jnp.einsum(subscripts, sample)
-            return sample, key
+            return sample, key, err
         
         return _f
 
@@ -187,24 +211,28 @@ class JaxRDDLCompiler:
     
     @staticmethod
     def _jax_unary(jax_expr, jax_op, dtype):
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _f(x, key):
-            val, key = jax_expr(x, key)
-            sample = jax_op(val)
+            val_x, key, err_x = jax_expr(x, key)
+            sample = jax_op(val_x)
+            err = err_x | (jnp.can_cast(sample, dtype, casting='safe') * ERR_CODE)
             sample = sample.astype(dtype)
-            return sample, key
+            return sample, key, err
         
         return _f
     
     @staticmethod
     def _jax_binary(jax_lhs, jax_rhs, jax_op, dtype):
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _f(x, key):
-            val1, key = jax_lhs(x, key)
-            val2, key = jax_rhs(x, key)
+            val1, key, err1_x = jax_lhs(x, key)
+            val2, key, err2_x = jax_rhs(x, key)
             sample = jax_op(val1, val2)
+            err = err1_x | err2_x | (jnp.can_cast(sample, dtype, casting='safe') * ERR_CODE)
             sample = sample.astype(dtype)
-            return sample, key
+            return sample, key, err
         
         return _f
         
@@ -327,13 +355,15 @@ class JaxRDDLCompiler:
         
         new_dtype = bool if op in {'forall', 'exists'} else dtype
         jax_expr = self._jax(arg, new_params, new_dtype)
-        jax_op = JaxRDDLCompiler.AGGREGATION_OPS[op]
+        jax_op = JaxRDDLCompiler.AGGREGATION_OPS[op]        
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _f(x, key):
-            sample, key = jax_expr(x, key)
+            sample, key, err_x = jax_expr(x, key)
             sample = jax_op(sample, axis=reduced_axes)
+            err = err_x | (jnp.can_cast(sample, dtype, casting='safe') * ERR_CODE)
             sample = sample.astype(dtype)
-            return sample, key
+            return sample, key, err
         
         return _f
                  
@@ -409,11 +439,12 @@ class JaxRDDLCompiler:
         jax_false = self._jax(if_false, params, dtype)
         
         def _f(x, key):
-            predx, key = jax_pred(x, key)
-            truex, key = jax_true(x, key)
-            falsex, key = jax_false(x, key)
-            sample = jnp.where(predx, truex, falsex)
-            return sample, key
+            pred_x, key, err1_x = jax_pred(x, key)
+            true_x, key, err2_x = jax_true(x, key)
+            false_x, key, err3_x = jax_false(x, key)
+            sample = jnp.where(pred_x, true_x, false_x)
+            err = err1_x | err2_x | err3_x
+            return sample, key, err
             
         return _f
     
@@ -456,15 +487,17 @@ class JaxRDDLCompiler:
         expr_lb, expr_ub = expr.args
         jax_lb = self._jax(expr_lb, params, JaxRDDLCompiler.REAL)
         jax_ub = self._jax(expr_ub, params, JaxRDDLCompiler.REAL)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_UNIFORM']
         
         # U(a, b) = a + (b - a) * xi, where xi ~ U(0, 1)
         def _f(x, key):
-            lb, key = jax_lb(x, key)
-            ub, key = jax_ub(x, key)
+            lb_x, key, err1_x = jax_lb(x, key)
+            ub_x, key, err2_x = jax_ub(x, key)
+            err = err1_x | err2_x | (jnp.any(lb_x > ub_x) * ERR_CODE)
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=lb.shape)
-            sample = lb + (ub - lb) * U
-            return sample, key
+            U = random.uniform(key=subkey, shape=lb_x.shape)
+            sample = lb_x + (ub_x - lb_x) * U
+            return sample, key, err
         
         return _f
     
@@ -472,30 +505,34 @@ class JaxRDDLCompiler:
         expr_mean, expr_var = expr.args
         jax_mean = self._jax(expr_mean, params, JaxRDDLCompiler.REAL)
         jax_var = self._jax(expr_var, params, JaxRDDLCompiler.REAL)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_NORMAL']
         
         # N(mu, s^2) = mu + s * N(0, 1)
         def _f(x, key):
-            mean, key = jax_mean(x, key)
-            var, key = jax_var(x, key)
-            std = jnp.sqrt(var)
+            mean_x, key, err1_x = jax_mean(x, key)
+            var_x, key, err2_x = jax_var(x, key)
+            err = err1_x | err2_x | (jnp.any(var_x < 0) * ERR_CODE)
+            std_x = jnp.sqrt(var_x)
             key, subkey = random.split(key)
-            Z = random.normal(key=subkey, shape=mean.shape)
-            sample = mean + std * Z
-            return sample, key
+            Z = random.normal(key=subkey, shape=mean_x.shape)
+            sample = mean_x + std_x * Z
+            return sample, key, err
         
         return _f
     
     def _jax_exponential(self, expr, params):
         expr_scale, = expr.args
         jax_scale = self._jax(expr_scale, params, JaxRDDLCompiler.REAL)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_EXPONENTIAL']
         
         # Exp(scale) = scale * Exp(1)
         def _f(x, key):
-            scale, key = jax_scale(x, key)
+            scale_x, key, err_x = jax_scale(x, key)
+            err = err_x | (jnp.any(scale_x < 0) * ERR_CODE)
             key, subkey = random.split(key)
-            Exp1 = random.exponential(key=subkey, shape=scale.shape)
-            sample = scale * Exp1
-            return sample, key
+            Exp1 = random.exponential(key=subkey, shape=scale_x.shape)
+            sample = scale_x * Exp1
+            return sample, key, err
         
         return _f
     
@@ -503,30 +540,34 @@ class JaxRDDLCompiler:
         expr_shape, expr_scale = expr.args
         jax_shape = self._jax(expr_shape, params, JaxRDDLCompiler.REAL)
         jax_scale = self._jax(expr_scale, params, JaxRDDLCompiler.REAL)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_WEIBULL']
         
         # W(shape, scale) = scale * (-log(1 - U(0, 1)))^{1 / shape}
         # TODO: make this numerically stable
         def _f(x, key):
-            shape, key = jax_shape(x, key)
-            scale, key = jax_scale(x, key)
+            shape_x, key, err1_x = jax_shape(x, key)
+            scale_x, key, err2_x = jax_scale(x, key)
+            err = err1_x | err2_x | (jnp.any((shape_x < 0) | (scale_x < 0)) * ERR_CODE)
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=scale.shape)
-            sample = scale * jnp.power(-jnp.log(1.0 - U), 1.0 / shape)
-            return sample, key
+            U = random.uniform(key=subkey, shape=scale_x.shape)
+            sample = scale_x * jnp.power(-jnp.log(1.0 - U), 1.0 / shape_x)
+            return sample, key, err
         
         return _f
             
     def _jax_bernoulli(self, expr, params):
         expr_prob, = expr.args
         jax_prob = self._jax(expr_prob, params, JaxRDDLCompiler.REAL)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
         
         # Bernoulli(p) = 1[U(0, 1) < p]
         def _f(x, key):
-            prob, key = jax_prob(x, key)
+            prob_x, key, err_x = jax_prob(x, key)
+            err = err_x | (jnp.any((prob_x < 0) | (prob_x > 1)) * ERR_CODE)
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=prob.shape)
-            sample = jnp.less(U, prob)
-            return sample, key
+            U = random.uniform(key=subkey, shape=prob_x.shape)
+            sample = jnp.less(U, prob_x)
+            return sample, key, err
         
         return _f
     

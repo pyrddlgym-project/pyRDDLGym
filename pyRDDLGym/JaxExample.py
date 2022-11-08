@@ -36,7 +36,7 @@ def main():
     total_reward = 0
     state, done = sim.reset() 
     for step in range(100):
-        action = {'put-out': np.random.uniform(size=(3,3)) < 0.1}
+        action = {'action': np.random.uniform() * 2.}
         next_state, reward, done = sim.step(action)
         print()
         print('step       = {}'.format(step))
