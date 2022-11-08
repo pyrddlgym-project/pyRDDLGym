@@ -17,6 +17,12 @@ Args = Dict[str, Value]
 
 class JaxRDDLSimulator(RDDLSimulator):
     
+    DEFAULT_VALUES = {
+        'int': 0,
+        'real': 0.0,
+        'bool': False
+    }
+    
     def __init__(self, rddl: RDDL, key: random.PRNGKey) -> None:
         self.rddl = rddl
         self.key = key
@@ -38,10 +44,15 @@ class JaxRDDLSimulator(RDDLSimulator):
             name = pvar.name
             params = pvar.param_types
             if params is None:
-                self.init_values[name] = pvar.default
+                if pvar.default is not None:
+                    self.init_values[name] = pvar.default
+                elif pvar.range in JaxRDDLSimulator.DEFAULT_VALUES:
+                    self.init_values[name] = JaxRDDLSimulator.DEFAULT_VALUES[pvar.range]
+                else:
+                    raise Exception('Internal error: type {} is not recognized.'.format(pvar.range))
             else:
                 self.init_values[name] = np.zeros(
-                    shape=tuple(len(self.compiler.objects[p]) for p in params))    
+                    shape=tuple(len(self.compiler.objects[p]) for p in params))  
         if hasattr(rddl.non_fluents, 'init_non_fluent'): 
             for (name, params), value in rddl.non_fluents.init_non_fluent:
                 if params is not None:
