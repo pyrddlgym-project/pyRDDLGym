@@ -2,7 +2,6 @@ import jax
 import numpy as np
 
 jax.config.update('jax_log_compiles', True)
-jax.config.update('jax_enable_x64', True)
 
 from pyRDDLGym import ExampleManager
 from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
@@ -11,15 +10,15 @@ from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 
 # ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
-# ENV = 'UAV continuous'
+#ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
 ENV = 'Wildfire'
 #ENV = 'MountainCar'
 #ENV = 'CartPole continuous'
 # ENV = 'CartPole discrete'
-# ENV = 'Elevators'
-# ENV = 'RaceCar'
+#ENV = 'Elevators'
+#ENV = 'RaceCar'
 # ENV = 'RecSim'
 
 
@@ -31,12 +30,14 @@ def main():
     MyRDDLParser.build()
     
     # parse RDDL file
-    ast = MyRDDLParser.parse(domain)        
+    ast = MyRDDLParser.parse(domain)    
     sim = JaxRDDLSimulator(ast, key=jax.random.PRNGKey(42))
     print(jax.make_jaxpr(sim.cpfs['out-of-fuel\''])(sim.subs, sim.key))
+    
     total_reward = 0
     state, done = sim.reset() 
     for step in range(100):
+        action = {}
         action = {'put-out': np.random.uniform(size=(3,3)) < .1,
                   'cut-out': np.random.uniform(size=(3,3)) < .1}
         next_state, reward, done = sim.step(action)
