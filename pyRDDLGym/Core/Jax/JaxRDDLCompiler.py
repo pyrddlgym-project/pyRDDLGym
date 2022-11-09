@@ -29,14 +29,14 @@ class JaxRDDLCompiler:
             self.objects[obj] = dict(zip(values, range(len(values))))
         
         # extract the parameters required for each pvariable
-        self.pvars, self.states, self.pvar_types = {}, {}, {}
+        self.pvars, self.states, self.pvar_ranges = {}, {}, {}
         for pvar in rddl.domain.pvariables:
             name = pvar.name
             if pvar.fluent_type == 'state-fluent':
                 name = name + '\''
                 self.states[name] = pvar.name
             self.pvars[name] = [] if pvar.param_types is None else pvar.param_types
-            self.pvar_types[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
+            self.pvar_ranges[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
             
     # start of compilation subroutines of RDDL programs    
     def compile(self) -> None:
@@ -68,7 +68,7 @@ class JaxRDDLCompiler:
                 params = [] 
             pvar_inputs = self.pvars[name]
             params = [(p, pvar_inputs[i]) for i, p in enumerate(params)]
-            jax_cpfs[name] = self._jax(expr, params, self.pvar_types[name])
+            jax_cpfs[name] = self._jax(expr, params, self.pvar_ranges[name])
         jit_cpfs = jax.tree_map(jax.jit, jax_cpfs)        
         return jax_cpfs, jit_cpfs
     
