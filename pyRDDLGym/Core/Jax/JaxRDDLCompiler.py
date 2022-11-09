@@ -153,24 +153,35 @@ class JaxRDDLCompiler:
                 'Variable <{}> contains free parameter(s) {}.'.format(
                     expr.args[0], free_vars) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
-                
-        subscripts = ''.join(lhs) + ' -> ' + rhs
+        
+        lhs = ''.join(lhs)
+        subscripts = lhs + ' -> ' + rhs
+        id_map = lhs == rhs
         new_dims = tuple(new_dims)
-        return subscripts, new_dims
+        return subscripts, id_map, new_dims
     
     def _jax_constant(self, expr, params, dtype):
         const = expr.args
-        subscripts, new_dims = self._map_pvar_subs_to_subscript([], params, expr)
+        subscripts, id_map, new_dims = self._map_pvar_subs_to_subscript([], params, expr)
         new_axes = (1,) * len(new_dims)
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        def _f(x, key):
-            err = jnp.can_cast(const, dtype, casting='safe') * ERR_CODE
-            const_x = jnp.array(const, dtype)
-            sample = jnp.reshape(const_x, const_x.shape + new_axes) 
-            sample = jnp.broadcast_to(sample, shape=const_x.shape + new_dims)
-            sample = jnp.einsum(subscripts, sample)
-            return sample, key, err
+        if id_map:
+            
+            def _f(x, key):
+                err = jnp.can_cast(const, dtype, casting='safe') * ERR_CODE
+                sample = jnp.array(const, dtype=dtype)
+                return sample, key, err
+            
+        else:
+                
+            def _f(x, key):
+                err = jnp.can_cast(const, dtype, casting='safe') * ERR_CODE
+                const_x = jnp.array(const, dtype=dtype)
+                sample = jnp.reshape(const_x, newshape=const_x.shape + new_axes) 
+                sample = jnp.broadcast_to(sample, shape=const_x.shape + new_dims)
+                sample = jnp.einsum(subscripts, sample)
+                return sample, key, err
 
         return _f
     
@@ -186,18 +197,28 @@ class JaxRDDLCompiler:
                     var, len_req, len_pvars) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
-        subscripts, new_dims = self._map_pvar_subs_to_subscript(pvars, params, expr)
+        subscripts, id_map, new_dims = self._map_pvar_subs_to_subscript(pvars, params, expr)
         new_axes = (1,) * len(new_dims)
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        def _f(x, key):
-            var_x = x[var]
-            err = jnp.can_cast(var_x, dtype, casting='safe') * ERR_CODE
-            var_x = jnp.array(var_x, dtype)
-            sample = jnp.reshape(var_x, var_x.shape + new_axes) 
-            sample = jnp.broadcast_to(sample, shape=var_x.shape + new_dims)
-            sample = jnp.einsum(subscripts, sample)
-            return sample, key, err
+        if id_map:
+            
+            def _f(x, key):
+                var_x = x[var]
+                err = jnp.can_cast(var_x, dtype, casting='safe') * ERR_CODE
+                sample = jnp.array(var_x, dtype=dtype)
+                return sample, key, err
+            
+        else:
+            
+            def _f(x, key):
+                var_x = x[var]
+                err = jnp.can_cast(var_x, dtype, casting='safe') * ERR_CODE
+                var_x = jnp.array(var_x, dtype=dtype)
+                sample = jnp.reshape(var_x, newshape=var_x.shape + new_axes) 
+                sample = jnp.broadcast_to(sample, shape=var_x.shape + new_dims)
+                sample = jnp.einsum(subscripts, sample)
+                return sample, key, err
         
         return _f
 
