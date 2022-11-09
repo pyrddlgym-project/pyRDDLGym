@@ -1,5 +1,4 @@
 import jax
-import jax.random as random
 import numpy as np
 from typing import Dict
 import warnings
@@ -23,13 +22,14 @@ class JaxRDDLSimulator(RDDLSimulator):
         'bool': False
     }
     
-    def __init__(self, rddl: RDDL, key: random.PRNGKey, soft_error: bool=True) -> None:
+    def __init__(self, rddl: RDDL, key: jax.random.PRNGKey, soft_error: bool=True) -> None:
         self.rddl = rddl
         self.key = key
         self.soft = soft_error
         
         self.compiler = JaxRDDLCompiler(rddl)
         data = self.compiler.compile()
+        
         self.invariants = data['invariants']
         self.preconds = data['preconds']
         self.terminals = data['terminals']
@@ -37,28 +37,38 @@ class JaxRDDLSimulator(RDDLSimulator):
         _, self.cpfs = data['cpfs']
         
         # initialization of scalar and pvariables tensors
-        rev_objects = {}          
-        self.init_values = {}
+        object_lookup = {}        
         for obj, values in rddl.non_fluents.objects:
-            rev_objects.update(zip(values, [obj] * len(values)))   
+            object_lookup.update(zip(values, [obj] * len(values)))  
+              
+        self.init_values = {}
         for pvar in rddl.domain.pvariables:
             name = pvar.name
             params = pvar.param_types
+            pvar_type = pvar.range
             if params is None:
+                
+                # a scalar variable
                 if pvar.default is not None:
                     self.init_values[name] = pvar.default
-                elif pvar.range in JaxRDDLSimulator.DEFAULT_VALUES:
-                    self.init_values[name] = JaxRDDLSimulator.DEFAULT_VALUES[pvar.range]
+                elif pvar_type in JaxRDDLSimulator.DEFAULT_VALUES:
+                    self.init_values[name] = JaxRDDLSimulator.DEFAULT_VALUES[pvar_type]
                 else:
-                    raise Exception('Internal error: type {} is not recognized.'.format(pvar.range))
+                    raise Exception('Internal error: type {} is not recognized.'.format(pvar_type))
             else:
+                
+                # a tensor pvariable
                 self.init_values[name] = np.zeros(
-                    shape=tuple(len(self.compiler.objects[p]) for p in params))  
-        if hasattr(rddl.non_fluents, 'init_non_fluent'): 
+                    shape=tuple(len(self.compiler.objects[p]) for p in params),
+                    dtype=JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar_type]) 
+            
+        # initialization of non-fluents
+        if hasattr(rddl.non_fluents, 'init_non_fluent'):
             for (name, params), value in rddl.non_fluents.init_non_fluent:
                 if params is not None:
-                    coords = tuple(self.compiler.objects[rev_objects[p]][p] for p in params)
-                    self.init_values[name][coords] = value                
+                    coords = tuple(self.compiler.objects[object_lookup[p]][p] for p in params)
+                    self.init_values[name][coords] = value   
+                    
         self.subs = self.init_values.copy()
         
     @staticmethod

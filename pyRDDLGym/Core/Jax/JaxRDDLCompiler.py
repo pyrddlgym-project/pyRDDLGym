@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.Parser.expr import Expression
@@ -14,20 +13,30 @@ class JaxRDDLCompiler:
     INT = jnp.int32
     REAL = jnp.float32
     
+    RDDL_TO_JAX_TYPE = {
+        'int': INT,
+        'real': REAL,
+        'bool': bool
+    }
+    
     def __init__(self, rddl: RDDL) -> None:
         self.rddl = rddl
         self.domain = rddl.domain
         
-        # extract objects and free parameters for each variable
-        self.objects, self.pvars, self.states = {}, {}, {}
+        # extract object types and their objects
+        self.objects = {}
         for obj, values in rddl.non_fluents.objects:
             self.objects[obj] = dict(zip(values, range(len(values))))
+        
+        # extract the parameters required for each pvariable
+        self.pvars, self.states, self.pvar_types = {}, {}, {}
         for pvar in rddl.domain.pvariables:
             name = pvar.name
             if pvar.fluent_type == 'state-fluent':
                 name = name + '\''
                 self.states[name] = pvar.name
             self.pvars[name] = [] if pvar.param_types is None else pvar.param_types
+            self.pvar_types[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
             
     # start of compilation subroutines of RDDL programs    
     def compile(self) -> None:
@@ -59,7 +68,7 @@ class JaxRDDLCompiler:
                 params = [] 
             pvar_inputs = self.pvars[name]
             params = [(p, pvar_inputs[i]) for i, p in enumerate(params)]
-            jax_cpfs[name] = self._jax(expr, params, JaxRDDLCompiler.REAL)
+            jax_cpfs[name] = self._jax(expr, params, self.pvar_types[name])
         jit_cpfs = jax.tree_map(jax.jit, jax_cpfs)        
         return jax_cpfs, jit_cpfs
     
@@ -80,7 +89,9 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_NORMAL': 4,
         'INVALID_PARAM_EXPONENTIAL': 8,
         'INVALID_PARAM_WEIBULL': 16,
-        'INVALID_PARAM_BERNOULLI': 32
+        'INVALID_PARAM_BERNOULLI': 32,
+        'INVALID_PARAM_POISSON' : 64,
+        'INVALID_PARAM_GAMMA' : 128
     }
     
     INVERSE_ERROR_CODES = {
@@ -89,7 +100,9 @@ class JaxRDDLCompiler:
         2: 'Found Normal(m, v^2) distribution where v < 0.',
         3: 'Found Exponential(s) distribution where s < 0.',
         4: 'Found Weibull(k, l) distribution where either k < 0 or l < 0.',
-        5: 'Found Bernoulli(p) distribution where p < 0.'
+        5: 'Found Bernoulli(p) distribution where p < 0.',
+        6: 'Found Poisson(l) distribution where l < 0.',
+        7: 'Found Gamma(k, l) distribution where either k < 0 or l < 0.'
     }
     
     def _jax(self, expr, params, dtype):
@@ -425,7 +438,7 @@ class JaxRDDLCompiler:
                     '\n' + JaxRDDLCompiler._print_stack_trace(expr))    
                             
             arg, = expr.args
-            jax_expr = self._jax(arg, params, JaxRDDLCompiler.REAL)
+            jax_expr = self._jax(arg, params, dtype)
             jax_op = JaxRDDLCompiler.KNOWN_UNARY[op]
             return JaxRDDLCompiler._jax_unary(jax_expr, jax_op, dtype)
             
@@ -436,8 +449,8 @@ class JaxRDDLCompiler:
                     '\n' + JaxRDDLCompiler._print_stack_trace(expr))  
                 
             lhs, rhs = expr.args
-            jax_lhs = self._jax(lhs, params, JaxRDDLCompiler.REAL)
-            jax_rhs = self._jax(rhs, params, JaxRDDLCompiler.REAL)
+            jax_lhs = self._jax(lhs, params, dtype)
+            jax_rhs = self._jax(rhs, params, dtype)
             jax_op = JaxRDDLCompiler.KNOWN_BINARY[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op, dtype)
         
@@ -469,7 +482,10 @@ class JaxRDDLCompiler:
             
         return _f
     
-    # random variables        
+    # random variables   
+    # TODO: try these for Poisson and Gamma
+    # https://arxiv.org/pdf/1611.01144.pdf?
+    # https://arxiv.org/pdf/2003.01847.pdf?     
     def _jax_random(self, expr, name, params, dtype):
         if name == 'KronDelta':
             return self._jax_kron(expr, params)        
@@ -485,24 +501,25 @@ class JaxRDDLCompiler:
             return self._jax_weibull(expr, params)   
         elif name == 'Bernoulli':
             return self._jax_bernoulli(expr, params)
-        elif name in {'Poisson', 'Gamma'}:
-            
-            # TODO: try these
-            # https://arxiv.org/pdf/1611.01144.pdf?
-            # https://arxiv.org/pdf/2003.01847.pdf?
-            raise RDDLInvalidExpressionError(
-                'Distribution {} is not reparameterizable.'.format(name) + 
-                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+        elif name == 'Poisson':
+            return self._jax_poisson(expr, params)
+        elif name == 'Gamma':
+            return self._jax_gamma(expr, params)
+            # raise RDDLInvalidExpressionError(
+            #     'Distribution {} is not reparameterizable.'.format(name) + 
+            #     '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         else:
             raise RDDLNotImplementedError(
                 'Distribution {} is not supported.'.format(name) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         
     def _jax_kron(self, expr, params):
-        return self._jax(expr, params, JaxRDDLCompiler.INT)
+        arg, = expr.args
+        return self._jax(arg, params, JaxRDDLCompiler.INT)
     
     def _jax_dirac(self, expr, params):
-        return self._jax(expr, params, JaxRDDLCompiler.REAL)
+        arg, = expr.args
+        return self._jax(arg, params, JaxRDDLCompiler.REAL)
     
     def _jax_uniform(self, expr, params):
         expr_lb, expr_ub = expr.args
@@ -514,9 +531,10 @@ class JaxRDDLCompiler:
         def _f(x, key):
             lb_x, key, err1_x = jax_lb(x, key)
             ub_x, key, err2_x = jax_ub(x, key)
-            err = err1_x | err2_x | (jnp.any(lb_x > ub_x) * ERR_CODE)
+            err = err1_x | err2_x | jnp.any(lb_x > ub_x) * ERR_CODE
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=lb_x.shape)
+            U = random.uniform(
+                key=subkey, shape=lb_x.shape, dtype=JaxRDDLCompiler.REAL)
             sample = lb_x + (ub_x - lb_x) * U
             return sample, key, err
         
@@ -532,10 +550,11 @@ class JaxRDDLCompiler:
         def _f(x, key):
             mean_x, key, err1_x = jax_mean(x, key)
             var_x, key, err2_x = jax_var(x, key)
-            err = err1_x | err2_x | (jnp.any(var_x < 0) * ERR_CODE)
+            err = err1_x | err2_x | jnp.any(var_x < 0) * ERR_CODE
             std_x = jnp.sqrt(var_x)
             key, subkey = random.split(key)
-            Z = random.normal(key=subkey, shape=mean_x.shape)
+            Z = random.normal(
+                key=subkey, shape=mean_x.shape, dtype=JaxRDDLCompiler.REAL)
             sample = mean_x + std_x * Z
             return sample, key, err
         
@@ -549,9 +568,10 @@ class JaxRDDLCompiler:
         # Exp(scale) = scale * Exp(1)
         def _f(x, key):
             scale_x, key, err_x = jax_scale(x, key)
-            err = err_x | (jnp.any(scale_x < 0) * ERR_CODE)
+            err = err_x | jnp.any(scale_x < 0) * ERR_CODE
             key, subkey = random.split(key)
-            Exp1 = random.exponential(key=subkey, shape=scale_x.shape)
+            Exp1 = random.exponential(
+                key=subkey, shape=scale_x.shape, dtype=JaxRDDLCompiler.REAL)
             sample = scale_x * Exp1
             return sample, key, err
         
@@ -568,9 +588,10 @@ class JaxRDDLCompiler:
         def _f(x, key):
             shape_x, key, err1_x = jax_shape(x, key)
             scale_x, key, err2_x = jax_scale(x, key)
-            err = err1_x | err2_x | (jnp.any((shape_x < 0) | (scale_x < 0)) * ERR_CODE)
+            err = err1_x | err2_x | jnp.any((shape_x < 0) | (scale_x < 0)) * ERR_CODE
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=scale_x.shape)
+            U = random.uniform(
+                key=subkey, shape=shape_x.shape, dtype=JaxRDDLCompiler.REAL)
             sample = scale_x * jnp.power(-jnp.log(1.0 - U), 1.0 / shape_x)
             return sample, key, err
         
@@ -584,11 +605,46 @@ class JaxRDDLCompiler:
         # Bernoulli(p) = 1[U(0, 1) < p]
         def _f(x, key):
             prob_x, key, err_x = jax_prob(x, key)
-            err = err_x | (jnp.any((prob_x < 0) | (prob_x > 1)) * ERR_CODE)
+            err = err_x | jnp.any((prob_x < 0) | (prob_x > 1)) * ERR_CODE
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=prob_x.shape)
+            U = random.uniform(
+                key=subkey, shape=prob_x.shape, dtype=JaxRDDLCompiler.REAL)
             sample = jnp.less(U, prob_x)
             return sample, key, err
         
         return _f
     
+    def _jax_poisson(self, expr, params):
+        expr_rate, = expr.args
+        jax_rate = self._jax(expr_rate, params, JaxRDDLCompiler.REAL)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_POISSON']
+        
+        # no reparameterization so far
+        def _f(x, key):
+            rate_x, key, err_x = jax_rate(x, key)
+            err = err_x | jnp.any(rate_x < 0) * ERR_CODE
+            key, subkey = random.split(key)
+            sample = random.poisson(key=subkey, lam=rate_x, dtype=JaxRDDLCompiler.INT)
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_gamma(self, expr, params):
+        expr_shape, expr_scale = expr.args
+        jax_shape = self._jax(expr_shape, params, JaxRDDLCompiler.REAL)
+        jax_scale = self._jax(expr_scale, params, JaxRDDLCompiler.REAL)
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GAMMA']
+        
+        # only partially reparameterizable
+        def _f(x, key):
+            shape_x, key, err1_x = jax_shape(x, key)
+            scale_x, key, err2_x = jax_scale(x, key)
+            err = err1_x | err2_x | jnp.any((shape_x < 0) | (scale_x < 0)) * ERR_CODE
+            key, subkey = random.split(key)
+            Gamma1 = random.gamma(key=subkey, a=shape_x, dtype=JaxRDDLCompiler.REAL)
+            sample = scale_x * Gamma1
+            return sample, key, err
+        
+        return _f
+            
+            
