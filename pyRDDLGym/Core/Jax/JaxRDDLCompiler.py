@@ -74,22 +74,22 @@ class JaxRDDLCompiler:
         return '...\n' + str(expr) + '\n...'
 
     ERROR_CODES = {
-        'NORMAL': jnp.array([0, 0, 0, 0, 0, 0, 0], dtype=bool),
-        'INVALID_CAST': jnp.array([0, 0, 0, 0, 0, 1], dtype=bool),
-        'INVALID_PARAM_UNIFORM': jnp.array([0, 0, 0, 0, 1, 0], dtype=bool),
-        'INVALID_PARAM_NORMAL': jnp.array([0, 0, 0, 1, 0, 0], dtype=bool),
-        'INVALID_PARAM_EXPONENTIAL': jnp.array([0, 0, 1, 0, 0, 0], dtype=bool),
-        'INVALID_PARAM_WEIBULL': jnp.array([0, 1, 0, 0, 0, 0], dtype=bool),
-        'INVALID_PARAM_BERNOULLI': jnp.array([1, 0, 0, 0, 0, 0], dtype=bool)
+        'NORMAL': 0,
+        'INVALID_CAST': 1,
+        'INVALID_PARAM_UNIFORM': 2,
+        'INVALID_PARAM_NORMAL': 4,
+        'INVALID_PARAM_EXPONENTIAL': 8,
+        'INVALID_PARAM_WEIBULL': 16,
+        'INVALID_PARAM_BERNOULLI': 32
     }
     
     INVERSE_ERROR_CODES = {
-        5: 'Type coercion failed: result in intermediate calculations has been truncated.',
-        4: 'Found Uniform(a, b) distribution where a > b.',
-        3: 'Found Normal(m, v^2) distribution where v < 0.',
-        2: 'Found Exponential(s) distribution where s < 0.',
-        1: 'Found Weibull(k, l) distribution where either k < 0 or l < 0.',
-        0: 'Found Bernoulli(p) distribution where p < 0.'
+        0: 'Type coercion failed: result in intermediate calculations has been truncated.',
+        1: 'Found Uniform(a, b) distribution where a > b.',
+        2: 'Found Normal(m, v^2) distribution where v < 0.',
+        3: 'Found Exponential(s) distribution where s < 0.',
+        4: 'Found Weibull(k, l) distribution where either k < 0 or l < 0.',
+        5: 'Found Bernoulli(p) distribution where p < 0.'
     }
     
     def _jax(self, expr, params, dtype):
@@ -166,18 +166,18 @@ class JaxRDDLCompiler:
         new_axes = (1,) * len(new_dims)
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        if id_map:
+        if id_map:  # just cast - no shaping required
             
             def _f(x, key):
-                err = jnp.can_cast(const, dtype, casting='safe') * ERR_CODE
-                sample = jnp.array(const, dtype=dtype)
+                err = (not jnp.can_cast(const, dtype, casting='safe')) * ERR_CODE
+                sample = jnp.asarray(const, dtype=dtype)
                 return sample, key, err
             
-        else:
+        else:  # must cast and shape array
                 
             def _f(x, key):
-                err = jnp.can_cast(const, dtype, casting='safe') * ERR_CODE
-                const_x = jnp.array(const, dtype=dtype)
+                err = (not jnp.can_cast(const, dtype, casting='safe')) * ERR_CODE
+                const_x = jnp.asarray(const, dtype=dtype)
                 sample = jnp.reshape(const_x, newshape=const_x.shape + new_axes) 
                 sample = jnp.broadcast_to(sample, shape=const_x.shape + new_dims)
                 sample = jnp.einsum(subscripts, sample)
@@ -201,20 +201,20 @@ class JaxRDDLCompiler:
         new_axes = (1,) * len(new_dims)
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        if id_map:
+        if id_map:  # just cast - no shaping required
             
             def _f(x, key):
                 var_x = x[var]
-                err = jnp.can_cast(var_x, dtype, casting='safe') * ERR_CODE
-                sample = jnp.array(var_x, dtype=dtype)
+                err = (not jnp.can_cast(var_x, dtype, casting='safe')) * ERR_CODE
+                sample = jnp.asarray(var_x, dtype=dtype)
                 return sample, key, err
-            
-        else:
+                
+        else:  # must cast and shape array
             
             def _f(x, key):
                 var_x = x[var]
-                err = jnp.can_cast(var_x, dtype, casting='safe') * ERR_CODE
-                var_x = jnp.array(var_x, dtype=dtype)
+                err = (not jnp.can_cast(var_x, dtype, casting='safe')) * ERR_CODE
+                var_x = jnp.asarray(var_x, dtype=dtype)
                 sample = jnp.reshape(var_x, newshape=var_x.shape + new_axes) 
                 sample = jnp.broadcast_to(sample, shape=var_x.shape + new_dims)
                 sample = jnp.einsum(subscripts, sample)
@@ -237,8 +237,8 @@ class JaxRDDLCompiler:
         def _f(x, key):
             val_x, key, err_x = jax_expr(x, key)
             sample = jax_op(val_x)
-            err = err_x | (jnp.can_cast(sample, dtype, casting='safe') * ERR_CODE)
-            sample = sample.astype(dtype)
+            err = err_x | (not jnp.can_cast(sample, dtype, casting='safe')) * ERR_CODE
+            sample = jnp.asarray(sample, dtype=dtype)
             return sample, key, err
         
         return _f
@@ -251,8 +251,8 @@ class JaxRDDLCompiler:
             val1, key, err1_x = jax_lhs(x, key)
             val2, key, err2_x = jax_rhs(x, key)
             sample = jax_op(val1, val2)
-            err = err1_x | err2_x | (jnp.can_cast(sample, dtype, casting='safe') * ERR_CODE)
-            sample = sample.astype(dtype)
+            err = err1_x | err2_x | (not jnp.can_cast(sample, dtype, casting='safe')) * ERR_CODE
+            sample = jnp.asarray(sample, dtype=dtype)
             return sample, key, err
         
         return _f
@@ -382,8 +382,8 @@ class JaxRDDLCompiler:
         def _f(x, key):
             sample, key, err_x = jax_expr(x, key)
             sample = jax_op(sample, axis=reduced_axes)
-            err = err_x | (jnp.can_cast(sample, dtype, casting='safe') * ERR_CODE)
-            sample = sample.astype(dtype)
+            err = err_x | (not jnp.can_cast(sample, dtype, casting='safe')) * ERR_CODE
+            sample = jnp.asarray(sample, dtype=dtype)
             return sample, key, err
         
         return _f
