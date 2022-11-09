@@ -14,8 +14,8 @@ from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 # ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-#ENV = 'Wildfire'
-ENV = 'MountainCar'
+ENV = 'Wildfire'
+#ENV = 'MountainCar'
 #ENV = 'CartPole continuous'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
@@ -33,10 +33,12 @@ def main():
     # parse RDDL file
     ast = MyRDDLParser.parse(domain)        
     sim = JaxRDDLSimulator(ast, key=jax.random.PRNGKey(42))
+    print(jax.make_jaxpr(sim.cpfs['out-of-fuel\''])(sim.subs, sim.key))
     total_reward = 0
     state, done = sim.reset() 
     for step in range(100):
-        action = {'action': np.random.uniform() * 2.}
+        action = {'put-out': np.random.uniform(size=(3,3)) < .1,
+                  'cut-out': np.random.uniform(size=(3,3)) < .1}
         next_state, reward, done = sim.step(action)
         print()
         print('step       = {}'.format(step))
