@@ -179,22 +179,16 @@ class JaxRDDLCompiler:
         new_axes = (1,) * len(new_dims)
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        if id_map:  # just cast - no shaping required
-            
-            def _f(x, key):
-                err = (not jnp.can_cast(const, dtype, casting='safe')) * ERR_CODE
-                sample = jnp.asarray(const, dtype=dtype)
-                return sample, key, err
-            
-        else:  # must cast and shape array
-                
-            def _f(x, key):
-                err = (not jnp.can_cast(const, dtype, casting='safe')) * ERR_CODE
-                const_x = jnp.asarray(const, dtype=dtype)
+        def _f(_, key):
+            err = (not jnp.can_cast(const, dtype, casting='safe')) * ERR_CODE
+            const_x = jnp.asarray(const, dtype=dtype)
+            sample = const_x
+            if new_dims:
                 sample = jnp.reshape(const_x, newshape=const_x.shape + new_axes) 
                 sample = jnp.broadcast_to(sample, shape=const_x.shape + new_dims)
+            if not id_map:
                 sample = jnp.einsum(subscripts, sample)
-                return sample, key, err
+            return sample, key, err
 
         return _f
     
@@ -214,24 +208,17 @@ class JaxRDDLCompiler:
         new_axes = (1,) * len(new_dims)
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        if id_map:  # just cast - no shaping required
-            
-            def _f(x, key):
-                var_x = x[var]
-                err = (not jnp.can_cast(var_x, dtype, casting='safe')) * ERR_CODE
-                sample = jnp.asarray(var_x, dtype=dtype)
-                return sample, key, err
-                
-        else:  # must cast and shape array
-            
-            def _f(x, key):
-                var_x = x[var]
-                err = (not jnp.can_cast(var_x, dtype, casting='safe')) * ERR_CODE
-                var_x = jnp.asarray(var_x, dtype=dtype)
+        def _f(x, key):
+            var_x = x[var]
+            err = (not jnp.can_cast(var_x, dtype, casting='safe')) * ERR_CODE
+            var_x = jnp.asarray(var_x, dtype=dtype)
+            sample = var_x
+            if new_dims:
                 sample = jnp.reshape(var_x, newshape=var_x.shape + new_axes) 
                 sample = jnp.broadcast_to(sample, shape=var_x.shape + new_dims)
+            if not id_map:
                 sample = jnp.einsum(subscripts, sample)
-                return sample, key, err
+            return sample, key, err
         
         return _f
 
@@ -486,7 +473,7 @@ class JaxRDDLCompiler:
     # TODO: try these for Poisson and Gamma
     # https://arxiv.org/pdf/1611.01144.pdf?
     # https://arxiv.org/pdf/2003.01847.pdf?     
-    def _jax_random(self, expr, name, params, dtype):
+    def _jax_random(self, expr, name, params, _):
         if name == 'KronDelta':
             return self._jax_kron(expr, params)        
         elif name == 'DiracDelta':
