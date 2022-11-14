@@ -3,7 +3,7 @@
 A toolkit for auto-generation of OpenAI Gym environments from RDDL description files. 
 
 ### Paper
-Our paper is currently in final stages of writing, stay tuned.
+Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym.
 
 ### Status
 As we support a large subset of RDDL, we list what we do not support:
