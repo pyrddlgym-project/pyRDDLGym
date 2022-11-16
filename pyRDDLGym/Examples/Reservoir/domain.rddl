@@ -1,0 +1,48 @@
+////////////////////////////////////////////////////////////////////
+// Reservoir control.
+//
+////////////////////////////////////////////////////////////////////
+domain reservoir {
+
+    requirements = {
+        reward-deterministic
+    };
+
+    pvariables {
+
+    	// Constant
+		MAXCAP(id): { non-fluent, real, default = 100.0 };
+		HIGH_BOUND(id): { non-fluent, real, default = 80.0 };
+		LOW_BOUND(id): { non-fluent, real, default = 20.0 };
+		RAIN(id): { non-fluent ,real, default = 5.0 };
+		DOWNSTREAM(id,id): {non-fluent ,bool, default = false };
+		DOWNTOSEA(id): {non-fluent, bool, default = false };
+		BIGGESTMAXCAP: {non-fluent, real, default = 1000};
+		
+		//Interm
+		vaporated(id): {interm-fluent, real};
+		
+		//State
+		rlevel(id): {state-fluent, real, default = 50.0 };
+		
+		//Action
+		flow(id): { action-fluent, real, default = 0.0 };
+    };
+	
+	cpfs {
+		vaporated(?r) = (1.0 / 2.0) * sin[rlevel(?r) / BIGGESTMAXCAP] * rlevel(?r);
+		rlevel'(?r) = min[MAXCAP(?r), rlevel(?r) + RAIN(?r) - vaporated(?r) - min[max[0, flow(?r)], rlevel(?r)] 
+							+ sum_{?r2: id}[DOWNSTREAM(?r2,?r) * min[max[0, flow(?r)], rlevel(?r)]]];
+	};
+	
+	reward = sum_{?r: id} [if (rlevel'(?r) >= LOW_BOUND(?r) ^ (rlevel'(?r) <= HIGH_BOUND(?r)))
+				then 0
+				else if (rlevel'(?r) <= LOW_BOUND(?r))
+					then (-5) * (LOW_BOUND(?r) - rlevel'(?r))
+					else (-100) * (rlevel'(?r) - HIGH_BOUND(?r))] + sum_{?r2: id}[abs[((HIGH_BOUND(?r2) + LOW_BOUND(?r2)) / 2.0) - rlevel'(?r2)] * (-0.1)];
+
+    state-invariants {
+		forall_{?r: id} rlevel(?r) <= MAXCAP(?r);
+    };
+	
+}

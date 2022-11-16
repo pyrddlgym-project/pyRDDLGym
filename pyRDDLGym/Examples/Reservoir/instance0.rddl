@@ -1,0 +1,35 @@
+non-fluents Reservoir_non {
+	domain = reservoir;
+	objects{
+		id: {t1,t2,t3};
+	};
+	
+	non-fluents {
+		RAIN(t1) = 5.0;
+		RAIN(t2) = 10.0;
+		RAIN(t3) = 20.0;
+		MAXCAP(t1) = 1000.0;
+		MAXCAP(t2) = 1000.0;
+		LOW_BOUND(t2) = 30.0;
+		HIGH_BOUND(t2) = 180.0;
+		MAXCAP(t3) = 1000.0;
+		LOW_BOUND(t3) = 40.0;
+		HIGH_BOUND(t3) = 380.0;
+		DOWNSTREAM(t1,t2);
+		DOWNSTREAM(t2,t3);
+		DOWNTOSEA(t3);
+	};
+}
+
+instance is1 {
+	domain = reservoir;
+	non-fluents = Reservoir_non;
+
+	init-state{
+		rlevel(t1) = 75.0;
+	};
+
+	max-nondef-actions = 3;
+	horizon = 10;
+	discount = 1.0;
+}

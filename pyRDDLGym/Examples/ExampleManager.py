@@ -23,6 +23,7 @@ EXP_DICT = {
     'UAV mixed' : ('Mixed action space version of multi-UAV problem where a group of UAVs have to reach goal '
     'positions in  in the 3d Space.', '/UAV/Mixed/', 'UAVs'),
     'Wildfire' : ('A boolean version of the wildfire fighting domain.', '/Wildfire/', 'Wildfire'),
+    'Reservoir' : ('Reservoir', '/Reservoir/', 'Reservoir')
 }
 
 
