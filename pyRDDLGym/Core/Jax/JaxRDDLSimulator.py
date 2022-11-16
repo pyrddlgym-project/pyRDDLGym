@@ -67,13 +67,21 @@ class JaxRDDLSimulator(RDDLSimulator):
                     self.init_values[name] = JaxRDDLSimulator.DEFAULT_VALUES[pvar_type]
                 else:
                     raise Exception('Internal error: type {} is not recognized.'.format(pvar_type))
-            else:
+            else: 
                 
                 # a tensor pvariable
-                self.init_values[name] = np.zeros(
+                value = 0 if pvar.default is None else pvar.default
+                self.init_values[name] = value * np.ones(
                     shape=tuple(len(self.compiler.objects[p]) for p in params),
                     dtype=JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar_type]) 
-            
+        
+        # initialization of state
+        if hasattr(rddl.instance, 'init_state'):
+            for (name, params), value in rddl.instance.init_state:
+                if params is not None:
+                    coords = tuple(self.compiler.objects[object_lookup[p]][p] for p in params)
+                    self.init_values[name][coords] = value   
+        
         # initialization of non-fluents
         if hasattr(rddl.non_fluents, 'init_non_fluent'):
             for (name, params), value in rddl.non_fluents.init_non_fluent:
@@ -82,6 +90,7 @@ class JaxRDDLSimulator(RDDLSimulator):
                     self.init_values[name][coords] = value   
                     
         self.subs = self.init_values.copy()
+        
         
     @staticmethod
     def _print_stack_trace(expr, subs, key):

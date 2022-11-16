@@ -8,11 +8,11 @@ non-fluents Reservoir_non {
 		RAIN(t1) = 5.0;
 		RAIN(t2) = 10.0;
 		RAIN(t3) = 20.0;
-		MAXCAP(t1) = 1000.0;
-		MAXCAP(t2) = 1000.0;
+		MAXCAP(t1) = 200.0;
+		MAXCAP(t2) = 300.0;
 		LOW_BOUND(t2) = 30.0;
 		HIGH_BOUND(t2) = 180.0;
-		MAXCAP(t3) = 1000.0;
+		MAXCAP(t3) = 400.0;
 		LOW_BOUND(t3) = 40.0;
 		HIGH_BOUND(t3) = 380.0;
 		DOWNSTREAM(t1,t2);
