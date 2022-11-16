@@ -27,6 +27,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.key = key
         self.soft = soft_error
         
+        # compile Jax program
         self.compiler = JaxRDDLCompiler(rddl)
         data = self.compiler.compile()
         
@@ -36,6 +37,17 @@ class JaxRDDLSimulator(RDDLSimulator):
         _, self.reward = data['reward']
         _, self.cpfs = data['cpfs']
         
+        # retrieve CPF information
+        self.state_vars = self.compiler.states.values()
+        self.state_unprimed = {cpf: self.compiler.states.get(cpf, cpf) 
+                               for cpf in self.cpfs.keys()}
+        
+        cpf_order = self.rddl.domain.derived_cpfs + \
+                    self.rddl.domain.intermediate_cpfs + \
+                    self.rddl.domain.state_cpfs + \
+                    self.rddl.domain.observation_cpfs 
+        self.cpfs = {cpf.pvar[1][0]: self.cpfs[cpf.pvar[1][0]] for cpf in cpf_order}
+
         # initialization of scalar and pvariables tensors
         object_lookup = {}        
         for obj, values in rddl.non_fluents.objects:
@@ -126,8 +138,8 @@ class JaxRDDLSimulator(RDDLSimulator):
     def reset(self) -> Args:
         '''Resets the state variables to their initial values.'''
         self.subs = self.init_values.copy()  
-        obs = {var: self.subs[var] for var in self.compiler.states.values()}
-        done = self.check_terminal_states()    
+        obs = {var: self.subs[var] for var in self.state_vars}
+        done = self.check_terminal_states()
         return obs, done
     
     def step(self, actions: Args) -> Args:
@@ -135,26 +147,18 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         :param actions: a dict mapping current action fluents to their values
         '''
-        subs = self.subs 
+        subs, key = self.subs, self.key
         subs.update(actions)
         
-        cpf_order = self.rddl.domain.derived_cpfs + \
-                    self.rddl.domain.intermediate_cpfs + \
-                    self.rddl.domain.state_cpfs + \
-                    self.rddl.domain.observation_cpfs 
-                    
-        for cpf in cpf_order:
-            name = cpf.pvar[1][0]
-            subs[name], self.key, error = self.cpfs[name](subs, self.key)
+        for name, cpf in self.cpfs.items():
+            subs[name], key, error = cpf(subs, key)
             self.handle_error_code(error, 'CPF <{}>'.format(name))
-        next_subs = subs.copy()
-        for cpf in self.cpfs.keys():
-            unprimed = self.compiler.states.get(cpf, cpf)
-            next_subs[unprimed] = subs[cpf]
-
-        obs = {var: next_subs[var] for var in self.compiler.states.values()}
         reward = self.sample_reward()
-        self.subs = next_subs
+        for primed, unprimed in self.state_unprimed.items():
+            subs[unprimed] = subs[primed]
+            
+        obs = {var: subs[var] for var in self.state_vars}
+        self.key = key
         done = self.check_terminal_states()
         return obs, reward, done
         
