@@ -174,6 +174,9 @@ class RDDLEnv(gym.Env):
         self.state = self.sampler.states
 
         image = self._visualizer.render(self.state)
+        if self._movie_generator is not None:
+            self._movie_generator.reset()
+            self._movie_generator.save_frame(image)            
         self.image_size = image.size
         return obs
 
@@ -206,6 +209,7 @@ class RDDLEnv(gym.Env):
             
             if self._movie_generator is not None:
                 self._movie_generator.save_gif(self._movie_generator.env_name)
+                self._movie_generator.reset()
 
 
     @property

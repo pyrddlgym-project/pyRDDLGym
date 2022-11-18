@@ -1,6 +1,7 @@
 import glob
 import os
 from PIL import Image
+import warnings
 
 
 class MovieGenerator:
@@ -31,6 +32,22 @@ class MovieGenerator:
         self.frame_duration = frame_duration
         self.loop = loop
         
+        self._n_frame = 0
+        self._time = 0
+    
+    def _remove_frames(self) -> None:
+        load_path = self.save_path.format('*')
+        files = glob.glob(load_path)
+        removed = 0
+        for file in files:
+            os.remove(file)
+            removed += 1
+        if removed:
+            warnings.warn('removed {} temporary files with path {}'.format(removed, load_path), 
+                          FutureWarning, stacklevel=2)
+    
+    def reset(self) -> None:
+        self._remove_frames()
         self._n_frame = 0
         self._time = 0
         
