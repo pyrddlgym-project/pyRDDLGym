@@ -35,7 +35,7 @@ class MovieGenerator:
         self._n_frame = 0
         self._time = 0
     
-    def _remove_frames(self) -> None:
+    def reset(self) -> None:
         load_path = self.save_path.format('*')
         files = glob.glob(load_path)
         removed = 0
@@ -45,9 +45,7 @@ class MovieGenerator:
         if removed:
             warnings.warn('removed {} temporary files with path {}'.format(removed, load_path), 
                           FutureWarning, stacklevel=2)
-    
-    def reset(self) -> None:
-        self._remove_frames()
+        
         self._n_frame = 0
         self._time = 0
         
@@ -71,10 +69,13 @@ class MovieGenerator:
         images = map(Image.open, glob.glob(load_path))
         
         save_path = os.path.join(self.save_dir, file_name + '.gif')
-        frame0 = next(images)
-        frame0.save(fp=save_path,
-                    format='GIF',
-                    append_images=images,
-                    save_all=True,
-                    duration=self.frame_duration,
-                    loop=self.loop)
+        frame0 = next(images, None)
+        if frame0 is not None:
+            frame0.save(fp=save_path,
+                        format='GIF',
+                        append_images=images,
+                        save_all=True,
+                        duration=self.frame_duration,
+                        loop=self.loop)
+        
+        self.reset()

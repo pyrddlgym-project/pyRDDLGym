@@ -122,10 +122,14 @@ class RDDLEnv(gym.Env):
         self.to_render = False
         self.image_size = None
 
-    def set_visualizer(self, viz, movie_gen=None):
+    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False):
         # set the vizualizer with self.model
+        # TODO: setting fields that are not defined in __init__ is not good practice
+        # we really should set all these to None in __init__
         self._visualizer = viz(self.model)
         self._movie_generator = movie_gen
+        self._movie_per_episode = movie_per_episode
+        self._movies = 0
         self.to_render = False
 
     def step(self, at):
@@ -175,7 +179,10 @@ class RDDLEnv(gym.Env):
 
         image = self._visualizer.render(self.state)
         if self._movie_generator is not None:
-            self._movie_generator.reset()
+            if self._movie_per_episode:
+                self._movie_generator.save_gif(
+                    self._movie_generator.env_name + '_' + str(self._movies))
+                self._movies += 1
             self._movie_generator.save_frame(image)            
         self.image_size = image.size
         return obs
@@ -208,8 +215,9 @@ class RDDLEnv(gym.Env):
             pygame.quit()
             
             if self._movie_generator is not None:
-                self._movie_generator.save_gif(self._movie_generator.env_name)
-                self._movie_generator.reset()
+                self._movie_generator.save_gif(
+                    self._movie_generator.env_name + '_' + str(self._movies))
+                self._movies += 1
 
 
     @property
