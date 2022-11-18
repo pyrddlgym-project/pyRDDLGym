@@ -13,7 +13,7 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
-    def __init__(self, domain, instance=None, is_grounded=False):
+    def __init__(self, domain, instance=None): #, is_grounded=False):
         super(RDDLEnv, self).__init__()
 
         # max allowed action value
@@ -35,10 +35,10 @@ class RDDLEnv(gym.Env):
         rddl_ast = MyRDDLParser.parse(domain)
 
         # ground domain
-        if is_grounded == True:
-            grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
-        else:
-            grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
+        #if is_grounded == True:
+        #    grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
+        #else:
+        grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
         self.model = grounder.Ground()
 
         # define the model sampler
