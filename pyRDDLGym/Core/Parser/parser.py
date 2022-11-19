@@ -16,6 +16,7 @@ from pyRDDLGym.Core.Parser.instance import Instance
 from pyRDDLGym.Core.Parser.pvariable import PVariable
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.cpf import CPF
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLParseError
 
 alpha = r'[A-Za-z]'
 digit = r'[0-9]'
@@ -920,15 +921,15 @@ class RDDLParser(object):
         exception_str = 'Syntax error on line {}:\n...'.format(line_err)
         for l in range(line1, line2):
             if l == line_err:
-                exception_str += '\n' + ' >> ' + lines[l]
+                exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[0m'
             else:
-                exception_str += '\n' + lines[l]
+                exception_str += '\n   ' + lines[l]
         exception_str += '\n...'
         
         if self.debugging:
             exception_str += 'See log file {} for details.'.format(self.parsing_logfile)
         
-        raise Exception(exception_str)
+        raise RDDLParseError(exception_str)
 
     def build(self, **kwargs):
         self._parser = yacc.yacc(module=self, **kwargs)

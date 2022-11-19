@@ -24,6 +24,10 @@ class RDDLNotImplementedError(NotImplementedError):
     pass
 
 
+class RDDLParseError(SyntaxError):
+    pass
+
+
 class RDDLStateInvariantNotSatisfiedError(ValueError):
     pass
 
