@@ -1,6 +1,6 @@
 # pyRDDLGym
 
-A toolkit for auto-generation of OpenAI Gym environments from RDDL description files. 
+A toolkit for auto-generation of OpenAI Gym environments from RDDL description files. \\
 The toolkit is the official evaluation system for the [IPC 2023 RL and planning track](https://ataitler.github.io/IPPC2023/).
 
 ### Paper
