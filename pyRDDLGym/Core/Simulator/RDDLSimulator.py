@@ -70,10 +70,17 @@ class RDDLSimulator:
                     'State invariant {} is not satisfied.'.format(idx + 1) + 
                     '\n' + RDDLSimulator._print_stack_trace(invariant))
     
-    def check_action_preconditions(self) -> None:
+    def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
+        
+        # if actions are missing use their default values
+        self._model.actions = {var: actions.get(var, default_value) 
+                               for var, default_value in self._init_actions.items()}
+        subs = self._subs
+        subs.update(self._model.actions)   
+        
         for idx, precondition in enumerate(self._model.preconditions):
-            sample = self._sample(precondition, self._subs)
+            sample = self._sample(precondition, subs)
             if not isinstance(sample, bool):
                 raise RDDLTypeError(
                     'Action precondition must evaluate to bool, got {}.'.format(sample) + 
