@@ -13,9 +13,11 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
-    def __init__(self, domain, instance=None): #, is_grounded=False):
+    
+    def __init__(self, domain, instance=None, enforce_action_constraints=False):
         super(RDDLEnv, self).__init__()
-
+        self.enforce_action_constraints = enforce_action_constraints
+        
         # max allowed action value
         # self.BigM = 100
         self.done = False
@@ -35,9 +37,6 @@ class RDDLEnv(gym.Env):
         rddl_ast = MyRDDLParser.parse(domain)
 
         # ground domain
-        #if is_grounded == True:
-        #    grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
-        #else:
         grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
         self.model = grounder.Ground()
 
@@ -58,17 +57,16 @@ class RDDLEnv(gym.Env):
         self.defaultAction = copy.deepcopy(self.model.actions)
 
         # define the actions bounds
-
-
         action_space = Dict()
         for act in self.model.actions:
-            range = self.model.actionsranges[act]
-            if range == 'real':
-                action_space[act] = Box(low=self.sampler.bounds[act][0], high=self.sampler.bounds[act][1],
+            act_range = self.model.actionsranges[act]
+            if act_range == 'real':
+                action_space[act] = Box(low=self.sampler.bounds[act][0], 
+                                        high=self.sampler.bounds[act][1],
                                         dtype=np.float32)
-            elif range == 'bool':
+            elif act_range == 'bool':
                 action_space[act] = Discrete(2)
-            elif range == 'int':
+            elif act_range == 'int':
                 high = self.sampler.bounds[act][1]
                 if high == np.inf:
                     high = np.iinfo(np.int32).max
@@ -92,14 +90,15 @@ class RDDLEnv(gym.Env):
             ranges = self.model.statesranges
         state_space = Dict()
         for state in search_dict:
-            range = ranges[state]
+            state_range = ranges[state]
             # range = self.model.statesranges[state]
-            if range == 'real':
-                state_space[state] = Box(low=self.sampler.bounds[state][0], high=self.sampler.bounds[state][1],
+            if state_range == 'real':
+                state_space[state] = Box(low=self.sampler.bounds[state][0], 
+                                         high=self.sampler.bounds[state][1],
                                          dtype=np.float32)
-            elif range == 'bool':
+            elif state_range == 'bool':
                 state_space[state] = Discrete(2)
-            elif range == 'int':
+            elif state_range == 'int':
                 high = self.sampler.bounds[state][1]
                 if high == np.inf:
                     high = np.iinfo(np.int32).max
@@ -141,9 +140,9 @@ class RDDLEnv(gym.Env):
         action_length = len(at)
         if (action_length > self._NumConcurrentActions):
             raise Exception(
-                "Invalid action, expected maximum of {} entries, {} were were given".format(self._NumConcurrentActions,
-                                                                                            action_length))
-
+                "Invalid action, expected maximum of {} entries, {} were were given".format(
+                    self._NumConcurrentActions, action_length))
+        
         # set full action vector, values are clipped to be inside the feasible action space
         action = copy.deepcopy(self.defaultAction)
         for act in at:
@@ -152,7 +151,11 @@ class RDDLEnv(gym.Env):
                     action[act] = bool(at[act])
             else:
                 action[act] = at[act]
-
+                
+        # check action constraints
+        if self.enforce_action_constraints:
+            self.sampler.check_action_preconditions(action)
+        
         # sample next state and reward
         obs, reward, self.done = self.sampler.step(action)
         state = self.sampler.states

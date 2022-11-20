@@ -1,0 +1,32 @@
+////////////////////////////////////////////////////////////////////
+// A supply chain control problem as described by
+//
+////////////////////////////////////////////////////////////////////
+
+non-fluents supply_chain_3 {
+    domain = supply_chain;
+
+    objects {
+		warehouse : {w1, w2, w3};
+	};
+	
+	non-fluents {
+		INDEX(w1) = 1;
+		INDEX(w2) = 2;
+		INDEX(w3) = 3;
+	};
+}
+
+// Specify three warehouses with default setting
+instance inst_supply_chain {
+
+	domain = supply_chain;
+	
+	non-fluents = supply_chain_3;
+  
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+  
+	horizon  = 252;
+	discount = 0.9998;
+}
