@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import jax.random as random
+import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -19,9 +20,10 @@ class JaxRDDLCompiler:
         'bool': bool
     }
     
-    def __init__(self, rddl: RDDL) -> None:
+    def __init__(self, rddl: RDDL, enforce_diff: bool=False) -> None:
         self.rddl = rddl
         self.domain = rddl.domain
+        self.enforce_diff = enforce_diff
         
         # extract object types and their objects
         self.objects = {}
@@ -36,7 +38,14 @@ class JaxRDDLCompiler:
                 name = name + '\''
                 self.states[name] = pvar.name
             self.pvars[name] = [] if pvar.param_types is None else pvar.param_types
-            self.pvar_ranges[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
+            if self.enforce_diff:
+                self.pvar_ranges[name] = JaxRDDLCompiler.REAL
+                if pvar.range != 'real':
+                    warnings.warn(
+                        'Pvariable <{}> of type {} will be promoted to real.'.format(
+                            name, pvar.range), FutureWarning, stacklevel=2)
+            else:
+                self.pvar_ranges[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
             
     # start of compilation subroutines of RDDL programs 
     def compile(self) -> None:
@@ -96,8 +105,7 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_WEIBULL': 16,
         'INVALID_PARAM_BERNOULLI': 32,
         'INVALID_PARAM_POISSON': 64,
-        'INVALID_PARAM_GAMMA': 128,
-        'INVARIANT_NOT_SATISFIED': 256
+        'INVALID_PARAM_GAMMA': 128
     }
     
     INVERSE_ERROR_CODES = {
@@ -108,8 +116,7 @@ class JaxRDDLCompiler:
         4: 'Found Weibull(k, l) distribution where either k < 0 or l < 0.',
         5: 'Found Bernoulli(p) distribution where p < 0.',
         6: 'Found Poisson(l) distribution where l < 0.',
-        7: 'Found Gamma(k, l) distribution where either k < 0 or l < 0.',
-        8: 'At least one state invariant is not satisfied.'
+        7: 'Found Gamma(k, l) distribution where either k < 0 or l < 0.'
     }
     
     @staticmethod
@@ -165,13 +172,16 @@ class JaxRDDLCompiler:
     def _map_pvar_subs_to_subscript(self, given_params, desired_params, expr):
         symbols = 'abcdefghijklmnopqrstuvwxyz'   
         symbols = symbols + symbols.upper()   
-             
+        
+        # check that number of parameters is valid
         if len(desired_params) > len(symbols):
             raise RDDLNotImplementedError(
                 'Variable <{}> is {}-D, but current version supports up to {}.'.format(
                     expr.args[0], len(desired_params), len(symbols)) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
-            
+        
+        # compute a mapping permutation(a,b,c...) -> (a,b,c...) that performs the
+        # correct variable substitution
         lhs = [None] * len(given_params)
         new_dims = []
         for i_desired, (param_desired, obj_desired) in enumerate(desired_params):
@@ -186,6 +196,7 @@ class JaxRDDLCompiler:
                 new_dims.append(new_dim)
         rhs = symbols[:len(desired_params)]
         
+        # safeguard against any remaining free variables
         free_vars = [given_params[i] for i, p in enumerate(lhs) if p is None]
         if free_vars:
             raise RDDLInvalidNumberOfArgumentsError(
@@ -197,6 +208,7 @@ class JaxRDDLCompiler:
         subscripts = lhs + ' -> ' + rhs
         id_map = lhs == rhs
         new_dims = tuple(new_dims)
+        
         return subscripts, id_map, new_dims
     
     def _jax_constant(self, expr, params):
@@ -509,9 +521,6 @@ class JaxRDDLCompiler:
             return self._jax_poisson(expr, params)
         elif name == 'Gamma':
             return self._jax_gamma(expr, params)
-            # raise RDDLInvalidExpressionError(
-            #     'Distribution {} is not reparameterizable.'.format(name) + 
-            #     '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         else:
             raise RDDLNotImplementedError(
                 'Distribution {} is not supported.'.format(name) + 
@@ -520,7 +529,10 @@ class JaxRDDLCompiler:
     def _jax_kron(self, expr, params):
         arg, = expr.args
         arg = self._jax(arg, params)
-        arg = JaxRDDLCompiler._jax_cast(arg, bool)
+        if self.enforce_diff:
+            warnings.warn('KronDelta will be ignored.')
+        else:
+            arg = JaxRDDLCompiler._jax_cast(arg, bool)
         return arg
     
     def _jax_dirac(self, expr, params):
@@ -573,6 +585,7 @@ class JaxRDDLCompiler:
     def _jax_exponential(self, expr, params):
         expr_scale, = expr.args
         jax_scale = self._jax(expr_scale, params)
+        
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_EXPONENTIAL']
         
         # Exp(scale) = scale * Exp(1)
@@ -592,6 +605,7 @@ class JaxRDDLCompiler:
         expr_shape, expr_scale = expr.args
         jax_shape = self._jax(expr_shape, params)
         jax_scale = self._jax(expr_scale, params)
+        
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_WEIBULL']
         
         # W(shape, scale) = scale * (-log(1 - U(0, 1)))^{1 / shape}
@@ -611,6 +625,7 @@ class JaxRDDLCompiler:
     def _jax_bernoulli(self, expr, params):
         expr_prob, = expr.args
         jax_prob = self._jax(expr_prob, params)
+        
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
         
         # Bernoulli(p) = 1[U(0, 1) < p]
@@ -626,11 +641,18 @@ class JaxRDDLCompiler:
         return _f
     
     def _jax_poisson(self, expr, params):
-        expr_rate, = expr.args
-        jax_rate = self._jax(expr_rate, params)
-        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_POISSON']
         
         # no reparameterization so far
+        if self.enforce_diff:
+            raise RDDLNotImplementedError(
+                'No reparameterization is implemented for Poisson.' + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
+        expr_rate, = expr.args
+        jax_rate = self._jax(expr_rate, params)
+        
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_POISSON']
+        
         def _f(x, key):
             rate, key, err = jax_rate(x, key)
             key, subkey = random.split(key)
@@ -642,12 +664,19 @@ class JaxRDDLCompiler:
         return _f
     
     def _jax_gamma(self, expr, params):
+        
+        # no reparameterization so far
+        if self.enforce_diff:
+            raise RDDLNotImplementedError(
+                'No reparameterization is implemented for Gamma.' + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
         expr_shape, expr_scale = expr.args
         jax_shape = self._jax(expr_shape, params)
         jax_scale = self._jax(expr_scale, params)
+        
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GAMMA']
         
-        # only partially reparameterizable
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)

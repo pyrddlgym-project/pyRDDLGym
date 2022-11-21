@@ -22,13 +22,17 @@ class JaxRDDLSimulator(RDDLSimulator):
         'bool': False
     }
     
-    def __init__(self, rddl: RDDL, key: jax.random.PRNGKey, soft_error: bool=True) -> None:
+    def __init__(self, rddl: RDDL, 
+                 key: jax.random.PRNGKey, 
+                 soft_error: bool=True,
+                 enforce_diff: bool=False) -> None:
         self.rddl = rddl
         self.key = key
         self.soft = soft_error
+        self.enforce_diff = enforce_diff
         
         # compile Jax program
-        self.compiler = JaxRDDLCompiler(rddl)
+        self.compiler = JaxRDDLCompiler(rddl, enforce_diff=enforce_diff)
         data = self.compiler.compile()
         
         self.invariants = data['invariants']
@@ -58,22 +62,25 @@ class JaxRDDLSimulator(RDDLSimulator):
             name = pvar.name
             params = pvar.param_types
             pvar_type = pvar.range
+            pvar_value = pvar.default
+            
+            # initial value from default statement if possible
+            if pvar_value is None:
+                fill_value = JaxRDDLSimulator.DEFAULT_VALUES[pvar_type]
+            else:
+                fill_value = pvar_value
+            if self.enforce_diff:
+                fill_value = float(fill_value)
+                pvar_type = 'real'
+            
+            # initialize value array of shape given by number of free parameters
             if params is None:
-                
-                # a scalar variable
-                if pvar.default is not None:
-                    self.init_values[name] = pvar.default
-                elif pvar_type in JaxRDDLSimulator.DEFAULT_VALUES:
-                    self.init_values[name] = JaxRDDLSimulator.DEFAULT_VALUES[pvar_type]
-                else:
-                    raise Exception('Internal error: type {} is not recognized.'.format(pvar_type))
+                self.init_values[name] = fill_value              
             else: 
-                
-                # a tensor pvariable
-                value = 0 if pvar.default is None else pvar.default
-                self.init_values[name] = value * np.ones(
+                self.init_values[name] = np.full(
                     shape=tuple(len(self.compiler.objects[p]) for p in params),
-                    dtype=JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar_type]) 
+                    fill_value=fill_value,
+                    dtype=JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar_type])
         
         # initialization of state
         if hasattr(rddl.instance, 'init_state'):
