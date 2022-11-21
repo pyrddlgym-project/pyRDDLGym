@@ -87,7 +87,13 @@ class RDDLlex(object):
             'Weibull': 'WEIBULL',
             'Gamma': 'GAMMA',
             'Multinomial': 'MULTINOMIAL',
-            'Dirichlet': 'DIRICHLET'
+            'Dirichlet': 'DIRICHLET',
+            'Binomial': 'BINOMIAL',
+            'Beta' : 'BETA',
+            'Geometric' : 'GEOMETRIC',
+            'Pareto' : 'PARETO',
+            'Student' : 'STUDENT',
+            'Gumbel' : 'GUMBEL'
         }
 
         self.tokens = [
@@ -627,7 +633,13 @@ class RDDLParser(object):
                           | DIRICHLET LPAREN IDENT COMMA expr RPAREN
                           | POISSON LPAREN expr RPAREN
                           | WEIBULL LPAREN expr COMMA expr RPAREN
-                          | GAMMA   LPAREN expr COMMA expr RPAREN'''
+                          | GAMMA   LPAREN expr COMMA expr RPAREN
+                          | BINOMIAL   LPAREN expr COMMA expr RPAREN
+                          | BETA   LPAREN expr COMMA expr RPAREN
+                          | GEOMETRIC LPAREN expr RPAREN
+                          | PARETO   LPAREN expr COMMA expr RPAREN
+                          | STUDENT LPAREN expr RPAREN
+                          | GUMBEL   LPAREN expr COMMA expr RPAREN'''
         if len(p) == 7:
             if isinstance(p[5], list):
                 p[0] = ('randomvar', (p[1], (('enum_type', p[3]), *p[5])))

@@ -608,6 +608,18 @@ class RDDLSimulator:
             return self._sample_weibull(expr, subs)        
         elif name == 'Gamma':
             return self._sample_gamma(expr, subs)
+        elif name == 'Binomial':
+            return self._sample_binomial(expr, subs)
+        elif name == 'Beta':
+            return self._sample_beta(expr, subs)
+        elif name == 'Geometric':
+            return self._sample_geometric(expr, subs)
+        elif name == 'Pareto':
+            return self._sample_pareto(expr, subs)
+        elif name == 'Student':
+            return self._sample_student(expr, subs)
+        elif name == 'Gumbel':
+            return self._sample_gumbel(expr, subs)
         else:  # no support for enum
             raise RDDLNotImplementedError(
                 'Distribution {} is not supported.'.format(name) + 
@@ -762,8 +774,123 @@ class RDDLSimulator:
                 '\n' + RDDLSimulator._print_stack_trace(expr))
         
         return self._rng.gamma(shape=shape, scale=scale)
+    
+    def _sample_binomial(self, expr, subs):
+        args = expr.args
+        if len(args) != 2:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Binomial requires 2 parameters, got {}.'.format(len(args)) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        count = self._sample(args[0], subs)
+        if not isinstance(count, (int, bool)):
+            raise RDDLTypeError(
+                'Binomial requires int or boolean parameter, got {}.'.format(count) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        count = int(count)
+        if not (count >= 0):
+            raise RDDLValueOutOfRangeError(
+                'Binomial count {} is not positive.'.format(count) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        p = float(self._sample(args[1], subs))
+        if not (0 <= p <= 1):
+            raise RDDLValueOutOfRangeError(
+                'Binomial parameter p should be in [0, 1], got {}.'.format(p) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        return self._rng.binomial(n=count, p=p)
+    
+    def _sample_beta(self, expr, subs):
+        args = expr.args
+        if len(args) != 2:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Beta requires 2 parameters, got {}.'.format(len(args)) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        shape = float(self._sample(args[0], subs))
+        if not (shape > 0.):
+            raise RDDLValueOutOfRangeError(
+                'Beta shape {} is not positive.'.format(shape) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        rate = float(self._sample(args[1], subs))
+        if not (rate > 0.):
+            raise RDDLValueOutOfRangeError(
+                'Beta rate {} is not positive.'.format(rate) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        return self._rng.beta(a=shape, b=rate)
 
+    def _sample_geometric(self, expr, subs):
+        args = expr.args
+        if len(args) != 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Geometric requires 1 parameter, got {}.'.format(len(args)) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        p = float(self._sample(args[0], subs))
+        if not (0 <= p <= 1):
+            raise RDDLValueOutOfRangeError(
+                'Geometric parameter p should be in [0, 1], got {}'.format(p) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        return self._rng.geometric(p=p)
+    
+    def _sample_pareto(self, expr, subs):
+        args = expr.args
+        if len(args) != 2:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Pareto requires 2 parameters, got {}.'.format(len(args)) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        shape = float(self._sample(args[0], subs))
+        if not (shape > 0.):
+            raise RDDLValueOutOfRangeError(
+                'Pareto shape {} is not positive.'.format(shape) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        scale = float(self._sample(args[1], subs))
+        if not (scale > 0.):
+            raise RDDLValueOutOfRangeError(
+                'Pareto scale {} is not positive.'.format(scale) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+        
+        return scale * self._rng.pareto(a=shape)
+    
+    def _sample_student(self, expr, subs):
+        args = expr.args
+        if len(args) != 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Student requires 1 parameter, got {}.'.format(len(args)) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        degrees = float(self._sample(args[0], subs))
+        if not (degrees > 0.):
+            raise RDDLValueOutOfRangeError(
+                'Student df {} is not positive.'.format(degrees) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        return self._rng.standard_t(df=degrees)
 
+    def _sample_gumbel(self, expr, subs):
+        args = expr.args
+        if len(args) != 2:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Gumbel requires 2 parameters, got {}.'.format(len(args)) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        mean = float(self._sample(args[0], subs))
+        scale = float(self._sample(args[1], subs))
+        if not (scale > 0.):
+            raise RDDLValueOutOfRangeError(
+                'Gumbel scale {} is not positive.'.format(scale) + 
+                '\n' + RDDLSimulator._print_stack_trace(expr))
+            
+        return self._rng.gumbel(loc=mean, scale=scale)
+    
+        
 class RDDLSimulatorWConstraints(RDDLSimulator):
 
     def __init__(self,
