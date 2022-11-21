@@ -99,21 +99,21 @@ class JaxRDDLStraightlinePlanner:
             returns, x_batch, keys, errs = jax.vmap(
                 _rollout, in_axes=(None, 0, 0))(plan, x_batch, keys)
             key = keys[-1]
-            return returns, x_batch, key, errs
+            return returns, key, x_batch, errs
         
         # aggregate all sampled returns
         def _loss(plan, key):
-            returns, _, key, errs = _batched_rollouts(plan, key)
+            returns, key, x_batch, errs = _batched_rollouts(plan, key)
             loss_value = -aggregation(returns)
             errs = jax.lax.reduce(errs, ERR_NORMAL, jnp.bitwise_or, (0,))
-            return loss_value, (key, errs)
+            return loss_value, (key, x_batch, errs)
         
         # gradient descent update
-        def _update(plan, key, opt_state):
-            grad, (key, errs) = jax.grad(_loss, has_aux=True)(plan, key)
+        def _update(plan, opt_state, key):
+            grad, (key, x_batch, errs) = jax.grad(_loss, has_aux=True)(plan, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             plan = optax.apply_updates(plan, updates)       
-            return plan, key, opt_state, errs
+            return plan, opt_state, key, x_batch, errs
         
         self.loss = jax.jit(_loss)
         self.update = jax.jit(_update)
@@ -137,11 +137,10 @@ class JaxRDDLStraightlinePlanner:
         plan, opt_state, self.key = self.initialize(self.key)
 
         for step in range(n_epochs):
-            plan, self.key, opt_state, _ = self.update(plan, self.key, opt_state)
-            loss_val, (self.key, errs) = self.loss(plan, self.key)
+            plan, opt_state, self.key, _, _ = self.update(plan, opt_state, self.key)
+            loss_val, (self.key, x_batch, errs) = self.loss(plan, self.key)
             
             fixed_plan = self.force_action_ranges(plan)
             errs = JaxRDDLCompiler.get_error_codes(errs)
-            yield step, fixed_plan, loss_val, errs
-            
+            yield step, fixed_plan, loss_val, x_batch, errs
         

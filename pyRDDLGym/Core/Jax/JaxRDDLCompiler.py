@@ -43,7 +43,7 @@ class JaxRDDLCompiler:
                 self.pvar_ranges[name] = JaxRDDLCompiler.REAL
                 if pvar.range != 'real':
                     warnings.warn(
-                        'Pvariable <{}> of type {} will be promoted to real.'.format(
+                        'enforce_diff=True: Variable <{}> of type {} will be cast to real.'.format(
                             name, pvar.range), FutureWarning, stacklevel=2)
             else:
                 self.pvar_ranges[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
@@ -292,10 +292,11 @@ class JaxRDDLCompiler:
         return _f
         
     def _jax_arithmetic(self, expr, op, params):
-        if op not in JaxRDDLCompiler.ARITHMETIC_OPS:
+        OPS = JaxRDDLCompiler.ARITHMETIC_OPS
+        if op not in OPS:
             raise RDDLNotImplementedError(
                 'Arithmetic operator {} is not supported: must be one of {}.'.format(
-                    op, JaxRDDLCompiler.ARITHMETIC_OPS.keys()) + 
+                    op, OPS.keys()) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
         args = expr.args
@@ -320,20 +321,31 @@ class JaxRDDLCompiler:
     
     # relational expressions
     RELATIONAL_OPS = {
-        '>=': jnp.greater_equal,
-        '<=': jnp.less_equal,
-        '<': jnp.less,
-        '>': jnp.greater,
-        '==': jnp.equal,
-        '~=': jnp.not_equal
+        False: {
+            '>=': jnp.greater_equal,
+            '<=': jnp.less_equal,
+            '<': jnp.less,
+            '>': jnp.greater,
+            '==': jnp.equal,
+            '~=': jnp.not_equal
+        },
+        True: {
+        }
     }
     
     def _jax_relational(self, expr, op, params):
-        if op not in JaxRDDLCompiler.RELATIONAL_OPS:
+        OPS = JaxRDDLCompiler.RELATIONAL_OPS[self.enforce_diff]
+        if op not in OPS:
             raise RDDLNotImplementedError(
                 'Relational operator {} is not supported: must be one of {}.'.format(
-                    op, JaxRDDLCompiler.RELATIONAL_OPS.keys()) + 
+                    op, OPS.keys()) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+            
+        if self.enforce_diff:
+            warnings.warn(
+                'enforce_diff=True: relational operator(s) {} will be treated as arithmetic.'.format(
+                    OPS.keys()),
+                FutureWarning, stacklevel=2)
             
         args = expr.args
         n = len(args)
@@ -360,7 +372,9 @@ class JaxRDDLCompiler:
         },
         True: {
             '^': jnp.minimum,
-            '|': jnp.maximum
+            '|': jnp.maximum,
+            '~': lambda e1, e2: jnp.minimum(
+                jnp.maximum(e1, e2), 1.0 - jnp.minimum(e1, e2))
         }
     }
         
@@ -368,8 +382,15 @@ class JaxRDDLCompiler:
         OPS = JaxRDDLCompiler.LOGICAL_OPS[self.enforce_diff]        
         if op not in OPS:
             raise RDDLNotImplementedError(
-                'Logical operator {} is not supported: must be one of {}.'.format(op, OPS) + 
+                'Logical operator {} is not supported: must be one of {}.'.format(
+                    op, OPS.keys()) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))       
+        
+        if self.enforce_diff:
+            warnings.warn(
+                'enforce_diff=True: logical operator(s) {} will be treated as arithmetic.'.format(
+                    OPS.keys()),
+                FutureWarning, stacklevel=2)
         
         args = expr.args
         n = len(args)
@@ -377,7 +398,10 @@ class JaxRDDLCompiler:
         if n == 1 and op == '~':
             arg, = args
             jax_expr = self._jax(arg, params)
-            return JaxRDDLCompiler._jax_unary(jax_expr, jnp.logical_not)
+            if self.enforce_diff:
+                return JaxRDDLCompiler._jax_unary(jax_expr, lambda e: 1.0 - e)
+            else:
+                return JaxRDDLCompiler._jax_unary(jax_expr, jnp.logical_not)
         
         elif n == 2:
             lhs, rhs = args
@@ -420,6 +444,12 @@ class JaxRDDLCompiler:
                 'Aggregation operator {} is not supported: must be one of {}.'.format(
                     op, OPS.keys()) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+        
+        if self.enforce_diff:
+            warnings.warn(
+                'enforce_diff=True: aggregation operator(s) {} will be treated as arithmetic.'.format(
+                    OPS.keys()),
+                FutureWarning, stacklevel=2)
             
         * pvars, arg = expr.args
         pvars = list(map(lambda p: p[1], pvars))        
@@ -501,6 +531,12 @@ class JaxRDDLCompiler:
                     op, {'if'}) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
+        enforce_diff = self.enforce_diff
+        if enforce_diff:
+            warnings.warn(
+                'enforce_diff=True: float predicate(s) will be checked against 0.5.',
+                FutureWarning, stacklevel=2)
+        
         pred, if_true, if_false = expr.args
         
         jax_pred = self._jax(pred, params)
@@ -509,6 +545,8 @@ class JaxRDDLCompiler:
         
         def _f(x, key):
             val1, key, err1 = jax_pred(x, key)
+            if enforce_diff:
+                val1 = jnp.greater(val1, 0.5)
             val2, key, err2 = jax_true(x, key)
             val3, key, err3 = jax_false(x, key)
             sample = jnp.where(val1, val2, val3)
@@ -546,11 +584,14 @@ class JaxRDDLCompiler:
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         
     def _jax_kron(self, expr, params):
+        if self.enforce_diff:
+            warnings.warn(
+                'enforce_diff=True: KronDelta distribution(s) will be ignored.',
+                FutureWarning, stacklevel=2)
+            
         arg, = expr.args
         arg = self._jax(arg, params)
-        if self.enforce_diff:
-            warnings.warn('KronDelta will be ignored.')
-        else:
+        if not self.enforce_diff:
             arg = JaxRDDLCompiler._jax_cast(arg, bool)
         return arg
     
@@ -664,7 +705,7 @@ class JaxRDDLCompiler:
         # no reparameterization so far
         if self.enforce_diff:
             raise RDDLNotImplementedError(
-                'No reparameterization is implemented for Poisson.' + 
+                'enforce_diff=True: No reparameterization is implemented for Poisson.' + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
         expr_rate, = expr.args
@@ -687,7 +728,7 @@ class JaxRDDLCompiler:
         # no reparameterization so far
         if self.enforce_diff:
             raise RDDLNotImplementedError(
-                'No reparameterization is implemented for Gamma.' + 
+                'enforce_diff=True: No reparameterization is implemented for Gamma.' + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
         expr_shape, expr_scale = expr.args
