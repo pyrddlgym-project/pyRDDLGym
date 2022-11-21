@@ -96,14 +96,14 @@ class JaxRDDLSimulator(RDDLSimulator):
     def _print_stack_trace(expr, subs, key):
         return str(jax.make_jaxpr(expr)(subs, key))
     
-    def handle_error_code(self, code, aux_str):
-        code = reversed(bin(code)[2:])
+    def handle_error_code(self, error, aux_str):
         errors = [JaxRDDLCompiler.INVERSE_ERROR_CODES[i]
-                  for i, c in enumerate(code) if c == '1']
+                  for i in JaxRDDLCompiler.get_error_codes(error)]
         if errors:
-            error_message = 'Internal error(s) returned from Jax evaluation of {}:\n'.format(
-                    aux_str) + '\n'.join(
-                        '{}. {}'.format(i + 1, s) for i, s in enumerate(errors))
+            error_list = '\n'.join('{}. {}'.format(i + 1, s) for i, s in enumerate(errors))
+            error_message = 'Internal error(s) returned ' + \
+                            'during evaluation of {}:\n'.format(aux_str) + \
+                            error_list
             if self.soft:
                 warnings.warn(error_message, FutureWarning, stacklevel=2)
             else:
