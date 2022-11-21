@@ -41,9 +41,8 @@ def main():
     if DO_PLAN:
         
         planner = JaxRDDLStraightlinePlanner(ast, key, 20, 2048)
-        print('step loss')
-        for step, _, loss in planner.optimize(100):
-            print('{} {}'.format(str(step).rjust(4), loss))
+        for step, _, loss, err in planner.optimize(100):
+            print('step={} loss={} err={}'.format(str(step).rjust(4), loss, err))
     
     else:
         

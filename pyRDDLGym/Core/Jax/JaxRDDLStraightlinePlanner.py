@@ -1,3 +1,4 @@
+import numpy as np
 import jax
 import jax.numpy as jnp
 import optax
@@ -24,29 +25,75 @@ class JaxRDDLStraightlinePlanner:
         
         subs = self.sim.subs
         cpfs = self.sim.cpfs
+        invariants = self.sim.invariants
         reward_fn = self.sim.reward
         primed_unprimed = self.sim.state_unprimed
         
+        # plan initialization
+        action_types, self.action_shapes = {}, {}
+        for pvar in rddl.domain.action_fluents.values():
+            aname = pvar.name       
+            action_types[aname] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
+            ashape = (n_steps,)
+            avalue = subs[aname]
+            if hasattr(avalue, 'shape'):
+                ashape = ashape + avalue.shape
+            self.action_shapes[aname] = ashape
+    
         # perform one step of a roll-out
+        ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVARIANT_NOT_SATISFIED']
+        
         def _step(carry, actions):
-            x, key = carry
+            x, key, err = carry
             x.update(actions)
+            
+            # calculate all the CPFs (e.g., s') and r(s, a, s') in order
             for name, cpf_fn in cpfs.items():
-                x[name], key, _ = cpf_fn(x, key)
-            reward, key, _ = reward_fn(x, key)
+                x[name], key, cpf_err = cpf_fn(x, key)
+                err |= cpf_err
+            reward, key, rew_err = reward_fn(x, key)
+            err |= rew_err
+            
+            # check invariants
+            valid_state = True
+            for cpf_fn in invariants:
+                satisfied, key, cpf_err = cpf_fn(x, key)
+                err |= cpf_err
+                valid_state &= satisfied            
+            err |= jnp.logical_not(valid_state) * ERR_CODE
+            
+            # set s <- s'
             for primed, unprimed in primed_unprimed.items():
                 x[unprimed] = x[primed]
-            carry = (x, key)
-            return carry, reward
-                    
+                
+            return (x, key, err), reward
+        
         # perform a single roll-out
+        def _process_action(action, action_type):
+            if action_type == JaxRDDLCompiler.REAL:
+                return action
+            elif action_type == JaxRDDLCompiler.INT:
+                return jnp.asarray(action, dtype=JaxRDDLCompiler.REAL)
+            else:
+                return jax.nn.sigmoid(action)
+            
         def _rollout(plan, x0, key):
             x0 = x0.copy()
+            
+            # process action fluent by type
+            for name, action_type in action_types.items():
+                x0[name] = _process_action(x0[name], action_type)
+                
+            # set s' <- s            
             for primed, unprimed in primed_unprimed.items():
                 x0[primed] = x0[unprimed]
-            (x, key), rewards = jax.lax.scan(_step, (x0, key), plan)
-            sum_reward = jnp.sum(rewards)
-            return sum_reward, x, key
+                
+            # unroll the time horizon
+            err = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+            (x, key, err), rewards = jax.lax.scan(_step, (x0, key, err), plan)
+            cuml_reward = jnp.sum(rewards)
+            
+            return cuml_reward, x, key, err
         
         # do a batch of roll-outs
         def _batched(value):
@@ -57,45 +104,42 @@ class JaxRDDLStraightlinePlanner:
         def _batched_rollouts(plan, key):
             x_batch = jax.tree_map(_batched, subs)
             keys = jax.random.split(key, num=n_batch)
-            sum_rewards, x_batch, keys = jax.vmap(
+            returns, x_batch, keys, errs = jax.vmap(
                 _rollout, in_axes=(None, 0, 0))(plan, x_batch, keys)
             key = keys[-1]
-            return sum_rewards, x_batch, key
+            return returns, x_batch, key, errs
         
         # aggregate all sampled returns
         def _loss(plan, key):
-            sum_rewards, _, key = _batched_rollouts(plan, key)
-            loss_value = -agg_fn(sum_rewards)
-            return loss_value, key
+            returns, _, key, errs = _batched_rollouts(plan, key)
+            loss_value = -agg_fn(returns)
+            return loss_value, (key, errs)
         
         # gradient descent update
         def _update(plan, key, opt_state):
-            grad, key = jax.grad(_loss, has_aux=True)(plan, key)
+            grad, (key, errs) = jax.grad(_loss, has_aux=True)(plan, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             plan = optax.apply_updates(plan, updates)       
-            return plan, key, opt_state
+            return plan, key, opt_state, errs
         
         self.loss = jax.jit(_loss)
         self.update = jax.jit(_update)
         
-        # plan initialization
-        self.action_shapes = {pvar.name: (n_steps,) + subs[pvar.name].shape
-                              for pvar in rddl.domain.action_fluents.values()}
-    
     def optimize(self, n_epochs: int):
         ''' Compute an optimal straight-line plan for the RDDL domain and instance.
         
         @param n_epochs: the maximum number of steps of gradient descent
         '''
         key = self.key
-        plan = {action: self.init(key, shape, JaxRDDLCompiler.REAL) 
-                for action, shape in self.action_shapes.items()}
+        plan = {action: self.init(key, ashape, dtype=JaxRDDLCompiler.REAL) 
+                for action, ashape in self.action_shapes.items()}
         opt_state = self.opt.init(plan)
-        
+
         for step in range(n_epochs):
-            plan, key, opt_state = self.update(plan, key, opt_state)
-            loss_val, key = self.loss(plan, key)
-            yield step, plan, loss_val
+            plan, key, opt_state, _ = self.update(plan, key, opt_state)
+            loss_val, (key, errs) = self.loss(plan, key)
+            errs = JaxRDDLCompiler.get_error_codes(np.bitwise_or.reduce(errs))
+            yield step, plan, loss_val, errs
             
-        yield n_epochs, plan, loss_val
+        yield n_epochs, plan, loss_val, errs
         
