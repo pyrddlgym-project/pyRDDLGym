@@ -110,7 +110,7 @@ class JaxRDDLStraightlinePlanner:
         
         # gradient descent update
         def _update(plan, key, opt_state):
-            grad, (key, errs) = jax.grad(_loss, has_aux=True, allow_int=True)(plan, key)
+            grad, (key, errs) = jax.grad(_loss, has_aux=True)(plan, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             plan = optax.apply_updates(plan, updates)       
             return plan, key, opt_state, errs

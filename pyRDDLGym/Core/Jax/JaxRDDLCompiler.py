@@ -38,6 +38,7 @@ class JaxRDDLCompiler:
                 name = name + '\''
                 self.states[name] = pvar.name
             self.pvars[name] = [] if pvar.param_types is None else pvar.param_types
+            
             if self.enforce_diff:
                 self.pvar_ranges[name] = JaxRDDLCompiler.REAL
                 if pvar.range != 'real':
@@ -350,18 +351,24 @@ class JaxRDDLCompiler:
         
     # logical expressions    
     LOGICAL_OPS = {
-        '^': jnp.logical_and,
-        '|': jnp.logical_or,
-        '~': jnp.logical_xor,
-        '=>': lambda e1, e2: jnp.logical_or(jnp.logical_not(e1), e2),
-        '<=>': jnp.equal
+        False: {
+            '^': jnp.logical_and,
+            '|': jnp.logical_or,
+            '~': jnp.logical_xor,
+            '=>': lambda e1, e2: jnp.logical_or(jnp.logical_not(e1), e2),
+            '<=>': jnp.equal
+        },
+        True: {
+            '^': jnp.minimum,
+            '|': jnp.maximum
+        }
     }
-    
+        
     def _jax_logical(self, expr, op, params):
-        if op not in JaxRDDLCompiler.LOGICAL_OPS:
+        OPS = JaxRDDLCompiler.LOGICAL_OPS[self.enforce_diff]        
+        if op not in OPS:
             raise RDDLNotImplementedError(
-                'Logical operator {} is not supported: must be one of {}.'.format(
-                    op, JaxRDDLCompiler.LOGICAL_OPS) + 
+                'Logical operator {} is not supported: must be one of {}.'.format(op, OPS) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))       
         
         args = expr.args
@@ -376,7 +383,7 @@ class JaxRDDLCompiler:
             lhs, rhs = args
             jax_lhs = self._jax(lhs, params)
             jax_rhs = self._jax(rhs, params)
-            jax_op = JaxRDDLCompiler.LOGICAL_OPS[op]
+            jax_op = OPS[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
         raise RDDLInvalidNumberOfArgumentsError(
@@ -386,20 +393,32 @@ class JaxRDDLCompiler:
     
     # aggregations
     AGGREGATION_OPS = {
-        'sum': jnp.sum,
-        'avg': jnp.mean,
-        'prod': jnp.prod,
-        'min': jnp.min,
-        'max': jnp.max,
-        'forall': jnp.all,
-        'exists': jnp.any
+        False: {
+            'sum': jnp.sum,
+            'avg': jnp.mean,
+            'prod': jnp.prod,
+            'min': jnp.min,
+            'max': jnp.max,
+            'forall': jnp.all,
+            'exists': jnp.any
+        },
+        True: {
+            'sum': jnp.sum,
+            'avg': jnp.mean,
+            'prod': jnp.prod,
+            'min': jnp.min,
+            'max': jnp.max,
+            'forall': jnp.min,
+            'exists': jnp.max
+        }
     }
     
     def _jax_aggregation(self, expr, op, params):
-        if op not in JaxRDDLCompiler.AGGREGATION_OPS:
+        OPS = JaxRDDLCompiler.AGGREGATION_OPS[self.enforce_diff]            
+        if op not in OPS:
             raise RDDLNotImplementedError(
                 'Aggregation operator {} is not supported: must be one of {}.'.format(
-                    op, JaxRDDLCompiler.AGGREGATION_OPS.keys()) + 
+                    op, OPS.keys()) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
         * pvars, arg = expr.args
@@ -408,7 +427,7 @@ class JaxRDDLCompiler:
         reduced_axes = tuple(range(len(params), len(new_params)))
         
         jax_expr = self._jax(arg, new_params)
-        jax_op = JaxRDDLCompiler.AGGREGATION_OPS[op]        
+        jax_op = OPS[op]        
         
         def _f(x, key):
             val, key, err = jax_expr(x, key)
