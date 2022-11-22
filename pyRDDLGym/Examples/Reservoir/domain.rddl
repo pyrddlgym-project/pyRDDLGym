@@ -31,8 +31,8 @@ domain reservoir {
 	
 	cpfs {
 		vaporated(?r) = (1.0 / 2.0) * sin[rlevel(?r) / BIGGESTMAXCAP] * rlevel(?r);
-		rlevel'(?r) = min[MAXCAP(?r), rlevel(?r) + RAIN(?r) - vaporated(?r) - min[max[0, flow(?r)], rlevel(?r)] 
-							+ sum_{?r2: id}[DOWNSTREAM(?r2,?r) * min[max[0, flow(?r)], rlevel(?r)]]];
+		rlevel'(?r) = min[MAXCAP(?r), rlevel(?r) + RAIN(?r) - vaporated(?r) - flow(?r) 
+							+ sum_{?r2: id}[DOWNSTREAM(?r2,?r) * flow(?r)]];
 	};
 	
 	reward = sum_{?r: id} [if (rlevel'(?r) >= LOW_BOUND(?r) ^ (rlevel'(?r) <= HIGH_BOUND(?r)))

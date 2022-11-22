@@ -12,28 +12,88 @@ from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
 
+class FuzzyLogic:
+    
+    def _and(self, a, b):
+        raise NotImplementedError
+    
+    def _forall(self, x):
+        raise NotImplementedError
+    
+    def _not(self, x):
+        return 1.0 - x
+    
+    def _or(self, a, b):
+        return self._not(self._and(self._not(a), self._not(b)))
+    
+    def _xor(self, a, b):
+        return self._and(self._or(a, b), self._not(self._and(a, b)))
+    
+    def _implies(self, a, b):
+        return self._or(self._not(a), b)
+    
+    def _exists(self, x):
+        return self._not(self._forall(self._not(x)))
+    
+
+class ProductLogic(FuzzyLogic):
+    
+    def _and(self, a, b):
+        return a * b
+
+    def _forall(self, x):
+        return jnp.prod(x)
+    
+    def _or(self, a, b):
+        return a + b - a * b
+    
+    def _implies(self, a, b):
+        return 1.0 - a * (1.0 - b)
+
+
+class MinimumLogic(FuzzyLogic):
+    
+    def _and(self, a, b):
+        return jnp.minimum(a, b)
+    
+    def _forall(self, x):
+        return jnp.min(x)
+    
+    def _or(self, a, b):
+        return jnp.maximum(a, b)
+    
+    def _exists(self, x):
+        return jnp.max(x)
+    
 
 class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
     
-    def _jax_relational(self, expr, op, params):
-        valid_ops = JaxRDDLBackpropCompiler.RELATIONAL_OPS
-        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)
-        JaxRDDLBackpropCompiler._check_num_args(expr, 2)
+    def __init__(self, rddl: RDDL, logic: FuzzyLogic=ProductLogic()) -> None:
+        super(JaxRDDLBackpropCompiler, self).__init__(rddl, allow_discrete=False)
         
-        warnings.warn('Relational operator {} will be converted to arithmetic.'.format(op), 
-                      FutureWarning, stacklevel=2)
-                    
-        lhs, rhs = expr.args
-        jax_lhs = self._jax(lhs, params)
-        jax_rhs = self._jax(rhs, params)
-        jax_op = valid_ops[op]
-        return JaxRDDLBackpropCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
+        self.LOGICAL_OPS = {
+            '^': logic._and,
+            '|': logic._or,
+            '~': logic._xor,
+            '=>': logic._implies,
+            '<=>': jnp.equal
+        }
+        self.LOGICAL_NOT = logic._not
+        self.AGGREGATION_OPS = {
+            'sum': jnp.sum,
+            'avg': jnp.mean,
+            'prod': jnp.prod,
+            'min': jnp.min,
+            'max': jnp.max,
+            'forall': logic._forall,
+            'exists': logic._exists
+        }
         
     def _jax_logical(self, expr, op, params):
-        valid_ops = JaxRDDLBackpropCompiler.LOGICAL_OPS    
+        valid_ops = self.LOGICAL_OPS    
         JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)     
         
-        warnings.warn('Logical operator {} will be converted to arithmetic.'.format(op), 
+        warnings.warn('Logical operator {} will be converted to arithmetic.'.format(op),
                       FutureWarning, stacklevel=2)
         
         args = expr.args
@@ -42,7 +102,7 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         if n == 1 and op == '~':
             arg, = args
             jax_expr = self._jax(arg, params)
-            return JaxRDDLBackpropCompiler._jax_unary(jax_expr, lambda e: 1.0 - e)
+            return JaxRDDLBackpropCompiler._jax_unary(jax_expr, self.LOGICAL_NOT)
             
         elif n == 2:
             lhs, rhs = args
@@ -57,7 +117,7 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         valid_ops = JaxRDDLBackpropCompiler.AGGREGATION_OPS       
         JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)    
         
-        warnings.warn('Aggregation operator {} will be converted to arithmetic.'.format(op), 
+        warnings.warn('Aggregation operator {} will be converted to arithmetic.'.format(op),
                       FutureWarning, stacklevel=2)
             
         * pvars, arg = expr.args
@@ -129,7 +189,7 @@ class JaxRDDLBackpropPlanner:
                  aggregation=jnp.mean) -> None:
         self.key = key
         
-        compiler = JaxRDDLBackpropCompiler(rddl, allow_discrete=False)
+        compiler = JaxRDDLBackpropCompiler(rddl)
         sim = JaxRDDLSimulator(compiler, key)
         subs = sim.subs
         cpfs = sim.cpfs
