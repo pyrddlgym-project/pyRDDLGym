@@ -1,3 +1,7 @@
+from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.Core.Parser.cpf import CPF
+
+
 class TreeNode:
     
     def __init__(self, etype, value, *args):
@@ -17,7 +21,7 @@ class TreeNode:
 
 class TreeBuilder:
     
-    def build_cpf(self, cpf):
+    def build_cpf(self, cpf: CPF) -> TreeNode:
         _, (name, params) = cpf.pvar
         value = name
         if params:
@@ -25,7 +29,7 @@ class TreeBuilder:
         arg = self.build_expr(cpf.expr)
         return TreeNode('cpf', value, arg)
         
-    def build_expr(self, expr):
+    def build_expr(self, expr: Expression) -> TreeNode:
         etype, _ = expr.etype        
         if etype == 'constant':
             return self._build_const(expr)                
@@ -94,11 +98,11 @@ class TreeBuilder:
 
 class RDDLDecompiler:
     
-    def decompile_cpf(self, cpf):
+    def decompile_cpf(self, cpf: CPF) -> str:
         tree = TreeBuilder().build_cpf(cpf)
         return self._decompile(tree, False, 0)
         
-    def decompile_expr(self, expr):
+    def decompile_expr(self, expr: Expression) -> str:
         tree = TreeBuilder().build_expr(expr)
         return self._decompile(tree, False, 0)
     
