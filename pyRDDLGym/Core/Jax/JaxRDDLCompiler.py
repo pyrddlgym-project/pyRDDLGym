@@ -51,6 +51,63 @@ class JaxRDDLCompiler:
                     warnings.warn('Variable <{}> of type {} will be cast to real.'.format(
                         name, ptype), FutureWarning, stacklevel=2)
             
+        # basic Jax operations
+        self.ARITHMETIC_OPS = {
+            '+': jnp.add,
+            '-': jnp.subtract,
+            '*': jnp.multiply,
+            '/': jnp.divide
+        }    
+        self.RELATIONAL_OPS = {
+            '>=': jnp.greater_equal,
+            '<=': jnp.less_equal,
+            '<': jnp.less,
+            '>': jnp.greater,
+            '==': jnp.equal,
+            '~=': jnp.not_equal
+        }
+        self.LOGICAL_NOT = jnp.logical_not
+        self.LOGICAL_OPS = {
+            '^': jnp.logical_and,
+            '|': jnp.logical_or,
+            '~': jnp.logical_xor,
+            '=>': lambda e1, e2: jnp.logical_or(jnp.logical_not(e1), e2),
+            '<=>': jnp.equal
+        }
+        self.AGGREGATION_OPS = {
+            'sum': jnp.sum,
+            'avg': jnp.mean,
+            'prod': jnp.prod,
+            'min': jnp.min,
+            'max': jnp.max,
+            'forall': jnp.all,
+            'exists': jnp.any  
+        }
+        self.KNOWN_UNARY = {        
+            'abs': jnp.abs,
+            'sgn': jnp.sign,
+            'round': jnp.round,
+            'floor': jnp.floor,
+            'ceil': jnp.ceil,
+            'cos': jnp.cos,
+            'sin': jnp.sin,
+            'tan': jnp.tan,
+            'acos': jnp.arccos,
+            'asin': jnp.arcsin,
+            'atan': jnp.arctan,
+            'cosh': jnp.cosh,
+            'sinh': jnp.sinh,
+            'tanh': jnp.tanh,
+            'exp': jnp.exp,
+            'ln': jnp.log,
+            'sqrt': jnp.sqrt
+        }        
+        self.KNOWN_BINARY = {
+            'min': jnp.minimum,
+            'max': jnp.maximum,
+            'pow': jnp.power
+        }
+    
     # start of compilation subroutines of RDDL programs 
     def compile(self) -> None:
         result = {'invariants': self._compile_invariants(),
@@ -61,17 +118,17 @@ class JaxRDDLCompiler:
         return result
         
     def _compile_invariants(self):
-        jax_invariants = [JaxRDDLCompiler._jax_cast(self._jax(expr, []), bool)
+        jax_invariants = [self._jax_cast(self._jax(expr, []), bool)
                           for expr in self.domain.invariants]
         return jax.tree_map(jax.jit, jax_invariants)
         
     def _compile_preconditions(self):
-        jax_preconds = [JaxRDDLCompiler._jax_cast(self._jax(expr, []), bool)
+        jax_preconds = [self._jax_cast(self._jax(expr, []), bool)
                         for expr in self.domain.preconds]
         return jax.tree_map(jax.jit, jax_preconds)
     
     def _compile_termination(self):
-        jax_terminals = [JaxRDDLCompiler._jax_cast(self._jax(expr, []), bool)
+        jax_terminals = [self._jax_cast(self._jax(expr, []), bool)
                          for expr in self.domain.terminals]
         return jax.tree_map(jax.jit, jax_terminals)
     
@@ -84,13 +141,13 @@ class JaxRDDLCompiler:
                 params = [] 
             pvar_inputs = self.pvars[name]
             params = [(p, pvar_inputs[i]) for i, p in enumerate(params)]
-            jax_cpfs[name] = JaxRDDLCompiler._jax_cast(
+            jax_cpfs[name] = self._jax_cast(
                 self._jax(expr, params), self.pvar_ranges[name])
         jit_cpfs = jax.tree_map(jax.jit, jax_cpfs)        
         return jax_cpfs, jit_cpfs
     
     def _compile_reward(self):
-        jax_reward = JaxRDDLCompiler._jax_cast(
+        jax_reward = self._jax_cast(
             self._jax(self.domain.reward, []), JaxRDDLCompiler.REAL)
         jit_reward = jax.jit(jax_reward)
         return jax_reward, jit_reward
@@ -179,8 +236,7 @@ class JaxRDDLCompiler:
                 'Internal error: type {} is not supported.'.format(expr) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
-    @staticmethod
-    def _jax_cast(jax_expr, dtype):
+    def _jax_cast(self, jax_expr, dtype):
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _f(x, key):
@@ -307,15 +363,8 @@ class JaxRDDLCompiler:
         
         return _f
         
-    ARITHMETIC_OPS = {
-        '+': jnp.add,
-        '-': jnp.subtract,
-        '*': jnp.multiply,
-        '/': jnp.divide
-    }
-    
     def _jax_arithmetic(self, expr, op, params):
-        valid_ops = JaxRDDLCompiler.ARITHMETIC_OPS
+        valid_ops = self.ARITHMETIC_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
                     
         args = expr.args
@@ -336,17 +385,8 @@ class JaxRDDLCompiler:
         JaxRDDLCompiler._check_num_args(expr, 2)
     
     # relational expressions
-    RELATIONAL_OPS = {
-        '>=': jnp.greater_equal,
-        '<=': jnp.less_equal,
-        '<': jnp.less,
-        '>': jnp.greater,
-        '==': jnp.equal,
-        '~=': jnp.not_equal
-    }
-    
     def _jax_relational(self, expr, op, params):
-        valid_ops = JaxRDDLCompiler.RELATIONAL_OPS
+        valid_ops = self.RELATIONAL_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
         JaxRDDLCompiler._check_num_args(expr, 2)
         
@@ -356,17 +396,9 @@ class JaxRDDLCompiler:
         jax_op = valid_ops[op]
         return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
-    # logical expressions    
-    LOGICAL_OPS = {
-        '^': jnp.logical_and,
-        '|': jnp.logical_or,
-        '~': jnp.logical_xor,
-        '=>': lambda e1, e2: jnp.logical_or(jnp.logical_not(e1), e2),
-        '<=>': jnp.equal
-    }
-        
+    # logical expressions         
     def _jax_logical(self, expr, op, params):
-        valid_ops = JaxRDDLCompiler.LOGICAL_OPS    
+        valid_ops = self.LOGICAL_OPS    
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
                 
         args = expr.args
@@ -375,7 +407,7 @@ class JaxRDDLCompiler:
         if n == 1 and op == '~':
             arg, = args
             jax_expr = self._jax(arg, params)
-            return JaxRDDLCompiler._jax_unary(jax_expr, jnp.logical_not)
+            return JaxRDDLCompiler._jax_unary(jax_expr, self.LOGICAL_NOT)
         
         elif n == 2:
             lhs, rhs = args
@@ -386,19 +418,9 @@ class JaxRDDLCompiler:
         
         JaxRDDLCompiler._check_num_args(expr, 2)
     
-    # aggregations
-    AGGREGATION_OPS = {
-        'sum': jnp.sum,
-        'avg': jnp.mean,
-        'prod': jnp.prod,
-        'min': jnp.min,
-        'max': jnp.max,
-        'forall': jnp.all,
-        'exists': jnp.any  
-    }
-    
+    # aggregations    
     def _jax_aggregation(self, expr, op, params):
-        valid_ops = JaxRDDLCompiler.AGGREGATION_OPS      
+        valid_ops = self.AGGREGATION_OPS      
         JaxRDDLCompiler._check_valid_op(expr, valid_ops) 
         
         * pvars, arg = expr.args
@@ -417,46 +439,20 @@ class JaxRDDLCompiler:
         return _f
                  
     # functions
-    KNOWN_UNARY = {        
-        'abs': jnp.abs,
-        'sgn': jnp.sign,
-        'round': jnp.round,
-        'floor': jnp.floor,
-        'ceil': jnp.ceil,
-        'cos': jnp.cos,
-        'sin': jnp.sin,
-        'tan': jnp.tan,
-        'acos': jnp.arccos,
-        'asin': jnp.arcsin,
-        'atan': jnp.arctan,
-        'cosh': jnp.cosh,
-        'sinh': jnp.sinh,
-        'tanh': jnp.tanh,
-        'exp': jnp.exp,
-        'ln': jnp.log,
-        'sqrt': jnp.sqrt
-    }
-    
-    KNOWN_BINARY = {
-        'min': jnp.minimum,
-        'max': jnp.maximum,
-        'pow': jnp.power
-    }
-    
     def _jax_functional(self, expr, op, params): 
-        if op in JaxRDDLCompiler.KNOWN_UNARY:
+        if op in self.KNOWN_UNARY:
             JaxRDDLCompiler._check_num_args(expr, 1)                            
             arg, = expr.args
             jax_expr = self._jax(arg, params)
-            jax_op = JaxRDDLCompiler.KNOWN_UNARY[op]
+            jax_op = self.KNOWN_UNARY[op]
             return JaxRDDLCompiler._jax_unary(jax_expr, jax_op)
             
-        elif op in JaxRDDLCompiler.KNOWN_BINARY:
+        elif op in self.KNOWN_BINARY:
             JaxRDDLCompiler._check_num_args(expr, 2)                
             lhs, rhs = expr.args
             jax_lhs = self._jax(lhs, params)
             jax_rhs = self._jax(rhs, params)
-            jax_op = JaxRDDLCompiler.KNOWN_BINARY[op]
+            jax_op = self.KNOWN_BINARY[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
         raise RDDLNotImplementedError(
@@ -516,14 +512,14 @@ class JaxRDDLCompiler:
         JaxRDDLCompiler._check_num_args(expr, 1)
         arg, = expr.args
         arg = self._jax(arg, params)
-        arg = JaxRDDLCompiler._jax_cast(arg, bool)
+        arg = self._jax_cast(arg, bool)
         return arg
     
     def _jax_dirac(self, expr, params):
         JaxRDDLCompiler._check_num_args(expr, 1)
         arg, = expr.args
         arg = self._jax(arg, params)
-        arg = JaxRDDLCompiler._jax_cast(arg, JaxRDDLCompiler.REAL)
+        arg = self._jax_cast(arg, JaxRDDLCompiler.REAL)
         return arg
     
     def _jax_uniform(self, expr, params):

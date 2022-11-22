@@ -90,57 +90,23 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         }
         
     def _jax_logical(self, expr, op, params):
-        valid_ops = self.LOGICAL_OPS    
-        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)     
-        
         warnings.warn('Logical operator {} will be converted to arithmetic.'.format(op),
                       FutureWarning, stacklevel=2)
         
-        args = expr.args
-        n = len(args)
-        
-        if n == 1 and op == '~':
-            arg, = args
-            jax_expr = self._jax(arg, params)
-            return JaxRDDLBackpropCompiler._jax_unary(jax_expr, self.LOGICAL_NOT)
-            
-        elif n == 2:
-            lhs, rhs = args
-            jax_lhs = self._jax(lhs, params)
-            jax_rhs = self._jax(rhs, params)
-            jax_op = valid_ops[op]
-            return JaxRDDLBackpropCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
-        
-        JaxRDDLBackpropCompiler._check_num_args(expr, 2)
+        return super(JaxRDDLBackpropCompiler, self)._jax_logical(expr, op, params)
     
     def _jax_aggregation(self, expr, op, params):
-        valid_ops = JaxRDDLBackpropCompiler.AGGREGATION_OPS       
-        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)    
-        
         warnings.warn('Aggregation operator {} will be converted to arithmetic.'.format(op),
                       FutureWarning, stacklevel=2)
-            
-        * pvars, arg = expr.args
-        pvars = list(map(lambda p: p[1], pvars))  
-        new_params = params + pvars
-        reduced_axes = tuple(range(len(params), len(new_params)))
         
-        jax_expr = self._jax(arg, new_params)
-        jax_op = valid_ops[op]        
+        return super(JaxRDDLBackpropCompiler, self)._jax_aggregation(expr, op, params)
         
-        def _f(x, key):
-            val, key, err = jax_expr(x, key)
-            sample = jax_op(val, axis=reduced_axes)
-            return sample, key, err
-        
-        return _f
-
     def _jax_control(self, expr, op, params):
         valid_ops = {'if'}
         JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)
         JaxRDDLBackpropCompiler._check_num_args(expr, 3)
         
-        warnings.warn('Predicate(s) will be replaced by comparison(s) to 0.5.',
+        warnings.warn('Predicate will be replaced with a comparison to 0.5.',
                       FutureWarning, stacklevel=2)
         
         pred, if_true, if_false = expr.args        
