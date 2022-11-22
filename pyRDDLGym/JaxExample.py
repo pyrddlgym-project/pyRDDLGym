@@ -20,7 +20,7 @@ ENV = 'UAV continuous'
 #ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 #ENV = 'Elevators'
-ENV = 'Reservoir'
+ENV = 'Wildfire'
 # ENV = 'RecSim'
 
 DO_PLAN = True
@@ -40,8 +40,8 @@ def main():
     key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
     if DO_PLAN:
         
-        planner = JaxRDDLBackpropPlanner(ast, key, 20, 64, 
-                                         optimizer=optax.adam(0.5),
+        planner = JaxRDDLBackpropPlanner(ast, key, 100, 512, 
+                                         optimizer=optax.rmsprop(0.03),
                                          initializer=jax.nn.initializers.normal())
         for callback in planner.optimize(500):
             print('step={} loss={:.4f} best_loss={:.4f} err={}'.format(
