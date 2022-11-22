@@ -17,9 +17,6 @@ class FuzzyLogic:
     def _and(self, a, b):
         raise NotImplementedError
     
-    def _forall(self, x):
-        raise NotImplementedError
-    
     def _not(self, x):
         return 1.0 - x
     
@@ -32,8 +29,14 @@ class FuzzyLogic:
     def _implies(self, a, b):
         return self._or(self._not(a), b)
     
-    def _exists(self, x):
-        return self._not(self._forall(self._not(x)))
+    def _forall(self, x, axis=None):
+        raise NotImplementedError
+    
+    def _exists(self, x, axis=None):
+        return self._not(self._forall(self._not(x), axis=axis))
+    
+    def _if_then_else(self, p, a, b):
+        raise NotImplementedError
     
 
 class ProductLogic(FuzzyLogic):
@@ -41,14 +44,17 @@ class ProductLogic(FuzzyLogic):
     def _and(self, a, b):
         return a * b
 
-    def _forall(self, x):
-        return jnp.prod(x)
-    
     def _or(self, a, b):
         return a + b - a * b
     
     def _implies(self, a, b):
         return 1.0 - a * (1.0 - b)
+
+    def _forall(self, x, axis=None):
+        return jnp.prod(x, axis=axis)
+    
+    def _if_then_else(self, p, a, b):
+        return p * a + (1.0 - p) * b
 
 
 class MinimumLogic(FuzzyLogic):
@@ -56,15 +62,18 @@ class MinimumLogic(FuzzyLogic):
     def _and(self, a, b):
         return jnp.minimum(a, b)
     
-    def _forall(self, x):
-        return jnp.min(x)
-    
     def _or(self, a, b):
         return jnp.maximum(a, b)
     
-    def _exists(self, x):
-        return jnp.max(x)
+    def _forall(self, x, axis=None):
+        return jnp.min(x, axis=axis)
     
+    def _exists(self, x, axis=None):
+        return jnp.max(x, axis=axis)
+    
+    def _if_then_else(self, p, a, b):
+        return p * a + (1.0 - p) * b
+
 
 class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
     
@@ -88,15 +97,16 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
             'forall': logic._forall,
             'exists': logic._exists
         }
+        self.IF_THEN_ELSE = logic._if_then_else
         
     def _jax_logical(self, expr, op, params):
-        warnings.warn('Logical operator {} will be converted to arithmetic.'.format(op),
+        warnings.warn('Logical operator {} will be converted to fuzzy variant.'.format(op),
                       FutureWarning, stacklevel=2)
         
         return super(JaxRDDLBackpropCompiler, self)._jax_logical(expr, op, params)
     
     def _jax_aggregation(self, expr, op, params):
-        warnings.warn('Aggregation operator {} will be converted to arithmetic.'.format(op),
+        warnings.warn('Aggregation operator {} will be converted to fuzzy variant.'.format(op),
                       FutureWarning, stacklevel=2)
         
         return super(JaxRDDLBackpropCompiler, self)._jax_aggregation(expr, op, params)
@@ -106,31 +116,30 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)
         JaxRDDLBackpropCompiler._check_num_args(expr, 3)
         
-        warnings.warn('Predicate will be replaced with a comparison to 0.5.',
+        warnings.warn('If statement will be converted to fuzzy variant.',
                       FutureWarning, stacklevel=2)
-        
+                
         pred, if_true, if_false = expr.args        
         jax_pred = self._jax(pred, params)
         jax_true = self._jax(if_true, params)
         jax_false = self._jax(if_false, params)
         
+        if_then_else = self.IF_THEN_ELSE
+        
         def _f(x, key):
             val1, key, err1 = jax_pred(x, key)
-            val1 = jnp.greater(val1, 0.5)
             val2, key, err2 = jax_true(x, key)
             val3, key, err3 = jax_false(x, key)
-            sample = jnp.where(val1, val2, val3)
+            sample = if_then_else(val1, val2, val3)
             err = err1 | err2 | err3
             return sample, key, err
             
         return _f
 
     def _jax_kron(self, expr, params):
-        warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)    
-        
+        warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)            
         arg, = expr.args
-        arg = self._jax(arg, params)
-        return arg
+        return self._jax(arg, params)
     
     def _jax_poisson(self, expr, params):
         raise RDDLNotImplementedError(
