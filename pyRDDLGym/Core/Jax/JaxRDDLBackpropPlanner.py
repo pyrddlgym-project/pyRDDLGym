@@ -155,16 +155,18 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
 class JaxRDDLBackpropPlanner:
     
     def __init__(self,
-                 rddl: RDDL,
+                 rddl: RDDL, 
                  key: jax.random.PRNGKey,
                  n_steps: int,
                  n_batch: int,
+                 action_bounds: Dict={},
                  initializer: jax.nn.initializers.Initializer=jax.nn.initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.adam(0.1),
-                 aggregation=jnp.mean) -> None:
+                 aggregation=jnp.mean,
+                 logic: FuzzyLogic=ProductLogic()) -> None:
         self.key = key
         
-        compiler = JaxRDDLBackpropCompiler(rddl)
+        compiler = JaxRDDLBackpropCompiler(rddl, logic=logic)
         sim = JaxRDDLSimulator(compiler, key)
         subs = sim.subs
         cpfs = sim.cpfs
@@ -218,18 +220,33 @@ class JaxRDDLBackpropPlanner:
             
             return cuml_reward, x, key, err
         
-        # force action ranges         
+        # force action ranges     
+        finite_action_bounds = {}
+        for name, bounds in action_bounds.items():
+            lb, ub = bounds
+            if np.isfinite(lb) and np.isfinite(ub) and lb <= ub:
+                finite_action_bounds[name] = bounds
+        
         def _force_action_ranges(plan):
             new_plan = {}
-            for name, value in plan.items():
+            for name, action in plan.items():
                 atype, _ = action_info[name]
-                if atype == JaxRDDLBackpropCompiler.INT:
-                    new_plan[name] = jnp.asarray(
-                        value, dtype=JaxRDDLBackpropCompiler.REAL)
-                elif atype == bool:
-                    new_plan[name] = jax.nn.sigmoid(value)
+                
+                # coerce action to the right type
+                if atype == bool:
+                    new_action = jax.nn.sigmoid(action)
+                elif atype == JaxRDDLBackpropCompiler.INT:
+                    new_action = jnp.asarray(
+                        action, dtype=JaxRDDLBackpropCompiler.REAL)
                 else:
-                    new_plan[name] = value
+                    new_action = action
+                
+                # bound actions to the desired range
+                if atype != bool and name in finite_action_bounds:
+                    lb, ub = finite_action_bounds[name]
+                    new_action = lb + (ub - lb) * jax.nn.sigmoid(new_action)
+                    
+                new_plan[name] = new_action
             return new_plan
         
         self.force_action_ranges = jax.jit(_force_action_ranges)
