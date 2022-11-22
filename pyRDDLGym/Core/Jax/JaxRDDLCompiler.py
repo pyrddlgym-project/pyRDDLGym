@@ -1,3 +1,4 @@
+import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
@@ -5,6 +6,7 @@ import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
@@ -20,37 +22,18 @@ class JaxRDDLCompiler:
         'bool': bool
     }
     
+    DEFAULT_VALUES = {
+        'int': 0,
+        'real': 0.0,
+        'bool': False
+    }
+    
     def __init__(self, rddl: RDDL, allow_discrete: bool=True) -> None:
         self.rddl = rddl
         self.domain = rddl.domain
+        self.instance = rddl.instance
         self.allow_discrete = allow_discrete
         
-        # extract object types and their objects
-        self.objects = {}
-        for obj, values in rddl.non_fluents.objects:
-            self.objects[obj] = dict(zip(values, range(len(values))))
-        
-        # extract the parameters required for each pvariable
-        self.pvars, self.states, self.pvar_ranges = {}, {}, {}
-        for pvar in rddl.domain.pvariables:
-            name = pvar.name
-            ptype = pvar.range
-            params = pvar.param_types
-            
-            if pvar.fluent_type == 'state-fluent':
-                name = name + '\''
-                self.states[name] = pvar.name
-                
-            self.pvars[name] = [] if params is None else params
-            
-            if allow_discrete:
-                self.pvar_ranges[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[ptype]
-            else:
-                self.pvar_ranges[name] = JaxRDDLCompiler.REAL
-                if ptype != 'real':
-                    warnings.warn('Variable <{}> of type {} will be cast to real.'.format(
-                        name, ptype), FutureWarning, stacklevel=2)
-            
         # basic Jax operations
         self.ARITHMETIC_OPS = {
             '+': jnp.add,
@@ -107,16 +90,106 @@ class JaxRDDLCompiler:
             'max': jnp.maximum,
             'pow': jnp.power
         }
+        self.CONTROL_OPS = {
+            'if': jnp.where
+        }
     
-    # start of compilation subroutines of RDDL programs 
     def compile(self) -> None:
-        result = {'invariants': self._compile_invariants(),
-                  'preconds': self._compile_preconditions(),
-                  'terminals': self._compile_termination(),
-                  'reward': self._compile_reward(),
-                  'cpfs': self._compile_cpfs()}
-        return result
+        self.objects, self.states, self.pvars, self.pvar_types = self._compile_objects()        
+        self.init_values, self.horizon, self.discount = self._compile_instance()
         
+        self.invariants = self._compile_invariants()
+        self.preconditions = self._compile_preconditions()
+        self.termination = self._compile_termination()
+        self.reward = self._compile_reward()
+        self.cpfs = self._compile_cpfs()
+        
+        self.state_unprimed = {cpf: self.states.get(cpf, cpf) for cpf in self.cpfs[0].keys()}
+        
+        return self
+    
+    # compile RDDL files
+    def _compile_objects(self):
+        objects = {}
+        for obj, values in self.rddl.non_fluents.objects:
+            objects[obj] = dict(zip(values, range(len(values))))
+        
+        states, pvars, pvar_types = {}, {}, {}
+        for pvar in self.domain.pvariables:
+            name = pvar.name
+            ptype = pvar.range
+            params = pvar.param_types
+            
+            if pvar.fluent_type == 'state-fluent':
+                name = name + '\''
+                states[name] = pvar.name
+                
+            pvars[name] = [] if params is None else params
+            
+            if self.allow_discrete:
+                pvar_types[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[ptype]
+            else:
+                pvar_types[name] = JaxRDDLCompiler.REAL
+                if ptype != 'real':
+                    warnings.warn('Variable <{}> of type {} will be cast to real.'.format(
+                        name, ptype), FutureWarning, stacklevel=2)
+                    
+        return objects, states, pvars, pvar_types
+    
+    def _compile_instance(self):
+        object_lookup = {}        
+        for obj, values in self.rddl.non_fluents.objects:
+            object_lookup.update(zip(values, [obj] * len(values)))  
+        
+        # initialize values with default
+        init_values = {}
+        for pvar in self.domain.pvariables:
+            name = pvar.name
+            params = pvar.param_types
+            ptype = pvar.range
+            
+            value = pvar.default
+            if value is None:
+                value = JaxRDDLCompiler.DEFAULT_VALUES[ptype]
+            if not self.allow_discrete:
+                value = float(value)
+                ptype = 'real'
+            
+            if params is None:
+                init_values[name] = value              
+            else: 
+                init_values[name] = np.full(
+                    shape=tuple(len(self.objects[p]) for p in params),
+                    fill_value=value,
+                    dtype=JaxRDDLCompiler.RDDL_TO_JAX_TYPE[ptype])
+        
+        # override values with instance
+        if hasattr(self.instance, 'init_state'):
+            for (name, params), value in self.instance.init_state:
+                if params is not None:
+                    coords = tuple(self.objects[object_lookup[p]][p] for p in params)
+                    init_values[name][coords] = value   
+        
+        if hasattr(self.rddl.non_fluents, 'init_non_fluent'):
+            for (name, params), value in self.rddl.non_fluents.init_non_fluent:
+                if params is not None:
+                    coords = tuple(self.objects[object_lookup[p]][p] for p in params)
+                    init_values[name][coords] = value   
+        
+        # other constants from instance      
+        horizon = self.instance.horizon
+        if not (horizon > 0):
+            raise RDDLValueOutOfRangeError(
+                'Horizon {} in the instance is not > 0.'.format(horizon))
+            
+        gamma = self.instance.discount
+        if not (0 <= gamma <= 1):
+            raise RDDLValueOutOfRangeError(
+                'Discount {} in the instance is not in [0, 1].'.format(gamma))
+        
+        return init_values, horizon, gamma
+        
+    # compile Jax expressions
     def _compile_invariants(self):
         jax_invariants = [self._jax_cast(self._jax(expr, []), bool)
                           for expr in self.domain.invariants]
@@ -142,7 +215,16 @@ class JaxRDDLCompiler:
             pvar_inputs = self.pvars[name]
             params = [(p, pvar_inputs[i]) for i, p in enumerate(params)]
             jax_cpfs[name] = self._jax_cast(
-                self._jax(expr, params), self.pvar_ranges[name])
+                self._jax(expr, params), self.pvar_types[name])
+        
+        # TODO: implement topological sort
+        cpf_order = self.domain.derived_cpfs + \
+                    self.domain.intermediate_cpfs + \
+                    self.domain.state_cpfs + \
+                    self.domain.observation_cpfs 
+        cpf_order = [cpf.pvar[1][0] for cpf in cpf_order]
+        jax_cpfs = {name: jax_cpfs[name] for name in cpf_order}
+        
         jit_cpfs = jax.tree_map(jax.jit, jax_cpfs)        
         return jax_cpfs, jit_cpfs
     
@@ -204,6 +286,12 @@ class JaxRDDLCompiler:
         binary = reversed(bin(error)[2:])
         errors = [i for i, c in enumerate(binary) if c == '1']
         return errors
+    
+    @staticmethod
+    def get_error_messages(error):
+        codes = JaxRDDLCompiler.get_error_codes(error)
+        messages = [JaxRDDLCompiler.INVERSE_ERROR_CODES[i] for i in codes]
+        return messages
     
     # start of compilation subroutines for expressions
     def _jax(self, expr, params):
@@ -461,7 +549,7 @@ class JaxRDDLCompiler:
     
     # control flow
     def _jax_control(self, expr, op, params):
-        valid_ops = {'if'}
+        valid_ops = self.CONTROL_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
         JaxRDDLCompiler._check_num_args(expr, 3)
         
@@ -470,11 +558,13 @@ class JaxRDDLCompiler:
         jax_true = self._jax(if_true, params)
         jax_false = self._jax(if_false, params)
         
+        jax_op = self.CONTROL_OPS[op]
+        
         def _f(x, key):
             val1, key, err1 = jax_pred(x, key)
             val2, key, err2 = jax_true(x, key)
             val3, key, err3 = jax_false(x, key)
-            sample = jnp.where(val1, val2, val3)
+            sample = jax_op(val1, val2, val3)
             err = err1 | err2 | err3
             return sample, key, err
             
@@ -663,3 +753,4 @@ class JaxRDDLCompiler:
         
         return _f
             
+    

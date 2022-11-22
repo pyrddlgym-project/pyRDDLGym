@@ -1,5 +1,4 @@
 import jax
-import numpy as np
 from typing import Dict
 import warnings
 
@@ -8,98 +7,35 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionErro
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Parser.expr import Value
+from pyRDDLGym.Core.Parser.rddl import RDDL
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 Args = Dict[str, Value]
 
 
 class JaxRDDLSimulator(RDDLSimulator):
-    
-    DEFAULT_VALUES = {
-        'int': 0,
-        'real': 0.0,
-        'bool': False
-    }
-    
-    def __init__(self, 
-                 compiled_rddl: JaxRDDLCompiler,
-                 key: jax.random.PRNGKey,
-                 soft_error: bool=True) -> None:
-        self.rddl = compiled_rddl.rddl
+        
+    def __init__(self, rddl: RDDL, key: jax.random.PRNGKey, soft: bool=True) -> None:
+        self.rddl = rddl
         self.key = key
-        self.soft = soft_error
+        self.soft = soft
         
-        # compile Jax program
-        data = compiled_rddl.compile()        
-        self.invariants = data['invariants']
-        self.preconds = data['preconds']
-        self.terminals = data['terminals']
-        _, self.reward = data['reward']
-        _, self.cpfs = data['cpfs']
-        
-        # retrieve CPF information
-        self.state_vars = compiled_rddl.states.values()
-        self.state_unprimed = {cpf: compiled_rddl.states.get(cpf, cpf) 
-                               for cpf in self.cpfs.keys()}
-        
-        cpf_order = self.rddl.domain.derived_cpfs + \
-                    self.rddl.domain.intermediate_cpfs + \
-                    self.rddl.domain.state_cpfs + \
-                    self.rddl.domain.observation_cpfs 
-        self.cpfs = {cpf.pvar[1][0]: self.cpfs[cpf.pvar[1][0]] for cpf in cpf_order}
-
-        # initialization of scalar and pvariables tensors
-        object_lookup = {}        
-        for obj, values in self.rddl.non_fluents.objects:
-            object_lookup.update(zip(values, [obj] * len(values)))  
-              
-        self.init_values = {}
-        for pvar in self.rddl.domain.pvariables:
-            name = pvar.name
-            params = pvar.param_types
-            ptype = pvar.range
-            pvalue = pvar.default
-            
-            # initial value from default statement if possible
-            value = pvalue
-            if value is None:
-                value = JaxRDDLSimulator.DEFAULT_VALUES[ptype]
-            if not compiled_rddl.allow_discrete:
-                value = float(value)
-                ptype = 'real'
-            
-            # initialize value array of shape given by number of free parameters
-            if params is None:
-                self.init_values[name] = value              
-            else: 
-                self.init_values[name] = np.full(
-                    shape=tuple(len(compiled_rddl.objects[p]) for p in params),
-                    fill_value=value,
-                    dtype=JaxRDDLCompiler.RDDL_TO_JAX_TYPE[ptype])
-        
-        # initialization of state
-        if hasattr(self.rddl.instance, 'init_state'):
-            for (name, params), value in self.rddl.instance.init_state:
-                if params is not None:
-                    coords = tuple(compiled_rddl.objects[object_lookup[p]][p] for p in params)
-                    self.init_values[name][coords] = value   
-        
-        # initialization of non-fluents
-        if hasattr(self.rddl.non_fluents, 'init_non_fluent'):
-            for (name, params), value in self.rddl.non_fluents.init_non_fluent:
-                if params is not None:
-                    coords = tuple(compiled_rddl.objects[object_lookup[p]][p] for p in params)
-                    self.init_values[name][coords] = value   
-                    
-        self.subs = self.init_values.copy()
+        compiled = JaxRDDLCompiler(rddl).compile()
+        self.init_values = compiled.init_values
+        self.state_vars = compiled.states.values()
+        self.state_unprimed = compiled.state_unprimed
+        self.invariants = compiled.invariants
+        self.preconds = compiled.preconditions
+        self.terminals = compiled.termination
+        _, self.reward = compiled.reward
+        _, self.cpfs = compiled.cpfs
         
     @staticmethod
     def _print_stack_trace(expr, subs, key):
         return str(jax.make_jaxpr(expr)(subs, key))
     
     def handle_error_code(self, error, aux_str):
-        errors = [JaxRDDLCompiler.INVERSE_ERROR_CODES[i]
-                  for i in JaxRDDLCompiler.get_error_codes(error)]
+        errors = JaxRDDLCompiler.get_error_messages(error)
         if errors:
             error_list = '\n'.join('{}. {}'.format(i + 1, s) for i, s in enumerate(errors))
             error_message = 'Internal error(s) returned ' + \

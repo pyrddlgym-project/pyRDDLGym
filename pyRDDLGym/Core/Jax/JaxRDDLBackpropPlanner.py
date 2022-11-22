@@ -7,14 +7,15 @@ from typing import Dict, Generator
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
 
 class FuzzyLogic:
     
+    def __init__(self, soft_if: bool=True):
+        self.soft_if = soft_if
+        
     def _and(self, a, b):
         raise NotImplementedError
     
@@ -37,8 +38,11 @@ class FuzzyLogic:
         return self._not(self._forall(self._not(x), axis=axis))
     
     def _if_then_else(self, p, a, b):
-        raise NotImplementedError
-    
+        if self.soft_if:
+            return p * a + (1.0 - p) * b
+        else:
+            return jnp.where(p, a, b)
+
 
 class ProductLogic(FuzzyLogic):
     
@@ -54,9 +58,6 @@ class ProductLogic(FuzzyLogic):
     def _forall(self, x, axis=None):
         return jnp.prod(x, axis=axis)
     
-    def _if_then_else(self, p, a, b):
-        return p * a + (1.0 - p) * b
-
 
 class MinimumLogic(FuzzyLogic):
     
@@ -72,13 +73,10 @@ class MinimumLogic(FuzzyLogic):
     def _exists(self, x, axis=None):
         return jnp.max(x, axis=axis)
     
-    def _if_then_else(self, p, a, b):
-        return p * a + (1.0 - p) * b
-
 
 class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
     
-    def __init__(self, rddl: RDDL, logic: FuzzyLogic=ProductLogic()) -> None:
+    def __init__(self, rddl: RDDL, logic: FuzzyLogic) -> None:
         super(JaxRDDLBackpropCompiler, self).__init__(rddl, allow_discrete=False)
         
         self.LOGICAL_OPS = {
@@ -98,7 +96,9 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
             'forall': logic._forall,
             'exists': logic._exists
         }
-        self.IF_THEN_ELSE = logic._if_then_else
+        self.CONTROL_OPS = {
+            'if': logic._if_then_else
+        }
         
     def _jax_logical(self, expr, op, params):
         warnings.warn('Logical operator {} will be converted to fuzzy variant.'.format(op),
@@ -113,29 +113,10 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         return super(JaxRDDLBackpropCompiler, self)._jax_aggregation(expr, op, params)
         
     def _jax_control(self, expr, op, params):
-        valid_ops = {'if'}
-        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)
-        JaxRDDLBackpropCompiler._check_num_args(expr, 3)
-        
         warnings.warn('If statement will be converted to fuzzy variant.',
                       FutureWarning, stacklevel=2)
-                
-        pred, if_true, if_false = expr.args        
-        jax_pred = self._jax(pred, params)
-        jax_true = self._jax(if_true, params)
-        jax_false = self._jax(if_false, params)
         
-        if_then_else = self.IF_THEN_ELSE
-        
-        def _f(x, key):
-            val1, key, err1 = jax_pred(x, key)
-            val2, key, err2 = jax_true(x, key)
-            val3, key, err3 = jax_false(x, key)
-            sample = if_then_else(val1, val2, val3)
-            err = err1 | err2 | err3
-            return sample, key, err
-            
-        return _f
+        return super(JaxRDDLBackpropCompiler, self)._jax_control(expr, op, params)
 
     def _jax_kron(self, expr, params):
         warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)            
@@ -151,192 +132,191 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         raise RDDLNotImplementedError(
             'No reparameterization implemented for Gamma.' + '\n' + 
             JaxRDDLBackpropCompiler._print_stack_trace(expr))
-            
-    
+
+ 
 class JaxRDDLBackpropPlanner:
     
     def __init__(self,
-                 rddl: RDDL, 
+                 rddl: RDDL,
                  key: jax.random.PRNGKey,
                  n_batch: int,
                  action_bounds: Dict={},
                  initializer: jax.nn.initializers.Initializer=jax.nn.initializers.zeros,
-                 optimizer: optax.GradientTransformation=optax.adam(0.1),
-                 aggregation=jnp.mean,
+                 optimizer: optax.GradientTransformation=optax.rmsprop(0.01),
                  logic: FuzzyLogic=ProductLogic()) -> None:
         self.key = key
+        self.n_batch = n_batch
         
-        horizon = rddl.instance.horizon
-        if not (horizon > 0):
-            raise RDDLValueOutOfRangeError(
-                'Horizon {} in the instance is not > 0.'.format(horizon))
-            
-        gamma = rddl.instance.discount
-        if not (0 <= gamma <= 1):
-            raise RDDLValueOutOfRangeError(
-                'Discount {} in the instance is not in [0, 1].'.format(gamma))
+        compiled = JaxRDDLBackpropCompiler(rddl, logic=logic).compile()
+        test_compiled = JaxRDDLCompiler(rddl).compile()
         
-        compiler = JaxRDDLBackpropCompiler(rddl, logic=logic)
-        sim = JaxRDDLSimulator(compiler, key)
-        subs = sim.subs
-        cpfs = sim.cpfs
-        reward_fn = sim.reward
-        primed_unprimed = sim.state_unprimed
-        
-        NORMAL = JaxRDDLBackpropCompiler.ERROR_CODES['NORMAL']
-        
-        # plan initialization
+        finite_action_bounds = {}
+        for name, (lb, ub) in action_bounds.items():
+            if np.isfinite(lb) and np.isfinite(ub) and lb <= ub:
+                finite_action_bounds[name] = (lb, ub)
+                
         action_info = {}
         for pvar in rddl.domain.action_fluents.values():
-            aname = pvar.name       
-            atype = JaxRDDLBackpropCompiler.RDDL_TO_JAX_TYPE[pvar.range]
-            ashape = (horizon,)
-            avalue = subs[aname]
-            if hasattr(avalue, 'shape'):
-                ashape = ashape + avalue.shape
-            action_info[aname] = (atype, ashape)
-            if atype != JaxRDDLBackpropCompiler.REAL:
-                subs[aname] = np.asarray(subs[aname], dtype=np.float32)
+            name = pvar.name       
+            pvar_type = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
+            value = compiled.init_values[name]
+            shape = (compiled.horizon,)
+            if hasattr(value, 'shape'):
+                shape = shape + value.shape
+            action_info[name] = (pvar_type, shape)
+        self.action_info = action_info
+        
+        def _initialize(key):
+            params = {}
+            for action, (_, shape) in action_info.items():
+                key, subkey = random.split(key)
+                params[action] = initializer(subkey, shape, dtype=JaxRDDLCompiler.REAL)
+            opt_state = optimizer.init(params)
+            return params, opt_state, key
+           
+        def _action_map(params):
+            plan = {}
+            for name, param in params.items():
+                atype, _ = action_info[name]
                 
-        # perform one step of a roll-out        
-        def _step(carry, actions):
-            x, discount, key, err = carry            
-            x.update(actions)
+                if atype == bool:
+                    action = jax.nn.sigmoid(param)
+                elif atype == JaxRDDLCompiler.INT:
+                    action = jnp.asarray(param, dtype=JaxRDDLCompiler.REAL)
+                else:
+                    action = param
+                
+                if atype != bool and name in finite_action_bounds:
+                    lb, ub = finite_action_bounds[name]
+                    action = lb + (ub - lb) * jax.nn.sigmoid(action)                    
+                plan[name] = action
+                
+            return plan
+        
+        _loss = self._jax_loss(compiled, _action_map)
+        
+        def _update(params, opt_state, key):
+            grad, (key, batch, errs) = jax.grad(_loss, has_aux=True)(params, key)
+            updates, opt_state = optimizer.update(grad, opt_state)
+            params = optax.apply_updates(params, updates)       
+            return params, opt_state, key, batch, errs
             
-            # calculate all the CPFs (e.g., s') and r(s, a, s') in order
+        def _test_action_map(params):
+            plan = _action_map(params)
+            new_plan = {}
+            for action, value in plan.items():
+                action_type, _ = action_info[action]
+                if action_type == bool:
+                    new_action = jnp.greater(value, 0.5)
+                elif action_type == JaxRDDLCompiler.INT:
+                    new_action = jnp.asarray(jnp.round(value), dtype=JaxRDDLCompiler.INT)
+                else:
+                    new_action = value
+                new_plan[action] = new_action
+            return new_plan
+            
+        _test_loss = self._jax_loss(test_compiled, _test_action_map)
+        
+        self.initialize = jax.jit(_initialize)
+        self.action_map = jax.jit(_action_map)
+        self.loss = jax.jit(_loss)
+        self.update = jax.jit(_update)      
+        self.test_action_map = jax.jit(_test_action_map)  
+        self.test_loss = jax.jit(_test_loss)
+    
+    def _jax_loss(self, compiled, action_map):
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        n_batch = self.n_batch
+        
+        init_values = compiled.init_values
+        primed_unprimed = compiled.state_unprimed
+        _, cpfs = compiled.cpfs
+        _, reward_fn = compiled.reward
+        gamma = compiled.discount
+        
+        def _epoch(carry, action):
+            x, discount, key, err = carry            
+            x.update(action)
+            
             for name, cpf_fn in cpfs.items():
                 x[name], key, cpf_err = cpf_fn(x, key)
                 err |= cpf_err
-                
-            # calculate reward
-            reward, key, rew_err = reward_fn(x, key)
-            err |= rew_err
+            reward, key, reward_err = reward_fn(x, key)
+            err |= reward_err
             
-            # apply discounting
             reward = reward * discount
-            discount = discount * gamma
+            discount *= gamma
             
-            # set s <- s'
             for primed, unprimed in primed_unprimed.items():
                 x[unprimed] = x[primed]
-                
-            return (x, discount, key, err), reward
-        
-        # perform a single roll-out
-        def _rollout(plan, x0, key):
             
-            # set s' <- s at the first epoch
-            x0 = x0.copy()               
+            carry = (x, discount, key, err)
+            return carry, reward
+        
+        def _rollout(plan, x0, key): 
+            x0 = x0.copy()
             for primed, unprimed in primed_unprimed.items():
                 x0[primed] = x0[unprimed]
             
-            # generate roll-outs and cumulative reward
-            (x, _, key, err), rewards = jax.lax.scan(_step, (x0, 1.0, key, NORMAL), plan)
+            initial = (x0, 1.0, key, NORMAL)
+            final, rewards = jax.lax.scan(_epoch, initial, plan)
+            x, _, key, err = final
             cuml_reward = jnp.sum(rewards)
             
             return cuml_reward, x, key, err
         
-        # force action ranges     
-        finite_action_bounds = {}
-        for name, bounds in action_bounds.items():
-            lb, ub = bounds
-            if np.isfinite(lb) and np.isfinite(ub) and lb <= ub:
-                finite_action_bounds[name] = bounds
-        
-        def _force_action_ranges(plan):
-            new_plan = {}
-            for name, action in plan.items():
-                atype, _ = action_info[name]
-                
-                # coerce action to the right type
-                if atype == bool:
-                    new_action = jax.nn.sigmoid(action)
-                elif atype == JaxRDDLBackpropCompiler.INT:
-                    new_action = jnp.asarray(
-                        action, dtype=JaxRDDLBackpropCompiler.REAL)
-                else:
-                    new_action = action
-                
-                # bound actions to the desired range
-                if atype != bool and name in finite_action_bounds:
-                    lb, ub = finite_action_bounds[name]
-                    new_action = lb + (ub - lb) * jax.nn.sigmoid(new_action)
-                    
-                new_plan[name] = new_action
-            return new_plan
-        
-        self.force_action_ranges = jax.jit(_force_action_ranges)
-        
-        # do a batch of roll-outs
         def _batched(value):
             value = jnp.asarray(value)
             batched_shape = (n_batch,) + value.shape
-            return jnp.broadcast_to(value, shape=batched_shape) 
-        
+            batched_value = jnp.broadcast_to(value, shape=batched_shape) 
+            return batched_value
+                
         def _batched_rollouts(plan, key):
-            x_batch = jax.tree_map(_batched, subs)
+            batched_values = jax.tree_map(_batched, init_values)
             keys = jax.random.split(key, num=n_batch)
-            returns, x_batch, keys, errs = jax.vmap(
-                _rollout, in_axes=(None, 0, 0))(plan, x_batch, keys)
+            returns, batch, keys, errs = jax.vmap(_rollout, in_axes=(None, 0, 0))(
+                plan, batched_values, keys)
             key = keys[-1]
-            return returns, key, x_batch, errs
-        
-        # aggregate all sampled returns
-        def _loss(plan, key):
-            plan = _force_action_ranges(plan)
-            returns, key, x_batch, errs = _batched_rollouts(plan, key)
-            loss_value = -aggregation(returns)
+            return returns, key, batch, errs
+         
+        def _loss(params, key):
+            plan = action_map(params)
+            returns, key, batch, errs = _batched_rollouts(plan, key)
+            return_value = -jnp.mean(returns)
             errs = jax.lax.reduce(errs, NORMAL, jnp.bitwise_or, (0,))
-            return loss_value, (key, x_batch, errs)
+            aux = (key, batch, errs)
+            return return_value, aux
         
-        # gradient descent update
-        def _update(plan, opt_state, key):
-            grad, (key, x_batch, errs) = jax.grad(_loss, has_aux=True)(plan, key)
-            updates, opt_state = optimizer.update(grad, opt_state)
-            plan = optax.apply_updates(plan, updates)       
-            return plan, opt_state, key, x_batch, errs
-        
-        self.loss = jax.jit(_loss)
-        self.update = jax.jit(_update)
-        
-        # initialization
-        def _initialize(key):
-            plan = {}
-            for action, (_, ashape) in action_info.items():
-                key, subkey = random.split(key)
-                plan[action] = initializer(
-                    subkey, ashape, dtype=JaxRDDLBackpropCompiler.REAL)
-            opt_state = optimizer.init(plan)
-            return plan, opt_state, key
-        
-        self.initialize = jax.jit(_initialize)
-
+        return _loss
+    
     def optimize(self, n_epochs: int) -> Generator[Dict, None, None]:
         ''' Compute an optimal straight-line plan for the RDDL domain and instance.
         
         @param n_epochs: the maximum number of steps of gradient descent
         '''
-        plan, opt_state, self.key = self.initialize(self.key)
+        params, opt_state, self.key = self.initialize(self.key)
         
-        best_plan = self.force_action_ranges(plan)
+        best_params = params
+        best_plan = self.test_action_map(best_params)
         best_loss = float('inf')
         
         for step in range(n_epochs):
-            plan, opt_state, self.key, _, _ = self.update(plan, opt_state, self.key)
-                       
-            loss_val, (self.key, rollouts, errs) = self.loss(plan, self.key)
+            params, opt_state, self.key, _, _ = self.update(params, opt_state, self.key)                       
+            loss_val, (self.key, _, errs) = self.loss(params, self.key)
             errs = JaxRDDLBackpropCompiler.get_error_codes(errs)
-            fixed_plan = self.force_action_ranges(plan)
 
             if loss_val < best_loss:
-                best_plan = fixed_plan
+                best_params = params
+                best_plan = self.test_action_map(best_params)
                 best_loss = loss_val
             
+            test_loss, (self.key, rollouts, _) = self.test_loss(best_params, self.key)
+            
             callback = {'step': step,
-                        'plan': fixed_plan,
                         'best_plan': best_plan,
-                        'loss': loss_val,
+                        'train_loss': loss_val,
                         'best_loss': best_loss,
+                        'test_loss': test_loss,
                         'rollouts': rollouts,
                         'errors': errs}
             yield callback
