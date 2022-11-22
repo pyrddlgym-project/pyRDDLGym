@@ -4,9 +4,9 @@ import numpy as np
 import optax  
 
 from pyRDDLGym import ExampleManager
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
-from pyRDDLGym.Core.Jax.JaxRDDLStraightlinePlanner import JaxRDDLStraightlinePlanner
 from pyRDDLGym.Core.Parser import parser as parser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 
@@ -40,9 +40,9 @@ def main():
     key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
     if DO_PLAN:
         
-        planner = JaxRDDLStraightlinePlanner(ast, key, 20, 64, 
-                                             optimizer=optax.adam(0.5),
-                                             initializer=jax.nn.initializers.normal())
+        planner = JaxRDDLBackpropPlanner(ast, key, 20, 64, 
+                                         optimizer=optax.adam(0.5),
+                                         initializer=jax.nn.initializers.normal())
         for callback in planner.optimize(500):
             print('step={} loss={:.4f} best_loss={:.4f} err={}'.format(
                 str(callback['step']).rjust(4), callback['loss'], 
