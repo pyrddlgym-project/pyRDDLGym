@@ -1,7 +1,7 @@
 import jax
 jax.config.update('jax_log_compiles', True)
 import numpy as np
-
+import optax  
 from pyRDDLGym import ExampleManager
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
@@ -11,19 +11,19 @@ from pyRDDLGym.Core.Parser import parser as parser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 
 
-# ENV = 'PowerGeneration'
-# ENV = 'MarsRover'
-# ENV = 'UAV continuous'
+#ENV = 'PowerGeneration'
+#ENV = 'MarsRover'
+ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
 # ENV = 'MountainCar'
-ENV = 'Reservoir'
+#ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
-# ENV = 'Elevators'
-# ENV = 'RaceCar'
+#ENV = 'Elevators'
+ENV = 'Reservoir'
 # ENV = 'RecSim'
 
-DO_PLAN = False
+DO_PLAN = True
 
 
 def main():
@@ -37,21 +37,26 @@ def main():
     ast = MyRDDLParser.parse(domain)   
     
     # parse RDDL file 
-    key = jax.random.PRNGKey(42)
+    key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
     if DO_PLAN:
         
-        planner = JaxRDDLStraightlinePlanner(ast, key, 20, 2048)
-        for step, _, loss, err in planner.optimize(100):
-            print('step={} loss={} err={}'.format(str(step).rjust(4), loss, err))
-    
+        planner = JaxRDDLStraightlinePlanner(ast, key, 20, 2048, 
+                                             optimizer=optax.adam(0.5),
+                                             initializer=jax.nn.initializers.normal())
+        for callback in planner.optimize(500):
+            print('step={} loss={:.4f} best_loss={:.4f} err={}'.format(
+                str(callback['step']).rjust(4), callback['loss'], 
+                callback['best_loss'], callback['errors']))
+        print(callback['best_plan'])
+        
     else:
         
-        sim = JaxRDDLSimulator(ast, key=key)
+        sim = JaxRDDLSimulator(ast, key=key, enforce_diff=True)
         
         total_reward = 0
         state, done = sim.reset() 
-        for step in range(10):
-            action = {'flow': np.array([.1, .2, .3])}
+        for step in range(100):
+            action = {}
             next_state, reward, done = sim.step(action)
             
             print()

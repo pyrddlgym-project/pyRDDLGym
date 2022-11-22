@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 import optax
+from typing import Dict, Generator
 
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
@@ -76,13 +77,16 @@ class JaxRDDLStraightlinePlanner:
         
         # force action ranges         
         def _force_action_ranges(plan):
+            new_plan = {}
             for name, value in plan.items():
                 atype, _ = action_info[name]
                 if atype == JaxRDDLCompiler.INT:
-                    plan[name] = jnp.asarray(value, dtype=JaxRDDLCompiler.REAL)
+                    new_plan[name] = jnp.asarray(value, dtype=JaxRDDLCompiler.REAL)
                 elif atype == bool:
-                    plan[name] = jax.nn.sigmoid(value)
-            return plan
+                    new_plan[name] = jax.nn.sigmoid(value)
+                else:
+                    new_plan[name] = value
+            return new_plan
         
         self.force_action_ranges = jax.jit(_force_action_ranges)
         
@@ -129,18 +133,33 @@ class JaxRDDLStraightlinePlanner:
         
         self.initialize = jax.jit(_initialize)
 
-    def optimize(self, n_epochs: int):
+    def optimize(self, n_epochs: int) -> Generator[Dict, None, None]:
         ''' Compute an optimal straight-line plan for the RDDL domain and instance.
         
         @param n_epochs: the maximum number of steps of gradient descent
         '''
         plan, opt_state, self.key = self.initialize(self.key)
-
+        
+        best_plan = self.force_action_ranges(plan)
+        best_loss = float('inf')
+        
         for step in range(n_epochs):
             plan, opt_state, self.key, _, _ = self.update(plan, opt_state, self.key)
-            loss_val, (self.key, x_batch, errs) = self.loss(plan, self.key)
-            
-            fixed_plan = self.force_action_ranges(plan)
+                       
+            loss_val, (self.key, rollouts, errs) = self.loss(plan, self.key)
             errs = JaxRDDLCompiler.get_error_codes(errs)
-            yield step, fixed_plan, loss_val, x_batch, errs
+            fixed_plan = self.force_action_ranges(plan)
+
+            if loss_val < best_loss:
+                best_plan = fixed_plan
+                best_loss = loss_val
+            
+            callback = {'step': step,
+                        'plan': fixed_plan,
+                        'best_plan': best_plan,
+                        'loss': loss_val,
+                        'best_loss': best_loss,
+                        'rollouts': rollouts,
+                        'errors': errs}
+            yield callback
         

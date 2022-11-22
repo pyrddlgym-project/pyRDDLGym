@@ -330,6 +330,10 @@ class JaxRDDLCompiler:
             '~=': jnp.not_equal
         },
         True: {
+            '>=': jnp.greater_equal,
+            '<=': jnp.less_equal,
+            '<': jnp.less,
+            '>': jnp.greater
         }
     }
     
@@ -358,7 +362,7 @@ class JaxRDDLCompiler:
         lhs, rhs = args
         jax_lhs = self._jax(lhs, params)
         jax_rhs = self._jax(rhs, params)
-        jax_op = JaxRDDLCompiler.RELATIONAL_OPS[op]
+        jax_op = OPS[op]
         return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
     # logical expressions    
