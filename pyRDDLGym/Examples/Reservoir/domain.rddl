@@ -44,5 +44,4 @@ domain reservoir {
     state-invariants {
 		forall_{?r: id} [rlevel(?r) <= MAXCAP(?r)];
     };
-	
 }
