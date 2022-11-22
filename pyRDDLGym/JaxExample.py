@@ -23,7 +23,7 @@ ENV = 'UAV continuous'
 ENV = 'Wildfire'
 # ENV = 'RecSim'
 
-DO_PLAN = True
+DO_PLAN = False
 
 
 def main():
@@ -40,19 +40,19 @@ def main():
     key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
     if DO_PLAN:
         
-        planner = JaxRDDLBackpropPlanner(ast, key, 256, 
-                                         optimizer=optax.rmsprop(0.03),
+        planner = JaxRDDLBackpropPlanner(ast, key, 128, 
+                                         optimizer=optax.rmsprop(0.05),
                                          initializer=jax.nn.initializers.normal())
         for callback in planner.optimize(500):
-            print('step={} loss={:.4f} best_loss={:.4f} err={}'.format(
-                str(callback['step']).rjust(4), callback['loss'], 
-                callback['best_loss'], callback['errors']))
+            print('step={} loss={:.4f} test_loss={:.4f} err={}'.format(
+                str(callback['step']).rjust(4), callback['train_loss'], 
+                callback['test_loss'], callback['errors']))
         print(callback['best_plan'])
+        print(np.mean(callback['rollouts']['burning']))
         
     else:
         
-        compiler = JaxRDDLCompiler(ast)
-        sim = JaxRDDLSimulator(compiler, key)
+        sim = JaxRDDLSimulator(ast, key)
         
         total_reward = 0
         state, done = sim.reset() 
