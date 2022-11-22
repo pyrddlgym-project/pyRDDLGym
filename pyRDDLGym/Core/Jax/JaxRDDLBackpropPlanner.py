@@ -12,28 +12,29 @@ from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
 
-class JaxRDDLContinuousCompiler(JaxRDDLCompiler):
+
+class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
     
     def _jax_relational(self, expr, op, params):
-        valid_ops = JaxRDDLContinuousCompiler.RELATIONAL_OPS
-        JaxRDDLContinuousCompiler._check_valid_op(expr, valid_ops)
-        JaxRDDLContinuousCompiler._check_num_args(expr, 2)
+        valid_ops = JaxRDDLBackpropCompiler.RELATIONAL_OPS
+        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)
+        JaxRDDLBackpropCompiler._check_num_args(expr, 2)
         
-        warnings.warn('Relational operator {} will be converted to arithmetic.'.format(
-            valid_ops.keys()), FutureWarning, stacklevel=2)
+        warnings.warn('Relational operator {} will be converted to arithmetic.'.format(op), 
+                      FutureWarning, stacklevel=2)
                     
         lhs, rhs = expr.args
         jax_lhs = self._jax(lhs, params)
         jax_rhs = self._jax(rhs, params)
         jax_op = valid_ops[op]
-        return JaxRDDLContinuousCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
+        return JaxRDDLBackpropCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
     def _jax_logical(self, expr, op, params):
-        valid_ops = JaxRDDLContinuousCompiler.LOGICAL_OPS    
-        JaxRDDLContinuousCompiler._check_valid_op(expr, valid_ops)     
+        valid_ops = JaxRDDLBackpropCompiler.LOGICAL_OPS    
+        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)     
         
-        warnings.warn('Logical operator {} will be converted to arithmetic.'.format(
-            valid_ops.keys()), FutureWarning, stacklevel=2)
+        warnings.warn('Logical operator {} will be converted to arithmetic.'.format(op), 
+                      FutureWarning, stacklevel=2)
         
         args = expr.args
         n = len(args)
@@ -41,23 +42,23 @@ class JaxRDDLContinuousCompiler(JaxRDDLCompiler):
         if n == 1 and op == '~':
             arg, = args
             jax_expr = self._jax(arg, params)
-            return JaxRDDLContinuousCompiler._jax_unary(jax_expr, lambda e: 1.0 - e)
+            return JaxRDDLBackpropCompiler._jax_unary(jax_expr, lambda e: 1.0 - e)
             
         elif n == 2:
             lhs, rhs = args
             jax_lhs = self._jax(lhs, params)
             jax_rhs = self._jax(rhs, params)
             jax_op = valid_ops[op]
-            return JaxRDDLContinuousCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
+            return JaxRDDLBackpropCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
-        JaxRDDLContinuousCompiler._check_num_args(expr, 2)
+        JaxRDDLBackpropCompiler._check_num_args(expr, 2)
     
     def _jax_aggregation(self, expr, op, params):
-        valid_ops = JaxRDDLContinuousCompiler.AGGREGATION_OPS       
-        JaxRDDLContinuousCompiler._check_valid_op(expr, valid_ops)    
+        valid_ops = JaxRDDLBackpropCompiler.AGGREGATION_OPS       
+        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)    
         
-        warnings.warn('Aggregation operator {} will be converted to arithmetic.'.format(
-            valid_ops.keys()), FutureWarning, stacklevel=2)
+        warnings.warn('Aggregation operator {} will be converted to arithmetic.'.format(op), 
+                      FutureWarning, stacklevel=2)
             
         * pvars, arg = expr.args
         pvars = list(map(lambda p: p[1], pvars))  
@@ -76,10 +77,10 @@ class JaxRDDLContinuousCompiler(JaxRDDLCompiler):
 
     def _jax_control(self, expr, op, params):
         valid_ops = {'if'}
-        JaxRDDLContinuousCompiler._check_valid_op(expr, valid_ops)
-        JaxRDDLContinuousCompiler._check_num_args(expr, 3)
+        JaxRDDLBackpropCompiler._check_valid_op(expr, valid_ops)
+        JaxRDDLBackpropCompiler._check_num_args(expr, 3)
         
-        warnings.warn('Float predicate will be checked against 0.5.',
+        warnings.warn('Predicate(s) will be replaced by comparison(s) to 0.5.',
                       FutureWarning, stacklevel=2)
         
         pred, if_true, if_false = expr.args        
@@ -108,15 +109,15 @@ class JaxRDDLContinuousCompiler(JaxRDDLCompiler):
     def _jax_poisson(self, expr, params):
         raise RDDLNotImplementedError(
             'No reparameterization implemented for Poisson.' + '\n' + 
-            JaxRDDLContinuousCompiler._print_stack_trace(expr))
+            JaxRDDLBackpropCompiler._print_stack_trace(expr))
     
     def _jax_gamma(self, expr, params):
         raise RDDLNotImplementedError(
             'No reparameterization implemented for Gamma.' + '\n' + 
-            JaxRDDLContinuousCompiler._print_stack_trace(expr))
+            JaxRDDLBackpropCompiler._print_stack_trace(expr))
             
     
-class JaxRDDLStraightlinePlanner:
+class JaxRDDLBackpropPlanner:
     
     def __init__(self,
                  rddl: RDDL,
@@ -128,26 +129,26 @@ class JaxRDDLStraightlinePlanner:
                  aggregation=jnp.mean) -> None:
         self.key = key
         
-        compiler = JaxRDDLContinuousCompiler(rddl, allow_discrete=False)
+        compiler = JaxRDDLBackpropCompiler(rddl, allow_discrete=False)
         sim = JaxRDDLSimulator(compiler, key)
         subs = sim.subs
         cpfs = sim.cpfs
         reward_fn = sim.reward
         primed_unprimed = sim.state_unprimed
         
-        NORMAL = JaxRDDLContinuousCompiler.ERROR_CODES['NORMAL']
+        NORMAL = JaxRDDLBackpropCompiler.ERROR_CODES['NORMAL']
         
         # plan initialization
         action_info = {}
         for pvar in rddl.domain.action_fluents.values():
             aname = pvar.name       
-            atype = JaxRDDLContinuousCompiler.RDDL_TO_JAX_TYPE[pvar.range]
+            atype = JaxRDDLBackpropCompiler.RDDL_TO_JAX_TYPE[pvar.range]
             ashape = (n_steps,)
             avalue = subs[aname]
             if hasattr(avalue, 'shape'):
                 ashape = ashape + avalue.shape
             action_info[aname] = (atype, ashape)
-            if atype != JaxRDDLContinuousCompiler.REAL:
+            if atype != JaxRDDLBackpropCompiler.REAL:
                 subs[aname] = np.asarray(subs[aname], dtype=np.float32)
                 
         # perform one step of a roll-out        
@@ -187,9 +188,9 @@ class JaxRDDLStraightlinePlanner:
             new_plan = {}
             for name, value in plan.items():
                 atype, _ = action_info[name]
-                if atype == JaxRDDLContinuousCompiler.INT:
+                if atype == JaxRDDLBackpropCompiler.INT:
                     new_plan[name] = jnp.asarray(
-                        value, dtype=JaxRDDLContinuousCompiler.REAL)
+                        value, dtype=JaxRDDLBackpropCompiler.REAL)
                 elif atype == bool:
                     new_plan[name] = jax.nn.sigmoid(value)
                 else:
@@ -236,7 +237,7 @@ class JaxRDDLStraightlinePlanner:
             for action, (_, ashape) in action_info.items():
                 key, subkey = random.split(key)
                 plan[action] = initializer(
-                    subkey, ashape, dtype=JaxRDDLContinuousCompiler.REAL)
+                    subkey, ashape, dtype=JaxRDDLBackpropCompiler.REAL)
             opt_state = optimizer.init(plan)
             return plan, opt_state, key
         
@@ -256,7 +257,7 @@ class JaxRDDLStraightlinePlanner:
             plan, opt_state, self.key, _, _ = self.update(plan, opt_state, self.key)
                        
             loss_val, (self.key, rollouts, errs) = self.loss(plan, self.key)
-            errs = JaxRDDLContinuousCompiler.get_error_codes(errs)
+            errs = JaxRDDLBackpropCompiler.get_error_codes(errs)
             fixed_plan = self.force_action_ranges(plan)
 
             if loss_val < best_loss:
