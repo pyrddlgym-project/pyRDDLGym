@@ -32,6 +32,7 @@ class JaxRDDLCompiler:
         self.rddl = rddl
         self.domain = rddl.domain
         self.instance = rddl.instance
+        self.non_fluents = rddl.non_fluents
         self.allow_discrete = allow_discrete
         
         # basic Jax operations
@@ -111,7 +112,7 @@ class JaxRDDLCompiler:
     # compile RDDL files
     def _compile_objects(self):
         objects = {}
-        for obj, values in self.rddl.non_fluents.objects:
+        for obj, values in self.non_fluents.objects:
             objects[obj] = dict(zip(values, range(len(values))))
         
         states, pvars, pvar_types = {}, {}, {}
@@ -138,7 +139,7 @@ class JaxRDDLCompiler:
     
     def _compile_instance(self):
         object_lookup = {}        
-        for obj, values in self.rddl.non_fluents.objects:
+        for obj, values in self.non_fluents.objects:
             object_lookup.update(zip(values, [obj] * len(values)))  
         
         # initialize values with default
@@ -170,8 +171,8 @@ class JaxRDDLCompiler:
                     coords = tuple(self.objects[object_lookup[p]][p] for p in params)
                     init_values[name][coords] = value   
         
-        if hasattr(self.rddl.non_fluents, 'init_non_fluent'):
-            for (name, params), value in self.rddl.non_fluents.init_non_fluent:
+        if hasattr(self.non_fluents, 'init_non_fluent'):
+            for (name, params), value in self.non_fluents.init_non_fluent:
                 if params is not None:
                     coords = tuple(self.objects[object_lookup[p]][p] for p in params)
                     init_values[name][coords] = value   
@@ -338,13 +339,12 @@ class JaxRDDLCompiler:
    
     # leaves
     def _map_pvar_subs_to_subscript(self, given_params, desired_params, expr):
-        symbols = 'abcdefghijklmnopqrstuvwxyz'   
-        symbols = symbols + symbols.upper()   
+        symbols = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
         
         # check that number of parameters is valid
         if len(desired_params) > len(symbols):
             raise RDDLNotImplementedError(
-                'Variable <{}> is {}-D, but current version supports up to {}.'.format(
+                'Variable <{}> is {}-D, but current version supports up to {}-D.'.format(
                     expr.args[0], len(desired_params), len(symbols)) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         
