@@ -7,6 +7,7 @@ from typing import Dict, Generator
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 from pyRDDLGym.Core.Parser.rddl import RDDL
@@ -157,7 +158,6 @@ class JaxRDDLBackpropPlanner:
     def __init__(self,
                  rddl: RDDL, 
                  key: jax.random.PRNGKey,
-                 n_steps: int,
                  n_batch: int,
                  action_bounds: Dict={},
                  initializer: jax.nn.initializers.Initializer=jax.nn.initializers.zeros,
@@ -165,6 +165,16 @@ class JaxRDDLBackpropPlanner:
                  aggregation=jnp.mean,
                  logic: FuzzyLogic=ProductLogic()) -> None:
         self.key = key
+        
+        horizon = rddl.instance.horizon
+        if not (horizon > 0):
+            raise RDDLValueOutOfRangeError(
+                'Horizon {} in the instance is not > 0.'.format(horizon))
+            
+        gamma = rddl.instance.discount
+        if not (0 <= gamma <= 1):
+            raise RDDLValueOutOfRangeError(
+                'Discount {} in the instance is not in [0, 1].'.format(gamma))
         
         compiler = JaxRDDLBackpropCompiler(rddl, logic=logic)
         sim = JaxRDDLSimulator(compiler, key)
@@ -180,7 +190,7 @@ class JaxRDDLBackpropPlanner:
         for pvar in rddl.domain.action_fluents.values():
             aname = pvar.name       
             atype = JaxRDDLBackpropCompiler.RDDL_TO_JAX_TYPE[pvar.range]
-            ashape = (n_steps,)
+            ashape = (horizon,)
             avalue = subs[aname]
             if hasattr(avalue, 'shape'):
                 ashape = ashape + avalue.shape
@@ -190,21 +200,27 @@ class JaxRDDLBackpropPlanner:
                 
         # perform one step of a roll-out        
         def _step(carry, actions):
-            x, key, err = carry            
+            x, discount, key, err = carry            
             x.update(actions)
             
             # calculate all the CPFs (e.g., s') and r(s, a, s') in order
             for name, cpf_fn in cpfs.items():
                 x[name], key, cpf_err = cpf_fn(x, key)
                 err |= cpf_err
+                
+            # calculate reward
             reward, key, rew_err = reward_fn(x, key)
             err |= rew_err
+            
+            # apply discounting
+            reward = reward * discount
+            discount = discount * gamma
             
             # set s <- s'
             for primed, unprimed in primed_unprimed.items():
                 x[unprimed] = x[primed]
                 
-            return (x, key, err), reward
+            return (x, discount, key, err), reward
         
         # perform a single roll-out
         def _rollout(plan, x0, key):
@@ -215,7 +231,7 @@ class JaxRDDLBackpropPlanner:
                 x0[primed] = x0[unprimed]
             
             # generate roll-outs and cumulative reward
-            (x, key, err), rewards = jax.lax.scan(_step, (x0, key, NORMAL), plan)
+            (x, _, key, err), rewards = jax.lax.scan(_step, (x0, 1.0, key, NORMAL), plan)
             cuml_reward = jnp.sum(rewards)
             
             return cuml_reward, x, key, err
