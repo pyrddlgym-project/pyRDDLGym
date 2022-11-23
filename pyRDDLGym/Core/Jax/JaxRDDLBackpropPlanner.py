@@ -150,12 +150,12 @@ class JaxRDDLBackpropPlanner:
         compiled = JaxRDDLBackpropCompiler(rddl, logic=logic).compile()
         test_compiled = JaxRDDLCompiler(rddl).compile()
         
-        finite_action_bounds = {}
+        self.finite_action_bounds = {}
         for name, (lb, ub) in action_bounds.items():
             if np.isfinite(lb) and np.isfinite(ub) and lb <= ub:
-                finite_action_bounds[name] = (lb, ub)
+                self.finite_action_bounds[name] = (lb, ub)
                 
-        action_info = {}
+        self.action_info = {}
         for pvar in rddl.domain.action_fluents.values():
             name = pvar.name       
             pvar_type = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
@@ -163,68 +163,58 @@ class JaxRDDLBackpropPlanner:
             shape = (compiled.horizon,)
             if hasattr(value, 'shape'):
                 shape = shape + value.shape
-            action_info[name] = (pvar_type, shape)
-        self.action_info = action_info
+            self.action_info[name] = (pvar_type, shape)
         
-        def _initialize(key):
-            params = {}
-            for action, (_, shape) in action_info.items():
-                key, subkey = random.split(key)
-                params[action] = initializer(subkey, shape, dtype=JaxRDDLCompiler.REAL)
-            opt_state = optimizer.init(params)
-            return params, opt_state, key
-           
-        def _action_map(params):
+        predict_map, test_map = self._jax_predict()
+        self.test_map = jax.jit(test_map)
+        
+        train_rollout = self._jax_rollout(compiled)
+        train_loss = self._jax_evaluate(predict_map, train_rollout)
+        self.train_loss = jax.jit(train_loss)
+        
+        test_rollout = self._jax_rollout(test_compiled)
+        test_loss = self._jax_evaluate(test_map, test_rollout)
+        self.test_loss = jax.jit(test_loss)
+        
+        self.initialize = jax.jit(self._jax_init(initializer, optimizer))
+        self.update = jax.jit(self._jax_update(train_loss, optimizer))
+    
+    def _jax_predict(self):
+        action_info = self.action_info
+        action_bounds = self.finite_action_bounds
+        
+        def _predict(params):
             plan = {}
             for name, param in params.items():
-                atype, _ = action_info[name]
-                
+                atype, _ = action_info[name]                
                 if atype == bool:
                     action = jax.nn.sigmoid(param)
                 elif atype == JaxRDDLCompiler.INT:
                     action = jnp.asarray(param, dtype=JaxRDDLCompiler.REAL)
                 else:
-                    action = param
-                
-                if atype != bool and name in finite_action_bounds:
-                    lb, ub = finite_action_bounds[name]
+                    action = param                
+                if atype != bool and name in action_bounds:
+                    lb, ub = action_bounds[name]
                     action = lb + (ub - lb) * jax.nn.sigmoid(action)                    
-                plan[name] = action
-                
+                plan[name] = action                
             return plan
-        
-        _loss = self._jax_loss(compiled, _action_map)
-        
-        def _update(params, opt_state, key):
-            grad, (key, batch, errs) = jax.grad(_loss, has_aux=True)(params, key)
-            updates, opt_state = optimizer.update(grad, opt_state)
-            params = optax.apply_updates(params, updates)       
-            return params, opt_state, key, batch, errs
-            
-        def _test_action_map(params):
-            plan = _action_map(params)
+    
+        def _predict_test(params):
+            plan = _predict(params)
             new_plan = {}
             for action, value in plan.items():
                 action_type, _ = action_info[action]
                 if action_type == bool:
-                    new_action = jnp.greater(value, 0.5)
+                    new_plan[action] = jnp.greater(value, 0.5)
                 elif action_type == JaxRDDLCompiler.INT:
-                    new_action = jnp.asarray(jnp.round(value), dtype=JaxRDDLCompiler.INT)
+                    new_plan[action] = jnp.asarray(jnp.round(value), dtype=JaxRDDLCompiler.INT)
                 else:
-                    new_action = value
-                new_plan[action] = new_action
+                    new_plan[action] = value
             return new_plan
-            
-        _test_loss = self._jax_loss(test_compiled, _test_action_map)
         
-        self.initialize = jax.jit(_initialize)
-        self.action_map = jax.jit(_action_map)
-        self.loss = jax.jit(_loss)
-        self.update = jax.jit(_update)      
-        self.test_action_map = jax.jit(_test_action_map)  
-        self.test_loss = jax.jit(_test_loss)
+        return _predict, _predict_test
     
-    def _jax_loss(self, compiled, action_map):
+    def _jax_rollout(self, compiled):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         n_batch = self.n_batch
         
@@ -232,7 +222,7 @@ class JaxRDDLBackpropPlanner:
         primed_unprimed = compiled.state_unprimed
         _, cpfs = compiled.cpfs
         _, reward_fn = compiled.reward
-        gamma = compiled.discount
+        gamma = compiled.discount                
         
         def _epoch(carry, action):
             x, discount, key, err = carry            
@@ -271,17 +261,22 @@ class JaxRDDLBackpropPlanner:
             batched_value = jnp.broadcast_to(value, shape=batched_shape) 
             return batched_value
                 
-        def _batched_rollouts(plan, key):
-            batched_values = jax.tree_map(_batched, init_values)
+        def _rollouts(plan, key):
+            batched_init = jax.tree_map(_batched, init_values)
             keys = jax.random.split(key, num=n_batch)
             returns, batch, keys, errs = jax.vmap(_rollout, in_axes=(None, 0, 0))(
-                plan, batched_values, keys)
+                plan, batched_init, keys)
             key = keys[-1]
             return returns, key, batch, errs
+        
+        return _rollouts
          
+    def _jax_evaluate(self, predict, batched_rollouts):
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        
         def _loss(params, key):
-            plan = action_map(params)
-            returns, key, batch, errs = _batched_rollouts(plan, key)
+            plan = predict(params)
+            returns, key, batch, errs = batched_rollouts(plan, key)
             return_value = -jnp.mean(returns)
             errs = jax.lax.reduce(errs, NORMAL, jnp.bitwise_or, (0,))
             aux = (key, batch, errs)
@@ -289,37 +284,60 @@ class JaxRDDLBackpropPlanner:
         
         return _loss
     
+    def _jax_init(self, initializer, optimizer):
+        action_info = self.action_info
+        
+        def _init(key):
+            params = {}
+            for action, (_, shape) in action_info.items():
+                key, subkey = random.split(key)
+                params[action] = initializer(subkey, shape, dtype=JaxRDDLCompiler.REAL)
+            opt_state = optimizer.init(params)
+            return params, opt_state, key
+        
+        return _init
+    
+    def _jax_update(self, loss, optimizer):
+        
+        def _update(params, opt_state, key):
+            grad, (key, batch, errs) = jax.grad(loss, has_aux=True)(params, key)
+            updates, opt_state = optimizer.update(grad, opt_state)
+            params = optax.apply_updates(params, updates)       
+            return params, opt_state, key, batch, errs
+        
+        return _update
+            
     def optimize(self, n_epochs: int) -> Generator[Dict, None, None]:
         ''' Compute an optimal straight-line plan for the RDDL domain and instance.
         
         @param n_epochs: the maximum number of steps of gradient descent
         '''
-        params, opt_state, self.key = self.initialize(self.key)
+        params, opt_state, key = self.initialize(self.key)
         
         best_params = params
-        best_plan = self.test_action_map(best_params)
+        best_plan = self.test_map(best_params)
         best_loss = float('inf')
         
         for step in range(n_epochs):
-            params, opt_state, self.key, _, _ = self.update(params, opt_state, self.key)                       
-            loss_val, (self.key, _, errs) = self.loss(params, self.key)
-            errs = JaxRDDLBackpropCompiler.get_error_codes(errs)
+            params, opt_state, key, *_ = self.update(params, opt_state, key)  
             
-            improved = loss_val < best_loss
-            if improved:
+            train_loss, (key, *_) = self.train_loss(params, key)
+            
+            test_loss, (key, rollouts, errors) = self.test_loss(params, key)
+            test_errors = JaxRDDLCompiler.get_error_codes(errors)
+            
+            if test_loss < best_loss:
                 best_params = params
-                best_plan = self.test_action_map(best_params)
-                best_loss = loss_val
-            
-            test_loss, (self.key, rollouts, _) = self.test_loss(best_params, self.key)
+                best_plan = self.test_map(params)
+                best_loss = test_loss
             
             callback = {'step': step,
-                        'best_plan': best_plan,
-                        'train_loss': loss_val,
-                        'best_loss': best_loss,
+                        'train_loss': train_loss,
                         'test_loss': test_loss,
-                        'improved' : improved,
-                        'rollouts': rollouts,
-                        'errors': errs}
+                        'test_errors': test_errors,
+                        'best_plan': best_plan,
+                        'best_loss': best_loss,
+                        'rollouts': rollouts}
+            self.key = key
             yield callback
-        
+    

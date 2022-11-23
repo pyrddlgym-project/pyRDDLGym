@@ -40,16 +40,17 @@ def main():
     key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
     if DO_PLAN:
         
-        planner = JaxRDDLBackpropPlanner(ast, key, 128, 
-                                         optimizer=optax.rmsprop(0.05),
-                                         initializer=jax.nn.initializers.normal())
+        planner = JaxRDDLBackpropPlanner(ast, key, 256, 
+                                         optimizer=optax.rmsprop(0.03),
+                                         initializer=jax.nn.initializers.normal(),
+                                         action_bounds={})
         for callback in planner.optimize(500):
-            print('step={} loss={:.6f} test_loss={:.6f} improved={} err={}'.format(
+            print('step={} loss={:.6f} test_loss={:.6f} best_loss={:.6f} err={}'.format(
                 str(callback['step']).rjust(4), 
                 callback['train_loss'], 
                 callback['test_loss'], 
-                callback['improved'], 
-                callback['errors']))
+                callback['best_loss'], 
+                callback['test_errors']))
             
         print(callback['best_plan'])
         
