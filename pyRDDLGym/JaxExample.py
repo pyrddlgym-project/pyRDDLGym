@@ -40,7 +40,7 @@ def main():
     key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
     if DO_PLAN:
         
-        planner = JaxRDDLBackpropPlanner(ast, key, 256, 
+        planner = JaxRDDLBackpropPlanner(ast, key, 256, 64,
                                          optimizer=optax.rmsprop(0.03),
                                          initializer=jax.nn.initializers.normal(),
                                          action_bounds={})
