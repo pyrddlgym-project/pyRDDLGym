@@ -139,14 +139,16 @@ class JaxRDDLBackpropPlanner:
     def __init__(self,
                  rddl: RDDL,
                  key: jax.random.PRNGKey,
-                 n_batch: int,
+                 batch_size_train: int,
+                 batch_size_test: int=None,
                  action_bounds: Dict={},
                  initializer: jax.nn.initializers.Initializer=jax.nn.initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.01),
                  logic: FuzzyLogic=ProductLogic()) -> None:
         self.key = key
-        self.n_batch = n_batch
-        
+        if batch_size_test is None:
+            batch_size_test = batch_size_train
+            
         compiled = JaxRDDLBackpropCompiler(rddl, logic=logic).compile()
         test_compiled = JaxRDDLCompiler(rddl).compile()
         
@@ -165,19 +167,22 @@ class JaxRDDLBackpropPlanner:
                 shape = shape + value.shape
             self.action_info[name] = (pvar_type, shape)
         
+        # prediction
         predict_map, test_map = self._jax_predict()
         self.test_map = jax.jit(test_map)
         
-        train_rollout = self._jax_rollout(compiled)
+        # training
+        train_rollout = self._jax_rollout(compiled, batch_size_train)
         train_loss = self._jax_evaluate(predict_map, train_rollout)
         self.train_loss = jax.jit(train_loss)
         
-        test_rollout = self._jax_rollout(test_compiled)
-        test_loss = self._jax_evaluate(test_map, test_rollout)
-        self.test_loss = jax.jit(test_loss)
-        
         self.initialize = jax.jit(self._jax_init(initializer, optimizer))
         self.update = jax.jit(self._jax_update(train_loss, optimizer))
+        
+        # testing
+        test_rollout = self._jax_rollout(test_compiled, batch_size_test)
+        test_loss = self._jax_evaluate(test_map, test_rollout)
+        self.test_loss = jax.jit(test_loss)
     
     def _jax_predict(self):
         action_info = self.action_info
@@ -214,9 +219,8 @@ class JaxRDDLBackpropPlanner:
         
         return _predict, _predict_test
     
-    def _jax_rollout(self, compiled):
+    def _jax_rollout(self, compiled, batch_size):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        n_batch = self.n_batch
         
         init_values = compiled.init_values
         primed_unprimed = compiled.state_unprimed
@@ -257,13 +261,13 @@ class JaxRDDLBackpropPlanner:
         
         def _batched(value):
             value = jnp.asarray(value)
-            batched_shape = (n_batch,) + value.shape
+            batched_shape = (batch_size,) + value.shape
             batched_value = jnp.broadcast_to(value, shape=batched_shape) 
             return batched_value
                 
         def _rollouts(plan, key):
             batched_init = jax.tree_map(_batched, init_values)
-            keys = jax.random.split(key, num=n_batch)
+            keys = jax.random.split(key, num=batch_size)
             returns, batch, keys, errs = jax.vmap(_rollout, in_axes=(None, 0, 0))(
                 plan, batched_init, keys)
             key = keys[-1]
@@ -319,8 +323,7 @@ class JaxRDDLBackpropPlanner:
         best_loss = float('inf')
         
         for step in range(n_epochs):
-            params, opt_state, key, *_ = self.update(params, opt_state, key)  
-            
+            params, opt_state, key, *_ = self.update(params, opt_state, key)              
             train_loss, (key, *_) = self.train_loss(params, key)
             
             test_loss, (key, rollouts, errors) = self.test_loss(params, key)
