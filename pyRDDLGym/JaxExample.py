@@ -23,7 +23,7 @@ ENV = 'UAV continuous'
 ENV = 'Wildfire'
 # ENV = 'RecSim'
 
-DO_PLAN = False
+DO_PLAN = True
 
 
 def main():
@@ -44,11 +44,14 @@ def main():
                                          optimizer=optax.rmsprop(0.05),
                                          initializer=jax.nn.initializers.normal())
         for callback in planner.optimize(500):
-            print('step={} loss={:.4f} test_loss={:.4f} err={}'.format(
-                str(callback['step']).rjust(4), callback['train_loss'], 
-                callback['test_loss'], callback['errors']))
+            print('step={} loss={:.6f} test_loss={:.6f} improved={} err={}'.format(
+                str(callback['step']).rjust(4), 
+                callback['train_loss'], 
+                callback['test_loss'], 
+                callback['improved'], 
+                callback['errors']))
+            
         print(callback['best_plan'])
-        print(np.mean(callback['rollouts']['burning']))
         
     else:
         
