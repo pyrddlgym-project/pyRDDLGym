@@ -125,12 +125,12 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
     
     def _jax_poisson(self, expr, params):
         raise RDDLNotImplementedError(
-            'No reparameterization implemented for Poisson.' + '\n' + 
+            'No parameterization implemented for Poisson.' + '\n' + 
             JaxRDDLBackpropCompiler._print_stack_trace(expr))
     
     def _jax_gamma(self, expr, params):
         raise RDDLNotImplementedError(
-            'No reparameterization implemented for Gamma.' + '\n' + 
+            'No parameterization implemented for Gamma.' + '\n' + 
             JaxRDDLBackpropCompiler._print_stack_trace(expr))
 
  
@@ -304,8 +304,9 @@ class JaxRDDLBackpropPlanner:
             params, opt_state, self.key, _, _ = self.update(params, opt_state, self.key)                       
             loss_val, (self.key, _, errs) = self.loss(params, self.key)
             errs = JaxRDDLBackpropCompiler.get_error_codes(errs)
-
-            if loss_val < best_loss:
+            
+            improved = loss_val < best_loss
+            if improved:
                 best_params = params
                 best_plan = self.test_action_map(best_params)
                 best_loss = loss_val
@@ -317,6 +318,7 @@ class JaxRDDLBackpropPlanner:
                         'train_loss': loss_val,
                         'best_loss': best_loss,
                         'test_loss': test_loss,
+                        'improved' : improved,
                         'rollouts': rollouts,
                         'errors': errs}
             yield callback
