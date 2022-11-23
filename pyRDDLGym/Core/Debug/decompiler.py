@@ -43,8 +43,10 @@ class TreeBuilder:
             return self._build_random(expr)
         elif etype == 'func':
             return self._build_function(expr)
-        else:
+        elif etype in {'relational', 'arithmetic', 'boolean'}:
             return self._build_arithmetic(expr)
+        else:
+            raise Exception('Internal error: type {} is not supported.'.format(etype))
     
     def _build_const(self, expr):
         return TreeNode('const', expr.args)
@@ -107,59 +109,85 @@ class RDDLDecompiler:
         return self._decompile(tree, False, 0)
     
     def _decompile(self, tree, enclose, level):
-        if tree.etype == 'cpf':
-            format_str = '{} = {};'
-            decompiled = self._decompile(tree.args[0], False, level)
-            value = format_str.format(tree.value, decompiled)
-            enclose = False
+        etype = tree.etype
+        if etype == 'cpf':
+            return self._decompile_cpf(tree, enclose, level)        
+        elif etype in {'const', 'pvar'}:
+            return self._decompile_variable(tree, enclose, level)
+        elif etype == 'agg':
+            return self._decompile_aggregation(tree, enclose, level)        
+        elif etype == 'if':
+            return self._decompile_control(tree, enclose, level)        
+        elif etype == 'random':
+            return self._decompile_random(tree, enclose, level)        
+        elif etype == 'func':
+            return self._decompile_func(tree, enclose, level)        
+        elif etype == 'unary':
+            return self._decompile_unary(tree, enclose, level)        
+        elif etype == 'binary':
+            return self._decompile_binary(tree, enclose, level)        
+        elif etype == 'nary':
+            return self._decompile_nary(tree, enclose, level)
+        else:
+            raise Exception('Internal error: TreeNode type {} is undefined.'.format(etype))
         
-        elif tree.etype in {'const', 'pvar'}:
-            value = str(tree.value)
-            enclose = False
-
-        elif tree.etype == 'agg':
-            format_str = '{} [ {} ]'
-            decompiled = self._decompile(tree.args[0], False, level)
-            value = format_str.format(tree.value, decompiled)
-            enclose = True
+    def _decompile_cpf(self, tree, enclose, level):
+        format_str = '{} = {};'
+        decompiled = self._decompile(tree.args[0], False, level)
+        return format_str.format(tree.value, decompiled)
         
-        elif tree.etype == 'if':
-            indent = '\t' * (level + 1)
-            format_str = 'if ({})' + '\n' + indent + 'then {}' + '\n' + indent + 'else {}'
-            pred = self._decompile(tree.args[0], False, level)
-            if_true = self._decompile(tree.args[1], True, level + 1)
-            if_false = self._decompile(tree.args[2], True, level + 1)
-            value = format_str.format(pred, if_true, if_false)
+    def _decompile_variable(self, tree, enclose, level):
+        return str(tree.value)
         
-        elif tree.etype == 'random':
-            format_str = '{}({})'
-            decompiled = (self._decompile(arg, False, level) for arg in tree.args)
-            value = format_str.format(tree.value, ', '.join(decompiled))
-            enclose = False
+    def _decompile_aggregation(self, tree, enclose, level):
+        format_str = '{} [ {} ]'
+        decompiled = self._decompile(tree.args[0], False, level)
+        value = format_str.format(tree.value, decompiled)
+        return '( {} )'.format(value)
         
-        elif tree.etype == 'func':
-            format_str = '{}({})'
-            decompiled = (self._decompile(arg, False, level) for arg in tree.args)
-            value = format_str.format(tree.value, ', '.join(decompiled))
-            enclose = False
-        
-        elif tree.etype == 'unary':
-            format_str = '{}'
-            decompiled = self._decompile(tree.args[0], True, level)
-            value = format_str.format(tree.value + decompiled)
-        
-        elif tree.etype == 'binary':
-            lhs = self._decompile(tree.args[0], True, level)
-            rhs = self._decompile(tree.args[1], True, level)
-            format_str = '{} {} {}'
-            value = format_str.format(lhs, tree.value, rhs)
-        
-        elif tree.etype == 'nary':
-            decompiled = (self._decompile(arg, True, level) for arg in tree.args)
-            op = ' ' + tree.value + ' '
-            value = op.join(decompiled)
-        
+    def _decompile_control(self, tree, enclose, level):
+        indent = '\t' * (level + 1)
+        format_str = 'if ({})' + '\n' + indent + 'then {}' + '\n' + indent + 'else {}'
+        pred = self._decompile(tree.args[0], False, level)
+        if_true = self._decompile(tree.args[1], True, level + 1)
+        if_false = self._decompile(tree.args[2], True, level + 1)
+        value = format_str.format(pred, if_true, if_false)
+        if enclose: 
+            value = '( {} )'.format(value)
+        return value
+    
+    def _decompile_random(self, tree, enclose, level):
+        format_str = '{}({})'
+        decompiled = (self._decompile(arg, False, level) for arg in tree.args)
+        return format_str.format(tree.value, ', '.join(decompiled))
+            
+    def _decompile_func(self, tree, enclose, level):
+        format_str = '{}({})'
+        decompiled = (self._decompile(arg, False, level) for arg in tree.args)
+        return format_str.format(tree.value, ', '.join(decompiled))
+            
+    def _decompile_unary(self, tree, enclose, level):
+        format_str = '{}'
+        decompiled = self._decompile(tree.args[0], True, level)
+        value = format_str.format(tree.value + decompiled)
         if enclose:
             value = '( {} )'.format(value)
-        
         return value
+    
+    def _decompile_binary(self, tree, enclose, level):
+        lhs = self._decompile(tree.args[0], True, level)
+        rhs = self._decompile(tree.args[1], True, level)
+        format_str = '{} {} {}'
+        value = format_str.format(lhs, tree.value, rhs)
+        if enclose:
+            value = '( {} )'.format(value)
+        return value
+    
+    def _decompile_nary(self, tree, enclose, level):
+        decompiled = (self._decompile(arg, True, level) for arg in tree.args)
+        op = ' ' + tree.value + ' '
+        value = op.join(decompiled)
+        if enclose:
+            value = '( {} )'.format(value)
+        return value
+    
