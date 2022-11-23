@@ -15,7 +15,7 @@ class FuzzyLogic:
     
     def __init__(self, soft_if: bool=True):
         self.soft_if = soft_if
-        
+    
     def _and(self, a, b):
         raise NotImplementedError
     
@@ -99,7 +99,7 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         self.CONTROL_OPS = {
             'if': logic._if_then_else
         }
-        
+    
     def _jax_logical(self, expr, op, params):
         warnings.warn('Logical operator {} will be converted to fuzzy variant.'.format(op),
                       FutureWarning, stacklevel=2)
@@ -119,9 +119,10 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         return super(JaxRDDLBackpropCompiler, self)._jax_control(expr, op, params)
 
     def _jax_kron(self, expr, params):
-        warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)            
+        warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)                    
         arg, = expr.args
-        return self._jax(arg, params)
+        arg = self._jax(arg, params)
+        return arg
     
     def _jax_poisson(self, expr, params):
         raise RDDLNotImplementedError(
@@ -152,11 +153,13 @@ class JaxRDDLBackpropPlanner:
         compiled = JaxRDDLBackpropCompiler(rddl, logic=logic).compile()
         test_compiled = JaxRDDLCompiler(rddl).compile()
         
+        # which bounds can be enforced
         self.finite_action_bounds = {}
         for name, (lb, ub) in action_bounds.items():
             if np.isfinite(lb) and np.isfinite(ub) and lb <= ub:
                 self.finite_action_bounds[name] = (lb, ub)
-                
+        
+        # get type and shape of action fluent tensors
         self.action_info = {}
         for pvar in rddl.domain.action_fluents.values():
             name = pvar.name       
@@ -212,7 +215,8 @@ class JaxRDDLBackpropPlanner:
                 if action_type == bool:
                     new_plan[action] = jnp.greater(value, 0.5)
                 elif action_type == JaxRDDLCompiler.INT:
-                    new_plan[action] = jnp.asarray(jnp.round(value), dtype=JaxRDDLCompiler.INT)
+                    new_plan[action] = jnp.asarray(
+                        jnp.round(value), dtype=JaxRDDLCompiler.INT)
                 else:
                     new_plan[action] = value
             return new_plan
@@ -238,7 +242,7 @@ class JaxRDDLBackpropPlanner:
             reward, key, reward_err = reward_fn(x, key)
             err |= reward_err
             
-            reward = reward * discount
+            reward *= discount
             discount *= gamma
             
             for primed, unprimed in primed_unprimed.items():
@@ -248,22 +252,20 @@ class JaxRDDLBackpropPlanner:
             return carry, reward
         
         def _rollout(plan, x0, key): 
-            x0 = x0.copy()
             for primed, unprimed in primed_unprimed.items():
                 x0[primed] = x0[unprimed]
             
             initial = (x0, 1.0, key, NORMAL)
             final, rewards = jax.lax.scan(_epoch, initial, plan)
             x, _, key, err = final
-            cuml_reward = jnp.sum(rewards)
+            sum_reward = jnp.sum(rewards)
             
-            return cuml_reward, x, key, err
+            return sum_reward, x, key, err
         
         def _batched(value):
             value = jnp.asarray(value)
-            batched_shape = (batch_size,) + value.shape
-            batched_value = jnp.broadcast_to(value, shape=batched_shape) 
-            return batched_value
+            shape = (batch_size,) + value.shape
+            return jnp.broadcast_to(value, shape=shape) 
                 
         def _rollouts(plan, key):
             batched_init = jax.tree_map(_batched, init_values)
@@ -281,10 +283,10 @@ class JaxRDDLBackpropPlanner:
         def _loss(params, key):
             plan = predict(params)
             returns, key, batch, errs = batched_rollouts(plan, key)
-            return_value = -jnp.mean(returns)
+            loss = -jnp.mean(returns)
             errs = jax.lax.reduce(errs, NORMAL, jnp.bitwise_or, (0,))
-            aux = (key, batch, errs)
-            return return_value, aux
+            aux = (key, batch, returns, errs)
+            return loss, aux
         
         return _loss
     
@@ -304,10 +306,10 @@ class JaxRDDLBackpropPlanner:
     def _jax_update(self, loss, optimizer):
         
         def _update(params, opt_state, key):
-            grad, (key, batch, errs) = jax.grad(loss, has_aux=True)(params, key)
+            grad, aux = jax.grad(loss, has_aux=True)(params, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)       
-            return params, opt_state, key, batch, errs
+            return (params, opt_state, *aux)
         
         return _update
             
@@ -326,8 +328,9 @@ class JaxRDDLBackpropPlanner:
             params, opt_state, key, *_ = self.update(params, opt_state, key)              
             train_loss, (key, *_) = self.train_loss(params, key)
             
-            test_loss, (key, rollouts, errors) = self.test_loss(params, key)
-            test_errors = JaxRDDLCompiler.get_error_codes(errors)
+            test_loss, (key, batch, returns, errors) = self.test_loss(params, key)
+            errors = JaxRDDLCompiler.get_error_codes(errors)
+            self.key = key
             
             if test_loss < best_loss:
                 best_params = params
@@ -337,10 +340,10 @@ class JaxRDDLBackpropPlanner:
             callback = {'step': step,
                         'train_loss': train_loss,
                         'test_loss': test_loss,
-                        'test_errors': test_errors,
                         'best_plan': best_plan,
                         'best_loss': best_loss,
-                        'rollouts': rollouts}
-            self.key = key
+                        'errors': errors,
+                        'states': batch,
+                        'returns': returns}
             yield callback
     

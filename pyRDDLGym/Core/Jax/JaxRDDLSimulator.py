@@ -39,8 +39,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         if errors:
             error_list = '\n'.join('{}. {}'.format(i + 1, s) for i, s in enumerate(errors))
             error_message = 'Internal error(s) returned ' + \
-                            'during evaluation of {}:\n'.format(aux_str) + \
-                            error_list
+                            'during evaluation of {}:\n'.format(aux_str) + error_list
             if self.soft:
                 warnings.warn(error_message, FutureWarning, stacklevel=2)
             else:
@@ -93,18 +92,17 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         :param actions: a dict mapping current action fluents to their values
         '''
-        subs, key = self.subs, self.key
+        subs = self.subs
         subs.update(actions)
         
         for name, cpf in self.cpfs.items():
-            subs[name], key, error = cpf(subs, key)
+            subs[name], self.key, error = cpf(subs, self.key)
             self.handle_error_code(error, 'CPF <{}>'.format(name))
         reward = self.sample_reward()
         for primed, unprimed in self.state_unprimed.items():
             subs[unprimed] = subs[primed]
             
         obs = {var: subs[var] for var in self.state_vars}
-        self.key = key
         done = self.check_terminal_states()
         return obs, reward, done
         
