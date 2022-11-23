@@ -16,11 +16,11 @@ from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-# ENV = 'MountainCar'
+ENV = 'MountainCar'
 #ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 #ENV = 'Elevators'
-ENV = 'Wildfire'
+#ENV = 'Reservoir'
 # ENV = 'RecSim'
 
 DO_PLAN = True
@@ -41,18 +41,19 @@ def main():
     if DO_PLAN:
         
         planner = JaxRDDLBackpropPlanner(ast, key, 256, 64,
-                                         optimizer=optax.rmsprop(0.03),
+                                         optimizer=optax.rmsprop(0.1),
                                          initializer=jax.nn.initializers.normal(),
-                                         action_bounds={})
+                                         action_bounds={'action' : (0., 2.)})
         for callback in planner.optimize(500):
             print('step={} loss={:.6f} test_loss={:.6f} best_loss={:.6f} err={}'.format(
                 str(callback['step']).rjust(4), 
                 callback['train_loss'], 
                 callback['test_loss'], 
                 callback['best_loss'], 
-                callback['test_errors']))
+                callback['errors']))
             
         print(callback['best_plan'])
+        print(callback['returns'])
         
     else:
         
