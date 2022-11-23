@@ -162,7 +162,7 @@ class RDDLDecompiler:
         return format_str.format(tree.value, ', '.join(decompiled))
             
     def _decompile_func(self, tree, enclose, level):
-        format_str = '{}({})'
+        format_str = '{}[{}]'
         decompiled = (self._decompile(arg, False, level) for arg in tree.args)
         return format_str.format(tree.value, ', '.join(decompiled))
             

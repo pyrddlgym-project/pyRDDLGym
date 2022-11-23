@@ -89,6 +89,7 @@ class RDDLlex(object):
             'Multinomial': 'MULTINOMIAL',
             'Dirichlet': 'DIRICHLET',
             'Binomial': 'BINOMIAL',
+            'NegativeBinomial': 'NEGATIVEBINOMIAL',
             'Beta' : 'BETA',
             'Geometric' : 'GEOMETRIC',
             'Pareto' : 'PARETO',
@@ -635,6 +636,7 @@ class RDDLParser(object):
                           | WEIBULL LPAREN expr COMMA expr RPAREN
                           | GAMMA   LPAREN expr COMMA expr RPAREN
                           | BINOMIAL   LPAREN expr COMMA expr RPAREN
+                          | NEGATIVEBINOMIAL   LPAREN expr COMMA expr RPAREN
                           | BETA   LPAREN expr COMMA expr RPAREN
                           | GEOMETRIC LPAREN expr RPAREN
                           | PARETO   LPAREN expr COMMA expr RPAREN
