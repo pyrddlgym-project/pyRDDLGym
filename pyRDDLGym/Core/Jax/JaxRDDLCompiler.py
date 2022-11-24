@@ -136,7 +136,7 @@ class JaxRDDLCompiler:
             objects[obj] = dict(zip(values, range(len(values))))
         self.objects = objects
         
-        states, pvars, pvar_types, old_types = {}, {}, {}, {}
+        states, pvars, old_types, new_types = {}, {}, {}, {}
         for pvar in self.domain.pvariables:
             name = pvar.name
             ptype = pvar.range
@@ -147,19 +147,19 @@ class JaxRDDLCompiler:
                 states[name] = pvar.name
                 
             pvars[name] = [] if params is None else params
+            old_types[name] = ptype              
             
-            old_types[name] = ptype
             if self.allow_discrete:
-                pvar_types[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[ptype]
+                new_types[name] = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[ptype]
             else:
-                pvar_types[name] = JaxRDDLCompiler.REAL
+                new_types[name] = JaxRDDLCompiler.REAL
                 if ptype != 'real':
-                    warnings.warn('Variable <{}> of type {} will be cast to real.'.format(
-                        name, ptype), FutureWarning, stacklevel=2)                    
+                    warnings.warn('Variable <{}> of {} will be cast to real.'.format(
+                        name, ptype), FutureWarning, stacklevel=2)     
         self.states = states
         self.pvars = pvars
-        self.pvar_types = pvar_types
         self.old_types = old_types
+        self.pvar_types = new_types
     
     def _compile_instance(self):
         object_lookup = {}        
@@ -215,7 +215,7 @@ class JaxRDDLCompiler:
                 'Discount {} in the instance is not in [0, 1].'.format(discount))
         self.discount = discount
         
-    # compile RDDL statements
+    # compile RDDL program
     def _compile_constraints(self, constraints):
         to_jax = lambda e: self._jax(e, [], dtype=bool)
         return list(map(to_jax, constraints))

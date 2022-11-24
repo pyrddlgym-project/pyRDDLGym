@@ -16,7 +16,7 @@ from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-ENV = 'Wildfire'
+ENV = 'Reservoir'
 # ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
@@ -28,7 +28,7 @@ DO_PLAN = True
 
 def rddl_simulate(domain, instance, viz, plan, ground_fn):
     myEnv = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
-    myEnv.set_visualizer(viz)
+   # myEnv.set_visualizer(viz)
 
     total_reward = 0
     state = myEnv.reset()
@@ -92,18 +92,17 @@ def main():
     if DO_PLAN:
         
         planner = JaxRDDLBackpropPlanner(
-            ast, key, 256, 64,
-            optimizer=optax.rmsprop(0.1),
+            ast, key, 64, 100,
+            optimizer=optax.rmsprop(0.2),
             initializer=jax.nn.initializers.normal(),
-            action_bounds={})
+            action_bounds={'flow' : (0, 1000)})
         
-        for callback in planner.optimize(100):
-            print('step={} loss={:.6f} test_loss={:.6f} best_loss={:.6f} err={}'.format(
+        for callback in planner.optimize(300):
+            print('step={} loss={:.6f} test_loss={:.6f} best_loss={:.6f}'.format(
                 str(callback['step']).rjust(4),
                 callback['train_loss'],
                 callback['test_loss'],
-                callback['best_loss'],
-                callback['errors']))
+                callback['best_loss']))
             
         plan = callback['best_plan']
         plan = {name: np.asarray(value) for name, value in plan.items()}
