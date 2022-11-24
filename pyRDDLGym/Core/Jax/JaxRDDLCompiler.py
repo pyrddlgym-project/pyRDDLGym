@@ -122,7 +122,7 @@ class JaxRDDLCompiler:
     def ground_action_fluents(self, actions: Dict) -> Dict:
         grounded = {}
         for name, action in actions.items():
-            values = np.reshape(action, newshape=(-1,), order='C')
+            values = np.reshape(action, newshape=(-1,), order='C').tolist()
             params = self.pvars[name]
             if params:
                 objects = (self.objects[p].keys() for p in params)
@@ -130,7 +130,7 @@ class JaxRDDLCompiler:
                 to_grounded = lambda choice: name + '_' + '_'.join(choice)
                 grounded_names = map(to_grounded, variations)
             else:
-                grounded_names = (action,)
+                grounded_names = (name,)
             actions = zip(grounded_names, values, strict=True)
             grounded.update(actions)
         return grounded
