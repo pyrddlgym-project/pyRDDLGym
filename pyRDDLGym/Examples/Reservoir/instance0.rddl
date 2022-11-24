@@ -1,35 +1,124 @@
-non-fluents Reservoir_non {
+non-fluents Reservoir_20 {
 	domain = reservoir;
+	
 	objects{
-		id: {t1,t2,t3};
+		id: {t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16,t17,t18,t19,t20};
 	};
 	
 	non-fluents {
+		MAXCAP(t1) = 100;
+		MAXCAP(t2) = 100;
+		MAXCAP(t3) = 100;
+		MAXCAP(t4) = 100;
+		MAXCAP(t5) = 100;
+		MAXCAP(t6) = 100;
+		MAXCAP(t7) = 100;
+		MAXCAP(t8) = 100;
+		MAXCAP(t9) = 200;
+		MAXCAP(t10) = 200;
+		MAXCAP(t11) = 200;
+		MAXCAP(t12) = 200;
+		MAXCAP(t13) = 200;
+		MAXCAP(t14) = 200;
+		MAXCAP(t15) = 400;
+		MAXCAP(t16) = 400;
+		MAXCAP(t17) = 400;
+		MAXCAP(t18) = 500;
+		MAXCAP(t19) = 500;
+		MAXCAP(t20) = 1000;
+		HIGH_BOUND(t1) = 80;
+		HIGH_BOUND(t2) = 80;
+		HIGH_BOUND(t3) = 80;
+		HIGH_BOUND(t4) = 80;
+		HIGH_BOUND(t5) = 80;
+		HIGH_BOUND(t6) = 80;
+		HIGH_BOUND(t7) = 80;
+		HIGH_BOUND(t8) = 80;
+		HIGH_BOUND(t9) = 180;
+		HIGH_BOUND(t10) = 180;
+		HIGH_BOUND(t11) = 180;
+		HIGH_BOUND(t12) = 180;
+		HIGH_BOUND(t13) = 180;
+		HIGH_BOUND(t14) = 180;
+		HIGH_BOUND(t15) = 380;
+		HIGH_BOUND(t16) = 380;
+		HIGH_BOUND(t17) = 380;
+		HIGH_BOUND(t18) = 480;
+		HIGH_BOUND(t19) = 480;
+		HIGH_BOUND(t20) = 980;
+		LOW_BOUND(t1) = 20;
+		LOW_BOUND(t2) = 20;
+		LOW_BOUND(t3) = 20;
+		LOW_BOUND(t4) = 20;
+		LOW_BOUND(t5) = 20;
+		LOW_BOUND(t6) = 20;
+		LOW_BOUND(t7) = 20;
+		LOW_BOUND(t8) = 20;
+		LOW_BOUND(t9) = 30;
+		LOW_BOUND(t10) = 30;
+		LOW_BOUND(t11) = 30;
+		LOW_BOUND(t12) = 30;
+		LOW_BOUND(t13) = 30;
+		LOW_BOUND(t14) = 30;
+		LOW_BOUND(t15) = 40;
+		LOW_BOUND(t16) = 40;
+		LOW_BOUND(t17) = 40;
+		LOW_BOUND(t18) = 60;
+		LOW_BOUND(t19) = 60;
+		LOW_BOUND(t20) = 100;
 		RAIN(t1) = 5.0;
-		RAIN(t2) = 10.0;
-		RAIN(t3) = 20.0;
-		MAXCAP(t1) = 200.0;
-		MAXCAP(t2) = 300.0;
-		LOW_BOUND(t2) = 30.0;
-		HIGH_BOUND(t2) = 180.0;
-		MAXCAP(t3) = 400.0;
-		LOW_BOUND(t3) = 40.0;
-		HIGH_BOUND(t3) = 380.0;
-		DOWNSTREAM(t1,t2);
-		DOWNSTREAM(t2,t3);
-		DOWNTOSEA(t3);
+		RAIN(t2) = 5.0;
+		RAIN(t3) = 5.0;
+		RAIN(t4) = 5.0;
+		RAIN(t5) = 5.0;
+		RAIN(t6) = 5.0;
+		RAIN(t7) = 5.0;
+		RAIN(t8) = 5.0;
+		RAIN(t9) = 10.0;
+		RAIN(t10) = 10.0;
+		RAIN(t11) = 10.0;
+		RAIN(t12) = 10.0;
+		RAIN(t13) = 10.0;
+		RAIN(t14) = 10.0;
+		RAIN(t15) = 20.0;
+		RAIN(t16) = 20.0;
+		RAIN(t17) = 20.0;
+		RAIN(t18) = 30.0;
+		RAIN(t19) = 30.0;
+		RAIN(t20) = 40.0;
+		DOWNSTREAM(t1,t9);
+		DOWNSTREAM(t2,t9);
+		DOWNSTREAM(t3,t10);
+		DOWNSTREAM(t4,t10);
+		DOWNSTREAM(t5,t11);
+		DOWNSTREAM(t6,t11);
+		DOWNSTREAM(t7,t12);
+		DOWNSTREAM(t8,t12);
+		DOWNSTREAM(t9,t15);
+		DOWNSTREAM(t10,t15);
+		DOWNSTREAM(t11,t16);
+		DOWNSTREAM(t12,t16);
+		DOWNSTREAM(t13,t17);
+		DOWNSTREAM(t14,t17);
+		DOWNSTREAM(t15,t18);
+		DOWNSTREAM(t16,t19);
+		DOWNSTREAM(t17,t19);
+		DOWNSTREAM(t18,t20);
+		DOWNSTREAM(t19,t20);
+		DOWNTOSEA(t20);
+		BIGGESTMAXCAP = 1000;
 	};
 }
 
 instance is1 {
 	domain = reservoir;
-	non-fluents = Reservoir_non;
+	non-fluents = Reservoir_20;
 
 	init-state{
 		rlevel(t1) = 75.0;
 	};
 
-	max-nondef-actions = 3;
-	horizon = 10;
+	max-nondef-actions = 20;
+	horizon = 60;
 	discount = 1.0;
 }
