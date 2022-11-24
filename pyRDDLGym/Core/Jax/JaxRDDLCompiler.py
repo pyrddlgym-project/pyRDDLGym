@@ -632,7 +632,8 @@ class JaxRDDLCompiler:
             lb, key, err1 = jax_lb(x, key)
             ub, key, err2 = jax_ub(x, key)
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=lb.shape, dtype=JaxRDDLCompiler.REAL)
+            U = random.uniform(
+                key=subkey, shape=lb.shape, dtype=JaxRDDLCompiler.REAL)
             sample = lb + (ub - lb) * U
             out_of_bounds = jnp.any(lb > ub)
             err = err1 | err2 | out_of_bounds * ERR_CODE
@@ -654,7 +655,8 @@ class JaxRDDLCompiler:
             var, key, err2 = jax_var(x, key)
             std = jnp.sqrt(var)
             key, subkey = random.split(key)
-            Z = random.normal(key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+            Z = random.normal(
+                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
             sample = mean + std * Z
             out_of_bounds = jnp.any(var < 0)
             err = err1 | err2 | out_of_bounds * ERR_CODE
@@ -691,13 +693,13 @@ class JaxRDDLCompiler:
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_WEIBULL']
         
         # W(shape, scale) = scale * (-log(1 - U(0, 1)))^{1 / shape}
-        # TODO: make this numerically stable
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=shape.shape, dtype=JaxRDDLCompiler.REAL)
-            sample = scale * jnp.power(-jnp.log(1.0 - U), 1.0 / shape)
+            U = random.uniform(
+                key=subkey, shape=shape.shape, dtype=JaxRDDLCompiler.REAL)
+            sample = scale * jnp.power(-jnp.log1p(-U), 1.0 / shape)
             out_of_bounds = jnp.any((shape < 0) | (scale < 0))
             err = err1 | err2 | out_of_bounds * ERR_CODE
             return sample, key, err
@@ -715,8 +717,9 @@ class JaxRDDLCompiler:
         def _f(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
-            U = random.uniform(key=subkey, shape=prob.shape, dtype=JaxRDDLCompiler.REAL)
-            sample = jnp.less(U, prob)
+            U = random.uniform(
+                key=subkey, shape=prob.shape, dtype=JaxRDDLCompiler.REAL)
+            sample = U < prob
             out_of_bounds = jnp.any((prob < 0) | (prob > 1))
             err |= out_of_bounds * ERR_CODE
             return sample, key, err
@@ -734,7 +737,8 @@ class JaxRDDLCompiler:
         def _f(x, key):
             rate, key, err = jax_rate(x, key)
             key, subkey = random.split(key)
-            sample = random.poisson(key=subkey, lam=rate, dtype=JaxRDDLCompiler.INT)
+            sample = random.poisson(
+                key=subkey, lam=rate, dtype=JaxRDDLCompiler.INT)
             out_of_bounds = jnp.any(rate < 0)
             err |= out_of_bounds * ERR_CODE
             return sample, key, err
