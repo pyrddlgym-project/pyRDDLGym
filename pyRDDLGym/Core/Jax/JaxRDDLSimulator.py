@@ -29,6 +29,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.terminals = compiled.termination
         _, self.reward = compiled.reward
         _, self.cpfs = compiled.cpfs
+        self.compiled = compiled
         
     @staticmethod
     def _print_stack_trace(expr, subs, key):

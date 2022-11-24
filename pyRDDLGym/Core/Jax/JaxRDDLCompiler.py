@@ -1,7 +1,9 @@
+import itertools
 import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
+from typing import Dict
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -102,7 +104,7 @@ class JaxRDDLCompiler:
             'if': jnp.where
         }
     
-    def compile(self) -> None:
+    def compile(self) -> 'JaxRDDLCompiler':
         self.objects, self.states, self.pvars, self.pvar_types, self.old_types = self._compile_objects()        
         self.init_values, self.horizon, self.discount = self._compile_instance()
         
@@ -112,10 +114,27 @@ class JaxRDDLCompiler:
         self.reward = self._compile_reward()
         self.cpfs = self._compile_cpfs()
         
-        self.state_unprimed = {cpf: self.states.get(cpf, cpf) for cpf in self.cpfs[0].keys()}
+        self.state_unprimed = {cpf: self.states.get(cpf, cpf) 
+                               for cpf in self.cpfs[0].keys()}
         
         return self
     
+    def ground_action_fluents(self, actions: Dict) -> Dict:
+        grounded = {}
+        for name, action in actions.items():
+            values = np.reshape(action, newshape=(-1,), order='C')
+            params = self.pvars[name]
+            if params:
+                objects = (self.objects[p].keys() for p in params)
+                variations = itertools.product(*objects)
+                to_grounded = lambda choice: name + '_' + '_'.join(choice)
+                grounded_names = map(to_grounded, variations)
+            else:
+                grounded_names = (action,)
+            actions = zip(grounded_names, values, strict=True)
+            grounded.update(actions)
+        return grounded
+        
     # compile RDDL constants
     def _compile_objects(self):
         objects = {}
@@ -261,7 +280,7 @@ class JaxRDDLCompiler:
     }
     
     INVERSE_ERROR_CODES = {
-        0: 'Possible loss of precision in cast to a weaker type (e.g., real to int).',
+        0: 'Casting occurred that could result in loss of precision.',
         1: 'Found Uniform(a, b) distribution where a > b.',
         2: 'Found Normal(m, v^2) distribution where v < 0.',
         3: 'Found Exponential(s) distribution where s < 0.',
@@ -335,7 +354,6 @@ class JaxRDDLCompiler:
     def _map_pvar_subs_to_subscript(self, given_params, desired_params, expr):
         symbols = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
         
-        # check that number of parameters is valid
         if len(desired_params) > len(symbols):
             raise RDDLNotImplementedError(
                 'Variable <{}> is {}-D, but current version supports up to {}-D.'.format(
@@ -743,5 +761,4 @@ class JaxRDDLCompiler:
             return sample, key, err
         
         return _f
-            
-    
+
