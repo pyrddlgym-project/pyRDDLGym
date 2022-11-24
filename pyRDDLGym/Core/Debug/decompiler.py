@@ -4,10 +4,11 @@ from pyRDDLGym.Core.Parser.cpf import CPF
 
 class TreeNode:
     
-    def __init__(self, etype, value, *args):
+    def __init__(self, etype, value, *args, commutes: bool=False):
         self.etype = etype
         self.value = value
         self.args = tuple(args)
+        self.commutes = commutes
     
     def _str(self, level=0):
         value = ' ' * level + str(self.value)
@@ -15,11 +16,24 @@ class TreeNode:
             value += '\n' + arg._str(level + 1)
         return value
     
+    def __hash__(self):
+        hashed_args = tuple(map(hash, self.args))
+        if self.commutes:
+            hashed_args = tuple(sorted(hashed_args))
+        return hash((self.etype, self.value) + hashed_args)
+        
     def __str__(self):
         return self._str()
     
 
 class TreeBuilder:
+    
+    COMMUTATIVE = {'+', '*', 
+                   '==', '~=', 
+                   '|', '^', '~', '<=>', 
+                   'minimum', 'maximum', 'sum', 'avg', 'prod',
+                   'forall', 'exists',
+                   'min', 'max'}
     
     def build_cpf(self, cpf: CPF) -> TreeNode:
         _, (name, params) = cpf.pvar
@@ -49,53 +63,59 @@ class TreeBuilder:
             raise Exception('Internal error: type {} is not supported.'.format(etype))
     
     def _build_const(self, expr):
-        return TreeNode('const', expr.args)
+        return TreeNode('const', expr.args, commutes=False)
     
     def _build_pvar(self, expr):
         _, value = expr.etype  
         _, params = expr.args
         if params:
             value += '(' + ', '.join(params) + ')'
-        return TreeNode('pvar', value)
+        return TreeNode('pvar', value, commutes=False)
     
     def _build_aggregation(self, expr):
-        _, value = expr.etype        
+        _, op = expr.etype        
         params, exprs = [], []
         for arg in expr.args:
             if isinstance(arg, tuple):
                 param = '{}:{}'.format(*arg[1])
                 params.append(param)
             else:
-                exprs.append(arg)        
+                exprs.append(arg)   
+        value = op     
         if params:
             value += '_' + '{' + ', '.join(params) + '}'
         args = map(self.build_expr, exprs)
-        return TreeNode('agg', value, *args)
+        commutes = op in TreeBuilder.COMMUTATIVE
+        return TreeNode('agg', value, *args, commutes=commutes)
     
     def _build_control(self, expr):
-        _, value = expr.etype        
+        _, op = expr.etype        
         args = map(self.build_expr, expr.args)
-        return TreeNode('if', value, *args)
+        commutes = op in TreeBuilder.COMMUTATIVE
+        return TreeNode('if', op, *args, commutes=commutes)
     
     def _build_random(self, expr):
-        _, value = expr.etype  
+        _, op = expr.etype  
         args = map(self.build_expr, expr.args)
-        return TreeNode('random', value, *args)
+        commutes = op in TreeBuilder.COMMUTATIVE
+        return TreeNode('random', op, *args, commutes=commutes)
     
     def _build_function(self, expr):
-        _, value = expr.etype  
+        _, op = expr.etype
         args = map(self.build_expr, expr.args)
-        return TreeNode('func', value, *args)
+        commutes = op in TreeBuilder.COMMUTATIVE
+        return TreeNode('func', op, *args, commutes=commutes)
     
     def _build_arithmetic(self, expr):
-        _, value = expr.etype        
+        _, op = expr.etype        
         args = map(self.build_expr, expr.args)
+        commutes = op in TreeBuilder.COMMUTATIVE
         if len(expr.args) == 1:
-            return TreeNode('unary', value, *args)
+            return TreeNode('unary', op, *args, commutes=commutes)
         elif len(expr.args) == 2:
-            return TreeNode('binary', value, *args)
+            return TreeNode('binary', op, *args, commutes=commutes)
         else:
-            return TreeNode('nary', value, *args)
+            return TreeNode('nary', op, *args, commutes=commutes)
 
 
 class RDDLDecompiler:
