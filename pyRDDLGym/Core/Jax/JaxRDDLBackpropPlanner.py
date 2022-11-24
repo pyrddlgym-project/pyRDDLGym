@@ -124,16 +124,6 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
         arg, = expr.args
         arg = self._jax(arg, params)
         return arg
-    
-    def _jax_poisson(self, expr, params):
-        raise RDDLNotImplementedError(
-            'No parameterization implemented for Poisson.' + '\n' + 
-            JaxRDDLBackpropCompiler._print_stack_trace(expr))
-    
-    def _jax_gamma(self, expr, params):
-        raise RDDLNotImplementedError(
-            'No parameterization implemented for Gamma.' + '\n' + 
-            JaxRDDLBackpropCompiler._print_stack_trace(expr))
 
  
 class JaxRDDLBackpropPlanner:
