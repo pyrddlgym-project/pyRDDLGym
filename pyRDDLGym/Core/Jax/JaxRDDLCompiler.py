@@ -1,6 +1,5 @@
 import itertools
 import numpy as np
-import jax
 import jax.numpy as jnp
 import jax.random as random
 from typing import Dict
@@ -104,20 +103,15 @@ class JaxRDDLCompiler:
             'if': jnp.where
         }
     
-    def compile(self) -> 'JaxRDDLCompiler':
-        self.objects, self.states, self.pvars, self.pvar_types, self.old_types = self._compile_objects()        
-        self.init_values, self.horizon, self.discount = self._compile_instance()
+    def compile(self) -> None:
+        self._compile_objects()        
+        self._compile_instance()        
         
         self.invariants = self._compile_constraints(self.domain.invariants)
         self.preconditions = self._compile_constraints(self.domain.preconds)
         self.termination = self._compile_constraints(self.domain.terminals)
         self.reward = self._compile_reward()
         self.cpfs = self._compile_cpfs()
-        
-        self.state_unprimed = {cpf: self.states.get(cpf, cpf) 
-                               for cpf in self.cpfs[0].keys()}
-        
-        return self
     
     def ground_action_fluents(self, actions: Dict) -> Dict:
         grounded = {}
@@ -140,6 +134,7 @@ class JaxRDDLCompiler:
         objects = {}
         for obj, values in self.non_fluents.objects:
             objects[obj] = dict(zip(values, range(len(values))))
+        self.objects = objects
         
         states, pvars, pvar_types, old_types = {}, {}, {}, {}
         for pvar in self.domain.pvariables:
@@ -160,9 +155,11 @@ class JaxRDDLCompiler:
                 pvar_types[name] = JaxRDDLCompiler.REAL
                 if ptype != 'real':
                     warnings.warn('Variable <{}> of type {} will be cast to real.'.format(
-                        name, ptype), FutureWarning, stacklevel=2)
-        
-        return objects, states, pvars, pvar_types, old_types
+                        name, ptype), FutureWarning, stacklevel=2)                    
+        self.states = states
+        self.pvars = pvars
+        self.pvar_types = pvar_types
+        self.old_types = old_types
     
     def _compile_instance(self):
         object_lookup = {}        
@@ -203,45 +200,41 @@ class JaxRDDLCompiler:
                 if params is not None:
                     coords = tuple(self.objects[object_lookup[p]][p] for p in params)
                     init_values[name][coords] = value   
+        self.init_values = init_values
         
         # get other constants from instance      
         horizon = self.instance.horizon
         if not (horizon > 0):
             raise RDDLValueOutOfRangeError(
                 'Horizon {} in the instance is not > 0.'.format(horizon))
+        self.horizon = horizon
             
-        gamma = self.instance.discount
-        if not (0 <= gamma <= 1):
+        discount = self.instance.discount
+        if not (0 <= discount <= 1):
             raise RDDLValueOutOfRangeError(
-                'Discount {} in the instance is not in [0, 1].'.format(gamma))
-        
-        return init_values, horizon, gamma
+                'Discount {} in the instance is not in [0, 1].'.format(discount))
+        self.discount = discount
         
     # compile RDDL statements
     def _compile_constraints(self, constraints):
-        to_jit = lambda e: jax.jit(self._jax(e, [], dtype=bool))
-        jit_constraints = list(map(to_jit, constraints))
-        return jit_constraints
+        to_jax = lambda e: self._jax(e, [], dtype=bool)
+        return list(map(to_jax, constraints))
         
     def _compile_cpfs(self):
-        jax_cpfs, jit_cpfs = {}, {}  
+        jax_cpfs = {}
         for cpf in self.domain.cpfs[1]:
             _, (name, params) = cpf.pvar
             if params is None:
                 params = [] 
             pvar_inputs = self.pvars[name]
             params = [(p, pvar_inputs[i]) for i, p in enumerate(params)]
-            jax_cpf = self._jax(cpf.expr, params, dtype=self.pvar_types[name])
-            jax_cpfs[name] = jax_cpf
-            jit_cpfs[name] = jax.jit(jax_cpf)            
-        jax_cpfs = {name: jax_cpfs[name] for name in self.cpf_order}
-        jit_cpfs = {name: jit_cpfs[name] for name in self.cpf_order}
-        return jax_cpfs, jit_cpfs
+            jax_cpfs[name] = self._jax(
+                cpf.expr, params, dtype=self.pvar_types[name])          
+        jax_ordered = {name: jax_cpfs[name] for name in self.cpf_order}
+        return jax_ordered
     
     def _compile_reward(self):
-        jax_reward = self._jax(self.domain.reward, [], dtype=JaxRDDLCompiler.REAL)
-        jit_reward = jax.jit(jax_reward)
-        return jax_reward, jit_reward
+        return self._jax(self.domain.reward, [], dtype=JaxRDDLCompiler.REAL)
     
     # error handling
     @staticmethod
@@ -351,50 +344,50 @@ class JaxRDDLCompiler:
         return _f
    
     # leaves
-    def _map_pvar_subs_to_subscript(self, given_params, desired_params, expr):
+    def _get_subs_mapping(self, source_params, target_params, expr):
         symbols = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
         
-        if len(desired_params) > len(symbols):
+        n_target = len(target_params)
+        n_symbols = len(symbols)
+        if n_target > n_symbols:
             raise RDDLNotImplementedError(
                 'Variable <{}> is {}-D, but current version supports up to {}-D.'.format(
-                    expr.args[0], len(desired_params), len(symbols)) + 
+                    expr.args[0], n_target, n_symbols) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
         
         # compute a mapping permutation(a,b,c...) -> (a,b,c...) that performs the
         # correct variable substitution
-        lhs = [None] * len(given_params)
+        lhs = [None] * len(source_params)
         new_dims = []
-        for i_desired, (param_desired, obj_desired) in enumerate(desired_params):
-            add_new_param = True
-            for i_given, param_given in enumerate(given_params):
-                if param_given == param_desired:
-                    lhs[i_given] = symbols[i_desired]
-                    add_new_param = False
-            if add_new_param:
-                lhs.append(symbols[i_desired])
-                new_dim = len(self.objects[obj_desired])
-                new_dims.append(new_dim)
-        rhs = symbols[:len(desired_params)]
-        
-        # safeguard against any remaining free variables
-        free_vars = [given_params[i] for i, p in enumerate(lhs) if p is None]
-        if free_vars:
-            raise RDDLInvalidNumberOfArgumentsError(
-                'Variable <{}> contains free parameter(s) {}.'.format(
-                    expr.args[0], free_vars) + 
-                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
-        
+        for ti, (target, obj) in enumerate(target_params):
+            new_param = True
+            for si, source in enumerate(source_params):
+                if source == target:
+                    lhs[si] = symbols[ti]
+                    new_param = False
+            if new_param:
+                lhs.append(symbols[ti])
+                new_dims.append(len(self.objects[obj]))
+        rhs = symbols[:n_target]
         lhs = ''.join(lhs)
-        subscripts = lhs + ' -> ' + rhs
-        id_map = lhs == rhs
+        permute = lhs + ' -> ' + rhs
+        identity = lhs == rhs
         new_dims = tuple(new_dims)
         
-        return subscripts, id_map, new_dims
+        # safeguard against any remaining free variables
+        free = [source_params[i] for i, p in enumerate(lhs) if p is None]
+        if free:
+            raise RDDLInvalidNumberOfArgumentsError(
+                'Variable <{}> contains free parameter(s) {}.'.format(
+                    expr.args[0], free) + 
+                '\n' + JaxRDDLCompiler._print_stack_trace(expr))
+        
+        return permute, identity, new_dims
     
     def _jax_constant(self, expr, params):
         const = expr.args
         
-        subscripts, id_map, new_dims = self._map_pvar_subs_to_subscript([], params, expr)
+        permute, identity, new_dims = self._get_subs_mapping([], params, expr)
         new_axes = (1,) * len(new_dims)
         
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['NORMAL']
@@ -405,8 +398,8 @@ class JaxRDDLCompiler:
             if new_dims:
                 sample = jnp.reshape(val, newshape=val.shape + new_axes) 
                 sample = jnp.broadcast_to(sample, shape=val.shape + new_dims)
-            if not id_map:
-                sample = jnp.einsum(subscripts, sample)
+            if not identity:
+                sample = jnp.einsum(permute, sample)
             return sample, key, ERR_CODE
 
         return _f
@@ -423,7 +416,7 @@ class JaxRDDLCompiler:
                     var, len_req, len_pvars) + 
                 '\n' + JaxRDDLCompiler._print_stack_trace(expr))
             
-        subscripts, id_map, new_dims = self._map_pvar_subs_to_subscript(pvars, params, expr)
+        permute, identity, new_dims = self._get_subs_mapping(pvars, params, expr)
         new_axes = (1,) * len(new_dims)
         
         ERR_CODE = JaxRDDLCompiler.ERROR_CODES['NORMAL']
@@ -434,8 +427,8 @@ class JaxRDDLCompiler:
             if new_dims:
                 sample = jnp.reshape(val, newshape=val.shape + new_axes) 
                 sample = jnp.broadcast_to(sample, shape=val.shape + new_dims)
-            if not id_map:
-                sample = jnp.einsum(subscripts, sample)
+            if not identity:
+                sample = jnp.einsum(permute, sample)
             return sample, key, ERR_CODE
         
         return _f
