@@ -18,6 +18,9 @@ class TreeNode:
             value += '\n' + arg._str(level + 1)
         return value
     
+    def __str__(self):
+        return self._str()
+    
     def __hash__(self):
         hashed_args = tuple(map(hash, self.args))
         if self.commutes:
@@ -39,9 +42,6 @@ class TreeNode:
             arg2 = other.args
         return arg1 == arg2
         
-    def __str__(self):
-        return self._str()
-    
 
 class TreeBuilder:
     
@@ -58,7 +58,7 @@ class TreeBuilder:
         if params:
             value += '(' + ', '.join(params) + ')'
         arg = self.build_expr(cpf.expr)
-        return TreeNode('cpf', value, arg)
+        return TreeNode('cpf', value, arg, commutes=False)
         
     def build_expr(self, expr: Expression) -> TreeNode:
         etype, _ = expr.etype        
@@ -166,7 +166,7 @@ class RDDLDecompiler:
         elif etype == 'nary':
             return self._decompile_nary(tree, enclose, level)
         else:
-            raise Exception('Internal error: TreeNode type {} is undefined.'.format(etype))
+            raise Exception('Internal error: TreeNode {} is undefined.'.format(etype))
         
     def _decompile_cpf(self, tree, enclose, level):
         format_str = '{} = {};'
