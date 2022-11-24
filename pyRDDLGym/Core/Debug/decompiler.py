@@ -1,3 +1,5 @@
+from collections import Counter
+
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.cpf import CPF
 
@@ -21,6 +23,21 @@ class TreeNode:
         if self.commutes:
             hashed_args = tuple(sorted(hashed_args))
         return hash((self.etype, self.value) + hashed_args)
+    
+    def __eq__(self, other):
+        if not isinstance(other, TreeNode): return False
+        if self.etype != other.etype: return False
+        if self.value != other.value: return False
+        if self.commutes != other.commutes: return False
+        if len(self.args) != len(other.args): return False
+        
+        if self.commutes:
+            arg1 = Counter(self.args)
+            arg2 = Counter(other.args)
+        else:
+            arg1 = self.args
+            arg2 = other.args
+        return arg1 == arg2
         
     def __str__(self):
         return self._str()
@@ -28,9 +45,9 @@ class TreeNode:
 
 class TreeBuilder:
     
-    COMMUTATIVE = {'+', '*', 
-                   '==', '~=', 
-                   '|', '^', '~', '<=>', 
+    COMMUTATIVE = {'+', '*',
+                   '==', '~=',
+                   '|', '^', '~', '<=>',
                    'minimum', 'maximum', 'sum', 'avg', 'prod',
                    'forall', 'exists',
                    'min', 'max'}
