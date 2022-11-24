@@ -113,8 +113,9 @@ class JaxRDDLSimulator(RDDLSimulator):
             
         reward = self.sample_reward()
         
-        for primed, unprimed in self.states.items():
-            subs[unprimed] = subs[primed]
+        for next_state, state in self.states.items():
+            subs[state] = subs[next_state]
+            
         obs = {var: subs[var] for var in self.states.values()}
         
         done = self.check_terminal_states()
