@@ -7,6 +7,7 @@ from typing import Dict, Generator
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
@@ -152,23 +153,40 @@ class JaxRDDLBackpropPlanner:
             
         compiled = JaxRDDLBackpropCompiler(rddl, logic=logic).compile()
         test_compiled = JaxRDDLCompiler(rddl).compile()
-        
-        # which bounds can be enforced
-        self.finite_action_bounds = {}
-        for name, (lb, ub) in action_bounds.items():
-            if np.isfinite(lb) and np.isfinite(ub) and lb <= ub:
-                self.finite_action_bounds[name] = (lb, ub)
+        self.compiled, self.test_compiled = compiled, test_compiled
         
         # get type and shape of action fluent tensors
         self.action_info = {}
         for pvar in rddl.domain.action_fluents.values():
-            name = pvar.name       
-            pvar_type = JaxRDDLCompiler.RDDL_TO_JAX_TYPE[pvar.range]
+            name = pvar.name      
+            atype = pvar.range
             value = compiled.init_values[name]
             shape = (compiled.horizon,)
             if hasattr(value, 'shape'):
                 shape = shape + value.shape
-            self.action_info[name] = (pvar_type, shape)
+            if atype not in JaxRDDLCompiler.RDDL_TO_JAX_TYPE:
+                raise RDDLTypeError(
+                    'Invalid type {} of action fluent <{}>.'.format(atype, name))
+            self.action_info[name] = (atype, shape)
+        
+        # which bounds can be enforced
+        self.finite_action_bounds = {}
+        for name, bounds in action_bounds.items():
+            if name not in self.action_info:
+                warnings.warn(
+                    '<{}> is not a valid action fluent, '.format(name) + 
+                    'so bounds {} will be ignored.'.format(bounds), 
+                    FutureWarning, stacklevel=2) 
+            else:
+                lb, ub = bounds
+                if np.isfinite(lb) and np.isfinite(ub) and lb <= ub:
+                    self.finite_action_bounds[name] = (lb, ub)
+                else:
+                    warnings.warn(
+                        'Bounds {} for action fluent <{}> are not a '.format(
+                            bounds, name) + 
+                        'bounded interval, so they will be ignored.', 
+                        FutureWarning, stacklevel=2) 
         
         # prediction
         predict_map, test_map = self._jax_predict()
@@ -195,13 +213,13 @@ class JaxRDDLBackpropPlanner:
             plan = {}
             for name, param in params.items():
                 atype, _ = action_info[name]                
-                if atype == bool:
+                if atype == 'bool':
                     action = jax.nn.sigmoid(param)
-                elif atype == JaxRDDLCompiler.INT:
+                elif atype == 'int':
                     action = jnp.asarray(param, dtype=JaxRDDLCompiler.REAL)
                 else:
                     action = param                
-                if atype != bool and name in action_bounds:
+                if atype != 'bool' and name in action_bounds:
                     lb, ub = action_bounds[name]
                     action = lb + (ub - lb) * jax.nn.sigmoid(action)                    
                 plan[name] = action                
@@ -211,10 +229,10 @@ class JaxRDDLBackpropPlanner:
             plan = _predict(params)
             new_plan = {}
             for action, value in plan.items():
-                action_type, _ = action_info[action]
-                if action_type == bool:
+                atype, _ = action_info[action]
+                if atype == 'bool':
                     new_plan[action] = jnp.greater(value, 0.5)
-                elif action_type == JaxRDDLCompiler.INT:
+                elif atype == 'int':
                     new_plan[action] = jnp.asarray(
                         jnp.round(value), dtype=JaxRDDLCompiler.INT)
                 else:
@@ -226,7 +244,7 @@ class JaxRDDLBackpropPlanner:
     def _jax_rollout(self, compiled, batch_size):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         
-        init_values = compiled.init_values
+        init_fluents = compiled.init_values
         primed_unprimed = compiled.state_unprimed
         _, cpfs = compiled.cpfs
         _, reward_fn = compiled.reward
@@ -268,7 +286,7 @@ class JaxRDDLBackpropPlanner:
             return jnp.broadcast_to(value, shape=shape) 
                 
         def _rollouts(plan, key):
-            batched_init = jax.tree_map(_batched, init_values)
+            batched_init = jax.tree_map(_batched, init_fluents)
             keys = jax.random.split(key, num=batch_size)
             returns, batch, keys, errs = jax.vmap(_rollout, in_axes=(None, 0, 0))(
                 plan, batched_init, keys)
@@ -297,7 +315,8 @@ class JaxRDDLBackpropPlanner:
             params = {}
             for action, (_, shape) in action_info.items():
                 key, subkey = random.split(key)
-                params[action] = initializer(subkey, shape, dtype=JaxRDDLCompiler.REAL)
+                params[action] = initializer(
+                    subkey, shape, dtype=JaxRDDLCompiler.REAL)
             opt_state = optimizer.init(params)
             return params, opt_state, key
         
