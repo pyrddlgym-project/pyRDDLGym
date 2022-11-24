@@ -217,7 +217,7 @@ class JaxRDDLBackpropPlanner:
                     action = jax.nn.sigmoid(param)
                 elif atype == 'int':
                     action = jnp.asarray(param, dtype=JaxRDDLCompiler.REAL)
-                else:
+                else:  # 'real'
                     action = param                
                 if atype != 'bool' and name in action_bounds:
                     lb, ub = action_bounds[name]
@@ -235,7 +235,7 @@ class JaxRDDLBackpropPlanner:
                 elif atype == 'int':
                     new_plan[action] = jnp.asarray(
                         jnp.round(value), dtype=JaxRDDLCompiler.INT)
-                else:
+                else:  # 'real'
                     new_plan[action] = value
             return new_plan
         
