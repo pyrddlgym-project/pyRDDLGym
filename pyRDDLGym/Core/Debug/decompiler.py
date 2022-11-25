@@ -6,14 +6,30 @@ from pyRDDLGym.Core.Parser.cpf import CPF
 
 class TreeNode:
     
-    def __init__(self, etype, value, *args, commutes: bool=False):
+    def __init__(self, etype, value, *args, params=None, commutes: bool=False):
         self.etype = etype
         self.value = value
         self.args = tuple(args)
+        if params is None:
+            params = []
+        if not isinstance(params, dict):
+            params = tuple(params)
+        self.params = params
         self.commutes = commutes
     
+    def symbolic(self):
+        value = str(self.value)
+        if self.params:
+            if isinstance(self.params, dict):
+                args = ('{}:{}'.format(*p) for p in self.params.items())
+                args = '_{{{}}}'.format(','.join(args))
+            else:
+                args = '({})'.format(','.join(self.params))
+            value += args
+        return value
+    
     def _str(self, level=0):
-        value = ' ' * level + str(self.value)
+        value = ' ' * level + self.symbolic()
         for arg in self.args:
             value += '\n' + arg._str(level + 1)
         return value
@@ -22,10 +38,11 @@ class TreeNode:
         return self._str()
     
     def __hash__(self):
-        hashed_args = tuple(map(hash, self.args))
+        args = self.args
         if self.commutes:
-            hashed_args = tuple(sorted(hashed_args))
-        return hash((self.etype, self.value) + hashed_args)
+            args = tuple(sorted(args, key=hash))
+        args = (self.etype, self.value, self.params) + args
+        return hash(args)
     
     def __eq__(self, other):
         if not isinstance(other, TreeNode): return False
@@ -33,6 +50,7 @@ class TreeNode:
         if self.value != other.value: return False
         if self.commutes != other.commutes: return False
         if len(self.args) != len(other.args): return False
+        if self.params != other.params: return False
         
         if self.commutes:
             arg1 = Counter(self.args)
@@ -54,11 +72,8 @@ class TreeBuilder:
     
     def build_cpf(self, cpf: CPF) -> TreeNode:
         _, (name, params) = cpf.pvar
-        value = name
-        if params:
-            value += '(' + ', '.join(params) + ')'
         arg = self.build_expr(cpf.expr)
-        return TreeNode('cpf', value, arg, commutes=False)
+        return TreeNode('cpf', name, arg, params=params)
         
     def build_expr(self, expr: Expression) -> TreeNode:
         etype, _ = expr.etype        
@@ -80,30 +95,25 @@ class TreeBuilder:
             raise Exception('Internal error: type {} is not supported.'.format(etype))
     
     def _build_const(self, expr):
-        return TreeNode('const', expr.args, commutes=False)
+        return TreeNode('const', expr.args)
     
     def _build_pvar(self, expr):
-        _, value = expr.etype  
+        _, name = expr.etype  
         _, params = expr.args
-        if params:
-            value += '(' + ', '.join(params) + ')'
-        return TreeNode('pvar', value, commutes=False)
+        return TreeNode('pvar', name, params=params)
     
     def _build_aggregation(self, expr):
         _, op = expr.etype        
         params, exprs = [], []
         for arg in expr.args:
             if isinstance(arg, tuple):
-                param = '{}:{}'.format(*arg[1])
-                params.append(param)
+                params.append(arg[1])
             else:
-                exprs.append(arg)   
-        value = op     
-        if params:
-            value += '_' + '{' + ', '.join(params) + '}'
+                exprs.append(arg)  
+        params = dict(params)
         args = map(self.build_expr, exprs)
         commutes = op in TreeBuilder.COMMUTATIVE
-        return TreeNode('agg', value, *args, commutes=commutes)
+        return TreeNode('agg', op, *args, params=params, commutes=commutes)
     
     def _build_control(self, expr):
         _, op = expr.etype        
@@ -171,15 +181,15 @@ class RDDLDecompiler:
     def _decompile_cpf(self, tree, enclose, level):
         format_str = '{} = {};'
         decompiled = self._decompile(tree.args[0], False, level)
-        return format_str.format(tree.value, decompiled)
+        return format_str.format(tree.symbolic(), decompiled)
         
     def _decompile_variable(self, tree, enclose, level):
-        return str(tree.value)
+        return str(tree.symbolic())
         
     def _decompile_aggregation(self, tree, enclose, level):
         format_str = '{} [ {} ]'
         decompiled = self._decompile(tree.args[0], False, level)
-        value = format_str.format(tree.value, decompiled)
+        value = format_str.format(tree.symbolic(), decompiled)
         return '( {} )'.format(value)
         
     def _decompile_control(self, tree, enclose, level):
@@ -196,17 +206,17 @@ class RDDLDecompiler:
     def _decompile_random(self, tree, enclose, level):
         format_str = '{}({})'
         decompiled = (self._decompile(arg, False, level) for arg in tree.args)
-        return format_str.format(tree.value, ', '.join(decompiled))
+        return format_str.format(tree.symbolic(), ', '.join(decompiled))
             
     def _decompile_func(self, tree, enclose, level):
         format_str = '{}[{}]'
         decompiled = (self._decompile(arg, False, level) for arg in tree.args)
-        return format_str.format(tree.value, ', '.join(decompiled))
+        return format_str.format(tree.symbolic(), ', '.join(decompiled))
             
     def _decompile_unary(self, tree, enclose, level):
         format_str = '{}'
         decompiled = self._decompile(tree.args[0], True, level)
-        value = format_str.format(tree.value + decompiled)
+        value = format_str.format(tree.symbolic() + decompiled)
         if enclose:
             value = '( {} )'.format(value)
         return value
@@ -215,14 +225,14 @@ class RDDLDecompiler:
         lhs = self._decompile(tree.args[0], True, level)
         rhs = self._decompile(tree.args[1], True, level)
         format_str = '{} {} {}'
-        value = format_str.format(lhs, tree.value, rhs)
+        value = format_str.format(lhs, tree.symbolic(), rhs)
         if enclose:
             value = '( {} )'.format(value)
         return value
     
     def _decompile_nary(self, tree, enclose, level):
         decompiled = (self._decompile(arg, True, level) for arg in tree.args)
-        op = ' ' + tree.value + ' '
+        op = ' ' + tree.symbolic() + ' '
         value = op.join(decompiled)
         if enclose:
             value = '( {} )'.format(value)
