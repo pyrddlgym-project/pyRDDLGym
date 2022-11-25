@@ -1,4 +1,5 @@
 from collections import Counter
+from typing import Callable, TypeVar
 
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.cpf import CPF
@@ -34,6 +35,28 @@ class TreeNode:
             value += '\n' + arg._str(level + 1)
         return value
     
+    Y = TypeVar('T')
+    
+    def bfs(self,
+            tr: Callable[['TreeNode'], Y],
+            acc: Callable[[Y, Y], Y]):
+        y = tr(self)
+        for node in self.args:
+            yn = node.bfs(tr, acc)
+            y = acc(y, yn)
+        return y
+    
+    def dfs(self,
+            tr: Callable[['TreeNode'], Y],
+            acc: Callable[[Y, Y], Y]):
+        y = None
+        for i, node in enumerate(self.args):
+            yn = node.dfs(tr, acc)
+            y = acc(y, yn) if i else yn
+        yn = tr(self)
+        y = acc(y, yn) if self.args else yn
+        return y
+
     def __str__(self):
         return self._str()
     
@@ -237,4 +260,49 @@ class RDDLDecompiler:
         if enclose:
             value = '( {} )'.format(value)
         return value
+
+
+if __name__ == '__main__':
+        
+    # build a simple expression 'x + y - x * y'
+    x = TreeNode('pvar', 'x')
+    y = TreeNode('pvar', 'y')
+    s = TreeNode('binary', '+', x, y)
+    p = TreeNode('binary', '*', x, y)
+    expr = TreeNode('binary', '-', s, p)
+    
+    # print the tree
+    print(expr)
+    
+    # count maximum depth of the tree
+    print('\ndepth')
+    print(expr.bfs(tr=lambda _: 1, acc=lambda c, y: max(c, 1 + y)))
+    
+    # count size
+    print('\nsize')
+    print(expr.dfs(tr=lambda _: 1, acc=lambda c, y: c + y))
+    
+    # count leaf nodes
+    print('\nleaves')
+    print(expr.dfs(tr=lambda n: int(n.etype in {'pvar', 'const'}),
+                   acc=lambda c, y: c + y))
+    
+    # list the variables
+    print('\nvariables')
+    print(expr.dfs(tr=lambda n: [n.value] if n.etype == 'pvar' else [],
+                   acc=lambda c, y: c + y))
+    
+    # list the unique variables
+    print(expr.dfs(tr=lambda n: {n.value} if n.etype == 'pvar' else set(),
+                   acc=lambda c, y: c | y))
+    
+    # count occurrences of each variable
+    print('\noccurrences')
+    print(expr.dfs(tr=lambda n: Counter({n.value: 1} if n.etype == 'pvar' else {}),
+                   acc=lambda c, y: c + y))
+    
+    # list the unique sub-expressions
+    print('\nunique sub-expressions')
+    unique = expr.dfs(tr=lambda n: {n}, acc=lambda c, y: c | y)
+    print('\n-----\n'.join(map(str, unique)))
     
