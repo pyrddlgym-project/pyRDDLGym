@@ -499,10 +499,11 @@ class LiftedRDDLSimulator:
         if self.debug:
             warnings.warn(
                 f'caching map info for einsum:'
-                f'\n\tinputs ={objects_has}'
-                f'\n\ttargets={objects_req}'
-                f'\n\teinsum ={permute}' 
-                f'\n\texpr   ={expr}\n'
+                f'\n\tinputs   ={objects_has}'
+                f'\n\ttargets  ={objects_req}'
+                f'\n\tnew axes ={new_dims}'
+                f'\n\teinsum   ={permute}' 
+                f'\n\texpr     ={expr}\n'
             )
             
         return expr.cached_sub_map
