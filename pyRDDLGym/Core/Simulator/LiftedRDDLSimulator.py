@@ -160,7 +160,7 @@ class LiftedRDDLSimulator:
             overlap = indices.keys() & self.objects_to_index.keys()
             if overlap:
                 raise RDDLInvalidObjectError(
-                    'Multiple types share the same object <{}>.'.format(overlap))
+                    f'Multiple types share the same object <{overlap}>.')
             self.objects_to_index.update(indices)
         
     def _objects_to_coordinates(self, objects, msg):
@@ -170,7 +170,7 @@ class LiftedRDDLSimulator:
             for obj in objects:
                 if obj not in self.objects_to_index:
                     raise RDDLInvalidObjectError(
-                        'Object <{}> declared in {} is not valid.'.format(obj, msg))
+                        f'Object <{obj}> declared in {msg} is not valid.')
         
     def _compile_initial_values(self):
         
@@ -226,8 +226,8 @@ class LiftedRDDLSimulator:
         value = value.dtype
         if value != valid:
             raise RDDLTypeError(
-                '{} must evaluate to {}, got {}.'.format(msg, valid, value) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'{msg} must evaluate to {valid}, got {value}.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _check_types(value1, value2, valid, msg, expr):
@@ -235,67 +235,62 @@ class LiftedRDDLSimulator:
         value2 = value2.dtype
         if value1 != valid and value2 != valid:
             raise RDDLTypeError(
-                '{} must evaluate to {}, got {} and {}.'.format(
-                    msg, valid, value1, value2) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'{msg} must evaluate to {valid}, got {value1} and {value2}.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
             
     @staticmethod
     def _check_op(op, valid, msg, expr):
         if op not in valid:
             raise RDDLNotImplementedError(
-                '{} operator {} is not supported: must be one of {}.'.format(
-                    msg, op, valid) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'{msg} operator {op} is not supported: must be one of {valid}.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _check_arity(args, required, msg, expr):
         actual = len(args)
         if actual != required:
             raise RDDLInvalidNumberOfArgumentsError(
-                '{} requires {} arguments, got {}.'.format(
-                    msg, required, actual) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'{msg} requires {required} arguments, got {actual}.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _check_positive(value, strict, msg, expr):
         if strict:
             failed = not np.all(value > 0).item()
-            message = '{} must be strictly positive, got {}.'
+            message = f'{msg} must be strictly positive, got {value}.\n'
         else:
             failed = not np.all(value >= 0).item()
-            message = '{} must be non-negative, got {}.'
+            message = f'{msg} must be non-negative, got {value}.\n'
         if failed:
             raise RDDLValueOutOfRangeError(
-                message.format(msg, value) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                message + LiftedRDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _check_bounds(lb, ub, msg, expr):
         if not np.all(lb <= ub).item():
             raise RDDLValueOutOfRangeError(
-                'Bounds of {} are invalid:'.format(msg) + 
-                'max value {} must be >= min value {}.'.format(ub, lb) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'Bounds of {msg} are invalid:' 
+                f'max value {ub} must be >= min value {lb}.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
             
     @staticmethod
     def _check_range(value, lb, ub, msg, expr):
         if not np.all((value >= lb) & (value <= ub)).item():
             raise RDDLValueOutOfRangeError(
-                '{} must be in the range [{}, {}], got {}.'.format(
-                    msg, lb, ub, value) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'{msg} must be in the range [{lb}, {ub}], got {value}.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _raise_unsupported(msg, expr):
         raise RDDLNotImplementedError(
-            '{} is not supported in the current RDDL version.'.format(msg) + 
-            '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+            f'{msg} is not supported in the current RDDL version.\n' + 
+            LiftedRDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _raise_no_args(op, msg, expr):
         raise RDDLInvalidNumberOfArgumentsError(
-            '{} operator {} has no arguments.'.format(msg, op) + 
-            '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+            f'{msg} operator {op} has no arguments.\n' + 
+            LiftedRDDLSimulator._print_stack_trace(expr))
     
     # ===========================================================================
     # main sampling routines
@@ -308,8 +303,8 @@ class LiftedRDDLSimulator:
             LiftedRDDLSimulator._check_type(sample, bool, 'Invariant', invariant)
             if not sample.item():
                 raise RDDLStateInvariantNotSatisfiedError(
-                    'Invariant is not satisfied.' + 
-                    '\n' + LiftedRDDLSimulator._print_stack_trace(invariant))
+                    'Invariant is not satisfied.\n' + 
+                    LiftedRDDLSimulator._print_stack_trace(invariant))
     
     def check_action_preconditions(self) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
@@ -318,8 +313,8 @@ class LiftedRDDLSimulator:
             LiftedRDDLSimulator._check_type(sample, bool, 'Precondition', precond)     
             if not sample.item():
                 raise RDDLActionPreconditionNotSatisfiedError(
-                    'Precondition is not satisfied.' + 
-                    '\n' + LiftedRDDLSimulator._print_stack_trace(precond))
+                    'Precondition is not satisfied.\n' + 
+                    LiftedRDDLSimulator._print_stack_trace(precond))
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
@@ -354,25 +349,23 @@ class LiftedRDDLSimulator:
                 parsed_action = self.action_pattern.match(action)
                 if not parsed_action:
                     raise RDDLInvalidActionError(
-                        'Action fluent <{}> is not valid, '.format(action) + 
-                        'must be either <name> or <name>(<type1>,<type2>...).')
+                        f'Action fluent <{action}> is not valid, '
+                        f'must be either <name> or <name>(<type1>,<type2>...).')
                 name, objects = parsed_action.groups()
                 
             # check for valid action syntax <name>(<types...>)
             if name not in self.noop_actions:
+                noops = ', '.join(self.noop_actions.keys())
                 raise RDDLInvalidActionError(
-                    'Action fluent <{}> is not valid, '.format(name) + 
-                    'must be in {{{}}}.'.format(
-                        ', '.join(self.noop_actions.keys())))
+                    f'Action fluent <{name}> is not valid, must be in {{{noops}}}.')
             
             # check that the value is compatible with RDDL definition
             prange_val = type(value)
             prange_req = new_actions[name].dtype
             if not np.can_cast(prange_val, prange_req, casting='safe'):
                 raise RDDLTypeError(
-                    'Value for action fluent <{}> of type {} '.format(
-                        action, prange_val) + 
-                    'cannot be cast to type {}.'.format(prange_req))
+                    f'Value for action fluent <{action}> of type {prange_val} '
+                    f'cannot be cast to type {prange_req}.')
             
             # check that the number of arguments is correct
             objects = [obj.strip() for obj in objects.split(',')]
@@ -380,12 +373,12 @@ class LiftedRDDLSimulator:
             len_req = len(self.pvar_types[name])
             if len_val != len_req:
                 raise RDDLInvalidActionError(
-                    'Action fluent <{}> takes {} type arguments, '.format(
-                        name, len_req) + 'given {}.'.format(objects))     
+                    f'Action fluent <{name}> takes {len_req} type arguments, '
+                    f'given {objects}.')     
             
             # update the internal action arrays
             coords = self._objects_to_coordinates(
-                objects, 'action-fluent <{}>'.format(action))
+                objects, f'action-fluent <{action}>')
             new_actions[name][coords] = value
             
         return new_actions
@@ -440,7 +433,7 @@ class LiftedRDDLSimulator:
             return self._sample_random(expr, objects, subs)
         else:
             raise RDDLNotImplementedError(
-                'Internal error: expression {} is not recognized.'.format(expr))
+                f'Internal error: expression {expr} is not recognized.')
                 
     # ===========================================================================
     # leaves
@@ -456,9 +449,9 @@ class LiftedRDDLSimulator:
         n_req = len(objects_req)
         if n_req > n_valid:
             raise RDDLNotImplementedError(
-                'Up to {}-D are supported, but variable <{}> is {}-D.'.format(
-                    n_valid, expr.args[0], n_req) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'Up to {n_valid}-D are supported, '
+                f'but variable <{expr.args[0]}> is {n_req}-D.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
                 
         # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
         lhs = [None] * len(objects_has)
@@ -473,11 +466,9 @@ class LiftedRDDLSimulator:
                     # check evaluation matches the definition in pvariables {...}
                     if type_req != type_has:  
                         raise RDDLInvalidObjectError(
-                            'Argument <{}> of variable <{}> '.format(
-                                obj_req, expr.args[0]) + 
-                            'expects type <{}>, got <{}>.'.format(
-                                type_has, type_req) +
-                            '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                            f'Argument <{obj_req}> of variable <{expr.args[0]}> '
+                            f'expects type <{type_has}>, got <{type_req}>.\n' +
+                            LiftedRDDLSimulator._print_stack_trace(expr))
             
             # need to expand the shape of the value array
             if new_dim:
@@ -485,12 +476,11 @@ class LiftedRDDLSimulator:
                 new_dims.append(len(self.objects[type_req]))
                 
         # safeguard against any free types
-        free_types = [objects_has[1][i] for i, p in enumerate(lhs) if p is None]
-        if free_types:
+        free = [objects_has[1][i] for i, p in enumerate(lhs) if p is None]
+        if free:
             raise RDDLInvalidNumberOfArgumentsError(
-                'Variable <{}> has free parameter(s) {}.'.format(
-                    expr.args[0], free_types) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'Variable <{expr.args[0]}> has free parameter(s) {free}.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
             
         lhs = ''.join(lhs)
         rhs = valid_symbols[:n_req]
@@ -501,11 +491,11 @@ class LiftedRDDLSimulator:
         
         if self.debug:
             warnings.warn(
-                'caching map info for einsum:' + 
-                '\n\t' + 'inputs ={}'.format(objects_has) + 
-                '\n\t' + 'targets={}'.format(objects_req) + 
-                '\n\t' + 'einsum ={}'.format(permute) + 
-                '\n\t' + 'expr   ={}'.format(expr) + '\n'
+                f'caching map info for einsum:'
+                f'\n\tinputs ={objects_has}'
+                f'\n\ttargets={objects_req}'
+                f'\n\teinsum ={permute}' 
+                f'\n\texpr   ={expr}\n'
             )
             
         return expr.cached_sub_map
@@ -530,14 +520,14 @@ class LiftedRDDLSimulator:
         var, pvars = args        
         if var not in subs:
             raise RDDLUndefinedVariableError(
-                'Variable <{}> is not defined in the instance.'.format(var) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'Variable <{var}> is not defined in the instance.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
             
         arg = subs[var]
         if arg is None:
             raise RDDLUndefinedVariableError(
-                'Variable <{}> is referenced before assignment.'.format(var) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'Variable <{var}> is referenced before assignment.\n' +
+                LiftedRDDLSimulator._print_stack_trace(expr))
         
         if pvars is None:
             pvars = []
@@ -546,9 +536,8 @@ class LiftedRDDLSimulator:
         len_req = len(types)
         if len_has != len_req:
             raise RDDLInvalidNumberOfArgumentsError(
-                'Variable <{}> requires {} parameters, got {}.'.format(
-                    var, len_req, len_has) + 
-                '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+                f'Variable <{var}> requires {len_req} parameters, got {len_has}.\n' + 
+                LiftedRDDLSimulator._print_stack_trace(expr))
         
         pvars = tuple(zip(pvars, types))
         permute, identity, new_dims = self._get_subs_mapping(pvars, objects, expr)
@@ -590,7 +579,7 @@ class LiftedRDDLSimulator:
         args = expr.args
         valid_ops = self.RELATIONAL_OPS
         LiftedRDDLSimulator._check_op(op, valid_ops, 'Relational', expr)
-        LiftedRDDLSimulator._check_arity(args, 2, 'Relational operator ' + op, expr)
+        LiftedRDDLSimulator._check_arity(args, 2, f'Relational operator {op}', expr)
         
         lhs, rhs = args
         lhs = 1 * self._sample(lhs, objects, subs)
@@ -608,7 +597,7 @@ class LiftedRDDLSimulator:
             arg, = args
             arg = self._sample(arg, objects, subs)
             LiftedRDDLSimulator._check_type(
-                arg, bool, 'Argument of logical operator ' + op, expr)
+                arg, bool, f'Argument of logical operator {op}', expr)
             return np.logical_not(arg)
         
         elif n == 2:
@@ -616,7 +605,7 @@ class LiftedRDDLSimulator:
             lhs = self._sample(lhs, objects, subs)
             rhs = self._sample(rhs, objects, subs)
             LiftedRDDLSimulator._check_types(
-                lhs, rhs, bool, 'Arguments of logical operator ' + op, expr)
+                lhs, rhs, bool, f'Arguments of logical operator {op}', expr)
             return valid_ops[op](lhs, rhs)
         
         LiftedRDDLSimulator._check_arity(args, 2, 'Logical operator', expr)
@@ -634,7 +623,7 @@ class LiftedRDDLSimulator:
         
         if op == 'forall' or op == 'exists':
             LiftedRDDLSimulator._check_type(
-                arg, bool, 'Argument of aggregation ' + op, expr)
+                arg, bool, f'Argument of aggregation {op}', expr)
         else:
             arg = 1 * arg
         return valid_ops[op](arg, axis=axis)
@@ -647,20 +636,20 @@ class LiftedRDDLSimulator:
             
         if name in self.UNARY:
             LiftedRDDLSimulator._check_arity(
-                args, 1, 'Unary function ' + name, expr)
+                args, 1, f'Unary function {name}', expr)
             arg, = args
             arg = 1 * self._sample(arg, objects, subs)
             return self.UNARY[name](arg)
         
         elif name in self.BINARY:
             LiftedRDDLSimulator._check_arity(
-                args, 2, 'Binary function ' + name, expr)
+                args, 2, f'Binary function {name}', expr)
             lhs, rhs = args
             lhs = 1 * self._sample(lhs, objects, subs)
             rhs = 1 * self._sample(rhs, objects, subs)
             return self.BINARY[name](lhs, rhs)
         
-        LiftedRDDLSimulator._raise_unsupported('Function ' + name, expr)
+        LiftedRDDLSimulator._raise_unsupported(f'Function {name}', expr)
     
     # ===========================================================================
     # control flow
@@ -723,7 +712,7 @@ class LiftedRDDLSimulator:
         elif name == 'Gumbel':
             return self._sample_gumbel(expr, objects, subs)
         else:  # no support for enum
-            LiftedRDDLSimulator._raise_unsupported('Distribution ' + name, expr)
+            LiftedRDDLSimulator._raise_unsupported(f'Distribution {name}', expr)
 
     def _sample_kron_delta(self, expr, objects, subs):
         args = expr.args
