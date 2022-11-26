@@ -46,7 +46,7 @@ Thiago Pbueno's [pyrddl](https://github.com/thiagopbueno/pyrddl)
 ### Installation
 
 #### Python version
-We require Python 3.8+.
+We require Python 3.7+.
 
 ###Requirements:
 * ply
