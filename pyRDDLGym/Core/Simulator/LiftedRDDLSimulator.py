@@ -370,7 +370,7 @@ class LiftedRDDLSimulator:
                     'cannot be cast to type {}.'.format(required_type))
             
             # update the internal action arrays
-            params = params.split(',')
+            params = [p.strip() for p in params.split(',')]
             coords = self._objects_to_array_coordinates(params)            
             new_actions[name][coords] = value
             
