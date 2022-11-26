@@ -75,7 +75,7 @@ class LiftedRDDLStaticAnalysis:
                 pvar = self.pvars[name]
             else:
                 raise RDDLUndefinedVariableError(
-                    'Variable <{}> in CPF <{}> is not defined.'.format(name, cpf))
+                    f'Variable <{name}> in CPF <{cpf}> is not defined.')
             if pvar.is_fluent():
                 graph.setdefault(cpf, set()).add(name)
         elif not expr.is_constant_expression():
@@ -101,19 +101,19 @@ class LiftedRDDLStaticAnalysis:
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
                 warnings.warn(
-                    'The use of derived-fluent is discouraged in this version: ' + 
-                    'please change <{}> to interm-fluent.'.format(cpf),
+                    f'The use of derived-fluent is discouraged in this version: '
+                    f'please change <{cpf}> to interm-fluent.',
                     FutureWarning, stacklevel=2)
             
             # not a recognized type
             if cpf_type not in VALID_DEPENDENCIES:
                 if cpf_type == 'state-fluent':
                     raise RDDLInvalidDependencyInCPFError(
-                        ('CPF definition for state-fluent <{0}> is not valid: '
-                         +'did you mean <{0}\'>?').format(cpf))
+                        f'CPF definition for state-fluent <{cpf}> is not valid: '
+                        f'did you mean <{cpf}\'>?')
                 else:
                     raise RDDLNotImplementedError(
-                        'Type {} of CPF <{}> is not valid.'.format(cpf_type, cpf))
+                        f'Type {cpf_type} of CPF <{cpf}> is not valid.')
             
             # check that all dependencies are valid
             for dep in deps: 
@@ -122,8 +122,7 @@ class LiftedRDDLStaticAnalysis:
                     not self.allow_synchronous_state
                     and cpf_type == dep_type == 'next-state-fluent'):
                     raise RDDLInvalidDependencyInCPFError(
-                        '{} <{}> cannot depend on {} <{}>.'.format(
-                            cpf_type, cpf, dep_type, dep))                
+                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
     def _validate_cpf_definitions(self, graph): 
         for name in self.pvars.keys():
@@ -133,8 +132,7 @@ class LiftedRDDLStaticAnalysis:
                 name = name + '\''
             if fluent_type in VALID_DEPENDENCIES and name not in graph:
                 raise RDDLMissingCPFDefinitionError(
-                    '{} CPF <{}> is missing a valid definition.'.format(
-                        fluent_type, name))
+                    f'{fluent_type} CPF <{name}> is missing a valid definition.')
                     
     # ===========================================================================
     # topological sort
@@ -173,7 +171,7 @@ class LiftedRDDLStaticAnalysis:
         elif var in temp:
             cycle = ','.join(temp)
             raise RDDLInvalidDependencyInCPFError(
-                'Cyclic dependency detected, suspected CPFs <{}>.'.format(cycle))
+                f'Cyclic dependency detected, suspected CPFs <{cycle}>.')
         else:
             temp.add(var)
             if var in graph:
