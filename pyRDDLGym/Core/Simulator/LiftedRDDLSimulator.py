@@ -1,9 +1,12 @@
 import numpy as np
+import re
 from typing import Dict
 
 from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -55,6 +58,7 @@ class LiftedRDDLSimulator:
         self.next_states = self.static.next_states
         
         self._compile()
+        self.action_pattern = re.compile(r'(\S*?)\((\S.*?)\)', re.VERBOSE)
         
         # basic operations
         self.ARITHMETIC_OPS = {
@@ -125,11 +129,17 @@ class LiftedRDDLSimulator:
         self._compile_initial_values()
         
     def _compile_objects(self): 
-        self.objects, self.objects_lookup = {}, {}     
-        for obj, inst in self.non_fluents.objects:
-            self.objects[obj] = dict(zip(inst, range(len(inst))))
-            self.objects_lookup.update(zip(inst, [obj] * len(inst)))  
-    
+        self.objects_count, self.objects_to_index = {}, {}     
+        for name, objects in self.non_fluents.objects:
+            indices = {obj: index for index, obj in enumerate(objects)}
+            self.objects_count[name] = len(indices)
+            overlap = indices.keys() & self.objects_to_index.keys()
+            if overlap:
+                raise RDDLInvalidObjectError(
+                    'Duplicate objects {} in instance, check type <{}>.'.format(
+                        overlap, name))
+            self.objects_to_index.update(indices)
+        
     def _compile_parameters(self):
         self.pvar_params = {}
         for pvar in self.domain.pvariables:
@@ -149,7 +159,16 @@ class LiftedRDDLSimulator:
                 params = [] 
             types = self.pvar_params[name]
             self.cpf_params[name] = [(p, types[i]) for i, p in enumerate(params)]
-            
+    
+    def _objects_to_array_coordinates(self, params):
+        try:
+            return tuple(self.objects_to_index[p] for p in params)
+        except:
+            for p in params:
+                if p not in self.objects_to_index:
+                    raise RDDLInvalidObjectError(
+                        'Object <{}> is not valid.'.format(p))
+        
     def _compile_initial_values(self):
         
         # get default values from domain
@@ -167,7 +186,7 @@ class LiftedRDDLSimulator:
                 self.init_values[name] = value              
             else: 
                 self.init_values[name] = np.full(
-                    shape=tuple(len(self.objects[p]) for p in params),
+                    shape=tuple(self.objects_count[p] for p in params),
                     fill_value=value,
                     dtype=LiftedRDDLSimulator.NUMPY_TYPES[ptype])
             
@@ -178,29 +197,14 @@ class LiftedRDDLSimulator:
         if hasattr(self.instance, 'init_state'):
             for (name, params), value in self.instance.init_state:
                 if params is not None:
-                    coord = tuple(self.objects[self.objects_lookup[p]][p] 
-                                  for p in params)
-                    self.init_values[name][coord] = value   
+                    coords = self._objects_to_array_coordinates(params)
+                    self.init_values[name][coords] = value   
         
         if hasattr(self.non_fluents, 'init_non_fluent'):
             for (name, params), value in self.non_fluents.init_non_fluent:
                 if params is not None:
-                    coord = tuple(self.objects[self.objects_lookup[p]][p] 
-                                  for p in params)
-                    self.init_values[name][coord] = value
-        
-        # get horizon and discount factor
-        horizon = self.instance.horizon
-        if not (horizon > 0):
-            raise RDDLValueOutOfRangeError(
-                'Horizon {} in the instance is not > 0.'.format(horizon))
-        self.horizon = horizon
-            
-        discount = self.instance.discount
-        if not (0 <= discount <= 1):
-            raise RDDLValueOutOfRangeError(
-                'Discount {} in the instance is not in [0, 1].'.format(discount))
-        self.discount = discount
+                    coords = self._objects_to_array_coordinates(params)
+                    self.init_values[name][coords] = value
     
     # ===========================================================================
     # error checks
@@ -335,14 +339,49 @@ class LiftedRDDLSimulator:
         done = self.check_terminal_states()        
         return obs, done
     
+    def _vectorize_actions(self, actions: Dict) -> Dict:
+        new_actions = {action: np.copy(values) 
+                       for action, values in self.noop_actions.items()}
+        
+        for action, value in actions.items():
+            
+            # parse the specified action
+            parsed_action = self.action_pattern.match(action)
+            if not parsed_action:
+                raise RDDLInvalidActionError(
+                    'Action fluent <{}> is not valid, '.format(action) + 
+                    'must be of the form <name>(<types...>).')
+            
+            # check for valid action syntax <name>(<types...>)
+            name, params = parsed_action.groups()
+            if name not in self.noop_actions:
+                raise RDDLInvalidActionError(
+                    'Action fluent <{}> is not valid, '.format(name) + 
+                    'must be in {{{}}}.'.format(
+                        ', '.join(self.noop_actions.keys())))
+            
+            # check that the value is compatible with RDDL definition
+            given_type = type(value)
+            required_type = new_actions[name].dtype
+            if not np.can_cast(given_type, required_type, casting='safe'):
+                raise RDDLTypeError(
+                    'Value for action fluent <{}> of type {} '.format(
+                        action, given_type) + 
+                    'cannot be cast to type {}.'.format(required_type))
+            
+            # update the internal action arrays
+            params = params.split(',')
+            coords = self._objects_to_array_coordinates(params)            
+            new_actions[name][coords] = value
+            
+        return new_actions
+    
     def step(self, actions: Dict) -> Dict:
         '''Samples and returns the next state from the CPF expressions.
         
         :param actions: a dict mapping current action fluent to their values
         '''
-        actions = {action: actions.get(action, noop)
-                   for action, noop in self.noop_actions.items()}
-        
+        actions = self._vectorize_actions(actions)        
         subs = self.subs
         subs.update(actions)    
         
@@ -360,23 +399,7 @@ class LiftedRDDLSimulator:
         done = self.check_terminal_states()
         
         return obs, reward, done
-    
-    # def ground_action_fluents(self, actions: Dict) -> Dict:
-    #     grounded = {}
-    #     for name, action in actions.items():
-    #         values = np.reshape(action, newshape=(-1,), order='C').tolist()
-    #         params = self.pvar_params[name]
-    #         if params:
-    #             objects = (self.objects[p].keys() for p in params)
-    #             variations = itertools.product(*objects)
-    #             to_grounded = lambda var: name + '_' + '_'.join(var)
-    #             grounded_names = map(to_grounded, variations)
-    #         else:
-    #             grounded_names = (name,)
-    #         actions = zip(grounded_names, values, strict=True)
-    #         grounded.update(actions)
-    #     return grounded
-    
+        
     # ===========================================================================
     # start of sampling subroutines
     # ===========================================================================
@@ -434,7 +457,7 @@ class LiftedRDDLSimulator:
                     new_param = False
             if new_param:
                 lhs.append(symbols[ti])
-                new_dims.append(len(self.objects[obj]))
+                new_dims.append(self.objects_count[obj])
                 
         # safeguard against any free variables
         free = [source_params[i] for i, p in enumerate(lhs) if p is None]
@@ -454,7 +477,7 @@ class LiftedRDDLSimulator:
         #    permute, source_params, target_params, expr))
         return expr.cached_sub_map
     
-    def _sample_constant(self, expr, params, subs):
+    def _sample_constant(self, expr, params, _):
         permute, identity, new_dims = self._get_subs_mapping([], params, expr)
         arg = np.asarray(expr.args)
         sample = arg
