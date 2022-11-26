@@ -16,15 +16,15 @@ from setuptools import setup, find_packages
 
 setup(
       name='pyRDDLGym',
-      version='0.9.0',
+      version='0.99.0',
       author="Ayal Taitler, Scott Sanner, Michael Gimelfarb, Sriram Gopalakrishnan, sgopal28@asu.edu, Martin Mladenov,jack liu",
       author_email="ataitler@gmail.com, ssanner@mie.utoronto.ca, mike.gimelfarb@mail.utoronto.ca, mmladenov@google.com, jack.liu.to@gmail.com",
       description="pyRDDLGym: RDDL automatic generation tool for OpenAI Gym",
       license="MIT License",
       url="https://github.com/ataitler/pyRDDLGym",
       packages=find_packages(),
-      install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy', 'gym', 'pygame'],
-      python_requires=">=3.7",
+      install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy', 'gym>=0.24.0', 'pygame'],
+      python_requires=">=3.8",
       include_package_data=True,
       package_data={'': ['Examples/CartPole/Continuous/*.rddl',
                          'Examples/CartPole/Discrete/*.rddl',
@@ -38,6 +38,7 @@ setup(
                          'Examples/UAV/Discrete/*.rddl',
                          'Examples/UAV/Mixed/*.rddl',
                          'Examples/Wildfire/*.rddl',
+                         'Examples/Supply_Chain/*.rddl',
                          ]},
       classifiers=[
         "Development Status :: 3 - Alpha",
