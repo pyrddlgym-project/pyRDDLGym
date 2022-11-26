@@ -6,9 +6,9 @@ from pyRDDLGym.Core.Simulator.LiftedRDDLSimulator import LiftedRDDLSimulator
 
 # ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
-# ENV = 'UAV continuous'
+#ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
-# ENV = 'UAV mixed'
+ENV = 'UAV mixed'
 # ENV = 'Wildfire'
 # ENV = 'MountainCar'
 # ENV = 'CartPole continuous'
@@ -17,6 +17,8 @@ from pyRDDLGym.Core.Simulator.LiftedRDDLSimulator import LiftedRDDLSimulator
 # ENV = 'RecSim'
 ENV = 'Wildfire'
 
+import numpy as np
+np.seterr(all='raise')
 
 def main():
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
@@ -33,7 +35,7 @@ def main():
         total_reward = 0
         state, done = sim.reset()
         for step in range(100):
-            action = {'force': 4.}
+            action = {}
             next_state, reward, done = sim.step(action)
             total_reward += reward
             
