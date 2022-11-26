@@ -355,7 +355,7 @@ class LiftedRDDLSimulator:
         
         for next_state, state in self.next_states.items():
             subs[state] = subs[next_state]
-        obs = {var: subs[var] for var in self.next_states.values()}
+        obs = {state: subs[state] for state in self.next_states.values()}
         
         done = self.check_terminal_states()
         
@@ -435,12 +435,7 @@ class LiftedRDDLSimulator:
             if new_param:
                 lhs.append(symbols[ti])
                 new_dims.append(len(self.objects[obj]))
-        lhs = ''.join(lhs)
-        rhs = symbols[:n_target]
-        permute = lhs + ' -> ' + rhs
-        identity = lhs == rhs
-        new_dims = tuple(new_dims)
-        
+                
         # safeguard against any free variables
         free = [source_params[i] for i, p in enumerate(lhs) if p is None]
         if free:
@@ -448,7 +443,12 @@ class LiftedRDDLSimulator:
                 'Variable <{}> has free parameters(s) {}.'.format(
                     expr.args[0], free) + 
                 '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
-        
+            
+        lhs = ''.join(lhs)
+        rhs = symbols[:n_target]
+        permute = lhs + ' -> ' + rhs
+        identity = lhs == rhs
+        new_dims = tuple(new_dims)        
         expr.cached_sub_map = (permute, identity, new_dims)
         # print('caching pvar map {} from {} to {} for {}'.format(
         #    permute, source_params, target_params, expr))

@@ -3,7 +3,6 @@ from pyRDDLGym import ExampleManager
 from pyRDDLGym.Core.Parser import parser as parser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.LiftedRDDLSimulator import LiftedRDDLSimulator
-from pyRDDLGym.Core.Simulator.LiftedRDDLStaticAnalysis import LiftedRDDLStaticAnalysis
 
 # ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
@@ -16,41 +15,40 @@ from pyRDDLGym.Core.Simulator.LiftedRDDLStaticAnalysis import LiftedRDDLStaticAn
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
 # ENV = 'RecSim'
-ENV = 'RaceCar'
+ENV = 'Wildfire'
 
 
 def main():
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
     domain = EnvInfo.get_domain()
     instance = EnvInfo.get_instance(0)
-    viz = EnvInfo.get_visualizer()
     
     rddltxt = RDDLReader(domain, instance).rddltxt
     rddlparser = parser.RDDLParser()
     rddlparser.build()
     rddl = rddlparser.parse(rddltxt)
     
-    dep = LiftedRDDLStaticAnalysis(rddl)
     sim = LiftedRDDLSimulator(rddl)
     for episode in range(1):
         total_reward = 0
-        state = sim.reset()
+        state, done = sim.reset()
         for step in range(100):
-            action = {'fx' : 0.1}
+            action = {'force': 4.}
             next_state, reward, done = sim.step(action)
             total_reward += reward
+            
             print()
             print('step       = {}'.format(step))
             print('state      = {}'.format(state))
             print('action     = {}'.format(action))
             print('next state = {}'.format(next_state))
             print('reward     = {}'.format(reward))
+            
             state = next_state
             if done:
                 break
-        print("episode {} ended with reward {}".format(episode, total_reward))
+        print('episode {} ended with reward {}'.format(episode, total_reward))
     
-
 
 if __name__ == "__main__":
     main()
