@@ -1,6 +1,7 @@
 import numpy as np
 import re
 from typing import Dict
+import warnings
 
 from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
@@ -39,15 +40,18 @@ class LiftedRDDLSimulator:
     def __init__(self,
                  rddl: RDDL,
                  allow_synchronous_state: bool=True,
-                 rng: np.random.Generator=np.random.default_rng()) -> None:
+                 rng: np.random.Generator=np.random.default_rng(),
+                 debug: bool=False) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param rddl: the RDDL model
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rng: the random number generator
+        :param debug: print compiler information
         '''
         self.rddl = rddl
         self.rng = rng
+        self.debug = debug
         
         self.domain = rddl.domain
         self.instance = rddl.instance
@@ -146,19 +150,17 @@ class LiftedRDDLSimulator:
             if objects is None:
                 objects = [] 
             types = self.pvar_types[name]
-            self.cpf_types[name] = [(obj, types[i]) 
-                                    for i, obj in enumerate(objects)]
+            self.cpf_types[name] = [(o, types[i]) for i, o in enumerate(objects)]
     
     def _compile_objects(self): 
-        self.objects_count, self.objects_to_index = {}, {}     
+        self.objects, self.objects_to_index = {}, {}     
         for name, ptype in self.non_fluents.objects:
             indices = {obj: index for index, obj in enumerate(ptype)}
-            self.objects_count[name] = len(indices)
+            self.objects[name] = indices
             overlap = indices.keys() & self.objects_to_index.keys()
             if overlap:
                 raise RDDLInvalidObjectError(
-                    'Duplicate objects {} in instance, check type <{}>.'.format(
-                        overlap, name))
+                    'Multiple types share the same object <{}>.'.format(overlap))
             self.objects_to_index.update(indices)
         
     def _objects_to_coordinates(self, objects, msg):
@@ -168,8 +170,7 @@ class LiftedRDDLSimulator:
             for obj in objects:
                 if obj not in self.objects_to_index:
                     raise RDDLInvalidObjectError(
-                        'Object <{}> declared in {} is not valid.'.format(
-                            obj, msg))
+                        'Object <{}> declared in {} is not valid.'.format(obj, msg))
         
     def _compile_initial_values(self):
         
@@ -188,7 +189,7 @@ class LiftedRDDLSimulator:
                 self.init_values[name] = value              
             else: 
                 self.init_values[name] = np.full(
-                    shape=tuple(self.objects_count[obj] for obj in ptypes),
+                    shape=tuple(len(self.objects[obj]) for obj in ptypes),
                     fill_value=value,
                     dtype=LiftedRDDLSimulator.NUMPY_TYPES[prange])
             
@@ -348,14 +349,16 @@ class LiftedRDDLSimulator:
         for action, value in actions.items():
             
             # parse the specified action
-            parsed_action = self.action_pattern.match(action)
-            if not parsed_action:
-                raise RDDLInvalidActionError(
-                    'Action fluent <{}> is not valid, '.format(action) + 
-                    'must be of the form <name>(<types...>).')
-            
+            name, objects = action, ''
+            if '(' in action or ')' in action:
+                parsed_action = self.action_pattern.match(action)
+                if not parsed_action:
+                    raise RDDLInvalidActionError(
+                        'Action fluent <{}> is not valid, '.format(action) + 
+                        'must be either <name> or <name>(<type1>,<type2>...).')
+                name, objects = parsed_action.groups()
+                
             # check for valid action syntax <name>(<types...>)
-            name, objects = parsed_action.groups()
             if name not in self.noop_actions:
                 raise RDDLInvalidActionError(
                     'Action fluent <{}> is not valid, '.format(name) + 
@@ -462,16 +465,27 @@ class LiftedRDDLSimulator:
         new_dims = []
         for i_req, (obj_req, type_req) in enumerate(objects_req):
             new_dim = True
-            for i_has, obj_has in enumerate(objects_has):
+            for i_has, (obj_has, type_has) in enumerate(objects_has):
                 if obj_has == obj_req:
                     lhs[i_has] = valid_symbols[i_req]
                     new_dim = False
+                    
+                    # check evaluation matches the definition in pvariables {...}
+                    if type_req != type_has:  
+                        raise RDDLInvalidObjectError(
+                            'Argument <{}> of variable <{}> '.format(
+                                obj_req, expr.args[0]) + 
+                            'expects type <{}>, got <{}>.'.format(
+                                type_has, type_req) +
+                            '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
+            
+            # need to expand the shape of the value array
             if new_dim:
                 lhs.append(valid_symbols[i_req])
-                new_dims.append(self.objects_count[type_req])
+                new_dims.append(len(self.objects[type_req]))
                 
         # safeguard against any free types
-        free_types = [objects_has[i] for i, p in enumerate(lhs) if p is None]
+        free_types = [objects_has[1][i] for i, p in enumerate(lhs) if p is None]
         if free_types:
             raise RDDLInvalidNumberOfArgumentsError(
                 'Variable <{}> has free parameter(s) {}.'.format(
@@ -484,8 +498,16 @@ class LiftedRDDLSimulator:
         identity = lhs == rhs
         new_dims = tuple(new_dims)   
         expr.cached_sub_map = (permute, identity, new_dims)
-        # print('caching pvar map {} from {} to {} for {}'.format(
-        #    permute, source_params, target_params, expr))
+        
+        if self.debug:
+            warnings.warn(
+                'caching map info for einsum:' + 
+                '\n\t' + 'inputs ={}'.format(objects_has) + 
+                '\n\t' + 'targets={}'.format(objects_req) + 
+                '\n\t' + 'einsum ={}'.format(permute) + 
+                '\n\t' + 'expr   ={}'.format(expr) + '\n'
+            )
+            
         return expr.cached_sub_map
     
     def _sample_constant(self, expr, objects, _):
@@ -519,14 +541,16 @@ class LiftedRDDLSimulator:
         
         if pvars is None:
             pvars = []
+        types = self.pvar_types[var]
         len_has = len(pvars)
-        len_req = len(self.pvar_types[var])
+        len_req = len(types)
         if len_has != len_req:
             raise RDDLInvalidNumberOfArgumentsError(
                 'Variable <{}> requires {} parameters, got {}.'.format(
                     var, len_req, len_has) + 
                 '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
         
+        pvars = tuple(zip(pvars, types))
         permute, identity, new_dims = self._get_subs_mapping(pvars, objects, expr)
         arg = np.asarray(arg)
         sample = arg
