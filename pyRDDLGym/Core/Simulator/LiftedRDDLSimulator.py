@@ -341,6 +341,12 @@ class LiftedRDDLSimulator:
         new_actions = {action: np.copy(values) 
                        for action, values in self.noop_actions.items()}
         
+        # check valid input
+        if not isinstance(actions, dict):
+            raise RDDLInvalidActionError(
+                f'Action fluent must be a dictionary of <name>: <value> pairs, '
+                f'got type {type(actions)}.')
+            
         for action, value in actions.items():
             
             # parse the specified action
