@@ -124,14 +124,35 @@ class LiftedRDDLSimulator:
     # ===========================================================================
     
     def _compile(self):
+        self._compile_types()
         self._compile_objects()
-        self._compile_parameters()
         self._compile_initial_values()
         
+    def _compile_types(self):
+        self.pvar_types = {}
+        for pvar in self.domain.pvariables:
+            primed_name = name = pvar.name
+            if pvar.is_state_fluent():
+                primed_name = name + '\''
+            ptypes = pvar.param_types
+            if ptypes is None:
+                ptypes = []
+            self.pvar_types[name] = ptypes
+            self.pvar_types[primed_name] = ptypes
+            
+        self.cpf_types = {}
+        for cpf in self.domain.cpfs[1]:
+            _, (name, objects) = cpf.pvar
+            if objects is None:
+                objects = [] 
+            types = self.pvar_types[name]
+            self.cpf_types[name] = [(obj, types[i]) 
+                                    for i, obj in enumerate(objects)]
+    
     def _compile_objects(self): 
         self.objects_count, self.objects_to_index = {}, {}     
-        for name, objects in self.non_fluents.objects:
-            indices = {obj: index for index, obj in enumerate(objects)}
+        for name, ptype in self.non_fluents.objects:
+            indices = {obj: index for index, obj in enumerate(ptype)}
             self.objects_count[name] = len(indices)
             overlap = indices.keys() & self.objects_to_index.keys()
             if overlap:
@@ -140,34 +161,15 @@ class LiftedRDDLSimulator:
                         overlap, name))
             self.objects_to_index.update(indices)
         
-    def _compile_parameters(self):
-        self.pvar_params = {}
-        for pvar in self.domain.pvariables:
-            primed_name = name = pvar.name
-            if pvar.is_state_fluent():
-                primed_name = name + '\''
-            params = pvar.param_types
-            if params is None:
-                params = []
-            self.pvar_params[name] = params
-            self.pvar_params[primed_name] = params
-            
-        self.cpf_params = {}
-        for cpf in self.domain.cpfs[1]:
-            _, (name, params) = cpf.pvar
-            if params is None:
-                params = [] 
-            types = self.pvar_params[name]
-            self.cpf_params[name] = [(p, types[i]) for i, p in enumerate(params)]
-    
-    def _objects_to_array_coordinates(self, params):
+    def _objects_to_coordinates(self, objects, msg):
         try:
-            return tuple(self.objects_to_index[p] for p in params)
+            return tuple(self.objects_to_index[obj] for obj in objects)
         except:
-            for p in params:
-                if p not in self.objects_to_index:
+            for obj in objects:
+                if obj not in self.objects_to_index:
                     raise RDDLInvalidObjectError(
-                        'Object <{}> is not valid.'.format(p))
+                        'Object <{}> declared in {} is not valid.'.format(
+                            obj, msg))
         
     def _compile_initial_values(self):
         
@@ -176,34 +178,34 @@ class LiftedRDDLSimulator:
         self.noop_actions = {}
         for pvar in self.domain.pvariables:
             name = pvar.name                             
-            params = pvar.param_types
-            ptype = pvar.range
+            ptypes = pvar.param_types
+            prange = pvar.range
             
             value = pvar.default
             if value is None:
-                value = LiftedRDDLSimulator.DEFAULT_VALUES[ptype]
-            if params is None:
+                value = LiftedRDDLSimulator.DEFAULT_VALUES[prange]
+            if ptypes is None:
                 self.init_values[name] = value              
             else: 
                 self.init_values[name] = np.full(
-                    shape=tuple(self.objects_count[p] for p in params),
+                    shape=tuple(self.objects_count[obj] for obj in ptypes),
                     fill_value=value,
-                    dtype=LiftedRDDLSimulator.NUMPY_TYPES[ptype])
+                    dtype=LiftedRDDLSimulator.NUMPY_TYPES[prange])
             
             if pvar.is_action_fluent():
                 self.noop_actions[name] = self.init_values[name]
         
         # override default values with instance
         if hasattr(self.instance, 'init_state'):
-            for (name, params), value in self.instance.init_state:
-                if params is not None:
-                    coords = self._objects_to_array_coordinates(params)
+            for (name, objects), value in self.instance.init_state:
+                if objects is not None:
+                    coords = self._objects_to_coordinates(objects, 'init-state')
                     self.init_values[name][coords] = value   
         
         if hasattr(self.non_fluents, 'init_non_fluent'):
-            for (name, params), value in self.non_fluents.init_non_fluent:
-                if params is not None:
-                    coords = self._objects_to_array_coordinates(params)
+            for (name, objects), value in self.non_fluents.init_non_fluent:
+                if objects is not None:
+                    coords = self._objects_to_coordinates(objects, 'non-fluents')
                     self.init_values[name][coords] = value
     
     # ===========================================================================
@@ -335,7 +337,7 @@ class LiftedRDDLSimulator:
     def reset(self) -> Dict:
         '''Resets the state variables to their initial values.'''
         self.subs = self.init_values.copy()  
-        obs = {var: self.subs[var] for var in self.next_states.values()}        
+        obs = {state: self.subs[state] for state in self.next_states.values()}        
         done = self.check_terminal_states()        
         return obs, done
     
@@ -353,7 +355,7 @@ class LiftedRDDLSimulator:
                     'must be of the form <name>(<types...>).')
             
             # check for valid action syntax <name>(<types...>)
-            name, params = parsed_action.groups()
+            name, objects = parsed_action.groups()
             if name not in self.noop_actions:
                 raise RDDLInvalidActionError(
                     'Action fluent <{}> is not valid, '.format(name) + 
@@ -361,17 +363,26 @@ class LiftedRDDLSimulator:
                         ', '.join(self.noop_actions.keys())))
             
             # check that the value is compatible with RDDL definition
-            given_type = type(value)
-            required_type = new_actions[name].dtype
-            if not np.can_cast(given_type, required_type, casting='safe'):
+            prange_val = type(value)
+            prange_req = new_actions[name].dtype
+            if not np.can_cast(prange_val, prange_req, casting='safe'):
                 raise RDDLTypeError(
                     'Value for action fluent <{}> of type {} '.format(
-                        action, given_type) + 
-                    'cannot be cast to type {}.'.format(required_type))
+                        action, prange_val) + 
+                    'cannot be cast to type {}.'.format(prange_req))
+            
+            # check that the number of arguments is correct
+            objects = [obj.strip() for obj in objects.split(',')]
+            len_val = len(objects)
+            len_req = len(self.pvar_types[name])
+            if len_val != len_req:
+                raise RDDLInvalidActionError(
+                    'Action fluent <{}> takes {} type arguments, '.format(
+                        name, len_req) + 'given {}.'.format(objects))     
             
             # update the internal action arrays
-            params = [p.strip() for p in params.split(',')]
-            coords = self._objects_to_array_coordinates(params)            
+            coords = self._objects_to_coordinates(
+                objects, 'action-fluent <{}>'.format(action))
             new_actions[name][coords] = value
             
         return new_actions
@@ -383,13 +394,13 @@ class LiftedRDDLSimulator:
         '''
         actions = self._vectorize_actions(actions)        
         subs = self.subs
-        subs.update(actions)    
+        subs.update(actions)
         
         for _, cpfs in self.levels.items():
             for cpf in cpfs:
-                params = self.cpf_params[cpf]
+                ptypes = self.cpf_types[cpf]
                 expr = self.static.cpfs[cpf]
-                subs[cpf] = self._sample(expr, params, subs)
+                subs[cpf] = self._sample(expr, ptypes, subs)
         reward = self.sample_reward()
         
         for next_state, state in self.next_states.items():
@@ -404,26 +415,26 @@ class LiftedRDDLSimulator:
     # start of sampling subroutines
     # ===========================================================================
     
-    def _sample(self, expr, params, subs):
+    def _sample(self, expr, objects, subs):
         etype, _ = expr.etype
         if etype == 'constant':
-            return self._sample_constant(expr, params, subs)
+            return self._sample_constant(expr, objects, subs)
         elif etype == 'pvar':
-            return self._sample_pvar(expr, params, subs)
+            return self._sample_pvar(expr, objects, subs)
         elif etype == 'arithmetic':
-            return self._sample_arithmetic(expr, params, subs)
+            return self._sample_arithmetic(expr, objects, subs)
         elif etype == 'relational':
-            return self._sample_relational(expr, params, subs)
+            return self._sample_relational(expr, objects, subs)
         elif etype == 'boolean':
-            return self._sample_logical(expr, params, subs)
+            return self._sample_logical(expr, objects, subs)
         elif etype == 'aggregation':
-            return self._sample_aggregation(expr, params, subs)
+            return self._sample_aggregation(expr, objects, subs)
         elif etype == 'func':
-            return self._sample_func(expr, params, subs)
+            return self._sample_func(expr, objects, subs)
         elif etype == 'control':
-            return self._sample_control(expr, params, subs)
+            return self._sample_control(expr, objects, subs)
         elif etype == 'randomvar':
-            return self._sample_random(expr, params, subs)
+            return self._sample_random(expr, objects, subs)
         else:
             raise RDDLNotImplementedError(
                 'Internal error: expression {} is not recognized.'.format(expr))
@@ -432,53 +443,53 @@ class LiftedRDDLSimulator:
     # leaves
     # ===========================================================================
     
-    def _get_subs_mapping(self, source_params, target_params, expr):
+    def _get_subs_mapping(self, objects_has, objects_req, expr):
         if hasattr(expr, 'cached_sub_map'):
             return expr.cached_sub_map
         
         # reached limit on number of valid dimensions (52)
-        symbols = LiftedRDDLSimulator.VALID_SYMBOLS
-        n_target = len(target_params)
-        n_syms = len(symbols)
-        if n_target > n_syms:
+        valid_symbols = LiftedRDDLSimulator.VALID_SYMBOLS
+        n_valid = len(valid_symbols)
+        n_req = len(objects_req)
+        if n_req > n_valid:
             raise RDDLNotImplementedError(
                 'Up to {}-D are supported, but variable <{}> is {}-D.'.format(
-                    n_syms, expr.args[0], n_target) + 
+                    n_valid, expr.args[0], n_req) + 
                 '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
                 
         # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
-        lhs = [None] * len(source_params)
+        lhs = [None] * len(objects_has)
         new_dims = []
-        for ti, (target, obj) in enumerate(target_params):
-            new_param = True
-            for si, source in enumerate(source_params):
-                if source == target:
-                    lhs[si] = symbols[ti]
-                    new_param = False
-            if new_param:
-                lhs.append(symbols[ti])
-                new_dims.append(self.objects_count[obj])
+        for i_req, (obj_req, type_req) in enumerate(objects_req):
+            new_dim = True
+            for i_has, obj_has in enumerate(objects_has):
+                if obj_has == obj_req:
+                    lhs[i_has] = valid_symbols[i_req]
+                    new_dim = False
+            if new_dim:
+                lhs.append(valid_symbols[i_req])
+                new_dims.append(self.objects_count[type_req])
                 
-        # safeguard against any free variables
-        free = [source_params[i] for i, p in enumerate(lhs) if p is None]
-        if free:
+        # safeguard against any free types
+        free_types = [objects_has[i] for i, p in enumerate(lhs) if p is None]
+        if free_types:
             raise RDDLInvalidNumberOfArgumentsError(
-                'Variable <{}> has free parameters(s) {}.'.format(
-                    expr.args[0], free) + 
+                'Variable <{}> has free parameter(s) {}.'.format(
+                    expr.args[0], free_types) + 
                 '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
             
         lhs = ''.join(lhs)
-        rhs = symbols[:n_target]
+        rhs = valid_symbols[:n_req]
         permute = lhs + ' -> ' + rhs
         identity = lhs == rhs
-        new_dims = tuple(new_dims)        
+        new_dims = tuple(new_dims)   
         expr.cached_sub_map = (permute, identity, new_dims)
         # print('caching pvar map {} from {} to {} for {}'.format(
         #    permute, source_params, target_params, expr))
         return expr.cached_sub_map
     
-    def _sample_constant(self, expr, params, _):
-        permute, identity, new_dims = self._get_subs_mapping([], params, expr)
+    def _sample_constant(self, expr, objects, _):
+        permute, identity, new_dims = self._get_subs_mapping([], objects, expr)
         arg = np.asarray(expr.args)
         sample = arg
         if new_dims:
@@ -489,7 +500,7 @@ class LiftedRDDLSimulator:
             sample = np.einsum(permute, sample)
         return sample
     
-    def _sample_pvar(self, expr, params, subs):
+    def _sample_pvar(self, expr, objects, subs):
         _, name = expr.etype
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'pvar ' + name, expr)
@@ -508,15 +519,15 @@ class LiftedRDDLSimulator:
         
         if pvars is None:
             pvars = []
-        len_pvars = len(pvars)
-        len_req = len(self.pvar_params[var])
-        if len_pvars != len_req:
+        len_has = len(pvars)
+        len_req = len(self.pvar_types[var])
+        if len_has != len_req:
             raise RDDLInvalidNumberOfArgumentsError(
                 'Variable <{}> requires {} parameters, got {}.'.format(
-                    var, len_req, len_pvars) + 
+                    var, len_req, len_has) + 
                 '\n' + LiftedRDDLSimulator._print_stack_trace(expr))
         
-        permute, identity, new_dims = self._get_subs_mapping(pvars, params, expr)
+        permute, identity, new_dims = self._get_subs_mapping(pvars, objects, expr)
         arg = np.asarray(arg)
         sample = arg
         if new_dims:
@@ -531,7 +542,7 @@ class LiftedRDDLSimulator:
     # mathematical
     # ===========================================================================
     
-    def _sample_arithmetic(self, expr, params, subs):
+    def _sample_arithmetic(self, expr, objects, subs):
         _, op = expr.etype
         valid_ops = self.ARITHMETIC_OPS
         LiftedRDDLSimulator._check_op(op, valid_ops, 'Arithmetic', expr)
@@ -540,17 +551,17 @@ class LiftedRDDLSimulator:
         n = len(args)        
         if n == 1 and op == '-':
             arg, = args
-            return -1 * self._sample(arg, params, subs)
+            return -1 * self._sample(arg, objects, subs)
         
         elif n == 2:
             lhs, rhs = args
-            lhs = 1 * self._sample(lhs, params, subs)
-            rhs = 1 * self._sample(rhs, params, subs)
+            lhs = 1 * self._sample(lhs, objects, subs)
+            rhs = 1 * self._sample(rhs, objects, subs)
             return valid_ops[op](lhs, rhs)
         
         LiftedRDDLSimulator._check_arity(args, 2, 'Arithmetic operator', expr)
     
-    def _sample_relational(self, expr, params, subs):
+    def _sample_relational(self, expr, objects, subs):
         _, op = expr.etype
         args = expr.args
         valid_ops = self.RELATIONAL_OPS
@@ -558,11 +569,11 @@ class LiftedRDDLSimulator:
         LiftedRDDLSimulator._check_arity(args, 2, 'Relational operator ' + op, expr)
         
         lhs, rhs = args
-        lhs = 1 * self._sample(lhs, params, subs)
-        rhs = 1 * self._sample(rhs, params, subs)
+        lhs = 1 * self._sample(lhs, objects, subs)
+        rhs = 1 * self._sample(rhs, objects, subs)
         return valid_ops[op](lhs, rhs)
     
-    def _sample_logical(self, expr, params, subs):
+    def _sample_logical(self, expr, objects, subs):
         _, op = expr.etype
         args = expr.args
         valid_ops = self.LOGICAL_OPS
@@ -571,31 +582,32 @@ class LiftedRDDLSimulator:
         n = len(args)
         if n == 1 and op == '~':
             arg, = args
-            arg = self._sample(arg, params, subs)
+            arg = self._sample(arg, objects, subs)
             LiftedRDDLSimulator._check_type(
                 arg, bool, 'Argument of logical operator ' + op, expr)
             return np.logical_not(arg)
         
         elif n == 2:
             lhs, rhs = args
-            lhs = self._sample(lhs, params, subs)
-            rhs = self._sample(rhs, params, subs)
+            lhs = self._sample(lhs, objects, subs)
+            rhs = self._sample(rhs, objects, subs)
             LiftedRDDLSimulator._check_types(
                 lhs, rhs, bool, 'Arguments of logical operator ' + op, expr)
             return valid_ops[op](lhs, rhs)
         
         LiftedRDDLSimulator._check_arity(args, 2, 'Logical operator', expr)
         
-    def _sample_aggregation(self, expr, params, subs):
+    def _sample_aggregation(self, expr, objects, subs):
         _, op = expr.etype
         args = expr.args
         valid_ops = self.AGGREGATION_OPS
         LiftedRDDLSimulator._check_op(op, valid_ops, 'Aggregation', expr)
-        
+
         * pvars, arg = args
-        new_params = params + [p[1] for p in pvars]
-        axis = tuple(range(len(params), len(new_params)))
-        arg = self._sample(arg, new_params, subs)
+        new_objects = objects + [p[1] for p in pvars]
+        axis = tuple(range(len(objects), len(new_objects)))
+        arg = self._sample(arg, new_objects, subs)
+        
         if op == 'forall' or op == 'exists':
             LiftedRDDLSimulator._check_type(
                 arg, bool, 'Argument of aggregation ' + op, expr)
@@ -603,7 +615,7 @@ class LiftedRDDLSimulator:
             arg = 1 * arg
         return valid_ops[op](arg, axis=axis)
     
-    def _sample_func(self, expr, params, subs):
+    def _sample_func(self, expr, objects, subs):
         _, name = expr.etype
         args = expr.args
         if isinstance(args, Expression):
@@ -613,15 +625,15 @@ class LiftedRDDLSimulator:
             LiftedRDDLSimulator._check_arity(
                 args, 1, 'Unary function ' + name, expr)
             arg, = args
-            arg = 1 * self._sample(arg, params, subs)
+            arg = 1 * self._sample(arg, objects, subs)
             return self.UNARY[name](arg)
         
         elif name in self.BINARY:
             LiftedRDDLSimulator._check_arity(
                 args, 2, 'Binary function ' + name, expr)
             lhs, rhs = args
-            lhs = 1 * self._sample(lhs, params, subs)
-            rhs = 1 * self._sample(rhs, params, subs)
+            lhs = 1 * self._sample(lhs, objects, subs)
+            rhs = 1 * self._sample(rhs, objects, subs)
             return self.BINARY[name](lhs, rhs)
         
         LiftedRDDLSimulator._raise_unsupported('Function ' + name, expr)
@@ -630,228 +642,228 @@ class LiftedRDDLSimulator:
     # control flow
     # ===========================================================================
     
-    def _sample_control(self, expr, params, subs):
+    def _sample_control(self, expr, objects, subs):
         _, op = expr.etype
         args = expr.args
         LiftedRDDLSimulator._check_op(op, {'if'}, 'Control', expr)
         LiftedRDDLSimulator._check_arity(args, 3, 'If then else', expr)
         
         pred, arg1, arg2 = args
-        pred = self._sample(pred, params, subs)
+        pred = self._sample(pred, objects, subs)
         LiftedRDDLSimulator._check_type(pred, bool, 'Predicate', expr)
         
         if pred.size == 1:  # can short-circuit
             arg = arg1 if pred.item() else arg2
-            return self._sample(arg, params, subs)
+            return self._sample(arg, objects, subs)
         else:
-            arg1 = self._sample(arg1, params, subs)
-            arg2 = self._sample(arg2, params, subs)
+            arg1 = self._sample(arg1, objects, subs)
+            arg2 = self._sample(arg2, objects, subs)
             return np.where(pred, arg1, arg2)
         
     # ===========================================================================
     # random variables
     # ===========================================================================
     
-    def _sample_random(self, expr, params, subs):
+    def _sample_random(self, expr, objects, subs):
         _, name = expr.etype
         if name == 'KronDelta':
-            return self._sample_kron_delta(expr, params, subs)        
+            return self._sample_kron_delta(expr, objects, subs)        
         elif name == 'DiracDelta':
-            return self._sample_dirac_delta(expr, params, subs)
+            return self._sample_dirac_delta(expr, objects, subs)
         elif name == 'Uniform':
-            return self._sample_uniform(expr, params, subs)
+            return self._sample_uniform(expr, objects, subs)
         elif name == 'Bernoulli':
-            return self._sample_bernoulli(expr, params, subs)
+            return self._sample_bernoulli(expr, objects, subs)
         elif name == 'Normal':
-            return self._sample_normal(expr, params, subs)
+            return self._sample_normal(expr, objects, subs)
         elif name == 'Poisson':
-            return self._sample_poisson(expr, params, subs)
+            return self._sample_poisson(expr, objects, subs)
         elif name == 'Exponential':
-            return self._sample_exponential(expr, params, subs)
+            return self._sample_exponential(expr, objects, subs)
         elif name == 'Weibull':
-            return self._sample_weibull(expr, params, subs)        
+            return self._sample_weibull(expr, objects, subs)        
         elif name == 'Gamma':
-            return self._sample_gamma(expr, params, subs)
+            return self._sample_gamma(expr, objects, subs)
         elif name == 'Binomial':
-            return self._sample_binomial(expr, params, subs)
+            return self._sample_binomial(expr, objects, subs)
         elif name == 'NegativeBinomial':
-            return self._sample_negative_binomial(expr, params, subs)
+            return self._sample_negative_binomial(expr, objects, subs)
         elif name == 'Beta':
-            return self._sample_beta(expr, params, subs)
+            return self._sample_beta(expr, objects, subs)
         elif name == 'Geometric':
-            return self._sample_geometric(expr, params, subs)
+            return self._sample_geometric(expr, objects, subs)
         elif name == 'Pareto':
-            return self._sample_pareto(expr, params, subs)
+            return self._sample_pareto(expr, objects, subs)
         elif name == 'Student':
-            return self._sample_student(expr, params, subs)
+            return self._sample_student(expr, objects, subs)
         elif name == 'Gumbel':
-            return self._sample_gumbel(expr, params, subs)
+            return self._sample_gumbel(expr, objects, subs)
         else:  # no support for enum
             LiftedRDDLSimulator._raise_unsupported('Distribution ' + name, expr)
 
-    def _sample_kron_delta(self, expr, params, subs):
+    def _sample_kron_delta(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 1, 'KronDelta', expr)
         
         arg, = args
-        arg = self._sample(arg, params, subs)
+        arg = self._sample(arg, objects, subs)
         LiftedRDDLSimulator._check_type(
             arg, bool, 'Argument of KronDelta', expr)
         return arg
     
-    def _sample_dirac_delta(self, expr, params, subs):
+    def _sample_dirac_delta(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 1, 'DiracDelta', expr)
         
         arg, = args
-        arg = self._sample(arg, params, subs)
+        arg = self._sample(arg, objects, subs)
         LiftedRDDLSimulator._check_type(
             arg, LiftedRDDLSimulator.REAL, 'Argument of DiracDelta', expr)        
         return arg
     
-    def _sample_uniform(self, expr, params, subs):
+    def _sample_uniform(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Uniform', expr)
 
         lb, ub = args
-        lb = self._sample(lb, params, subs)
-        ub = self._sample(ub, params, subs)
+        lb = self._sample(lb, objects, subs)
+        ub = self._sample(ub, objects, subs)
         LiftedRDDLSimulator._check_bounds(lb, ub, 'Uniform', expr)
         return self.rng.uniform(lb, ub)      
     
-    def _sample_bernoulli(self, expr, params, subs):
+    def _sample_bernoulli(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 1, 'Bernoulli', expr)
         
         pr, = args
-        pr = self._sample(pr, params, subs)
+        pr = self._sample(pr, objects, subs)
         LiftedRDDLSimulator._check_range(pr, 0, 1, 'Bernoulli p', expr)
         return self.rng.uniform(size=pr.shape) <= pr
     
-    def _sample_normal(self, expr, params, subs):
+    def _sample_normal(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Normal', expr)
         
         mean, var = args
-        mean = self._sample(mean, params, subs)
-        var = self._sample(var, params, subs)
+        mean = self._sample(mean, objects, subs)
+        var = self._sample(var, objects, subs)
         LiftedRDDLSimulator._check_positive(var, False, 'Normal variance', expr)  
         std = np.sqrt(var)
         return self.rng.normal(mean, std)
     
-    def _sample_poisson(self, expr, params, subs):
+    def _sample_poisson(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 1, 'Poisson', expr)
         
         rate, = args
-        rate = self._sample(rate, params, subs)
+        rate = self._sample(rate, objects, subs)
         LiftedRDDLSimulator._check_positive(rate, False, 'Poisson rate', expr)        
         return self.rng.poisson(rate)
     
-    def _sample_exponential(self, expr, params, subs):
+    def _sample_exponential(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 1, 'Exponential', expr)
         
         scale, = expr.args
-        scale = self._sample(scale, params, subs)
+        scale = self._sample(scale, objects, subs)
         LiftedRDDLSimulator._check_positive(scale, True, 'Exponential rate', expr)
         return self.rng.exponential(scale)
     
-    def _sample_weibull(self, expr, params, subs):
+    def _sample_weibull(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Weibull', expr)
         
         shape, scale = args
-        shape = self._sample(shape, params, subs)
-        scale = self._sample(scale, params, subs)
+        shape = self._sample(shape, objects, subs)
+        scale = self._sample(scale, objects, subs)
         LiftedRDDLSimulator._check_positive(shape, True, 'Weibull shape', expr)
         LiftedRDDLSimulator._check_positive(scale, True, 'Weibull scale', expr)
         return scale * self.rng.weibull(shape)
     
-    def _sample_gamma(self, expr, params, subs):
+    def _sample_gamma(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Gamma', expr)
         
         shape, scale = args
-        shape = self._sample(shape, params, subs)
-        scale = self._sample(scale, params, subs)
+        shape = self._sample(shape, objects, subs)
+        scale = self._sample(scale, objects, subs)
         LiftedRDDLSimulator._check_positive(shape, True, 'Gamma shape', expr)            
         LiftedRDDLSimulator._check_positive(scale, True, 'Gamma scale', expr)        
         return self.rng.gamma(shape, scale)
     
-    def _sample_binomial(self, expr, params, subs):
+    def _sample_binomial(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Binomial', expr)
         
         count, pr = args
-        count = self._sample(count, params, subs)
-        pr = self._sample(pr, params, subs)
+        count = self._sample(count, objects, subs)
+        pr = self._sample(pr, objects, subs)
         LiftedRDDLSimulator._check_type(
             count, LiftedRDDLSimulator.INT, 'Binomial count', expr)
         LiftedRDDLSimulator._check_positive(count, False, 'Binomial count', expr)
         LiftedRDDLSimulator._check_range(pr, 0, 1, 'Binomial p', expr)
         return self.rng.binomial(count, pr)
     
-    def _sample_negative_binomial(self, expr, params, subs):
+    def _sample_negative_binomial(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'NegativeBinomial', expr)
         
         count, pr = args
-        count = self._sample(count, params, subs)
-        pr = self._sample(pr, params, subs)
+        count = self._sample(count, objects, subs)
+        pr = self._sample(pr, objects, subs)
         LiftedRDDLSimulator._check_positive(
             count, True, 'NegativeBinomial r', expr)
         LiftedRDDLSimulator._check_range(
             pr, 0, 1, 'NegativeBinomial p', expr)        
         return self.rng.negative_binomial(count, pr)
     
-    def _sample_beta(self, expr, params, subs):
+    def _sample_beta(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Beta', expr)
         
         shape, rate = args
-        shape = self._sample(shape, params, subs)
-        rate = self._sample(rate, params, subs)
+        shape = self._sample(shape, objects, subs)
+        rate = self._sample(rate, objects, subs)
         LiftedRDDLSimulator._check_positive(shape, True, 'Beta shape', expr)
         LiftedRDDLSimulator._check_positive(rate, True, 'Beta rate', expr)        
         return self.rng.beta(shape, rate)
 
-    def _sample_geometric(self, expr, params, subs):
+    def _sample_geometric(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 1, 'Geometric', expr)
         
         pr, = args
-        pr = self._sample(pr, params, subs)
+        pr = self._sample(pr, objects, subs)
         LiftedRDDLSimulator._check_range(pr, 0, 1, 'Geometric p', expr)        
         return self.rng.geometric(pr)
     
-    def _sample_pareto(self, expr, params, subs):
+    def _sample_pareto(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Pareto', expr)
         
         shape, scale = args
-        shape = self._sample(shape, params, subs)
-        scale = self._sample(scale, params, subs)
+        shape = self._sample(shape, objects, subs)
+        scale = self._sample(scale, objects, subs)
         LiftedRDDLSimulator._check_positive(shape, True, 'Pareto shape', expr)        
         LiftedRDDLSimulator._check_positive(scale, True, 'Pareto scale', expr)        
         return scale * self.rng.pareto(shape)
     
-    def _sample_student(self, expr, params, subs):
+    def _sample_student(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 1, 'Student', expr)
         
         df, = args
-        df = self._sample(df, params, subs)
+        df = self._sample(df, objects, subs)
         LiftedRDDLSimulator._check_positive(df, True, 'Student df', expr)            
         return self.rng.standard_t(df)
 
-    def _sample_gumbel(self, expr, params, subs):
+    def _sample_gumbel(self, expr, objects, subs):
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'Gumbel', expr)
         
         mean, scale = args
-        mean = self._sample(mean, params, subs)
-        scale = self._sample(scale, params, subs)
+        mean = self._sample(mean, objects, subs)
+        scale = self._sample(scale, objects, subs)
         LiftedRDDLSimulator._check_positive(scale, True, 'Gumbel scale', expr)
         return self.rng.gumbel(mean, scale)
         
