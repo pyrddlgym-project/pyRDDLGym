@@ -46,14 +46,14 @@ Thiago Pbueno's [pyrddl](https://github.com/thiagopbueno/pyrddl)
 ### Installation
 
 #### Python version
-We require Python 3.7+.
+We require Python 3.8+.
 
 ###Requirements:
 * ply
 * pillow>=9.2.0
 * numpy
 * matplotlib>=3.5.0
-* gym
+* gym>=0.24.0
 * pygame
 
 #### Installing via pip
