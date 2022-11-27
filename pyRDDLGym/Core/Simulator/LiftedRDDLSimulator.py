@@ -750,6 +750,8 @@ class LiftedRDDLSimulator:
             return self._sample_student(expr, objects, subs)
         elif name == 'Gumbel':
             return self._sample_gumbel(expr, objects, subs)
+        elif name == 'Laplace':
+            return self._sample_laplace(expr, objects, subs)
         else:  # no support for enum
             LiftedRDDLSimulator._raise_unsupported(f'Distribution {name}', expr)
 
@@ -918,4 +920,14 @@ class LiftedRDDLSimulator:
         scale = self._sample(scale, objects, subs)
         LiftedRDDLSimulator._check_positive(scale, True, 'Gumbel scale', expr)
         return self.rng.gumbel(mean, scale)
+    
+    def _sample_laplace(self, expr, objects, subs):
+        args = expr.args
+        LiftedRDDLSimulator._check_arity(args, 2, 'Laplace', expr)
+        
+        mean, scale = args
+        mean = self._sample(mean, objects, subs)
+        scale = self._sample(scale, objects, subs)
+        LiftedRDDLSimulator._check_positive(scale, True, 'Laplace scale', expr)
+        return self.rng.laplace(mean, scale)
         
