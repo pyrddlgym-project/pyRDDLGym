@@ -425,19 +425,20 @@ class LiftedRDDLSimulator:
     # ===========================================================================
         
     def _sample_constant(self, expr, objects, _):
-        if not hasattr(expr, 'cached_sub_map'):
-            *_, expr.cached_sub_map = self.types.map('', [], objects, expr)            
-        shape = expr.cached_sub_map
-        
-        arg = np.full(shape=shape, fill_value=expr.args)  
-        return arg
+        if not hasattr(expr, 'cached_value'):
+            *_, shape = self.types.map('', [], objects, expr)  
+            expr.cached_value = np.full(shape=shape, fill_value=expr.args)            
+            if self.debug:
+                warnings.warn(f'caching constant <{expr.args}>' )
+                
+        return expr.cached_value
     
     def _sample_pvar(self, expr, objects, subs):
         _, name = expr.etype
         args = expr.args
         LiftedRDDLSimulator._check_arity(args, 2, 'pvar ' + name, expr)
         
-        var, pvars = args        
+        var, pvars = args
         if var not in subs:
             raise RDDLUndefinedVariableError(
                 f'Variable <{var}> is not defined in the instance.\n' + 
