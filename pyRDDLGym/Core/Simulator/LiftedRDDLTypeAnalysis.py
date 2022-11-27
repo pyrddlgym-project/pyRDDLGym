@@ -146,8 +146,9 @@ class LiftedRDDLTypeAnalysis:
                     new_dim = False
                     if t_out != t_in: 
                         raise RDDLInvalidObjectError(
-                            f'Argument <{o_out}> of variable <{var}> '
-                            f'expects type <{t_in}>, got <{t_out}>.\n' + 
+                            f'Argument <{i_in + 1}> of variable <{var}> '
+                            f'expects object of type <{t_in}>, '
+                            f'got <{o_out}> of type <{t_out}>.\n' + 
                             LiftedRDDLTypeAnalysis._print_stack_trace(expr))
             
             # need to expand the shape of the value array
