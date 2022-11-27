@@ -30,7 +30,7 @@ def main():
     rddlparser.build()
     rddl = rddlparser.parse(rddltxt)
     
-    sim = LiftedRDDLSimulator(rddl)
+    sim = LiftedRDDLSimulator(rddl, debug=True)
     for episode in range(1):
         total_reward = 0
         state, done = sim.reset()
