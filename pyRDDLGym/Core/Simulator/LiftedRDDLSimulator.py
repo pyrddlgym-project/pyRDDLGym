@@ -7,7 +7,6 @@ from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -15,26 +14,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableErro
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.rddl import RDDL
-from pyRDDLGym.Core.Simulator.LiftedRDDLStaticAnalysis import LiftedRDDLStaticAnalysis
-
-
-def lngamma(x):
-    xmin = np.min(x)
-    if not (xmin > 0):
-        raise ValueError(f'Cannot evaluate log-gamma at {xmin}.')
-    
-    # small x: use lngamma(x) = lngamma(x + m) - ln(x + m - 1)... - ln(x)
-    # large x: use asymptotic expansion OEIS:A046969
-    if xmin < 7:
-        return lngamma(x + 2) - np.log(x) - np.log(x + 1)        
-    x_squared = x * x
-    return (x - 0.5) * np.log(x) - x + 0.5 * np.log(2 * np.pi) + \
-        1 / (12 * x) * (
-            1 + 1 / (30 * x_squared) * (
-                -1 + 1 / (7 * x_squared / 2) * (
-                    1 + 1 / (4 * x_squared / 3) * (
-                        -1 + 1 / (99 * x_squared / 140) * (
-                            1 + 1 / (910 * x_squared / 3))))))
+from pyRDDLGym.Core.Simulator.LiftedRDDLLevelAnalysis import LiftedRDDLLevelAnalysis
+from pyRDDLGym.Core.Simulator.LiftedRDDLTypeAnalysis import LiftedRDDLTypeAnalysis
 
         
 class LiftedRDDLSimulator:
@@ -76,11 +57,15 @@ class LiftedRDDLSimulator:
         self.instance = rddl.instance
         self.non_fluents = rddl.non_fluents
         
-        self.static = LiftedRDDLStaticAnalysis(rddl, allow_synchronous_state)
+        # perform a dependency analysis for fluent variables
+        self.static = LiftedRDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
         self.next_states = self.static.next_states
         
-        self._compile()
+        # extract information about types and their objects in the domain
+        self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
+        
+        self._compile_initial_values()
         self.action_pattern = re.compile(r'(\S*?)\((\S.*?)\)', re.VERBOSE)
         
         # basic operations
@@ -148,67 +133,6 @@ class LiftedRDDLSimulator:
     # compilation time
     # ===========================================================================
     
-    def _compile(self):
-        self._compile_types()
-        self._compile_objects()
-        self._compile_initial_values()
-        
-    def _compile_types(self):
-        self.pvar_types = {}
-        for pvar in self.domain.pvariables:
-            primed_name = name = pvar.name
-            if pvar.is_state_fluent():
-                primed_name = name + '\''
-            ptypes = pvar.param_types
-            if ptypes is None:
-                ptypes = []
-            self.pvar_types[name] = ptypes
-            self.pvar_types[primed_name] = ptypes
-            
-        self.cpf_types = {}
-        for cpf in self.domain.cpfs[1]:
-            _, (name, objects) = cpf.pvar
-            if objects is None:
-                objects = [] 
-            types = self.pvar_types[name]
-            self.cpf_types[name] = [(o, types[i]) for i, o in enumerate(objects)]
-        
-        if self.debug:
-            pvar = ''.join(f'\n\t\t{k}: {v}' for k, v in self.pvar_types.items())
-            cpf = ''.join(f'\n\t\t{k}: {v}' for k, v in self.cpf_types.items())
-            warnings.warn(
-                f'compiling type information:'
-                f'\n\tpvar types ={pvar}'
-                f'\n\tcpf types  ={cpf}\n'
-            )
-            
-    def _compile_objects(self): 
-        self.objects, self.objects_to_index = {}, {}     
-        for name, ptype in self.non_fluents.objects:
-            indices = {obj: index for index, obj in enumerate(ptype)}
-            self.objects[name] = indices
-            overlap = indices.keys() & self.objects_to_index.keys()
-            if overlap:
-                raise RDDLInvalidObjectError(
-                    f'Multiple types share the same object <{overlap}>.')
-            self.objects_to_index.update(indices)
-        
-        if self.debug:
-            obj = ''.join(f'\n\t\t{k}: {v}' for k, v in self.objects.items())
-            warnings.warn(
-                f'compiling object information:'
-                f'\n\tobjects ={obj}\n'
-            )
-            
-    def _objects_to_coordinates(self, objects, msg):
-        try:
-            return tuple(self.objects_to_index[obj] for obj in objects)
-        except:
-            for obj in objects:
-                if obj not in self.objects_to_index:
-                    raise RDDLInvalidObjectError(
-                        f'Object <{obj}> declared in {msg} is not valid.')
-        
     def _compile_initial_values(self):
         
         # get default values from domain
@@ -226,7 +150,7 @@ class LiftedRDDLSimulator:
                 self.init_values[name] = value              
             else: 
                 self.init_values[name] = np.full(
-                    shape=tuple(len(self.objects[obj]) for obj in ptypes),
+                    shape=self.types.shape(ptypes),
                     fill_value=value,
                     dtype=LiftedRDDLSimulator.NUMPY_TYPES[prange])
             
@@ -247,18 +171,14 @@ class LiftedRDDLSimulator:
                     raise RDDLUndefinedVariableError(
                         f'Variable <{name}> in {block_name} is not valid.')
                     
-                ptypes = self.pvar_types[name]
-                if objects is None:
-                    objects = []
-                n_req = len(ptypes)
-                n_given = len(objects)
-                if n_req != n_given:
+                ptypes = self.types.pvar_types[name]
+                if not self.types.is_compatible(name, objects):
                     raise RDDLInvalidNumberOfArgumentsError(
-                        f'Initialization of <{name}> in {block_name} block with '
-                        f'{objects} do not match types {ptypes} in definition.')
+                        f'Type arguments {objects} for variable <{name}> '
+                        f'do not match definition {ptypes}.')
                         
                 if ptypes:
-                    coords = self._objects_to_coordinates(objects, block_name)                                
+                    coords = self.types.coordinates(objects, block_name)                                
                     self.init_values[name][coords] = value
                 else:
                     self.init_values[name] = value
@@ -266,7 +186,7 @@ class LiftedRDDLSimulator:
         if self.debug:
             val = ''.join(f'\n\t\t{k}: {v}' for k, v in self.init_values.items())
             warnings.warn(
-                f'compiling initial value information:'
+                f'compiling initial value info:'
                 f'\n\tvalues ={val}\n'
             )
 
@@ -303,7 +223,7 @@ class LiftedRDDLSimulator:
     def _check_op(op, valid, msg, expr):
         if op not in valid:
             raise RDDLNotImplementedError(
-                f'{msg} operator {op} is not supported: must be one of {valid}.\n' + 
+                f'{msg} operator {op} is not supported: must be in {valid}.\n' + 
                 LiftedRDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -431,21 +351,19 @@ class LiftedRDDLSimulator:
             prange_req = new_actions[name].dtype
             if not np.can_cast(prange_val, prange_req, casting='safe'):
                 raise RDDLTypeError(
-                    f'Value for action fluent <{action}> of type {prange_val} '
+                    f'Value for action fluent <{name}> of type {prange_val} '
                     f'cannot be safely cast to type {prange_req}.')
             
-            # check that the number of arguments is correct
+            # check that the arguments are correct
             objects = [obj.strip() for obj in objects.split(',')]
-            len_val = len(objects)
-            len_req = len(self.pvar_types[name])
-            if len_val != len_req:
-                raise RDDLInvalidActionError(
-                    f'Action fluent <{name}> takes {len_req} type arguments, '
-                    f'given {objects}.')     
-            
+            if not self.types.is_compatible(name, objects):
+                ptypes = self.types.pvar_types[name]
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Type arguments {objects} for action <{name}> '
+                    f'do not match definition {ptypes}.')
+                    
             # update the internal action arrays
-            coords = self._objects_to_coordinates(
-                objects, f'action-fluent <{action}>')
+            coords = self.types.coordinates(objects, f'action-fluent <{name}>')
             new_actions[name][coords] = value
             
         return new_actions
@@ -461,7 +379,7 @@ class LiftedRDDLSimulator:
         
         for _, cpfs in self.levels.items():
             for cpf in cpfs:
-                ptypes = self.cpf_types[cpf]
+                ptypes = self.types.cpf_types[cpf]
                 expr = self.static.cpfs[cpf]
                 subs[cpf] = self._sample(expr, ptypes, subs)
         reward = self.sample_reward()
@@ -505,72 +423,12 @@ class LiftedRDDLSimulator:
     # ===========================================================================
     # leaves
     # ===========================================================================
-    
-    def _get_subs_map(self, objects_has, types_has, objects_req, expr):
-        if hasattr(expr, 'cached_sub_map'):
-            return expr.cached_sub_map
         
-        # reached limit on number of valid dimensions (52)
-        valid_symbols = LiftedRDDLSimulator.VALID_SYMBOLS
-        n_valid = len(valid_symbols)
-        n_req = len(objects_req)
-        if n_req > n_valid:
-            raise RDDLNotImplementedError(
-                f'Up to {n_valid}-D are supported, '
-                f'but variable <{expr.args[0]}> is {n_req}-D.\n' + 
-                LiftedRDDLSimulator._print_stack_trace(expr))
-                
-        # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
-        objects_has = tuple(zip(objects_has, types_has))
-        lhs = [None] * len(objects_has)
-        new_dims = []
-        for i_req, (obj_req, type_req) in enumerate(objects_req):
-            new_dim = True
-            for i_has, (obj_has, type_has) in enumerate(objects_has):
-                if obj_has == obj_req:
-                    lhs[i_has] = valid_symbols[i_req]
-                    new_dim = False
-                    
-                    # check evaluation matches the definition in pvariables {...}
-                    if type_req != type_has: 
-                        raise RDDLInvalidObjectError(
-                            f'Argument <{obj_req}> of variable <{expr.args[0]}> '
-                            f'expects type <{type_has}>, got <{type_req}>.\n' + 
-                            LiftedRDDLSimulator._print_stack_trace(expr))
-            
-            # need to expand the shape of the value array
-            if new_dim:
-                lhs.append(valid_symbols[i_req])
-                new_dims.append(len(self.objects[type_req]))
-                
-        # safeguard against any free types
-        free = [objects_has[1][i] for i, p in enumerate(lhs) if p is None]
-        if free:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{expr.args[0]}> has free parameter(s) {free}.\n' + 
-                LiftedRDDLSimulator._print_stack_trace(expr))
-            
-        lhs = ''.join(lhs)
-        rhs = valid_symbols[:n_req]
-        permute = lhs + ' -> ' + rhs
-        identity = lhs == rhs
-        new_dims = tuple(new_dims)   
-        expr.cached_sub_map = (permute, identity, new_dims)
-        
-        if self.debug:
-            warnings.warn(
-                f'caching static info for pvar transform:' 
-                f'\n\texpr     ={expr}'
-                f'\n\tinputs   ={objects_has}'
-                f'\n\ttargets  ={objects_req}'
-                f'\n\tnew axes ={new_dims}'
-                f'\n\teinsum   ={permute}\n'
-            )
-            
-        return expr.cached_sub_map
-    
     def _sample_constant(self, expr, objects, _):
-        *_, shape = self._get_subs_map([], [], objects, expr)
+        if not hasattr(expr, 'cached_sub_map'):
+            *_, expr.cached_sub_map = self.types.map('', [], objects, expr)            
+        shape = expr.cached_sub_map
+        
         arg = np.full(shape=shape, fill_value=expr.args)  
         return arg
     
@@ -591,18 +449,10 @@ class LiftedRDDLSimulator:
                 f'Variable <{var}> is referenced before assignment.\n' + 
                 LiftedRDDLSimulator._print_stack_trace(expr))
         
-        if pvars is None:
-            pvars = []
-        types = self.pvar_types[var]
-        n_has = len(pvars)
-        n_req = len(types)
-        if n_has != n_req:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {n_req} parameters, got {n_has}.\n' + 
-                LiftedRDDLSimulator._print_stack_trace(expr))
+        if not hasattr(expr, 'cached_sub_map'):
+            expr.cached_sub_map = self.types.map(var, pvars, objects, expr)       
+        permute, identity, new_dims = expr.cached_sub_map
         
-        permute, identity, new_dims = self._get_subs_map(
-            pvars, types, objects, expr)
         arg = np.asarray(arg)
         sample = arg
         if new_dims:
@@ -679,25 +529,25 @@ class LiftedRDDLSimulator:
         LiftedRDDLSimulator._check_op(op, valid_ops, 'Aggregation', expr)
 
         * pvars, arg = args
-        if hasattr(expr, 'cached_objects'):
-            new_objects, axis = expr.cached_objects
-        else:
+        if not hasattr(expr, 'cached_objects'):
             new_objects = objects + [p[1] for p in pvars]
             axis = tuple(range(len(objects), len(new_objects)))
-            expr.cached_objects = (new_objects, axis)
             
             if self.debug:
                 warnings.warn(
-                    f'caching static info for aggregation:'
+                    f'computing object info for aggregation:'
                     f'\n\toperator       ={op} {pvars}'
-                    f'\n\toutput objects ={objects}'
                     f'\n\tinput objects  ={new_objects}'
+                    f'\n\toutput objects ={objects}'
                     f'\n\treduction axis ={axis}'
                     f'\n\treduction op   ={valid_ops[op]}\n'
                 )
-            
-        arg = self._sample(arg, new_objects, subs)
+                
+            expr.cached_objects = (new_objects, axis)
+        new_objects, axis = expr.cached_objects
         
+        arg = self._sample(arg, new_objects, subs)
+                
         if op == 'forall' or op == 'exists':
             LiftedRDDLSimulator._check_type(
                 arg, bool, f'Argument of aggregation {op}', expr)
@@ -998,3 +848,21 @@ class LiftedRDDLSimulator:
         sample = np.log(1.0 - logU / shape) / scale
         return sample
         
+
+def lngamma(x):
+    xmin = np.min(x)
+    if not (xmin > 0):
+        raise ValueError(f'Cannot evaluate log-gamma at {xmin}.')
+    
+    # small x: use lngamma(x) = lngamma(x + m) - ln(x + m - 1)... - ln(x)
+    # large x: use asymptotic expansion OEIS:A046969
+    if xmin < 7:
+        return lngamma(x + 2) - np.log(x) - np.log(x + 1)        
+    x_squared = x * x
+    return (x - 0.5) * np.log(x) - x + 0.5 * np.log(2 * np.pi) + \
+        1 / (12 * x) * (
+            1 + 1 / (30 * x_squared) * (
+                -1 + 1 / (7 * x_squared / 2) * (
+                    1 + 1 / (4 * x_squared / 3) * (
+                        -1 + 1 / (99 * x_squared / 140) * (
+                            1 + 1 / (910 * x_squared / 3))))))
