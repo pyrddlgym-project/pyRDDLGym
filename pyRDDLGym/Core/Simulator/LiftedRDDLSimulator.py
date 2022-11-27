@@ -18,6 +18,25 @@ from pyRDDLGym.Core.Parser.rddl import RDDL
 from pyRDDLGym.Core.Simulator.LiftedRDDLStaticAnalysis import LiftedRDDLStaticAnalysis
 
 
+def lngamma(x):
+    xmin = np.min(x)
+    if not (xmin > 0):
+        raise ValueError(f'Cannot evaluate log-gamma at {xmin}.')
+    
+    # small x: use lngamma(x) = lngamma(x + m) - ln(x + m - 1)... - ln(x)
+    # large x: use asymptotic expansion OEIS:A046969
+    if xmin < 7:
+        return lngamma(x + 2) - np.log(x) - np.log(x + 1)        
+    x_squared = x * x
+    return (x - 0.5) * np.log(x) - x + 0.5 * np.log(2 * np.pi) + \
+        1 / (12 * x) * (
+            1 + 1 / (30 * x_squared) * (
+                -1 + 1 / (7 * x_squared / 2) * (
+                    1 + 1 / (4 * x_squared / 3) * (
+                        -1 + 1 / (99 * x_squared / 140) * (
+                            1 + 1 / (910 * x_squared / 3))))))
+
+        
 class LiftedRDDLSimulator:
     
     INT = np.int32
@@ -112,7 +131,9 @@ class LiftedRDDLSimulator:
             'tanh': np.tanh,
             'exp': np.exp,
             'ln': np.log,
-            'sqrt': np.sqrt
+            'sqrt': np.sqrt,
+            'lngamma': lngamma,
+            'gamma': lambda x: np.exp(lngamma(x))
         }        
         self.BINARY = {
             'div': np.floor_divide,
