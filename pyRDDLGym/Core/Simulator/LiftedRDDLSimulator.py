@@ -429,7 +429,7 @@ class LiftedRDDLSimulator:
             *_, shape = self.types.map('', [], objects, expr)  
             expr.cached_value = np.full(shape=shape, fill_value=expr.args)            
             if self.debug:
-                warnings.warn(f'caching constant <{expr.args}>' )
+                warnings.warn(f'caching constant <{expr.args}>')
                 
         return expr.cached_value
     
@@ -533,6 +533,11 @@ class LiftedRDDLSimulator:
         if not hasattr(expr, 'cached_objects'):
             new_objects = objects + [p[1] for p in pvars]
             axis = tuple(range(len(objects), len(new_objects)))
+            fails = self.types.validate_types(new_objects)
+            if fails:
+                raise RDDLUndefinedVariableError(
+                f'Type(s) {fails} in aggregation {op} are not valid.\n' + 
+                LiftedRDDLSimulator._print_stack_trace(expr))
             
             if self.debug:
                 warnings.warn(
