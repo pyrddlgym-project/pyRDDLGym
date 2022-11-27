@@ -6,14 +6,12 @@ from typing import Dict, Generator
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
 
 class FuzzyLogic:
-    
-    def __init__(self, If=jnp.where):
-        self.If = If
     
     def And(self, a, b):
         raise NotImplementedError
@@ -38,6 +36,9 @@ class FuzzyLogic:
     
     def exists(self, x, axis=None):
         return self.Not(self.forall(self.Not(x), axis=axis))
+    
+    def If(self, c, a, b):
+        raise NotImplemented
 
 
 class ProductLogic(FuzzyLogic):
@@ -53,13 +54,17 @@ class ProductLogic(FuzzyLogic):
 
     def forall(self, x, axis=None):
         return jnp.prod(x, axis=axis)
- 
+    
+    def If(self, c, a, b):
+        return c * a + (1 - c) * b
 
-class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
+
+class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     
     def __init__(self, rddl: RDDL, logic: FuzzyLogic) -> None:
-        super(JaxRDDLBackpropCompiler, self).__init__(rddl, allow_discrete=False)
+        super(JaxRDDLCompilerWithGrad, self).__init__(rddl, force_continuous=True)
         
+        # overwrite basic operations with fuzzy ones
         self.LOGICAL_OPS = {
             '^': logic.And,
             '|': logic.Or,
@@ -67,43 +72,31 @@ class JaxRDDLBackpropCompiler(JaxRDDLCompiler):
             '=>': logic.implies,
             '<=>': logic.equiv
         }
-        self.LOGICAL_NOT = logic.Not
-        
-        self.AGGREGATION_OPS = {
-            'sum': jnp.sum,
-            'avg': jnp.mean,
-            'prod': jnp.prod,
-            'min': jnp.min,
-            'max': jnp.max,
-            'forall': logic.forall,
-            'exists': logic.exists
-        }
-        
-        self.CONTROL_OPS = {
-            'if': logic.If
-        }
+        self.LOGICAL_NOT = logic.Not  
+        self.AGGREGATION_OPS['exists'] = logic.exists
+        self.AGGREGATION_OPS['forall'] = logic.forall
+        self.CONTROL_OPS['if'] = logic.If
     
-    def _jax_logical(self, expr, op, params):
-        warnings.warn('Logical operator {} will be approximated.'.format(op),
-                      FutureWarning, stacklevel=2)
-        
-        return super(JaxRDDLBackpropCompiler, self)._jax_logical(expr, op, params)
+    def _jax_logical(self, expr, objects):
+        _, op = expr.etype
+        warnings.warn(f'Logical operator {op} uses fuzzy logic.',
+                      FutureWarning, stacklevel=2)        
+        return super(JaxRDDLCompilerWithGrad, self)._jax_logical(expr, objects)
     
-    def _jax_aggregation(self, expr, op, params):
-        warnings.warn('Aggregation operator {} will be approximated.'.format(op),
-                      FutureWarning, stacklevel=2)
+    def _jax_aggregation(self, expr, objects):
+        _, op = expr.etype
+        warnings.warn(f'Aggregation operator {op} uses fuzzy logic.',
+                      FutureWarning, stacklevel=2)        
+        return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr, objects)
         
-        return super(JaxRDDLBackpropCompiler, self)._jax_aggregation(expr, op, params)
-        
-    def _jax_control(self, expr, op, params):
-        warnings.warn('If statement will be be approximated.',
-                      FutureWarning, stacklevel=2)
-        
-        return super(JaxRDDLBackpropCompiler, self)._jax_control(expr, op, params)
+    def _jax_control(self, expr, objects):
+        _, op = expr.etype
+        warnings.warn(f'Control operator {op} uses fuzzy logic.',
+                      FutureWarning, stacklevel=2)        
+        return super(JaxRDDLCompilerWithGrad, self)._jax_control(expr, objects)
 
     def _jax_kron(self, expr, params):
-        warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)     
-                       
+        warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)                       
         arg, = expr.args
         arg = self._jax(arg, params)
         return arg
@@ -121,66 +114,102 @@ class JaxRDDLBackpropPlanner:
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.01),
                  logic: FuzzyLogic=ProductLogic(),
                  log_full_path: bool=False) -> None:
-        self.key = key
         if batch_size_test is None:
             batch_size_test = batch_size_train
+        self.rddl = rddl
+        self.key = key
+        self.batch_size_train = batch_size_train
+        self.batch_size_test = batch_size_test
+        self.action_bounds = action_bounds
+        self.initializer = initializer
+        self.optimizer = optimizer
+        self.logic = logic
         self.log_full_path = log_full_path
         
-        # compile training graph
-        compiled = JaxRDDLBackpropCompiler(rddl, logic=logic)
+        self._compile_rddl_to_jax()
+        self._compile_discount_and_horizon()
+        self._compile_action_info()
+        
+        self._compile_jax_train_and_test()
+    
+    # ===========================================================================
+    # compilation of RDDL file
+    # ===========================================================================
+    
+    def _compile_rddl_to_jax(self):
+        
+        # graph for training
+        compiled = JaxRDDLCompilerWithGrad(self.rddl, logic=self.logic)
         compiled.compile()
         self.compiled = compiled
         
-        # compile testing graph
-        test_compiled = JaxRDDLCompiler(rddl)
+        # graph for testing
+        test_compiled = JaxRDDLCompiler(self.rddl)
         test_compiled.compile()
         self.test_compiled = test_compiled
         
-        # get information about action fluent
+    def _compile_discount_and_horizon(self):             
+        horizon = self.rddl.instance.horizon
+        if not (horizon > 0):
+            raise RDDLValueOutOfRangeError(
+                'Horizon {} in the instance is not > 0.'.format(horizon))
+        self.horizon = horizon
+            
+        discount = self.rddl.instance.discount
+        if not (0 <= discount <= 1):
+            raise RDDLValueOutOfRangeError(
+                'Discount {} in the instance is not in [0, 1].'.format(discount))
+        self.discount = discount
+    
+    def _compile_action_info(self):
         self.action_info = {}
         self.action_bounds = {}
-        for pvar in rddl.domain.action_fluents.values():
+        for pvar in self.rddl.domain.action_fluents.values():
             name = pvar.name      
-            atype = pvar.range
-            value = compiled.init_values[name]
-            shape = (compiled.horizon,)
+            prange = pvar.range
+            value = self.compiled.init_values[name]
+            shape = (self.horizon,)
             if hasattr(value, 'shape'):
                 shape = shape + value.shape
-            if atype not in JaxRDDLCompiler.RDDL_TO_JAX_TYPE:
+            if prange not in JaxRDDLCompiler.JAX_TYPES:
                 raise RDDLTypeError(
-                    'Invalid type {} of action fluent <{}>.'.format(atype, name))
-            self.action_info[name] = (atype, shape)
-            
-            self.action_bounds[name] = action_bounds.get(
+                    f'Invalid type {prange} of action fluent <{name}>.')
+            self.action_info[name] = (prange, shape)            
+            self.action_bounds[name] = self.action_bounds.get(
                 name, (-jnp.inf, +jnp.inf))
-            
+    
+    # ===========================================================================
+    # compilation of training and testing graph
+    # ===========================================================================
+    
+    def _compile_jax_train_and_test(self):
+        
         # prediction
         predict_map, test_map = self._jax_predict()
         self.test_map = jax.jit(test_map)
         
         # training
-        train_rollout = self._jax_rollout(compiled, batch_size_train)
+        train_rollout = self._jax_rollout(self.compiled, self.batch_size_train)
         train_loss = self._jax_evaluate(predict_map, train_rollout)
-        self.train_loss = jax.jit(train_loss)
-        
-        self.initialize = jax.jit(self._jax_init(initializer, optimizer))
-        self.update = jax.jit(self._jax_update(train_loss, optimizer))
+        self.train_loss = jax.jit(train_loss)        
+        self.initialize = jax.jit(self._jax_init(self.initializer, self.optimizer))
+        self.update = jax.jit(self._jax_update(train_loss, self.optimizer))
         
         # testing
-        test_rollout = self._jax_rollout(test_compiled, batch_size_test)
+        test_rollout = self._jax_rollout(self.test_compiled, self.batch_size_test)
         test_loss = self._jax_evaluate(test_map, test_rollout)
         self.test_loss = jax.jit(test_loss)
-    
+        
     def _jax_predict(self):
         
         # TODO: use a one-hot for integer actions
         def _soft(params):
             plan = {}
             for name, param in params.items():
-                atype, _ = self.action_info[name]                
-                if atype == 'bool':
+                prange, _ = self.action_info[name]                
+                if prange == 'bool':
                     action = jax.nn.sigmoid(param)
-                elif atype == 'int': 
+                elif prange == 'int': 
                     action = jnp.asarray(param, dtype=JaxRDDLCompiler.REAL)
                 else:
                     action = param           
@@ -190,10 +219,10 @@ class JaxRDDLBackpropPlanner:
         def _hard(params):
             plan = {}
             for name, value in _soft(params).items():
-                atype, _ = self.action_info[name]
-                if atype == 'bool':
+                prange, _ = self.action_info[name]
+                if prange == 'bool':
                     plan[name] = value > 0.5
-                elif atype == 'int':
+                elif prange == 'int':
                     plan[name] = jnp.asarray(
                         jnp.round(value), dtype=JaxRDDLCompiler.INT)
                 else:
@@ -203,8 +232,7 @@ class JaxRDDLBackpropPlanner:
         return _soft, _hard
     
     def _jax_rollout(self, compiled, batch_size):
-        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']        
         init_subs = compiled.init_values.copy()
         for next_state, state in compiled.states.items():
             init_subs[next_state] = init_subs[state]
@@ -224,7 +252,7 @@ class JaxRDDLBackpropPlanner:
             for next_state, state in compiled.states.items():
                 subs[state] = subs[next_state]
             
-            discount *= compiled.discount
+            discount *= self.discount
             
             carried = (subs, discount, key)
             
@@ -248,8 +276,8 @@ class JaxRDDLBackpropPlanner:
         def _rollouts(plan, key): 
             batched_init = jax.tree_map(_batched, init_subs)
             subkeys = jax.random.split(key, num=batch_size)
-            logged, keys = jax.vmap(
-                _rollout, in_axes=(None, 0, 0))(plan, batched_init, subkeys)
+            logged, keys = jax.vmap(_rollout, in_axes=(None, 0, 0))(
+                plan, batched_init, subkeys)
             logged['keys'] = subkeys
             return logged, keys
         

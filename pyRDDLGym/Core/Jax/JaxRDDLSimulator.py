@@ -1,6 +1,5 @@
 import jax
 from typing import Dict
-import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
@@ -15,19 +14,19 @@ Args = Dict[str, Value]
 
 class JaxRDDLSimulator(RDDLSimulator):
         
-    def __init__(self, rddl: RDDL, key: jax.random.PRNGKey, soft: bool=True) -> None:
+    def __init__(self,
+                 rddl: RDDL,
+                 key: jax.random.PRNGKey,
+                 raise_error: bool=False, 
+                 **compiler_args) -> None:
         self.rddl = rddl
         self.key = key
-        self.soft = soft
+        self.raise_error = raise_error
         
-        compiled = JaxRDDLCompiler(rddl)
+        compiled = JaxRDDLCompiler(rddl, **compiler_args)
         compiled.compile()
         self.compiled = compiled
         
-        self.init_values = compiled.init_values
-        self.states = compiled.states
-        
-        # compile these to static graph
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
         self.terminals = jax.tree_map(jax.jit, compiled.termination)
@@ -38,47 +37,43 @@ class JaxRDDLSimulator(RDDLSimulator):
     def _print_stack_trace(expr, subs, key):
         return str(jax.make_jaxpr(expr)(subs, key))
     
-    def handle_error_code(self, error, aux_str):
-        errors = JaxRDDLCompiler.get_error_messages(error)
-        if errors:
-            error_list = '\n'.join(
-                '{}. {}'.format(i + 1, s) for i, s in enumerate(errors))
-            error_message = 'Internal error during evaluation of {}:\n'.format(
-                aux_str) + error_list
-            if self.soft:
-                warnings.warn(error_message, FutureWarning, stacklevel=2)
-            else:
-                raise RDDLInvalidExpressionError(error_message)
+    def handle_error_code(self, error, msg):
+        if self.raise_error:
+            errors = JaxRDDLCompiler.get_error_messages(error)
+            if errors:
+                errors = '\n'.join(f'{i + 1}. {s}' for i, s in enumerate(errors))
+                message = f'Internal error in evaluation of {msg}:\n'
+                raise RDDLInvalidExpressionError(message + errors)
     
     def _check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
-        for idx, invariant in enumerate(self.invariants):
+        for i, invariant in enumerate(self.invariants):
             sample, self.key, error = invariant(self.subs, self.key)
-            self.handle_error_code(error, 'invariant {}'.format(idx + 1))
+            self.handle_error_code(error, f'invariant {i + 1}')
             
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
-                    'State invariant {} is not satisfied.'.format(idx + 1) + 
-                    '\n' + JaxRDDLSimulator._print_stack_trace(
+                    f'Invariant {i + 1} is not satisfied.\n' + 
+                    JaxRDDLSimulator._print_stack_trace(
                         invariant, self.subs, self.key))
     
     def check_action_preconditions(self) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
-        for idx, precond in enumerate(self.preconds):
+        for i, precond in enumerate(self.preconds):
             sample, self.key, error = precond(self.subs, self.key)
-            self.handle_error_code(error, 'precondition {}'.format(idx + 1))
+            self.handle_error_code(error, f'precondition {i + 1}')
             
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
-                    'Action precondition {} is not satisfied.'.format(idx + 1) + 
-                    '\n' + JaxRDDLSimulator._print_stack_trace(
+                    f'Precondition {i + 1} is not satisfied.\n' + 
+                    JaxRDDLSimulator._print_stack_trace(
                         precond, self.subs, self.key))
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
-        for idx, terminal in enumerate(self.terminals):
+        for i, terminal in enumerate(self.terminals):
             sample, self.key, error = terminal(self.subs, self.key)
-            self.handle_error_code(error, 'termination {}'.format(idx + 1))
+            self.handle_error_code(error, f'termination {i + 1}')
             
             if bool(sample):
                 return True
@@ -92,11 +87,9 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def reset(self) -> Args:
         '''Resets the state variables to their initial values.'''
-        self.subs = self.init_values.copy()  
-        obs = {var: self.subs[var] for var in self.states.values()}
-        
-        done = self.check_terminal_states()
-        
+        self.subs = self.compiled.init_values.copy()  
+        obs = {var: self.subs[var] for var in self.compiled.states.values()}        
+        done = self.check_terminal_states()        
         return obs, done
     
     def step(self, actions: Args) -> Args:
@@ -109,14 +102,13 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         for name, cpf in self.cpfs.items():
             subs[name], self.key, error = cpf(subs, self.key)
-            self.handle_error_code(error, 'CPF <{}>'.format(name))
+            self.handle_error_code(error, f'CPF <{name}>')
             
         reward = self.sample_reward()
         
-        for next_state, state in self.states.items():
-            subs[state] = subs[next_state]
-            
-        obs = {var: subs[var] for var in self.states.values()}
+        obs = {}
+        for next_state, state in self.compiled.states.items():
+            obs[state] = subs[state] = subs[next_state]
         
         done = self.check_terminal_states()
         
