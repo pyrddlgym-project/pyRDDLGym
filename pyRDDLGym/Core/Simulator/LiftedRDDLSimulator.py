@@ -151,7 +151,16 @@ class LiftedRDDLSimulator:
                 objects = [] 
             types = self.pvar_types[name]
             self.cpf_types[name] = [(o, types[i]) for i, o in enumerate(objects)]
-    
+        
+        if self.debug:
+            pvar = ''.join(f'\n\t\t{k}: {v}' for k, v in self.pvar_types.items())
+            cpf = ''.join(f'\n\t\t{k}: {v}' for k, v in self.cpf_types.items())
+            warnings.warn(
+                f'compiling type information:'
+                f'\n\tpvar types ={pvar}'
+                f'\n\tcpf types  ={cpf}\n'
+            )
+            
     def _compile_objects(self): 
         self.objects, self.objects_to_index = {}, {}     
         for name, ptype in self.non_fluents.objects:
@@ -163,6 +172,13 @@ class LiftedRDDLSimulator:
                     f'Multiple types share the same object <{overlap}>.')
             self.objects_to_index.update(indices)
         
+        if self.debug:
+            obj = ''.join(f'\n\t\t{k}: {v}' for k, v in self.objects.items())
+            warnings.warn(
+                f'compiling object information:'
+                f'\n\tobjects ={obj}\n'
+            )
+            
     def _objects_to_coordinates(self, objects, msg):
         try:
             return tuple(self.objects_to_index[obj] for obj in objects)
@@ -208,7 +224,14 @@ class LiftedRDDLSimulator:
                 if objects is not None:
                     coords = self._objects_to_coordinates(objects, 'non-fluents')
                     self.init_values[name][coords] = value
-    
+        
+        if self.debug:
+            val = ''.join(f'\n\t\t{k}: {v}' for k, v in self.init_values.items())
+            warnings.warn(
+                f'compiling initial value information:'
+                f'\n\tvalues ={val}\n'
+            )
+
     # ===========================================================================
     # error checks
     # ===========================================================================
@@ -498,12 +521,12 @@ class LiftedRDDLSimulator:
         
         if self.debug:
             warnings.warn(
-                f'\ncaching static info for pvariable transform:' 
+                f'caching static info for pvar transform:' 
                 f'\n\texpr     ={expr}'
                 f'\n\tinputs   ={objects_has}'
                 f'\n\ttargets  ={objects_req}'
                 f'\n\tnew axes ={new_dims}'
-                f'\n\teinsum   ={permute}'
+                f'\n\teinsum   ={permute}\n'
             )
             
         return expr.cached_sub_map
@@ -627,12 +650,12 @@ class LiftedRDDLSimulator:
             
             if self.debug:
                 warnings.warn(
-                    f'\ncaching static info for aggregation:'
+                    f'caching static info for aggregation:'
                     f'\n\toperator       ={op} {pvars}'
                     f'\n\toutput objects ={objects}'
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\treduction axis ={axis}'
-                    f'\n\treduction op   ={valid_ops[op]}'
+                    f'\n\treduction op   ={valid_ops[op]}\n'
                 )
             
         arg = self._sample(arg, new_objects, subs)
