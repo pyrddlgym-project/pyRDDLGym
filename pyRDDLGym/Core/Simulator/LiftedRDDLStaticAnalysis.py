@@ -171,7 +171,7 @@ class LiftedRDDLStaticAnalysis:
         elif var in temp:
             cycle = ','.join(temp)
             raise RDDLInvalidDependencyInCPFError(
-                f'Cyclic dependency detected, suspected CPFs <{cycle}>.')
+                f'Cyclic dependency detected, suspected CPFs {{{cycle}}}.')
         else:
             temp.add(var)
             if var in graph:
