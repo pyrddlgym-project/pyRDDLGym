@@ -23,7 +23,7 @@ VALID_DEPENDENCIES = {
 }
 
     
-class LiftedRDDLStaticAnalysis:
+class LiftedRDDLLevelAnalysis:
     
     def __init__(self, rddl: RDDL, allow_synchronous_state: bool=True) -> None:
         self.rddl = rddl
@@ -140,7 +140,7 @@ class LiftedRDDLStaticAnalysis:
     
     def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
-        order = LiftedRDDLStaticAnalysis._topological_sort(graph)
+        order = LiftedRDDLLevelAnalysis._topological_sort(graph)
         
         levels, result = {}, {}
         for var in order:
@@ -160,7 +160,7 @@ class LiftedRDDLStaticAnalysis:
         temp = set()
         while unmarked:
             var = next(iter(unmarked))
-            LiftedRDDLStaticAnalysis._sort_variables(
+            LiftedRDDLLevelAnalysis._sort_variables(
                 order, graph, var, unmarked, temp)
         return order
     
@@ -176,7 +176,7 @@ class LiftedRDDLStaticAnalysis:
             temp.add(var)
             if var in graph:
                 for dep in graph[var]:
-                    LiftedRDDLStaticAnalysis._sort_variables(
+                    LiftedRDDLLevelAnalysis._sort_variables(
                         order, graph, dep, unmarked, temp)
             temp.remove(var)
             unmarked.remove(var)
