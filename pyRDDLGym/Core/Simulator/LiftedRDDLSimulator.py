@@ -498,12 +498,12 @@ class LiftedRDDLSimulator:
         
         if self.debug:
             warnings.warn(
-                f'caching map info for einsum:'
+                f'\ncaching static info for pvariable transform:' 
+                f'\n\texpr     ={expr}'
                 f'\n\tinputs   ={objects_has}'
                 f'\n\ttargets  ={objects_req}'
                 f'\n\tnew axes ={new_dims}'
-                f'\n\teinsum   ={permute}' 
-                f'\n\texpr     ={expr}\n'
+                f'\n\teinsum   ={permute}'
             )
             
         return expr.cached_sub_map
@@ -618,8 +618,22 @@ class LiftedRDDLSimulator:
         LiftedRDDLSimulator._check_op(op, valid_ops, 'Aggregation', expr)
 
         * pvars, arg = args
-        new_objects = objects + [p[1] for p in pvars]
-        axis = tuple(range(len(objects), len(new_objects)))
+        if hasattr(expr, 'cached_objects'):
+            new_objects, axis = expr.cached_objects
+        else:
+            new_objects = objects + [p[1] for p in pvars]
+            axis = tuple(range(len(objects), len(new_objects)))
+            expr.cached_objects = (new_objects, axis)
+            
+            if self.debug:
+                warnings.warn(
+                    f'\ncaching static info for aggregation:'
+                    f'\n\toperator       ={op} {pvars}'
+                    f'\n\toutput objects ={objects}'
+                    f'\n\tinput objects  ={new_objects}'
+                    f'\n\treduction axis ={axis}'
+                )
+            
         arg = self._sample(arg, new_objects, subs)
         
         if op == 'forall' or op == 'exists':
