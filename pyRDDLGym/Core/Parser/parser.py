@@ -96,7 +96,8 @@ class RDDLlex(object):
             'Student' : 'STUDENT',
             'Gumbel' : 'GUMBEL',
             'Laplace': 'LAPLACE',
-            'Cauchy': 'CAUCHY'
+            'Cauchy': 'CAUCHY',
+            'Gompertz': 'GOMPERTZ'
         }
 
         self.tokens = [
@@ -645,7 +646,8 @@ class RDDLParser(object):
                           | STUDENT LPAREN expr RPAREN
                           | GUMBEL   LPAREN expr COMMA expr RPAREN
                           | LAPLACE LPAREN expr COMMA expr RPAREN
-                          | CAUCHY LPAREN expr COMMA expr RPAREN'''
+                          | CAUCHY LPAREN expr COMMA expr RPAREN
+                          | GOMPERTZ LPAREN expr COMMA expr RPAREN'''
         if len(p) == 7:
             if isinstance(p[5], list):
                 p[0] = ('randomvar', (p[1], (('enum_type', p[3]), *p[5])))

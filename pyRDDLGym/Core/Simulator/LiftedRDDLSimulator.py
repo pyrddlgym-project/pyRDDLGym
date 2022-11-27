@@ -754,6 +754,8 @@ class LiftedRDDLSimulator:
             return self._sample_laplace(expr, objects, subs)
         elif name == 'Cauchy':
             return self._sample_cauchy(expr, objects, subs)
+        elif name == 'Gompertz':
+            return self._sample_gompertz(expr, objects, subs)
         else:  # no support for enum
             LiftedRDDLSimulator._raise_unsupported(f'Distribution {name}', expr)
 
@@ -943,5 +945,18 @@ class LiftedRDDLSimulator:
         LiftedRDDLSimulator._check_positive(scale, True, 'Cauchy scale', expr)
         sample = self.rng.standard_cauchy(size=mean.shape)
         sample = mean + scale * sample
+        return sample
+    
+    def _sample_gompertz(self, expr, objects, subs):
+        args = expr.args
+        LiftedRDDLSimulator._check_arity(args, 2, 'Gompertz', expr)
+        
+        shape, scale = args
+        shape = self._sample(shape, objects, subs)
+        scale = self._sample(scale, objects, subs)
+        LiftedRDDLSimulator._check_positive(shape, True, 'Gompertz shape', expr)
+        LiftedRDDLSimulator._check_positive(scale, True, 'Gompertz scale', expr)
+        logU = np.log(self.rng.uniform(size=shape.shape))
+        sample = np.log(1.0 - logU / shape) / scale
         return sample
         
