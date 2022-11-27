@@ -234,18 +234,35 @@ class LiftedRDDLSimulator:
                 self.noop_actions[name] = self.init_values[name]
         
         # override default values with instance
+        blocks = {}
         if hasattr(self.instance, 'init_state'):
-            for (name, objects), value in self.instance.init_state:
-                if objects is not None:
-                    coords = self._objects_to_coordinates(objects, 'init-state')
-                    self.init_values[name][coords] = value   
-        
+            blocks['init-state'] = self.instance.init_state
         if hasattr(self.non_fluents, 'init_non_fluent'):
-            for (name, objects), value in self.non_fluents.init_non_fluent:
-                if objects is not None:
-                    coords = self._objects_to_coordinates(objects, 'non-fluents')
-                    self.init_values[name][coords] = value
+            blocks['non-fluents'] = self.non_fluents.init_non_fluent
         
+        for block_name, block_content in blocks.items():
+            for (name, objects), value in block_content:
+                init_values = self.init_values.get(name, None)
+                if init_values is None:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{name}> in {block_name} is not valid.')
+                    
+                ptypes = self.pvar_types[name]
+                if objects is None:
+                    objects = []
+                n_req = len(ptypes)
+                n_given = len(objects)
+                if n_req != n_given:
+                    raise RDDLInvalidNumberOfArgumentsError(
+                        f'Initialization of <{name}> in {block_name} block with '
+                        f'{objects} do not match types {ptypes} in definition.')
+                        
+                if ptypes:
+                    coords = self._objects_to_coordinates(objects, block_name)                                
+                    self.init_values[name][coords] = value
+                else:
+                    self.init_values[name] = value
+                
         if self.debug:
             val = ''.join(f'\n\t\t{k}: {v}' for k, v in self.init_values.items())
             warnings.warn(
