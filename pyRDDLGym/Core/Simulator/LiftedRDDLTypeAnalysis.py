@@ -99,6 +99,9 @@ class LiftedRDDLTypeAnalysis:
             if obj not in self.objects_to_type or ptype != self.objects_to_type[obj]:
                 return False
         return True
+    
+    def validate_types(self, types: Iterable[Tuple[str, str]]) -> List[str]:
+        return [ptype for _, ptype in types if ptype not in self.objects]                
         
     @staticmethod
     def _print_stack_trace(expr):
