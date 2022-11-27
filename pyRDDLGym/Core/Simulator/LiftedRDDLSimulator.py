@@ -632,6 +632,7 @@ class LiftedRDDLSimulator:
                     f'\n\toutput objects ={objects}'
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\treduction axis ={axis}'
+                    f'\n\treduction op   ={valid_ops[op]}'
                 )
             
         arg = self._sample(arg, new_objects, subs)
