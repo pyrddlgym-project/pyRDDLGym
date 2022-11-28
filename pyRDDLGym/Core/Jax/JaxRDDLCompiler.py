@@ -31,11 +31,11 @@ class JaxRDDLCompiler:
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-    def __init__(self, 
+    def __init__(self,
                  rddl: RDDL,
-                 force_continuous: bool=False, 
+                 force_continuous: bool=False,
                  allow_synchronous_state: bool=True,
-                 debug: bool=False) -> None:
+                 debug: bool=True) -> None:
         self.rddl = rddl
         self.force_continuous = force_continuous
         self.debug = debug
@@ -52,6 +52,7 @@ class JaxRDDLCompiler:
         
         # extract information about types and their objects in the domain
         self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
+        self._compile_initial_values()
                 
         # basic operations        
         self.ARITHMETIC_OPS = {
@@ -181,9 +182,7 @@ class JaxRDDLCompiler:
                 f'\n\tvalues ={val}\n'
             )
             
-    def compile(self) -> None:
-        self._compile_initial_values()     
-        
+    def compile(self) -> None:        
         self.invariants = self._compile_constraints(self.domain.invariants)
         self.preconditions = self._compile_constraints(self.domain.preconds)
         self.termination = self._compile_constraints(self.domain.terminals)
@@ -206,6 +205,57 @@ class JaxRDDLCompiler:
     
     def _compile_reward(self):
         return self._jax(self.domain.reward, [], dtype=JaxRDDLCompiler.REAL)
+    
+    def compile_rollouts(self, policy, n_steps: int, n_batch: int):
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+            
+        # compute a batched version of the initial values
+        init_subs = {}
+        for name, value in self.init_values.items():
+            shape = (n_batch,) + np.shape(value)
+            init_subs[name] = np.broadcast_to(value, shape=shape)            
+        for next_state, state in self.next_states.items():
+            init_subs[next_state] = init_subs[state]
+        
+        # this performs a single step update
+        def _step(carried, step):
+            subs, params, key = carried
+            action, key = policy(subs, step, params, key)
+            subs.update(action)
+            
+            error = NORMAL
+            for name, cpf in self.cpfs.items():
+                subs[name], key, cpf_err = cpf(subs, key)
+                error |= cpf_err                
+            reward, key, reward_err = self.reward(subs, key)
+            error |= reward_err
+            
+            for next_state, state in self.next_states.items():
+                subs[state] = subs[next_state]
+            
+            carried = (subs, params, key)
+            logged = {'reward': reward, 'error': error}
+            logged['trajectory'] = subs
+            logged['action'] = action
+                
+            return carried, logged
+        
+        # this performs a single roll-out starting from subs
+        def _rollout(subs, params, key):
+            steps = jnp.arange(n_steps)
+            carry = (subs, params, key)
+            (* _, key), logged = jax.lax.scan(_step, carry, steps)
+            return logged, key
+        
+        # this performs batched roll-outs
+        def _rollouts(params, key): 
+            subkeys = jax.random.split(key, num=n_batch)
+            logged, keys = jax.vmap(_rollout, in_axes=(0, None, 0))(
+                init_subs, params, subkeys)
+            logged['keys'] = subkeys
+            return logged, keys
+        
+        return _rollouts
     
     # ===========================================================================
     # error checks
@@ -320,9 +370,9 @@ class JaxRDDLCompiler:
     # leaves
     # ===========================================================================
     
-    def _jax_constant(self, expr, objects):        
+    def _jax_constant(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        *_, shape = self.types.map('', [], objects, expr)
+        * _, shape = self.types.map('', [], objects, expr)
         const = expr.args
         
         def _f(_, key):
@@ -465,7 +515,7 @@ class JaxRDDLCompiler:
                 
         return _f
                
-    def _jax_functional(self, expr, objects): 
+    def _jax_functional(self, expr, objects):
         _, op = expr.etype
         
         if op in self.KNOWN_UNARY:
@@ -484,8 +534,8 @@ class JaxRDDLCompiler:
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
         raise RDDLNotImplementedError(
-                f'Function {op} is not supported.\n'
-                + JaxRDDLCompiler._print_stack_trace(expr))   
+                f'Function {op} is not supported.\n' + 
+                JaxRDDLCompiler._print_stack_trace(expr))   
     
     # ===========================================================================
     # control flow
