@@ -171,8 +171,14 @@ class RDDLGrounder(Grounder):
     def _ground_non_fluents(self):
         if not hasattr(self.AST.non_fluents, 'init_non_fluent'):
             return
+        valid_non_fluents = set(
+            pvar.name for pvar in self.AST.domain.pvariables if pvar.is_non_fluent())
         for init_vals in self.AST.non_fluents.init_non_fluent:
             name = init_vals[0][0]
+            if name not in valid_non_fluents:
+                warnings.warn(
+                    'Non-fluents block initializes an undefined pvariable <{}>.'.format(name),
+                    FutureWarning, stacklevel=2)
             variations_list = [init_vals[0][1]]
             val = init_vals[1]
             if variations_list[0] is not None:
@@ -514,8 +520,10 @@ class RDDLGrounder(Grounder):
                 (key, subs), val = init_vals
                 if subs:
                     key = self._append_variation_to_name(key, subs)
-                if key not in self.initstate:
-                    raise RDDLUndefinedVariableError(
-                        'Variable <{}> referenced in init-state is not a state fluent.'.format(key))
-                self.initstate[key] = val
+                if key in self.initstate:
+                    self.initstate[key] = val
+                else:
+                    warnings.warn(
+                        'Init-state block initializes an undefined state fluent <{}>.'.format(key),
+                        FutureWarning, stacklevel=2)
 
