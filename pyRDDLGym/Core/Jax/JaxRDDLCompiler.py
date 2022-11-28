@@ -6,7 +6,10 @@ import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.Parser.rddl import RDDL
+from pyRDDLGym.Core.Simulator.LiftedRDDLLevelAnalysis import LiftedRDDLLevelAnalysis
+from pyRDDLGym.Core.Simulator.LiftedRDDLTypeAnalysis import LiftedRDDLTypeAnalysis
 
 
 class JaxRDDLCompiler:
@@ -31,6 +34,7 @@ class JaxRDDLCompiler:
     def __init__(self, 
                  rddl: RDDL,
                  force_continuous: bool=False, 
+                 allow_synchronous_state: bool=True,
                  debug: bool=False) -> None:
         self.rddl = rddl
         self.force_continuous = force_continuous
@@ -41,13 +45,14 @@ class JaxRDDLCompiler:
         self.instance = rddl.instance
         self.non_fluents = rddl.non_fluents
         
-        # TODO: implement topological sort
-        cpf_order = self.domain.derived_cpfs + \
-                    self.domain.intermediate_cpfs + \
-                    self.domain.state_cpfs + \
-                    self.domain.observation_cpfs 
-        self.cpf_order = [cpf.pvar[1][0] for cpf in cpf_order]
+        # perform a dependency analysis for fluent variables
+        self.static = LiftedRDDLLevelAnalysis(rddl, allow_synchronous_state)
+        self.levels = self.static.compute_levels()
+        self.next_states = self.static.next_states
         
+        # extract information about types and their objects in the domain
+        self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
+                
         # basic operations        
         self.ARITHMETIC_OPS = {
             '+': jnp.add,
@@ -109,64 +114,9 @@ class JaxRDDLCompiler:
         }
         
     # ===========================================================================
-    # compile type and object information
+    # main compilation subroutines
     # ===========================================================================
-    
-    def _compile_types(self):
-        self.pvar_types = {}
-        for pvar in self.domain.pvariables:
-            name = pvar.name
-            ptypes = pvar.param_types
-            if ptypes is None: 
-                ptypes = []
-            self.pvar_types[name] = ptypes
-            if pvar.is_state_fluent():
-                self.pvar_types[name + '\''] = ptypes
-            
-        self.cpf_types = {}
-        for cpf in self.domain.cpfs[1]:
-            _, (name, objects) = cpf.pvar
-            if objects is None:
-                objects = [] 
-            types = self.pvar_types[name]
-            self.cpf_types[name] = [(o, types[i]) for i, o in enumerate(objects)]
-        
-        if self.debug:
-            pvar = ''.join(f'\n\t\t{k}: {v}' for k, v in self.pvar_types.items())
-            cpf = ''.join(f'\n\t\t{k}: {v}' for k, v in self.cpf_types.items())
-            warnings.warn(
-                f'compiling type information:'
-                f'\n\tpvar types ={pvar}'
-                f'\n\tcpf types  ={cpf}\n'
-            )
-    
-    def _compile_objects(self): 
-        self.objects, self.objects_to_index = {}, {}     
-        for name, ptype in self.non_fluents.objects:
-            indices = {obj: index for index, obj in enumerate(ptype)}
-            self.objects[name] = indices
-            overlap = indices.keys() & self.objects_to_index.keys()
-            if overlap:
-                raise Exception(
-                    f'Multiple types share the same object <{overlap}>.')
-            self.objects_to_index.update(indices)
-        
-        if self.debug:
-            obj = ''.join(f'\n\t\t{k}: {v}' for k, v in self.objects.items())
-            warnings.warn(
-                f'compiling object information:'
-                f'\n\tobjects ={obj}\n'
-            )
-    
-    def _objects_to_coordinates(self, objects, msg):
-        try:
-            return tuple(self.objects_to_index[obj] for obj in objects)
-        except:
-            for obj in objects:
-                if obj not in self.objects_to_index:
-                    raise Exception(
-                        f'Object <{obj}> declared in {msg} is not valid.')
-    
+     
     def _compile_initial_values(self):
         
         # get default values from domain
@@ -191,7 +141,7 @@ class JaxRDDLCompiler:
                 self.init_values[name] = value              
             else: 
                 self.init_values[name] = np.full(
-                    shape=tuple(len(self.objects[obj]) for obj in ptypes),
+                    shape=self.types.shape(ptypes),
                     fill_value=value,
                     dtype=dtype)
             
@@ -199,39 +149,40 @@ class JaxRDDLCompiler:
                 self.noop_actions[name] = self.init_values[name]
         
         # override default values with instance
+        blocks = {}
         if hasattr(self.instance, 'init_state'):
-            for (name, objects), value in self.instance.init_state:
-                if objects is not None:
-                    coords = self._objects_to_coordinates(objects, 'init-state')
-                    self.init_values[name][coords] = value   
-        
+            blocks['init-state'] = self.instance.init_state
         if hasattr(self.non_fluents, 'init_non_fluent'):
-            for (name, objects), value in self.non_fluents.init_non_fluent:
-                if objects is not None:
-                    coords = self._objects_to_coordinates(objects, 'non-fluents')
+            blocks['non-fluents'] = self.non_fluents.init_non_fluent
+        
+        for block_name, block_content in blocks.items():
+            for (name, objects), value in block_content:
+                init_values = self.init_values.get(name, None)
+                if init_values is None:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{name}> in {block_name} is not valid.')
+                    
+                ptypes = self.types.pvar_types[name]
+                if not self.types.is_compatible(name, objects):
+                    raise RDDLInvalidNumberOfArgumentsError(
+                        f'Type arguments {objects} for variable <{name}> '
+                        f'do not match definition {ptypes}.')
+                        
+                if ptypes:
+                    coords = self.types.coordinates(objects, block_name)                                
                     self.init_values[name][coords] = value
+                else:
+                    self.init_values[name] = value
         
         if self.debug:
             val = ''.join(f'\n\t\t{k}: {v}' for k, v in self.init_values.items())
             warnings.warn(
-                f'compiling initial value information:'
+                f'compiling initial value info:'
                 f'\n\tvalues ={val}\n'
             )
-        
-        # useful to have state lookup
-        self.states = {}
-        for pvar in self.domain.pvariables:
-            if pvar.is_state_fluent():
-                self.states[pvar.name + '\''] = pvar.name
-                
-    # ===========================================================================
-    # main compilation subroutines
-    # ===========================================================================
-    
+            
     def compile(self) -> None:
-        self._compile_types()
-        self._compile_objects()
-        self._compile_initial_values()      
+        self._compile_initial_values()     
         
         self.invariants = self._compile_constraints(self.domain.invariants)
         self.preconditions = self._compile_constraints(self.domain.preconds)
@@ -245,13 +196,12 @@ class JaxRDDLCompiler:
         
     def _compile_cpfs(self):
         jax_cpfs = {}
-        for cpf in self.domain.cpfs[1]:
-            _, (name, _) = cpf.pvar
-            expr = cpf.expr
-            ptypes = self.cpf_types[name]
-            dtype = self.dtypes[name]
-            jax_cpfs[name] = self._jax(expr, ptypes, dtype=dtype)          
-        jax_cpfs = {name: jax_cpfs[name] for name in self.cpf_order}
+        for _, cpfs in self.levels.items():
+            for cpf in cpfs:
+                ptypes = self.types.cpf_types[cpf]
+                expr = self.static.cpfs[cpf]
+                dtype = self.dtypes[cpf]
+                jax_cpfs[cpf] = self._jax(expr, ptypes, dtype=dtype)
         return jax_cpfs
     
     def _compile_reward(self):
@@ -370,69 +320,9 @@ class JaxRDDLCompiler:
     # leaves
     # ===========================================================================
     
-    def _get_subs_map(self, objects_has, types_has, objects_req, expr):
-        
-        # reached limit on number of valid dimensions (52)
-        valid_symbols = JaxRDDLCompiler.VALID_SYMBOLS
-        n_valid = len(valid_symbols)
-        n_req = len(objects_req)
-        if n_req > n_valid:
-            raise RDDLNotImplementedError(
-                f'Up to {n_valid}-D are supported, '
-                f'but variable <{expr.args[0]}> is {n_req}-D.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
-                
-        # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
-        objects_has = tuple(zip(objects_has, types_has))
-        lhs = [None] * len(objects_has)
-        new_dims = []
-        for i_req, (obj_req, type_req) in enumerate(objects_req):
-            new_dim = True
-            for i_has, (obj_has, type_has) in enumerate(objects_has):
-                if obj_has == obj_req:
-                    lhs[i_has] = valid_symbols[i_req]
-                    new_dim = False
-                    
-                    # check evaluation matches the definition in pvariables {...}
-                    if type_req != type_has: 
-                        raise Exception(
-                            f'Argument <{obj_req}> of variable <{expr.args[0]}> '
-                            f'expects type <{type_has}>, got <{type_req}>.\n' + 
-                            JaxRDDLCompiler._print_stack_trace(expr))
-            
-            # need to expand the shape of the value array
-            if new_dim:
-                lhs.append(valid_symbols[i_req])
-                new_dims.append(len(self.objects[type_req]))
-                
-        # safeguard against any free types
-        free = [objects_has[1][i] for i, p in enumerate(lhs) if p is None]
-        if free:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{expr.args[0]}> has free parameter(s) {free}.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
-            
-        lhs = ''.join(lhs)
-        rhs = valid_symbols[:n_req]
-        permute = lhs + ' -> ' + rhs
-        identity = lhs == rhs
-        new_dims = tuple(new_dims)
-        
-        if self.debug:
-            warnings.warn(
-                f'caching static info for pvar transform:' 
-                f'\n\texpr     ={expr}'
-                f'\n\tinputs   ={objects_has}'
-                f'\n\ttargets  ={objects_req}'
-                f'\n\tnew axes ={new_dims}'
-                f'\n\teinsum   ={permute}\n'
-            )
-            
-        return (permute, identity, new_dims)
-    
     def _jax_constant(self, expr, objects):        
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        *_, shape = self._get_subs_map([], [], objects, expr)
+        *_, shape = self.types.map('', [], objects, expr)
         const = expr.args
         
         def _f(_, key):
@@ -443,20 +333,8 @@ class JaxRDDLCompiler:
     
     def _jax_pvar(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        args = expr.args        
-        var, pvars = args        
-        if pvars is None:
-            pvars = []
-        types = self.pvar_types[var]
-        n_has = len(pvars)
-        n_req = len(types)
-        if n_has != n_req:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {n_req} parameters, got {n_has}.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
-        
-        permute, identity, new_dims = self._get_subs_map(
-            pvars, types, objects, expr)
+        var, pvars = expr.args            
+        permute, identity, new_dims = self.types.map(var, pvars, objects, expr)
         new_axes = (1,) * len(new_dims)
         
         def _f(x, key):
@@ -561,6 +439,11 @@ class JaxRDDLCompiler:
         * pvars, arg = expr.args  
         new_objects = objects + [p[1] for p in pvars]
         axis = tuple(range(len(objects), len(new_objects)))
+        fails = self.types.validate_types(new_objects)
+        if fails:
+            raise RDDLUndefinedVariableError(
+            f'Type(s) {fails} in aggregation {op} are not valid.\n' + 
+            JaxRDDLCompiler._print_stack_trace(expr))
         
         jax_expr = self._jax(arg, new_objects)
         jax_op = valid_ops[op]        
@@ -574,8 +457,8 @@ class JaxRDDLCompiler:
             warnings.warn(
                 f'compiling static graph for aggregation:'
                 f'\n\toperator       ={op} {pvars}'
-                f'\n\toutput objects ={objects}'
                 f'\n\tinput objects  ={new_objects}'
+                f'\n\toutput objects ={objects}'
                 f'\n\treduction axis ={axis}'
                 f'\n\treduction op   ={valid_ops[op]}\n'
             )
