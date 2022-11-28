@@ -88,7 +88,8 @@ class JaxRDDLSimulator(RDDLSimulator):
     def reset(self) -> Args:
         '''Resets the state variables to their initial values.'''
         self.subs = self.compiled.init_values.copy()  
-        obs = {var: self.subs[var] for var in self.compiled.states.values()}        
+        obs = {state: self.subs[state] 
+               for state in self.compiled.next_states.values()}        
         done = self.check_terminal_states()        
         return obs, done
     
@@ -107,7 +108,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         reward = self.sample_reward()
         
         obs = {}
-        for next_state, state in self.compiled.states.items():
+        for next_state, state in self.compiled.next_states.items():
             obs[state] = subs[state] = subs[next_state]
         
         done = self.check_terminal_states()
