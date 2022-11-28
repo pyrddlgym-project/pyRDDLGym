@@ -19,8 +19,8 @@ non-fluents nf_simple_UAV_p0{
         SCALE-FACTOR = 0.1;
 
         // Speed bounds
-        MIN-ACC(a1) = -1.0;
-        MAX-ACC(a1) = 1.0;
+        MIN-VEL(a1) = -1.0;
+        MAX-VEL(a1) = 1.0;
         MIN-DELTA-PHI(a1) = -1.0;
         MAX-DELTA-PHI(a1) = 1.0;
         MIN-DELTA-THETA(a1) = -1.0;
@@ -28,7 +28,7 @@ non-fluents nf_simple_UAV_p0{
 
         GOAL-X(a1) = 50.0;
         GOAL-Y(a1) = 50.0;
-        GOAL-Z(a1) = 50.0;
+        GOAL-z(a1) = 50.0;
 
         CONTROLLABLE(a1);
 	};

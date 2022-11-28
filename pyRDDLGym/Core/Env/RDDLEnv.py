@@ -13,11 +13,9 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
-    
-    def __init__(self, domain, instance=None, enforce_action_constraints=False):
+    def __init__(self, domain, instance=None, is_grounded=False):
         super(RDDLEnv, self).__init__()
-        self.enforce_action_constraints = enforce_action_constraints
-        
+
         # max allowed action value
         # self.BigM = 100
         self.done = False
@@ -37,7 +35,10 @@ class RDDLEnv(gym.Env):
         rddl_ast = MyRDDLParser.parse(domain)
 
         # ground domain
-        grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
+        if is_grounded == True:
+            grounder = RDDLGrounder.RDDLGroundedGrounder(rddl_ast)
+        else:
+            grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
         self.model = grounder.Ground()
 
         # define the model sampler
@@ -57,16 +58,17 @@ class RDDLEnv(gym.Env):
         self.defaultAction = copy.deepcopy(self.model.actions)
 
         # define the actions bounds
+
+
         action_space = Dict()
         for act in self.model.actions:
-            act_range = self.model.actionsranges[act]
-            if act_range == 'real':
-                action_space[act] = Box(low=self.sampler.bounds[act][0], 
-                                        high=self.sampler.bounds[act][1],
+            range = self.model.actionsranges[act]
+            if range == 'real':
+                action_space[act] = Box(low=self.sampler.bounds[act][0], high=self.sampler.bounds[act][1],
                                         dtype=np.float32)
-            elif act_range == 'bool':
+            elif range == 'bool':
                 action_space[act] = Discrete(2)
-            elif act_range == 'int':
+            elif range == 'int':
                 high = self.sampler.bounds[act][1]
                 if high == np.inf:
                     high = np.iinfo(np.int32).max
@@ -90,15 +92,14 @@ class RDDLEnv(gym.Env):
             ranges = self.model.statesranges
         state_space = Dict()
         for state in search_dict:
-            state_range = ranges[state]
+            range = ranges[state]
             # range = self.model.statesranges[state]
-            if state_range == 'real':
-                state_space[state] = Box(low=self.sampler.bounds[state][0], 
-                                         high=self.sampler.bounds[state][1],
+            if range == 'real':
+                state_space[state] = Box(low=self.sampler.bounds[state][0], high=self.sampler.bounds[state][1],
                                          dtype=np.float32)
-            elif state_range == 'bool':
+            elif range == 'bool':
                 state_space[state] = Discrete(2)
-            elif state_range == 'int':
+            elif range == 'int':
                 high = self.sampler.bounds[state][1]
                 if high == np.inf:
                     high = np.iinfo(np.int32).max
@@ -114,21 +115,16 @@ class RDDLEnv(gym.Env):
 
         # set the visualizer, the next line should be changed for the default behaviour - TextVix
         self._visualizer = TextVisualizer(self.model)
-        self._movie_generator = None
         self.state = None
         self.image = None
         self.window = None
         self.to_render = False
         self.image_size = None
 
-    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False):
+
+    def set_visualizer(self, viz):
         # set the vizualizer with self.model
-        # TODO: setting fields that are not defined in __init__ is not good practice
-        # we really should set all these to None in __init__
         self._visualizer = viz(self.model)
-        self._movie_generator = movie_gen
-        self._movie_per_episode = movie_per_episode
-        self._movies = 0
         self.to_render = False
 
     def step(self, at):
@@ -140,22 +136,18 @@ class RDDLEnv(gym.Env):
         action_length = len(at)
         if (action_length > self._NumConcurrentActions):
             raise Exception(
-                "Invalid action, expected maximum of {} entries, {} were were given".format(
-                    self._NumConcurrentActions, action_length))
-        
+                "Invalid action, expected maximum of {} entries, {} were were given".format(self._NumConcurrentActions,
+                                                                                            action_length))
+
         # set full action vector, values are clipped to be inside the feasible action space
         action = copy.deepcopy(self.defaultAction)
         for act in at:
             if str(self.action_space[act]) == "Discrete(2)":
-                if self.model.actionsranges[act] == "bool":
-                    action[act] = bool(at[act])
+               if self.model.actionsranges[act] == "bool":
+                   action[act] = bool(at[act])
             else:
                 action[act] = at[act]
-                
-        # check action constraints
-        if self.enforce_action_constraints:
-            self.sampler.check_action_preconditions(action)
-        
+
         # sample next state and reward
         obs, reward, self.done = self.sampler.step(action)
         state = self.sampler.states
@@ -180,13 +172,8 @@ class RDDLEnv(gym.Env):
         obs, self.done = self.sampler.reset()
         self.state = self.sampler.states
 
+
         image = self._visualizer.render(self.state)
-        if self._movie_generator is not None:
-            if self._movie_per_episode:
-                self._movie_generator.save_gif(
-                    self._movie_generator.env_name + '_' + str(self._movies))
-                self._movies += 1
-            self._movie_generator.save_frame(image)            
         self.image_size = image.size
         return obs
 
@@ -206,21 +193,12 @@ class RDDLEnv(gym.Env):
                 pygameSurface = self.pilImageToSurface(image)
                 self.window.blit(pygameSurface, (0, 0))
                 pygame.display.flip()
-                
-            if self._movie_generator is not None:
-                self._movie_generator.save_frame(image)
-                
         return image
-    
+
     def close(self):
         if self.to_render:
             pygame.display.quit()
             pygame.quit()
-            
-            if self._movie_generator is not None:
-                self._movie_generator.save_gif(
-                    self._movie_generator.env_name + '_' + str(self._movies))
-                self._movies += 1
 
 
     @property

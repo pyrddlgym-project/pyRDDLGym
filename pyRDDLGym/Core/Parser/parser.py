@@ -16,7 +16,6 @@ from pyRDDLGym.Core.Parser.instance import Instance
 from pyRDDLGym.Core.Parser.pvariable import PVariable
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.cpf import CPF
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLParseError
 
 alpha = r'[A-Za-z]'
 digit = r'[0-9]'
@@ -87,17 +86,7 @@ class RDDLlex(object):
             'Weibull': 'WEIBULL',
             'Gamma': 'GAMMA',
             'Multinomial': 'MULTINOMIAL',
-            'Dirichlet': 'DIRICHLET',
-            'Binomial': 'BINOMIAL',
-            'NegativeBinomial': 'NEGATIVEBINOMIAL',
-            'Beta' : 'BETA',
-            'Geometric' : 'GEOMETRIC',
-            'Pareto' : 'PARETO',
-            'Student' : 'STUDENT',
-            'Gumbel' : 'GUMBEL',
-            'Laplace': 'LAPLACE',
-            'Cauchy': 'CAUCHY',
-            'Gompertz': 'GOMPERTZ'
+            'Dirichlet': 'DIRICHLET'
         }
 
         self.tokens = [
@@ -637,17 +626,7 @@ class RDDLParser(object):
                           | DIRICHLET LPAREN IDENT COMMA expr RPAREN
                           | POISSON LPAREN expr RPAREN
                           | WEIBULL LPAREN expr COMMA expr RPAREN
-                          | GAMMA   LPAREN expr COMMA expr RPAREN
-                          | BINOMIAL   LPAREN expr COMMA expr RPAREN
-                          | NEGATIVEBINOMIAL   LPAREN expr COMMA expr RPAREN
-                          | BETA   LPAREN expr COMMA expr RPAREN
-                          | GEOMETRIC LPAREN expr RPAREN
-                          | PARETO   LPAREN expr COMMA expr RPAREN
-                          | STUDENT LPAREN expr RPAREN
-                          | GUMBEL   LPAREN expr COMMA expr RPAREN
-                          | LAPLACE LPAREN expr COMMA expr RPAREN
-                          | CAUCHY LPAREN expr COMMA expr RPAREN
-                          | GOMPERTZ LPAREN expr COMMA expr RPAREN'''
+                          | GAMMA   LPAREN expr COMMA expr RPAREN'''
         if len(p) == 7:
             if isinstance(p[5], list):
                 p[0] = ('randomvar', (p[1], (('enum_type', p[3]), *p[5])))
@@ -933,29 +912,15 @@ class RDDLParser(object):
         pass
 
     def p_error(self, p):
-        line_err = p.lineno - 1
-        lines = self._input.splitlines()
-        line1 = max(line_err - 5, 0)
-        line2 = min(line_err + 5, len(lines) - 1)
-        
-        exception_str = 'Syntax error on line {}:\n...'.format(line_err)
-        for l in range(line1, line2):
-            if l == line_err:
-                exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[0m'
-            else:
-                exception_str += '\n   ' + lines[l]
-        exception_str += '\n...'
-        
         if self.debugging:
-            exception_str += 'See log file {} for details.'.format(self.parsing_logfile)
-        
-        raise RDDLParseError(exception_str)
+            print('Syntax error in input! See log file: {}'.format(self.parsing_logfile))
+
+        print('Syntax error in input! Line: {} failed token:\n{}'.format(p.lineno, p))
 
     def build(self, **kwargs):
         self._parser = yacc.yacc(module=self, **kwargs)
 
     def parse(self, input):
-        self._input = input
         if self.debugging:
             self.parsing_logfile = os.path.join(tempfile.gettempdir(), 'rddl_parse.log')
             log = logging.getLogger(__name__)

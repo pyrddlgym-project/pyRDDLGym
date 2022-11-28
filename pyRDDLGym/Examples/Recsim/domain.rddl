@@ -9,7 +9,7 @@ domain recsim_ecosystem_welfare {
 
 	pvariables {
 
-		MAX-AFFINITY            : { non-fluent, real, default =   10.0 } ; // For affinity calculation.
+		MAX_AFFINITY            : { non-fluent, real, default =   10.0 } ; // For affinity calculation.
 		PROVIDER-COMPETENCE(provider, feature) : { non-fluent, real, default = 0.0 };
 		PROVIDER-DISCOUNT(provider) : { non-fluent, real, default = 0.5 }; // Effect of memory on provider satisfaction.
 		CONSUMER-AFFINITY(consumer, feature)     : { non-fluent,  real, default = 0.0 };
