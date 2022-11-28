@@ -354,8 +354,9 @@ class LiftedRDDLSimulator:
                     f'Value for action fluent <{name}> of type {prange_val} '
                     f'cannot be safely cast to type {prange_req}.')
             
-            # check that the arguments are correct
+            # check that the arguments are correct            
             objects = [obj.strip() for obj in objects.split(',')]
+            objects = [obj for obj in objects if obj != '']
             if not self.types.is_compatible(name, objects):
                 ptypes = self.types.pvar_types[name]
                 raise RDDLInvalidNumberOfArgumentsError(
