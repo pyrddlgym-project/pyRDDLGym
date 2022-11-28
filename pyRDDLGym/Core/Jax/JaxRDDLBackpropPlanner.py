@@ -1,105 +1,15 @@
 import jax
 import jax.numpy as jnp
 import jax.random as random
+import jax.nn.initializers as initializers
 import optax
 from typing import Dict, Generator
-import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
+from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import JaxRDDLCompilerWithGrad
 from pyRDDLGym.Core.Parser.rddl import RDDL
-
-
-class FuzzyLogic:
-    
-    def And(self, a, b):
-        raise NotImplementedError
-    
-    def Not(self, x):
-        raise NotImplementedError
-    
-    def Or(self, a, b):
-        return self.Not(self.And(self.Not(a), self.Not(b)))
-    
-    def xor(self, a, b):
-        return self.And(self.Or(a, b), self.Not(self.And(a, b)))
-    
-    def implies(self, a, b):
-        return self.Or(self.Not(a), b)
-    
-    def equiv(self, a, b):
-        return self.And(self.implies(a, b), self.implies(b, a))
-    
-    def forall(self, x, axis=None):
-        raise NotImplementedError
-    
-    def exists(self, x, axis=None):
-        return self.Not(self.forall(self.Not(x), axis=axis))
-    
-    def If(self, c, a, b):
-        raise NotImplemented
-
-
-class ProductLogic(FuzzyLogic):
-    
-    def And(self, a, b):
-        return a * b
-    
-    def Not(self, x):
-        return 1.0 - x
-    
-    def implies(self, a, b):
-        return 1.0 - a * (1.0 - b)
-
-    def forall(self, x, axis=None):
-        return jnp.prod(x, axis=axis)
-    
-    def If(self, c, a, b):
-        return c * a + (1 - c) * b
-
-
-class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
-    
-    def __init__(self, rddl: RDDL, logic: FuzzyLogic) -> None:
-        super(JaxRDDLCompilerWithGrad, self).__init__(rddl, force_continuous=True)
-        
-        # overwrite basic operations with fuzzy ones
-        self.LOGICAL_OPS = {
-            '^': logic.And,
-            '|': logic.Or,
-            '~': logic.xor,
-            '=>': logic.implies,
-            '<=>': logic.equiv
-        }
-        self.LOGICAL_NOT = logic.Not  
-        self.AGGREGATION_OPS['exists'] = logic.exists
-        self.AGGREGATION_OPS['forall'] = logic.forall
-        self.CONTROL_OPS['if'] = logic.If
-    
-    def _jax_logical(self, expr, objects):
-        _, op = expr.etype
-        warnings.warn(f'Logical operator {op} uses fuzzy logic.',
-                      FutureWarning, stacklevel=2)        
-        return super(JaxRDDLCompilerWithGrad, self)._jax_logical(expr, objects)
-    
-    def _jax_aggregation(self, expr, objects):
-        _, op = expr.etype
-        warnings.warn(f'Aggregation operator {op} uses fuzzy logic.',
-                      FutureWarning, stacklevel=2)        
-        return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr, objects)
-        
-    def _jax_control(self, expr, objects):
-        _, op = expr.etype
-        warnings.warn(f'Control operator {op} uses fuzzy logic.',
-                      FutureWarning, stacklevel=2)        
-        return super(JaxRDDLCompilerWithGrad, self)._jax_control(expr, objects)
-
-    def _jax_kron(self, expr, params):
-        warnings.warn('KronDelta will be ignored.', FutureWarning, stacklevel=2)                       
-        arg, = expr.args
-        arg = self._jax(arg, params)
-        return arg
 
  
 class JaxRDDLBackpropPlanner:
@@ -107,23 +17,20 @@ class JaxRDDLBackpropPlanner:
     def __init__(self,
                  rddl: RDDL,
                  key: jax.random.PRNGKey,
-                 batch_size_train: int,
-                 batch_size_test: int=None,
+                 batch_size_train: int, batch_size_test: int=None,
                  action_bounds: Dict={},
-                 initializer: jax.nn.initializers.Initializer=jax.nn.initializers.zeros,
-                 optimizer: optax.GradientTransformation=optax.rmsprop(0.01),
-                 logic: FuzzyLogic=ProductLogic(),
+                 initializer: initializers.Initializer=initializers.zeros,
+                 optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  log_full_path: bool=False) -> None:
-        if batch_size_test is None:
-            batch_size_test = batch_size_train
         self.rddl = rddl
         self.key = key
         self.batch_size_train = batch_size_train
+        if batch_size_test is None:
+            batch_size_test = batch_size_train
         self.batch_size_test = batch_size_test
         self.action_bounds = action_bounds
         self.initializer = initializer
         self.optimizer = optimizer
-        self.logic = logic
         self.log_full_path = log_full_path
         
         self._compile_rddl_to_jax()
@@ -139,12 +46,12 @@ class JaxRDDLBackpropPlanner:
     def _compile_rddl_to_jax(self):
         
         # graph for training
-        compiled = JaxRDDLCompilerWithGrad(self.rddl, logic=self.logic)
+        compiled = JaxRDDLCompilerWithGrad(rddl=self.rddl)
         compiled.compile()
         self.compiled = compiled
         
         # graph for testing
-        test_compiled = JaxRDDLCompiler(self.rddl)
+        test_compiled = JaxRDDLCompiler(rddl=self.rddl)
         test_compiled.compile()
         self.test_compiled = test_compiled
         
@@ -234,7 +141,7 @@ class JaxRDDLBackpropPlanner:
     def _jax_rollout(self, compiled, batch_size):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']        
         init_subs = compiled.init_values.copy()
-        for next_state, state in compiled.states.items():
+        for next_state, state in compiled.next_states.items():
             init_subs[next_state] = init_subs[state]
         
         def _epoch(carried, action):
@@ -249,7 +156,7 @@ class JaxRDDLBackpropPlanner:
             reward, key, reward_err = compiled.reward(subs, key)
             error |= reward_err
             
-            for next_state, state in compiled.states.items():
+            for next_state, state in compiled.next_states.items():
                 subs[state] = subs[next_state]
             
             discount *= self.discount
