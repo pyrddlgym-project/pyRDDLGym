@@ -4,10 +4,6 @@ class RDDLActionPreconditionNotSatisfiedError(ValueError):
     pass
 
 
-class RDDLInvalidActionError(ValueError):
-    pass
-
-
 class RDDLInvalidDependencyInCPFError(SyntaxError):
     pass
 
@@ -20,19 +16,11 @@ class RDDLInvalidNumberOfArgumentsError(SyntaxError):
     pass
 
 
-class RDDLInvalidObjectError(SyntaxError):
-    pass
-
-
 class RDDLMissingCPFDefinitionError(SyntaxError):
     pass
 
 
 class RDDLNotImplementedError(NotImplementedError):
-    pass
-
-
-class RDDLParseError(SyntaxError):
     pass
 
 

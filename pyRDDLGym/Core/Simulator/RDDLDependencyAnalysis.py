@@ -15,7 +15,7 @@ VALID_DEPENDENCIES = {
     'observ': {'action', 'derived', 'interm', 'next state'},
     'reward': {'action', 'state', 'derived', 'interm', 'next state'},
     'state invariant': {'state'},
-    'action precondition': {'state', 'action'},
+    'action precondition': {'action'},
     'termination': {'state'}
 }
 

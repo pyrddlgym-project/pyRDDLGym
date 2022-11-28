@@ -21,7 +21,7 @@ non-fluents elevators3 {
 
 	non-fluents {
 		IN-ELEVATOR-PENALTY 	= 0.75;
-		PEOPLE-WAITING-PENALTY 	= 3.0;
+		PEOPLE-PENALTY-WAITING 	= 3.0;
 		REWARD-DELIVERED 		= 30.0;
 		ARRIVE-PARAM(f1) 		= 0.14635538;
 		ARRIVE-PARAM(f2) 		= 0.1;
