@@ -206,7 +206,8 @@ class JaxRDDLCompiler:
     def _compile_reward(self):
         return self._jax(self.domain.reward, [], dtype=JaxRDDLCompiler.REAL)
     
-    def compile_rollouts(self, policy, n_steps: int, n_batch: int):
+    def compile_rollouts(self, policy, n_steps: int, n_batch: int,
+                         check_constraints: bool=False):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
             
         # compute a batched version of the initial values
@@ -222,14 +223,15 @@ class JaxRDDLCompiler:
             subs, params, key = carried
             action, key = policy(subs, step, params, key)
             subs.update(action)
+            error = NORMAL
             
             # check preconditions
-            error = NORMAL
-            preconds = jnp.zeros(shape=(len(self.preconditions),), dtype=bool)
-            for i, precond in enumerate(self.preconditions):
-                sample, key, precond_err = precond(subs, key)
-                preconds = preconds.at[i].set(sample)
-                error |= precond_err
+            if check_constraints:
+                preconds = jnp.zeros(shape=(len(self.preconditions),), dtype=bool)
+                for i, precond in enumerate(self.preconditions):
+                    sample, key, precond_err = precond(subs, key)
+                    preconds = preconds.at[i].set(sample)
+                    error |= precond_err
             
             # calculate CPFs in topological order and reward
             for name, cpf in self.cpfs.items():
@@ -241,28 +243,32 @@ class JaxRDDLCompiler:
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
             
-            # check the invariant in the new state
-            invariants = jnp.zeros(shape=(len(self.invariants),), dtype=bool)
-            for i, invariant in enumerate(self.invariants):
-                sample, key, invariant_err = invariant(subs, key)
-                invariants = invariants.at[i].set(sample)
-                error |= invariant_err
+            # check the invariants in the new state
+            if check_constraints:
+                invariants = jnp.zeros(shape=(len(self.invariants),), dtype=bool)
+                for i, invariant in enumerate(self.invariants):
+                    sample, key, invariant_err = invariant(subs, key)
+                    invariants = invariants.at[i].set(sample)
+                    error |= invariant_err
             
             # check the termination (TODO: zero out reward in s if terminated)
-            terminated = False
-            for terminal in self.termination:
-                sample, key, terminal_err = terminal(subs, key)
-                terminated = jnp.logical_or(terminated, sample)
-                error |= terminal_err
+            if check_constraints:
+                terminated = False
+                for terminal in self.termination:
+                    sample, key, terminal_err = terminal(subs, key)
+                    terminated = jnp.logical_or(terminated, sample)
+                    error |= terminal_err
             
             carried = (subs, params, key)
             logged = {'fluent': subs,
                       'action': action,
                       'reward': reward,
-                      'preconditions': preconds,
-                      'invariants': invariants,
-                      'terminated': terminated,
                       'error': error}
+            
+            if check_constraints:
+                logged['preconditions'] = preconds
+                logged['invariants'] = invariants
+                logged['terminated'] = terminated
             return carried, logged
         
         # this performs a single roll-out starting from subs
