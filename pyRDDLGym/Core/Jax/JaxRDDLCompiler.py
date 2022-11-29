@@ -182,7 +182,7 @@ class JaxRDDLCompiler:
                 f'\n\tvalues ={val}\n'
             )
             
-    def compile(self) -> None:        
+    def compile(self) -> None: 
         self.invariants = self._compile_constraints(self.domain.invariants)
         self.preconditions = self._compile_constraints(self.domain.preconds)
         self.termination = self._compile_constraints(self.domain.terminals)
@@ -248,12 +248,20 @@ class JaxRDDLCompiler:
                 invariants = invariants.at[i].set(sample)
                 error |= invariant_err
             
+            # check the termination (TODO: zero out reward in s if terminated)
+            terminated = False
+            for terminal in self.termination:
+                sample, key, terminal_err = terminal(subs, key)
+                terminated = jnp.logical_or(terminated, sample)
+                error |= terminal_err
+            
             carried = (subs, params, key)
             logged = {'fluent': subs,
                       'action': action,
                       'reward': reward,
                       'preconditions': preconds,
                       'invariants': invariants,
+                      'terminated': terminated,
                       'error': error}
             return carried, logged
         
