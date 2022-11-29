@@ -223,7 +223,15 @@ class JaxRDDLCompiler:
             action, key = policy(subs, step, params, key)
             subs.update(action)
             
+            # check preconditions
             error = NORMAL
+            preconds = jnp.zeros(shape=(len(self.preconditions),), dtype=bool)
+            for i, precond in enumerate(self.preconditions):
+                sample, key, precond_err = precond(subs, key)
+                preconds = preconds.at[i].set(sample)
+                error |= precond_err
+            
+            # calculate CPFs in topological order and reward
             for name, cpf in self.cpfs.items():
                 subs[name], key, cpf_err = cpf(subs, key)
                 error |= cpf_err                
@@ -234,10 +242,11 @@ class JaxRDDLCompiler:
                 subs[state] = subs[next_state]
             
             carried = (subs, params, key)
-            logged = {'reward': reward, 'error': error}
-            logged['trajectory'] = subs
-            logged['action'] = action
-                
+            logged = {'fluent': subs,
+                      'action': action,
+                      'reward': reward,
+                      'preconditions': preconds,
+                      'error': error}
             return carried, logged
         
         # this performs a single roll-out starting from subs

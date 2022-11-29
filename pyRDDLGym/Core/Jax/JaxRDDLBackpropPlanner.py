@@ -87,18 +87,18 @@ class JaxRDDLBackpropPlanner:
         self.test_policy = jax.jit(test_policy)
         
         # roll-outs
-        train_rollouts = self.compiled.compile_rollouts(
+        self.train_rollouts = self.compiled.compile_rollouts(
             policy=train_policy,
             n_steps=self.horizon,
             n_batch=self.batch_size_train)
-        test_rollouts = self.test_compiled.compile_rollouts(
+        self.test_rollouts = self.test_compiled.compile_rollouts(
             policy=test_policy,
             n_steps=self.horizon,
             n_batch=self.batch_size_test)
         
         # losses
-        self.train_loss = jax.jit(self._jax_loss(train_rollouts))
-        self.test_loss = jax.jit(self._jax_loss(test_rollouts))
+        self.train_loss = jax.jit(self._jax_loss(self.train_rollouts))
+        self.test_loss = jax.jit(self._jax_loss(self.test_rollouts))
         
         # optimization
         self.initialize = jax.jit(self._jax_init(self.initializer, self.optimizer))
