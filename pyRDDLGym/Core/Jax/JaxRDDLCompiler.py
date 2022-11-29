@@ -241,11 +241,19 @@ class JaxRDDLCompiler:
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
             
+            # check the invariant in the new state
+            invariants = jnp.zeros(shape=(len(self.invariants),), dtype=bool)
+            for i, invariant in enumerate(self.invariants):
+                sample, key, invariant_err = invariant(subs, key)
+                invariants = invariants.at[i].set(sample)
+                error |= invariant_err
+            
             carried = (subs, params, key)
             logged = {'fluent': subs,
                       'action': action,
                       'reward': reward,
                       'preconditions': preconds,
+                      'invariants': invariants,
                       'error': error}
             return carried, logged
         
