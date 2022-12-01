@@ -101,8 +101,8 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs
         subs.update(actions)
         
-        for name, cpf in self.cpfs.items():
-            subs[name], self.key, error = cpf(subs, self.key)
+        for name in self.compiled.cpfs.keys():
+            subs[name], self.key, error = self.cpfs[name](subs, self.key)
             self.handle_error_code(error, f'CPF <{name}>')
             
         reward = self.sample_reward()
