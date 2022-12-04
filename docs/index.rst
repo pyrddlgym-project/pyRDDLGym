@@ -10,3 +10,4 @@ Welcome to pyRDDLGym's documentation!
     :caption: Contents:
 
     introduction
+    install

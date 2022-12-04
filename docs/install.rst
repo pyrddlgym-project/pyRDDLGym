@@ -1,7 +1,10 @@
-#### Python version
+Installation Guide
+==================
+
+Requirements
+------------
 We require Python 3.7+.
 
-### Requirements:
 * ply
 * pillow>=9.2.0
 * numpy
@@ -9,11 +12,24 @@ We require Python 3.7+.
 * gym>=0.24.0
 * pygame
 
-#### Installing via pip
-pip install pyRDDLGym
+Installing via pip
+-----------------
+.. code-block:: shell
 
-#### Known issues
-There are two known issues not documented with RDDL
-1. The minus (-) arithmatic operation must have spaces on both sides,
-otherwise there is ambiguity is whether it is a mathematical operation of a fluent name.
-2. Aggregation union precedence requires for encapsulating parentheses, e.g., (sum_{}[]).
+    pip install pyRDDLGym
+
+We recommand installing under a conda virtual environment:
+
+.. code-block:: shell
+
+    conda create -n rddl python=3.7
+    conda activate rddl
+    pip install pyrddlgym
+
+Git clone
+---------
+.. code-block:: shell
+
+    https://github.com/ataitler/pyRDDLGym.git
+
+
