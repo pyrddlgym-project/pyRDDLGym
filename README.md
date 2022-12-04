@@ -11,7 +11,7 @@ As we support a large subset of RDDL, we list what we do not support:
 * state-action-constraints -- deprecated in favor of state-invariants and action-preconditions (RDDL2.0).
 * action-preconditions are not enforced by the environment, and should be incorporated into the cpfs definitions.
 * action-preconditions of structure of action <=/>= deterministic-function (can be of constants or non-fluents), 
-are supported for the porpuse of gym spaces definitions.
+are supported for the purpose of gym spaces definitions.
 * enums
 
 We have extended the RDDL language and also support the following:
