@@ -20,29 +20,34 @@ The RDDL files are part of the distribution and can be accessed.
 In order to use the built in environments and keep the api of the RDDLEnv standard we supply an ExampleManager class:
 
 .. code-block:: python
+
     from pyRDDLGym import ExampleManager
     ExampleManager.ListExamples()
 
 The ``ListExample()`` static function lists all the example environments in pyRDDLGym Then in order to retrieve the information of a specific environment:
 
 .. code-block:: python
+
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
 
 Where ENV is a string name of the desired example.
 Setting up an environment at the point is just:
 
 .. code-block:: python
+
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
 
 Where the argument of the method ``get_instance(<num>)`` is the ID number of the instance (0 in this case).
 Listing all the available instances of the problem is accessed via
 
 .. code-block:: python
+
     EnvInfo.list_instances()
 
 Last, setting up the dedicated visualizer for the example is done via
 
 .. code-block:: python
+
     myEnv.set_visualizer(EnvInfo.get_visualizer())
 
 
@@ -56,6 +61,7 @@ pyRDDLGym is build on Gym as so implements the classic “agent-environment loop
 Using a pre existing agent, or using of of your own is as simple as:
 
 .. code-block:: python
+
     from Policies.Agents import RandomAgent
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
 
@@ -64,6 +70,7 @@ This example will run the example ``MarsRover``. The loop will run for the amoun
 If the ``env.render()`` function will be used we will also see a window pop up rendering the environment
 
 .. code-block:: python
+
     from pyRDDLGym import RDDLEnv
     from pyRDDLGym import ExampleManager
     from pyRDDLGym.Policies.Agents import RandomAgent
@@ -126,6 +133,7 @@ The reward is handled independently by the reward function, thus if there is a s
 The termination block has the following syntax:
 
 .. code-block:: shell
+
     termination {
         Terminal_condition1;
         Terminal_condition2;
@@ -146,6 +154,7 @@ TextViz just renders an image with textual description of the states and their c
 Replacing the built is TextViz is simple as calling the environment method ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object.
 
 .. code-block:: python
+
     from pyRDDLGym import RDDLEnv
     from pyRDDLGym import ExampleManager
 
@@ -160,12 +169,12 @@ one just need to inherit the class ``Visualizer.StateViz.StateViz()`` and return
 The environment initialization will look something like that:
 
 .. code-block:: python
+
     from pyRDDLGym import RDDLEnv
     from pyRDDLGym.Visualizer.StateViz import StateViz
 
     class MyDomainViz(StateViz)
-    # here goes the visualization implementation
-
+        # here goes the visualization implementation
 
     myEnv = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
 
