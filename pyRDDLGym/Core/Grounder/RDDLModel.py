@@ -308,21 +308,21 @@ class RDDLModelWXADD(PlanningModel):
             terminals.append(expr_xadd_node_id)
         self.terminals = terminals
         
-        # Preconditions
-        preconditions = []
-        for i, precondition in enumerate(self.preconditions):
-            expr = precondition
-            expr_xadd_node_id = self.expr_to_xadd(expr)
-            preconditions.append(expr_xadd_node_id)
-        self.preconditions = preconditions
+        # Skip preconditions
+        # preconditions = []
+        # for i, precondition in enumerate(self.preconditions):
+        #     expr = precondition
+        #     expr_xadd_node_id = self.expr_to_xadd(expr)
+        #     preconditions.append(expr_xadd_node_id)
+        # self.preconditions = preconditions
         
-        # Invariants
-        invariants = []
-        for i, invariant in enumerate(self.invariants):
-            expr = invariant
-            expr_xadd_node_id = self.expr_to_xadd(expr)
-            invariants.append(expr_xadd_node_id)
-        self.invariants = invariants      
+        # Also skip invariants
+        # invariants = []
+        # for i, invariant in enumerate(self.invariants):
+        #     expr = invariant
+        #     expr_xadd_node_id = self.expr_to_xadd(expr)
+        #     invariants.append(expr_xadd_node_id)
+        # self.invariants = invariants      
     
     def expr_to_xadd(self, expr: Expression) -> int:
         node_id = self._op_to_node_id.get(expr)

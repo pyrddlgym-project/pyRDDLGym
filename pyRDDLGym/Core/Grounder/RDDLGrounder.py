@@ -271,6 +271,8 @@ class RDDLGrounder(Grounder):
                     self.cpforder[0].append(g)
                     self.gvar_to_type[g] = vtype
                     self.gvar_to_pvar[next_state] = name
+                    self.gvar_to_type[next_state] = vtype
+                    
             elif pvariable.fluent_type == 'derived-fluent':
                 cpf = None
                 for cpfs in self.AST.domain.derived_cpfs:
