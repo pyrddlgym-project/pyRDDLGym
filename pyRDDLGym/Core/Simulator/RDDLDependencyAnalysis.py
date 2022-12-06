@@ -1,11 +1,11 @@
-from typing import Dict, Set, cast
+from typing import Dict, Set, cast, Union
 from xaddpy.xadd import XADD
 import warnings
 
 from pyRDDLGym.Core.Grounder.RDDLModel import PlanningModel, RDDLModelWXADD
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidDependencyInCPFError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-
+from pyRDDLGym.Core.Parser.expr import Expression
 
 
 # we generally have state -> derived -> interm -> next state -> obs/reward
@@ -150,21 +150,24 @@ class RDDLDependencyAnalysisWXADD(RDDLDependencyAnalysis):
         self._model = cast(RDDLModelWXADD, self._model)
         self._context: XADD = self._model._context
     
-    def _update_call_graph(self, graph: Dict[str, Set[str]], cpf: str, expr_xadd: int):
-        var_set = self._context.collect_vars(expr_xadd)
-        for v in var_set:
-            v_name = self._model._sympy_var_name_to_var_name.get(str(v), str(v))
-            if v_name not in self._model.nonfluents and v not in self._model.rvs:
-                self._check_is_fluent(cpf, v_name)
-                graph.setdefault(cpf, set()).add(v_name)
+    def _update_call_graph(self, graph: Dict[str, Set[str]], cpf: str, expr: Union[int, Expression]):
+        if isinstance(expr, Expression):
+            super()._update_call_graph(graph, cpf, expr)
+        else:
+            var_set = self._context.collect_vars(expr)
+            for v in var_set:
+                v_name = self._model._sympy_var_name_to_var_name.get(str(v), str(v))
+                if v_name not in self._model.nonfluents and v not in self._model.rvs:
+                    self._check_is_fluent(cpf, v_name)
+                    graph.setdefault(cpf, set()).add(v_name)
     
     # dependency analysis
     def build_call_graph(self) -> Dict[str, Set[str]]:
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
-        for cpf, expr_xadd in self._model.cpfs.items():
-            self._update_call_graph(cpf_graph, cpf, expr_xadd)
+        for cpf, expr in self._model.cpfs.items():
+            self._update_call_graph(cpf_graph, cpf, expr)
             if cpf not in cpf_graph:
                 cpf_graph[cpf] = set()
         self._check_deps_by_fluent_type(cpf_graph)
@@ -177,8 +180,11 @@ class RDDLDependencyAnalysisWXADD(RDDLDependencyAnalysis):
             ('termination', self._model.terminals)
         ]:
             call_graph = {}
-            for expr_xadd in exprs:
-                self._update_call_graph(call_graph, name, expr_xadd)
+            for expr in exprs:
+                if isinstance(expr, int):
+                    self._update_call_graph(call_graph, name, expr)
+                else:
+                    super()._update_call_graph(call_graph, name, expr)
             self._check_deps_by_fluent_type(call_graph)
             
         return cpf_graph

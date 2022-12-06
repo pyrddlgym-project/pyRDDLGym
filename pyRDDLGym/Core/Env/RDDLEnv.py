@@ -4,8 +4,6 @@ import gym
 from gym.spaces import Discrete, Dict, Box
 import numpy as np
 import pygame
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModelWXADD
-from pyRDDLGym.Core.Grounder.RDDLXadd import RDDLXADD
 
 from pyRDDLGym.Core.Parser import parser as parser
 from pyRDDLGym.Core.Parser import RDDLReader as RDDLReader

@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Dict, Tuple, cast, Union
 
 from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
@@ -1081,32 +1081,35 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
             RDDLSimulator._check_bounds(
                 lb, ub, 'Variable <{}>'.format(name), self._bounds[name])
         
-    def _sample(self, expr: int, subs: Dict[str, Any]):
+    def _sample(self, expr: Union[int, Expression], subs: Dict[str, Any]):
         """Samples the current XADD node by substituting the values stored in 'subs'.
 
         Args:
             expr (int): The XADD node to which values are substituted
             subs (Dict[str, Any]): The dictionary containing 'var_name -> value' mappings
         """
-        subs = {
-            self.var_name_to_sympy_var[self.var_name_to_sympy_var_name.get(v, v)]: val 
-            for v, val in subs.items() if not v in self._model.nonfluents and not v.endswith("'")
-        }
-        # If there exists a random variable, sample it first
-        var_set = self.context.collect_vars(expr)
-        rv_set = {v for v in var_set if v in self.context._random_var_set}
-        if len(rv_set) > 0:
-            for rv in rv_set:
-                if str(rv).startswith('#_UNIFORM'):
-                    subs[rv] = self._sample_uniform(expr, subs)
-                elif str(rv).startswith('#_GAUSSIAN'):
-                    subs[rv] = self._sample_normal(expr, subs)
-                else:
-                    raise ValueError
-        cont_assign = {var: val for var, val in subs.items() if var in self.context._cont_var_set}
-        bool_assign = {var: val for var, val in subs.items() if var in self.context._bool_var_set}
-        res = self.context.evaluate(node_id=expr, bool_assign=bool_assign, cont_assign=cont_assign, primitive_type=True)
-        return res
+        if isinstance(expr, Expression):
+            return super()._sample(expr, subs)
+        else:
+            subs = {
+                self.var_name_to_sympy_var[self.var_name_to_sympy_var_name.get(v, v)]: val 
+                for v, val in subs.items() if not v in self._model.nonfluents and self.var_name_to_sympy_var.get(self.var_name_to_sympy_var_name.get(v, v))
+            }
+            # If there exists a random variable, sample it first
+            var_set = self.context.collect_vars(expr)
+            rv_set = {v for v in var_set if v in self.context._random_var_set}
+            if len(rv_set) > 0:
+                for rv in rv_set:
+                    if str(rv).startswith('#_UNIFORM'):
+                        subs[rv] = self._sample_uniform(expr, subs)
+                    elif str(rv).startswith('#_GAUSSIAN'):
+                        subs[rv] = self._sample_normal(expr, subs)
+                    else:
+                        raise ValueError
+            cont_assign = {var: val for var, val in subs.items() if var in self.context._cont_var_set}
+            bool_assign = {var: val for var, val in subs.items() if var in self.context._bool_var_set}
+            res = self.context.evaluate(node_id=expr, bool_assign=bool_assign, cont_assign=cont_assign, primitive_type=True)
+            return res
     
     def _sample_uniform(self, expr, subs):
         return self._rng.uniform(0, 1)
