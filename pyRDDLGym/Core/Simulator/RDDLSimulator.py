@@ -1106,8 +1106,8 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
                         subs[rv] = self._sample_normal(expr, subs)
                     else:
                         raise ValueError
-            cont_assign = {var: val for var, val in subs.items() if var in self.context._cont_var_set}
-            bool_assign = {var: val for var, val in subs.items() if var in self.context._bool_var_set}
+            cont_assign = {var: val for var, val in subs.items() if var in var_set and var in self.context._cont_var_set}
+            bool_assign = {var: val for var, val in subs.items() if var in var_set and var in self.context._bool_var_set}
             res = self.context.evaluate(node_id=expr, bool_assign=bool_assign, cont_assign=cont_assign, primitive_type=True)
             return res
     
