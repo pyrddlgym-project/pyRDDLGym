@@ -11,3 +11,4 @@ Welcome to pyRDDLGym's documentation!
 
     introduction
     install
+    start
