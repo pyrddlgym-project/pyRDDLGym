@@ -340,19 +340,19 @@ class JaxRDDLCompiler:
         0: 'Casting occurred that could result in loss of precision.',
         1: 'Found Uniform(a, b) distribution where a > b.',
         2: 'Found Normal(m, v^2) distribution where v < 0.',
-        3: 'Found Exponential(s) distribution where s < 0.',
-        4: 'Found Weibull(k, l) distribution where either k < 0 or l < 0.',
+        3: 'Found Exponential(s) distribution where s <= 0.',
+        4: 'Found Weibull(k, l) distribution where either k <= 0 or l <= 0.',
         5: 'Found Bernoulli(p) distribution where either p < 0 or p > 1.',
         6: 'Found Poisson(l) distribution where l < 0.',
-        7: 'Found Gamma(k, l) distribution where either k < 0 or l < 0.',
-        8: 'Found Beta(a, b) distribution where either a < 0 or b < 0.',
+        7: 'Found Gamma(k, l) distribution where either k <= 0 or l <= 0.',
+        8: 'Found Beta(a, b) distribution where either a <= 0 or b <= 0.',
         9: 'Found Geometric(p) distribution where either p < 0 or p > 1.',
-        10: 'Found Pareto(k, l) distribution where either k < 0 or l < 0.',
-        11: 'Found Student(df) distribution where df < 0.',
-        12: 'Found Gumbel(m, s) distribution where s < 0.',
-        13: 'Found Laplace(m, s) distribution where s < 0.',
-        14: 'Found Cauchy(m, s) distribution where s < 0.',
-        15: 'Found Gompertz(k, l) distribution where either k < 0 or l < 0.'
+        10: 'Found Pareto(k, l) distribution where either k <= 0 or l <= 0.',
+        11: 'Found Student(df) distribution where df <= 0.',
+        12: 'Found Gumbel(m, s) distribution where s <= 0.',
+        13: 'Found Laplace(m, s) distribution where s <= 0.',
+        14: 'Found Cauchy(m, s) distribution where s <= 0.',
+        15: 'Found Gompertz(k, l) distribution where either k <= 0 or l <= 0.'
     }
     
     @staticmethod
@@ -723,7 +723,7 @@ class JaxRDDLCompiler:
             Exp = random.exponential(
                 key=subkey, shape=scale.shape, dtype=JaxRDDLCompiler.REAL)
             sample = scale * Exp
-            out_of_bounds = jnp.any(scale < 0)
+            out_of_bounds = jnp.any(scale <= 0)
             err |= out_of_bounds * ERR
             return sample, key, err
         
@@ -744,7 +744,7 @@ class JaxRDDLCompiler:
             U = random.uniform(
                 key=subkey, shape=shape.shape, dtype=JaxRDDLCompiler.REAL)
             sample = scale * jnp.power(-jnp.log1p(-U), 1.0 / shape)
-            out_of_bounds = jnp.any((shape < 0) | (scale < 0))
+            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
@@ -801,7 +801,7 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             Gamma = random.gamma(key=subkey, a=shape, dtype=JaxRDDLCompiler.REAL)
             sample = scale * Gamma
-            out_of_bounds = jnp.any((shape < 0) | (scale < 0))
+            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
@@ -820,7 +820,7 @@ class JaxRDDLCompiler:
             rate, key, err2 = jax_rate(x, key)
             key, subkey = random.split(key)
             sample = random.beta(key=subkey, a=shape, b=rate)
-            out_of_bounds = jnp.any((shape < 0) | (rate < 0))
+            out_of_bounds = jnp.any((shape <= 0) | (rate <= 0))
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
@@ -858,7 +858,7 @@ class JaxRDDLCompiler:
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
             sample = scale * random.pareto(key=subkey, b=shape)
-            out_of_bounds = jnp.any((shape < 0) | (scale < 0))
+            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
@@ -875,7 +875,7 @@ class JaxRDDLCompiler:
             df, key, err = jax_df(x, key)
             key, subkey = random.split(key)
             sample = random.t(key=subkey, df=df)
-            out_of_bounds = jnp.any(df < 0)
+            out_of_bounds = jnp.any(df <= 0)
             err |= out_of_bounds * ERR
             return sample, key, err
         
@@ -896,7 +896,7 @@ class JaxRDDLCompiler:
             Gumbel01 = random.gumbel(
                 key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Gumbel01
-            out_of_bounds = jnp.any(scale < 0)
+            out_of_bounds = jnp.any(scale <= 0)
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
@@ -917,7 +917,7 @@ class JaxRDDLCompiler:
             Laplace01 = random.laplace(
                 key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Laplace01
-            out_of_bounds = jnp.any(scale < 0)
+            out_of_bounds = jnp.any(scale <= 0)
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
@@ -938,7 +938,7 @@ class JaxRDDLCompiler:
             Cauchy01 = random.cauchy(
                 key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Cauchy01
-            out_of_bounds = jnp.any(scale < 0)
+            out_of_bounds = jnp.any(scale <= 0)
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
