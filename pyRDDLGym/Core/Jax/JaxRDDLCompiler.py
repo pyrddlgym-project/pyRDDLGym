@@ -325,7 +325,12 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_WEIBULL': 16,
         'INVALID_PARAM_BERNOULLI': 32,
         'INVALID_PARAM_POISSON': 64,
-        'INVALID_PARAM_GAMMA': 128
+        'INVALID_PARAM_GAMMA': 128,
+        'INVALID_PARAM_BETA': 256,
+        'INVALID_PARAM_GEOMETRIC': 512,
+        'INVALID_PARAM_PARETO': 1024,
+        'INVALID_PARAM_STUDENT': 2048,
+        'INVALID_PARAM_GUMBEL': 4096
     }
     
     INVERSE_ERROR_CODES = {
@@ -334,9 +339,14 @@ class JaxRDDLCompiler:
         2: 'Found Normal(m, v^2) distribution where v < 0.',
         3: 'Found Exponential(s) distribution where s < 0.',
         4: 'Found Weibull(k, l) distribution where either k < 0 or l < 0.',
-        5: 'Found Bernoulli(p) distribution where p < 0.',
+        5: 'Found Bernoulli(p) distribution where either p < 0 or p > 1.',
         6: 'Found Poisson(l) distribution where l < 0.',
-        7: 'Found Gamma(k, l) distribution where either k < 0 or l < 0.'
+        7: 'Found Gamma(k, l) distribution where either k < 0 or l < 0.',
+        8: 'Found Beta(a, b) distribution where either a < 0 or b < 0.',
+        9: 'Found Geometric(p) distribution where either p < 0 or p > 1.',
+        10: 'Found Pareto(k, l) distribution where either k < 0 or l < 0.',
+        11: 'Found Student(df) distribution where df < 0.',
+        12: 'Found Gumbel(m, s) distribution where s < 0.'
     }
     
     @staticmethod
@@ -618,6 +628,16 @@ class JaxRDDLCompiler:
             return self._jax_poisson(expr, objects)
         elif name == 'Gamma':
             return self._jax_gamma(expr, objects)
+        elif name == 'Beta':
+            return self._jax_beta(expr, objects)
+        elif name == 'Geometric':
+            return self._jax_geometric(expr, objects)
+        elif name == 'Pareto':
+            return self._jax_pareto(expr, objects)
+        elif name == 'Student':
+            return self._jax_student(expr, objects)
+        elif name == 'Gumbel':
+            return self._jax_gumbel(expr, objects)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -643,7 +663,6 @@ class JaxRDDLCompiler:
         jax_lb = self._jax(arg_lb, objects)
         jax_ub = self._jax(arg_ub, objects)
         
-        # U(a, b) = a + (b - a) * xi, where xi ~ U(0, 1)
         def _f(x, key):
             lb, key, err1 = jax_lb(x, key)
             ub, key, err2 = jax_ub(x, key)
@@ -665,7 +684,6 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean, objects)
         jax_var = self._jax(arg_var, objects)
         
-        # N(m, s ^ 2) = m + s * N(0, 1)
         def _f(x, key):
             mean, key, err1 = jax_mean(x, key)
             var, key, err2 = jax_var(x, key)
@@ -687,7 +705,6 @@ class JaxRDDLCompiler:
         arg_scale, = expr.args
         jax_scale = self._jax(arg_scale, objects)
                 
-        # Exp(scale) = scale * Exp(1)
         def _f(x, key):
             scale, key, err = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -708,7 +725,6 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape, objects)
         jax_scale = self._jax(arg_scale, objects)
         
-        # W(shape, scale) = scale * (-log(1 - U(0, 1))) ^ {1 / shape}
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -729,7 +745,6 @@ class JaxRDDLCompiler:
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob, objects)
         
-        # Bernoulli(p) = U(0, 1) < p
         def _f(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
@@ -779,4 +794,99 @@ class JaxRDDLCompiler:
             return sample, key, err
         
         return _f
-
+    
+    def _jax_beta(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BETA']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_shape, arg_rate = expr.args
+        jax_shape = self._jax(arg_shape, objects)
+        jax_rate = self._jax(arg_rate, objects)
+        
+        def _f(x, key):
+            shape, key, err1 = jax_shape(x, key)
+            rate, key, err2 = jax_rate(x, key)
+            key, subkey = random.split(key)
+            sample = random.beta(key=subkey, a=shape, b=rate)
+            out_of_bounds = jnp.any((shape < 0) | (rate < 0))
+            err = err1 | err2 | out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_geometric(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GEOMETRIC']
+        JaxRDDLCompiler._check_num_args(expr, 1)
+        
+        arg_prob, = expr.args
+        jax_prob = self._jax(arg_prob, objects)
+        
+        def _f(x, key):
+            prob, key, err = jax_prob(x, key)
+            key, subkey = random.split(key)
+            U = random.uniform(
+                key=subkey, shape=prob.shape, dtype=JaxRDDLCompiler.REAL)
+            sample = jnp.floor(jnp.log1p(-U) / jnp.log1p(-prob)) + 1
+            out_of_bounds = jnp.any((prob < 0) | (prob > 1))
+            err |= out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_pareto(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_PARETO']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_shape, arg_scale = expr.args
+        jax_shape = self._jax(arg_shape, objects)
+        jax_scale = self._jax(arg_scale, objects)
+        
+        def _f(x, key):
+            shape, key, err1 = jax_shape(x, key)
+            scale, key, err2 = jax_scale(x, key)
+            key, subkey = random.split(key)
+            sample = scale * random.pareto(key=subkey, b=shape)
+            out_of_bounds = jnp.any((shape < 0) | (scale < 0))
+            err = err1 | err2 | out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_student(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_STUDENT']
+        JaxRDDLCompiler._check_num_args(expr, 1)
+        
+        arg_df, = expr.args
+        jax_df = self._jax(arg_df, objects)
+        
+        def _f(x, key):
+            df, key, err = jax_df(x, key)
+            key, subkey = random.split(key)
+            sample = random.t(key=subkey, df=df)
+            out_of_bounds = jnp.any(df < 0)
+            err |= out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_gumbel(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GUMBEL']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_mean, arg_scale = expr.args
+        jax_mean = self._jax(arg_mean, objects)
+        jax_scale = self._jax(arg_scale, objects)
+        
+        def _f(x, key):
+            mean, key, err1 = jax_mean(x, key)
+            scale, key, err2 = jax_scale(x, key)
+            key, subkey = random.split(key)
+            Gumbel01 = random.gumbel(
+                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+            sample = mean + scale * Gumbel01
+            out_of_bounds = jnp.any(scale < 0)
+            err = err1 | err2 | out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
