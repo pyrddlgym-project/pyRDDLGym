@@ -330,7 +330,10 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_GEOMETRIC': 512,
         'INVALID_PARAM_PARETO': 1024,
         'INVALID_PARAM_STUDENT': 2048,
-        'INVALID_PARAM_GUMBEL': 4096
+        'INVALID_PARAM_GUMBEL': 4096,
+        'INVALID_PARAM_LAPLACE': 8192,
+        'INVALID_PARAM_CAUCHY': 16384,
+        'INVALID_PARAM_GOMPERTZ': 32768      
     }
     
     INVERSE_ERROR_CODES = {
@@ -346,7 +349,10 @@ class JaxRDDLCompiler:
         9: 'Found Geometric(p) distribution where either p < 0 or p > 1.',
         10: 'Found Pareto(k, l) distribution where either k < 0 or l < 0.',
         11: 'Found Student(df) distribution where df < 0.',
-        12: 'Found Gumbel(m, s) distribution where s < 0.'
+        12: 'Found Gumbel(m, s) distribution where s < 0.',
+        13: 'Found Laplace(m, s) distribution where s < 0.',
+        14: 'Found Cauchy(m, s) distribution where s < 0.',
+        15: 'Found Gompertz(k, l) distribution where either k < 0 or l < 0.'
     }
     
     @staticmethod
@@ -638,6 +644,12 @@ class JaxRDDLCompiler:
             return self._jax_student(expr, objects)
         elif name == 'Gumbel':
             return self._jax_gumbel(expr, objects)
+        elif name == 'Laplace':
+            return self._jax_laplace(expr, objects)
+        elif name == 'Cauchy':
+            return self._jax_cauchy(expr, objects)
+        elif name == 'Gompertz':
+            return self._jax_gompertz(expr, objects)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -885,6 +897,69 @@ class JaxRDDLCompiler:
                 key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Gumbel01
             out_of_bounds = jnp.any(scale < 0)
+            err = err1 | err2 | out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_laplace(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_LAPLACE']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_mean, arg_scale = expr.args
+        jax_mean = self._jax(arg_mean, objects)
+        jax_scale = self._jax(arg_scale, objects)
+        
+        def _f(x, key):
+            mean, key, err1 = jax_mean(x, key)
+            scale, key, err2 = jax_scale(x, key)
+            key, subkey = random.split(key)
+            Laplace01 = random.laplace(
+                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+            sample = mean + scale * Laplace01
+            out_of_bounds = jnp.any(scale < 0)
+            err = err1 | err2 | out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_cauchy(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_CAUCHY']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_mean, arg_scale = expr.args
+        jax_mean = self._jax(arg_mean, objects)
+        jax_scale = self._jax(arg_scale, objects)
+        
+        def _f(x, key):
+            mean, key, err1 = jax_mean(x, key)
+            scale, key, err2 = jax_scale(x, key)
+            key, subkey = random.split(key)
+            Cauchy01 = random.cauchy(
+                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+            sample = mean + scale * Cauchy01
+            out_of_bounds = jnp.any(scale < 0)
+            err = err1 | err2 | out_of_bounds * ERR
+            return sample, key, err
+        
+        return _f
+    
+    def _jax_gompertz(self, expr, objects):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GOMPERTZ']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_shape, arg_scale = expr.args
+        jax_shape = self._jax(arg_shape, objects)
+        jax_scale = self._jax(arg_scale, objects)
+        
+        def _f(x, key):
+            shape, key, err1 = jax_shape(x, key)
+            scale, key, err2 = jax_scale(x, key)
+            key, subkey = random.split(key)
+            U = random.uniform(
+                key=subkey, shape=shape.shape, dtype=JaxRDDLCompiler.REAL)
+            sample = jnp.log(1.0 - jnp.log1p(-U) / shape) / scale
+            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
