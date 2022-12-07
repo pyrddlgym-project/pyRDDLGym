@@ -139,7 +139,7 @@ class JaxRDDLCompiler:
             if value is None:
                 value = JaxRDDLCompiler.DEFAULT_VALUES[prange]
             if ptypes is None:
-                self.init_values[name] = value              
+                self.init_values[name] = dtype(value)          
             else: 
                 self.init_values[name] = np.full(
                     shape=self.types.shape(ptypes),
