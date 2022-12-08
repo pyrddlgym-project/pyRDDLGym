@@ -274,9 +274,9 @@ class LiftedRDDLSimulator:
     # main sampling routines
     # ===========================================================================
     
-    def _actions_to_tensors(self, actions: Dict) -> Dict:
-        new_actions = {action: np.copy(values) 
-                       for action, values in self.noop_actions.items()}
+    def _actions_to_tensors(self, actions: Dict[str, np.ndarray]) -> Args:
+        new_actions = {action: np.copy(value) 
+                       for action, value in self.noop_actions.items()}
         
         for action, value in actions.items():
             
@@ -288,9 +288,7 @@ class LiftedRDDLSimulator:
                     raise RDDLInvalidActionError(
                         f'Action fluent <{action}> is not valid, '
                         f'must be <name> or <name>(<type1>,<type2>...).')
-                name, objects = parsed_action.groups()  
-            
-            # check for valid action syntax <name>(<types...>)
+                name, objects = parsed_action.groups()
             if name not in new_actions:
                 raise RDDLInvalidActionError(
                     f'Action fluent <{name}> is not valid, '
