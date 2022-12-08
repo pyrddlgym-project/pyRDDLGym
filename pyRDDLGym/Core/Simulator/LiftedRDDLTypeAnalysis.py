@@ -1,10 +1,13 @@
+import numpy as np
 from typing import Iterable, List, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+from pyRDDLGym.Core.Parser.expr import Value
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
 
@@ -251,4 +254,28 @@ class LiftedRDDLTypeAnalysis:
             )
         
         return (permute, identity, new_dims)
+        
+    def put(self, var: str, 
+            objects: List[str], 
+            value: Value, 
+            out: np.ndarray) -> None:
+        
+        # check that the value is compatible with output tensor
+        prange_val = type(value)
+        prange_req = out.dtype
+        if not np.can_cast(prange_val, prange_req, casting='safe'):
+            raise RDDLTypeError(
+                f'Value for pvariable <{var}> of type {prange_val} '
+                f'cannot be safely cast to type {prange_req}.')
+        
+        # check that the arguments are correct  
+        if not self.is_compatible(var, objects):
+            ptypes = self.pvar_types[var]
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Type arguments {objects} for pvariable <{var}> '
+                f'do not match definition {ptypes}.')
+        
+        # update the output tensor
+        coords = self.coordinates(objects, f'pvariable <{var}>')
+        out[coords] = value
         
