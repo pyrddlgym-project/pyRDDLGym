@@ -84,13 +84,14 @@ class LiftedRDDLTypeAnalysis:
             self.objects_to_index.update(self.objects[name])
             self.objects_to_type.update({obj: name for obj in ptype})
         
-        self.variations = {}
+        self.grounded = {}
         for var in self.cpf_types.keys():
             objects = [self.objects[ptype] for ptype in self.pvar_types[var]]
             variations = itertools.product(*objects)
-            self.variations[var] = list(map(','.join, variations))
+            args = map(','.join, variations)
             if var.endswith('\''):
-                self.variations[var[:-1]] = self.variations[var]
+                var = var[:-1]
+            self.grounded[var] = [f'{var}({arg})' for arg in args]
             
         if self.debug:
             obj = ''.join(f'\n\t\t{k}: {v}' for k, v in self.objects.items())
@@ -337,8 +338,20 @@ class LiftedRDDLTypeAnalysis:
         out[coords] = value
         
     def expand(self, var: str, values: np.ndarray) -> Dict[str, Value]:
-        args = self.variations[var]
+        '''Produces a grounded representation of the pvariable var from its 
+        tensor representation. The output is a dict whose keys are grounded
+        representations of the var, and values are read from the tensor.
+        
+        :param var: the pvariable
+        :param values: the tensor whose values correspond to those of var(?...)
+        
+        Examples:
+        - if var(?o) is a pvariable where ?o is one of {o1, ... on}, and values 
+        is an array X of compatible shape, then the output is 
+        {var(o1): X(0), var(o2): X(1), ... }.
+        
+        '''
+        keys = self.grounded[var]
         values = np.ravel(values)
-        return {f'{var}({arg})': value 
-                for value, arg in zip(values, args, strict=True)}
+        return dict(zip(keys, values, strict=True))
     
