@@ -154,6 +154,7 @@ This software is distributed under the MIT License.
 
 ## Contributors
 - Michael Gimelfarb (University of Toronto, CA)
+- Jihwan Jeong (University of Toronto, CA)
 - Sriram Gopalakrishnan (Arizona State University/J.P. Morgan, USA)
 - Martin Mladenov (Google, BR)
 - Jack Liu (University of Toronto, CA)
