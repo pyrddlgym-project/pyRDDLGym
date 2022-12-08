@@ -1,5 +1,6 @@
+import itertools
 import numpy as np
-from typing import Iterable, List, Tuple, Union
+from typing import Dict, Iterable, List, Tuple, Union
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -13,9 +14,9 @@ from pyRDDLGym.Core.Parser.rddl import RDDL
 
 class LiftedRDDLTypeAnalysis:
     '''Utility class that takes a RDDL domain, compiles its type and object info,
-    and provides a set of utility functions to query information about them,
-    and also to assist in producing tensor representations of variables that have
-    type arguments, e.g. x(?o).
+    and provides a set of utility functions to query information about them. It
+    can also assist in producing tensor representations of variables that have
+    type arguments, e.g. x(?o) maps to a 1-D tensor, y(?p, ?q) to a 2-D, etc...
     '''
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -83,13 +84,21 @@ class LiftedRDDLTypeAnalysis:
             self.objects_to_index.update(self.objects[name])
             self.objects_to_type.update({obj: name for obj in ptype})
         
+        self.variations = {}
+        for var in self.cpf_types.keys():
+            objects = [self.objects[ptype] for ptype in self.pvar_types[var]]
+            variations = itertools.product(*objects)
+            self.variations[var] = list(map(','.join, variations))
+            if var.endswith('\''):
+                self.variations[var[:-1]] = self.variations[var]
+            
         if self.debug:
             obj = ''.join(f'\n\t\t{k}: {v}' for k, v in self.objects.items())
             warnings.warn(
                 f'compiling object info:'
                 f'\n\tobjects ={obj}\n'
             )
-    
+            
     # ===========================================================================
     # utility functions
     # ===========================================================================
@@ -125,8 +134,7 @@ class LiftedRDDLTypeAnalysis:
     
     def shape(self, types: Iterable[str], stack: str) -> Tuple[int, ...]:
         '''Given a list of RDDL types, returns the shape of a tensor
-        that would hold all values of a pvariable for all enumerations of objects
-        of those types.
+        that would hold all values of a pvariable with those type arguments
         
         :param types: a list of RDDL types
         :param stack: an error message to print in case the calculation fails
@@ -272,8 +280,7 @@ class LiftedRDDLTypeAnalysis:
         
         return (permute, identity, new_dims)
     
-    def tensor(self, 
-               ptypes: Iterable[str], 
+    def tensor(self, ptypes: Iterable[str], 
                value: object, 
                dtype: object) -> Union[Value, np.ndarray]:
         '''Creates a scalar or tensor representation for the pvariable
@@ -296,8 +303,7 @@ class LiftedRDDLTypeAnalysis:
             shape = self.shape(ptypes, '')
             return np.full(shape=shape, fill_value=value, dtype=dtype)
                 
-    def put(self, 
-            var: str, 
+    def put(self, var: str, 
             objects: List[str], 
             value: Value, 
             out: np.ndarray) -> None:
@@ -330,3 +336,9 @@ class LiftedRDDLTypeAnalysis:
         coords = self.coordinates(objects, '')
         out[coords] = value
         
+    def expand(self, var: str, values: np.ndarray) -> Dict[str, Value]:
+        args = self.variations[var]
+        values = np.ravel(values)
+        return {f'{var}({arg})': value 
+                for value, arg in zip(values, args, strict=True)}
+    
