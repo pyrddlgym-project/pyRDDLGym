@@ -24,8 +24,19 @@ VALID_DEPENDENCIES = {
 
     
 class LiftedRDDLLevelAnalysis:
-    
+    '''Performs graphical analysis of a RDDL domain, including dependency
+    structure of CPFs, performs topological sort to figure out order of evaluation,
+    and checks for cyclic dependencies and ensures dependencies are valid 
+    according to the RDDL language specification.     
+    '''
+        
     def __init__(self, rddl: RDDL, allow_synchronous_state: bool=True) -> None:
+        '''Creates a new level analysis for the given RDDL domain.
+        
+        :param rddl: the RDDL domain to analyze
+        :param allow_synchronous_state: whether state variables can depend on
+        one another (cycles are still not permitted)
+        '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
         
