@@ -1,7 +1,7 @@
 import numpy as np
 np.seterr(all='raise')
 import re
-from typing import Dict
+from typing import Dict, Union
 import warnings
 
 from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
@@ -342,7 +342,7 @@ class LiftedRDDLSimulator:
         sample = self._sample(self.domain.reward, [], self.subs)
         return float(sample.item())
     
-    def reset(self) -> Dict:
+    def reset(self) -> Union[Dict[str, None], Args]:
         '''Resets the state variables to their initial values.'''
         self.subs = self.init_values.copy()
         names = self.observ_fluents if self._pomdp \
@@ -355,7 +355,7 @@ class LiftedRDDLSimulator:
         done = self.check_terminal_states()
         return obs, done
     
-    def step(self, actions: Dict) -> Dict:
+    def step(self, actions: Args) -> Args:
         '''Samples and returns the next state from the CPF expressions.
         
         :param actions: a dict mapping current action fluent to their values
