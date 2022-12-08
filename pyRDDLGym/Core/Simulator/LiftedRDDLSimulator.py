@@ -274,7 +274,7 @@ class LiftedRDDLSimulator:
     # main sampling routines
     # ===========================================================================
     
-    def _actions_to_tensors(self, actions: Dict[str, np.ndarray]) -> Args:
+    def _actions_to_tensors(self, actions: Dict[str, Union[Value, np.ndarray]]) -> Args:
         new_actions = {action: np.copy(value) 
                        for action, value in self.noop_actions.items()}
         
