@@ -1,19 +1,28 @@
 from typing import Iterable, List, Tuple
 import warnings
 
-from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
 
 class LiftedRDDLTypeAnalysis:
+    '''Utility class that takes a RDDL domain, compiles its type and object info,
+    and provides a set of utility functions to query information about them,
+    and also to assist in producing tensor representations of variables that have
+    type arguments, e.g. x(?o).
+    '''
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
     def __init__(self, rddl: RDDL, debug: bool=False):
+        '''Creates a new Type analysis object for the given rddl.
+        
+        :param rddl: a RDDL domain to compile
+        :param debug: whether to print information about the compilation
+        '''
         self.rddl = rddl
         self.debug = debug
         
@@ -24,6 +33,9 @@ class LiftedRDDLTypeAnalysis:
         self._compile_types()
         self._compile_objects()
         
+    # ===========================================================================
+    # compilation
+    # ===========================================================================
     def _compile_types(self):
         self.pvar_types = {}
         for pvar in self.domain.pvariables:
@@ -75,7 +87,25 @@ class LiftedRDDLTypeAnalysis:
                 f'\n\tobjects ={obj}\n'
             )
     
+    # ===========================================================================
+    # utility functions
+    # ===========================================================================
     def coordinates(self, objects: Iterable[str], msg: str) -> Tuple[int, ...]:
+        '''Converts a list of objects into their coordinate representation.
+        
+        :param objects: object instances corresponding to valid types defined
+        in the RDDL domain
+        :param msg: an error message to print in case the conversion fails.
+        
+        Examples:
+        
+        For a fluent x(?o) where ?o has objects {o1, o2, ... on},
+        calling coordinates on [oi] will return (i - 1,).
+        
+        For a fluent x(?p, ?q) where ?p has objects {p1, ... pm}
+        and ?q has objects {q1, ... qn}, calling coordinates on [pi, qj] will
+        return (i - 1, j - 1).
+        '''
         try:
             return tuple(self.objects_to_index[obj] for obj in objects)
         except:
@@ -85,36 +115,76 @@ class LiftedRDDLTypeAnalysis:
                         f'Object <{obj}> declared in {msg} is not valid.')
     
     def shape(self, types: Iterable[str]) -> Tuple[int, ...]:
+        '''Given a list of RDDL types, returns the shape of a tensor
+        that would hold all values of a pvariable for all enumerations of objects
+        of those types.
+        
+        :param types: a list of RDDL types
+        
+        Examples:
+        
+        Calling shape on type ?o with objects {o1, o2, ... on} will return (n,).
+        
+        Calling shape on types [?p, ?q] where ?p has objects {p1, ... pm}
+        and ?q has objects {q1, ... qn} will return (m, n).
+        
+        '''
         return tuple(len(self.objects[ptype]) for ptype in types)
     
     def is_compatible(self, var: str, objects: List[str]) -> bool:
+        '''Determines whether or not the given pvariable var can be evaluated
+        for the given list of objects.
+        '''
         types = self.pvar_types[var]
         if objects is None:
             objects = []
-        n_types = len(types)
-        n_objects = len(objects)
-        if n_types != n_objects:
+        if len(types) != len(objects):
             return False
         for ptype, obj in zip(types, objects):
             if obj not in self.objects_to_type or ptype != self.objects_to_type[obj]:
                 return False
         return True
     
-    def validate_types(self, types: Iterable[Tuple[str, str]]) -> List[str]:
-        return [ptype for _, ptype in types if ptype not in self.objects]                
+    def validate_types(self, types: Iterable[Tuple[str, str]],
+                       stack: str) -> List[str]:
+        '''Given a list of tuples of the form (_, type), raises an exception
+        if the types are not defined in the domain.
         
-    @staticmethod
-    def _print_stack_trace(expr):
-        if isinstance(expr, Expression):
-            trace = RDDLDecompiler().decompile_expr(expr)
-        else:
-            trace = str(expr)
-        return '>> ' + trace
-    
+        :param types: a list of tuples (_, type)
+        :param stack: a stack trace to print in case the validation fails
+        '''
+        fails = [ptype for _, ptype in types if ptype not in self.objects]
+        if fails:
+            raise RDDLUndefinedVariableError(
+                f'Type(s) {fails} are not defined in the domain.\n{stack}')
+        
     def map(self, var: str,
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
-            expr: Expression) -> Tuple[str, bool, Tuple[int, ...]]:
+            expr: str, stack: str) -> Tuple[str, bool, Tuple[int, ...]]:
+        '''Given:        
+        
+        1. a pvariable var
+        2. a list of objects [o1, ...] at which var should be evaluated, and 
+        3. a desired signature [(object1, type1), (object2, type2)...],      
+          
+        a call to map produces a tuple of three things if it is possible (and 
+        raises an exception if not):
+        
+        1. a mapping 'permutation(a,b,c...) -> (a,b,c...)' that represents the 
+        np.einsum transform on the tensor var with [o1, ...] to produce the
+        tensor representation of var with the desired signature
+        2. whether the permutation above is the identity, and
+        3. a tuple of new dimensions that need to be added to var in order to 
+        broadcast to the desired signature shape.
+        
+        :param var: a string pvariable defined in the domain
+        :param obj_in: a list of desired objects [o1, ...] as above
+        :param sign_out: a list of tuples (objecti, typei) representing the
+            desired signature of the output pvariable tensor
+        :param expr: a string representation of the expression for logging
+        :param stack: a stack trace to print for error handling
+        '''
                 
         # check that the input objects match fluent type definition
         types_in = self.pvar_types.get(var, [])
@@ -124,8 +194,8 @@ class LiftedRDDLTypeAnalysis:
         n_req = len(types_in)
         if n_in != n_req:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {n_req} parameters, got {n_in}.\n' + 
-                LiftedRDDLTypeAnalysis._print_stack_trace(expr))
+                f'Variable <{var}> requires {n_req} parameters, '
+                f'got {n_in}.\n{stack}')
             
         # reached limit on number of valid dimensions
         valid_symbols = LiftedRDDLTypeAnalysis.VALID_SYMBOLS
@@ -134,8 +204,7 @@ class LiftedRDDLTypeAnalysis:
         if n_out > n_max:
             raise RDDLNotImplementedError(
                 f'Up to {n_max}-D are supported, '
-                f'but variable <{var}> is {n_out}-D.\n' + 
-                LiftedRDDLTypeAnalysis._print_stack_trace(expr))
+                f'but variable <{var}> is {n_out}-D.\n{stack}')
         
         # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
         sign_in = tuple(zip(obj_in, types_in))
@@ -151,8 +220,7 @@ class LiftedRDDLTypeAnalysis:
                         raise RDDLInvalidObjectError(
                             f'Argument <{i_in + 1}> of variable <{var}> '
                             f'expects object of type <{t_in}>, '
-                            f'got <{o_out}> of type <{t_out}>.\n' + 
-                            LiftedRDDLTypeAnalysis._print_stack_trace(expr))
+                            f'got <{o_out}> of type <{t_out}>.\n{stack}')
             
             # need to expand the shape of the value array
             if new_dim:
@@ -163,8 +231,7 @@ class LiftedRDDLTypeAnalysis:
         free = [types_in[i] for i, p in enumerate(lhs) if p is None]
         if free:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> has free parameter(s) {free}.\n' + 
-                LiftedRDDLTypeAnalysis._print_stack_trace(expr))
+                f'Variable <{var}> has free parameter(s) {free}.\n{stack}')
         
         # this is the necessary information for np.einsum
         lhs = ''.join(lhs)
