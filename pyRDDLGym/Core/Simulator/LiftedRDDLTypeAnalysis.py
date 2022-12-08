@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Union
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -93,12 +93,16 @@ class LiftedRDDLTypeAnalysis:
     # ===========================================================================
     # utility functions
     # ===========================================================================
-    def coordinates(self, objects: Iterable[str], msg: str) -> Tuple[int, ...]:
+    def count_type_args(self, var: str) -> int:
+        '''Return the number of type arguments of pvariable var.'''
+        return len(self.pvar_types.get(var, []))
+    
+    def coordinates(self, objects: Iterable[str], stack: str) -> Tuple[int, ...]:
         '''Converts a list of objects into their coordinate representation.
         
         :param objects: object instances corresponding to valid types defined
         in the RDDL domain
-        :param msg: an error message to print in case the conversion fails.
+        :param stack: an error message to print in case the conversion fails.
         
         Examples:
         
@@ -115,14 +119,17 @@ class LiftedRDDLTypeAnalysis:
             for obj in objects:
                 if obj not in self.objects_to_index:
                     raise RDDLInvalidObjectError(
-                        f'Object <{obj}> declared in {msg} is not valid.')
+                        f'Object <{obj}> is not valid, '
+                        f'must be one of {set(self.objects_to_index.keys())}.'
+                        f'\n{stack}')
     
-    def shape(self, types: Iterable[str]) -> Tuple[int, ...]:
+    def shape(self, types: Iterable[str], stack: str) -> Tuple[int, ...]:
         '''Given a list of RDDL types, returns the shape of a tensor
         that would hold all values of a pvariable for all enumerations of objects
         of those types.
         
         :param types: a list of RDDL types
+        :param stack: an error message to print in case the calculation fails
         
         Examples:
         
@@ -132,7 +139,15 @@ class LiftedRDDLTypeAnalysis:
         and ?q has objects {q1, ... qn} will return (m, n).
         
         '''
-        return tuple(len(self.objects[ptype]) for ptype in types)
+        try:
+            return tuple(len(self.objects[ptype]) for ptype in types)
+        except:
+            for ptype in types:
+                if ptype not in self.objects:
+                    raise RDDLInvalidObjectError(
+                        f'Type <{ptype}> is not valid, '
+                        f'must be one of {set(self.objects.keys())}.'
+                        f'\n{stack}')
     
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given pvariable var can be evaluated
@@ -254,11 +269,45 @@ class LiftedRDDLTypeAnalysis:
             )
         
         return (permute, identity, new_dims)
+    
+    def tensor(self, 
+               ptypes: Iterable[str], 
+               value: object, 
+               dtype: object) -> Union[Value, np.ndarray]:
+        '''Creates a scalar or tensor representation for the pvariable
+        with the given types as arguments, and initial value.
         
-    def put(self, var: str, 
+        :param ptypes: the types of the pvariable
+        :param value: the initial (e.g. default) value of the pvariable
+        :param dtype: the return type of the tensor
+        '''
+        # check that the value is compatible with output tensor
+        value_type = type(value)
+        if not np.can_cast(value_type, dtype, casting='safe'):
+            raise RDDLTypeError(
+                f'Value <{value}> of type {value_type} '
+                f'cannot be safely cast to type {dtype}.')
+            
+        if ptypes is None:
+            return dtype(value)              
+        else: 
+            shape = self.shape(ptypes, '')
+            return np.full(shape=shape, fill_value=value, dtype=dtype)
+                
+    def put(self, 
+            var: str, 
             objects: List[str], 
             value: Value, 
             out: np.ndarray) -> None:
+        '''Places the value into the output array representation of pvariable
+        var at the coordinates specified by the list of objects.
+        
+        :param var: the pvariable for which this substitution is done
+        :param objects: the list of objects
+        :param value: the value to set
+        :param out: the array to write the value to at the coordinates specified
+            by objects
+        '''
         
         # check that the value is compatible with output tensor
         prange_val = type(value)
@@ -276,6 +325,6 @@ class LiftedRDDLTypeAnalysis:
                 f'do not match definition {ptypes}.')
         
         # update the output tensor
-        coords = self.coordinates(objects, f'pvariable <{var}>')
+        coords = self.coordinates(objects, '')
         out[coords] = value
         
