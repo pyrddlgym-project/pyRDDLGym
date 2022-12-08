@@ -1,4 +1,5 @@
 import numpy as np
+np.seterr(all='raise')
 import re
 from typing import Dict
 import warnings
