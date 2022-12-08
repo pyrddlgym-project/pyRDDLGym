@@ -294,10 +294,9 @@ class LiftedRDDLSimulator:
             
             # check for valid action syntax <name>(<types...>)
             if name not in new_actions:
-                valid = ', '.join(new_actions.keys())
                 raise RDDLInvalidActionError(
                     f'Action fluent <{name}> is not valid, '
-                    f'must be one of {{{valid}}}.')
+                    f'must be one of {set(new_actions.keys())}.')
             
             # update the initial actions
             self.types.put(name, objects, value, new_actions[name])
@@ -348,7 +347,11 @@ class LiftedRDDLSimulator:
     def reset(self) -> Dict:
         '''Resets the state variables to their initial values.'''
         self.subs = self.init_values.copy()
-        obs = {state: self.subs[state] for state in self.next_states.values()}
+        names = self.observ_fluents if self._pomdp \
+                    else self.next_states.values()
+        obs = {}
+        for var in names:
+            obs.update(self.types.expand(var, self.subs[var]))
         done = self.check_terminal_states()
         return obs, done
     
@@ -371,10 +374,11 @@ class LiftedRDDLSimulator:
         for next_state, state in self.next_states.items():
             subs[state] = subs[next_state]
         
-        if self._pomdp:
-            obs = {observ: subs[observ] for observ in self.observ_fluents}
-        else:
-            obs = {state: subs[state] for state in self.next_states.values()}
+        names = self.observ_fluents if self._pomdp \
+                    else self.next_states.values()
+        obs = {}
+        for var in names:
+            obs.update(self.types.expand(var, subs[var]))
         
         done = self.check_terminal_states()
         
