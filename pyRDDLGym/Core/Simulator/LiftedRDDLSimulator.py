@@ -156,13 +156,7 @@ class LiftedRDDLSimulator:
             value = pvar.default
             if value is None:
                 value = LiftedRDDLSimulator.DEFAULT_VALUES[prange]
-            if ptypes is None:
-                self.init_values[name] = dtype(value)              
-            else: 
-                self.init_values[name] = np.full(
-                    shape=self.types.shape(ptypes),
-                    fill_value=value,
-                    dtype=dtype)
+            self.init_values[name] = self.types.tensor(ptypes, value, dtype)
             
             if pvar.is_action_fluent():
                 self.noop_actions[name] = self.init_values[name]
@@ -181,15 +175,8 @@ class LiftedRDDLSimulator:
                     raise RDDLUndefinedVariableError(
                         f'Variable <{name}> in {block_name} is not valid.')
                     
-                ptypes = self.types.pvar_types[name]
-                if not self.types.is_compatible(name, objects):
-                    raise RDDLInvalidNumberOfArgumentsError(
-                        f'Type arguments {objects} for variable <{name}> '
-                        f'do not match definition {ptypes}.')
-                        
-                if ptypes:
-                    coords = self.types.coordinates(objects, block_name)                                
-                    self.init_values[name][coords] = value
+                if self.types.count_type_args(name):
+                    self.types.put(name, objects, value, self.init_values[name])
                 else:
                     self.init_values[name] = value
                 
