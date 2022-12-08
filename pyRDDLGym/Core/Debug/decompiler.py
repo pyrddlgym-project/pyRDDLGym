@@ -25,7 +25,7 @@ class TreeNode:
                 args = ('{}:{}'.format(*p) for p in self.params.items())
                 args = '_{{{}}}'.format(','.join(args))
             else:
-                args = '({})'.format(','.join(self.params))
+                args = '({})'.format(','.join(map(str, self.params)))
             value += args
         return value
     

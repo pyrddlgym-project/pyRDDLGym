@@ -4,6 +4,10 @@ class RDDLActionPreconditionNotSatisfiedError(ValueError):
     pass
 
 
+class RDDLInvalidActionError(ValueError):
+    pass
+
+
 class RDDLInvalidDependencyInCPFError(SyntaxError):
     pass
 
@@ -13,6 +17,10 @@ class RDDLInvalidExpressionError(SyntaxError):
 
 
 class RDDLInvalidNumberOfArgumentsError(SyntaxError):
+    pass
+
+
+class RDDLInvalidObjectError(SyntaxError):
     pass
 
 
