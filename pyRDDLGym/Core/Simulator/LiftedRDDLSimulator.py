@@ -282,15 +282,13 @@ class LiftedRDDLSimulator:
             
             # parse the specified action
             name, objects = action, ''
-            if '(' in action or ')' in action:
+            if '(' in action:
                 parsed_action = self.action_pattern.match(action)
                 if not parsed_action:
                     raise RDDLInvalidActionError(
                         f'Action fluent <{action}> is not valid, '
                         f'must be <name> or <name>(<type1>,<type2>...).')
-                name, objects = parsed_action.groups()         
-            objects = [obj.strip() for obj in objects.split(',')]
-            objects = [obj for obj in objects if obj != '']
+                name, objects = parsed_action.groups()  
             
             # check for valid action syntax <name>(<types...>)
             if name not in new_actions:
@@ -298,7 +296,9 @@ class LiftedRDDLSimulator:
                     f'Action fluent <{name}> is not valid, '
                     f'must be one of {set(new_actions.keys())}.')
             
-            # update the initial actions
+            # update the initial actions       
+            objects = [obj.strip() for obj in objects.split(',')]
+            objects = [obj for obj in objects if obj != '']
             self.types.put(name, objects, value, new_actions[name])
             
         return new_actions
