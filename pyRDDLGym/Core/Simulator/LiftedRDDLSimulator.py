@@ -432,7 +432,7 @@ class LiftedRDDLSimulator:
     def _sample_pvar(self, expr, objects, subs):
         _, name = expr.etype
         args = expr.args
-        LiftedRDDLSimulator._check_arity(args, 2, 'pvar ' + name, expr)
+        LiftedRDDLSimulator._check_arity(args, 2, f'Variable <{name}>', expr)
         
         var, pvars = args
         if var not in subs:
@@ -845,8 +845,8 @@ class LiftedRDDLSimulator:
         scale = self._sample(scale, objects, subs)
         LiftedRDDLSimulator._check_positive(shape, True, 'Gompertz shape', expr)
         LiftedRDDLSimulator._check_positive(scale, True, 'Gompertz scale', expr)
-        logU = np.log(self.rng.uniform(size=shape.shape))
-        sample = np.log(1.0 - logU / shape) / scale
+        U = self.rng.uniform(size=shape.shape)
+        sample = np.log(1.0 - np.log1p(-U) / shape) / scale
         return sample
         
 
