@@ -174,7 +174,9 @@ class LiftedRDDLTypeAnalysis:
         fails = [ptype for _, ptype in types if ptype not in self.objects]
         if fails:
             raise RDDLUndefinedVariableError(
-                f'Type(s) {fails} are not defined in the domain.\n{stack}')
+                f'Type(s) {fails} are not defined, '
+                f'must be one of {set(self.objects.keys())}.'
+                f'\n{stack}')
         
     def map(self, var: str,
             obj_in: List[str],
