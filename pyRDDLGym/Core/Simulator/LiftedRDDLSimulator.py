@@ -150,17 +150,18 @@ class LiftedRDDLSimulator:
             name = pvar.name                             
             ptypes = pvar.param_types
             prange = pvar.range
+            dtype = LiftedRDDLSimulator.NUMPY_TYPES[prange]
             
             value = pvar.default
             if value is None:
                 value = LiftedRDDLSimulator.DEFAULT_VALUES[prange]
             if ptypes is None:
-                self.init_values[name] = value              
+                self.init_values[name] = dtype(value)              
             else: 
                 self.init_values[name] = np.full(
                     shape=self.types.shape(ptypes),
                     fill_value=value,
-                    dtype=LiftedRDDLSimulator.NUMPY_TYPES[prange])
+                    dtype=dtype)
             
             if pvar.is_action_fluent():
                 self.noop_actions[name] = self.init_values[name]
