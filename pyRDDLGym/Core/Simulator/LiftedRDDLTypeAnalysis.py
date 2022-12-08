@@ -91,7 +91,8 @@ class LiftedRDDLTypeAnalysis:
             args = map(','.join, variations)
             if var.endswith('\''):
                 var = var[:-1]
-            self.grounded[var] = [f'{var}({arg})' for arg in args]
+            self.grounded[var] = [f'{var}({arg})' if arg != '' else f'{var}' 
+                                  for arg in args]
             
         if self.debug:
             obj = ''.join(f'\n\t\t{k}: {v}' for k, v in self.objects.items())
