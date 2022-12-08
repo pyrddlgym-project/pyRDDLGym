@@ -352,6 +352,8 @@ class LiftedRDDLSimulator:
         obs = {}
         for var in names:
             obs.update(self.types.expand(var, self.subs[var]))
+        if self._pomdp:
+            obs = {o: None for o in obs.keys()}
         done = self.check_terminal_states()
         return obs, done
     
