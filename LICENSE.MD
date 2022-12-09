@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2022 Ayal Taitler, Scott Sanner, Michael Gimelfarb, Sriram Gopalakrishnan, Martin Mladenov and Jack Liu  
+Copyright (c) 2022 Ayal Taitler, Scott Sanner, Michael Gimelfarb, Jihwan Jeong, Sriram Gopalakrishnan, Martin Mladenov and Jack Liu  
  
 Visualizers for CartPole and MountainCar are Copyright (c) 2016 OpenAI (https://openai.com)
 

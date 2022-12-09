@@ -16,14 +16,14 @@ from setuptools import setup, find_packages
 
 setup(
       name='pyRDDLGym',
-      version='0.9.0',
-      author="Ayal Taitler, Scott Sanner, Michael Gimelfarb, Sriram Gopalakrishnan, sgopal28@asu.edu, Martin Mladenov,jack liu",
-      author_email="ataitler@gmail.com, ssanner@mie.utoronto.ca, mike.gimelfarb@mail.utoronto.ca, mmladenov@google.com, jack.liu.to@gmail.com",
+      version='0.99.0',
+      author="Ayal Taitler, Scott Sanner, Michael Gimelfarb, Jihwan Jeong, Sriram Gopalakrishnan, sgopal28@asu.edu, Martin Mladenov, jack liu",
+      author_email="ataitler@gmail.com, ssanner@mie.utoronto.ca, mike.gimelfarb@mail.utoronto.ca, jhjeong@mie.utoronto.ca, sriram.gopalakrishnan@jpmchase.com, mmladenov@google.com, xiaotian.liu@mail.utoronto.ca",
       description="pyRDDLGym: RDDL automatic generation tool for OpenAI Gym",
       license="MIT License",
       url="https://github.com/ataitler/pyRDDLGym",
       packages=find_packages(),
-      install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy', 'gym', 'pygame'],
+      install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy', 'gym>=0.24.0', 'pygame'],
       python_requires=">=3.7",
       include_package_data=True,
       package_data={'': ['Examples/CartPole/Continuous/*.rddl',
@@ -38,6 +38,7 @@ setup(
                          'Examples/UAV/Discrete/*.rddl',
                          'Examples/UAV/Mixed/*.rddl',
                          'Examples/Wildfire/*.rddl',
+                         'Examples/Supply_Chain/*.rddl',
                          ]},
       classifiers=[
         "Development Status :: 3 - Alpha",

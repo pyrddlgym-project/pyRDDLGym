@@ -16,7 +16,7 @@ non-fluents nf_recsim_ecosystem_welfare__1 {
 		LESS(p1, p2);
 		LESS(p1, p3);
 		LESS(p2, p3);
-		PROVIDER-DISCOUNT(px) = 0.0;
+		PROVIDER-DISCOUNT(pn) = 0.0;
 		PROVIDER-COMPETENCE(p1, f1) = 1.0;
 		PROVIDER-COMPETENCE(p1, f2) = 1.0;
 		PROVIDER-COMPETENCE(p2, f1) = 1.0;
