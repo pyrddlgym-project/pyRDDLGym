@@ -4,9 +4,11 @@ import jax.numpy as jnp
 import jax.random as random
 import warnings
 
+from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.rddl import RDDL
 from pyRDDLGym.Core.Simulator.LiftedRDDLLevelAnalysis import LiftedRDDLLevelAnalysis
 from pyRDDLGym.Core.Simulator.LiftedRDDLTypeAnalysis import LiftedRDDLTypeAnalysis
@@ -139,12 +141,11 @@ class JaxRDDLCompiler:
             if value is None:
                 value = JaxRDDLCompiler.DEFAULT_VALUES[prange]
             if ptypes is None:
-                self.init_values[name] = dtype(value)          
+                self.init_values[name] = dtype(value)              
             else: 
+                shape = self.shape(ptypes, '')
                 self.init_values[name] = np.full(
-                    shape=self.types.shape(ptypes),
-                    fill_value=value,
-                    dtype=dtype)
+                    shape=shape, fill_value=value, dtype=dtype)
             
             if pvar.is_action_fluent():
                 self.noop_actions[name] = self.init_values[name]
@@ -162,16 +163,9 @@ class JaxRDDLCompiler:
                 if init_values is None:
                     raise RDDLUndefinedVariableError(
                         f'Variable <{name}> in {block_name} is not valid.')
-                    
-                ptypes = self.types.pvar_types[name]
-                if not self.types.is_compatible(name, objects):
-                    raise RDDLInvalidNumberOfArgumentsError(
-                        f'Type arguments {objects} for variable <{name}> '
-                        f'do not match definition {ptypes}.')
-                        
-                if ptypes:
-                    coords = self.types.coordinates(objects, block_name)                                
-                    self.init_values[name][coords] = value
+                
+                if self.types.count_type_args(name):
+                    self.types.put(name, objects, value, self.init_values[name])
                 else:
                     self.init_values[name] = value
         
@@ -294,7 +288,11 @@ class JaxRDDLCompiler:
     
     @staticmethod
     def _print_stack_trace(expr):
-        return '...\n' + str(expr) + '\n...'
+        if isinstance(expr, Expression):
+            trace = RDDLDecompiler().decompile_expr(expr)
+        else:
+            trace = str(expr)
+        return '>> ' + trace
     
     @staticmethod
     def _check_valid_op(expr, valid_ops):
@@ -419,7 +417,9 @@ class JaxRDDLCompiler:
     
     def _jax_constant(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        * _, shape = self.types.map('', [], objects, expr)
+        * _, shape = self.types.map(
+            '', [], objects, 
+            str(expr), JaxRDDLCompiler._print_stack_trace(expr))
         const = expr.args
         
         def _f(_, key):
@@ -431,7 +431,9 @@ class JaxRDDLCompiler:
     def _jax_pvar(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args            
-        permute, identity, new_dims = self.types.map(var, pvars, objects, expr)
+        permute, identity, new_dims = self.types.map(
+            var, pvars, objects, 
+            str(expr), JaxRDDLCompiler._print_stack_trace(expr))
         new_axes = (1,) * len(new_dims)
         
         def _f(x, key):
@@ -536,7 +538,8 @@ class JaxRDDLCompiler:
         * pvars, arg = expr.args  
         new_objects = objects + [p[1] for p in pvars]
         axis = tuple(range(len(objects), len(new_objects)))
-        fails = self.types.validate_types(new_objects)
+        fails = self.types.validate_types(
+            new_objects, JaxRDDLCompiler._print_stack_trace(expr))
         if fails:
             raise RDDLUndefinedVariableError(
             f'Type(s) {fails} in aggregation {op} are not valid.\n' + 
