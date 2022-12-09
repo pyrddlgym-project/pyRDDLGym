@@ -47,12 +47,10 @@ class JaxRDDLCompiler:
         self.instance = rddl.instance
         self.non_fluents = rddl.non_fluents
         
-        # perform a dependency analysis for fluent variables
+        # static analysis and compilation
         self.static = LiftedRDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
         self.next_states = self.static.next_states
-        
-        # extract information about types and their objects in the domain
         self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
         self._compile_initial_values()
                 
@@ -140,12 +138,7 @@ class JaxRDDLCompiler:
             value = pvar.default
             if value is None:
                 value = JaxRDDLCompiler.DEFAULT_VALUES[prange]
-            if ptypes is None:
-                self.init_values[name] = dtype(value)              
-            else: 
-                shape = self.shape(ptypes, '')
-                self.init_values[name] = np.full(
-                    shape=shape, fill_value=value, dtype=dtype)
+            self.init_values[name] = self.types.tensor(ptypes, value, dtype)
             
             if pvar.is_action_fluent():
                 self.noop_actions[name] = self.init_values[name]
@@ -159,8 +152,7 @@ class JaxRDDLCompiler:
         
         for block_name, block_content in blocks.items():
             for (name, objects), value in block_content:
-                init_values = self.init_values.get(name, None)
-                if init_values is None:
+                if name not in self.init_values:
                     raise RDDLUndefinedVariableError(
                         f'Variable <{name}> in {block_name} is not valid.')
                 
@@ -184,8 +176,7 @@ class JaxRDDLCompiler:
         self.reward = self._compile_reward()
     
     def _compile_constraints(self, constraints):
-        to_jax = lambda e: self._jax(e, [], dtype=bool)
-        return list(map(to_jax, constraints))
+        return [self._jax(c, [], dtype=bool) for c in constraints]
         
     def _compile_cpfs(self):
         jax_cpfs = {}

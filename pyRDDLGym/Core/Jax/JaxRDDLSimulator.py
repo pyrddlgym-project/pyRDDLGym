@@ -1,6 +1,5 @@
 import numpy as np
 import jax
-import re
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
@@ -29,7 +28,6 @@ class JaxRDDLSimulator(RDDLSimulator):
         compiled = JaxRDDLCompiler(rddl, **compiler_args)
         compiled.compile()
         self.compiled = compiled
-        self.action_pattern = re.compile(r'(\S*?)\((\S.*?)\)', re.VERBOSE)
 
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
@@ -43,43 +41,22 @@ class JaxRDDLSimulator(RDDLSimulator):
                                if pvar.is_observ_fluent()]
         self._pomdp = bool(self.observ_fluents)
         
-    @staticmethod
-    def _print_stack_trace(expr, subs, key):
-        return str(jax.make_jaxpr(expr)(subs, key))
-    
     def handle_error_code(self, error, msg):
         if self.raise_error:
             errors = JaxRDDLCompiler.get_error_messages(error)
             if errors:
-                errors = '\n'.join(f'{i + 1}. {s}' for i, s in enumerate(errors))
                 message = f'Internal error in evaluation of {msg}:\n'
+                errors = '\n'.join(f'{i + 1}. {s}' for i, s in enumerate(errors))
                 raise RDDLInvalidExpressionError(message + errors)
     
     def _actions_to_tensors(self, actions: Args) -> Dict[str, np.ndarray]:
         new_actions = {action: np.copy(value) 
                        for action, value in self.compiled.noop_actions.items()}
+        valid_actions = set(new_actions.keys())
         
         for action, value in actions.items():
-            
-            # parse the specified action
-            name, objects = action, ''
-            if '(' in action:
-                parsed_action = self.action_pattern.match(action)
-                if not parsed_action:
-                    raise RDDLInvalidActionError(
-                        f'Action fluent <{action}> is not valid, '
-                        f'must be <name> or <name>(<type1>,<type2>...).')
-                name, objects = parsed_action.groups()
-            if name not in new_actions:
-                raise RDDLInvalidActionError(
-                    f'Action fluent <{name}> is not valid, '
-                    f'must be one of {set(new_actions.keys())}.')
-            
-            # update the initial actions       
-            objects = [obj.strip() for obj in objects.split(',')]
-            objects = [obj for obj in objects if obj != '']
-            self.compiled.types.put(name, objects, value, new_actions[name])
-            
+            name, objects = self.compiled.types.parse(action, valid_actions)     
+            self.compiled.types.put(name, objects, value, new_actions[name])            
         return new_actions
     
     def _check_state_invariants(self) -> None:
@@ -90,9 +67,7 @@ class JaxRDDLSimulator(RDDLSimulator):
             
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
-                    f'Invariant {i + 1} is not satisfied.\n' + 
-                    JaxRDDLSimulator._print_stack_trace(
-                        invariant, self.subs, self.key))
+                    f'Invariant {i + 1} is not satisfied.')
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
@@ -106,9 +81,7 @@ class JaxRDDLSimulator(RDDLSimulator):
             
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
-                    f'Precondition {i + 1} is not satisfied.\n' + 
-                    JaxRDDLSimulator._print_stack_trace(
-                        precond, self.subs, self.key))
+                    f'Precondition {i + 1} is not satisfied.')
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
