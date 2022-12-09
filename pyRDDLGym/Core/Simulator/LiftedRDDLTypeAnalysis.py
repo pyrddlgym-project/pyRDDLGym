@@ -1,11 +1,13 @@
 import itertools
 import numpy as np
-from typing import Dict, Iterable, List, Tuple, Union
+import re
+from typing import Dict, Iterable, List, Set, Tuple, Union
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLParseError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.Parser.expr import Value
@@ -37,9 +39,12 @@ class LiftedRDDLTypeAnalysis:
         self._compile_types()
         self._compile_objects()
         
+        self.action_pattern = re.compile(r'(\S*?)\((\S.*?)\)', re.VERBOSE)
+        
     # ===========================================================================
     # compilation
     # ===========================================================================
+    
     def _compile_types(self):
         self.pvar_types = {}
         for pvar in self.domain.pvariables:
@@ -104,6 +109,7 @@ class LiftedRDDLTypeAnalysis:
     # ===========================================================================
     # utility functions
     # ===========================================================================
+    
     def count_type_args(self, var: str) -> int:
         '''Return the number of type arguments of pvariable var.'''
         return len(self.pvar_types.get(var, []))
@@ -294,7 +300,7 @@ class LiftedRDDLTypeAnalysis:
         '''
         # check that the value is compatible with output tensor
         value_type = type(value)
-        if not np.can_cast(value_type, dtype, casting='safe'):
+        if not np.can_cast(value_type, dtype, casting='same_kind'):
             raise RDDLTypeError(
                 f'Value <{value}> of type {value_type} '
                 f'cannot be safely cast to type {dtype}.')
@@ -322,7 +328,7 @@ class LiftedRDDLTypeAnalysis:
         # check that the value is compatible with output tensor
         prange_val = type(value)
         prange_req = out.dtype
-        if not np.can_cast(prange_val, prange_req, casting='safe'):
+        if not np.can_cast(prange_val, prange_req, casting='same_kind'):
             raise RDDLTypeError(
                 f'Value for pvariable <{var}> of type {prange_val} '
                 f'cannot be safely cast to type {prange_req}.')
@@ -356,3 +362,26 @@ class LiftedRDDLTypeAnalysis:
         values = np.ravel(values)
         return dict(zip(keys, values, strict=True))
     
+    def parse(self, expr: str, valid_vars: Set[str]):
+        '''Parses an expression of the form <name> or <name>(<type1>,<type2>...)
+        into a tuple of <name>, [<type1>, <type2>, ...].
+        
+        :param expr: the string expression to be parsed
+        :param valid_vars: checks to make sure name is in this set
+        '''
+        name, objects = expr, []
+        if '(' in expr:
+            parsed = self.action_pattern.match(expr)
+            if not parsed:
+                raise RDDLParseError(
+                    f'Pvariable expression <{expr}> is not valid, '
+                    f'must be of the form <name> or <name>(<type1>,<type2>...).')
+            name, objects = parsed.groups()
+            
+        if name not in valid_vars:
+            raise RDDLUndefinedVariableError(
+                f'Variable <{name}> is not valid, must be one of {valid_vars}.')
+        
+        objects = [obj.strip() for obj in objects.split(',')]
+        objects = [obj for obj in objects if obj != '']
+        return name, objects
