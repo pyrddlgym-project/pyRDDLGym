@@ -1,12 +1,10 @@
 import numpy as np
 np.seterr(all='raise')
-import re
 from typing import Dict, Union
 import warnings
 
 from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
@@ -60,16 +58,12 @@ class LiftedRDDLSimulator:
         self.instance = rddl.instance
         self.non_fluents = rddl.non_fluents
         
-        # perform a dependency analysis for fluent variables
+        # static analysis and compilation
         self.static = LiftedRDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
         self.next_states = self.static.next_states
-        
-        # extract information about types and their objects in the domain
         self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
-        
         self._compile_initial_values()
-        self.action_pattern = re.compile(r'(\S*?)\((\S.*?)\)', re.VERBOSE)
         
         # is a POMDP
         self.observ_fluents = [pvar.name 
@@ -170,11 +164,10 @@ class LiftedRDDLSimulator:
         
         for block_name, block_content in blocks.items():
             for (name, objects), value in block_content:
-                init_values = self.init_values.get(name, None)
-                if init_values is None:
+                if name not in self.init_values:
                     raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> in {block_name} is not valid.')
-                    
+                        f'Variable <{name}> in {block_name} is not valid.')      
+                                  
                 if self.types.count_type_args(name):
                     self.types.put(name, objects, value, self.init_values[name])
                 else:
@@ -274,29 +267,13 @@ class LiftedRDDLSimulator:
     # main sampling routines
     # ===========================================================================
     
-    def _actions_to_tensors(self, actions: Dict[str, Union[Value, np.ndarray]]) -> Args:
+    def _actions_to_tensors(self, actions: Args) -> Dict[str, np.ndarray]:
         new_actions = {action: np.copy(value) 
                        for action, value in self.noop_actions.items()}
+        valid_actions = set(new_actions.keys())
         
         for action, value in actions.items():
-            
-            # parse the specified action
-            name, objects = action, ''
-            if '(' in action:
-                parsed_action = self.action_pattern.match(action)
-                if not parsed_action:
-                    raise RDDLInvalidActionError(
-                        f'Action fluent <{action}> is not valid, '
-                        f'must be <name> or <name>(<type1>,<type2>...).')
-                name, objects = parsed_action.groups()
-            if name not in new_actions:
-                raise RDDLInvalidActionError(
-                    f'Action fluent <{name}> is not valid, '
-                    f'must be one of {set(new_actions.keys())}.')
-            
-            # update the initial actions       
-            objects = [obj.strip() for obj in objects.split(',')]
-            objects = [obj for obj in objects if obj != '']
+            name, objects = self.types.parse(action, valid_actions)            
             self.types.put(name, objects, value, new_actions[name])
             
         return new_actions
