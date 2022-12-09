@@ -369,7 +369,7 @@ class LiftedRDDLTypeAnalysis:
         :param expr: the string expression to be parsed
         :param valid_vars: checks to make sure name is in this set
         '''
-        name, objects = expr, []
+        name, objects = expr, ''
         if '(' in expr:
             parsed = self.action_pattern.match(expr)
             if not parsed:
