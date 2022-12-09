@@ -533,8 +533,8 @@ class JaxRDDLCompiler:
             new_objects, JaxRDDLCompiler._print_stack_trace(expr))
         if fails:
             raise RDDLUndefinedVariableError(
-            f'Type(s) {fails} in aggregation {op} are not valid.\n' + 
-            JaxRDDLCompiler._print_stack_trace(expr))
+                f'Type(s) {fails} in aggregation {op} are not valid.\n' + 
+                JaxRDDLCompiler._print_stack_trace(expr))
         
         jax_expr = self._jax(arg, new_objects)
         jax_op = valid_ops[op]        

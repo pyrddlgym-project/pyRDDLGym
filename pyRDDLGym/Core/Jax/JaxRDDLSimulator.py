@@ -3,7 +3,6 @@ import jax
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
