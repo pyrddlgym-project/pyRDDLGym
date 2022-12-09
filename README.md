@@ -11,7 +11,7 @@ As we support a large subset of RDDL, we list what we do not support:
 * state-action-constraints -- deprecated in favor of state-invariants and action-preconditions (RDDL2.0).
 * action-preconditions are not enforced by the environment, and should be incorporated into the cpfs definitions.
 * action-preconditions of structure of action <=/>= deterministic-function (can be of constants or non-fluents), 
-are supported for the porpuse of gym spaces definitions.
+are supported for the purpose of gym spaces definitions.
 * enums
 
 We have extended the RDDL language and also support the following:
@@ -53,7 +53,7 @@ We require Python 3.7+.
 * pillow>=9.2.0
 * numpy
 * matplotlib>=3.5.0
-* gym
+* gym>=0.24.0
 * pygame
 
 #### Installing via pip
@@ -154,6 +154,7 @@ This software is distributed under the MIT License.
 
 ## Contributors
 - Michael Gimelfarb (University of Toronto, CA)
+- Jihwan Jeong (University of Toronto, CA)
 - Sriram Gopalakrishnan (Arizona State University/J.P. Morgan, USA)
 - Martin Mladenov (Google, BR)
 - Jack Liu (University of Toronto, CA)
