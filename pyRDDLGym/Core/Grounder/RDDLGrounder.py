@@ -43,7 +43,7 @@ class Grounder(metaclass=abc.ABCMeta):
 
 class RDDLGrounder(Grounder):
 
-    def __init__(self, RDDL_AST, use_xadd: bool = False) -> None:
+    def __init__(self, RDDL_AST) -> None:
         super(RDDLGrounder, self).__init__()
         self.AST = RDDL_AST
         self.objects = {}
@@ -70,7 +70,6 @@ class RDDLGrounder(Grounder):
         self.terminals = []
         self.preconditions = []
         self.invariants = []
-        self._use_xadd = use_xadd
 
     def Ground(self) -> RDDLModel:
         self._extract_objects()
@@ -82,7 +81,7 @@ class RDDLGrounder(Grounder):
         self._ground_constraints()
 
         # update model object
-        model = RDDLModel() if not self._use_xadd else RDDLModelWXADD(self.AST)
+        model = RDDLModel()
         model.states = self.states
         model.actions = self.actions
         model.nonfluents = self.nonfluents
@@ -108,8 +107,6 @@ class RDDLGrounder(Grounder):
         model.max_allowed_actions = self._ground_max_actions()
         model.horizon = self._ground_horizon()
         model.discount = self._ground_discount()
-        if self._use_xadd:
-            model.compile()
         return model
 
     def _ground_horizon(self):

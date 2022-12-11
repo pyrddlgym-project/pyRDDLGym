@@ -8,17 +8,16 @@ import pygame
 from pyRDDLGym.Core.Parser import parser as parser
 from pyRDDLGym.Core.Parser import RDDLReader as RDDLReader
 from pyRDDLGym.Core.Grounder import RDDLGrounder as RDDLGrounder
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints, RDDLSimulatorWXADD
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
     
-    def __init__(self, domain, instance=None, enforce_action_constraints=False, use_xadd=True):
+    def __init__(self, domain, instance=None, enforce_action_constraints=False):
         super(RDDLEnv, self).__init__()
         self.enforce_action_constraints = enforce_action_constraints
-        self.use_xadd = use_xadd
-
+        
         # max allowed action value
         # self.BigM = 100
         self.done = False
@@ -36,16 +35,13 @@ class RDDLEnv(gym.Env):
 
         # parse RDDL file
         rddl_ast = MyRDDLParser.parse(domain)
-        
+
         # ground domain
-        grounder = RDDLGrounder.RDDLGrounder(rddl_ast, use_xadd=self.use_xadd)
+        grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
         self.model = grounder.Ground()
-        
+
         # define the model sampler
-        if self.use_xadd:
-            self.sampler = RDDLSimulatorWXADD(self.model)
-        else:
-            self.sampler = RDDLSimulatorWConstraints(self.model)
+        self.sampler = RDDLSimulatorWConstraints(self.model)
 
         # set the horizon
         self.horizon = self.model.horizon

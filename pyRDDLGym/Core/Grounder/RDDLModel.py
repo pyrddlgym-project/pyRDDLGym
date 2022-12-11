@@ -259,9 +259,9 @@ class RDDLModel(PlanningModel):
 
 
 class RDDLModelWXADD(PlanningModel):
-    def __init__(self, ast):
+    def __init__(self, model: RDDLModel):
         super().__init__()
-        self.AST = ast
+        self.model = model
         self._context: XADD = XADD()
         self._var_name_to_node_id = {}
         self._sympy_var_to_node_id = {}
@@ -271,6 +271,33 @@ class RDDLModelWXADD(PlanningModel):
         self._node_id_to_op = {}
         self._curr_pvar = None
         self.rvs = self._context._random_var_set
+
+        # Get grounded variables
+        self.states = model.states
+        self.actions = model.actions
+        self.nonfluents = model.nonfluents
+        self.next_state = model.next_state
+        self.prev_state = model.prev_state
+        self.init_state = model.init_state
+        self.cpfs = model.cpfs
+        self.cpforder = model.cpforder
+        self.reward = model.reward
+        self.terminals = model.terminals
+        self.preconditions = model.preconditions
+        self.invariants = model.invariants
+        self.derived = model.derived
+        self.interm = model.interm
+        self.observ = model.observ
+        self.observranges = model.observranges
+        self.objects = model.objects
+        self.actionsranges = model.actionsranges
+        self.statesranges = model.statesranges
+        self.gvar_to_type = model.gvar_to_type
+        self.pvar_to_type = model.pvar_to_type
+        self.gvar_to_pvar = model.gvar_to_pvar
+        self.max_allowed_actions = model.max_allowed_actions
+        self.horizon = model.horizon
+        self.discount = model.discount
     
     def compile(self):
         self.reset_dist_var_num()
