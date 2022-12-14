@@ -494,7 +494,24 @@ class RDDL2Graph:
 
 
 if __name__ == "__main__":
-    r2g = RDDL2Graph(strict_grouping=True)
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--domain", type=str, default='Wildfire')
+    parser.add_argument("--instance", type=int, default=0)
+    parser.add_argument("--undirected", action='store_true')
+    parser.add_argument("--strict_grouping", action='store_true')
+    parser.add_argument("--strict_levels", action='store_true')
+    
+    args = parser.parse_args()
+
+    r2g = RDDL2Graph(
+        domain=args.domain,
+        instance=args.instance,
+        directed=not args.undirected,
+        strict_levels=args.strict_levels,
+        strict_grouping=args.strict_grouping
+    )
     r2g.save_dbn(file_name='wildfire')
     r2g.save_dbn(file_name='wildfire', fluent='burning')
     r2g.save_dbn(file_name='wildfire', fluent='burning', gfluent='x1_y1')
