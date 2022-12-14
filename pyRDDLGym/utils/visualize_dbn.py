@@ -171,10 +171,11 @@ class RDDL2Graph:
             gfluent: Optional[str] = None,
             file_type: str = 'pdf'
     ):
+        self.clear_cache()
         f_dir = Path(f"tmp/{self._domain}")
         f_dir.mkdir(exist_ok=True, parents=True)
         f_path = f_dir / \
-            f"{file_name}_{fluent if fluent else ''}_{gfluent if gfluent else ''}_inst_{self._instance}.{file_type}"
+            f"{file_name}{('_' + fluent) if fluent else ''}{('_' + gfluent) if gfluent else ''}_inst_{self._instance}.{file_type}"
         if fluent is None and gfluent is None:
             graph = self.get_graph_of_instance()
         else:
@@ -464,6 +465,17 @@ class RDDL2Graph:
         elif gvar in self.model.actions:
             self._action.add(node_name)
 
+    def clear_cache(self):
+        self._state.clear()
+        self._next_state.clear()
+        self._interm.clear()
+        self._derived.clear()
+        self._observ.clear()
+        self._action.clear()
+        self._gvar_to_node_name.clear()
+        self._node_name_to_gvar.clear()
+        self._level.clear()
+    
     def get_node_name(self, gvar: str, primed: bool = False) -> str:
         if gvar in self._gvar_to_node_name:
             return self._gvar_to_node_name[gvar]
@@ -483,4 +495,6 @@ class RDDL2Graph:
 
 if __name__ == "__main__":
     r2g = RDDL2Graph(strict_grouping=True)
-    r2g.save_dbn(fluent='burning', gfluent='x1_y1')
+    r2g.save_dbn(file_name='wildfire')
+    r2g.save_dbn(file_name='wildfire', fluent='burning')
+    r2g.save_dbn(file_name='wildfire', fluent='burning', gfluent='x1_y1')
