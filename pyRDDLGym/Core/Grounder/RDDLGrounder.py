@@ -62,6 +62,7 @@ class RDDLGrounder(Grounder):
         self.actionsranges = {}
         self.cpfs = {}
         self.cpforder = {0: []}
+        self.gvar_to_cpforder = {}
         self.derived = {}
         self.interm = {}
         self.observ = {}
@@ -90,6 +91,7 @@ class RDDLGrounder(Grounder):
         model.init_state = self.initstate
         model.cpfs = self.cpfs
         model.cpforder = self.cpforder
+        model.gvar_to_cpforder = self.gvar_to_cpforder
         model.reward = self.reward
         model.terminals = self.terminals
         model.preconditions = self.preconditions
@@ -266,6 +268,7 @@ class RDDLGrounder(Grounder):
                     self.prevstates[next_state] = g
                     self.cpfs[next_state] = grounded_cpf.expr
                     self.cpforder[0].append(g)
+                    self.gvar_to_cpforder[g] = 0
                     self.gvar_to_type[g] = vtype
                     self.gvar_to_pvar[next_state] = name
                     self.gvar_to_type[next_state] = vtype
@@ -292,6 +295,7 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level].append(g)
                     else:
                         self.cpforder[level] = [g]
+                    self.gvar_to_cpforder[g] = level
                     self.gvar_to_type[g] = vtype
     
             elif pvariable.fluent_type == 'interm-fluent':
@@ -317,6 +321,7 @@ class RDDLGrounder(Grounder):
                     else:
                         self.cpforder[level] = [g]
                     self.gvar_to_type[g] = vtype
+                    self.gvar_to_cpforder[g] = level
 
             elif pvariable.fluent_type == 'observ-fluent':
                 cpf = None
@@ -336,6 +341,7 @@ class RDDLGrounder(Grounder):
                     self.cpfs[g] = grounded_cpf.expr
                     self.cpforder[0].append(g)
                     self.gvar_to_type[g] = vtype
+                    self.gvar_to_cpforder[g] = 0
 
         # self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
         #                        )  # replacing the previous lifted entries

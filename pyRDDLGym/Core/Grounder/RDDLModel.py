@@ -1,5 +1,5 @@
 from abc import ABCMeta
-from typing import Sized
+from typing import Sized, Set
 import sympy as sp
 from xaddpy.xadd import XADD, ControlFlow
 
@@ -38,6 +38,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._observranges = None
         self._cpfs = None
         self._cpforder = None
+        self._gvar_to_cpforder = None
         self._reward = None
         self._terminals = None
         self._preconditions = None
@@ -173,6 +174,14 @@ class PlanningModel(metaclass=ABCMeta):
         self._cpforder = val
 
     @property
+    def gvar_to_cpforder(self):
+        return self._gvar_to_cpforder
+
+    @gvar_to_cpforder.setter
+    def gvar_to_cpforder(self, val):
+        self._gvar_to_cpforder = val
+    
+    @property
     def reward(self):
         return self._reward
 
@@ -281,6 +290,7 @@ class RDDLModelWXADD(PlanningModel):
         self.init_state = model.init_state
         self.cpfs = model.cpfs
         self.cpforder = model.cpforder
+        self.gvar_to_cpforder = model.gvar_to_cpforder
         self.reward = model.reward
         self.terminals = model.terminals
         self.preconditions = model.preconditions
@@ -298,10 +308,12 @@ class RDDLModelWXADD(PlanningModel):
         self.max_allowed_actions = model.max_allowed_actions
         self.horizon = model.horizon
         self.discount = model.discount
+        self._compiled = False
     
     def compile(self):
         self.reset_dist_var_num()
         self.convert_cpfs_to_xadds()
+        self._compiled = True
     
     def reset_dist_var_num(self):
         self._num_uniform = 0
@@ -630,6 +642,22 @@ class RDDLModelWXADD(PlanningModel):
 
     def print(self, node_id):
         print(self._context.get_exist_node(node_id))
+
+    def collect_vars(self, node_id: int) -> Set[str]:
+        """Returns the set containing variables existing in the current node (in str type)"""
+        var_set = self._context.collect_vars(node_id)
+        var_set = var_set.difference(self._context._random_var_set)
+        return set(self._sympy_var_name_to_var_name[str(v)] for v in var_set)
+    
+    @property
+    def vars_in_rew(self) -> Set[str]:
+        if not hasattr(self, '_vars_in_rew'):
+            self._vars_in_rew = self.collect_vars(self.reward)
+        return self._vars_in_rew
+    
+    @vars_in_rew.setter
+    def vars_in_rew(self, var: Set[str]):
+        self._vars_in_rew = var
 
 
 def main():
