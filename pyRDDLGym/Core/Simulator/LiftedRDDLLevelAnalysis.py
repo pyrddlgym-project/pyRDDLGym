@@ -5,6 +5,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidDependencyInCP
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.rddl import RDDL
 
 VALID_DEPENDENCIES = {
@@ -45,7 +46,9 @@ class LiftedRDDLLevelAnalysis:
         self.pvars = {pvar.name: pvar for pvar in self.domain.pvariables}
         self.next_states = {pvar.name + '\'': pvar.name
                             for pvar in self.domain.pvariables
-                            if pvar.is_state_fluent()}
+                            if pvar.is_state_fluent()}        
+        self.non_fluents = {pvar.name for pvar in self.domain.pvariables
+                            if pvar.is_non_fluent()}
         
     # ===========================================================================
     # call graph construction
@@ -193,3 +196,27 @@ class LiftedRDDLLevelAnalysis:
             unmarked.remove(var)
             order.append(var)
     
+    # ===========================================================================
+    # utilities
+    # ===========================================================================
+    
+    def is_non_fluent_expression(self, expr: Expression) -> bool:
+        '''Determines whether or not expression is a non-fluent.
+        
+        @param expr: expression to check
+        '''
+        if isinstance(expr, tuple):
+            return True
+        etype, _ = expr.etype
+        if etype == 'constant':
+            return True
+        elif etype == 'randomvar':
+            return False
+        elif etype == 'pvar':
+            return expr.args[0] in self.non_fluents
+        else:
+            for arg in expr.args:
+                if not self.is_non_fluent_expression(arg):
+                    return False
+            return True
+

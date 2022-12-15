@@ -288,8 +288,8 @@ class LiftedRDDLTypeAnalysis:
         
         return (permute, identity, new_dims)
     
-    def tensor(self, ptypes: Iterable[str], 
-               value: object, 
+    def tensor(self, ptypes: Iterable[str],
+               value: object,
                dtype: object) -> Union[Value, np.ndarray]:
         '''Creates a scalar or tensor representation for the pvariable
         with the given types as arguments, and initial value.
@@ -311,9 +311,9 @@ class LiftedRDDLTypeAnalysis:
             shape = self.shape(ptypes, '')
             return np.full(shape=shape, fill_value=value, dtype=dtype)
                 
-    def put(self, var: str, 
-            objects: List[str], 
-            value: Value, 
+    def put(self, var: str,
+            objects: List[str],
+            value: Value,
             out: np.ndarray) -> None:
         '''Places the value into the output array representation of pvariable
         var at the coordinates specified by the list of objects.
@@ -344,6 +344,10 @@ class LiftedRDDLTypeAnalysis:
         coords = self.coordinates(objects, '')
         out[coords] = value
         
+    def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
+        object_sets = [self.objects[ptype] for ptype in ptypes]
+        return itertools.product(*object_sets)
+            
     def expand(self, var: str, values: np.ndarray) -> Dict[str, Value]:
         '''Produces a grounded representation of the pvariable var from its 
         tensor representation. The output is a dict whose keys are grounded
