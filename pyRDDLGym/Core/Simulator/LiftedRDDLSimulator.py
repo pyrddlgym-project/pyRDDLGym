@@ -898,7 +898,6 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
         for name, bounds in self._bounds.items():
             LiftedRDDLSimulator._check_bounds(
                 *bounds, f'Variable <{name}>', bounds)
-            print(f'{name} has bounds {bounds}')
 
     def _parse_bounds(self, expr, objects, search_vars):
         etype, op = expr.etype
@@ -918,8 +917,7 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
                 variations = self.rddl.variations([o[1] for o in objects])
                 lims = np.ravel(lims)
                 for variation, lim in zip(variations, lims, strict=True):
-                    key = self.rddl.ground_name(
-                        var, [variation[i] for i in active])
+                    key = self.rddl.ground_name(var, [variation[i] for i in active])
                     if loc == 1:
                         if self._bounds[key][loc] > lim:
                             self._bounds[key][loc] = lim
