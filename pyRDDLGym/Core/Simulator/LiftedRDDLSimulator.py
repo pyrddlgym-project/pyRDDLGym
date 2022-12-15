@@ -63,9 +63,12 @@ class LiftedRDDLSimulator:
         self.levels = self.static.compute_levels()
         self.next_states = self.static.next_states
         self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
-        self._compile_initial_values()
         
-        # is a POMDP
+        # initialize all fluent and non-fluent values
+        self._compile_initial_values()
+        self.subs = self.init_values.copy()
+            
+        # for a POMDP
         self.observ_fluents = [pvar.name 
                                for pvar in self.domain.pvariables 
                                if pvar.is_observ_fluent()]
@@ -322,13 +325,19 @@ class LiftedRDDLSimulator:
     def reset(self) -> Union[Dict[str, None], Args]:
         '''Resets the state variables to their initial values.'''
         self.subs = self.init_values.copy()
-        names = self.observ_fluents if self._pomdp \
-                    else self.next_states.values()
-        obs = {}
-        for var in names:
-            obs.update(self.types.expand(var, self.subs[var]))
-        if self._pomdp:
+        
+        self.state = {}
+        for var in self.next_states.values():
+            self.state.update(self.types.expand(var, self.subs[var]))
+        
+        if self._pomdp:            
+            obs = {}
+            for var in self.observ_fluents:
+                obs.update(self.types.expand(var, self.subs[var]))
             obs = {o: None for o in obs.keys()}
+        else:
+            obs = self.state
+            
         done = self.check_terminal_states()
         return obs, done
     
@@ -351,11 +360,17 @@ class LiftedRDDLSimulator:
         for next_state, state in self.next_states.items():
             subs[state] = subs[next_state]
         
-        names = self.observ_fluents if self._pomdp \
-                    else self.next_states.values()
-        obs = {}
-        for var in names:
-            obs.update(self.types.expand(var, subs[var]))
+        self.state = {}
+        for var in self.next_states.values():
+            self.state.update(self.types.expand(var, subs[var]))
+        
+        if self._pomdp:            
+            obs = {}
+            for var in self.observ_fluents:
+                obs.update(self.types.expand(var, subs[var]))
+            obs = {o: None for o in obs.keys()}
+        else:
+            obs = self.state
         
         done = self.check_terminal_states()
         
@@ -842,3 +857,151 @@ def lngamma(x):
                     1 + 1 / (4 * x_squared / 3) * (
                         -1 + 1 / (99 * x_squared / 140) * (
                             1 + 1 / (910 * x_squared / 3))))))
+
+
+class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
+
+    def __init__(self, *args, max_bound: float=np.inf, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.BigM = max_bound
+        
+        self.epsilon = 0.001
+        
+        self._bounds = {}
+        for pvar in self.domain.pvariables:
+            if pvar.is_state_fluent() or pvar.is_observ_fluent() \
+            or pvar.is_action_fluent():
+                pvars = self.types.pvar_types[pvar.name]
+                if pvars:
+                    for variation in self.types.variations(pvars):
+                        key = pvar.name + '(' + ','.join(variation) + ')'
+                        self._bounds[key] = [-self.BigM, +self.BigM]
+                else:
+                    self._bounds[pvar.name] = [-self.BigM, +self.BigM]
+
+        # actions and states bounds extraction for gym's action and state spaces
+        # currently supports only linear inequality constraints
+        actions = {pvar.name 
+                   for pvar in self.domain.pvariables 
+                   if pvar.is_action_fluent()}
+        for precond in self.domain.preconds:
+            self._parse_bounds(precond, [], actions)
+
+        states = set(self.next_states.values())
+        for invariant in self.domain.invariants:
+            self._parse_bounds(invariant, [], states)
+
+        for name, bounds in self._bounds.items():
+            LiftedRDDLSimulator._check_bounds(
+                *bounds, f'Variable <{name}>', bounds)
+            print(f'{name} has bounds {bounds}')
+
+    def _parse_bounds(self, expr, objects, search_vars):
+        etype, op = expr.etype
+        if etype == 'aggregation' and op == 'forall':
+            * pvars, arg = expr.args
+            new_objects = objects + [pvar[1] for pvar in pvars]
+            self._parse_bounds(arg, new_objects, search_vars)
+            
+        elif etype == 'boolean' and op == '^':
+            for arg in expr.args:
+                self._parse_bounds(arg, objects, search_vars)
+                
+        elif etype == 'relational':
+            var, lims, loc, active = self._parse_bounds_relational(
+                expr, objects, search_vars)
+            if var is not None and loc is not None:
+                variations = self.types.variations([obj[1] for obj in objects])
+                lims = np.ravel(lims)
+                for variation, lim in zip(variations, lims, strict=True):
+                    key = var
+                    if active:
+                        key += '(' + ','.join(variation[i] for i in active) + ')'
+                    if loc == 1:
+                        if self._bounds[key][loc] > lim:
+                            self._bounds[key][loc] = lim
+                    else:
+                        if self._bounds[key][loc] < lim:
+                            self._bounds[key][loc] = lim
+
+    def _parse_bounds_relational(self, expr, objects, search_vars):
+        left, right = expr.args    
+        _, op = expr.etype
+        is_left_pvar = left.etype[0] == 'pvar' and left.args[0] in search_vars
+        is_right_pvar = right.etype[0] == 'pvar' and right.args[0] in search_vars
+        
+        if (is_left_pvar and is_right_pvar) or op not in ['<=', '<', '>=', '>']:
+            raise Exception(
+                f'Constraint does not have a structure of '
+                f'<action or state fluent> <op> <rhs>, where:' 
+                    f'\n<op> is one of {{<=, <, >=, >}}'
+                    f'\n<rhs> is a deterministic function of '
+                    f'non-fluents or constants only.\n' + 
+                LiftedRDDLSimulator._print_stack_trace(expr))
+            
+        elif not is_left_pvar and not is_right_pvar:
+            return None, 0.0, None, []
+        
+        else:
+            if is_left_pvar:
+                var, args = left.args
+                const_expr = right
+            else:
+                var, args = right.args
+                const_expr = left
+            if args is None:
+                args = []
+                
+            if not self.static.is_non_fluent_expression(const_expr):
+                raise Exception(
+                    f'Bound must be a deterministic function of '
+                    f'non-fluents or constants only.\n' + 
+                    LiftedRDDLSimulator._print_stack_trace(const_expr))
+            
+            const = self._sample(const_expr, objects, self.subs)
+            eps, loc = self._get_op_code(op, is_right=is_left_pvar)
+            lim = const + eps
+            
+            # TODO: check for duplicate type arguments
+            arg_to_index = {obj[0]: i for i, obj in enumerate(objects)}
+            active = [arg_to_index[arg] for arg in args if arg in arg_to_index]
+
+            return var, lim, loc, active
+            
+    def _get_op_code(self, op, is_right):
+        eps = 0.0
+        if is_right:
+            if op in ['<=', '<']:
+                loc = 1
+                if op == '<':
+                    eps = -self.epsilon
+            elif op in ['>=', '>']:
+                loc = 0
+                if op == '>':
+                    eps = self.epsilon
+        else:
+            if op in ['<=', '<']:
+                loc = 0
+                if op == '<':
+                    eps = self.epsilon
+            elif op in ['>=', '>']:
+                loc = 1
+                if op == '>':
+                    eps = -self.epsilon
+        return eps, loc
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @bounds.setter
+    def bounds(self, value):
+        self._bounds = value
+
+    @property
+    def states(self):
+        return self.states.copy()
+
+    @property
+    def isPOMDP(self):
+        return self._pomdp
