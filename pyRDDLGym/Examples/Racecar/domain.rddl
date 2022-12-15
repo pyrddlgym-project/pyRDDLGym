@@ -32,7 +32,7 @@ domain racecar {
 		GY 			: { non-fluent, real, default = 0.95 };		// y center of goal region
 		RADIUS 		: { non-fluent, real, default = 0.05 };		// radius of goal region
 		COST 		: { non-fluent, real, default = 0.01 };		// cost of fuel, proportional to force	
-		GOAL_REWARD : { non-fluent, real, default = 1.0 };		// reward upon reaching the goal region
+		GOAL-REWARD : { non-fluent, real, default = 1.0 };		// reward upon reaching the goal region
 		
 		MAX-F 	: { non-fluent, real, default = 1 };		// maximum force in each direction 
 		MASS 	: { non-fluent, real, default = 1 };		// mass of the car
@@ -106,7 +106,7 @@ domain racecar {
 
     reward = (-COST * sqrt[pow[fx, 2] + pow[fy, 2]]) + 
 				(if(sqrt[pow[x' - GX, 2] + pow[y' - GY, 2]] <= RADIUS)
-					then GOAL_REWARD
+					then GOAL-REWARD
 					else 0.0);
 
 	termination {

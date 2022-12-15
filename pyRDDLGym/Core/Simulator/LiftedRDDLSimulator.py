@@ -6,6 +6,7 @@ import warnings
 from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -145,6 +146,9 @@ class LiftedRDDLSimulator:
             var = self.rddl.parse(name)[0]
             if var not in dict_out:
                 dict_out[var] = []
+            if value is None:
+                value = LiftedRDDLSimulator.DEFAULT_VALUES[
+                    self.rddl.variable_ranges[var]]
             dict_out[var].append(value)
         
     def _compile_initial_values(self):
@@ -155,7 +159,6 @@ class LiftedRDDLSimulator:
         self._compile_values_from_dict(self.rddl.interm, values)
         self._compile_values_from_dict(self.rddl.observ, values)
         self._compile_values_from_dict(self.rddl.nonfluents, values)
-        
         init_values, noop_actions = {}, {}
         for var, valuelist in values.items():
             prange = self.rddl.variable_ranges[var]
@@ -873,27 +876,23 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
         self.epsilon = 0.001
         
         self._bounds = {}
-        for pvar in self.domain.pvariables:
-            if pvar.is_state_fluent() or pvar.is_observ_fluent() \
-            or pvar.is_action_fluent():
-                pvars = self.types.pvar_types[pvar.name]
-                if pvars:
-                    for variation in self.types.variations(pvars):
-                        key = pvar.name + '(' + ','.join(variation) + ')'
-                        self._bounds[key] = [-self.BigM, +self.BigM]
-                else:
-                    self._bounds[pvar.name] = [-self.BigM, +self.BigM]
+        actions = set()
+        for var, vartype in self.rddl.variable_types.items():
+            if vartype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
+                if not var.endswith('\''):
+                    ptypes = self.rddl.param_types[var]
+                    for name in self.rddl.grounded_names(var, ptypes):
+                        self._bounds[name] = [-self.BigM, +self.BigM]
+                if vartype == 'action-fluent':
+                    actions.add(var)
 
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
-        actions = {pvar.name 
-                   for pvar in self.domain.pvariables 
-                   if pvar.is_action_fluent()}
-        for precond in self.domain.preconds:
+        for precond in self.rddl.preconditions:
             self._parse_bounds(precond, [], actions)
-
+            
         states = set(self.next_states.values())
-        for invariant in self.domain.invariants:
+        for invariant in self.rddl.invariants:
             self._parse_bounds(invariant, [], states)
 
         for name, bounds in self._bounds.items():
@@ -905,7 +904,7 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
         etype, op = expr.etype
         if etype == 'aggregation' and op == 'forall':
             * pvars, arg = expr.args
-            new_objects = objects + [pvar[1] for pvar in pvars]
+            new_objects = objects + [p[1] for p in pvars]
             self._parse_bounds(arg, new_objects, search_vars)
             
         elif etype == 'boolean' and op == '^':
@@ -916,12 +915,11 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
             var, lims, loc, active = self._parse_bounds_relational(
                 expr, objects, search_vars)
             if var is not None and loc is not None:
-                variations = self.types.variations([obj[1] for obj in objects])
+                variations = self.rddl.variations([o[1] for o in objects])
                 lims = np.ravel(lims)
                 for variation, lim in zip(variations, lims, strict=True):
-                    key = var
-                    if active:
-                        key += '(' + ','.join(variation[i] for i in active) + ')'
+                    key = self.rddl.ground_name(
+                        var, [variation[i] for i in active])
                     if loc == 1:
                         if self._bounds[key][loc] > lim:
                             self._bounds[key][loc] = lim
@@ -936,7 +934,7 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
         is_right_pvar = right.etype[0] == 'pvar' and right.args[0] in search_vars
         
         if (is_left_pvar and is_right_pvar) or op not in ['<=', '<', '>=', '>']:
-            raise Exception(
+            raise RDDLInvalidExpressionError(
                 f'Constraint does not have a structure of '
                 f'<action or state fluent> <op> <rhs>, where:' 
                     f'\n<op> is one of {{<=, <, >=, >}}'
@@ -957,8 +955,8 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
             if args is None:
                 args = []
                 
-            if not self.static.is_non_fluent_expression(const_expr):
-                raise Exception(
+            if not self.rddl.is_non_fluent_expression(const_expr):
+                raise RDDLInvalidExpressionError(
                     f'Bound must be a deterministic function of '
                     f'non-fluents or constants only.\n' + 
                     LiftedRDDLSimulator._print_stack_trace(const_expr))
@@ -968,7 +966,7 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
             lim = const + eps
             
             # TODO: check for duplicate type arguments
-            arg_to_index = {obj[0]: i for i, obj in enumerate(objects)}
+            arg_to_index = {o[0]: i for i, o in enumerate(objects)}
             active = [arg_to_index[arg] for arg in args if arg in arg_to_index]
 
             return var, lim, loc, active
