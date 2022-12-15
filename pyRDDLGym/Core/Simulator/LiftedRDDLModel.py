@@ -66,8 +66,8 @@ class LiftedRDDLModel(RDDLModel):
         '''Given a list of types, computes the cartesian product of all object
         enumerations that corresponds to those types.
         '''
-        if ptypes is None:
-            ptypes = []
+        if ptypes is None or not ptypes:
+            return [()]
         objects_by_type = []
         for ptype in ptypes:
             if ptype not in self.objects:
@@ -96,11 +96,8 @@ class LiftedRDDLModel(RDDLModel):
         whose elements are the grounded representations in the cartesian product 
         of all object enumerations that corresponds to those types.
         '''
-        if ptypes is None or not ptypes:
-            yield name
-        else:
-            for objects in self.variations(ptypes):
-                yield self.ground_name(name, objects)
+        for objects in self.variations(ptypes):
+            yield self.ground_name(name, objects)
         
     def _extract_states(self):
         states, statesranges = {}, {}
@@ -192,8 +189,8 @@ class LiftedRDDLModel(RDDLModel):
             terminals = self._AST.domain.terminals
         if hasattr(self._AST.domain, 'preconds'):
             preconds = self._AST.domain.preconds
-        if hasattr(self._AST.domain, 'constraints'):
-            invariants = self._AST.domain.constraints
+        if hasattr(self._AST.domain, 'invariants'):
+            invariants = self._AST.domain.invariants
         return terminals, preconds, invariants
 
     def _extract_horizon(self):
