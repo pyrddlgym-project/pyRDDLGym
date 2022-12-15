@@ -5,8 +5,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidDependencyInCP
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Parser.rddl import RDDL
+from pyRDDLGym.Core.Simulator.LiftedRDDLModel import LiftedRDDLModel
 
 VALID_DEPENDENCIES = {
     'derived-fluent': {'state-fluent', 'derived-fluent'},
@@ -31,25 +30,17 @@ class LiftedRDDLLevelAnalysis:
     according to the RDDL language specification.     
     '''
         
-    def __init__(self, rddl: RDDL, allow_synchronous_state: bool=True) -> None:
+    def __init__(self, rddl: LiftedRDDLModel, 
+                 allow_synchronous_state: bool=True) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
         :param allow_synchronous_state: whether state variables can depend on
-        one another (cycles are still not permitted)
+        one another (cyclic dependencies will still not be permitted)
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
-        
-        self.domain = rddl.domain
-        self.cpfs = {cpf.pvar[1][0]: cpf.expr for cpf in self.domain.cpfs[1]}
-        self.pvars = {pvar.name: pvar for pvar in self.domain.pvariables}
-        self.next_states = {pvar.name + '\'': pvar.name
-                            for pvar in self.domain.pvariables
-                            if pvar.is_state_fluent()}        
-        self.non_fluents = {pvar.name for pvar in self.domain.pvariables
-                            if pvar.is_non_fluent()}
-        
+                
     # ===========================================================================
     # call graph construction
     # ===========================================================================
@@ -58,7 +49,7 @@ class LiftedRDDLLevelAnalysis:
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
-        for name, expr in self.cpfs.items():
+        for name, (_, expr) in self.rddl.cpfs.items():
             self._update_call_graph(cpf_graph, name, expr)
             if name not in cpf_graph:
                 cpf_graph[name] = set()
@@ -67,10 +58,10 @@ class LiftedRDDLLevelAnalysis:
         
         # check validity of reward, constraints, termination
         for name, exprs in [
-            ('reward', [self.domain.reward]),
-            ('precondition', self.domain.preconds),
-            ('invariant', self.domain.invariants),
-            ('termination', self.domain.terminals)
+            ('reward', [self.rddl.reward]),
+            ('precondition', self.rddl.preconditions),
+            ('invariant', self.rddl.invariants),
+            ('termination', self.rddl.terminals)
         ]:
             call_graph = {}
             for expr in exprs:
@@ -83,14 +74,10 @@ class LiftedRDDLLevelAnalysis:
             pass
         elif expr.is_pvariable_expression():
             name, *_ = expr.args
-            if name in self.next_states:
-                pvar = self.pvars[self.next_states[name]]
-            elif name in self.pvars:
-                pvar = self.pvars[name]
-            else:
+            if name not in self.rddl.variable_types:
                 raise RDDLUndefinedVariableError(
                     f'Variable <{name}> in CPF <{cpf}> is not defined.')
-            if pvar.is_fluent():
+            if self.rddl.variable_types[name] != 'non-fluent':
                 graph.setdefault(cpf, set()).add(name)
         elif not expr.is_constant_expression():
             for arg in expr.args:
@@ -101,10 +88,11 @@ class LiftedRDDLLevelAnalysis:
     # ===========================================================================
     
     def _fluent_type(self, fluent):
-        if fluent in self.next_states:
-            return 'next-state-fluent'
-        elif fluent in self.pvars:
-            return self.pvars[fluent].fluent_type       
+        if fluent in self.rddl.variable_types:
+            fluent_type = self.rddl.variable_types[fluent]
+            if fluent.endswith('\''):
+                fluent_type = 'next-state-fluent'
+            return fluent_type
         else:
             return fluent 
 
@@ -139,7 +127,7 @@ class LiftedRDDLLevelAnalysis:
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
     def _validate_cpf_definitions(self, graph): 
-        for name in self.pvars.keys():
+        for name in self.rddl.variable_types.keys():
             fluent_type = self._fluent_type(name)
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-state-fluent'
@@ -158,10 +146,10 @@ class LiftedRDDLLevelAnalysis:
         
         levels, result = {}, {}
         for var in order:
-            if var in self.cpfs:
+            if var in self.rddl.cpfs:
                 level = 0
                 for child in graph[var]:
-                    if child in self.cpfs:
+                    if child in self.rddl.cpfs:
                         level = max(level, levels[child] + 1)
                 result.setdefault(level, set()).add(var)
                 levels[var] = level
@@ -196,27 +184,3 @@ class LiftedRDDLLevelAnalysis:
             unmarked.remove(var)
             order.append(var)
     
-    # ===========================================================================
-    # utilities
-    # ===========================================================================
-    
-    def is_non_fluent_expression(self, expr: Expression) -> bool:
-        '''Determines whether or not expression is a non-fluent.
-        
-        @param expr: expression to check
-        '''
-        if isinstance(expr, tuple):
-            return True
-        etype, _ = expr.etype
-        if etype == 'constant':
-            return True
-        elif etype == 'randomvar':
-            return False
-        elif etype == 'pvar':
-            return expr.args[0] in self.non_fluents
-        else:
-            for arg in expr.args:
-                if not self.is_non_fluent_expression(arg):
-                    return False
-            return True
-

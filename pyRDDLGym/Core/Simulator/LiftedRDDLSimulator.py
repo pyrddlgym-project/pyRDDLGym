@@ -5,16 +5,18 @@ import warnings
 
 from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Parser.expr import Expression, Value
-from pyRDDLGym.Core.Parser.rddl import RDDL
 from pyRDDLGym.Core.Simulator.LiftedRDDLLevelAnalysis import LiftedRDDLLevelAnalysis
-from pyRDDLGym.Core.Simulator.LiftedRDDLTypeAnalysis import LiftedRDDLTypeAnalysis
+from pyRDDLGym.Core.Simulator.LiftedRDDLModel import LiftedRDDLModel
+from pyRDDLGym.Core.Simulator.LiftedRDDLTensors import LiftedRDDLTensors
 
 Args = Dict[str, Value]
 
@@ -39,7 +41,7 @@ class LiftedRDDLSimulator:
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
     def __init__(self,
-                 rddl: RDDL,
+                 rddl: LiftedRDDLModel,
                  allow_synchronous_state: bool=True,
                  rng: np.random.Generator=np.random.default_rng(),
                  debug: bool=False) -> None:
@@ -54,24 +56,23 @@ class LiftedRDDLSimulator:
         self.rng = rng
         self.debug = debug
         
-        self.domain = rddl.domain
-        self.instance = rddl.instance
-        self.non_fluents = rddl.non_fluents
-        
         # static analysis and compilation
         self.static = LiftedRDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
-        self.next_states = self.static.next_states
-        self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
+        self.tensors = LiftedRDDLTensors(rddl, debug)
         
         # initialize all fluent and non-fluent values
-        self._compile_initial_values()
+        self.init_values, self.noop_actions = self._compile_initial_values()
         self.subs = self.init_values.copy()
+        self.next_states = {var + '\'': var
+                            for var, ftype in rddl.variable_types.items()
+                            if ftype == 'state-fluent' 
+                            and not var.endswith('\'')}
             
         # for a POMDP
-        self.observ_fluents = [pvar.name 
-                               for pvar in self.domain.pvariables 
-                               if pvar.is_observ_fluent()]
+        self.observ_fluents = [var 
+                               for var, ftype in rddl.variable_types.items()
+                               if ftype == 'observ-fluent']
         self._pomdp = bool(self.observ_fluents)
         
         # basic operations
@@ -139,50 +140,39 @@ class LiftedRDDLSimulator:
     # compilation time
     # ===========================================================================
     
+    def _compile_values_from_dict(self, dict_in, dict_out):
+        for name, value in dict_in.items():
+            var = self.rddl.parse(name)[0]
+            if var not in dict_out:
+                dict_out[var] = []
+            dict_out[var].append(value)
+        
     def _compile_initial_values(self):
+        values = {}
+        self._compile_values_from_dict(self.rddl.states, values)
+        self._compile_values_from_dict(self.rddl.actions, values)
+        self._compile_values_from_dict(self.rddl.derived, values)
+        self._compile_values_from_dict(self.rddl.interm, values)
+        self._compile_values_from_dict(self.rddl.observ, values)
+        self._compile_values_from_dict(self.rddl.nonfluents, values)
         
-        # get default values from domain
-        self.init_values = {}
-        self.noop_actions = {}
-        for pvar in self.domain.pvariables:
-            name = pvar.name                             
-            ptypes = pvar.param_types
-            prange = pvar.range
+        init_values, noop_actions = {}, {}
+        for var, valuelist in values.items():
+            prange = self.rddl.variable_ranges[var]
             dtype = LiftedRDDLSimulator.NUMPY_TYPES[prange]
-            
-            value = pvar.default
-            if value is None:
-                value = LiftedRDDLSimulator.DEFAULT_VALUES[prange]
-            self.init_values[name] = self.types.tensor(ptypes, value, dtype)
-            
-            if pvar.is_action_fluent():
-                self.noop_actions[name] = self.init_values[name]
+            if len(valuelist) == 1:
+                init_values[var] = dtype(valuelist[0])
+            else:
+                ptypes = self.rddl.param_types[var]
+                newshape = self.tensors.shape(ptypes)
+                values = np.array(valuelist, dtype=dtype)
+                values = np.reshape(values, newshape=newshape, order='C')
+                init_values[var] = values            
+            if self.rddl.variable_types[var] == 'action-fluent':
+                noop_actions[var] = init_values[var]
         
-        # override default values with instance
-        blocks = {}
-        if hasattr(self.instance, 'init_state'):
-            blocks['init-state'] = self.instance.init_state
-        if hasattr(self.non_fluents, 'init_non_fluent'):
-            blocks['non-fluents'] = self.non_fluents.init_non_fluent
-        
-        for block_name, block_content in blocks.items():
-            for (name, objects), value in block_content:
-                if name not in self.init_values:
-                    raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> in {block_name} is not valid.')      
-                                  
-                if self.types.count_type_args(name):
-                    self.types.put(name, objects, value, self.init_values[name])
-                else:
-                    self.init_values[name] = value
-                
-        if self.debug:
-            val = ''.join(f'\n\t\t{k}: {v}' for k, v in self.init_values.items())
-            warnings.warn(
-                f'compiling initial value info:'
-                f'\n\tvalues ={val}\n'
-            )
-
+        return init_values, noop_actions        
+               
     # ===========================================================================
     # error checks
     # ===========================================================================
@@ -276,20 +266,33 @@ class LiftedRDDLSimulator:
         valid_actions = set(new_actions.keys())
         
         for action, value in actions.items():
-            name, objects = self.types.parse(action, valid_actions)            
-            self.types.put(name, objects, value, new_actions[name])
+            var, objects = self.rddl.parse(action)
+            if var not in valid_actions:
+                raise RDDLInvalidActionError(f'Action <{var}> is invalid.')
+            if not self.is_compatible(var, objects):
+                raise RDDLInvalidObjectError(
+                    f'Objects of action-fluent <{action}> do not match the '
+                    f'required types {self.rddl.param_types[var]}.')
+                
+            tensor = new_actions[var]
+            if not np.can_cast(type(value), tensor.dtype, casting='same_kind'):
+                raise RDDLTypeError(
+                    f'Value for pvariable <{var}> of type {type(value)} '
+                    f'cannot be cast to type {tensor.dtype}.')
+            
+            tensor[self.tensors.coordinates(objects, '')] = value
             
         return new_actions
     
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
-        for i, invariant in enumerate(self.domain.invariants):
+        for i, invariant in enumerate(self.rddl.invariants):
             sample = self._sample(invariant, [], self.subs)
             LiftedRDDLSimulator._check_type(
-                sample, bool, f'Invariant {i}', invariant)
+                sample, bool, f'Invariant {i + 1}', invariant)
             if not sample.item():
                 raise RDDLStateInvariantNotSatisfiedError(
-                    f'Invariant {i} is not satisfied.\n' + 
+                    f'Invariant {i + 1} is not satisfied.\n' + 
                     LiftedRDDLSimulator._print_stack_trace(invariant))
     
     def check_action_preconditions(self, actions: Args) -> None:
@@ -298,28 +301,28 @@ class LiftedRDDLSimulator:
         subs = self.subs
         subs.update(actions)
         
-        for i, precond in enumerate(self.domain.preconds):
+        for i, precond in enumerate(self.rddl.preconditions):
             sample = self._sample(precond, [], subs)
             LiftedRDDLSimulator._check_type(
-                sample, bool, f'Precondition {i}', precond)
+                sample, bool, f'Precondition {i + 1}', precond)
             if not sample.item():
                 raise RDDLActionPreconditionNotSatisfiedError(
-                    f'Precondition {i} is not satisfied.\n' + 
+                    f'Precondition {i + 1} is not satisfied.\n' + 
                     LiftedRDDLSimulator._print_stack_trace(precond))
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
-        for i, terminal in enumerate(self.domain.terminals):
+        for i, terminal in enumerate(self.rddl.terminals):
             sample = self._sample(terminal, [], self.subs)
             LiftedRDDLSimulator._check_type(
-                sample, bool, f'Termination {i}', terminal)
+                sample, bool, f'Termination {i + 1}', terminal)
             if sample.item():
                 return True
         return False
     
     def sample_reward(self) -> float:
         '''Samples the current reward given the current state and action.'''
-        sample = self._sample(self.domain.reward, [], self.subs)
+        sample = self._sample(self.rddl.reward, [], self.subs)
         return float(sample.item())
     
     def reset(self) -> Union[Dict[str, None], Args]:
@@ -328,12 +331,12 @@ class LiftedRDDLSimulator:
         
         self.state = {}
         for var in self.next_states.values():
-            self.state.update(self.types.expand(var, self.subs[var]))
+            self.state.update(self.tensors.expand(var, self.subs[var]))
         
-        if self._pomdp:            
+        if self._pomdp: 
             obs = {}
             for var in self.observ_fluents:
-                obs.update(self.types.expand(var, self.subs[var]))
+                obs.update(self.tensors.expand(var, self.subs[var]))
             obs = {o: None for o in obs.keys()}
         else:
             obs = self.state
@@ -352,9 +355,8 @@ class LiftedRDDLSimulator:
         
         for _, cpfs in self.levels.items():
             for cpf in cpfs:
-                ptypes = self.types.cpf_types[cpf]
-                expr = self.static.cpfs[cpf]
-                subs[cpf] = self._sample(expr, ptypes, subs)
+                objects, expr = self.rddl.cpfs[cpf]
+                subs[cpf] = self._sample(expr, objects, subs)
         reward = self.sample_reward()
         
         for next_state, state in self.next_states.items():
@@ -362,18 +364,17 @@ class LiftedRDDLSimulator:
         
         self.state = {}
         for var in self.next_states.values():
-            self.state.update(self.types.expand(var, subs[var]))
+            self.state.update(self.tensors.expand(var, subs[var]))
         
-        if self._pomdp:            
+        if self._pomdp: 
             obs = {}
             for var in self.observ_fluents:
-                obs.update(self.types.expand(var, subs[var]))
+                obs.update(self.tensors.expand(var, subs[var]))
             obs = {o: None for o in obs.keys()}
         else:
             obs = self.state
         
-        done = self.check_terminal_states()
-        
+        done = self.check_terminal_states()        
         return obs, reward, done
         
     # ===========================================================================
@@ -410,7 +411,7 @@ class LiftedRDDLSimulator:
         
     def _sample_constant(self, expr, objects, _):
         if not hasattr(expr, 'cached_value'):
-            *_, shape = self.types.map(
+            *_, shape = self.tensors.map(
                 '', [], objects,
                 str(expr), LiftedRDDLSimulator._print_stack_trace(expr))  
             expr.cached_value = np.full(shape=shape, fill_value=expr.args)            
@@ -437,7 +438,7 @@ class LiftedRDDLSimulator:
                 LiftedRDDLSimulator._print_stack_trace(expr))
         
         if not hasattr(expr, 'cached_sub_map'):
-            expr.cached_sub_map = self.types.map(
+            expr.cached_sub_map = self.tensors.map(
                 var, pvars, objects,
                 str(expr), LiftedRDDLSimulator._print_stack_trace(expr))       
         permute, identity, new_dims = expr.cached_sub_map
@@ -521,9 +522,14 @@ class LiftedRDDLSimulator:
         if not hasattr(expr, 'cached_objects'):
             new_objects = objects + [p[1] for p in pvars]
             axis = tuple(range(len(objects), len(new_objects)))
-            self.types.validate_types(
-                new_objects, LiftedRDDLSimulator._print_stack_trace(expr))
-            
+             
+            fails = [p for _, p in new_objects if p not in self.rddl.objects]
+            if fails:
+                raise RDDLInvalidObjectError(
+                    f'Type(s) {fails} are not defined, '
+                    f'must be one of {set(self.rddl.objects.keys())}.\n' + 
+                    LiftedRDDLSimulator._print_stack_trace(expr))
+                
             if self.debug:
                 warnings.warn(
                     f'computing object info for aggregation:'
@@ -532,8 +538,7 @@ class LiftedRDDLSimulator:
                     f'\n\toutput objects ={objects}'
                     f'\n\treduction axis ={axis}'
                     f'\n\treduction op   ={valid_ops[op]}\n'
-                )
-                
+                )                
             expr.cached_objects = (new_objects, axis)
         new_objects, axis = expr.cached_objects
         
