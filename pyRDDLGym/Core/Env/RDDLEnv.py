@@ -2,14 +2,13 @@ import copy
 import gym
 from gym.spaces import Discrete, Dict, Box
 import numpy as np
-import pygame
+# import pygame
 
-from pyRDDLGym.Core.Parser import parser as parser
-from pyRDDLGym.Core.Parser import RDDLReader as RDDLReader
-from pyRDDLGym.Core.Grounder import RDDLGrounder as RDDLGrounder
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
+from pyRDDLGym.Core.Parser import parser
+from pyRDDLGym.Core.Parser import RDDLReader
+from pyRDDLGym.Core.Simulator.LiftedRDDLSimulator import LiftedRDDLSimulatorWConstraints
 
-from pyRDDLGym.Visualizer.TextViz import TextVisualizer
+# from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 
 class RDDLEnv(gym.Env):
@@ -19,25 +18,24 @@ class RDDLEnv(gym.Env):
         self.enforce_action_constraints = enforce_action_constraints
         
         # read and parse domain and instance
-        MyReader = RDDLReader.RDDLReader(domain, instance)
-        domain = MyReader.rddltxt
+        reader = RDDLReader.RDDLReader(domain, instance)
+        domain = reader.rddltxt
 
         # parse RDDL file
-        MyRDDLParser = parser.RDDLParser(lexer=None, verbose=False)
-        MyRDDLParser.build()
-        rddl_ast = MyRDDLParser.parse(domain)
-
-        # ground domain
-        grounder = RDDLGrounder.RDDLGrounder(rddl_ast)
-        self.model = grounder.Ground()
+        parser = parser.RDDLParser(lexer=None, verbose=False)
+        parser.build()
+        rddl = parser.parse(domain)
 
         # define the model sampler
-        self.sampler = RDDLSimulatorWConstraints(self.model)
+        self.sampler = LiftedRDDLSimulatorWConstraints(rddl)
 
         # set roll-out parameters
-        self.horizon = self.model.horizon
-        self.discount = self.model.discount
-        self._NumConcurrentActions = self.model.max_allowed_actions
+        self.horizon = rddl.instance.horizon
+        self.discount = rddl.instance.discount
+        self.max_allowed_actions = rddl.instance.max_nondef_actions
+        if self.max_allowed_actions == 'pos-inf':
+            self.max_allowed_actions = np.inf
+            
         self.currentH = 0
         self.done = False
 
@@ -100,20 +98,20 @@ class RDDLEnv(gym.Env):
 
         # set the visualizer
         # the next line should be changed for the default behaviour - TextVix
-        self._visualizer = TextVisualizer(self.model)
-        self._movie_generator = None
+        # self._visualizer = TextVisualizer(self.model)
+        # self._movie_generator = None
         self.state = None
-        self.image = None
-        self.window = None
-        self.to_render = False
-        self.image_size = None
+        # self.image = None
+        # self.window = None
+        # self.to_render = False
+        # self.image_size = None
 
-    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False):
-        self._visualizer = viz(self.model)
-        self._movie_generator = movie_gen
-        self._movie_per_episode = movie_per_episode
-        self._movies = 0
-        self.to_render = False
+    # def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False):
+    #     self._visualizer = viz(self.model)
+    #     self._movie_generator = movie_gen
+    #     self._movie_per_episode = movie_per_episode
+    #     self._movies = 0
+    #     self.to_render = False
 
     def step(self, actions):
 
@@ -122,11 +120,11 @@ class RDDLEnv(gym.Env):
 
         # make sure the action length is of currect size
         action_length = len(actions)
-        if (action_length > self._NumConcurrentActions):
+        if (action_length > self.max_allowed_actions):
             raise Exception(
-                f'Invalid action, expected maximum of '
-                f'{self._NumConcurrentActions} entries, '
-                f'{action_length} were were given.')
+                f'Invalid action, expected at most '
+                f'{self.max_allowed_actions} entries, '
+                f'but {action_length} were given.')
         
         # set full action vector
         # values are clipped to be inside the feasible action space
@@ -166,56 +164,49 @@ class RDDLEnv(gym.Env):
         obs, self.done = self.sampler.reset()
         self.state = self.sampler.states
 
-        image = self._visualizer.render(self.state)
-        if self._movie_generator is not None:
-            if self._movie_per_episode:
-                self._movie_generator.save_gif(
-                    self._movie_generator.env_name + '_' + str(self._movies))
-                self._movies += 1
-            self._movie_generator.save_frame(image)            
-        self.image_size = image.size
+        # image = self._visualizer.render(self.state)
+        # if self._movie_generator is not None:
+        #     if self._movie_per_episode:
+        #         self._movie_generator.save_gif(
+        #             self._movie_generator.env_name + '_' + str(self._movies))
+        #         self._movies += 1
+        #     self._movie_generator.save_frame(image)            
+        # self.image_size = image.size
         return obs
 
-    def pilImageToSurface(self, pilImage):
-        return pygame.image.fromstring(
-            pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
+    # def pilImageToSurface(self, pilImage):
+    #     return pygame.image.fromstring(
+    #         pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
-    def render(self, to_display=True):
-        if self._visualizer is not None:
-            image = self._visualizer.render(self.state)
-            if to_display:
-                if not self.to_render:
-                    self.to_render = True
-                    pygame.init()
-                    self.window = pygame.display.set_mode(
-                        (self.image_size[0], self.image_size[1]))
-                self.window.fill(0)
-                pygameSurface = self.pilImageToSurface(image)
-                self.window.blit(pygameSurface, (0, 0))
-                pygame.display.flip()
-                
-            if self._movie_generator is not None:
-                self._movie_generator.save_frame(image)
-                
-        return image
+    # def render(self, to_display=True):
+    #     if self._visualizer is not None:
+    #         image = self._visualizer.render(self.state)
+    #         if to_display:
+    #             if not self.to_render:
+    #                 self.to_render = True
+    #                 pygame.init()
+    #                 self.window = pygame.display.set_mode(
+    #                     (self.image_size[0], self.image_size[1]))
+    #             self.window.fill(0)
+    #             pygameSurface = self.pilImageToSurface(image)
+    #             self.window.blit(pygameSurface, (0, 0))
+    #             pygame.display.flip()
+    #
+    #         if self._movie_generator is not None:
+    #             self._movie_generator.save_frame(image)
+    #
+    #     return image
     
-    def close(self):
-        if self.to_render:
-            pygame.display.quit()
-            pygame.quit()
-            
-            if self._movie_generator is not None:
-                self._movie_generator.save_gif(
-                    self._movie_generator.env_name + '_' + str(self._movies))
-                self._movies += 1
+    # def close(self):
+    #     if self.to_render:
+    #         pygame.display.quit()
+    #         pygame.quit()
+    #
+    #         if self._movie_generator is not None:
+    #             self._movie_generator.save_gif(
+    #                 self._movie_generator.env_name + '_' + str(self._movies))
+    #             self._movies += 1
 
     @property
-    def NumConcurrentActions(self):
-        return self._NumConcurrentActions
-
-    def clip(self, val, low, high):
-        return max(min(val, high), low)
-
-    @property
-    def non_fluents(self):
-        return self.model.nonfluents
+    def numConcurrentActions(self):
+        return self.max_allowed_actions
