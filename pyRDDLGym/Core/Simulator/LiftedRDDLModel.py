@@ -63,6 +63,9 @@ class LiftedRDDLModel(RDDLModel):
         return var_types
 
     def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
+        '''Given a list of types, computes the cartesian product of all object
+        enumerations that corresponds to those types.
+        '''
         if ptypes is None:
             ptypes = []
         objects_by_type = []
@@ -74,15 +77,30 @@ class LiftedRDDLModel(RDDLModel):
             objects_by_type.append(self.objects[ptype])
         return itertools.product(*objects_by_type)
     
+    def ground_name(self, name: str, objects: Iterable[str]) -> str:
+        '''Given a variable name and list of objects as arguments, produces a 
+        grounded representation <variable>_<obj1>_<obj2>_...
+        '''
+        is_primed = name.endswith('\'')
+        var = name
+        if is_primed:
+            var = var[:-1]
+        if objects is not None and objects:
+            var += '_' + '_'.join(objects)
+        if is_primed:
+            var += '\''
+        return var
+    
     def grounded_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
+        '''Given a variable name and list of types, produces a new iterator
+        whose elements are the grounded representations in the cartesian product 
+        of all object enumerations that corresponds to those types.
+        '''
         if ptypes is None or not ptypes:
             yield name
         else:
-            for variation in self.variations(ptypes):
-                if name.endswith('\''):
-                    yield name[:-1] + '_' + '_'.join(variation) + '\''
-                else:
-                    yield name + '_' + '_'.join(variation)
+            for objects in self.variations(ptypes):
+                yield self.ground_name(name, objects)
         
     def _extract_states(self):
         states, statesranges = {}, {}
@@ -98,10 +116,9 @@ class LiftedRDDLModel(RDDLModel):
         initstates = states.copy()
         if hasattr(self._AST.instance, 'init_state'):
             for (var, params), value in self._AST.instance.init_state:
-                if params is not None and params:
-                    var = var + '_' + '_'.join(params)
-                if var in initstates:
-                    initstates[var] = value
+                name = self.ground_name(var, params)
+                if name in initstates:
+                    initstates[name] = value
         return states, statesranges, nextstates, prevstates, initstates
     
     def _extract_actions(self):
@@ -143,10 +160,9 @@ class LiftedRDDLModel(RDDLModel):
                         
         if hasattr(self._AST.non_fluents, 'init_non_fluent'):
             for (var, params), value in self._AST.non_fluents.init_non_fluent:
-                if params is not None and params:
-                    var = var + '_' + '_'.join(params)
-                if var in non_fluents:
-                    non_fluents[var] = value             
+                name = self.ground_name(var, params)
+                if name in non_fluents:
+                    non_fluents[name] = value             
         return non_fluents
     
     def _extract_variables(self):
@@ -228,8 +244,6 @@ class LiftedRDDLModel(RDDLModel):
     
     def is_non_fluent_expression(self, expr: Expression) -> bool:
         '''Determines whether or not expression is a non-fluent.
-        
-        @param expr: expression to check
         '''
         if isinstance(expr, tuple):
             return True
