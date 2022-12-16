@@ -5,7 +5,6 @@ import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -162,7 +161,7 @@ class RDDLSimulator:
         
     def _compile_initial_values(self):
         values = {}
-        self._compile_values_from_dict(self.rddl.states, values)
+        self._compile_values_from_dict(self.rddl.init_state, values)
         self._compile_values_from_dict(self.rddl.actions, values)
         self._compile_values_from_dict(self.rddl.derived, values)
         self._compile_values_from_dict(self.rddl.interm, values)
@@ -940,13 +939,14 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         is_right_pvar = right.etype[0] == 'pvar' and right.args[0] in search_vars
         
         if (is_left_pvar and is_right_pvar) or op not in ['<=', '<', '>=', '>']:
-            raise RDDLInvalidExpressionError(
+            warnings.warn(
                 f'Constraint does not have a structure of '
                 f'<action or state fluent> <op> <rhs>, where:' 
                     f'\n<op> is one of {{<=, <, >=, >}}'
                     f'\n<rhs> is a deterministic function of '
                     f'non-fluents or constants only.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
+            return None, 0.0, None, []
             
         elif not is_left_pvar and not is_right_pvar:
             return None, 0.0, None, []
@@ -962,10 +962,11 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                 args = []
                 
             if not self.rddl.is_non_fluent_expression(const_expr):
-                raise RDDLInvalidExpressionError(
+                warnings.warn(
                     f'Bound must be a deterministic function of '
                     f'non-fluents or constants only.\n' + 
                     RDDLSimulator._print_stack_trace(const_expr))
+                return None, 0.0, None, []
             
             const = self._sample(const_expr, objects, self.subs)
             eps, loc = self._get_op_code(op, is_right=is_left_pvar)
