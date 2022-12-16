@@ -26,14 +26,6 @@ class JaxRDDLCompiler:
         'bool': bool
     }
     
-    DEFAULT_VALUES = {
-        'int': 0,
-        'real': 0.0,
-        'bool': False
-    }
-    
-    VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-
     def __init__(self, rddl: RDDLLiftedModel,
                  force_continuous: bool=False,
                  allow_synchronous_state: bool=True,
@@ -49,7 +41,10 @@ class JaxRDDLCompiler:
         self.tensors = RDDLTensors(rddl, debug)
         
         # initialize all fluent and non-fluent values
-        self.init_values, self.noop_actions = self._compile_initial_values()
+        self.init_values = self.tensors.init_values
+        self.noop_actions = {var: values 
+                             for var, values in self.init_values.items() 
+                             if self.rddl.variable_types[var] == 'action-fluent'}
         self.next_states = {var + '\'': var
                             for var, ftype in rddl.variable_types.items()
                             if ftype == 'state-fluent'}
@@ -118,48 +113,6 @@ class JaxRDDLCompiler:
     # main compilation subroutines
     # ===========================================================================
      
-    def _compile_values_from_dict(self, dict_in, dict_out):
-        for name, value in dict_in.items():
-            var = self.rddl.parse(name)[0]
-            if var not in dict_out:
-                dict_out[var] = []
-            if value is None:
-                value = JaxRDDLCompiler.DEFAULT_VALUES[
-                    self.rddl.variable_ranges[var]]
-            dict_out[var].append(value)
-        
-    def _compile_initial_values(self):
-        values = {}
-        self._compile_values_from_dict(self.rddl.init_state, values)
-        self._compile_values_from_dict(self.rddl.actions, values)
-        self._compile_values_from_dict(self.rddl.derived, values)
-        self._compile_values_from_dict(self.rddl.interm, values)
-        self._compile_values_from_dict(self.rddl.observ, values)
-        self._compile_values_from_dict(self.rddl.nonfluents, values)
-        
-        init_values, noop_actions = {}, {}
-        for var, valuelist in values.items():
-            prange = self.rddl.variable_ranges[var]
-            dtype = JaxRDDLCompiler.JAX_TYPES[prange]
-            if self.rddl.param_types[var]:
-                ptypes = self.rddl.param_types[var]
-                newshape = self.tensors.shape(ptypes)
-                values = np.array(valuelist, dtype=dtype)
-                values = np.reshape(values, newshape=newshape, order='C')
-                init_values[var] = values            
-            else:
-                if len(valuelist) != 1:
-                    raise RDDLInvalidObjectError(
-                        f'Internal error: value list for non-parameterized '
-                        f'variable <{var}> must be length 1, '
-                        f'got length {len(valuelist)}.')
-                init_values[var] = dtype(valuelist[0])
-                
-            if self.rddl.variable_types[var] == 'action-fluent':
-                noop_actions[var] = init_values[var]
-        
-        return init_values, noop_actions  
-            
     def compile(self) -> None: 
         self.invariants = self._compile_constraints(self.rddl.invariants)
         self.preconditions = self._compile_constraints(self.rddl.preconditions)
