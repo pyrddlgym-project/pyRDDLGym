@@ -9,8 +9,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionE
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Static.RDDLModel import RDDLModel
 
 PRIME = '\''
 

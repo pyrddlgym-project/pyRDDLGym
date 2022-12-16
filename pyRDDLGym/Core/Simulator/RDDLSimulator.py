@@ -14,11 +14,11 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
+from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Parser.expr import Expression, Value
 from pyRDDLGym.Core.Simulator.RDDLTensors import RDDLTensors
-from pyRDDLGym.Core.Static.RDDLDecompiler import RDDLDecompiler
-from pyRDDLGym.Core.Static.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Static.RDDLLevelAnalysis import RDDLLevelAnalysis
 
 Args = Dict[str, Value]
 

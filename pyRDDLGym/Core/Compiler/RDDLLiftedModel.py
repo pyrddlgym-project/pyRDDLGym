@@ -4,8 +4,9 @@ from typing import Iterable, List, Tuple
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
+
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Static.RDDLModel import RDDLModel
 
 
 class RDDLLiftedModel(RDDLModel):

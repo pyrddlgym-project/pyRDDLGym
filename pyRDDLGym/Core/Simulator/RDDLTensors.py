@@ -6,8 +6,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgume
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Parser.expr import Value
-from pyRDDLGym.Core.Static.RDDLLiftedModel import RDDLLiftedModel
 
 
 class RDDLTensors:
