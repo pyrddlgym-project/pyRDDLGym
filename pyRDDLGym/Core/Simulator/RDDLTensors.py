@@ -5,6 +5,7 @@ import warnings
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Parser.expr import Value
@@ -58,8 +59,12 @@ class RDDLTensors:
             if var not in dict_out:
                 dict_out[var] = []
             if value is None:
-                value = RDDLTensors.DEFAULT_VALUES[
-                    self.rddl.variable_ranges[var]]
+                prange = self.rddl.variable_ranges[var]
+                if prange not in RDDLTensors.DEFAULT_VALUES:
+                    raise RDDLTypeError(
+                        f'Type <{prange}> of variable <{var}> is not valid, '
+                        f'must be one of {set(RDDLTensors.DEFAULT_VALUES.keys())}.')
+                value = RDDLTensors.DEFAULT_VALUES[prange]
             dict_out[var].append(value)
             
     def _compile_init_values(self):
@@ -74,6 +79,10 @@ class RDDLTensors:
         init_values = {}
         for var, vlist in values.items():
             prange = self.rddl.variable_ranges[var]
+            if prange not in RDDLTensors.NUMPY_TYPES:
+                raise RDDLTypeError(
+                    f'Type <{prange}> of variable <{var}> is not valid, '
+                    f'must be one of {set(RDDLTensors.NUMPY_TYPES.keys())}.')
             dtype = RDDLTensors.NUMPY_TYPES[prange]
             if self.rddl.param_types[var]:
                 ptypes = self.rddl.param_types[var]
@@ -126,8 +135,7 @@ class RDDLTensors:
     def map(self, var: str,
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
-            expr: str,
-            msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
+            expr: str, msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
         '''Given:       
         1. a pvariable var
         2. a list of objects [o1, ...] at which var should be evaluated, and 
@@ -168,8 +176,8 @@ class RDDLTensors:
         n_out = len(sign_out)
         if n_out > n_max:
             raise RDDLNotImplementedError(
-                f'Up to {n_max}-D are supported, '
-                f'but variable <{var}> is {n_out}-D.'
+                f'At most {n_max} object arguments are supported, '
+                f'but variable <{var}> has {n_out} arguments.'
                 f'\n{msg}')
         
         # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
