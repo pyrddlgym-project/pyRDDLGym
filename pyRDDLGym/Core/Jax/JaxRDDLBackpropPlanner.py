@@ -7,15 +7,16 @@ from typing import Dict, Generator
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
+
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import JaxRDDLCompilerWithGrad
-from pyRDDLGym.Core.Parser.rddl import RDDL
 
  
 class JaxRDDLBackpropPlanner:
     
     def __init__(self,
-                 rddl: RDDL,
+                 rddl: RDDLLiftedModel,
                  key: jax.random.PRNGKey,
                  batch_size_train: int, batch_size_test: int=None,
                  action_bounds: Dict={},
@@ -34,7 +35,6 @@ class JaxRDDLBackpropPlanner:
         self.log_full_path = log_full_path
         
         self._compile_rddl()
-        self._compile_discount_and_horizon()
         self._compile_action_info()        
         self._compile_backprop()
     
@@ -44,37 +44,25 @@ class JaxRDDLBackpropPlanner:
     
     def _compile_rddl(self):
         self.compiled = JaxRDDLCompilerWithGrad(rddl=self.rddl)
-        self.test_compiled = JaxRDDLCompiler(rddl=self.rddl)
         self.compiled.compile()
+        
+        self.test_compiled = JaxRDDLCompiler(rddl=self.rddl)
         self.test_compiled.compile()
 
-    def _compile_discount_and_horizon(self): 
-        horizon = self.rddl.instance.horizon
-        if not (horizon > 0):
-            raise RDDLValueOutOfRangeError(f'Horizon {horizon} not > 0.')
-        self.horizon = horizon
-            
-        discount = self.rddl.instance.discount
-        if not (0 <= discount <= 1):
-            raise RDDLValueOutOfRangeError(f'Discount {discount} not in [0, 1].')
-        self.discount = discount
-    
     def _compile_action_info(self):
-        self.action_info = {}
-        self.action_bounds = {}
-        for pvar in self.rddl.domain.action_fluents.values():
-            name = pvar.name      
-            prange = pvar.range
-            value = self.compiled.init_values[name]
-            shape = (self.horizon,)
-            if hasattr(value, 'shape'):
-                shape = shape + value.shape
-            if prange not in JaxRDDLCompiler.JAX_TYPES:
-                raise RDDLTypeError(
-                    f'Invalid type {prange} of action fluent <{name}>.')
-            self.action_info[name] = (prange, shape)
-            self.action_bounds[name] = self._action_bounds.get(
-                name, (-jnp.inf, +jnp.inf))
+        self.action_info, self.action_bounds = {}, {}
+        for name, prange in self.rddl.variable_ranges.items():
+            if self.rddl.variable_types[name] == 'action-fluent':
+                shape = (self.rddl.horizon,)
+                value = self.compiled.init_values[name]
+                if hasattr(value, 'shape'):
+                    shape = shape + value.shape
+                if prange not in JaxRDDLCompiler.JAX_TYPES:
+                    raise RDDLTypeError(
+                        f'Invalid range {prange} of action-fluent <{name}>.')
+                self.action_info[name] = (prange, shape)
+                self.action_bounds[name] = self._action_bounds.get(
+                    name, (-jnp.inf, +jnp.inf))
     
     # ===========================================================================
     # compilation of back-propagation info
@@ -89,11 +77,11 @@ class JaxRDDLBackpropPlanner:
         # roll-outs
         self.train_rollouts = self.compiled.compile_rollouts(
             policy=train_policy,
-            n_steps=self.horizon,
+            n_steps=self.rddl.horizon,
             n_batch=self.batch_size_train)
         self.test_rollouts = self.test_compiled.compile_rollouts(
             policy=test_policy,
-            n_steps=self.horizon,
+            n_steps=self.rddl.horizon,
             n_batch=self.batch_size_test)
         
         # losses

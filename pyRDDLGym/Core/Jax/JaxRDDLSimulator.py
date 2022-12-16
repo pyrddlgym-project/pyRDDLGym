@@ -1,13 +1,13 @@
-import numpy as np
 import jax
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
+
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Parser.expr import Value
-from pyRDDLGym.Core.Parser.rddl import RDDL
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 Args = Dict[str, Value]
@@ -15,29 +15,39 @@ Args = Dict[str, Value]
 
 class JaxRDDLSimulator(RDDLSimulator):
         
-    def __init__(self,
-                 rddl: RDDL,
+    def __init__(self, rddl: RDDLLiftedModel,
                  key: jax.random.PRNGKey,
-                 raise_error: bool=False, 
+                 raise_error: bool=False,
                  **compiler_args) -> None:
         self.rddl = rddl
         self.key = key
         self.raise_error = raise_error
         
+        # static analysis and compilation
         compiled = JaxRDDLCompiler(rddl, **compiler_args)
         compiled.compile()
         self.compiled = compiled
-
+        self.static = compiled.static
+        self.levels = compiled.levels
+        self.tensors = compiled.tensors
+        
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
         self.terminals = jax.tree_map(jax.jit, compiled.termination)
         self.reward = jax.jit(compiled.reward)
         self.cpfs = jax.tree_map(jax.jit, compiled.cpfs)
         
+        # initialize all fluent and non-fluent values
+        self.init_values, self.noop_actions = \
+            compiled.init_values, compiled.noop_actions
+        self.subs = self.init_values.copy()
+        self.next_states = compiled.next_states
+        self.state = None
+        
         # is a POMDP
-        self.observ_fluents = [pvar.name 
-                               for pvar in self.rddl.domain.pvariables
-                               if pvar.is_observ_fluent()]
+        self.observ_fluents = [var 
+                               for var, ftype in rddl.variable_types.items()
+                               if ftype == 'observ-fluent']
         self._pomdp = bool(self.observ_fluents)
         
     def handle_error_code(self, error, msg):
@@ -47,16 +57,6 @@ class JaxRDDLSimulator(RDDLSimulator):
                 message = f'Internal error in evaluation of {msg}:\n'
                 errors = '\n'.join(f'{i + 1}. {s}' for i, s in enumerate(errors))
                 raise RDDLInvalidExpressionError(message + errors)
-    
-    def _actions_to_tensors(self, actions: Args) -> Dict[str, np.ndarray]:
-        new_actions = {action: np.copy(value) 
-                       for action, value in self.compiled.noop_actions.items()}
-        valid_actions = set(new_actions.keys())
-        
-        for action, value in actions.items():
-            name, objects = self.compiled.types.parse(action, valid_actions)     
-            self.compiled.types.put(name, objects, value, new_actions[name])            
-        return new_actions
     
     def _check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
@@ -98,19 +98,6 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.handle_error_code(error, 'reward function')
         return float(reward)
     
-    def reset(self) -> Args:
-        '''Resets the state variables to their initial values.'''
-        self.subs = self.compiled.init_values.copy()  
-        names = self.observ_fluents if self._pomdp \
-                    else self.compiled.next_states.values()
-        obs = {}
-        for var in names:
-            obs.update(self.compiled.types.expand(var, self.subs[var]))
-        if self._pomdp:
-            obs = {o: None for o in obs.keys()}    
-        done = self.check_terminal_states()        
-        return obs, done
-    
     def step(self, actions: Args) -> Args:
         '''Samples and returns the next state from the cpfs.
         
@@ -120,23 +107,27 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs
         subs.update(actions)
         
-        for name in self.compiled.cpfs.keys():
-            subs[name], self.key, error = self.cpfs[name](subs, self.key)
-            self.handle_error_code(error, f'CPF <{name}>')
-            
+        for _, cpfs in self.levels.items():
+            for cpf in cpfs:
+                subs[cpf], self.key, error = self.cpfs[cpf](subs, self.key)
+                self.handle_error_code(error, f'CPF <{cpf}>')            
         reward = self.sample_reward()
         
-        obs = {}
-        for next_state, state in self.compiled.next_states.items():
-            obs[state] = subs[state] = subs[next_state]
+        for next_state, state in self.next_states.items():
+            subs[state] = subs[next_state]
         
-        names = self.observ_fluents if self._pomdp \
-                    else self.compiled.next_states.values()
-        obs = {}
-        for var in names:
-            obs.update(self.compiled.types.expand(var, subs[var]))
-            
-        done = self.check_terminal_states()
+        self.state = {}
+        for var in self.next_states.values():
+            self.state.update(self.tensors.expand(var, subs[var]))
         
+        if self._pomdp: 
+            obs = {}
+            for var in self.observ_fluents:
+                obs.update(self.tensors.expand(var, subs[var]))
+            obs = {o: None for o in obs.keys()}
+        else:
+            obs = self.state
+        
+        done = self.check_terminal_states()        
         return obs, reward, done
         
