@@ -5,17 +5,18 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidDependencyInCP
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-from pyRDDLGym.Core.Parser.rddl import RDDL
+
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 
 VALID_DEPENDENCIES = {
     'derived-fluent': {'state-fluent', 'derived-fluent'},
-    'interm-fluent': {'action-fluent', 'state-fluent', 
+    'interm-fluent': {'action-fluent', 'state-fluent',
                       'derived-fluent', 'interm-fluent'},
-    'next-state-fluent': {'action-fluent', 'state-fluent', 
+    'next-state-fluent': {'action-fluent', 'state-fluent',
                           'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-    'observ-fluent': {'action-fluent', 
+    'observ-fluent': {'action-fluent',
                       'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-    'reward': {'action-fluent', 'state-fluent', 
+    'reward': {'action-fluent', 'state-fluent',
                'derived-fluent', 'interm-fluent', 'next-state-fluent'},
     'invariant': {'state-fluent'},
     'precondition': {'state-fluent', 'action-fluent'},
@@ -23,30 +24,24 @@ VALID_DEPENDENCIES = {
 }
 
     
-class LiftedRDDLLevelAnalysis:
+class RDDLLevelAnalysis:
     '''Performs graphical analysis of a RDDL domain, including dependency
     structure of CPFs, performs topological sort to figure out order of evaluation,
     and checks for cyclic dependencies and ensures dependencies are valid 
     according to the RDDL language specification.     
     '''
         
-    def __init__(self, rddl: RDDL, allow_synchronous_state: bool=True) -> None:
+    def __init__(self, rddl: RDDLLiftedModel,
+                 allow_synchronous_state: bool=True) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
         :param allow_synchronous_state: whether state variables can depend on
-        one another (cycles are still not permitted)
+        one another (cyclic dependencies will still not be permitted)
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
-        
-        self.domain = rddl.domain
-        self.cpfs = {cpf.pvar[1][0]: cpf.expr for cpf in self.domain.cpfs[1]}
-        self.pvars = {pvar.name: pvar for pvar in self.domain.pvariables}
-        self.next_states = {pvar.name + '\'': pvar.name
-                            for pvar in self.domain.pvariables
-                            if pvar.is_state_fluent()}
-        
+                
     # ===========================================================================
     # call graph construction
     # ===========================================================================
@@ -55,7 +50,7 @@ class LiftedRDDLLevelAnalysis:
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
-        for name, expr in self.cpfs.items():
+        for name, (_, expr) in self.rddl.cpfs.items():
             self._update_call_graph(cpf_graph, name, expr)
             if name not in cpf_graph:
                 cpf_graph[name] = set()
@@ -64,10 +59,10 @@ class LiftedRDDLLevelAnalysis:
         
         # check validity of reward, constraints, termination
         for name, exprs in [
-            ('reward', [self.domain.reward]),
-            ('precondition', self.domain.preconds),
-            ('invariant', self.domain.invariants),
-            ('termination', self.domain.terminals)
+            ('reward', [self.rddl.reward]),
+            ('precondition', self.rddl.preconditions),
+            ('invariant', self.rddl.invariants),
+            ('termination', self.rddl.terminals)
         ]:
             call_graph = {}
             for expr in exprs:
@@ -80,14 +75,10 @@ class LiftedRDDLLevelAnalysis:
             pass
         elif expr.is_pvariable_expression():
             name, *_ = expr.args
-            if name in self.next_states:
-                pvar = self.pvars[self.next_states[name]]
-            elif name in self.pvars:
-                pvar = self.pvars[name]
-            else:
+            if name not in self.rddl.variable_types:
                 raise RDDLUndefinedVariableError(
                     f'Variable <{name}> in CPF <{cpf}> is not defined.')
-            if pvar.is_fluent():
+            if self.rddl.variable_types[name] != 'non-fluent':
                 graph.setdefault(cpf, set()).add(name)
         elif not expr.is_constant_expression():
             for arg in expr.args:
@@ -98,13 +89,8 @@ class LiftedRDDLLevelAnalysis:
     # ===========================================================================
     
     def _fluent_type(self, fluent):
-        if fluent in self.next_states:
-            return 'next-state-fluent'
-        elif fluent in self.pvars:
-            return self.pvars[fluent].fluent_type       
-        else:
-            return fluent 
-
+        return self.rddl.variable_types.get(fluent, fluent)
+    
     def _validate_dependencies(self, graph):
         for cpf, deps in graph.items():
             cpf_type = self._fluent_type(cpf)
@@ -136,7 +122,7 @@ class LiftedRDDLLevelAnalysis:
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
     def _validate_cpf_definitions(self, graph): 
-        for name in self.pvars.keys():
+        for name in self.rddl.variable_types.keys():
             fluent_type = self._fluent_type(name)
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-state-fluent'
@@ -151,14 +137,14 @@ class LiftedRDDLLevelAnalysis:
     
     def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
-        order = LiftedRDDLLevelAnalysis._topological_sort(graph)
+        order = RDDLLevelAnalysis._topological_sort(graph)
         
         levels, result = {}, {}
         for var in order:
-            if var in self.cpfs:
+            if var in self.rddl.cpfs:
                 level = 0
                 for child in graph[var]:
-                    if child in self.cpfs:
+                    if child in self.rddl.cpfs:
                         level = max(level, levels[child] + 1)
                 result.setdefault(level, set()).add(var)
                 levels[var] = level
@@ -171,8 +157,7 @@ class LiftedRDDLLevelAnalysis:
         temp = set()
         while unmarked:
             var = next(iter(unmarked))
-            LiftedRDDLLevelAnalysis._sort_variables(
-                order, graph, var, unmarked, temp)
+            RDDLLevelAnalysis._sort_variables(order, graph, var, unmarked, temp)
         return order
     
     @staticmethod
@@ -187,7 +172,7 @@ class LiftedRDDLLevelAnalysis:
             temp.add(var)
             if var in graph:
                 for dep in graph[var]:
-                    LiftedRDDLLevelAnalysis._sort_variables(
+                    RDDLLevelAnalysis._sort_variables(
                         order, graph, dep, unmarked, temp)
             temp.remove(var)
             unmarked.remove(var)

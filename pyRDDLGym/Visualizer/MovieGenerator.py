@@ -43,7 +43,7 @@ class MovieGenerator:
             os.remove(file)
             removed += 1
         if removed:
-            warnings.warn('removed {} temporary files with path {}'.format(removed, load_path), 
+            warnings.warn(f'removed {removed} temporary files at {load_path}', 
                           FutureWarning, stacklevel=2)
         
         self._n_frame = 0
