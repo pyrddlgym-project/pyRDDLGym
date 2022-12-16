@@ -70,6 +70,7 @@ class RDDLSimulator:
                             for var, ftype in rddl.variable_types.items()
                             if ftype == 'state-fluent' 
                             and not var.endswith('\'')}
+        self.state = None
             
         # for a POMDP
         self.observ_fluents = [var 
@@ -138,6 +139,14 @@ class RDDLSimulator:
             'log': lambda x, y: np.log(x) / np.log(y)
         }
     
+    @property
+    def states(self):
+        return self.state.copy()
+
+    @property
+    def isPOMDP(self):
+        return self._pomdp
+
     # ===========================================================================
     # compilation time
     # ===========================================================================
@@ -160,18 +169,25 @@ class RDDLSimulator:
         self._compile_values_from_dict(self.rddl.interm, values)
         self._compile_values_from_dict(self.rddl.observ, values)
         self._compile_values_from_dict(self.rddl.nonfluents, values)
+        
         init_values, noop_actions = {}, {}
         for var, valuelist in values.items():
             prange = self.rddl.variable_ranges[var]
             dtype = RDDLSimulator.NUMPY_TYPES[prange]
-            if len(valuelist) == 1:
-                init_values[var] = dtype(valuelist[0])
-            else:
+            if self.rddl.param_types[var]:
                 ptypes = self.rddl.param_types[var]
                 newshape = self.tensors.shape(ptypes)
                 values = np.array(valuelist, dtype=dtype)
                 values = np.reshape(values, newshape=newshape, order='C')
                 init_values[var] = values            
+            else:
+                if len(valuelist) != 1:
+                    raise RDDLInvalidObjectError(
+                        f'Internal error: value list for non-parameterized '
+                        f'variable <{var}> must be length 1, '
+                        f'got length {len(valuelist)}.')
+                init_values[var] = dtype(valuelist[0])
+                
             if self.rddl.variable_types[var] == 'action-fluent':
                 noop_actions[var] = init_values[var]
         
@@ -284,7 +300,6 @@ class RDDLSimulator:
                 raise RDDLTypeError(
                     f'Value for pvariable <{var}> of type {type(value)} '
                     f'cannot be cast to type {tensor.dtype}.')
-            
             tensor[self.tensors.coordinates(objects, '')] = value
             
         return new_actions
@@ -337,7 +352,7 @@ class RDDLSimulator:
         self.state = {}
         for var in self.next_states.values():
             self.state.update(self.tensors.expand(var, self.subs[var]))
-        
+        print(self.state)
         if self._pomdp: 
             obs = {}
             for var in self.observ_fluents:
@@ -993,11 +1008,3 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
     @bounds.setter
     def bounds(self, value):
         self._bounds = value
-
-    @property
-    def states(self):
-        return self.state.copy()
-
-    @property
-    def isPOMDP(self):
-        return self._pomdp

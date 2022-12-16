@@ -24,8 +24,11 @@ class RDDLTensors:
         grounded = {}
         for name, (objects, _) in self.rddl.cpfs.items():
             types = self.rddl.param_types[name]
-            key = name.replace('\'', '')
-            grounded[key] = list(self.rddl.grounded_names(name, types))
+            grounded[name] = list(self.rddl.grounded_names(name, types))
+            if name.endswith('\''):
+                unprimed = name[:-1]
+                grounded[unprimed] = list(
+                    self.rddl.grounded_names(unprimed, types))
         
         index_of_object = {}
         for objects in self.rddl.objects.values():
