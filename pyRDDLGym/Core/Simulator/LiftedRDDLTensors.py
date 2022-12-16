@@ -140,7 +140,7 @@ class LiftedRDDLTensors:
                 new_dims.append(len(self.rddl.objects[t_out]))
                 
         # safeguard against any free types
-        free = [types_in[i] for i, p in enumerate(lhs) if p is None]
+        free = {sign_in[i][0] for i, p in enumerate(lhs) if p is None}
         if free:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> has free parameter(s) {free}.'

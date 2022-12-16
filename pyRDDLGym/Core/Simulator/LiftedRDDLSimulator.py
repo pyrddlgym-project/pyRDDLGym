@@ -272,7 +272,7 @@ class LiftedRDDLSimulator:
             var, objects = self.rddl.parse(action)
             if var not in valid_actions:
                 raise RDDLInvalidActionError(f'Action <{var}> is invalid.')
-            if not self.is_compatible(var, objects):
+            if not self.rddl.is_compatible(var, objects):
                 raise RDDLInvalidObjectError(
                     f'Objects of action-fluent <{action}> do not match the '
                     f'required types {self.rddl.param_types[var]}.')
@@ -526,7 +526,7 @@ class LiftedRDDLSimulator:
             new_objects = objects + [p[1] for p in pvars]
             axis = tuple(range(len(objects), len(new_objects)))
              
-            fails = [p for _, p in new_objects if p not in self.rddl.objects]
+            fails = {p for _, p in new_objects if p not in self.rddl.objects}
             if fails:
                 raise RDDLInvalidObjectError(
                     f'Type(s) {fails} are not defined, '
