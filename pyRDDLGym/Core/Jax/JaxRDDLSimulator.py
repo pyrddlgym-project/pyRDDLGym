@@ -37,9 +37,11 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.reward = jax.jit(compiled.reward)
         self.cpfs = jax.tree_map(jax.jit, compiled.cpfs)
         
-        # initialize all fluent and non-fluent values
-        self.init_values, self.noop_actions = \
-            compiled.init_values, compiled.noop_actions
+        # initialize all fluent and non-fluent values        
+        self.init_values = compiled.init_values            
+        self.noop_actions = {var: values 
+                             for var, values in self.init_values.items() 
+                             if self.rddl.variable_types[var] == 'action-fluent'}
         self.subs = self.init_values.copy()
         self.next_states = compiled.next_states
         self.state = None

@@ -7,6 +7,7 @@ import warnings
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
@@ -27,11 +28,9 @@ class JaxRDDLCompiler:
     }
     
     def __init__(self, rddl: RDDLLiftedModel,
-                 force_continuous: bool=False,
                  allow_synchronous_state: bool=True,
                  debug: bool=True) -> None:
         self.rddl = rddl
-        self.force_continuous = force_continuous
         self.debug = debug
         jax.config.update('jax_log_compiles', self.debug)
         
@@ -42,9 +41,6 @@ class JaxRDDLCompiler:
         
         # initialize all fluent and non-fluent values
         self.init_values = self.tensors.init_values
-        self.noop_actions = {var: values 
-                             for var, values in self.init_values.items() 
-                             if self.rddl.variable_types[var] == 'action-fluent'}
         self.next_states = {var + '\'': var
                             for var, ftype in rddl.variable_types.items()
                             if ftype == 'state-fluent'}
@@ -128,7 +124,12 @@ class JaxRDDLCompiler:
         for _, cpfs in self.levels.items():
             for cpf in cpfs:
                 objects, expr = self.rddl.cpfs[cpf]
-                dtype = JaxRDDLCompiler.JAX_TYPES[self.rddl.variable_ranges[cpf]]
+                prange = self.rddl.variable_ranges[cpf]
+                if prange not in JaxRDDLCompiler.JAX_TYPES:
+                    raise RDDLTypeError(
+                        f'Type <{prange}> of CPF <{cpf}> is not valid, '
+                        f'must be one of {set(JaxRDDLCompiler.JAX_TYPES.keys())}.')
+                dtype = JaxRDDLCompiler.JAX_TYPES[prange]
                 jax_cpfs[cpf] = self._jax(expr, objects, dtype=dtype)
         return jax_cpfs
     
@@ -142,8 +143,8 @@ class JaxRDDLCompiler:
         # compute a batched version of the initial values
         init_subs = {}
         for name, value in self.init_values.items():
-            shape = (n_batch,) + np.shape(value)
-            init_subs[name] = np.broadcast_to(value, shape=shape)            
+            init_subs[name] = np.broadcast_to(
+                value, shape=(n_batch,) + np.shape(value))            
         for next_state, state in self.next_states.items():
             init_subs[next_state] = init_subs[state]
         
