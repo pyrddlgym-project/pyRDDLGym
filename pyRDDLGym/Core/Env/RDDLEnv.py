@@ -2,7 +2,7 @@ import copy
 import gym
 from gym.spaces import Discrete, Dict, Box
 import numpy as np
-# import pygame
+import pygame
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -11,8 +11,7 @@ from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
-
-# from pyRDDLGym.Visualizer.TextViz import TextVisualizer
+from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 
 class RDDLEnv(gym.Env):
@@ -100,23 +99,22 @@ class RDDLEnv(gym.Env):
 
         # set the visualizer
         # the next line should be changed for the default behaviour - TextVix
-        # self._visualizer = TextVisualizer(self.model)
-        # self._movie_generator = None
+        self._visualizer = TextVisualizer(self.model)
+        self._movie_generator = None
         self.state = None
-        # self.image = None
-        # self.window = None
-        # self.to_render = False
-        # self.image_size = None
+        self.image = None
+        self.window = None
+        self.to_render = False
+        self.image_size = None
 
-    # def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False):
-    #     self._visualizer = viz(self.model)
-    #     self._movie_generator = movie_gen
-    #     self._movie_per_episode = movie_per_episode
-    #     self._movies = 0
-    #     self.to_render = False
+    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False):
+        self._visualizer = viz(self.model)
+        self._movie_generator = movie_gen
+        self._movie_per_episode = movie_per_episode
+        self._movies = 0
+        self.to_render = False
 
     def step(self, actions):
-
         if self.done:
             return self.state, 0.0, self.done, {}
 
@@ -166,50 +164,48 @@ class RDDLEnv(gym.Env):
         obs, self.done = self.sampler.reset()
         self.state = self.sampler.states
 
-        # image = self._visualizer.render(self.state)
-        # if self._movie_generator is not None:
-        #     if self._movie_per_episode:
-        #         self._movie_generator.save_gif(
-        #             self._movie_generator.env_name + '_' + str(self._movies))
-        #         self._movies += 1
-        #     self._movie_generator.save_frame(image)            
-        # self.image_size = image.size
+        image = self._visualizer.render(self.state)
+        if self._movie_generator is not None:
+            if self._movie_per_episode:
+                self._movie_generator.save_gif(
+                    self._movie_generator.env_name + '_' + str(self._movies))
+                self._movies += 1
+            self._movie_generator.save_frame(image)            
+        self.image_size = image.size
         return obs
 
-    # def pilImageToSurface(self, pilImage):
-    #     return pygame.image.fromstring(
-    #         pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
+    def pilImageToSurface(self, pilImage):
+        return pygame.image.fromstring(
+            pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
     def render(self, to_display=True):
-        pass
-    #     if self._visualizer is not None:
-    #         image = self._visualizer.render(self.state)
-    #         if to_display:
-    #             if not self.to_render:
-    #                 self.to_render = True
-    #                 pygame.init()
-    #                 self.window = pygame.display.set_mode(
-    #                     (self.image_size[0], self.image_size[1]))
-    #             self.window.fill(0)
-    #             pygameSurface = self.pilImageToSurface(image)
-    #             self.window.blit(pygameSurface, (0, 0))
-    #             pygame.display.flip()
-    #
-    #         if self._movie_generator is not None:
-    #             self._movie_generator.save_frame(image)
-    #
-    #     return image
+        if self._visualizer is not None:
+            image = self._visualizer.render(self.state)
+            if to_display:
+                if not self.to_render:
+                    self.to_render = True
+                    pygame.init()
+                    self.window = pygame.display.set_mode(
+                        (self.image_size[0], self.image_size[1]))
+                self.window.fill(0)
+                pygameSurface = self.pilImageToSurface(image)
+                self.window.blit(pygameSurface, (0, 0))
+                pygame.display.flip()
+    
+            if self._movie_generator is not None:
+                self._movie_generator.save_frame(image)
+    
+        return image
     
     def close(self):
-        pass
-    #     if self.to_render:
-    #         pygame.display.quit()
-    #         pygame.quit()
-    #
-    #         if self._movie_generator is not None:
-    #             self._movie_generator.save_gif(
-    #                 self._movie_generator.env_name + '_' + str(self._movies))
-    #             self._movies += 1
+        if self.to_render:
+            pygame.display.quit()
+            pygame.quit()
+    
+            if self._movie_generator is not None:
+                self._movie_generator.save_gif(
+                    self._movie_generator.env_name + '_' + str(self._movies))
+                self._movies += 1
 
     @property
     def numConcurrentActions(self):
