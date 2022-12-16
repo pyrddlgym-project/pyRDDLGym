@@ -193,6 +193,8 @@ class RDDLGrounder(Grounder):
             if variations_list[0] is not None:
                 name = self._generate_grounded_names(
                     pvar_name, variations_list, return_grounding_param_dict=False)[0]    
+            else:
+                name = pvar_name
             self.nonfluents[name] = val
             self.gvar_to_type[name] = vtype
             self.gvar_to_pvar[name] = pvar_name

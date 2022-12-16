@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pygraphviz as pgv
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Union, List
+from typing import Optional, Tuple, Dict, Union, List, Set
 
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel, RDDLModelWXADD
@@ -82,7 +82,6 @@ class RDDL2Graph:
             domain: str = 'Wildfire',
             instance: int = 0,
             directed: bool = True,
-            strict_levels: bool = False,
             strict_grouping: bool = False
     ):
         # Read the domain and instance files
@@ -112,12 +111,10 @@ class RDDL2Graph:
         self.cpfs.update({'reward': self.model.reward})
         self.cpfs.update({'terminals': self.model.terminals})
         self._directed = directed
-        self._strict_levels = strict_levels
         self._strict_grouping = strict_grouping
         self._gvar_to_node_name = {}
         self._node_name_to_gvar = {}
-        self._level: Dict[int, List[str]] = {}
-        self._action: List[str] = set()
+        self._action: Set[str] = set()
         self._state = set()
         self._next_state = set()
         self._observ = set()
@@ -224,12 +221,12 @@ class RDDL2Graph:
         for act in action_nodes:
             graph.add_node(act)
         
-        # Handle levels
-        for l in sorted(self._level):
-            gvars_at_l = self._level[l]
-            gvars_at_l = [f"Intermediate @ level {l}"] + gvars_at_l
-            graph.add_same_rank(gvars_at_l)
+        # Handle interm & derived fluents
+        interm_derived_nodes = list(self._interm) + list(self._derived)
+        interm_derived_nodes = [f"Intermediate"] + interm_derived_nodes
+        graph.add_same_rank(interm_derived_nodes)
         
+        # Handle observations
         obs_nodes = ["Observations"] + list(self._observ)
         if len(obs_nodes) > 1:
             graph.add_same_rank(obs_nodes)
@@ -247,28 +244,26 @@ class RDDL2Graph:
         rew_ns_nodes = ['Reward Function', 'Next State and Reward'] + next_state_nodes
         graph.add_same_rank(rew_ns_nodes)
 
-        # Setup some stratification nodes and links if strict levels
+        # Setup some stratification nodes and links for strict levels
         if self._strict_grouping:
             prev_level = "Current State and Actions"
             graph.add_node(prev_level, color='white', shape='plaintext', style='bold')
 
-            for l in sorted(self._level):
-                level_node = f"Intermediate @ Level {l}"
-                if self._strict_levels:
-                    graph.add_edge(prev_level, level_node, color='black', style='invis', label='')
-                graph.add_node(level_node, color='white', shape='plaintext', style='bold')
-                prev_level = level_node
-            
-            if len(obs_nodes) > 1:  # will always contain default "Observations" node
-                graph.add_node("Observations", color='white', shape='plaintext', style='bold')
-                if self._strict_levels:
-                    graph.add_edge(prev_level, "Observations", color='black', style='invis', label='')
-                prev_level = "Observations"
+            # interm & derived
+            level_node = f"Intermediate"
+            graph.add_edge(prev_level, level_node, color='black', style='invis', label='')
+            graph.add_node(level_node, color='white', shape='plaintext', style='bold')
+            prev_level = level_node
             
             node_name = "Next State and Reward"
             graph.add_node(node_name, color='white', shape='plaintext', style='bold')
-            if self._strict_levels:
-                graph.add_edge(prev_level, node_name, color='black', style='invis', label='')
+            graph.add_edge(prev_level, node_name, color='black', style='invis', label='')
+
+            # Observations (at the right-most column)
+            if len(obs_nodes) > 1:  # will always contain default "Observations" node
+                graph.add_node("Observations", color='white', shape='plaintext', style='bold')
+                graph.add_edge(prev_level, "Observations", color='black', style='invis', label='')
+                prev_level = "Observations"
         
         return graph
         
@@ -286,11 +281,9 @@ class RDDL2Graph:
         # Handle intermediate & derived variables
         self.add_interm_fluents_to_graph(graph)
         self.add_derived_fluents_to_graph(graph)
-
-        for l in sorted(self._level):
-            gvars_at_l = self._level[l]
-            gvars_at_l = [f"Intermediate @ level {l}"] + gvars_at_l
-            graph.add_same_rank(gvars_at_l)
+        interm_derived_nodes = list(self._interm) + list(self._derived)
+        interm_derived_nodes = [f"Intermediate"] + interm_derived_nodes
+        graph.add_same_rank(interm_derived_nodes)
         
         # Handle observations
         self.add_observ_fluents_to_graph(graph)
@@ -320,23 +313,20 @@ class RDDL2Graph:
             prev_level = "Current State and Actions"
             graph.add_node(prev_level, color='white', shape='plaintext', style='bold')
 
-            for l in sorted(self._level):
-                level_node = f"Intermediate @ Level {l}"
-                if self._strict_levels:
-                    graph.add_edge(prev_level, level_node, color='black', style='invis', label='')
-                graph.add_node(level_node, color='white', shape='plaintext', style='bold')
-                prev_level = level_node
-            
-            if len(obs_nodes) > 1:  # will always contain default "Observations" node
-                graph.add_node("Observations", color='white', shape='plaintext', style='bold')
-                if self._strict_levels:
-                    graph.add_edge(prev_level, "Observations", color='black', style='invis', label='')
-                prev_level = "Observations"
+            level_node = f"Intermediate"
+            graph.add_edge(prev_level, level_node, color='black', style='invis', label='')
+            graph.add_node(level_node, color='white', shape='plaintext', style='bold')
+            prev_level = level_node
             
             node_name = "Next State and Reward"
             graph.add_node(node_name, color='white', shape='plaintext', style='bold')
-            if self._strict_levels:
-                graph.add_edge(prev_level, node_name, color='black', style='invis', label='')
+            graph.add_edge(prev_level, node_name, color='black', style='invis', label='')
+
+            # Observations
+            if len(obs_nodes) > 1:  # will always contain default "Observations" node
+                graph.add_node("Observations", color='white', shape='plaintext', style='bold')
+                graph.add_edge(prev_level, "Observations", color='black', style='invis', label='')
+                prev_level = "Observations"
         
         return graph
             
@@ -367,7 +357,7 @@ class RDDL2Graph:
         # Get parents and add links
         parents = self.model.collect_vars(self.cpfs[ns])
         for p in parents:
-            p_node_name = self.get_node_name(p)
+            p_node_name = self.get_node_name(p, primed=p in self.model.next_state.values())
             self.add_node(p_node_name)
             graph.add_edge(
                 p_node_name,
@@ -401,9 +391,9 @@ class RDDL2Graph:
             self.add_single_observ_fluent_to_graph(graph, observ)
     
     def add_single_interm_fluent_to_graph(self, graph: Graph, interm: str):
-        level = self.model.gvar_to_cpforder[interm]
         node_name = self.get_node_name(interm)
         self._gvar_to_node_name[interm] = node_name
+        self.add_node(node_name)
         graph.add_node(node_name)
 
         # Get parent nodes and add links
@@ -412,21 +402,15 @@ class RDDL2Graph:
             p_node_name = self.get_node_name(p)
             self.add_node(p_node_name)
             graph.add_edge(p_node_name, node_name)
-        
-        # Handle levels
-        if not level in self._level:
-            self._level[level] = [interm]
-        else:
-            self._level[level].append(interm)
 
     def add_interm_fluents_to_graph(self, graph: Graph):
         for interm in self.model.interm:
             self.add_single_interm_fluent_to_graph(graph, interm)
     
     def add_single_derived_fluent_to_graph(self, graph: Graph, derived: str):
-        level = self.model.gvar_to_cpforder[derived]
         node_name = self.get_node_name(derived)
         self._gvar_to_node_name[derived] = node_name
+        self.add_node(node_name)
         graph.add_node(node_name)
 
         # Get parent nodes and add links
@@ -435,13 +419,7 @@ class RDDL2Graph:
             p_node_name = self.get_node_name(p)
             self.add_node(p_node_name)
             graph.add_edge(p_node_name, node_name)
-        
-        # Handle levels
-        if not level in self._level:
-            self._level[level] = [derived]
-        else:
-            self._level[level].append(derived)
-    
+
     def add_derived_fluents_to_graph(self, graph: Graph):
         for derived in self.model.derived:
             self.add_single_derived_fluent_to_graph(graph, derived)
@@ -474,7 +452,6 @@ class RDDL2Graph:
         self._action.clear()
         self._gvar_to_node_name.clear()
         self._node_name_to_gvar.clear()
-        self._level.clear()
     
     def get_node_name(self, gvar: str, primed: bool = False) -> str:
         if gvar in self._gvar_to_node_name:
@@ -501,17 +478,20 @@ if __name__ == "__main__":
     parser.add_argument("--instance", type=int, default=0)
     parser.add_argument("--undirected", action='store_true')
     parser.add_argument("--strict_grouping", action='store_true')
-    parser.add_argument("--strict_levels", action='store_true')
-    
+    parser.add_argument("--fluent", type=str, default=None)
+    parser.add_argument("--gfluent", type=str, default=None)
+
     args = parser.parse_args()
 
     r2g = RDDL2Graph(
         domain=args.domain,
         instance=args.instance,
         directed=not args.undirected,
-        strict_levels=args.strict_levels,
         strict_grouping=args.strict_grouping
     )
-    r2g.save_dbn(file_name='wildfire')
-    r2g.save_dbn(file_name='wildfire', fluent='burning')
-    r2g.save_dbn(file_name='wildfire', fluent='burning', gfluent='x1_y1')
+    if args.fluent and args.gfluent:
+        r2g.save_dbn(file_name=args.domain, fluent=args.fluent, gfluent=args.gfluent)
+    elif args.fluent:
+        r2g.save_dbn(file_name=args.domain, fluent=args.fluent)
+    else:
+        r2g.save_dbn(file_name=args.domain)
