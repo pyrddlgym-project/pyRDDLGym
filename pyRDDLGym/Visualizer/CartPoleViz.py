@@ -3,7 +3,7 @@ from PIL import Image
 import pygame
 from pygame import gfxdraw
 
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
@@ -14,8 +14,6 @@ class CartPoleVisualizer(StateViz):
         self._model = model
         self._figure_size = figure_size
         self._wait_time = wait_time
-        
-        self._nonfluents = model.nonfluents
     
     def init_canvas(self, figure_size):
         screen = pygame.Surface(figure_size)
@@ -23,23 +21,25 @@ class CartPoleVisualizer(StateViz):
         return screen, surf
         
     def convert2img(self, screen):
-        data = np.transpose(np.array(pygame.surfarray.pixels3d(screen)), axes=(1, 0, 2))
+        data = np.transpose(np.array(pygame.surfarray.pixels3d(screen)), 
+                            axes=(1, 0, 2))
         img = Image.fromarray(data)
         return img
     
     def render(self, state):
         screen, surf = self.init_canvas(self._figure_size)
         
-        world_width = self._nonfluents['POS-LIMIT'] * 2
+        world_width = self._model.nonfluents['POS-LIMIT'] * 2
         scale = self._figure_size[0] / world_width
         polewidth = 10.0
-        polelen = scale * (2 * self._nonfluents['POLE-LEN'])
+        polelen = scale * (2 * self._model.nonfluents['POLE-LEN'])
         cartwidth = 50.0
         cartheight = 30.0
         l, r, t, b = -cartwidth / 2, cartwidth / 2, cartheight / 2, -cartheight / 2
         axleoffset = cartheight / 4.0
         
         surf.fill((255, 255, 255))
+        print(state)
         cartx = state['pos'] * scale + self._figure_size[0] / 2.0  # MIDDLE OF CART
         carty = 100  # TOP OF CART
         cart_coords = [(l, b), (l, t), (r, t), (r, b)]

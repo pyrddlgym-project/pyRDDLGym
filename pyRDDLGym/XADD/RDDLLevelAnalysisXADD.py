@@ -3,11 +3,11 @@ from xaddpy.xadd import XADD
 
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Xadd.RDDLModelXADD import RDDLModelWXADD
+from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 from pyRDDLGym.Core.Parser.expr import Expression
 
 
-class RDDLDependencyAnalysisWXADD(RDDLLevelAnalysis):
+class RDDLLevelAnalysisWXADD(RDDLLevelAnalysis):
     def __init__(self, model: PlanningModel, disallow_state_synchrony: bool = False) -> None:
         super().__init__(model, disallow_state_synchrony)
         self._model = cast(RDDLModelWXADD, self._model)

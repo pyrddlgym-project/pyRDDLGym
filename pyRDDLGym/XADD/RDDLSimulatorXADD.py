@@ -1,9 +1,11 @@
-from typing import cast
+from typing import cast, Union, Dict, Any
 import numpy as np
 
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints, RDDLSimulator
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Xadd.RDDLModelXADD import RDDLModelWXADD
+from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
+from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
 
 
 class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
@@ -19,7 +21,7 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
         self._rng = rng
         
         # perform a dependency analysis and topological sort to compute levels
-        dep_analysis = RDDLDependencyAnalysisWXADD(self._model)
+        dep_analysis = RDDLLevelAnalysisWXADD(self._model)
         self.cpforder = dep_analysis.compute_levels()
         self._order_cpfs = list(sorted(self.cpforder.keys()))
         
