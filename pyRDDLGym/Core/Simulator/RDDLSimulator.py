@@ -14,8 +14,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableErro
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Parser.expr import Expression, Value
 from pyRDDLGym.Core.Simulator.RDDLTensors import RDDLTensors
 
@@ -24,25 +24,7 @@ Args = Dict[str, Value]
         
 class RDDLSimulator:
     
-    INT = np.int32
-    REAL = np.float64
-        
-    NUMPY_TYPES = {
-        'int': INT,
-        'real': REAL,
-        'bool': bool
-    }
-    
-    DEFAULT_VALUES = {
-        'int': 0,
-        'real': 0.0,
-        'bool': False
-    }
-    
-    VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    
-    def __init__(self,
-                 rddl: RDDLLiftedModel,
+    def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
                  rng: np.random.Generator=np.random.default_rng(),
                  debug: bool=False) -> None:
@@ -63,7 +45,10 @@ class RDDLSimulator:
         self.tensors = RDDLTensors(rddl, debug)
         
         # initialize all fluent and non-fluent values
-        self.init_values, self.noop_actions = self._compile_initial_values()
+        self.init_values = self.tensors.init_values
+        self.noop_actions = {var: values 
+                             for var, values in self.init_values.items() 
+                             if self.rddl.variable_types[var] == 'action-fluent'}
         self.subs = self.init_values.copy()
         self.next_states = {var + '\'': var
                             for var, ftype in rddl.variable_types.items()
@@ -145,52 +130,6 @@ class RDDLSimulator:
     def isPOMDP(self):
         return self._pomdp
 
-    # ===========================================================================
-    # compilation time
-    # ===========================================================================
-    
-    def _compile_values_from_dict(self, dict_in, dict_out):
-        for name, value in dict_in.items():
-            var = self.rddl.parse(name)[0]
-            if var not in dict_out:
-                dict_out[var] = []
-            if value is None:
-                value = RDDLSimulator.DEFAULT_VALUES[
-                    self.rddl.variable_ranges[var]]
-            dict_out[var].append(value)
-        
-    def _compile_initial_values(self):
-        values = {}
-        self._compile_values_from_dict(self.rddl.init_state, values)
-        self._compile_values_from_dict(self.rddl.actions, values)
-        self._compile_values_from_dict(self.rddl.derived, values)
-        self._compile_values_from_dict(self.rddl.interm, values)
-        self._compile_values_from_dict(self.rddl.observ, values)
-        self._compile_values_from_dict(self.rddl.nonfluents, values)
-        
-        init_values, noop_actions = {}, {}
-        for var, valuelist in values.items():
-            prange = self.rddl.variable_ranges[var]
-            dtype = RDDLSimulator.NUMPY_TYPES[prange]
-            if self.rddl.param_types[var]:
-                ptypes = self.rddl.param_types[var]
-                newshape = self.tensors.shape(ptypes)
-                values = np.array(valuelist, dtype=dtype)
-                values = np.reshape(values, newshape=newshape, order='C')
-                init_values[var] = values            
-            else:
-                if len(valuelist) != 1:
-                    raise RDDLInvalidObjectError(
-                        f'Internal error: value list for non-parameterized '
-                        f'variable <{var}> must be length 1, '
-                        f'got length {len(valuelist)}.')
-                init_values[var] = dtype(valuelist[0])
-                
-            if self.rddl.variable_types[var] == 'action-fluent':
-                noop_actions[var] = init_values[var]
-        
-        return init_values, noop_actions        
-               
     # ===========================================================================
     # error checks
     # ===========================================================================
@@ -675,7 +614,7 @@ class RDDLSimulator:
         arg, = args
         arg = self._sample(arg, objects, subs)
         RDDLSimulator._check_type(
-            arg, RDDLSimulator.REAL, 'Argument of DiracDelta', expr)        
+            arg, RDDLTensors.REAL, 'Argument of DiracDelta', expr)        
         return arg
     
     def _sample_uniform(self, expr, objects, subs):
@@ -755,7 +694,7 @@ class RDDLSimulator:
         count, pr = args
         count = self._sample(count, objects, subs)
         pr = self._sample(pr, objects, subs)
-        RDDLSimulator._check_type(count, RDDLSimulator.INT, 'Binomial count', expr)
+        RDDLSimulator._check_type(count, RDDLTensors.INT, 'Binomial count', expr)
         RDDLSimulator._check_positive(count, False, 'Binomial count', expr)
         RDDLSimulator._check_range(pr, 0, 1, 'Binomial p', expr)
         return self.rng.binomial(count, pr)
