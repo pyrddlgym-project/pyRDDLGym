@@ -210,3 +210,7 @@ class RDDLEnv(gym.Env):
     @property
     def numConcurrentActions(self):
         return self.max_allowed_actions
+    
+    @property
+    def non_fluents(self):
+        return self.model.nonfluents
