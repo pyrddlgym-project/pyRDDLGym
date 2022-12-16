@@ -7,10 +7,10 @@ import numpy as np
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
-from pyRDDLGym.Core.Static.RDDLLiftedModel import RDDLLiftedModel
 
 # from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
