@@ -3,13 +3,12 @@ from PIL import Image
 import pygame
 from pygame import Rect, gfxdraw, freetype
 
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 from pyRDDLGym.Visualizer.StateViz import StateViz
-
 
 ROW_SIZE = 50
 COL_SIZE = 50
-ELEV_WIDTH = int(0.8*COL_SIZE)
+ELEV_WIDTH = int(0.8 * COL_SIZE)
 SIGN_RADIUS = 3
 
 # Direction of elevators as texts
@@ -17,6 +16,7 @@ freetype.init()
 DIR_TEXT = freetype.SysFont('freesansbold', 20)
 NUM_IN_TEXT = freetype.SysFont('freesansbold', 20)
 NUM_WAIT_TEXT = freetype.SysFont('freesansbold', 15)
+
 
 # code comes from openai gym
 class ElevatorVisualizer(StateViz):
@@ -41,7 +41,8 @@ class ElevatorVisualizer(StateViz):
         return screen, surf
         
     def convert2img(self, screen):
-        data = np.transpose(np.array(pygame.surfarray.pixels3d(screen)), axes=(1, 0, 2))
+        data = np.transpose(np.array(
+            pygame.surfarray.pixels3d(screen)), axes=(1, 0, 2))
         img = Image.fromarray(data)
         return img
     
@@ -65,26 +66,40 @@ class ElevatorVisualizer(StateViz):
         surf.fill((255, 255, 255))
         
         # Building exterior
-        gfxdraw.box(surf, Rect(COL_SIZE//2, ROW_SIZE//2, self._figure_size[0]-COL_SIZE, self._figure_size[1]-ROW_SIZE), (0, 0, 0))
-        gfxdraw.box(surf, Rect(self._left, self._top, self._right - self._left, self._bottom - self._top), (255, 255, 255))
+        gfxdraw.box(surf, Rect(COL_SIZE // 2,
+                               ROW_SIZE // 2,
+                               self._figure_size[0] - COL_SIZE,
+                               self._figure_size[1] - ROW_SIZE),
+                               (0, 0, 0))
+        gfxdraw.box(surf, Rect(self._left,
+                               self._top,
+                               self._right - self._left,
+                               self._bottom - self._top),
+                               (255, 255, 255))
 
         # Draw the vertical lines for elevator passages
         for i in range(self._n_elev):
             col_offset = 2 * i + 2
             gfxdraw.box(
                 surf,
-                Rect(self._left + col_offset * COL_SIZE, self._top, COL_SIZE, self._bottom - self._top),
+                Rect(self._left + col_offset * COL_SIZE,
+                     self._top,
+                     COL_SIZE,
+                     self._bottom - self._top),
                 (0, 0, 0, 50),
             )
             gfxdraw.box(
                 surf,
-                Rect(self._left + col_offset * COL_SIZE + int(0.08 * COL_SIZE), self._top, int(0.84 * COL_SIZE), self._bottom - self._top),
+                Rect(self._left + col_offset * COL_SIZE + int(0.08 * COL_SIZE),
+                     self._top,
+                     int(0.84 * COL_SIZE),
+                     self._bottom - self._top),
                 (255, 255, 255),
             )
 
         # Draw each floor
         for i in range(1, self._n_floors + 1):
-            fl = self._model.objects['floor'][i-1]
+            fl = self._model.objects['floor'][i - 1]
             row = i
             
             floor_y_coord = self._bottom - ROW_SIZE * row
@@ -98,80 +113,82 @@ class ElevatorVisualizer(StateViz):
                 elev = self._model.objects['elevator'][j]
                 col_offset = 2 * j + 2
                 
-                if elev_to_floor[elev] == fl:                    
+                if elev_to_floor[elev] == fl: 
                     n_person_elev = state[num_person_in_elevator.format(elevator=elev)]
                     e_closed = state[elev_closed.format(elevator=elev)]
                     e_up = state[elev_dir_up.format(elevator=elev)]
-                    elev_left_top_coord = (self._left + int((col_offset + 0.1) * COL_SIZE),
-                                           floor_y_coord)
+                    elev_left_top_coord = (
+                        self._left + int((col_offset + 0.1) * COL_SIZE),
+                        floor_y_coord)
+                    
                     # Draw elevator
-                    gfxdraw.rectangle(surf, 
-                                      Rect(elev_left_top_coord[0], 
-                                          elev_left_top_coord[1], 
-                                          int(COL_SIZE * 0.8), 
+                    gfxdraw.rectangle(surf,
+                                      Rect(elev_left_top_coord[0],
+                                          elev_left_top_coord[1],
+                                          int(COL_SIZE * 0.8),
                                           ROW_SIZE),
                                       (0, 0, 0))
                     if e_closed:
-                        gfxdraw.box(surf, 
-                                    Rect(elev_left_top_coord[0], 
-                                        elev_left_top_coord[1], 
-                                        int(COL_SIZE * 0.8), 
+                        gfxdraw.box(surf,
+                                    Rect(elev_left_top_coord[0],
+                                        elev_left_top_coord[1],
+                                        int(COL_SIZE * 0.8),
                                         ROW_SIZE),
                                     (0, 0, 0, 100))
                         gfxdraw.vline(
-                            surf, 
-                            elev_left_top_coord[0] + ELEV_WIDTH // 2, 
-                            floor_y_coord, 
-                            floor_y_coord + ROW_SIZE, 
+                            surf,
+                            elev_left_top_coord[0] + ELEV_WIDTH // 2,
+                            floor_y_coord,
+                            floor_y_coord + ROW_SIZE,
                             (0, 0, 0)
                         )
                     else:
-                        gfxdraw.box(surf, 
-                                    Rect(elev_left_top_coord[0], 
-                                        elev_left_top_coord[1], 
-                                        int(COL_SIZE * 0.8), 
+                        gfxdraw.box(surf,
+                                    Rect(elev_left_top_coord[0],
+                                        elev_left_top_coord[1],
+                                        int(COL_SIZE * 0.8),
                                         ROW_SIZE),
                                     (0, 0, 0, 100))
-                        gfxdraw.box(surf, 
+                        gfxdraw.box(surf,
                                     Rect(elev_left_top_coord[0] + int(0.1 * COL_SIZE),
                                         elev_left_top_coord[1] + int(0.1 * ROW_SIZE),
-                                        int(COL_SIZE * 0.6), 
+                                        int(COL_SIZE * 0.6),
                                         int(ROW_SIZE * 0.8)),
                                     (255, 255, 255))
                         
                     # Display the direction
-                    DIR_TEXT.render_to(surf, 
+                    DIR_TEXT.render_to(surf,
                                        (int(elev_left_top_coord[0] + 0.15 * COL_SIZE),
                                         int(elev_left_top_coord[1] + 0.1 * ROW_SIZE)),
-                                       "^" if e_up else "v", 
+                                       "^" if e_up else "v",
                                        (0, 0, 0))
-                    NUM_IN_TEXT.render_to(surf, 
+                    NUM_IN_TEXT.render_to(surf,
                                        (int(elev_left_top_coord[0] + 0.15 * COL_SIZE),
                                         int(elev_left_top_coord[1] + 0.4 * ROW_SIZE)),
                                        str(n_person_elev),
                                        (255, 0, 0) if n_person_elev > 0 else (0, 0, 255)
                                        )
                     gfxdraw.aacircle(
-                        surf, 
-                        (elev_left_top_coord[0] + ELEV_WIDTH // 2), 
+                        surf,
+                        (elev_left_top_coord[0] + ELEV_WIDTH // 2),
                         elev_left_top_coord[1] - SIGN_RADIUS,
                         SIGN_RADIUS,
                         (255, 0, 0) if e_closed else (0, 255, 0),
                     )
                     gfxdraw.filled_circle(
-                        surf, 
-                        (elev_left_top_coord[0] + ELEV_WIDTH // 2), 
+                        surf,
+                        (elev_left_top_coord[0] + ELEV_WIDTH // 2),
                         elev_left_top_coord[1] - SIGN_RADIUS,
                         SIGN_RADIUS,
-                        (255, 0, 0) if e_closed else (0, 255, 0),                        
+                        (255, 0, 0) if e_closed else (0, 255, 0),
                     )
 
-            # 
             n_person_waiting = state[num_person_waiting_on_floor.format(floor=fl)]
             col_offset = self._n_cols - 3.1
             NUM_IN_TEXT.render_to(
-                surf, 
-                (self._left + int((col_offset) * COL_SIZE), floor_y_coord + 0.5 * ROW_SIZE),
+                surf,
+                (self._left + int((col_offset) * COL_SIZE),
+                 floor_y_coord + 0.5 * ROW_SIZE),
                 str(n_person_waiting),
                 (255, 0, 0) if n_person_waiting > 0 else (0, 0, 255)
             )

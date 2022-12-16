@@ -1,30 +1,27 @@
-from typing import List, Dict, Tuple, Optional
-import pprint
-
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.image as plt_img
-import pygame
-import threading
 from PIL import Image
 
-from pyRDDLGym.Visualizer.StateViz import StateViz
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
-
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 import pyRDDLGym.Visualizer as Visualizer
+from pyRDDLGym.Visualizer.StateViz import StateViz
+
 
 class RecSimVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, figure_size = [5, 10], dpi = 100, fontsize = 10, display=False) -> None:
 
-        self._model= model
+    def __init__(self, model: RDDLModel,
+                 figure_size=[5, 10],
+                 dpi=100,
+                 fontsize=10,
+                 display=False) -> None:
+        self._model = model
         self._states = model.states
         self._nonfluents = model.nonfluents
         self._objects = model.objects
         self._figure_size = figure_size
         self._display = display
         self._dpi = dpi
-        self._fontsize =fontsize
+        self._fontsize = fontsize
         self._interval = 10
         self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
         self._object_layout = None
@@ -46,13 +43,16 @@ class RecSimVisualizer(StateViz):
 
     def build_nonfluents_layout(self):
         space_dim = len(self._model.objects['feature'])
-        self._feature_index = {f: ind for ind, f in enumerate(self._model.objects['feature'])}
+        self._feature_index = {
+            f: ind for ind, f in enumerate(self._model.objects['feature'])}
         if space_dim != 2:
             raise RuntimeError('This visualizer can only run in 2d (two features).')
+        
         self._num_users = len(self._model.objects['consumer'])
         creators = self._model.objects['provider'].copy()
         creators.remove('pn')
-        self._user_index = {c: ind for ind, c in enumerate(self._model.objects['consumer'])}
+        self._user_index = {
+            c: ind for ind, c in enumerate(self._model.objects['consumer'])}
         self._num_creators = len(creators)
         self._creator_index = {p: ind for ind, p in enumerate(creators)}
         self._creator_means = np.zeros((self._num_creators, space_dim))
@@ -61,10 +61,14 @@ class RecSimVisualizer(StateViz):
         for key, value in self._model.nonfluents.items():
             tokens = key.split('_')
             if tokens[0] == 'CONSUMER-AFFINITY':
-                self._user_interests[self._user_index[tokens[1]]][self._feature_index[tokens[2]]] = value
+                self._user_interests[
+                    self._user_index[tokens[1]]][
+                        self._feature_index[tokens[2]]] = value
             elif tokens[0] == 'PROVIDER-COMPETENCE':
                 if tokens[1] == 'pn': continue
-                self._creator_means[self._creator_index[tokens[1]]][self._feature_index[tokens[2]]] = value
+                self._creator_means[
+                    self._creator_index[tokens[1]]][
+                        self._feature_index[tokens[2]]] = value
         self._user_plot = None
         self._creator_plot = None
         self._creator_util_scatter = None
@@ -100,11 +104,12 @@ class RecSimVisualizer(StateViz):
         return None, None
 
     def build_object_layout(self):
-        return {'nonfluents_layout':self.build_nonfluents_layout(), 'states_layout':self.build_states_layout()}
+        return {'nonfluents_layout': self.build_nonfluents_layout(),
+                'states_layout': self.build_states_layout()}
 
     def convert2img(self, fig, ax):
         
-        #ax.set_position((0, 0, 1, 1))
+        # ax.set_position((0, 0, 1, 1))
         fig.canvas.draw()
 
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
@@ -116,7 +121,6 @@ class RecSimVisualizer(StateViz):
         self._img = img
 
         return img
-
 
     def render(self, state):
         self.states = state
@@ -131,13 +135,13 @@ class RecSimVisualizer(StateViz):
         rel_sizes = rel_sizes / np.sum(rel_sizes)
         # print(self._user_interests)
         if self._user_plot is None:
-          self._user_plot = self._ax_scatter.scatter(
-              self._user_interests[:, 0],
-              self._user_interests[:, 1],
-              s=reward,
-              c=20 * np.sqrt(np.maximum(reward, 0.)),
-              cmap='plasma',
-              edgecolors='black')
+            self._user_plot = self._ax_scatter.scatter(
+                self._user_interests[:, 0],
+                self._user_interests[:, 1],
+                s=reward,
+                c=20 * np.sqrt(np.maximum(reward, 0.)),
+                cmap='plasma',
+                edgecolors='black')
         # print(self._creator_means[:, 0],
         #     self._creator_means[:, 1], rel_sizes)
         self._creator_plot = self._ax_scatter.scatter(
@@ -157,16 +161,14 @@ class RecSimVisualizer(StateViz):
 
         # plot design
         for ax in self._axes:
-          ax.spines['right'].set_visible(False)
-          ax.spines['top'].set_visible(False)
-          ax.spines['bottom'].set_visible(False)
-          ax.spines['left'].set_visible(False)
-          ax.get_xaxis().set_visible(False)
-          ax.get_yaxis().set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
 
-        #return [self._user_plot, self._creator_plot, self._creator_util_scatter]
-
-
+        # return [self._user_plot, self._creator_plot, self._creator_util_scatter]
 
         # state_layout = self.build_states_layout(state)
         # text_layout = {'state': state_layout}
@@ -178,12 +180,9 @@ class RecSimVisualizer(StateViz):
         # img.save(f'frame{self._iter}.png')
         self._iter += 1
 
-
         # self._ax.cla()
         plt.close()
         # plt.show()
 
         return img
-
-
     
