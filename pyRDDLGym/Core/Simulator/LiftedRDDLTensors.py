@@ -129,7 +129,7 @@ class LiftedRDDLTensors:
                     new_dim = False
                     if t_out != t_in: 
                         raise RDDLInvalidObjectError(
-                            f'Argument <{i_in + 1}> of variable <{var}> '
+                            f'Argument {i_in + 1} of variable <{var}> '
                             f'expects object of type <{t_in}>, '
                             f'got <{o_out}> of type <{t_out}>.'
                             f'\n{msg}')
@@ -143,7 +143,7 @@ class LiftedRDDLTensors:
         free = {sign_in[i][0] for i, p in enumerate(lhs) if p is None}
         if free:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> has free parameter(s) {free}.'
+                f'Variable <{var}> has unresolved parameter(s) {free}.'
                 f'\n{msg}')
         
         # this is the necessary information for np.einsum
