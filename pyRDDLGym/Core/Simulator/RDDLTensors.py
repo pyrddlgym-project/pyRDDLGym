@@ -12,23 +12,38 @@ from pyRDDLGym.Core.Parser.expr import Value
 
 class RDDLTensors:
     
+    INT = np.int32
+    REAL = np.float64
+        
+    NUMPY_TYPES = {
+        'int': INT,
+        'real': REAL,
+        'bool': bool
+    }
+    
+    DEFAULT_VALUES = {
+        'int': 0,
+        'real': 0.0,
+        'bool': False
+    }
+    
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
     def __init__(self, rddl: RDDLLiftedModel, debug: bool=False):
         self.rddl = rddl
         self.debug = debug
         
-        self.index_of_object, self.grounded = self._compile()
+        self.index_of_object, self.grounded = self._compile_objects()
+        self.init_values = self._compile_init_values()
 
-    def _compile(self):
+    def _compile_objects(self):
         grounded = {}
         for name, (objects, _) in self.rddl.cpfs.items():
             types = self.rddl.param_types[name]
             grounded[name] = list(self.rddl.grounded_names(name, types))
             if name.endswith('\''):
-                unprimed = name[:-1]
-                grounded[unprimed] = list(
-                    self.rddl.grounded_names(unprimed, types))
+                oldname = name[:-1]
+                grounded[oldname] = list(self.rddl.grounded_names(oldname, types))
         
         index_of_object = {}
         for objects in self.rddl.objects.values():
@@ -36,7 +51,44 @@ class RDDLTensors:
                 index_of_object[obj] = i      
                   
         return index_of_object, grounded
-                        
+    
+    def _compile_values_from_dict(self, dict_in, dict_out):
+        for name, value in dict_in.items():
+            var = self.rddl.parse(name)[0]
+            if var not in dict_out:
+                dict_out[var] = []
+            if value is None:
+                value = RDDLTensors.DEFAULT_VALUES[
+                    self.rddl.variable_ranges[var]]
+            dict_out[var].append(value)
+            
+    def _compile_init_values(self):
+        values = {}
+        self._compile_values_from_dict(self.rddl.init_state, values)
+        self._compile_values_from_dict(self.rddl.actions, values)
+        self._compile_values_from_dict(self.rddl.derived, values)
+        self._compile_values_from_dict(self.rddl.interm, values)
+        self._compile_values_from_dict(self.rddl.observ, values)
+        self._compile_values_from_dict(self.rddl.nonfluents, values)
+        
+        init_values = {}
+        for var, vlist in values.items():
+            prange = self.rddl.variable_ranges[var]
+            dtype = RDDLTensors.NUMPY_TYPES[prange]
+            if self.rddl.param_types[var]:
+                ptypes = self.rddl.param_types[var]
+                newshape = self.shape(ptypes)
+                values = np.asarray(vlist, dtype=dtype)
+                values = np.reshape(values, newshape=newshape, order='C')
+                init_values[var] = values
+            else:
+                if len(vlist) != 1:
+                    raise RDDLInvalidObjectError(
+                        f'Internal error: value list for non-parameterized '
+                        f'variable <{var}> must be length 1, got {len(vlist)}.')
+                init_values[var] = dtype(vlist[0])                
+        return init_values
+        
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Converts a list of objects into their coordinate representation.
         
