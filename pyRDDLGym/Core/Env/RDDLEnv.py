@@ -4,8 +4,11 @@ from gym.spaces import Discrete, Dict, Box
 import numpy as np
 # import pygame
 
-from pyRDDLGym.Core.Parser import parser
-from pyRDDLGym.Core.Parser import RDDLReader
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
+from pyRDDLGym.Core.Parser.parser import RDDLParser
+from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
+from pyRDDLGym.Core.Simulator.LiftedRDDLModel import LiftedRDDLModel
 from pyRDDLGym.Core.Simulator.LiftedRDDLSimulator import LiftedRDDLSimulatorWConstraints
 
 # from pyRDDLGym.Visualizer.TextViz import TextVisualizer
@@ -18,23 +21,22 @@ class RDDLEnv(gym.Env):
         self.enforce_action_constraints = enforce_action_constraints
         
         # read and parse domain and instance
-        reader = RDDLReader.RDDLReader(domain, instance)
+        reader = RDDLReader(domain, instance)
         domain = reader.rddltxt
 
         # parse RDDL file
-        parser = parser.RDDLParser(lexer=None, verbose=False)
+        parser = RDDLParser(lexer=None, verbose=False)
         parser.build()
         rddl = parser.parse(domain)
 
         # define the model sampler
-        self.sampler = LiftedRDDLSimulatorWConstraints(rddl)
+        self.model = LiftedRDDLModel(rddl)
+        self.sampler = LiftedRDDLSimulatorWConstraints(self.model)
 
         # set roll-out parameters
-        self.horizon = rddl.instance.horizon
-        self.discount = rddl.instance.discount
-        self.max_allowed_actions = rddl.instance.max_nondef_actions
-        if self.max_allowed_actions == 'pos-inf':
-            self.max_allowed_actions = np.inf
+        self.horizon = self.model.horizon
+        self.discount = self.model.discount
+        self.max_allowed_actions = self.model.max_allowed_actions
             
         self.currentH = 0
         self.done = False
@@ -61,9 +63,8 @@ class RDDLEnv(gym.Env):
                     low = np.iinfo(np.int32).min
                 action_space[act] = Discrete(int(high - low + 1), start=int(low))
             else:
-                raise Exception(
-                    f'Unknown action range <{act_range}> in gym environment init.')
-
+                raise RDDLTypeError(
+                    f'Unknown action value type <{act_range}> in environment.')
         self.action_space = action_space
 
         # define the states bounds
@@ -92,8 +93,8 @@ class RDDLEnv(gym.Env):
                     low = np.iinfo(np.int32).min
                 state_space[state] = Discrete(int(high - low + 1), start=int(low))
             else:
-                raise Exception(
-                    f'Unknown state range <{state_range}> in gym environment init.')
+                raise RDDLTypeError(
+                    f'Unknown state value type <{state_range}> in environment.')
         self.observation_space = state_space
 
         # set the visualizer
@@ -121,10 +122,10 @@ class RDDLEnv(gym.Env):
         # make sure the action length is of currect size
         action_length = len(actions)
         if (action_length > self.max_allowed_actions):
-            raise Exception(
+            raise RDDLInvalidNumberOfArgumentsError(
                 f'Invalid action, expected at most '
                 f'{self.max_allowed_actions} entries, '
-                f'but {action_length} were given.')
+                f'but got {action_length}.')
         
         # set full action vector
         # values are clipped to be inside the feasible action space
@@ -178,7 +179,8 @@ class RDDLEnv(gym.Env):
     #     return pygame.image.fromstring(
     #         pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
-    # def render(self, to_display=True):
+    def render(self, to_display=True):
+        pass
     #     if self._visualizer is not None:
     #         image = self._visualizer.render(self.state)
     #         if to_display:
@@ -197,7 +199,8 @@ class RDDLEnv(gym.Env):
     #
     #     return image
     
-    # def close(self):
+    def close(self):
+        pass
     #     if self.to_render:
     #         pygame.display.quit()
     #         pygame.quit()
