@@ -1,6 +1,8 @@
 from abc import ABCMeta
 
+
 class PlanningModel(metaclass=ABCMeta):
+
     def __init__(self):
         self._AST = None
         self._nonfluents = None
@@ -23,7 +25,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._preconditions = None
         self._invariants = None
 
-        #new definitions
+        # new definitions
         self._max_allowed_actions = None
         self._horizon = None
         self._discount = None
@@ -209,23 +211,7 @@ class PlanningModel(metaclass=ABCMeta):
 
 
 class RDDLModel(PlanningModel):
+
     def __init__(self):
         super().__init__()
 
-
-def main():
-    AST = "dfdf"
-    M = RDDLModel()
-    M.SetAST(AST)
-    print(M.objects)
-    M.objects["2"]=3
-    print(M.objects)
-    M.objects = {1 : 3, 4 : 5}
-    print(M.objects)
-    print("hello")
-
-
-
-
-if __name__ == "__main__":
-    main()

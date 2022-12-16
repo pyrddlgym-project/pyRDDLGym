@@ -33,7 +33,8 @@ def main():
                         # movie_gen=MovieGenerator(frames_path, ENV, 200), movie_per_episode=True)
     
     # set up an example aget
-    agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
+    agent = RandomAgent(action_space=myEnv.action_space, 
+                        num_actions=myEnv.numConcurrentActions)
 
     for episode in range(1):
         total_reward = 0
@@ -44,15 +45,15 @@ def main():
             next_state, reward, done, info = myEnv.step(action)
             total_reward += reward
             print()
-            print('step       = {}'.format(step))
-            print('state      = {}'.format(state))
-            print('action     = {}'.format(action))
-            print('next state = {}'.format(next_state))
-            print('reward     = {}'.format(reward))
+            print(f'step       = {step}')
+            print(f'state      = {state}')
+            print(f'action     = {action}')
+            print(f'next state = {next_state}')
+            print(f'reward     = {reward}')
             state = next_state
             if done:
                 break
-        print("episode {} ended with reward {}".format(episode, total_reward))
+        print(f'episode {episode} ended with reward {total_reward}')
     
     myEnv.close()
 
