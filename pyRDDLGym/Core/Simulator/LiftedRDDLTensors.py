@@ -17,13 +17,12 @@ class LiftedRDDLTensors:
         self.rddl = rddl
         self.debug = debug
         
-        self.cpf_params, self.index_of_object, self.grounded = self._compile()
+        self.index_of_object, self.grounded = self._compile()
 
     def _compile(self):
-        cpf_params, grounded = {}, {}
+        grounded = {}
         for name, (objects, _) in self.rddl.cpfs.items():
             types = self.rddl.param_types[name]
-            cpf_params[name] = [(obj, types[i]) for i, obj in enumerate(objects)]
             key = name.replace('\'', '')
             grounded[key] = list(self.rddl.grounded_names(name, types))
         
@@ -32,7 +31,7 @@ class LiftedRDDLTensors:
             for i, obj in enumerate(objects):
                 index_of_object[obj] = i      
                   
-        return cpf_params, index_of_object, grounded
+        return index_of_object, grounded
                         
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Converts a list of objects into their coordinate representation.

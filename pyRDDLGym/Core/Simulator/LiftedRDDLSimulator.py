@@ -270,6 +270,7 @@ class LiftedRDDLSimulator:
         
         for action, value in actions.items():
             var, objects = self.rddl.parse(action)
+            
             if var not in valid_actions:
                 raise RDDLInvalidActionError(f'Action <{var}> is invalid.')
             if not self.rddl.is_compatible(var, objects):
@@ -1001,7 +1002,7 @@ class LiftedRDDLSimulatorWConstraints(LiftedRDDLSimulator):
 
     @property
     def states(self):
-        return self.states.copy()
+        return self.state.copy()
 
     @property
     def isPOMDP(self):
