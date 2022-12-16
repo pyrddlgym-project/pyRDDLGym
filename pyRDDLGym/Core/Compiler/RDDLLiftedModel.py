@@ -169,7 +169,7 @@ class RDDLLiftedModel(RDDLModel):
             variable_types[pvar.name] = pvar.fluent_type
             variable_ranges[pvar.name] = pvar.range
             if pvar.is_state_fluent():
-                variable_types[pvar.name + '\''] = pvar.fluent_type
+                variable_types[pvar.name + '\''] = 'next-state-fluent'
                 variable_ranges[pvar.name + '\''] = pvar.range
         return variable_types, variable_ranges
     

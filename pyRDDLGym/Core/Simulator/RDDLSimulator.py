@@ -68,8 +68,7 @@ class RDDLSimulator:
         self.subs = self.init_values.copy()
         self.next_states = {var + '\'': var
                             for var, ftype in rddl.variable_types.items()
-                            if ftype == 'state-fluent' 
-                            and not var.endswith('\'')}
+                            if ftype == 'state-fluent'}
         self.state = None
             
         # for a POMDP
@@ -352,7 +351,7 @@ class RDDLSimulator:
         self.state = {}
         for var in self.next_states.values():
             self.state.update(self.tensors.expand(var, self.subs[var]))
-        print(self.state)
+            
         if self._pomdp: 
             obs = {}
             for var in self.observ_fluents:
@@ -890,10 +889,9 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         actions = set()
         for var, vartype in self.rddl.variable_types.items():
             if vartype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
-                if not var.endswith('\''):
-                    ptypes = self.rddl.param_types[var]
-                    for name in self.rddl.grounded_names(var, ptypes):
-                        self._bounds[name] = [-self.BigM, +self.BigM]
+                ptypes = self.rddl.param_types[var]
+                for name in self.rddl.grounded_names(var, ptypes):
+                    self._bounds[name] = [-self.BigM, +self.BigM]
                 if vartype == 'action-fluent':
                     actions.add(var)
 
