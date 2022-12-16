@@ -37,7 +37,7 @@ class JaxRDDLBackpropPlanner:
         self._compile_backprop()
     
     # ===========================================================================
-    # compilation of RDDL file
+    # compilation of RDDL file to JAX
     # ===========================================================================
     
     def _compile_rddl(self):
