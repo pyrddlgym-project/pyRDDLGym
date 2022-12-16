@@ -2,16 +2,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 from pyRDDLGym.Visualizer.StateViz import StateViz
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
-
 from pyRDDLGym import Visualizer
 
 
 class UAVsVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, figure_size = [200, 200], dpi = 5, fontsize = 8, display=False) -> None:
 
-        self._model= model
+    def __init__(self, model: RDDLModel,
+                 figure_size=[200, 200],
+                 dpi=5,
+                 fontsize=8,
+                 display=False) -> None:
+        self._model = model
         self._states = model.states
         self._nonfluents = model.nonfluents
         self._objects = model.objects
@@ -26,11 +29,10 @@ class UAVsVisualizer(StateViz):
         self._data = None
         self._img = None
     
-    def build_nonfluents_layout(self):       
+    def build_nonfluents_layout(self): 
+        goal_location = {o: [None, None, None] for o in self._objects['aircraft']}
 
-        goal_location = {o:[None,None,None] for o in self._objects['aircraft']}
-
-        for k,v in self._nonfluents.items():
+        for k, v in self._nonfluents.items():
             if 'GOAL-X_' in k:
                 point = k.split('_')[1]
                 goal_location[point][0] = v
@@ -41,13 +43,13 @@ class UAVsVisualizer(StateViz):
                 point = k.split('_')[1]
                 goal_location[point][2] = v
         
-        return {'goal_location' : goal_location}
+        return {'goal_location': goal_location}
     
     def build_states_layout(self, state):
-        drone_location = {o:[None,None,None] for o in self._objects['aircraft']}
-        velocity = {o:None for o in self._objects['aircraft']}        
+        drone_location = {o: [None, None, None] for o in self._objects['aircraft']}
+        velocity = {o: None for o in self._objects['aircraft']}        
 
-        for k,v in state.items():
+        for k, v in state.items():
             if 'pos-x_' in k:
                 point = k.split('_')[1]
                 drone_location[point][0] = v
@@ -61,35 +63,29 @@ class UAVsVisualizer(StateViz):
                 point = k.split('_')[1]
                 velocity[point] = v
 
-        return {'drone_location' : drone_location, 'velocity':velocity}
+        return {'drone_location': drone_location, 'velocity': velocity}
 
-    def init_canvas(self, figure_size, dpi):
-        
+    def init_canvas(self, figure_size, dpi): 
         # plt.style.use('dark_background')
-
-        fig = plt.figure(figsize = figure_size, dpi = dpi)
+        fig = plt.figure(figsize=figure_size, dpi=dpi)
         ax = fig.add_subplot(projection='3d')
 
-        ax.axes.set_xlim3d(left=-figure_size[0]//2, right=figure_size[0]//2) 
-        ax.axes.set_ylim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2) 
-        ax.axes.set_zlim3d(bottom=-figure_size[0]//2, top=figure_size[0]//2)
+        ax.axes.set_xlim3d(left=-figure_size[0] // 2, right=figure_size[0] // 2) 
+        ax.axes.set_ylim3d(bottom=-figure_size[0] // 2, top=figure_size[0] // 2) 
+        ax.axes.set_zlim3d(bottom=-figure_size[0] // 2, top=figure_size[0] // 2)
 
         fig.subplots_adjust(left=0, right=0.1, bottom=0, top=0.1)
 
         ax.tick_params(labelsize=100)
-
-
         
         # plt.axis('scaled')
         # plt.axis('off')
 
         return fig, ax
 
-    def convert2img(self, fig, ax):
-        
+    def convert2img(self, fig, ax): 
         ax.set_position((0, 0, 1, 1))
         fig.canvas.draw()
-
 
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
@@ -102,7 +98,6 @@ class UAVsVisualizer(StateViz):
         return img
 
     def render(self, state):
-
         self.states = state
         self._fig, self._ax = self.init_canvas(self._figure_size, self._dpi)
     
@@ -112,12 +107,13 @@ class UAVsVisualizer(StateViz):
         self._nonfluent_layout = nonfluent_layout
         self._state_layout = state_layout
 
-        for k,v in nonfluent_layout['goal_location'].items():
-            self._ax.plot([v[0]],[v[1]],[v[2]], color='seagreen', marker='X', markersize=200)
-
+        for k, v in nonfluent_layout['goal_location'].items():
+            self._ax.plot([v[0]], [v[1]], [v[2]],
+                          color='seagreen', marker='X', markersize=200)
         
-        for k,v in state_layout['drone_location'].items():
-            self._ax.plot([v[0]],[v[1]],[v[2]], color='deepskyblue', marker='>', markersize=200)
+        for k, v in state_layout['drone_location'].items():
+            self._ax.plot([v[0]], [v[1]], [v[2]],
+                          color='deepskyblue', marker='>', markersize=200)
 
         img = self.convert2img(self._fig, self._ax)
 
@@ -126,11 +122,8 @@ class UAVsVisualizer(StateViz):
         plt.close()
 
         return img
-
- 
     
     def gen_inter_state(self, beg_state, end_state, steps):
-
         state_buffer = []
         beg_x = beg_state['xPos']
         beg_y = beg_state['yPos']
@@ -141,8 +134,8 @@ class UAVsVisualizer(StateViz):
             state_buffer = [beg_state, end_state]
         else:
             for i in range(steps):
-                x = beg_x + 1/steps*(end_x - beg_x)*i
-                y = beg_y + 1/steps*(end_y - beg_y)*i
+                x = beg_x + 1 / steps * (end_x - beg_x) * i
+                y = beg_y + 1 / steps * (end_y - beg_y) * i
                 state = beg_state.copy()
                 state['xPos'] = x
                 state['yPos'] = y
@@ -150,6 +143,4 @@ class UAVsVisualizer(StateViz):
             state_buffer.append(end_state)
 
         return state_buffer
-    
-
     

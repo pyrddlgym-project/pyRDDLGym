@@ -1,27 +1,30 @@
-import pprint
-
-import matplotlib; matplotlib.use('agg')
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+import pprint
 
-from pyRDDLGym.Visualizer.StateViz import StateViz
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
-
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 from pyRDDLGym import Visualizer
+from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class TextVisualizer(StateViz):
-    def __init__(self, model: RDDLModel, figure_size = [5, 10], dpi = 100, fontsize = 10, display=False) -> None:
 
-        self._model= model
+    def __init__(self, model: RDDLModel,
+                 figure_size=[5, 10],
+                 dpi=100,
+                 fontsize=10,
+                 display=False) -> None:
+        self._model = model
         self._states = model.states
         self._nonfluents = model.nonfluents
         self._objects = model.objects
         self._figure_size = figure_size
         self._display = display
         self._dpi = dpi
-        self._fontsize =fontsize
+        self._fontsize = fontsize
         self._interval = 10
         self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
         self._nonfluents_layout = None
@@ -41,10 +44,10 @@ class TextVisualizer(StateViz):
         return states
     
     def init_canvas(self, figure_size, dpi):
-        fig = plt.figure(figsize = figure_size, dpi=dpi)
+        fig = plt.figure(figsize=figure_size, dpi=dpi)
         ax = plt.gca()
-        plt.xlim(0, figure_size[0]*self._interval)
-        plt.ylim(0, figure_size[1]*self._interval)
+        plt.xlim(0, figure_size[0] * self._interval)
+        plt.ylim(0, figure_size[1] * self._interval)
         plt.axis('scaled')
         plt.axis('off')
         return fig, ax
@@ -64,7 +67,6 @@ class TextVisualizer(StateViz):
 
         return img
 
-
     def render(self, state):
         self.states = state
 
@@ -74,8 +76,12 @@ class TextVisualizer(StateViz):
         text_layout = {'state': state_layout}
 
         text_str = pprint.pformat(text_layout)[1:-1]
-        self._ax.text(self._interval*0.5, self._figure_size[1]*self._interval*0.95, text_str, 
-                horizontalalignment='left', verticalalignment='top', wrap=True, fontsize = self._fontsize)
+        self._ax.text(self._interval * 0.5,
+                      self._figure_size[1] * self._interval * 0.95,
+                      text_str,
+                      horizontalalignment='left',
+                      verticalalignment='top',
+                      wrap=True, fontsize=self._fontsize)
         
         img = self.convert2img(self._fig, self._ax)
 
@@ -84,6 +90,4 @@ class TextVisualizer(StateViz):
         # plt.show()
 
         return img
-
-
     

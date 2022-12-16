@@ -3,8 +3,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, Union, List, Set
 
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
-from pyRDDLGym.Xadd.RDDLModelXADD import RDDLModelWXADD
+from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
