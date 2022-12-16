@@ -5,15 +5,16 @@ import warnings
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+
 from pyRDDLGym.Core.Parser.expr import Value
-from pyRDDLGym.Core.Simulator.LiftedRDDLModel import LiftedRDDLModel
+from pyRDDLGym.Core.Static.RDDLLiftedModel import RDDLLiftedModel
 
 
-class LiftedRDDLTensors:
+class RDDLTensors:
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
-    def __init__(self, rddl: LiftedRDDLModel, debug: bool=False):
+    def __init__(self, rddl: RDDLLiftedModel, debug: bool=False):
         self.rddl = rddl
         self.debug = debug
         
@@ -70,7 +71,7 @@ class LiftedRDDLTensors:
     def map(self, var: str,
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
-            expr: str, 
+            expr: str,
             msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
         '''Given:       
         1. a pvariable var
@@ -107,7 +108,7 @@ class LiftedRDDLTensors:
                 f'\n{msg}')
             
         # reached limit on number of valid dimensions
-        valid_symbols = LiftedRDDLTensors.VALID_SYMBOLS
+        valid_symbols = RDDLTensors.VALID_SYMBOLS
         n_max = len(valid_symbols)
         n_out = len(sign_out)
         if n_out > n_max:

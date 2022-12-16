@@ -4,14 +4,14 @@ from typing import Iterable, List, Tuple
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
 from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.Core.Static.RDDLModel import RDDLModel
 
 
-class LiftedRDDLModel(RDDLModel):
+class RDDLLiftedModel(RDDLModel):
     
     def __init__(self, rddl):
-        super(LiftedRDDLModel, self).__init__()
+        super(RDDLLiftedModel, self).__init__()
         
         self.SetAST(rddl)
         self.objects, self.objects_rev = self._extract_objects()
