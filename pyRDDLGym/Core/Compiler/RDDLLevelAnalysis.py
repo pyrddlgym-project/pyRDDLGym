@@ -89,14 +89,8 @@ class RDDLLevelAnalysis:
     # ===========================================================================
     
     def _fluent_type(self, fluent):
-        if fluent in self.rddl.variable_types:
-            fluent_type = self.rddl.variable_types[fluent]
-            if fluent.endswith('\''):
-                fluent_type = 'next-state-fluent'
-            return fluent_type
-        else:
-            return fluent 
-
+        return self.rddl.variable_types.get(fluent, fluent)
+    
     def _validate_dependencies(self, graph):
         for cpf, deps in graph.items():
             cpf_type = self._fluent_type(cpf)
