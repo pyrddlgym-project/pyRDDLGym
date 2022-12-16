@@ -5,17 +5,18 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidDependencyInCP
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-from pyRDDLGym.Core.Simulator.LiftedRDDLModel import LiftedRDDLModel
+
+from pyRDDLGym.Core.Static.RDDLLiftedModel import RDDLLiftedModel
 
 VALID_DEPENDENCIES = {
     'derived-fluent': {'state-fluent', 'derived-fluent'},
-    'interm-fluent': {'action-fluent', 'state-fluent', 
+    'interm-fluent': {'action-fluent', 'state-fluent',
                       'derived-fluent', 'interm-fluent'},
-    'next-state-fluent': {'action-fluent', 'state-fluent', 
+    'next-state-fluent': {'action-fluent', 'state-fluent',
                           'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-    'observ-fluent': {'action-fluent', 
+    'observ-fluent': {'action-fluent',
                       'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-    'reward': {'action-fluent', 'state-fluent', 
+    'reward': {'action-fluent', 'state-fluent',
                'derived-fluent', 'interm-fluent', 'next-state-fluent'},
     'invariant': {'state-fluent'},
     'precondition': {'state-fluent', 'action-fluent'},
@@ -23,14 +24,14 @@ VALID_DEPENDENCIES = {
 }
 
     
-class LiftedRDDLLevelAnalysis:
+class RDDLLevelAnalysis:
     '''Performs graphical analysis of a RDDL domain, including dependency
     structure of CPFs, performs topological sort to figure out order of evaluation,
     and checks for cyclic dependencies and ensures dependencies are valid 
     according to the RDDL language specification.     
     '''
         
-    def __init__(self, rddl: LiftedRDDLModel, 
+    def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
@@ -142,7 +143,7 @@ class LiftedRDDLLevelAnalysis:
     
     def compute_levels(self) -> Dict[int, Set[str]]:
         graph = self.build_call_graph()
-        order = LiftedRDDLLevelAnalysis._topological_sort(graph)
+        order = RDDLLevelAnalysis._topological_sort(graph)
         
         levels, result = {}, {}
         for var in order:
@@ -162,8 +163,7 @@ class LiftedRDDLLevelAnalysis:
         temp = set()
         while unmarked:
             var = next(iter(unmarked))
-            LiftedRDDLLevelAnalysis._sort_variables(
-                order, graph, var, unmarked, temp)
+            RDDLLevelAnalysis._sort_variables(order, graph, var, unmarked, temp)
         return order
     
     @staticmethod
@@ -178,7 +178,7 @@ class LiftedRDDLLevelAnalysis:
             temp.add(var)
             if var in graph:
                 for dep in graph[var]:
-                    LiftedRDDLLevelAnalysis._sort_variables(
+                    RDDLLevelAnalysis._sort_variables(
                         order, graph, dep, unmarked, temp)
             temp.remove(var)
             unmarked.remove(var)

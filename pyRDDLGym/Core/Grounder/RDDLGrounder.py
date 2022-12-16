@@ -3,20 +3,14 @@ import copy
 import itertools
 import warnings
 
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
+
 from pyRDDLGym.Core.Parser.expr import Expression
-
-# import RDDLModel
-
-# AGGREG_OPERATION_STRING_LIST = ["sum","prod","max","min","avg"]
-# AGGREG_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["+","*","max","min","+"]
-# QUANTIFIER_OPERATION_STRING_LIST = ["forall","exists"]
-# QUANTIFIER_RECURSIVE_OPERATION_STRING_MAPPED_LIST = ["&","|"]
+from pyRDDLGym.Core.Static.RDDLModel import RDDLModel
 
 PRIME = '\''
 
@@ -30,8 +24,6 @@ AGGREG_OP_TO_STRING_DICT = dict(
     zip(AGGREG_OPERATION_LIST,
         AGGREG_RECURSIVE_OPERATION_INDEX_MAPPED_LIST)
 )
-
-
 
 
 class Grounder(metaclass=abc.ABCMeta):
@@ -361,12 +353,9 @@ class RDDLGrounder(Grounder):
             updated_dict = copy.deepcopy(original_dict)
             updated_dict.update(dict(zip(new_variables_list, instances_list[instance_idx])))
             new_children.append(self._scan_expr_tree(expression, updated_dict))
-        #--end for loop through instances
+        # --end for loop through instances
         new_expr = Expression((operation_string, tuple(new_children)))
         return new_expr
-
-
-
 
     def _scan_expr_tree_pvar(self, expr: Expression, dic) -> Expression:
         """Ground out a pvar expression."""

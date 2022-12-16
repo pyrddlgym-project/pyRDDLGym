@@ -6,10 +6,11 @@ import numpy as np
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
+
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
-from pyRDDLGym.Core.Simulator.LiftedRDDLModel import LiftedRDDLModel
-from pyRDDLGym.Core.Simulator.LiftedRDDLSimulator import LiftedRDDLSimulatorWConstraints
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
+from pyRDDLGym.Core.Static.RDDLLiftedModel import RDDLLiftedModel
 
 # from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
@@ -30,8 +31,8 @@ class RDDLEnv(gym.Env):
         rddl = parser.parse(domain)
 
         # define the model sampler
-        self.model = LiftedRDDLModel(rddl)
-        self.sampler = LiftedRDDLSimulatorWConstraints(self.model)
+        self.model = RDDLLiftedModel(rddl)
+        self.sampler = RDDLSimulatorWConstraints(self.model)
 
         # set roll-out parameters
         self.horizon = self.model.horizon
