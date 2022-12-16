@@ -179,10 +179,10 @@ class LiftedRDDLModel(RDDLModel):
             if objects is None:
                 objects = []
             types = self.param_types[name]
-            if not self.is_compatible(name, objects):
+            if len(types) != len(objects):
                 raise RDDLInvalidObjectError(
-                    f'Objects {objects} of CPF <{name}> do not match the '
-                    f'required types {types}.')
+                    f'CPF <{name}> expects {len(types)} parameters, '
+                    f'got {len(objects)}.')
             objects = [(o, types[i]) for i, o in enumerate(objects)]
             cpfs[name] = (objects, cpf.expr)
         return cpfs
