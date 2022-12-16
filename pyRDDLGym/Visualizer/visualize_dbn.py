@@ -1,10 +1,10 @@
-import matplotlib.pyplot as plt
 import pygraphviz as pgv
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Union, List, Set
 
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel, RDDLModelWXADD
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Xadd.RDDLModelXADD import RDDLModelWXADD
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
@@ -40,7 +40,16 @@ STYLE = dict(
 
 class Graph(pgv.AGraph):
     def __init__(
-            self, thing=None, filename=None, data=None, string=None, handle=None, name="", strict=True, directed=False, **attr
+            self, 
+            thing=None, 
+            filename=None, 
+            data=None, 
+            string=None, 
+            handle=None, 
+            name="", 
+            strict=True, 
+            directed=False, 
+            **attr
     ):
         super().__init__(thing, filename, data, string, handle, name, strict,directed, **attr)
         self._supress_rank = False
@@ -120,6 +129,7 @@ class RDDL2Graph:
         self._observ = set()
         self._interm = set()
         self._derived = set()
+        self._parents = {}
     
     def configure_graph(self, graph: Graph):
         graph.configure_graph_attributes(
@@ -343,6 +353,7 @@ class RDDL2Graph:
                 p_node_name = self.get_node_name(p)
                 self.add_node(p_node_name)
                 graph.add_edge(p_node_name, 'Reward Function')
+                
 
     def add_single_state_fluent_to_graph(
             self, graph: Graph, state: str

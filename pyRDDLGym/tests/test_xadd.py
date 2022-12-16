@@ -1,5 +1,5 @@
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel, RDDLModelWXADD
+from pyRDDLGym.Xadd.RDDLModelXADD import RDDLModelWXADD
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
