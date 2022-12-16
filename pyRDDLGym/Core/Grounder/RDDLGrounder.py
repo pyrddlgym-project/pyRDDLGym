@@ -3,7 +3,7 @@ import copy
 import itertools
 import warnings
 
-from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel, RDDLModelWXADD
+from pyRDDLGym.Core.Grounder.RDDLModel import RDDLModel
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
