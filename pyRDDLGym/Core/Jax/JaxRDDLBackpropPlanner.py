@@ -6,7 +6,6 @@ import optax
 from typing import Dict, Generator
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
@@ -15,8 +14,7 @@ from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import JaxRDDLCompilerWithGrad
  
 class JaxRDDLBackpropPlanner:
     
-    def __init__(self,
-                 rddl: RDDLLiftedModel,
+    def __init__(self, rddl: RDDLLiftedModel,
                  key: jax.random.PRNGKey,
                  batch_size_train: int, batch_size_test: int=None,
                  action_bounds: Dict={},
