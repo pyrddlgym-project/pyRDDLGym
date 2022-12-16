@@ -4,6 +4,7 @@ import optax
 
 from pyRDDLGym import ExampleManager
 from pyRDDLGym import RDDLEnv
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 from pyRDDLGym.Core.Parser import parser as parser
@@ -52,12 +53,12 @@ def rddl_simulate(plan):
     myEnv.close()
 
 
-def jax_simulate(ast, key, plan):
-    sim = JaxRDDLSimulator(ast, key)
+def jax_simulate(model, key, plan):
+    sim = JaxRDDLSimulator(model, key)
     
     total_reward = 0
     state, done = sim.reset() 
-    for step in range(ast.instance.horizon): 
+    for step in range(model.horizon): 
         action = plan(step)
         next_state, reward, done = sim.step(action)
         total_reward += reward      
@@ -85,12 +86,13 @@ def main():
     rddlparser.build()
     ast = rddlparser.parse(rddltxt)
     
+    model = RDDLLiftedModel(ast)
     key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
     
     if DO_PLAN:
         
         planner = JaxRDDLBackpropPlanner(
-            ast, key, 64, 10,
+            model, key, 64, 10,
             optimizer=optax.rmsprop(0.1),
             initializer=jax.nn.initializers.normal(),
             action_bounds={'action': (0.0, 2.0)})
@@ -117,7 +119,7 @@ def main():
         def plan(step):
             return {}
 
-        jax_simulate(ast, key, plan)
+        jax_simulate(model, key, plan)
 
     
 if __name__ == "__main__":

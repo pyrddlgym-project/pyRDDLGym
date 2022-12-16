@@ -4,14 +4,15 @@ import jax.numpy as jnp
 import jax.random as random
 import warnings
 
-from pyRDDLGym.Core.Debug.decompiler import RDDLDecompiler
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+
+from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Parser.rddl import RDDL
-from pyRDDLGym.Core.Simulator.LiftedRDDLLevelAnalysis import LiftedRDDLLevelAnalysis
-from pyRDDLGym.Core.Simulator.LiftedRDDLTypeAnalysis import LiftedRDDLTypeAnalysis
+from pyRDDLGym.Core.Simulator.RDDLTensors import RDDLTensors
 
 
 class JaxRDDLCompiler:
@@ -33,8 +34,7 @@ class JaxRDDLCompiler:
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-    def __init__(self,
-                 rddl: RDDL,
+    def __init__(self, rddl: RDDLLiftedModel,
                  force_continuous: bool=False,
                  allow_synchronous_state: bool=True,
                  debug: bool=True) -> None:
@@ -43,17 +43,17 @@ class JaxRDDLCompiler:
         self.debug = debug
         jax.config.update('jax_log_compiles', self.debug)
         
-        self.domain = rddl.domain
-        self.instance = rddl.instance
-        self.non_fluents = rddl.non_fluents
-        
         # static analysis and compilation
-        self.static = LiftedRDDLLevelAnalysis(rddl, allow_synchronous_state)
+        self.static = RDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
-        self.next_states = self.static.next_states
-        self.types = LiftedRDDLTypeAnalysis(rddl, debug=debug)
-        self._compile_initial_values()
-                
+        self.tensors = RDDLTensors(rddl, debug)
+        
+        # initialize all fluent and non-fluent values
+        self.init_values, self.noop_actions = self._compile_initial_values()
+        self.next_states = {var + '\'': var
+                            for var, ftype in rddl.variable_types.items()
+                            if ftype == 'state-fluent'}
+        
         # basic operations        
         self.ARITHMETIC_OPS = {
             '+': jnp.add,
@@ -118,60 +118,52 @@ class JaxRDDLCompiler:
     # main compilation subroutines
     # ===========================================================================
      
-    def _compile_initial_values(self):
-        
-        # get default values from domain
-        self.dtypes = {}
-        self.init_values = {}
-        self.noop_actions = {}
-        for pvar in self.domain.pvariables:
-            name = pvar.name                     
-            prange = pvar.range
-            if self.force_continuous:
-                prange = 'real'
-            dtype = JaxRDDLCompiler.JAX_TYPES[prange]
-            self.dtypes[name] = dtype
-            if pvar.is_state_fluent():
-                self.dtypes[name + '\''] = dtype
-                             
-            ptypes = pvar.param_types
-            value = pvar.default
+    def _compile_values_from_dict(self, dict_in, dict_out):
+        for name, value in dict_in.items():
+            var = self.rddl.parse(name)[0]
+            if var not in dict_out:
+                dict_out[var] = []
             if value is None:
-                value = JaxRDDLCompiler.DEFAULT_VALUES[prange]
-            self.init_values[name] = self.types.tensor(ptypes, value, dtype)
-            
-            if pvar.is_action_fluent():
-                self.noop_actions[name] = self.init_values[name]
+                value = JaxRDDLCompiler.DEFAULT_VALUES[
+                    self.rddl.variable_ranges[var]]
+            dict_out[var].append(value)
         
-        # override default values with instance
-        blocks = {}
-        if hasattr(self.instance, 'init_state'):
-            blocks['init-state'] = self.instance.init_state
-        if hasattr(self.non_fluents, 'init_non_fluent'):
-            blocks['non-fluents'] = self.non_fluents.init_non_fluent
+    def _compile_initial_values(self):
+        values = {}
+        self._compile_values_from_dict(self.rddl.init_state, values)
+        self._compile_values_from_dict(self.rddl.actions, values)
+        self._compile_values_from_dict(self.rddl.derived, values)
+        self._compile_values_from_dict(self.rddl.interm, values)
+        self._compile_values_from_dict(self.rddl.observ, values)
+        self._compile_values_from_dict(self.rddl.nonfluents, values)
         
-        for block_name, block_content in blocks.items():
-            for (name, objects), value in block_content:
-                if name not in self.init_values:
-                    raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> in {block_name} is not valid.')
+        init_values, noop_actions = {}, {}
+        for var, valuelist in values.items():
+            prange = self.rddl.variable_ranges[var]
+            dtype = JaxRDDLCompiler.JAX_TYPES[prange]
+            if self.rddl.param_types[var]:
+                ptypes = self.rddl.param_types[var]
+                newshape = self.tensors.shape(ptypes)
+                values = np.array(valuelist, dtype=dtype)
+                values = np.reshape(values, newshape=newshape, order='C')
+                init_values[var] = values            
+            else:
+                if len(valuelist) != 1:
+                    raise RDDLInvalidObjectError(
+                        f'Internal error: value list for non-parameterized '
+                        f'variable <{var}> must be length 1, '
+                        f'got length {len(valuelist)}.')
+                init_values[var] = dtype(valuelist[0])
                 
-                if self.types.count_type_args(name):
-                    self.types.put(name, objects, value, self.init_values[name])
-                else:
-                    self.init_values[name] = value
+            if self.rddl.variable_types[var] == 'action-fluent':
+                noop_actions[var] = init_values[var]
         
-        if self.debug:
-            val = ''.join(f'\n\t\t{k}: {v}' for k, v in self.init_values.items())
-            warnings.warn(
-                f'compiling initial value info:'
-                f'\n\tvalues ={val}\n'
-            )
+        return init_values, noop_actions  
             
     def compile(self) -> None: 
-        self.invariants = self._compile_constraints(self.domain.invariants)
-        self.preconditions = self._compile_constraints(self.domain.preconds)
-        self.termination = self._compile_constraints(self.domain.terminals)
+        self.invariants = self._compile_constraints(self.rddl.invariants)
+        self.preconditions = self._compile_constraints(self.rddl.preconditions)
+        self.termination = self._compile_constraints(self.rddl.terminals)
         self.cpfs = self._compile_cpfs()
         self.reward = self._compile_reward()
     
@@ -182,14 +174,13 @@ class JaxRDDLCompiler:
         jax_cpfs = {}
         for _, cpfs in self.levels.items():
             for cpf in cpfs:
-                ptypes = self.types.cpf_types[cpf]
-                expr = self.static.cpfs[cpf]
-                dtype = self.dtypes[cpf]
-                jax_cpfs[cpf] = self._jax(expr, ptypes, dtype=dtype)
+                objects, expr = self.rddl.cpfs[cpf]
+                dtype = JaxRDDLCompiler.JAX_TYPES[self.rddl.variable_ranges[cpf]]
+                jax_cpfs[cpf] = self._jax(expr, objects, dtype=dtype)
         return jax_cpfs
     
     def _compile_reward(self):
-        return self._jax(self.domain.reward, [], dtype=JaxRDDLCompiler.REAL)
+        return self._jax(self.rddl.reward, [], dtype=JaxRDDLCompiler.REAL)
     
     def compile_rollouts(self, policy, n_steps: int, n_batch: int,
                          check_constraints: bool=False):
@@ -408,7 +399,7 @@ class JaxRDDLCompiler:
     
     def _jax_constant(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        * _, shape = self.types.map(
+        * _, shape = self.tensors.map(
             '', [], objects, 
             str(expr), JaxRDDLCompiler._print_stack_trace(expr))
         const = expr.args
@@ -422,7 +413,7 @@ class JaxRDDLCompiler:
     def _jax_pvar(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args            
-        permute, identity, new_dims = self.types.map(
+        permute, identity, new_dims = self.tensors.map(
             var, pvars, objects, 
             str(expr), JaxRDDLCompiler._print_stack_trace(expr))
         new_axes = (1,) * len(new_dims)
@@ -529,11 +520,12 @@ class JaxRDDLCompiler:
         * pvars, arg = expr.args  
         new_objects = objects + [p[1] for p in pvars]
         axis = tuple(range(len(objects), len(new_objects)))
-        fails = self.types.validate_types(
-            new_objects, JaxRDDLCompiler._print_stack_trace(expr))
+        
+        fails = {p for _, p in new_objects if p not in self.rddl.objects}
         if fails:
-            raise RDDLUndefinedVariableError(
-                f'Type(s) {fails} in aggregation {op} are not valid.\n' + 
+            raise RDDLInvalidObjectError(
+                f'Type(s) {fails} are not defined, '
+                f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
         
         jax_expr = self._jax(arg, new_objects)
