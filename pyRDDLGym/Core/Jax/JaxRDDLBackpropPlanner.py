@@ -183,18 +183,22 @@ class JaxRDDLBackpropPlanner:
             return (new_params, new_surplus)
         
         def _sogbofa_clip(params):
-            params = _clip(params)
             surplus = _surplus(params)
             init_values = (params, surplus)
             params, _ = jax.lax.while_loop(
                 _sogbofa_clip_condition, _sogbofa_clip_body, init_values)
+            return params
+        
+        def _sogbofa_clip_batched(params):            
+            params = _clip(params)
+            params = jax.vmap(_sogbofa_clip, in_axes=0)(params)
             return params
             
         def _update(params, key, opt_state):
             grad, (key, logged) = jax.grad(loss, has_aux=True)(params, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
-            params = _sogbofa_clip(params)
+            params = _sogbofa_clip_batched(params)
             return params, key, opt_state, logged
         
         return _update
@@ -203,7 +207,8 @@ class JaxRDDLBackpropPlanner:
     # training
     # ===========================================================================
     
-    def optimize(self, n_train_epochs: int) -> Generator[Dict, None, None]:
+    def optimize(self, n_train_epochs: int,
+                 step: int=1) -> Generator[Dict, None, None]:
         ''' Compute an optimal straight-line plan for the RDDL domain and instance.
         
         @param n_train_epochs: the maximum number of steps of gradient descent
@@ -223,11 +228,12 @@ class JaxRDDLBackpropPlanner:
                 best_params = params
                 best_loss = test_loss
             
-            callback = {'iteration': it,
-                        'train_loss': train_loss,
-                        'test_loss': test_loss,
-                        'best_loss': best_loss,
-                        'best_params': best_params,
-                        **test_log}
-            yield callback
+            if it % step == 0:
+                callback = {'iteration': it,
+                            'train_loss': train_loss,
+                            'test_loss': test_loss,
+                            'best_loss': best_loss,
+                            'best_params': best_params,
+                            **test_log}
+                yield callback
     
