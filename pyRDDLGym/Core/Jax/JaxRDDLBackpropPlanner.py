@@ -261,8 +261,13 @@ class JaxRDDLBackpropPlanner:
             actions, key = self.test_policy(None, step, params, key)
             actions = jax.tree_map(np.ravel, actions)
             grounded_actions = {}
-            for item in actions.items():
-                grounded_action = self.compiled.tensors.expand(*item)
+            for name, action in actions.items():
+                grounded_action = self.compiled.tensors.expand(name, action)
+                prange, _ = self.action_info[name]
+                if prange == 'bool':
+                    grounded_action = {var: value 
+                                       for var, value in grounded_action.items()
+                                       if value == True}
                 grounded_actions.update(grounded_action)
             plan.append(grounded_actions)
         return plan, key
