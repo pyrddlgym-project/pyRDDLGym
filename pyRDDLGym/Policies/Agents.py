@@ -12,9 +12,11 @@ class BaseAgent(metaclass=ABCMeta):
 
 
 class RandomAgent(BaseAgent):
-    def __init__(self, action_space, num_actions=1):
+    def __init__(self, action_space, num_actions=1, seed=None):
         self.action_space = action_space
         self.num_actions = num_actions
+        if seed is not None:
+            self.action_space.seed(seed)
 
     def sample_action(self, state=None):
         s = self.action_space.sample()
