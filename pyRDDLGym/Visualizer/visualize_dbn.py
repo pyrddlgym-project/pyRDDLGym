@@ -206,7 +206,7 @@ class RDDL2Graph:
         res += f"{'Grounded fluent':40}{'Parent variables':100}\n\n"
         # Ground fluents (including terminals and reward)
         for cpf, node_id in self.model.cpfs.items():
-            if not node_id:
+            if not node_id or cpf == 'terminals':
                 continue
             parents = self.model.collect_vars(node_id)
             parents = sorted([self.get_node_name(p) for p in parents])
