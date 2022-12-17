@@ -1,3 +1,4 @@
+import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
@@ -109,19 +110,32 @@ class JaxRDDLBackpropPlanner:
                     plan[name] = jnp.asarray(
                         param[step], dtype=JaxRDDLCompiler.REAL)
             return plan, key
-    
+        
+        # def _hard_bool(params):
+        #     values = [param 
+        #               for name, param in params.items() 
+        #               if self.action_info[name][0] == 'bool']
+        #                 new_params = {}
+        #     for name, param in params.items():
+        #         prange, _ = self.action_info[name]
+        #         if prange == 'bool':
+        #             values.append(param)
+        #         else:
+        #             new_params[name] = param
+        #     return new_params
+                    
         def _hard(subs, step, params, key):
             soft, key = _soft(subs, step, params, key)
             hard = {}
-            for name, value in soft.items():
+            for name, param in soft.items():
                 prange, _ = self.action_info[name]
-                if prange == 'bool':
-                    hard[name] = value > 0.5
+                if prange == 'real':
+                    hard[name] = param
                 elif prange == 'int':
                     hard[name] = jnp.asarray(
-                        jnp.round(value), dtype=JaxRDDLCompiler.INT)
-                else:
-                    hard[name] = value
+                        jnp.round(param), dtype=JaxRDDLCompiler.INT)
+                elif prange == 'bool':
+                    hard[name] = param > 0.5
             return hard, key
         
         return _soft, _hard
@@ -166,13 +180,13 @@ class JaxRDDLBackpropPlanner:
                 prange, _ = self.action_info[name]
                 if prange == 'bool':
                     total += jnp.sum(param)
-                    count += jnp.sum(param > 1e-10)
+                    count += jnp.sum(param > 0)
             surplus = (total - self.max_concurrent_action) / count
             return (surplus, count)
         
         def _sogbofa_clip_condition(values):
             _, (surplus, count) = values
-            return jnp.logical_and(count > 0, surplus > 1e-10)
+            return jnp.logical_and(count > 0, surplus > 0)
         
         def _sogbofa_clip_body(values):
             params, (surplus, _) = values
@@ -240,4 +254,15 @@ class JaxRDDLBackpropPlanner:
                             'best_params': best_params,
                             **test_log}
                 yield callback
-    
+                
+    def get_plan(self, params, key):
+        plan = []
+        for step in range(self.rddl.horizon):
+            actions, key = self.test_policy(None, step, params, key)
+            actions = jax.tree_map(np.ravel, actions)
+            grounded_actions = {}
+            for item in actions.items():
+                grounded_action = self.compiled.tensors.expand(*item)
+                grounded_actions.update(grounded_action)
+            plan.append(grounded_actions)
+        return plan, key
