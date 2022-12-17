@@ -39,12 +39,8 @@ class RDDLTensors:
 
     def _compile_objects(self):
         grounded = {}
-        for name, (objects, _) in self.rddl.cpfs.items():
-            types = self.rddl.param_types[name]
+        for name, types in self.rddl.param_types.items():
             grounded[name] = list(self.rddl.grounded_names(name, types))
-            if name.endswith('\''):
-                oldname = name[:-1]
-                grounded[oldname] = list(self.rddl.grounded_names(oldname, types))
         
         index_of_object = {}
         for objects in self.rddl.objects.values():
