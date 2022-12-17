@@ -181,7 +181,7 @@ class RDDL2Graph:
         f_dir = Path(f"tmp/{self._domain}")
         f_dir.mkdir(exist_ok=True, parents=True)
         f_path = f_dir / \
-            f"{file_name}{('_' + fluent) if fluent else ''}{('_' + gfluent) if gfluent else ''}_inst_{self._instance}.{file_type}"
+            f"{file_name}{('_' + fluent) if fluent else ''}{('_' + gfluent) if gfluent else ''}_inst_{self._instance}"
         if fluent is None and gfluent is None:
             graph = self.get_graph_of_instance()
         else:
@@ -190,8 +190,31 @@ class RDDL2Graph:
         self.configure_nodes(graph)
         self.configure_edges(graph)
         graph.set_ranks()
-        graph.draw(f_path, prog='dot')
+        graph.draw(f"{str(f_path)}.{file_type}", prog='dot')
+
+        # Output a file
+        with open(f_dir / f"{file_name}_inst_{self._instance}.txt", "w") as f:
+            txt = self.get_text_repr()
+            f.write(txt)
     
+    def get_text_repr(self):
+        """Returns a string that summarizes the DBN dependency structure of a given RDDL instance"""
+        res = f"DBN dependency analysis\n\n" \
+              f"Domain: {self._domain}\n" \
+              f"Instance: {self._instance}\n\n"
+        
+        res += f"{'Grounded fluent':40}{'Parent variables':100}\n\n"
+        # Ground fluents (including terminals and reward)
+        for cpf, node_id in self.model.cpfs.items():
+            if not node_id:
+                continue
+            parents = self.model.collect_vars(node_id)
+            parents = sorted([self.get_node_name(p) for p in parents])
+            node_name = self.get_node_name(cpf) if cpf != 'reward' else cpf
+            cpf_str = f"{node_name:40}{', '.join(parents):100}".strip(',')
+            res += f"{cpf_str}\n"
+        return res
+
     def get_graph_of_cpf(self, fluent: str, gfluent: Optional[str] = None) -> Graph:
         assert fluent in self.model.pvar_to_type or fluent.lower() == 'reward',\
             f"Fluent {fluent} not recognized"
