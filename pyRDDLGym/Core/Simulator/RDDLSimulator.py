@@ -35,6 +35,7 @@ class RDDLSimulator:
         :param rng: the random number generator
         :param debug: whether to print compiler information
         '''
+
         self.rddl = rddl
         self.rng = rng
         self.debug = debug
@@ -130,6 +131,53 @@ class RDDLSimulator:
     def isPOMDP(self):
         return self._pomdp
 
+    # ===========================================================================
+    # compilation time
+    # ===========================================================================
+    
+    def _compile_values_from_dict(self, dict_in, dict_out):
+        for name, value in dict_in.items():
+            var = self.rddl.parse(name)[0]
+            if var not in dict_out:
+                dict_out[var] = []
+            if value is None:
+                value = RDDLSimulator.DEFAULT_VALUES[
+                    self.rddl.variable_ranges[var]]
+            dict_out[var].append(value)
+        
+    def _compile_initial_values(self):
+        values = {}
+        self._compile_values_from_dict(self.rddl.init_state, values)
+        self._compile_values_from_dict(self.rddl.actions, values)
+        self._compile_values_from_dict(self.rddl.derived, values)
+        self._compile_values_from_dict(self.rddl.interm, values)
+        self._compile_values_from_dict(self.rddl.observ, values)
+        self._compile_values_from_dict(self.rddl.nonfluents, values)
+        
+        init_values, noop_actions = {}, {}
+        for var, valuelist in values.items():
+            prange = self.rddl.variable_ranges[var]
+            dtype = RDDLSimulator.NUMPY_TYPES[prange]
+            if self.rddl.param_types[var]:
+                ptypes = self.rddl.param_types[var]
+                newshape = self.tensors.shape(ptypes)
+                values = np.array(valuelist, dtype=dtype)
+                values = np.reshape(values, newshape=newshape, order='C')
+                init_values[var] = values            
+            else:
+                if len(valuelist) != 1:
+                    raise RDDLInvalidObjectError(
+                        f'Internal error: value list for non-parameterized '
+                        f'variable <{var}> must be length 1, '
+                        f'got length {len(valuelist)}.')
+                init_values[var] = dtype(valuelist[0])
+                
+            if self.rddl.variable_types[var] == 'action-fluent':
+                noop_actions[var] = init_values[var]
+
+        
+        return init_values, noop_actions        
+               
     # ===========================================================================
     # error checks
     # ===========================================================================
@@ -824,6 +872,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         self.epsilon = 0.001
         
         self._bounds = {}
+
         actions = set()
         for var, vartype in self.rddl.variable_types.items():
             if vartype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
@@ -891,6 +940,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             return None, 0.0, None, []
         
         else:
+
             if is_left_pvar:
                 var, args = left.args
                 const_expr = right

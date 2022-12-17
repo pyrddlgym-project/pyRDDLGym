@@ -40,6 +40,9 @@ class RDDLGrounder(Grounder):
         self.AST = RDDL_AST
         self.objects = {}
         self.objects_rev = {}
+        self.pvar_to_type = {pvar.name: pvar.range for pvar in self.AST.domain.pvariables}
+        self.gvar_to_type = {}
+        self.gvar_to_pvar = {}
         self.nonfluents = {}
         self.states = {}
         self.statesranges = {}
@@ -51,6 +54,7 @@ class RDDLGrounder(Grounder):
         self.actionsranges = {}
         self.cpfs = {}
         self.cpforder = {0: []}
+        self.gvar_to_cpforder = {}
         self.derived = {}
         self.interm = {}
         self.observ = {}
@@ -79,6 +83,7 @@ class RDDLGrounder(Grounder):
         model.init_state = self.initstate
         model.cpfs = self.cpfs
         model.cpforder = self.cpforder
+        model.gvar_to_cpforder = self.gvar_to_cpforder
         model.reward = self.reward
         model.terminals = self.terminals
         model.preconditions = self.preconditions
@@ -90,6 +95,9 @@ class RDDLGrounder(Grounder):
         model.objects = self.objects
         model.actionsranges = self.actionsranges
         model.statesranges = self.statesranges
+        model.gvar_to_type = self.gvar_to_type
+        model.pvar_to_type = self.pvar_to_type
+        model.gvar_to_pvar = self.gvar_to_pvar
         model.max_allowed_actions = self._ground_max_actions()
         model.horizon = self._ground_horizon()
         model.discount = self._ground_discount()
@@ -166,17 +174,22 @@ class RDDLGrounder(Grounder):
         valid_non_fluents = set(
             pvar.name for pvar in self.AST.domain.pvariables if pvar.is_non_fluent())
         for init_vals in self.AST.non_fluents.init_non_fluent:
-            name = init_vals[0][0]
-            if name not in valid_non_fluents:
+            pvar_name = init_vals[0][0]
+            vtype = self.pvar_to_type[pvar_name]
+            if pvar_name not in valid_non_fluents:
                 warnings.warn(
-                    'Non-fluents block initializes an undefined pvariable <{}>.'.format(name),
+                    'Non-fluents block initializes an undefined pvariable <{}>.'.format(pvar_name),
                     FutureWarning, stacklevel=2)
             variations_list = [init_vals[0][1]]
             val = init_vals[1]
             if variations_list[0] is not None:
                 name = self._generate_grounded_names(
-                    name, variations_list, return_grounding_param_dict=False)[0]    
+                    pvar_name, variations_list, return_grounding_param_dict=False)[0]    
+            else:
+                name = pvar_name
             self.nonfluents[name] = val
+            self.gvar_to_type[name] = vtype
+            self.gvar_to_pvar[name] = pvar_name
 
     def _ground_interm(self, pvariable, cpf_set):
         cpf = None
@@ -201,6 +214,7 @@ class RDDLGrounder(Grounder):
         all_grounded_observ_cpfs = []
         for pvariable in self.AST.domain.pvariables:
             name = pvariable.name
+            vtype = self.pvar_to_type[name]
             if pvariable.arity > 0:
                 # In line below, if we leave as an iterator object, will be empty after one iteration. Hence "list(.)"
                 variations = list(self._ground_objects(pvariable.param_types))
@@ -210,16 +224,21 @@ class RDDLGrounder(Grounder):
                 grounded = [name]
                 grounded_name_to_params_dict = {name: []}
             
+            for gvar_name in grounded:
+                self.gvar_to_pvar[gvar_name] = name
+            
             # todo merge martin's code check for abuse of arity                
             if pvariable.fluent_type == 'non-fluent':
                 for g in grounded:
                     if g not in self.nonfluents:
                         self.nonfluents[g] = pvariable.default
+                    self.gvar_to_type[g] = vtype
                 
             elif pvariable.fluent_type == 'action-fluent':
                 for g in grounded:
                     self.actions[g] = pvariable.default
                     self.actionsranges[g] = pvariable.range
+                    self.gvar_to_type[g] = vtype
               
             elif pvariable.fluent_type == 'state-fluent':
                 cpf = None
@@ -243,7 +262,11 @@ class RDDLGrounder(Grounder):
                     self.prevstates[next_state] = g
                     self.cpfs[next_state] = grounded_cpf.expr
                     self.cpforder[0].append(g)
-              
+                    self.gvar_to_cpforder[g] = 0
+                    self.gvar_to_type[g] = vtype
+                    self.gvar_to_pvar[next_state] = name
+                    self.gvar_to_type[next_state] = vtype
+                    
             elif pvariable.fluent_type == 'derived-fluent':
                 cpf = None
                 for cpfs in self.AST.domain.derived_cpfs:
@@ -266,6 +289,8 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level].append(g)
                     else:
                         self.cpforder[level] = [g]
+                    self.gvar_to_cpforder[g] = level
+                    self.gvar_to_type[g] = vtype
     
             elif pvariable.fluent_type == 'interm-fluent':
                 cpf = None
@@ -289,6 +314,8 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level].append(g)
                     else:
                         self.cpforder[level] = [g]
+                    self.gvar_to_type[g] = vtype
+                    self.gvar_to_cpforder[g] = level
 
             elif pvariable.fluent_type == 'observ-fluent':
                 cpf = None
@@ -307,6 +334,8 @@ class RDDLGrounder(Grounder):
                     self.observranges[g] = pvariable.range
                     self.cpfs[g] = grounded_cpf.expr
                     self.cpforder[0].append(g)
+                    self.gvar_to_type[g] = vtype
+                    self.gvar_to_cpforder[g] = 0
 
         # self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
         #                        )  # replacing the previous lifted entries

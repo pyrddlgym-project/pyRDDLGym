@@ -20,10 +20,12 @@ class PlanningModel(metaclass=ABCMeta):
         self._observranges = None
         self._cpfs = None
         self._cpforder = None
+        self._gvar_to_cpforder = None
         self._reward = None
         self._terminals = None
         self._preconditions = None
         self._invariants = None
+        self._gvar_to_type = None
 
         # new definitions
         self._max_allowed_actions = None
@@ -154,6 +156,14 @@ class PlanningModel(metaclass=ABCMeta):
         self._cpforder = val
 
     @property
+    def gvar_to_cpforder(self):
+        return self._gvar_to_cpforder
+
+    @gvar_to_cpforder.setter
+    def gvar_to_cpforder(self, val):
+        self._gvar_to_cpforder = val
+    
+    @property
     def reward(self):
         return self._reward
 
@@ -184,6 +194,30 @@ class PlanningModel(metaclass=ABCMeta):
     @invariants.setter
     def invariants(self, val):
         self._invariants = val
+    
+    @property
+    def gvar_to_type(self):
+        return self._gvar_to_type
+
+    @gvar_to_type.setter
+    def gvar_to_type(self, val):
+        self._gvar_to_type = val
+    
+    @property
+    def pvar_to_type(self):
+        return self._pvar_to_type
+
+    @pvar_to_type.setter
+    def pvar_to_type(self, val):
+        self._pvar_to_type = val
+
+    @property
+    def gvar_to_pvar(self):
+        return self._gvar_to_pvar
+
+    @gvar_to_pvar.setter
+    def gvar_to_pvar(self, val):
+        self._gvar_to_pvar = val
 
     @property
     def discount(self):
