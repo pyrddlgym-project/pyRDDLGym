@@ -1,3 +1,4 @@
+from functools import partial
 import jax
 import jax.numpy as jnp
 import jax.random as random
@@ -16,13 +17,16 @@ class JaxRDDLBackpropPlanner:
     
     def __init__(self, rddl: RDDLLiftedModel,
                  key: jax.random.PRNGKey,
-                 batch_size_train: int, batch_size_test: int=None,
+                 batch_size_train: int,
+                 batch_size_test: int=None,
                  action_bounds: Dict={},
+                 max_concurrent_action: int=jnp.inf,
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  log_full_path: bool=False) -> None:
         self.rddl = rddl
         self.key = key
+        self.max_concurrent_action = max_concurrent_action
         self.batch_size_train = batch_size_train
         if batch_size_test is None:
             batch_size_test = batch_size_train
@@ -59,8 +63,11 @@ class JaxRDDLBackpropPlanner:
                     raise RDDLTypeError(
                         f'Invalid range {prange} of action-fluent <{name}>.')
                 self.action_info[name] = (prange, shape)
-                self.action_bounds[name] = self._action_bounds.get(
-                    name, (-jnp.inf, +jnp.inf))
+                if prange == 'bool':
+                    self.action_bounds[name] = (0.0, 1.0)
+                else:
+                    self.action_bounds[name] = self._action_bounds.get(
+                        name, (-jnp.inf, +jnp.inf))
     
     # ===========================================================================
     # compilation of back-propagation info
@@ -97,9 +104,7 @@ class JaxRDDLBackpropPlanner:
             plan = {}
             for name, param in params.items():
                 prange, _ = self.action_info[name]
-                if prange == 'bool':
-                    action = jax.nn.sigmoid(param[step])
-                elif prange == 'int': 
+                if prange != 'real': 
                     action = jnp.asarray(param[step], dtype=JaxRDDLCompiler.REAL)
                 else:
                     action = param[step]
@@ -155,16 +160,49 @@ class JaxRDDLBackpropPlanner:
             for name, param in params.items():
                 clipped[name] = jnp.clip(param, *self.action_bounds[name])
             return clipped
+        
+        def _surplus(params):
+            total, count = 0.0, 0
+            for _, param in params.items():
+                total += jnp.sum(param)
+                count += jnp.sum(jnp.greater(param, 1e-8))
+            surplus = (total - self.max_concurrent_action) / count
+            return (surplus, count)
+        
+        def _sogbofa_clip_condition(values):
+            _, (surplus, count) = values
+            return jnp.logical_and(
+                jnp.greater(count, 0), jnp.greater(surplus, 1e-8))
+        
+        def _sogbofa_clip_body(values):
+            params, (surplus, _) = values
+            new_params = {}
+            for name, param in params.items():
+                new_params[name] = jnp.maximum(param - surplus, 0.0)
+            new_surplus = _surplus(new_params)
+            return (new_params, new_surplus)
+        
+        def _sogbofa_clip(params):
+            params = _clip(params)
+            surplus = _surplus(params)
+            init_values = (params, surplus)
+            params, _ = jax.lax.while_loop(
+                _sogbofa_clip_condition, _sogbofa_clip_body, init_values)
+            return params
             
         def _update(params, key, opt_state):
             grad, (key, logged) = jax.grad(loss, has_aux=True)(params, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
-            params = _clip(params)
+            params = _sogbofa_clip(params)
             return params, key, opt_state, logged
         
         return _update
             
+    # ===========================================================================
+    # training
+    # ===========================================================================
+    
     def optimize(self, n_train_epochs: int) -> Generator[Dict, None, None]:
         ''' Compute an optimal straight-line plan for the RDDL domain and instance.
         
