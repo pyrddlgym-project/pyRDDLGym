@@ -103,11 +103,11 @@ class JaxRDDLBackpropPlanner:
             plan = {}
             for name, param in params.items():
                 prange, _ = self.action_info[name]
-                if prange != 'real': 
-                    action = jnp.asarray(param[step], dtype=JaxRDDLCompiler.REAL)
+                if prange == 'real': 
+                    plan[name] = param[step]
                 else:
-                    action = param[step]
-                plan[name] = action
+                    plan[name] = jnp.asarray(
+                        param[step], dtype=JaxRDDLCompiler.REAL)
             return plan, key
     
         def _hard(subs, step, params, key):
@@ -155,29 +155,34 @@ class JaxRDDLBackpropPlanner:
     def _jax_update(self, loss, optimizer):
         
         def _clip(params):
-            clipped = {}
+            new_params = {}
             for name, param in params.items():
-                clipped[name] = jnp.clip(param, *self.action_bounds[name])
-            return clipped
+                new_params[name] = jnp.clip(param, *self.action_bounds[name])
+            return new_params
         
         def _surplus(params):
             total, count = 0.0, 0
-            for _, param in params.items():
-                total += jnp.sum(param)
-                count += jnp.sum(jnp.greater(param, 1e-8))
+            for name, param in params.items():
+                prange, _ = self.action_info[name]
+                if prange == 'bool':
+                    total += jnp.sum(param)
+                    count += jnp.sum(param > 1e-10)
             surplus = (total - self.max_concurrent_action) / count
             return (surplus, count)
         
         def _sogbofa_clip_condition(values):
             _, (surplus, count) = values
-            return jnp.logical_and(
-                jnp.greater(count, 0), jnp.greater(surplus, 1e-8))
+            return jnp.logical_and(count > 0, surplus > 1e-10)
         
         def _sogbofa_clip_body(values):
             params, (surplus, _) = values
             new_params = {}
             for name, param in params.items():
-                new_params[name] = jnp.maximum(param - surplus, 0.0)
+                prange, _ = self.action_info[name]
+                if prange == 'bool':
+                    new_params[name] = jnp.maximum(param - surplus, 0.0)
+                else:
+                    new_params[name] = param
             new_surplus = _surplus(new_params)
             return (new_params, new_surplus)
         
