@@ -1,4 +1,3 @@
-from functools import partial
 import jax
 import jax.numpy as jnp
 import jax.random as random
@@ -207,18 +206,18 @@ class JaxRDDLBackpropPlanner:
     # training
     # ===========================================================================
     
-    def optimize(self, n_train_epochs: int,
-                 step: int=1) -> Generator[Dict, None, None]:
-        ''' Compute an optimal straight-line plan for the RDDL domain and instance.
+    def optimize(self, epochs: int, step: int=1) -> Generator[Dict, None, None]:
+        ''' Compute an optimal straight-line plan.
         
-        @param n_train_epochs: the maximum number of steps of gradient descent
+        @param epochs: the maximum number of steps of gradient descent
+        @param step: frequency the callback is provided back to the user
         '''
         params, key, opt_state = self.initialize(self.key)
         
         best_params = params
         best_loss = jnp.inf
         
-        for it in range(n_train_epochs):
+        for it in range(epochs):
             params, key, opt_state, _ = self.update(params, key, opt_state)            
             train_loss, (key, _) = self.train_loss(params, key)            
             test_loss, (key, test_log) = self.test_loss(params, key)
