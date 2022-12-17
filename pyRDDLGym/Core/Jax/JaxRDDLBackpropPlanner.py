@@ -251,6 +251,7 @@ class JaxRDDLBackpropPlanner:
                             'train_loss': train_loss,
                             'test_loss': test_loss,
                             'best_loss': best_loss,
+                            'params': params,
                             'best_params': best_params,
                             **test_log}
                 yield callback
