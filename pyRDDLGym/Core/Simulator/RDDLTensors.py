@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Iterable, List, Tuple
+from typing import Iterable, List, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -219,7 +219,7 @@ class RDDLTensors:
         
         return (permute, identity, new_dims)
     
-    def expand(self, var: str, values: np.ndarray) -> Dict[str, Value]:
+    def expand(self, var: str, values: np.ndarray) -> Iterable[Tuple[str, Value]]:
         '''Produces a grounded representation of the pvariable var from its 
         tensor representation. The output is a dict whose keys are grounded
         representations of the var, and values are read from the tensor.
@@ -229,4 +229,4 @@ class RDDLTensors:
         '''
         keys = self.grounded[var]
         values = np.ravel(values)
-        return dict(zip(keys, values, strict=True))
+        return zip(keys, values, strict=True)
