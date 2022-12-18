@@ -267,7 +267,7 @@ class JaxRDDLBackpropPlanner:
                 prange, _ = self.action_info[name]
                 if prange == 'bool':
                     grounded_action = {var: value 
-                                       for var, value in grounded_action.items()
+                                       for var, value in grounded_action
                                        if value == True}
                 grounded_actions.update(grounded_action)
             plan.append(grounded_actions)

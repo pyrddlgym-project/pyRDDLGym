@@ -72,7 +72,7 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
-        actions = self._actions_to_tensors(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -105,7 +105,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         :param actions: a dict mapping current action fluents to their values
         '''
-        actions = self._actions_to_tensors(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
