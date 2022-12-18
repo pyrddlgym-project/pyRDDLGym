@@ -92,13 +92,12 @@ def main():
     if DO_PLAN:
         
         planner = JaxRDDLBackpropPlanner(
-            model, key, 64, 64,
-            max_concurrent_action=1,
-            optimizer=optax.rmsprop(0.01),
+            model, key, 32, 32,
+            optimizer=optax.rmsprop(0.02),
             initializer=jax.nn.initializers.normal(),
             action_bounds={'action': (0.0, 2.0)})
         
-        for callback in planner.optimize(5000, 10):
+        for callback in planner.optimize(4000, 10):
             print('step={} loss={:.6f} test_loss={:.6f}'.format(
                 str(callback['iteration']).rjust(4),
                 callback['train_loss'],

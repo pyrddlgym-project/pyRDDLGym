@@ -6,6 +6,7 @@ import jax.nn.initializers as initializers
 import optax
 from typing import Dict, Generator
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
@@ -20,13 +21,17 @@ class JaxRDDLBackpropPlanner:
                  batch_size_train: int,
                  batch_size_test: int=None,
                  action_bounds: Dict={},
-                 max_concurrent_action: int=jnp.inf,
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  log_full_path: bool=False) -> None:
+        
+        # jax compilation will only work on lifted domains for now
+        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
+            raise RDDLNotImplementedError(
+                'Jax compilation only works on lifted domains for now.')
+            
         self.rddl = rddl
         self.key = key
-        self.max_concurrent_action = max_concurrent_action
         self.batch_size_train = batch_size_train
         if batch_size_test is None:
             batch_size_test = batch_size_train
@@ -52,19 +57,24 @@ class JaxRDDLBackpropPlanner:
         self.test_compiled.compile()
 
     def _compile_action_info(self):
-        self.action_info, self.action_bounds = {}, {}
+        self.action_shapes, self.action_bounds = {}, {}
+        self.bool_actions = False
         for name, prange in self.rddl.variable_ranges.items():
             if self.rddl.variable_types[name] == 'action-fluent':
-                shape = (self.rddl.horizon,)
                 value = self.compiled.init_values[name]
-                if hasattr(value, 'shape'):
+                shape = (self.rddl.horizon,)
+                if type(value) is np.ndarray:
                     shape = shape + value.shape
+                self.action_shapes[name] = shape
+                    
                 if prange not in JaxRDDLCompiler.JAX_TYPES:
                     raise RDDLTypeError(
-                        f'Invalid range {prange} of action-fluent <{name}>.')
-                self.action_info[name] = (prange, shape)
+                        f'Invalid range {prange} of action-fluent <{name}>, '
+                        f'must be one of {set(JaxRDDLCompiler.JAX_TYPES.keys())}.')
+                    
                 if prange == 'bool':
                     self.action_bounds[name] = (0.0, 1.0)
+                    self.bool_actions = True
                 else:
                     self.action_bounds[name] = self._action_bounds.get(
                         name, (-jnp.inf, +jnp.inf))
@@ -102,40 +112,26 @@ class JaxRDDLBackpropPlanner:
         # TODO: use a one-hot for integer actions
         def _soft(_, step, params, key):
             plan = {}
-            for name, param in params.items():
-                prange, _ = self.action_info[name]
-                if prange == 'real': 
-                    plan[name] = param[step]
+            for var, param in params.items():
+                if self.rddl.variable_ranges[var] == 'real': 
+                    plan[var] = param[step]
                 else:
-                    plan[name] = jnp.asarray(
+                    plan[var] = jnp.asarray(
                         param[step], dtype=JaxRDDLCompiler.REAL)
             return plan, key
         
-        # def _hard_bool(params):
-        #     values = [param 
-        #               for name, param in params.items() 
-        #               if self.action_info[name][0] == 'bool']
-        #                 new_params = {}
-        #     for name, param in params.items():
-        #         prange, _ = self.action_info[name]
-        #         if prange == 'bool':
-        #             values.append(param)
-        #         else:
-        #             new_params[name] = param
-        #     return new_params
-                    
         def _hard(subs, step, params, key):
             soft, key = _soft(subs, step, params, key)
             hard = {}
-            for name, param in soft.items():
-                prange, _ = self.action_info[name]
+            for var, param in soft.items():
+                prange = self.rddl.variable_ranges[var]
                 if prange == 'real':
-                    hard[name] = param
+                    hard[var] = param
                 elif prange == 'int':
-                    hard[name] = jnp.asarray(
+                    hard[var] = jnp.asarray(
                         jnp.round(param), dtype=JaxRDDLCompiler.INT)
                 elif prange == 'bool':
-                    hard[name] = param > 0.5
+                    hard[var] = param > 0.5
             return hard, key
         
         return _soft, _hard
@@ -144,11 +140,11 @@ class JaxRDDLBackpropPlanner:
         
         def _init(key):
             params = {}
-            for action, (_, shape) in self.action_info.items():
+            for var, shape in self.action_shapes.items():
                 key, subkey = random.split(key)
                 param = initializer(subkey, shape, dtype=JaxRDDLCompiler.REAL)
-                param = jnp.clip(param, *self.action_bounds[action])
-                params[action] = param
+                param = jnp.clip(param, *self.action_bounds[var])
+                params[var] = param
             opt_state = optimizer.init(params)
             return params, key, opt_state
         
@@ -170,18 +166,20 @@ class JaxRDDLBackpropPlanner:
         
         def _clip(params):
             new_params = {}
-            for name, param in params.items():
-                new_params[name] = jnp.clip(param, *self.action_bounds[name])
+            for var, param in params.items():
+                new_params[var] = jnp.clip(param, *self.action_bounds[var])
             return new_params
         
-        def _surplus(params):
+        use_sogbofa_clip_trick = self.bool_actions and \
+            self.rddl.max_allowed_actions < len(self.rddl.actions)
+        
+        def _sogbofa_surplus(params):
             total, count = 0.0, 0
-            for name, param in params.items():
-                prange, _ = self.action_info[name]
-                if prange == 'bool':
+            for var, param in params.items():
+                if self.rddl.variable_ranges[var] == 'bool':
                     total += jnp.sum(param)
                     count += jnp.sum(param > 0)
-            surplus = (total - self.max_concurrent_action) / count
+            surplus = (total - self.rddl.max_allowed_actions) / jnp.maximum(count, 1)
             return (surplus, count)
         
         def _sogbofa_clip_condition(values):
@@ -191,32 +189,31 @@ class JaxRDDLBackpropPlanner:
         def _sogbofa_clip_body(values):
             params, (surplus, _) = values
             new_params = {}
-            for name, param in params.items():
-                prange, _ = self.action_info[name]
-                if prange == 'bool':
-                    new_params[name] = jnp.maximum(param - surplus, 0.0)
+            for var, param in params.items():
+                if self.rddl.variable_ranges[var] == 'bool':
+                    new_params[var] = jnp.maximum(param - surplus, 0.0)
                 else:
-                    new_params[name] = param
-            new_surplus = _surplus(new_params)
+                    new_params[var] = param
+            new_surplus = _sogbofa_surplus(new_params)
             return (new_params, new_surplus)
         
         def _sogbofa_clip(params):
-            surplus = _surplus(params)
+            surplus = _sogbofa_surplus(params)
             init_values = (params, surplus)
             params, _ = jax.lax.while_loop(
                 _sogbofa_clip_condition, _sogbofa_clip_body, init_values)
             return params
         
-        def _sogbofa_clip_batched(params):            
-            params = _clip(params)
-            params = jax.vmap(_sogbofa_clip, in_axes=0)(params)
-            return params
+        def _sogbofa_clip_batched(params):
+            return jax.vmap(_sogbofa_clip, in_axes=0)(params)
             
         def _update(params, key, opt_state):
             grad, (key, logged) = jax.grad(loss, has_aux=True)(params, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
-            params = _sogbofa_clip_batched(params)
+            params = _clip(params)
+            if use_sogbofa_clip_trick:
+                params = _sogbofa_clip_batched(params)
             return params, key, opt_state, logged
         
         return _update
@@ -262,12 +259,11 @@ class JaxRDDLBackpropPlanner:
             actions, key = self.test_policy(None, step, params, key)
             actions = jax.tree_map(np.ravel, actions)
             grounded_actions = {}
-            for name, action in actions.items():
-                grounded_action = self.compiled.tensors.expand(name, action)
-                prange, _ = self.action_info[name]
-                if prange == 'bool':
-                    grounded_action = {var: value 
-                                       for var, value in grounded_action.items()
+            for var, action in actions.items():
+                grounded_action = self.compiled.tensors.expand(var, action)
+                if self.rddl.variable_ranges[var] == 'bool':
+                    grounded_action = {gvar: value 
+                                       for gvar, value in grounded_action
                                        if value == True}
                 grounded_actions.update(grounded_action)
             plan.append(grounded_actions)

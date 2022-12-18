@@ -32,6 +32,7 @@ class RDDLEnv(gym.Env):
         # define the model sampler
         self.model = RDDLLiftedModel(rddl)
         self.sampler = RDDLSimulatorWConstraints(self.model)
+        bounds = self.sampler.bounds
 
         # set roll-out parameters
         self.horizon = self.model.horizon
@@ -49,16 +50,16 @@ class RDDLEnv(gym.Env):
         for act in self.model.actions:
             act_range = self.model.actionsranges[act]
             if act_range == 'real':
-                action_space[act] = Box(low=self.sampler.bounds[act][0],
-                                        high=self.sampler.bounds[act][1],
+                action_space[act] = Box(low=bounds[act][0], 
+                                        high=bounds[act][1],
                                         dtype=np.float32)
             elif act_range == 'bool':
                 action_space[act] = Discrete(2)
             elif act_range == 'int':
-                high = self.sampler.bounds[act][1]
+                high = bounds[act][1]
                 if high == np.inf:
                     high = np.iinfo(np.int32).max
-                low = self.sampler.bounds[act][0]
+                low = bounds[act][0]
                 if low == -np.inf:
                     low = np.iinfo(np.int32).min
                 action_space[act] = Discrete(int(high - low + 1), start=int(low))
@@ -79,16 +80,16 @@ class RDDLEnv(gym.Env):
         for state in search_dict:
             state_range = ranges[state]
             if state_range == 'real':
-                state_space[state] = Box(low=self.sampler.bounds[state][0],
-                                         high=self.sampler.bounds[state][1],
+                state_space[state] = Box(low=bounds[state][0],
+                                         high=bounds[state][1],
                                          dtype=np.float32)
             elif state_range == 'bool':
                 state_space[state] = Discrete(2)
             elif state_range == 'int':
-                high = self.sampler.bounds[state][1]
+                high = bounds[state][1]
                 if high == np.inf:
                     high = np.iinfo(np.int32).max
-                low = self.sampler.bounds[state][0]
+                low = bounds[state][0]
                 if low == -np.inf:
                     low = np.iinfo(np.int32).min
                 state_space[state] = Discrete(int(high - low + 1), start=int(low))

@@ -81,7 +81,7 @@ class RDDLGrounder(Grounder):
         model.next_state = self.nextstates
         model.prev_state = self.prevstates
         model.init_state = self.initstate
-        model.cpfs = self.cpfs
+        model.cpfs = self.cpfs  # changed to mapping name -> (<params>, <expressions>) on Dec 17 (Mike)
         model.cpforder = self.cpforder
         model.gvar_to_cpforder = self.gvar_to_cpforder
         model.reward = self.reward
@@ -93,6 +93,7 @@ class RDDLGrounder(Grounder):
         model.observ = self.observ
         model.observranges = self.observranges
         model.objects = self.objects
+        model.objects_rev = self.objects_rev
         model.actionsranges = self.actionsranges
         model.statesranges = self.statesranges
         model.gvar_to_type = self.gvar_to_type
@@ -101,6 +102,11 @@ class RDDLGrounder(Grounder):
         model.max_allowed_actions = self._ground_max_actions()
         model.horizon = self._ground_horizon()
         model.discount = self._ground_discount()
+        
+        # added on Dec 17 (Mike)
+        model.param_types, model.variable_types, model.variable_ranges = \
+            self._extract_variable_information()
+        
         return model
 
     def _ground_horizon(self):
@@ -126,8 +132,8 @@ class RDDLGrounder(Grounder):
 
     def _extract_objects(self):
         if (not self.AST.non_fluents.objects) or self.AST.non_fluents.objects[0] is None:
-            self.objects = None
-            self.objects_rev = None
+            self.objects = {}
+            self.objects_rev = {}
         else:
             self.objects = {}
             self.objects_rev = {}
@@ -198,7 +204,7 @@ class RDDLGrounder(Grounder):
                 cpf = cpfs
         if cpf is not None:
             self.derived[pvariable.name] = pvariable.default
-            self.cpfs[pvariable.name] = cpf.expr
+            self.cpfs[pvariable.name] = ([], cpf.expr)
             level = pvariable.level
             if level is None:
                 level = 1
@@ -260,7 +266,7 @@ class RDDLGrounder(Grounder):
                     self.statesranges[g] = pvariable.range
                     self.nextstates[g] = next_state
                     self.prevstates[next_state] = g
-                    self.cpfs[next_state] = grounded_cpf.expr
+                    self.cpfs[next_state] = ([], grounded_cpf.expr)
                     self.cpforder[0].append(g)
                     self.gvar_to_cpforder[g] = 0
                     self.gvar_to_type[g] = vtype
@@ -281,7 +287,7 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_derived_cpfs.append(grounded_cpf)
                     self.derived[g] = pvariable.default
-                    self.cpfs[g] = grounded_cpf.expr
+                    self.cpfs[g] = ([], grounded_cpf.expr)
                     level = pvariable.level
                     if level is None:
                         level = 1
@@ -306,7 +312,7 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_interim_cpfs.append(grounded_cpf)
                     self.interm[g] = pvariable.default
-                    self.cpfs[g] = grounded_cpf.expr
+                    self.cpfs[g] = ([], grounded_cpf.expr)
                     level = pvariable.level
                     if level is None:
                         level = 1
@@ -316,7 +322,7 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level] = [g]
                     self.gvar_to_type[g] = vtype
                     self.gvar_to_cpforder[g] = level
-
+                    
             elif pvariable.fluent_type == 'observ-fluent':
                 cpf = None
                 for cpfs in self.AST.domain.observation_cpfs:
@@ -332,7 +338,7 @@ class RDDLGrounder(Grounder):
                     all_grounded_observ_cpfs.append(grounded_cpf)
                     self.observ[g] = pvariable.default
                     self.observranges[g] = pvariable.range
-                    self.cpfs[g] = grounded_cpf.expr
+                    self.cpfs[g] = ([], grounded_cpf.expr)
                     self.cpforder[0].append(g)
                     self.gvar_to_type[g] = vtype
                     self.gvar_to_cpforder[g] = 0
@@ -544,4 +550,23 @@ class RDDLGrounder(Grounder):
                     warnings.warn(
                         'Init-state block initializes an undefined state fluent <{}>.'.format(key),
                         FutureWarning, stacklevel=2)
-
+                    
+    # added on Dec 17 (Mike)
+    def _extract_variable_information(self):
+        var_params, var_types, var_ranges = {}, {}, {}
+        for pvar in self.AST.domain.pvariables:
+            primed_name = name = pvar.name
+            if pvar.is_state_fluent():
+                primed_name = name + '\''
+            ptypes = pvar.param_types
+            if ptypes is None:
+                ptypes = []
+            var_params[name] = ptypes
+            var_params[primed_name] = ptypes        
+            var_types[name] = pvar.fluent_type
+            if pvar.is_state_fluent():
+                var_types[primed_name] = 'next-state-fluent'                
+            var_ranges[name] = pvar.range
+            var_ranges[primed_name] = pvar.range            
+        return var_params, var_types, var_ranges
+    
