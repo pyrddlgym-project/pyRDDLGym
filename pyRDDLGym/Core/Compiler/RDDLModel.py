@@ -33,6 +33,8 @@ class PlanningModel(metaclass=ABCMeta):
         self._terminals = None
         self._preconditions = None
         self._invariants = None
+        self._gvar_to_pvar = None
+        self._pvar_to_type = None
         self._gvar_to_type = None
 
         # new definitions
