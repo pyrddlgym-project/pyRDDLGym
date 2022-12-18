@@ -60,30 +60,30 @@ class RDDLTensors:
         
         init_arrays = {}
         for var in self.rddl.variable_ranges.keys():
-            ptypes = self.rddl.param_types[var]
             prange = self.rddl.variable_ranges[var]
             valid_ranges = RDDLTensors.DEFAULT_VALUES
             if prange not in valid_ranges:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
                     f'must be one of {set(valid_ranges.keys())}.')                
-            default_value = valid_ranges[prange]            
-            grounded_values = [
-                init_values.get(name, default_value) 
-                for name in self.rddl.grounded_names(var, ptypes)]
+            default_value = valid_ranges[prange]
             
-            dtype = RDDLTensors.NUMPY_TYPES[prange]
-            if ptypes:
-                array = np.asarray(grounded_values, dtype=dtype)
-                array = np.reshape(array, newshape=self.shape(ptypes), order='C')
-                init_arrays[var] = array
+            types = self.rddl.param_types[var]
+            if types:
+                if self.rddl.is_grounded:
+                    for name in self.rddl.grounded_names(var, types):
+                        init_arrays[name] = init_values.get(name, default_value)                    
+                else:
+                    grounded_values = [
+                        init_values.get(name, default_value) 
+                        for name in self.rddl.grounded_names(var, types)
+                    ]
+                    dtype = RDDLTensors.NUMPY_TYPES[prange]
+                    array = np.asarray(grounded_values, dtype=dtype)
+                    array = np.reshape(array, newshape=self.shape(types), order='C')
+                    init_arrays[var] = array                
             else:
-                if len(grounded_values) != 1:
-                    raise RDDLInvalidObjectError(
-                        f'Internal error: values for non-parameterized '
-                        f'variable <{var}> must be length 1, '
-                        f'got {len(grounded_values)}.')
-                init_arrays[var] = dtype(grounded_values[0])                  
+                init_arrays[var] = init_values.get(var, default_value)      
         return init_arrays
         
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
