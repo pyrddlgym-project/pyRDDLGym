@@ -63,6 +63,11 @@ class RDDLGrounder(Grounder):
         self.terminals = []
         self.preconditions = []
         self.invariants = []
+        
+        # added on Dec 17 (Mike)
+        self.param_types = {}
+        self.variable_types = {}
+        self.variable_ranges = {}
 
     def Ground(self) -> RDDLModel:
         self._extract_objects()
@@ -103,8 +108,9 @@ class RDDLGrounder(Grounder):
         model.discount = self._ground_discount()
         
         # added on Dec 17 (Mike)
-        model.param_types = self._extract_param_types()
-        model.variable_types, model.variable_ranges = self._extract_variables()
+        model.param_types = self.param_types
+        model.variable_types = self.variable_types
+        model.variable_ranges = self.variable_ranges
         
         return model
 
@@ -238,12 +244,22 @@ class RDDLGrounder(Grounder):
                     if g not in self.nonfluents:
                         self.nonfluents[g] = pvariable.default
                     self.gvar_to_type[g] = vtype
+                    self.param_types[g] = pvariable.param_types
+                    if self.param_types[g] is None:
+                        self.param_types[g] = []
+                    self.variable_types[g] = pvariable.fluent_type
+                    self.variable_ranges[g] = pvariable.range
                 
             elif pvariable.fluent_type == 'action-fluent':
                 for g in grounded:
                     self.actions[g] = pvariable.default
                     self.actionsranges[g] = pvariable.range
                     self.gvar_to_type[g] = vtype
+                    self.param_types[g] = pvariable.param_types
+                    if self.param_types[g] is None:
+                        self.param_types[g] = []
+                    self.variable_types[g] = pvariable.fluent_type
+                    self.variable_ranges[g] = pvariable.range
               
             elif pvariable.fluent_type == 'state-fluent':
                 cpf = None
@@ -271,6 +287,15 @@ class RDDLGrounder(Grounder):
                     self.gvar_to_type[g] = vtype
                     self.gvar_to_pvar[next_state] = name
                     self.gvar_to_type[next_state] = vtype
+                    self.param_types[g] = pvariable.param_types
+                    self.param_types[next_state] = pvariable.param_types
+                    if self.param_types[g] is None:
+                        self.param_types[g] = []
+                    if self.param_types[next_state] is None:
+                        self.param_types[next_state] = []
+                    self.variable_types[g] = pvariable.fluent_type
+                    self.variable_types[next_state] = 'next-state-fluent'
+                    self.variable_ranges[g] = pvariable.range
                     
             elif pvariable.fluent_type == 'derived-fluent':
                 cpf = None
@@ -296,6 +321,11 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level] = [g]
                     self.gvar_to_cpforder[g] = level
                     self.gvar_to_type[g] = vtype
+                    self.param_types[g] = pvariable.param_types
+                    if self.param_types[g] is None:
+                        self.param_types[g] = []
+                    self.variable_types[g] = pvariable.fluent_type
+                    self.variable_ranges[g] = pvariable.range
     
             elif pvariable.fluent_type == 'interm-fluent':
                 cpf = None
@@ -321,6 +351,11 @@ class RDDLGrounder(Grounder):
                         self.cpforder[level] = [g]
                     self.gvar_to_type[g] = vtype
                     self.gvar_to_cpforder[g] = level
+                    self.param_types[g] = pvariable.param_types
+                    if self.param_types[g] is None:
+                        self.param_types[g] = []
+                    self.variable_types[g] = pvariable.fluent_type
+                    self.variable_ranges[g] = pvariable.range
 
             elif pvariable.fluent_type == 'observ-fluent':
                 cpf = None
@@ -341,6 +376,11 @@ class RDDLGrounder(Grounder):
                     self.cpforder[0].append(g)
                     self.gvar_to_type[g] = vtype
                     self.gvar_to_cpforder[g] = 0
+                    self.param_types[g] = pvariable.param_types
+                    if self.param_types[g] is None:
+                        self.param_types[g] = []
+                    self.variable_types[g] = pvariable.fluent_type
+                    self.variable_ranges[g] = pvariable.range
 
         # self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
         #                        )  # replacing the previous lifted entries
@@ -550,27 +590,4 @@ class RDDLGrounder(Grounder):
                         'Init-state block initializes an undefined state fluent <{}>.'.format(key),
                         FutureWarning, stacklevel=2)
 
-    # added on Dec 17 (Mike)
-    def _extract_param_types(self):
-        param_types = {}
-        for pvar in self.AST.domain.pvariables:
-            primed_name = name = pvar.name
-            if pvar.is_state_fluent():
-                primed_name = name + '\''
-            ptypes = pvar.param_types
-            if ptypes is None:
-                ptypes = []
-            param_types[name] = ptypes
-            param_types[primed_name] = ptypes
-        return param_types
-
-    def _extract_variables(self):
-        variable_types, variable_ranges = {}, {}
-        for pvar in self.AST.domain.pvariables:
-            variable_types[pvar.name] = pvar.fluent_type
-            variable_ranges[pvar.name] = pvar.range
-            if pvar.is_state_fluent():
-                variable_types[pvar.name + '\''] = 'next-state-fluent'
-                variable_ranges[pvar.name + '\''] = pvar.range
-        return variable_types, variable_ranges
     
