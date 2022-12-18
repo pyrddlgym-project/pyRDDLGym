@@ -20,6 +20,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._initstate = None
         self._actions = None
         self._objects = None
+        self._objects_rev = None
         self._actionsranges = None
         self._derived = None
         self._interm = None
@@ -54,6 +55,14 @@ class PlanningModel(metaclass=ABCMeta):
     @objects.setter
     def objects(self, value):
         self._objects = value
+        
+    @property
+    def objects_rev(self):
+        return self._objects_rev
+
+    @objects_rev.setter
+    def objects_rev(self, value):
+        self._objects_rev = value
 
     @property
     def nonfluents(self):
@@ -339,9 +348,18 @@ class PlanningModel(metaclass=ABCMeta):
         '''Determines whether or not the given variable can be evaluated
         for the given list of objects.
         '''
-        gvar = self.ground_name(var, objects)
-        return gvar in self.param_types
-
+        if var not in self.param_types:
+            return False
+        ptypes = self.param_types[var]
+        if objects is None:
+            objects = []
+        if len(ptypes) != len(objects):
+            return False
+        for ptype, obj in zip(ptypes, objects):
+            if obj not in self.objects_rev or ptype != self.objects_rev[obj]:
+                return False
+        return True
+    
     def is_non_fluent_expression(self, expr: Expression) -> bool:
         '''Determines whether or not expression is a non-fluent.
         '''
@@ -354,11 +372,12 @@ class PlanningModel(metaclass=ABCMeta):
             return False
         elif etype == 'pvar':
             name = expr.args[0]
-            if name not in self.variable_types:
+            var = self.parse(name)[0]
+            if var not in self.variable_types:
                 raise RDDLUndefinedVariableError(
-                    f'Variable <{name}> is not defined in the domain, '
+                    f'Variable <{var}> is not defined in the domain, '
                     f'must be one of {set(self.variable_types.keys())}.')
-            return self.variable_types[name] == 'non-fluent'
+            return self.variable_types[var] == 'non-fluent'
         else:
             for arg in expr.args:
                 if not self.is_non_fluent_expression(arg):

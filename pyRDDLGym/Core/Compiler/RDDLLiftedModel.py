@@ -1,5 +1,3 @@
-from typing import List
-
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
@@ -13,7 +11,8 @@ class RDDLLiftedModel(RDDLModel):
         
         self.SetAST(rddl)
         self.objects, self.objects_rev = self._extract_objects()
-        self.param_types = self._extract_param_types()  
+        self.param_types, self.variable_types, self.variable_ranges = \
+            self._extract_variable_information()  
                 
         self.states, self.statesranges, self.next_state, self.prev_state, \
             self.init_state = self._extract_states()
@@ -21,11 +20,11 @@ class RDDLLiftedModel(RDDLModel):
         self.derived, self.interm = self._extract_derived_and_interm()
         self.observ, self.observranges = self._extract_observ()
         self.nonfluents = self._extract_non_fluents()
-        self.variable_types, self.variable_ranges = self._extract_variables()
         
         self.reward = self._AST.domain.reward
         self.cpfs = self._extract_cpfs()
-        self.terminals, self.preconditions, self.invariants = self._extract_constraints()
+        self.terminals, self.preconditions, self.invariants = \
+            self._extract_constraints()
         
         self.horizon = self._extract_horizon()
         self.discount = self._extract_discount()
@@ -47,8 +46,8 @@ class RDDLLiftedModel(RDDLModel):
                 objects_rev[obj] = ptype
         return objects, objects_rev
     
-    def _extract_param_types(self):
-        param_types = {}
+    def _extract_variable_information(self):
+        var_params, var_types, var_ranges = {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             primed_name = name = pvar.name
             if pvar.is_state_fluent():
@@ -56,9 +55,14 @@ class RDDLLiftedModel(RDDLModel):
             ptypes = pvar.param_types
             if ptypes is None:
                 ptypes = []
-            param_types[name] = ptypes
-            param_types[primed_name] = ptypes
-        return param_types
+            var_params[name] = ptypes
+            var_params[primed_name] = ptypes        
+            var_types[name] = pvar.fluent_type
+            if pvar.is_state_fluent():
+                var_types[primed_name] = 'next-state-fluent'                
+            var_ranges[name] = pvar.range
+            var_ranges[primed_name] = pvar.range            
+        return var_params, var_types, var_ranges
 
     def _extract_states(self):
         states, statesranges = {}, {}
@@ -123,16 +127,6 @@ class RDDLLiftedModel(RDDLModel):
                     non_fluents[name] = value             
         return non_fluents
     
-    def _extract_variables(self):
-        variable_types, variable_ranges = {}, {}
-        for pvar in self._AST.domain.pvariables:
-            variable_types[pvar.name] = pvar.fluent_type
-            variable_ranges[pvar.name] = pvar.range
-            if pvar.is_state_fluent():
-                variable_types[pvar.name + '\''] = 'next-state-fluent'
-                variable_ranges[pvar.name + '\''] = pvar.range
-        return variable_types, variable_ranges
-    
     def _extract_cpfs(self):
         cpfs = {}
         for cpf in self._AST.domain.cpfs[1]:
@@ -182,20 +176,4 @@ class RDDLLiftedModel(RDDLModel):
     @property
     def is_grounded(self):
         return False
-    
-    def is_compatible(self, var: str, objects: List[str]) -> bool:
-        '''Determines whether or not the given variable can be evaluated
-        for the given list of objects.
-        '''
-        if var not in self.param_types:
-            return False
-        ptypes = self.param_types[var]
-        if objects is None:
-            objects = []
-        if len(ptypes) != len(objects):
-            return False
-        for ptype, obj in zip(ptypes, objects):
-            if obj not in self.objects_rev or ptype != self.objects_rev[obj]:
-                return False
-        return True
     
