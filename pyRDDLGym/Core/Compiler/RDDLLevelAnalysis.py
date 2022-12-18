@@ -75,10 +75,11 @@ class RDDLLevelAnalysis:
             pass
         elif expr.is_pvariable_expression():
             name, *_ = expr.args
-            if name not in self.rddl.variable_types:
+            var = self.rddl.parse(name)[0]
+            if var not in self.rddl.variable_types:
                 raise RDDLUndefinedVariableError(
                     f'Variable <{name}> in CPF <{cpf}> is not defined.')
-            if self.rddl.variable_types[name] != 'non-fluent':
+            if self.rddl.variable_types[var] != 'non-fluent':
                 graph.setdefault(cpf, set()).add(name)
         elif not expr.is_constant_expression():
             for arg in expr.args:
@@ -88,19 +89,16 @@ class RDDLLevelAnalysis:
     # call graph validation
     # ===========================================================================
     
-    def _fluent_type(self, fluent):
-        return self.rddl.variable_types.get(fluent, fluent)
-    
     def _validate_dependencies(self, graph):
         for cpf, deps in graph.items():
-            cpf_type = self._fluent_type(cpf)
+            var = self.rddl.parse(cpf)[0]
+            cpf_type = self.rddl.variable_types.get(var, var)
             
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
                 warnings.warn(
                     f'The use of derived-fluent is discouraged in this version: '
-                    f'please change <{cpf}> to interm-fluent.',
-                    FutureWarning, stacklevel=2)
+                    f'please change <{cpf}> to interm-fluent.', stacklevel=2)
             
             # not a recognized type
             if cpf_type not in VALID_DEPENDENCIES:
@@ -114,7 +112,8 @@ class RDDLLevelAnalysis:
             
             # check that all dependencies are valid
             for dep in deps: 
-                dep_type = self._fluent_type(dep)
+                var = self.rddl.parse(dep)[0]
+                dep_type = self.rddl.variable_types.get(var, var)
                 if dep_type not in VALID_DEPENDENCIES[cpf_type] or (
                     not self.allow_synchronous_state
                     and cpf_type == dep_type == 'next-state-fluent'):
@@ -122,14 +121,15 @@ class RDDLLevelAnalysis:
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
     def _validate_cpf_definitions(self, graph): 
-        for name in self.rddl.variable_types.keys():
-            fluent_type = self._fluent_type(name)
+        for cpf in self.rddl.cpfs.keys():
+            var = self.rddl.parse(cpf)[0]
+            fluent_type = self.rddl.variable_types.get(var, var)
             if fluent_type == 'state-fluent':
-                fluent_type = 'next-state-fluent'
-                name = name + '\''
-            if fluent_type in VALID_DEPENDENCIES and name not in graph:
+                fluent_type = 'next-' + fluent_type
+                var = var + '\''
+            if fluent_type in VALID_DEPENDENCIES and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{name}> is missing a valid definition.')
+                    f'{fluent_type} CPF <{cpf}> is missing a valid definition.')
                     
     # ===========================================================================
     # topological sort
