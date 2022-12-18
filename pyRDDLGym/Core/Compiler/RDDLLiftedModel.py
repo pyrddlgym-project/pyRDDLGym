@@ -51,7 +51,7 @@ class RDDLLiftedModel(RDDLModel):
         return objects, objects_rev
     
     def _extract_param_types(self):
-        var_types = {}
+        param_types = {}
         for pvar in self._AST.domain.pvariables:
             primed_name = name = pvar.name
             if pvar.is_state_fluent():
@@ -59,9 +59,9 @@ class RDDLLiftedModel(RDDLModel):
             ptypes = pvar.param_types
             if ptypes is None:
                 ptypes = []
-            var_types[name] = ptypes
-            var_types[primed_name] = ptypes
-        return var_types
+            param_types[name] = ptypes
+            param_types[primed_name] = ptypes
+        return param_types
 
     def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
         '''Given a list of types, computes the cartesian product of all object
