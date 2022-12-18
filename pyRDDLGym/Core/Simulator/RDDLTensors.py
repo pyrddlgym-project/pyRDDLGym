@@ -1,5 +1,5 @@
 import numpy as np
-from typing import cast, Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -8,7 +8,6 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Parser.expr import Value
 
 
@@ -32,11 +31,7 @@ class RDDLTensors:
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
     def __init__(self, rddl: RDDLModel, debug: bool=False):
-        if rddl.is_grounded or not isinstance(rddl, RDDLLiftedModel):
-            raise RDDLTypeError(f'RDDLTensors objects cannot be instantiated '
-                                f'for a grounded domain!')
-            
-        self.rddl = cast(RDDLLiftedModel, rddl)
+        self.rddl = rddl
         self.debug = debug
         
         self.index_of_object, self.grounded = self._compile_objects()
@@ -54,51 +49,42 @@ class RDDLTensors:
                   
         return index_of_object, grounded
     
-    def _compile_values_from_dict(self, values, out):
-        for name, value in values.items():
-            var = self.rddl.parse(name)[0]
-            if value is None:
-                prange = self.rddl.variable_ranges[var]
-                valid_ranges = RDDLTensors.DEFAULT_VALUES
-                if prange not in valid_ranges:
-                    raise RDDLTypeError(
-                        f'Type <{prange}> of variable <{var}> is not valid, '
-                        f'must be one of {set(valid_ranges.keys())}.')
-                value = valid_ranges[prange]
-            if var not in out:
-                out[var] = []
-            out[var].append(value)
-            
     def _compile_init_values(self):
-        values = {}
-        self._compile_values_from_dict(self.rddl.init_state, values)
-        self._compile_values_from_dict(self.rddl.actions, values)
-        self._compile_values_from_dict(self.rddl.derived, values)
-        self._compile_values_from_dict(self.rddl.interm, values)
-        self._compile_values_from_dict(self.rddl.observ, values)
-        self._compile_values_from_dict(self.rddl.nonfluents, values)
-        
         init_values = {}
-        for var, value in values.items():
+        init_values.update(self.rddl.init_state)
+        init_values.update(self.rddl.actions)
+        init_values.update(self.rddl.derived)
+        init_values.update(self.rddl.interm)
+        init_values.update(self.rddl.observ)
+        init_values.update(self.rddl.nonfluents)
+        
+        init_arrays = {}
+        for var in self.rddl.variable_ranges.keys():
+            ptypes = self.rddl.param_types[var]
             prange = self.rddl.variable_ranges[var]
-            if prange not in RDDLTensors.NUMPY_TYPES:
+            valid_ranges = RDDLTensors.DEFAULT_VALUES
+            if prange not in valid_ranges:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
-                    f'must be one of {set(RDDLTensors.NUMPY_TYPES.keys())}.')
+                    f'must be one of {set(valid_ranges.keys())}.')                
+            default_value = valid_ranges[prange]            
+            grounded_values = [
+                init_values.get(name, default_value) 
+                for name in self.rddl.grounded_names(var, ptypes)]
+            
             dtype = RDDLTensors.NUMPY_TYPES[prange]
-            if self.rddl.param_types[var]:
-                ptypes = self.rddl.param_types[var]
-                newshape = self.shape(ptypes)
-                array = np.asarray(value, dtype=dtype)
-                array = np.reshape(array, newshape=newshape, order='C')
-                init_values[var] = array
+            if ptypes:
+                array = np.asarray(grounded_values, dtype=dtype)
+                array = np.reshape(array, newshape=self.shape(ptypes), order='C')
+                init_arrays[var] = array
             else:
-                if len(value) != 1:
+                if len(grounded_values) != 1:
                     raise RDDLInvalidObjectError(
                         f'Internal error: values for non-parameterized '
-                        f'variable <{var}> must be length 1, got {len(value)}.')
-                init_values[var] = dtype(value[0])                
-        return init_values
+                        f'variable <{var}> must be length 1, '
+                        f'got {len(grounded_values)}.')
+                init_arrays[var] = dtype(grounded_values[0])                  
+        return init_arrays
         
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Converts a list of objects into their coordinate representation.
