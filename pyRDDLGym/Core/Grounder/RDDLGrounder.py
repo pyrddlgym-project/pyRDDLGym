@@ -132,8 +132,8 @@ class RDDLGrounder(Grounder):
 
     def _extract_objects(self):
         if (not self.AST.non_fluents.objects) or self.AST.non_fluents.objects[0] is None:
-            self.objects = None
-            self.objects_rev = None
+            self.objects = {}
+            self.objects_rev = {}
         else:
             self.objects = {}
             self.objects_rev = {}
