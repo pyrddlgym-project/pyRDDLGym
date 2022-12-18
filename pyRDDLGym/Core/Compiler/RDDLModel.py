@@ -279,7 +279,11 @@ class PlanningModel(metaclass=ABCMeta):
     @variable_ranges.setter
     def variable_ranges(self, val):
         self._variable_ranges = val
-
+    
+    @property
+    def is_grounded(self):
+        return True
+    
     def ground_name(self, name: str, objects: Iterable[str]) -> str:
         '''Given a variable name and list of objects as arguments, produces a 
         grounded representation <variable>_<obj1>_<obj2>_...
