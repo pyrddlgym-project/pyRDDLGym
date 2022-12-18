@@ -1,12 +1,9 @@
-import itertools
-from typing import Iterable, List, Tuple
+from typing import List
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
-from pyRDDLGym.Core.Parser.expr import Expression
 
 
 class RDDLLiftedModel(RDDLModel):
@@ -63,43 +60,6 @@ class RDDLLiftedModel(RDDLModel):
             param_types[primed_name] = ptypes
         return param_types
 
-    def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
-        '''Given a list of types, computes the cartesian product of all object
-        enumerations that corresponds to those types.
-        '''
-        if ptypes is None or not ptypes:
-            return [()]
-        objects_by_type = []
-        for ptype in ptypes:
-            if ptype not in self.objects:
-                raise RDDLInvalidObjectError(
-                    f'Type <{ptype}> is not valid, '
-                    f'must be one of {set(self.objects.keys())}.')
-            objects_by_type.append(self.objects[ptype])
-        return itertools.product(*objects_by_type)
-    
-    def ground_name(self, name: str, objects: Iterable[str]) -> str:
-        '''Given a variable name and list of objects as arguments, produces a 
-        grounded representation <variable>_<obj1>_<obj2>_...
-        '''
-        is_primed = name.endswith('\'')
-        var = name
-        if is_primed:
-            var = var[:-1]
-        if objects is not None and objects:
-            var += '_' + '_'.join(objects)
-        if is_primed:
-            var += '\''
-        return var
-    
-    def grounded_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
-        '''Given a variable name and list of types, produces a new iterator
-        whose elements are the grounded representations in the cartesian product 
-        of all object enumerations that corresponds to those types.
-        '''
-        for objects in self.variations(ptypes):
-            yield self.ground_name(name, objects)
-        
     def _extract_states(self):
         states, statesranges = {}, {}
         nextstates, prevstates = {}, {}
@@ -235,34 +195,3 @@ class RDDLLiftedModel(RDDLModel):
                 return False
         return True
     
-    def parse(self, expr: str) -> Tuple[str, List[str]]:
-        '''Parses an expression of the form <name> or <name>_<type1>_<type2>...)
-        into a tuple of <name>, [<type1>, <type2>, ...].
-        '''
-        tokens = expr.split('_')
-        var = tokens[0]
-        objects = tokens[1:]
-        return var, objects
-    
-    def is_non_fluent_expression(self, expr: Expression) -> bool:
-        '''Determines whether or not expression is a non-fluent.
-        '''
-        if isinstance(expr, tuple):
-            return True
-        etype, _ = expr.etype
-        if etype == 'constant':
-            return True
-        elif etype == 'randomvar':
-            return False
-        elif etype == 'pvar':
-            name = expr.args[0]
-            if name not in self.variable_types:
-                raise RDDLUndefinedVariableError(
-                    f'Variable <{name}> is not defined in the domain, '
-                    f'must be one of {set(self.variable_types.keys())}.')
-            return self.variable_types[name] == 'non-fluent'
-        else:
-            for arg in expr.args:
-                if not self.is_non_fluent_expression(arg):
-                    return False
-            return True
