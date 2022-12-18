@@ -127,7 +127,7 @@ class JaxRDDLCompiler:
         
     def _compile_cpfs(self):
         jax_cpfs = {}
-        for _, cpfs in self.levels.items():
+        for cpfs in self.levels.values():
             for cpf in cpfs:
                 objects, expr = self.rddl.cpfs[cpf]
                 prange = self.rddl.variable_ranges[cpf]

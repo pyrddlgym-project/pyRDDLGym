@@ -311,7 +311,7 @@ class RDDLSimulator:
         subs = self.subs
         subs.update(actions)
         
-        for _, cpfs in self.levels.items():
+        for cpfs in self.levels.values():
             for cpf in cpfs:
                 objects, expr = self.rddl.cpfs[cpf]
                 subs[cpf] = self._sample(expr, objects, subs)

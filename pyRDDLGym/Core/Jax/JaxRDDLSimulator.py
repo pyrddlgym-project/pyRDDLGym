@@ -116,7 +116,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs
         subs.update(actions)
         
-        for _, cpfs in self.levels.items():
+        for cpfs in self.levels.values():
             for cpf in cpfs:
                 subs[cpf], self.key, error = self.cpfs[cpf](subs, self.key)
                 self.handle_error_code(error, f'CPF <{cpf}>')            
