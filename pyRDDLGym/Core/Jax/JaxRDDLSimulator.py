@@ -3,6 +3,7 @@ from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
@@ -19,6 +20,12 @@ class JaxRDDLSimulator(RDDLSimulator):
                  key: jax.random.PRNGKey,
                  raise_error: bool=False,
                  **compiler_args) -> None:
+        
+        # jax compilation will only work on lifted domains for now
+        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
+            raise RDDLNotImplementedError(
+                'Jax compilation only works on lifted domains for now.')
+            
         self.rddl = rddl
         self.key = key
         self.raise_error = raise_error
