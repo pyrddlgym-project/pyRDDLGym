@@ -51,12 +51,12 @@ class RDDLTensors:
     
     def _compile_init_values(self):
         init_values = {}
+        init_values.update(self.rddl.nonfluents)
         init_values.update(self.rddl.init_state)
         init_values.update(self.rddl.actions)
-        init_values.update(self.rddl.derived)
-        init_values.update(self.rddl.interm)
-        init_values.update(self.rddl.observ)
-        init_values.update(self.rddl.nonfluents)
+        init_values = {name: value 
+                       for name, value in init_values.items() 
+                       if value is not None}
         
         init_arrays = {}
         for var in self.rddl.variable_ranges.keys():
@@ -66,24 +66,25 @@ class RDDLTensors:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
                     f'must be one of {set(valid_ranges.keys())}.')                
-            default_value = valid_ranges[prange]
+            default = valid_ranges[prange]
             
             types = self.rddl.param_types[var]
+            dtype = RDDLTensors.NUMPY_TYPES[prange]
             if types:
                 if self.rddl.is_grounded:
                     for name in self.rddl.grounded_names(var, types):
-                        init_arrays[name] = init_values.get(name, default_value)                    
+                        init_arrays[name] = dtype(init_values.get(name, default)) 
                 else:
                     grounded_values = [
-                        init_values.get(name, default_value) 
+                        init_values.get(name, default) 
                         for name in self.rddl.grounded_names(var, types)
                     ]
-                    dtype = RDDLTensors.NUMPY_TYPES[prange]
                     array = np.asarray(grounded_values, dtype=dtype)
                     array = np.reshape(array, newshape=self.shape(types), order='C')
                     init_arrays[var] = array                
             else:
-                init_arrays[var] = init_values.get(var, default_value)      
+                init_arrays[var] = dtype(init_values.get(var, default))
+                 
         return init_arrays
         
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
