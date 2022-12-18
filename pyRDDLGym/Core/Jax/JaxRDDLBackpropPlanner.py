@@ -6,6 +6,7 @@ import jax.nn.initializers as initializers
 import optax
 from typing import Dict, Generator
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
@@ -24,6 +25,12 @@ class JaxRDDLBackpropPlanner:
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  log_full_path: bool=False) -> None:
+        
+        # jax compilation will only work on lifted domains for now
+        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
+            raise RDDLNotImplementedError(
+                'Jax compilation only works on lifted domains for now.')
+            
         self.rddl = rddl
         self.key = key
         self.max_concurrent_action = max_concurrent_action
