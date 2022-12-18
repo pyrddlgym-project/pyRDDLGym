@@ -126,7 +126,6 @@ class JaxRDDLSimulator(RDDLSimulator):
             obs = {}
             for var in self.observ_fluents:
                 obs.update(self.tensors.expand(var, subs[var]))
-            obs = {o: None for o in obs.keys()}
         else:
             obs = self.state
         
