@@ -1,4 +1,11 @@
 from abc import ABCMeta
+import itertools
+from typing import Iterable, List, Tuple
+
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
+
+from pyRDDLGym.Core.Parser.expr import Expression
 
 
 class PlanningModel(metaclass=ABCMeta):
@@ -13,6 +20,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._initstate = None
         self._actions = None
         self._objects = None
+        self._objects_rev = None
         self._actionsranges = None
         self._derived = None
         self._interm = None
@@ -25,13 +33,20 @@ class PlanningModel(metaclass=ABCMeta):
         self._terminals = None
         self._preconditions = None
         self._invariants = None
+        self._gvar_to_pvar = None
+        self._pvar_to_type = None
         self._gvar_to_type = None
 
         # new definitions
         self._max_allowed_actions = None
         self._horizon = None
         self._discount = None
-
+        
+        # added on Dec 17 (Mike)
+        self._param_types = None
+        self._variable_types = None
+        self._variable_ranges = None
+        
     def SetAST(self, AST):
         self._AST = AST
 
@@ -42,6 +57,14 @@ class PlanningModel(metaclass=ABCMeta):
     @objects.setter
     def objects(self, value):
         self._objects = value
+        
+    @property
+    def objects_rev(self):
+        return self._objects_rev
+
+    @objects_rev.setter
+    def objects_rev(self, value):
+        self._objects_rev = value
 
     @property
     def nonfluents(self):
@@ -242,8 +265,128 @@ class PlanningModel(metaclass=ABCMeta):
     @max_allowed_actions.setter
     def max_allowed_actions(self, val):
         self._max_allowed_actions = val
+    
+    # added on Dec 17 (Mike)
+    @property
+    def param_types(self):
+        return self._param_types
 
+    @param_types.setter
+    def param_types(self, val):
+        self._param_types = val
+        
+    @property
+    def variable_types(self):
+        return self._variable_types
 
+    @variable_types.setter
+    def variable_types(self, val):
+        self._variable_types = val
+    
+    @property
+    def variable_ranges(self):
+        return self._variable_ranges
+
+    @variable_ranges.setter
+    def variable_ranges(self, val):
+        self._variable_ranges = val
+    
+    @property
+    def is_grounded(self):
+        return True
+    
+    def ground_name(self, name: str, objects: Iterable[str]) -> str:
+        '''Given a variable name and list of objects as arguments, produces a 
+        grounded representation <variable>_<obj1>_<obj2>_...
+        '''
+        is_primed = name.endswith('\'')
+        var = name
+        if is_primed:
+            var = var[:-1]
+        if objects is not None and objects:
+            var += '_' + '_'.join(objects)
+        if is_primed:
+            var += '\''
+        return var
+    
+    def parse(self, expr: str) -> Tuple[str, List[str]]:
+        '''Parses an expression of the form <name> or <name>_<type1>_<type2>...)
+        into a tuple of <name>, [<type1>, <type2>, ...].
+        '''
+        is_primed = expr.endswith('\'')
+        if is_primed:
+            expr = expr[:-1]
+        tokens = expr.split('_')
+        var = tokens[0]
+        if is_primed:
+            var += '\''
+        objects = tokens[1:]
+        return var, objects
+    
+    def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
+        '''Given a list of types, computes the cartesian product of all object
+        enumerations that corresponds to those types.
+        '''
+        if ptypes is None or not ptypes:
+            return [()]
+        objects_by_type = []
+        for ptype in ptypes:
+            if ptype not in self.objects:
+                raise RDDLInvalidObjectError(
+                    f'Type <{ptype}> is not valid, '
+                    f'must be one of {set(self.objects.keys())}.')
+            objects_by_type.append(self.objects[ptype])
+        return itertools.product(*objects_by_type)
+    
+    def grounded_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
+        '''Given a variable name and list of types, produces a new iterator
+        whose elements are the grounded representations in the cartesian product 
+        of all object enumerations that corresponds to those types.
+        '''
+        for objects in self.variations(ptypes):
+            yield self.ground_name(name, objects)
+        
+    def is_compatible(self, var: str, objects: List[str]) -> bool:
+        '''Determines whether or not the given variable can be evaluated
+        for the given list of objects.
+        '''
+        if var not in self.param_types:
+            return False
+        ptypes = self.param_types[var]
+        if objects is None:
+            objects = []
+        if len(ptypes) != len(objects):
+            return False
+        for ptype, obj in zip(ptypes, objects):
+            if obj not in self.objects_rev or ptype != self.objects_rev[obj]:
+                return False
+        return True
+    
+    def is_non_fluent_expression(self, expr: Expression) -> bool:
+        '''Determines whether or not expression is a non-fluent.
+        '''
+        if isinstance(expr, tuple):
+            return True
+        etype, _ = expr.etype
+        if etype == 'constant':
+            return True
+        elif etype == 'randomvar':
+            return False
+        elif etype == 'pvar':
+            name = expr.args[0]
+            var = self.parse(name)[0]
+            if var not in self.variable_types:
+                raise RDDLUndefinedVariableError(
+                    f'Variable <{var}> is not defined in the domain, '
+                    f'must be one of {set(self.variable_types.keys())}.')
+            return self.variable_types[var] == 'non-fluent'
+        else:
+            for arg in expr.args:
+                if not self.is_non_fluent_expression(arg):
+                    return False
+            return True
+
+    
 class RDDLModel(PlanningModel):
 
     def __init__(self):

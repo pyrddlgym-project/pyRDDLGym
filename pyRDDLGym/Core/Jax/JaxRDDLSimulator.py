@@ -3,6 +3,7 @@ from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
@@ -19,6 +20,12 @@ class JaxRDDLSimulator(RDDLSimulator):
                  key: jax.random.PRNGKey,
                  raise_error: bool=False,
                  **compiler_args) -> None:
+        
+        # jax compilation will only work on lifted domains for now
+        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
+            raise RDDLNotImplementedError(
+                'Jax compilation only works on lifted domains for now.')
+            
         self.rddl = rddl
         self.key = key
         self.raise_error = raise_error
@@ -72,7 +79,7 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
-        actions = self._actions_to_tensors(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -105,11 +112,11 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         :param actions: a dict mapping current action fluents to their values
         '''
-        actions = self._actions_to_tensors(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
-        for _, cpfs in self.levels.items():
+        for cpfs in self.levels.values():
             for cpf in cpfs:
                 subs[cpf], self.key, error = self.cpfs[cpf](subs, self.key)
                 self.handle_error_code(error, f'CPF <{cpf}>')            
@@ -126,7 +133,6 @@ class JaxRDDLSimulator(RDDLSimulator):
             obs = {}
             for var in self.observ_fluents:
                 obs.update(self.tensors.expand(var, subs[var]))
-            obs = {o: None for o in obs.keys()}
         else:
             obs = self.state
         

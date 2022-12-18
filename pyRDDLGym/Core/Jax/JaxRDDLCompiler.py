@@ -30,6 +30,12 @@ class JaxRDDLCompiler:
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
                  debug: bool=True) -> None:
+        
+        # jax compilation will only work on lifted domains for now
+        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
+            raise RDDLNotImplementedError(
+                'Jax compilation only works on lifted domains for now.')
+        
         self.rddl = rddl
         self.debug = debug
         jax.config.update('jax_log_compiles', self.debug)
@@ -121,7 +127,7 @@ class JaxRDDLCompiler:
         
     def _compile_cpfs(self):
         jax_cpfs = {}
-        for _, cpfs in self.levels.items():
+        for cpfs in self.levels.values():
             for cpf in cpfs:
                 objects, expr = self.rddl.cpfs[cpf]
                 prange = self.rddl.variable_ranges[cpf]
