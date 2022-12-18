@@ -31,7 +31,12 @@ class PlanningModel(metaclass=ABCMeta):
         self._max_allowed_actions = None
         self._horizon = None
         self._discount = None
-
+        
+        # added on Dec 17 (Mike)
+        self._param_types = None
+        self._variable_types = None
+        self._variable_ranges = None
+        
     def SetAST(self, AST):
         self._AST = AST
 
@@ -242,6 +247,31 @@ class PlanningModel(metaclass=ABCMeta):
     @max_allowed_actions.setter
     def max_allowed_actions(self, val):
         self._max_allowed_actions = val
+    
+    # added on Dec 17 (Mike)
+    @property
+    def param_types(self):
+        return self._param_types
+
+    @param_types.setter
+    def param_types(self, val):
+        self._param_types = val
+        
+    @property
+    def variable_types(self):
+        return self._variable_types
+
+    @variable_types.setter
+    def variable_types(self, val):
+        self._variable_types = val
+    
+    @property
+    def variable_ranges(self):
+        return self._variable_ranges
+
+    @variable_ranges.setter
+    def variable_ranges(self, val):
+        self._variable_ranges = val
 
 
 class RDDLModel(PlanningModel):
