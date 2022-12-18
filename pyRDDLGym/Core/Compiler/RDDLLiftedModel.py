@@ -179,6 +179,10 @@ class RDDLLiftedModel(RDDLModel):
                 f'Discount factor {discount} in the instance is not in [0, 1].')
         return discount
     
+    @property
+    def is_grounded(self):
+        return False
+    
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given variable can be evaluated
         for the given list of objects.
