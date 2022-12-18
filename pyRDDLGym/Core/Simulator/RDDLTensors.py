@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Iterable, List, Tuple
+from typing import cast, Dict, Iterable, List, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -7,6 +7,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Parser.expr import Value
 
@@ -30,8 +31,12 @@ class RDDLTensors:
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
-    def __init__(self, rddl: RDDLLiftedModel, debug: bool=False):
-        self.rddl = rddl
+    def __init__(self, rddl: RDDLModel, debug: bool=False):
+        if rddl.is_grounded or not isinstance(rddl, RDDLLiftedModel):
+            raise RDDLTypeError(f'RDDLTensors objects cannot be instantiated '
+                                f'for a grounded domain!')
+            
+        self.rddl = cast(RDDLLiftedModel, rddl)
         self.debug = debug
         
         self.index_of_object, self.grounded = self._compile_objects()
@@ -39,8 +44,8 @@ class RDDLTensors:
 
     def _compile_objects(self):
         grounded = {}
-        for name, types in self.rddl.param_types.items():
-            grounded[name] = list(self.rddl.grounded_names(name, types))
+        for var, types in self.rddl.param_types.items():
+            grounded[var] = list(self.rddl.grounded_names(var, types))
         
         index_of_object = {}
         for objects in self.rddl.objects.values():
@@ -49,19 +54,20 @@ class RDDLTensors:
                   
         return index_of_object, grounded
     
-    def _compile_values_from_dict(self, dict_in, dict_out):
-        for name, value in dict_in.items():
+    def _compile_values_from_dict(self, values, out):
+        for name, value in values.items():
             var = self.rddl.parse(name)[0]
-            if var not in dict_out:
-                dict_out[var] = []
             if value is None:
                 prange = self.rddl.variable_ranges[var]
-                if prange not in RDDLTensors.DEFAULT_VALUES:
+                valid_ranges = RDDLTensors.DEFAULT_VALUES
+                if prange not in valid_ranges:
                     raise RDDLTypeError(
                         f'Type <{prange}> of variable <{var}> is not valid, '
-                        f'must be one of {set(RDDLTensors.DEFAULT_VALUES.keys())}.')
-                value = RDDLTensors.DEFAULT_VALUES[prange]
-            dict_out[var].append(value)
+                        f'must be one of {set(valid_ranges.keys())}.')
+                value = valid_ranges[prange]
+            if var not in out:
+                out[var] = []
+            out[var].append(value)
             
     def _compile_init_values(self):
         values = {}
@@ -73,7 +79,7 @@ class RDDLTensors:
         self._compile_values_from_dict(self.rddl.nonfluents, values)
         
         init_values = {}
-        for var, vlist in values.items():
+        for var, value in values.items():
             prange = self.rddl.variable_ranges[var]
             if prange not in RDDLTensors.NUMPY_TYPES:
                 raise RDDLTypeError(
@@ -83,15 +89,15 @@ class RDDLTensors:
             if self.rddl.param_types[var]:
                 ptypes = self.rddl.param_types[var]
                 newshape = self.shape(ptypes)
-                values = np.asarray(vlist, dtype=dtype)
-                values = np.reshape(values, newshape=newshape, order='C')
-                init_values[var] = values
+                array = np.asarray(value, dtype=dtype)
+                array = np.reshape(array, newshape=newshape, order='C')
+                init_values[var] = array
             else:
-                if len(vlist) != 1:
+                if len(value) != 1:
                     raise RDDLInvalidObjectError(
-                        f'Internal error: value list for non-parameterized '
-                        f'variable <{var}> must be length 1, got {len(vlist)}.')
-                init_values[var] = dtype(vlist[0])                
+                        f'Internal error: values for non-parameterized '
+                        f'variable <{var}> must be length 1, got {len(value)}.')
+                init_values[var] = dtype(value[0])                
         return init_values
         
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
@@ -101,15 +107,16 @@ class RDDLTensors:
         in the RDDL domain
         :param msg: an error message to print in case the conversion fails.
         '''
+        index_of_obj = self.index_of_object
         try:
-            return tuple(self.index_of_object[obj] for obj in objects)
+            return tuple(index_of_obj[obj] for obj in objects)
         except:
             for obj in objects:
-                if obj not in self.index_of_object:
+                if obj not in index_of_obj:
                     raise RDDLInvalidObjectError(
                         f'Object <{obj}> is not valid, '
-                        f'must be one of {set(self.index_of_object.keys())}.'
-                        f'\n{msg}')
+                        f'must be one of {set(index_of_obj.keys())}.\n'
+                        f'{msg}')
     
     def shape(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Given a list of RDDL types, returns the shape of a tensor
@@ -118,15 +125,16 @@ class RDDLTensors:
         :param types: a list of RDDL types
         :param msg: an error message to print in case the calculation fails
         '''
+        objects = self.rddl.objects
         try:
-            return tuple(len(self.rddl.objects[ptype]) for ptype in types)
+            return tuple(len(objects[ptype]) for ptype in types)
         except:
             for ptype in types:
-                if ptype not in self.rddl.objects:
+                if ptype not in objects:
                     raise RDDLInvalidObjectError(
                         f'Type <{ptype}> is not valid, '
-                        f'must be one of {set(self.rddl.objects.keys())}.'
-                        f'\n{msg}')
+                        f'must be one of {set(objects.keys())}.\n'
+                        f'{msg}')
             
     def map(self, var: str,
             obj_in: List[str],
