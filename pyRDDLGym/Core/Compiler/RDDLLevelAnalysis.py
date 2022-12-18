@@ -6,7 +6,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionE
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 
 VALID_DEPENDENCIES = {
     'derived-fluent': {'state-fluent', 'derived-fluent'},
@@ -31,7 +31,7 @@ class RDDLLevelAnalysis:
     according to the RDDL language specification.     
     '''
         
-    def __init__(self, rddl: RDDLLiftedModel,
+    def __init__(self, rddl: RDDLModel,
                  allow_synchronous_state: bool=True) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
