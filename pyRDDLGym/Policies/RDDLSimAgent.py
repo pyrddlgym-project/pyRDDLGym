@@ -1,4 +1,5 @@
 import base64
+import os
 import socket
 import xml.etree.ElementTree as xmltree
 
@@ -14,13 +15,17 @@ class RDDLSimAgent:
 
         # read domain file
         f = open(domain)
-        self.domain = base64.b64encode(str.encode(f.read()))
+        self.domain = f.read()
+        self.domain = os.linesep.join([s for s in self.domain.splitlines() if s.strip()])
+        self.domain = base64.b64encode(str.encode(self.domain))
         self.domain = self.domain.decode("ascii")
         f.close()
 
         # read instance file
         f = open(instance)
-        self.instance = base64.b64encode(str.encode(f.read()))
+        self.instance = f.read()
+        self.instance = os.linesep.join([s for s in self.instance.splitlines() if s.strip()])
+        self.instance = base64.b64encode(str.encode(self.instance))
         self.instance = self.instance.decode("ascii")
         f.close()
 
