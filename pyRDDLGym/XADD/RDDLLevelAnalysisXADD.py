@@ -8,12 +8,16 @@ from pyRDDLGym.Core.Parser.expr import Expression
 
 
 class RDDLLevelAnalysisWXADD(RDDLLevelAnalysis):
-    def __init__(self, model: PlanningModel, disallow_state_synchrony: bool = False) -> None:
+    
+    def __init__(self, model: PlanningModel, 
+                 disallow_state_synchrony: bool = False) -> None:
         super().__init__(model, disallow_state_synchrony)
         self._model = cast(RDDLModelWXADD, self._model)
         self._context: XADD = self._model._context
     
-    def _update_call_graph(self, graph: Dict[str, Set[str]], cpf: str, expr: Union[int, Expression]):
+    def _update_call_graph(self, graph: Dict[str, Set[str]], 
+                           cpf: str, 
+                           expr: Union[int, Expression]):
         if isinstance(expr, Expression):
             super()._update_call_graph(graph, cpf, expr)
         else:

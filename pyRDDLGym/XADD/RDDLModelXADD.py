@@ -3,12 +3,11 @@ import sympy as sp
 from xaddpy.xadd import XADD, ControlFlow
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import (
-    RDDLInvalidNumberOfArgumentsError, RDDLMissingCPFDefinitionError, 
+    RDDLInvalidNumberOfArgumentsError, RDDLMissingCPFDefinitionError,
     RDDLNotImplementedError, RDDLTypeError, RDDLUndefinedCPFError
 )
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel, RDDLModel
-
 
 VALID_RELATIONAL_OPS = {'>=', '>', '<=', '<', '==', '~='}
 OP_TO_XADD_OP = {
@@ -22,6 +21,7 @@ EXPONENTIAL_VAR_NAME = '#_EXPONENTIAL_{num}'
 
 
 class RDDLModelWXADD(PlanningModel):
+
     def __init__(self, model: RDDLModel):
         super().__init__()
         self.model = model
@@ -75,11 +75,15 @@ class RDDLModelWXADD(PlanningModel):
         self._num_exponential = 0
     
     def convert_cpfs_to_xadds(self):
-        cpfs = sorted(self.cpfs)
+        
+        # the API for accessing CPFs is now dict of {name: (objects, expr)}
+        # see Mike pull request from Dec 18
+        cpfs = {name: expr for name, (_, expr) in self.cpfs.items()}
+        cpfs = sorted(cpfs)
         
         # Handle state-fluent
         for cpf in cpfs:
-            expr = self.cpfs[cpf]
+            _, expr = self.cpfs[cpf]
             pvar_name = self.gvar_to_pvar[cpf]
             if pvar_name != self._curr_pvar:
                 self._curr_pvar = pvar_name
@@ -200,7 +204,7 @@ class RDDLModelWXADD(PlanningModel):
         arg_vars = []
         for arg in args:
             if arg[0] == 'typed_var':
-                arg_vars += list(arg[1]) # TODO: handle these
+                arg_vars += list(arg[1])  # TODO: handle these
         assert len(arg_vars) >= 2
 
         num_aggregations = len(self._aggr_to_scope)
@@ -209,11 +213,13 @@ class RDDLModelWXADD(PlanningModel):
         # Aggregations that return Booleans
         if op == 'exists' or op == 'forall':
             var_sp = sp.Symbol(f'exists{postfix}_{num_aggregations}', bool=True)
+            
         # Aggregations that return int/float values
         elif op in ('sum', 'prod', 'avg', 'minimum', 'maximum'):
             var_sp = sp.Symbol(f'{op}{postfix}_{num_aggregations}')
         else:
             raise RDDLNotImplementedError
+        
         # TODO: Scope doesn't contain alls
         self._aggr_to_scope[var_sp] = [self.ns[var.split('/')[0]] for var in expr.scope]
         node_id = self._context.get_leaf_node(var_sp)
@@ -254,6 +260,7 @@ class RDDLModelWXADD(PlanningModel):
         assert expr.etype[0] == 'randomvar'
         dist = expr.etype[1].lower()
         args = list(map(self.expr_to_xadd, expr.args))
+        
         if dist == 'bernoulli':
             assert len(args) == 1
             proba = args[0]
@@ -261,21 +268,23 @@ class RDDLModelWXADD(PlanningModel):
             unif_rv = sp.Symbol(UNIFORM_VAR_NAME.format(num=num_rv), random=True)
             uniform = self._context.convert_to_xadd(
                 unif_rv,
-                params=(0, 1),     # rv ~ Uniform(0, 1)
+                params=(0, 1),  # rv ~ Uniform(0, 1)
                 type='UNIFORM'
             )
             node_id = self._context.apply(uniform, proba, '<=')
             self._num_uniform += 1
             return node_id
+        
         elif dist == 'binomial':
             pass
+        
         elif dist == 'exponential':
             assert len(args) == 1
             num_rv = self._num_uniform
             unif_rv = sp.Symbol(UNIFORM_VAR_NAME.format(num=num_rv), random=True)
             uniform = self._context.convert_to_xadd(
                 unif_rv,
-                params=(0, 1),      # rv ~ Uniform(0, 1)
+                params=(0, 1),  # rv ~ Uniform(0, 1)
                 type='UNIFORM'
             )
             # '-log(1 - U) * scale' is an exponential sample reparameterized with Uniform
@@ -286,6 +295,7 @@ class RDDLModelWXADD(PlanningModel):
             node_id = self._context.apply(neg_log1_minus_u, scale, 'prod')
             self._num_uniform += 1
             return node_id
+        
         elif dist == 'normal':
             assert len(args) == 2
             mean, var = args
@@ -293,7 +303,7 @@ class RDDLModelWXADD(PlanningModel):
             gauss_rv = sp.Symbol(GAUSSIAN_VAR_NAME.format(num=num_rv), random=True)
             gaussian = self._context.convert_to_xadd(
                 gauss_rv,
-                params=(0, 1),    # rv ~ Normal(0, 1)
+                params=(0, 1),  # rv ~ Normal(0, 1)
                 type='NORMAL',
             )
             # mean + sqrt(var) * epsilon
@@ -302,26 +312,32 @@ class RDDLModelWXADD(PlanningModel):
             node_id = self._context.apply(mean, scaled, 'add')
             self._num_gaussian += 1
             return node_id
+        
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {dist} does not allow reparameterization'
-            )   # TODO: print stack trace?
+            )  # TODO: print stack trace?
+            
         return
     
     def func_to_xadd(self, expr: Expression) -> int:
         assert expr.etype[0] == 'func'
         etype, op = expr.etype
         args = list(map(self.expr_to_xadd, expr.args))
+        
         if op == 'pow':
             assert len(args) == 2
             pow = expr.args[1].value
             node_id = self._context.unary_op(args[0], op, pow)
+            
         elif op == 'max' or op == 'min':
             assert len(args) == 2
             node_id = self._context.apply(args[0], args[1], op)
+            
         else:
             assert len(args) == 1
             node_id = self._context.unary_op(args[0], op)
+            
         node_id = self._context.make_canonical(node_id)
         return node_id
 
@@ -329,7 +345,7 @@ class RDDLModelWXADD(PlanningModel):
         assert expr.etype[0] == 'arithmetic'
         etype, op = expr.etype
         args = list(map(self.expr_to_xadd, expr.args))
-        if len(args) == 1:          # Unary operation
+        if len(args) == 1:  # Unary operation
             node_id = self._context.unary_op(args[0], op)
         elif len(args) == 2:
             node_id = self._context.apply(args[0], args[1], OP_TO_XADD_OP.get(op, op))
@@ -347,22 +363,22 @@ class RDDLModelWXADD(PlanningModel):
         if op not in VALID_RELATIONAL_OPS:
             raise RDDLNotImplementedError(
                 f'Relational operator {op} is not supported: must be one of {VALID_RELATIONAL_OPS}'
-            )   #TODO: print stack trace?
+            )  # TODO: print stack trace?
 
         args = list(map(self.expr_to_xadd, expr.args))            
         if not isinstance(args, Sized):
             raise RDDLTypeError(
                 f'Internal error: expected Sized, got {type(args)}'
-            )   #TODO: print stack trace?
+            )  # TODO: print stack trace?
         elif len(args) != 2:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Relational operator {op} requires 2 args, got {len(args)}'
-            )   #TODO: print stack trace?
+            )  # TODO: print stack trace?
         
         node_id = self._context.apply(args[0], args[1], OP_TO_XADD_OP.get(op, op))
         return node_id
 
-    def bool_to_xadd(self, expr: Expression) -> int:    
+    def bool_to_xadd(self, expr: Expression) -> int: 
         assert expr.etype[0] == 'boolean'
         etype, op = expr.etype
         args = list(map(self.expr_to_xadd, expr.args))
@@ -384,8 +400,8 @@ class RDDLModelWXADD(PlanningModel):
                     return
         
         raise RDDLInvalidNumberOfArgumentsError(
-            f'Logical operator {op} does not have the required number of args, got {len(args)}' +
-            f'\n{expr}'     # TODO: print stack trace?
+            f'Logical operator {op} does not have the required number of args, got {len(args)}' + 
+            f'\n{expr}'  # TODO: print stack trace?
         )
     
     @property

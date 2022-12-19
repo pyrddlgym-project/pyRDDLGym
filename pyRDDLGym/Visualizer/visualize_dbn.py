@@ -17,6 +17,7 @@ COLOR = dict(
     next_state='gold1',
     reward='firebrick1'
 )
+
 SHAPE = dict(
     action='box',
     interm='ellipse',
@@ -26,6 +27,7 @@ SHAPE = dict(
     next_state='ellipse',
     reward='diamond'
 )
+
 STYLE = dict(
     action='filled',
     interm='filled',
@@ -38,19 +40,19 @@ STYLE = dict(
 
 
 class Graph(pgv.AGraph):
-    def __init__(
-            self, 
-            thing=None, 
-            filename=None, 
-            data=None, 
-            string=None, 
-            handle=None, 
-            name="", 
-            strict=True, 
-            directed=False, 
-            **attr
-    ):
-        super().__init__(thing, filename, data, string, handle, name, strict,directed, **attr)
+
+    def __init__(self,
+                 thing=None,
+                 filename=None,
+                 data=None,
+                 string=None,
+                 handle=None,
+                 name="",
+                 strict=True,
+                 directed=False,
+                 **attr):
+        super().__init__(thing, filename, data, string, handle, name, 
+                         strict, directed, **attr)
         self._supress_rank = False
         self._same_rank: List[List[str]] = []
     
@@ -60,22 +62,13 @@ class Graph(pgv.AGraph):
     def add_same_rank(self, nodes: List[str]):
         self._same_rank.append(nodes)
     
-    def configure_graph_attributes(
-            self,
-            **attrs,
-    ):
+    def configure_graph_attributes(self, **attrs):
         self.graph_attr.update(attrs)
 
-    def configure_node_attributes(
-            self,
-            **attrs,
-    ):
+    def configure_node_attributes(self, **attrs):
         self.node_attr.update(attrs)
 
-    def configure_edge_attributes(
-            self,
-            **attrs,
-    ):
+    def configure_edge_attributes(self, **attrs):
         self.edge_attr.update(attrs)
 
     def set_ranks(self):
@@ -85,13 +78,12 @@ class Graph(pgv.AGraph):
 
 
 class RDDL2Graph:
-    def __init__(
-            self,
-            domain: str = 'Wildfire',
-            instance: int = 0,
-            directed: bool = True,
-            strict_grouping: bool = False
-    ):
+
+    def __init__(self, domain: str='Wildfire',
+                 instance: int=0,
+                 directed: bool=True,
+                 strict_grouping: bool=False):
+        
         # Read the domain and instance files
         self._domain, self._instance = domain, str(instance)
         env_info = ExampleManager.GetEnvInfo(domain)
@@ -170,13 +162,10 @@ class RDDL2Graph:
         if not self._directed:
             graph.configure_edge_attributes(fontsize="16")
 
-    def save_dbn(
-            self,
-            file_name: str = 'example',
-            fluent: Optional[str] = None,
-            gfluent: Optional[str] = None,
-            file_type: str = 'pdf'
-    ):
+    def save_dbn(self, file_name: str='example',
+                 fluent: Optional[str]=None,
+                 gfluent: Optional[str]=None,
+                 file_type: str='pdf'):
         self.clear_cache()
         f_dir = Path(f"tmp/{self._domain}")
         f_dir.mkdir(exist_ok=True, parents=True)
@@ -215,10 +204,10 @@ class RDDL2Graph:
             res += f"{cpf_str}\n"
         return res
 
-    def get_graph_of_cpf(self, fluent: str, gfluent: Optional[str] = None) -> Graph:
-        assert fluent in self.model.pvar_to_type or fluent.lower() == 'reward',\
+    def get_graph_of_cpf(self, fluent: str, gfluent: Optional[str]=None) -> Graph:
+        assert fluent in self.model.pvar_to_type or fluent.lower() == 'reward', \
             f"Fluent {fluent} not recognized"
-        assert not gfluent or (gfluent and f"{fluent}_{gfluent}" in self.model.gvar_to_type),\
+        assert not gfluent or (gfluent and f"{fluent}_{gfluent}" in self.model.gvar_to_type), \
             f"Grounded fluent provided but cannot be resolved"
 
         graph = Graph(directed=self._directed)
@@ -363,24 +352,22 @@ class RDDL2Graph:
         return graph
             
     def add_reward_to_graph(
-            self, graph: Graph, fluent: Optional[str] = None, gfluent: Optional[str] = None
+            self, graph: Graph, fluent: Optional[str]=None, gfluent: Optional[str]=None
     ):
         graph.add_node("Reward Function")
         parents = self.model.vars_in_rew
         for p in parents:
             pvar = self.model.gvar_to_pvar[p]
             if not fluent or \
-                (fluent and pvar == fluent and not gfluent) or\
+                (fluent and pvar == fluent and not gfluent) or \
                     (gfluent and (p == f"{fluent}_{gfluent}" or p == f"{fluent}_{gfluent}'")):
                 p_node_name = self.get_node_name(p)
                 self.add_node(p_node_name)
                 graph.add_edge(p_node_name, 'Reward Function')
-                
 
-    def add_single_state_fluent_to_graph(
-            self, graph: Graph, state: str
-    ):
-        ns = self.model.next_state[state]      # Primed state variable
+    def add_single_state_fluent_to_graph(self, graph: Graph, state: str):        
+        ns = self.model.next_state[state]  # Primed state variable
+        
         # Get node names and add to the graph
         s_node_name = self.get_node_name(state)
         ns_node_name = self.get_node_name(ns, primed=True)
@@ -390,7 +377,8 @@ class RDDL2Graph:
         # Get parents and add links
         parents = self.model.collect_vars(self.cpfs[ns])
         for p in parents:
-            p_node_name = self.get_node_name(p, primed=p in self.model.next_state.values())
+            p_node_name = self.get_node_name(
+                p, primed=p in self.model.next_state.values())
             self.add_node(p_node_name)
             graph.add_edge(
                 p_node_name,
@@ -404,9 +392,7 @@ class RDDL2Graph:
         for st in self.model.states:
             self.add_single_state_fluent_to_graph(graph, st)
 
-    def add_single_observ_fluent_to_graph(
-            self, graph: Graph, observ: str
-    ):
+    def add_single_observ_fluent_to_graph(self, graph: Graph, observ: str):
         node_name = self.get_node_name(observ)
         self._gvar_to_node_name[observ] = node_name
         graph.add_node(node_name)
@@ -486,13 +472,14 @@ class RDDL2Graph:
         self._gvar_to_node_name.clear()
         self._node_name_to_gvar.clear()
     
-    def get_node_name(self, gvar: str, primed: bool = False) -> str:
+    def get_node_name(self, gvar: str, primed: bool=False) -> str:
         if gvar in self._gvar_to_node_name:
             return self._gvar_to_node_name[gvar]
 
         pvar = self.get_pvar_from_gvar(gvar)
         objects = RDDL2Graph.get_objects(gvar if not primed else gvar[:-1], pvar)
-        node_name = f"{pvar}" + ("'" if primed else '') + f"{('(' + ','.join(objects) + ')') if len(objects) > 0 else ''}"
+        node_name = f"{pvar}" + ("'" if primed else '') + \
+                    f"{('(' + ','.join(objects) + ')') if len(objects) > 0 else ''}"
         self._gvar_to_node_name[gvar] = node_name
         self._node_name_to_gvar[node_name] = gvar
         return node_name
