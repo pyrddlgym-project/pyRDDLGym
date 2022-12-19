@@ -228,6 +228,21 @@ class JaxRDDLCompiler:
     # error checks
     # ===========================================================================
     
+    def print_jax(self):
+        subs = self.init_values
+        key = jax.random.PRNGKey(42)
+        printed = {}
+        printed['invariants'] = [str(jax.make_jaxpr(expr)(subs, key))
+                                 for expr in self.invariants]
+        printed['preconditions'] = [str(jax.make_jaxpr(expr)(subs, key))
+                                    for expr in self.preconditions]
+        printed['terminations'] = [str(jax.make_jaxpr(expr)(subs, key))
+                                   for expr in self.termination]
+        printed['cpfs'] = {name: str(jax.make_jaxpr(expr)(subs, key))
+                           for name, expr in self.cpfs.items()}
+        printed['reward'] = str(jax.make_jaxpr(self.reward)(subs, key))
+        return printed
+        
     @staticmethod
     def _print_stack_trace(expr):
         if isinstance(expr, Expression):
@@ -360,7 +375,7 @@ class JaxRDDLCompiler:
     def _jax_constant(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         * _, shape = self.tensors.map(
-            '', [], objects, 
+            '', [], objects,
             str(expr), JaxRDDLCompiler._print_stack_trace(expr))
         const = expr.args
         
@@ -374,7 +389,7 @@ class JaxRDDLCompiler:
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args            
         permute, identity, new_dims = self.tensors.map(
-            var, pvars, objects, 
+            var, pvars, objects,
             str(expr), JaxRDDLCompiler._print_stack_trace(expr))
         new_axes = (1,) * len(new_dims)
         
