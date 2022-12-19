@@ -9,13 +9,11 @@ from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
 
 
 class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
-    def __init__(
-            self, 
-            model: PlanningModel, 
-            rng: np.random.Generator = np.random.default_rng(), 
-            compute_levels: bool = True, 
-            max_bound: float = np.inf
-    ) -> None:
+
+    def __init__(self, model: PlanningModel,
+                 rng: np.random.Generator=np.random.default_rng(),
+                 compute_levels: bool=True,
+                 max_bound: float=np.inf) -> None:
         self._model = cast(RDDLModelWXADD, model)
         self.context = self._model._context
         self._rng = rng
@@ -36,11 +34,13 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
 
         # __init__ from 'RDDLSimulatorWConstraints'
         self.epsilon = 0.001
+        
         # self.BigM = float(max_bound)
+        
         self.BigM = max_bound
         self._bounds = {}
         for state in model.states:
-             self._bounds[state] = [-self.BigM, self.BigM]
+            self._bounds[state] = [-self.BigM, self.BigM]
         for derived in model.derived:
             self._bounds[derived] = [-self.BigM, self.BigM]
         for interm in model.interm:
@@ -61,7 +61,7 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
         for name in self._bounds:
             lb, ub = self._bounds[name]
             RDDLSimulator._check_bounds(
-                lb, ub, 'Variable <{}>'.format(name), self._bounds[name])
+                lb, ub, f'Variable <{name}>', self._bounds[name])
         
     def _sample(self, expr: Union[int, Expression], subs: Dict[str, Any]):
         """Samples the current XADD node by substituting the values stored in 'subs'.
@@ -75,8 +75,11 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
         else:
             subs = {
                 self.var_name_to_sympy_var[self.var_name_to_sympy_var_name.get(v, v)]: val 
-                for v, val in subs.items() if not v in self._model.nonfluents and self.var_name_to_sympy_var.get(self.var_name_to_sympy_var_name.get(v, v))
+                for v, val in subs.items() 
+                if not v in self._model.nonfluents 
+                and self.var_name_to_sympy_var.get(self.var_name_to_sympy_var_name.get(v, v))
             }
+            
             # If there exists a random variable, sample it first
             var_set = self.context.collect_vars(expr)
             rv_set = {v for v in var_set if v in self.context._random_var_set}
@@ -88,9 +91,16 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
                         subs[rv] = self._sample_normal(expr, subs)
                     else:
                         raise ValueError
-            cont_assign = {var: val for var, val in subs.items() if var in var_set and var in self.context._cont_var_set}
-            bool_assign = {var: val for var, val in subs.items() if var in var_set and var in self.context._bool_var_set}
-            res = self.context.evaluate(node_id=expr, bool_assign=bool_assign, cont_assign=cont_assign, primitive_type=True)
+            cont_assign = {var: val 
+                           for var, val in subs.items() 
+                           if var in var_set and var in self.context._cont_var_set}
+            bool_assign = {var: val 
+                           for var, val in subs.items() 
+                           if var in var_set and var in self.context._bool_var_set}
+            res = self.context.evaluate(node_id=expr,
+                                        bool_assign=bool_assign,
+                                        cont_assign=cont_assign,
+                                        primitive_type=True)
             return res
     
     def _sample_uniform(self, expr, subs):
