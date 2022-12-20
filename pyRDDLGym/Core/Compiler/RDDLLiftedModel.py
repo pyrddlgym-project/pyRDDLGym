@@ -1,4 +1,5 @@
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
@@ -140,6 +141,14 @@ class RDDLLiftedModel(RDDLModel):
                     f'got {len(objects)}.')
             objects = [(o, types[i]) for i, o in enumerate(objects)]
             cpfs[name] = (objects, cpf.expr)
+        
+        for var, fluent_type in self.variable_types.items():
+            if fluent_type in {'derived-fluent', 'interm-fluent', 
+                               'next-state-fluent', 'observ-fluent'}:
+                if var not in cpfs:
+                    raise RDDLMissingCPFDefinitionError(
+                        f'{fluent_type} CPF <{var}> is missing a valid definition.')
+                    
         return cpfs
     
     def _extract_constraints(self):
