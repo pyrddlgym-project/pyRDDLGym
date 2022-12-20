@@ -120,20 +120,7 @@ class RDDLLevelAnalysis:
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
-    def _validate_cpf_definitions(self, graph): 
-        for var, fluent_type in self.rddl.variable_types.items():
-            if fluent_type in {'derived-fluent', 'interm-fluent', 
-                               'next-state-fluent', 'observ-fluent'}:
-                if self.rddl.is_grounded:
-                    ptypes = self.rddl.param_types[var]
-                    names = self.rddl.grounded_names(var, ptypes)
-                else:
-                    names = [var]
-                for name in names:
-                    if name not in self.rddl.cpfs:
-                        raise RDDLMissingCPFDefinitionError(
-                            f'{fluent_type} CPF <{name}> is missing a definition.')
-            
+    def _validate_cpf_definitions(self, graph):             
         for cpf in self.rddl.cpfs.keys():
             var = self.rddl.parse(cpf)[0]
             fluent_type = self.rddl.variable_types.get(var, var)
