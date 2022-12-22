@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import socket
 import xml.etree.ElementTree as xmltree
@@ -9,7 +10,7 @@ class RDDLSimAgent:
     ''' creates a TCP/IP server that listens to the provided port and passes
     messages between a pyRDDLGym environment and a client that is
     designed to interact with rddlsim (https://github.com/ssanner/rddlsim)'''
-    
+
     def __init__(self, domain, instance, numrounds, time, port=2323):
         self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
 
@@ -38,9 +39,12 @@ class RDDLSimAgent:
         self.problem = ""
         self.total_reward = 0.0
 
+        # Data in case there is a dump request
+        self.data = []
+
     def run(self):
         ''' starts the RDDLSimAgent to wait for a planner to connect'''
-        
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         with sock:
             sock.bind(self.address)
@@ -55,7 +59,7 @@ class RDDLSimAgent:
     def run_session(self, connection):
         ''' runs an interactive session between the pyRDDLGym environment
         and a connected rddlsim client and terminates afterwards'''
-        
+
         # handle session request
         data = self.receive_message(connection)
         self.process_init_session_request(data)
@@ -64,7 +68,7 @@ class RDDLSimAgent:
         self.send_message(connection, msg)
         session_request_expected = False
         print("session initialized")
-                        
+
         while self.roundsleft > 0:
             self.run_round(connection)
 
@@ -72,6 +76,9 @@ class RDDLSimAgent:
         self.send_message(connection, msg)
 
     def run_round(self, connection):
+
+        data.append([])
+
         # handle round request
         data = self.receive_message(connection)
         self.process_round_request(data)
@@ -90,19 +97,40 @@ class RDDLSimAgent:
         while True:
             data = self.receive_message(connection)
             actions = self.process_action(data)
+
+            data[-1].append({
+                "state": str(state),
+                "actions": str(actions),
+            })
+
             next_state, reward, done, info = self.env.step(actions)
+
+            data[-1][-1]["reward"] = float(reward)
+
             round_reward += reward
             state = next_state
-    
+
             turn = turn + 1
             if turn == self.env.horizon:
                 msg = self.build_round_end_msg(reward, round_reward)
                 self.send_message(connection, msg)
                 self.total_reward += round_reward
+
+                data[-1].append({
+                    "reward": float(round_reward),
+                    "state": str(state),
+                    "actions": False,
+                })
+
                 break
             else:
                 msg = self.build_state_msg(state, turn, 0.0)
                 self.send_message(connection, msg)
+
+    def dump_data(self, fn):
+        """Dumps the data to a json file"""
+        with open(fn, "w") as f:
+            json.dump(self.data, f)
 
     def send_message(self, connection, msg):
         #print(f"sending message: {msg}")
@@ -117,8 +145,8 @@ class RDDLSimAgent:
         else:
             print("Error: connection lost")
             exit(1)
-        return data                        
-                            
+        return data
+
     def build_session_request_msg(self):
         msg = "<session-init>"
         msg = msg + "<task>" + str(self.domain) + str(self.instance) + "</task>"
@@ -150,7 +178,7 @@ class RDDLSimAgent:
             var = var[1:]
             for param in var:
                 msg = msg + "<fluent-arg>" + param + "</fluent-arg>"
-            msg = msg + "<fluent-value>" + str(state[key]).lower() + "</fluent-value>"            
+            msg = msg + "<fluent-value>" + str(state[key]).lower() + "</fluent-value>"
             msg = msg + "</observed-fluent>"
         msg = msg + "</turn>"
         return msg
