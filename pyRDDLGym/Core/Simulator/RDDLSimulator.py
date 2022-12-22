@@ -376,12 +376,14 @@ class RDDLSimulator:
         if self.rddl.is_grounded:
             return np.asarray(expr.args)
         
-        if not hasattr(expr, 'cached_value'):
+        cached_value = getattr(expr, 'cached_value', None)
+        if cached_value is None:
             *_, shape = self.tensors.map(
                 '', [], objects,
                 str(expr), RDDLSimulator._print_stack_trace(expr))  
-            expr.cached_value = np.full(shape=shape, fill_value=expr.args)                
-        return expr.cached_value
+            cached_value = np.full(shape=shape, fill_value=expr.args)
+            expr.cached_value = cached_value   
+        return cached_value
     
     def _sample_pvar(self, expr, objects, subs):
         _, name = expr.etype
@@ -406,17 +408,17 @@ class RDDLSimulator:
             return np.asarray(arg)
         
         # cache and read the tensor information for the fluent
-        if not hasattr(expr, 'cached_sub_map'):
-            expr.cached_sub_map = self.tensors.map(
+        cached_info = getattr(expr, 'cached_info', None)
+        if cached_info is None:
+            cached_sub_map = self.tensors.map(
                 var, pvars, objects,
-                str(expr), RDDLSimulator._print_stack_trace(expr))
-            
-            _, _, new_dims = expr.cached_sub_map
+                str(expr), RDDLSimulator._print_stack_trace(expr))            
+            _, _, new_dims = cached_sub_map
             new_axes = (1,) * len(new_dims)
-            expr.cached_shapes = (arg.shape + new_axes, arg.shape + new_dims)
-            
-        permute, identity, new_dims = expr.cached_sub_map
-        new_shape, broadcast_shape = expr.cached_shapes
+            cached_shapes = (arg.shape + new_axes, arg.shape + new_dims)
+            cached_info = cached_sub_map + cached_shapes
+            expr.cached_info = cached_info            
+        permute, identity, new_dims, new_shape, broadcast_shape = cached_info
         
         # argument is reshaped to match the free variables "objects"
         sample = arg
@@ -515,10 +517,13 @@ class RDDLSimulator:
 
         # cache and read reduced axes tensor info for the aggregation
         * pvars, arg = args
-        if not hasattr(expr, 'cached_objects'):
+        cached_objects = getattr(expr, 'cached_objects', None)
+        if cached_objects is None:
             new_objects = objects + [p[1] for p in pvars]
-            reduced_axes = tuple(range(len(objects), len(new_objects)))
-             
+            reduced_axes = tuple(range(len(objects), len(new_objects)))             
+            cached_objects = (new_objects, reduced_axes)
+            expr.cached_objects = cached_objects
+            
             bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
             if bad_types:
                 raise RDDLInvalidObjectError(
@@ -534,9 +539,7 @@ class RDDLSimulator:
                     f'\n\toutput objects ={objects}'
                     f'\n\treduction axes ={reduced_axes}'
                     f'\n\treduction op   ={valid_ops[op]}\n'
-                )                
-            expr.cached_objects = (new_objects, reduced_axes)
-            
+                )                      
         new_objects, axis = expr.cached_objects
         
         # sample the argument and aggregate over the reduced axes
