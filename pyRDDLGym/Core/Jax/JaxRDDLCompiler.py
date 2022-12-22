@@ -374,9 +374,7 @@ class JaxRDDLCompiler:
     
     def _jax_constant(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        * _, shape = self.tensors.map(
-            '', [], objects,
-            str(expr), JaxRDDLCompiler._print_stack_trace(expr))
+        shape = tuple(len(self.rddl.objects[ptype]) for _, ptype in objects)
         const = expr.args
         
         def _f(_, key):
