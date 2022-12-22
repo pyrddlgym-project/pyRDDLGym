@@ -378,11 +378,9 @@ class RDDLSimulator:
         
         cached_value = getattr(expr, 'cached_value', None)
         if cached_value is None:
-            *_, shape = self.tensors.map(
-                '', [], objects,
-                str(expr), RDDLSimulator._print_stack_trace(expr))  
+            shape = tuple(len(self.rddl.objects[ptype]) for _, ptype in objects)
             cached_value = np.full(shape=shape, fill_value=expr.args)
-            expr.cached_value = cached_value   
+            expr.cached_value = cached_value
         return cached_value
     
     def _sample_pvar(self, expr, objects, subs):
