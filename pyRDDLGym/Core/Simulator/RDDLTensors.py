@@ -126,27 +126,21 @@ class RDDLTensors:
     def map(self, var: str,
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
-            expr: str, msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
-        '''Given:       
-        1. a pvariable var
-        2. a list of objects [o1, ...] at which var should be evaluated, and 
-        3. a desired signature [(object1, type1), (object2, type2)...],
-          
-        a call to map produces a tuple of three things if it is possible (and 
-        raises an exception if not):
-        
-        1. a mapping 'permutation(a,b,c...) -> (a,b,c...)' that represents the 
-        np.einsum transform on the tensor var with [o1, ...] to produce the
-        tensor representation of var with the desired signature
-        2. whether the permutation above is the identity, and
-        3. a tuple of new dimensions that need to be added to var in order to 
-        broadcast to the desired signature shape.
+            gnp=np, 
+            msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
+        '''Returns a function that transforms a pvariable value tensor to one
+        whose shape matches a desired output signature. This operation is
+        achieved by adding new dimensions to the value as needed, and performing
+        a combination of transposition/reshape operations to coerce the value
+        to the desired shape.
         
         :param var: a string pvariable defined in the domain
-        :param obj_in: a list of desired objects [o1, ...] as above
+        :param obj_in: a list of desired object quantifications, e.g. ?x, ?y at
+        which var will be evaluated
         :param sign_out: a list of tuples (objecti, typei) representing the
             desired signature of the output pvariable tensor
-        :param expr: a string representation of the expression for logging
+        :param gnp: the library in which to perform tensor arithmetic 
+        (either numpy or jax.numpy)
         :param msg: a stack trace to print for error handling
         '''
                 
@@ -205,19 +199,31 @@ class RDDLTensors:
         rhs = valid_symbols[:n_out]
         permute = lhs + ' -> ' + rhs
         identity = lhs == rhs
-        new_dims = tuple(new_dims)
+        arg_shape = self.shape(types_in)
+        reshape_shape = arg_shape + (1,) * len(new_dims)
+        broadcast_shape = arg_shape + tuple(new_dims)
+        
+        # compute the mapping function
+        def _transform(arg):
+            sample = arg
+            if new_dims:
+                sample = gnp.reshape(sample, newshape=reshape_shape) 
+                sample = gnp.broadcast_to(sample, shape=broadcast_shape)
+            if not identity:
+                sample = gnp.einsum(permute, sample)
+            return sample
         
         if self.debug:
             warnings.warn(
                 f'computing info for pvariable transform:' 
-                f'\n\texpr     ={expr}'
+                f'\n\tvar      ={var}'
                 f'\n\tinputs   ={sign_in}'
                 f'\n\ttargets  ={sign_out}'
-                f'\n\tnew axes ={new_dims}'
+                f'\n\tnew shape={broadcast_shape}'
                 f'\n\teinsum   ={permute}\n'
             )
         
-        return (permute, identity, new_dims)
+        return _transform
     
     def expand(self, var: str, values: np.ndarray) -> Iterable[Tuple[str, Value]]:
         '''Produces a grounded representation of the pvariable var from its 

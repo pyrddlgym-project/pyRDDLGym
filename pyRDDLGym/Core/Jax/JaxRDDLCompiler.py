@@ -386,19 +386,14 @@ class JaxRDDLCompiler:
     def _jax_pvar(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args            
-        permute, identity, new_dims = self.tensors.map(
+        transform = self.tensors.map(
             var, pvars, objects,
-            str(expr), JaxRDDLCompiler._print_stack_trace(expr))
-        new_axes = (1,) * len(new_dims)
+            gnp=jnp,
+            msg=JaxRDDLCompiler._print_stack_trace(expr))
         
         def _f(x, key):
             val = jnp.asarray(x[var])
-            sample = val
-            if new_dims:
-                sample = jnp.reshape(val, newshape=val.shape + new_axes) 
-                sample = jnp.broadcast_to(sample, shape=val.shape + new_dims)
-            if not identity:
-                sample = jnp.einsum(permute, sample)
+            sample = transform(val)
             return sample, key, ERR
         
         return _f
