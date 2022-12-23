@@ -194,22 +194,27 @@ class RDDLTensors:
                 f'Variable <{var}> has unresolved parameter(s) {free}.'
                 f'\n{msg}')
         
-        # this is the necessary information for np.einsum
+        # compute the mapping function as follows:
+        # 1. append new axes to value tensor equal to # of missing variables
+        # 2. broadcast new axes to the desired shape (# of objects of each type)
+        # 3. rearrange the axes as needed to match the desired variables in order
+        #     3a. in most cases, it suffices to use np.transform (cheaper)
+        #     3b. in cases where we have a more complex contraction like 
+        #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
         lhs = ''.join(lhs)
         rhs = valid_symbols[:n_out]
-        permute = lhs + ' -> ' + rhs
+        permute = lhs + '->' + rhs
         identity = lhs == rhs
-        arg_shape = self.shape(types_in)
-        reshape_shape = arg_shape + (1,) * len(new_dims)
-        broadcast_shape = arg_shape + tuple(new_dims)
+        in_shape = self.shape(types_in)
+        out_shape = in_shape + tuple(new_dims)
+        new_axis = tuple(range(len(in_shape), len(out_shape)))
         
-        # compute the mapping function
         def _transform(arg):
             sample = arg
             if new_dims:
-                sample = gnp.reshape(sample, newshape=reshape_shape) 
-                sample = gnp.broadcast_to(sample, shape=broadcast_shape)
-            if not identity:
+                sample = gnp.expand_dims(sample, axis=new_axis)
+                sample = gnp.broadcast_to(sample, shape=out_shape)
+            if not identity:                
                 sample = gnp.einsum(permute, sample)
             return sample
         
@@ -219,8 +224,8 @@ class RDDLTensors:
                 f'\n\tvar      ={var}'
                 f'\n\tinputs   ={sign_in}'
                 f'\n\ttargets  ={sign_out}'
-                f'\n\tnew shape={broadcast_shape}'
-                f'\n\teinsum   ={permute}\n'
+                f'\n\tnew shape={out_shape}'
+                f'\n\teinsum   ={permute}'
             )
         
         return _transform
