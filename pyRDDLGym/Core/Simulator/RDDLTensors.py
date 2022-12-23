@@ -207,7 +207,7 @@ class RDDLTensors:
          
         lhs = ''.join(valid_symbols[p] for p in permutation)        
         rhs = valid_symbols[:n_out]
-        use_einsum = len(set(lhs)) != len(rhs)
+        use_einsum = len(set(lhs)) != len(lhs)
         use_tr = lhs != rhs
         if use_einsum:
             subscripts = lhs + '->' + rhs
