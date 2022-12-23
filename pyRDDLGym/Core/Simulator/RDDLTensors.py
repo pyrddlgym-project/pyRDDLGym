@@ -131,8 +131,8 @@ class RDDLTensors:
         '''Returns a function that transforms a pvariable value tensor to one
         whose shape matches a desired output signature. This operation is
         achieved by adding new dimensions to the value as needed, and performing
-        a combination of transposition/reshape operations to coerce the value
-        to the desired shape.
+        a combination of transposition/reshape/einsum operations to coerce the 
+        value to the desired shape.
         
         :param var: a string pvariable defined in the domain
         :param obj_in: a list of desired object quantifications, e.g. ?x, ?y at
@@ -165,15 +165,15 @@ class RDDLTensors:
                 f'but variable <{var}> has {n_out} arguments.'
                 f'\n{msg}')
         
-        # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
+        # find a map permutation(a,b,c...) -> (a,b,c...) for correct transpose
         sign_in = tuple(zip(obj_in, types_in))
-        lhs = [None] * len(obj_in)
+        permutation = [None] * len(obj_in)
         new_dims = []
         for i_out, (o_out, t_out) in enumerate(sign_out):
             new_dim = True
             for i_in, (o_in, t_in) in enumerate(sign_in):
                 if o_in == o_out:
-                    lhs[i_in] = valid_symbols[i_out]
+                    permutation[i_in] = i_out
                     new_dim = False
                     if t_out != t_in: 
                         raise RDDLInvalidObjectError(
@@ -184,11 +184,11 @@ class RDDLTensors:
             
             # need to expand the shape of the value array
             if new_dim:
-                lhs.append(valid_symbols[i_out])
+                permutation.append(i_out)
                 new_dims.append(len(self.rddl.objects[t_out]))
                 
         # safeguard against any free types
-        free = {sign_in[i][0] for i, p in enumerate(lhs) if p is None}
+        free = {sign_in[i][0] for i, p in enumerate(permutation) if p is None}
         if free:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> has unresolved parameter(s) {free}.'
@@ -201,31 +201,41 @@ class RDDLTensors:
         #     3a. in most cases, it suffices to use np.transform (cheaper)
         #     3b. in cases where we have a more complex contraction like 
         #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
-        lhs = ''.join(lhs)
-        rhs = valid_symbols[:n_out]
-        permute = lhs + '->' + rhs
-        identity = lhs == rhs
         in_shape = self.shape(types_in)
         out_shape = in_shape + tuple(new_dims)
         new_axis = tuple(range(len(in_shape), len(out_shape)))
-        
+         
+        lhs = ''.join(valid_symbols[p] for p in permutation)        
+        rhs = valid_symbols[:n_out]
+        use_einsum = len(set(lhs)) != len(rhs)
+        use_tr = lhs != rhs
+        if use_einsum:
+            subscripts = lhs + '->' + rhs
+        else:
+            subscripts = tuple(np.argsort(permutation))  # inverse permutation      
+                
         def _transform(arg):
             sample = arg
             if new_dims:
                 sample = gnp.expand_dims(sample, axis=new_axis)
                 sample = gnp.broadcast_to(sample, shape=out_shape)
-            if not identity:                
-                sample = gnp.einsum(permute, sample)
-            return sample
+            if use_einsum:
+                return gnp.einsum(subscripts, sample)
+            elif use_tr:
+                return gnp.transpose(sample, axes=subscripts)
+            else:
+                return sample
         
         if self.debug:
+            operation = 'einsum' if use_einsum else ('transpose' if use_tr else 'None')
             warnings.warn(
                 f'computing info for pvariable transform:' 
-                f'\n\tvar      ={var}'
-                f'\n\tinputs   ={sign_in}'
-                f'\n\ttargets  ={sign_out}'
-                f'\n\tnew shape={out_shape}'
-                f'\n\teinsum   ={permute}'
+                f'\n\tvar        ={var}'
+                f'\n\tinputs     ={sign_in}'
+                f'\n\ttargets    ={sign_out}'
+                f'\n\tnew axes   ={new_axis}'
+                f'\n\toperation  ={operation}'
+                f'\n\tsubscripts ={subscripts}'
             )
         
         return _transform
