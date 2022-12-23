@@ -1,6 +1,6 @@
+import datetime
 import numpy as np
 from typing import Iterable, List, Tuple
-import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -36,6 +36,12 @@ class RDDLTensors:
         
         self.index_of_object, self.grounded = self._compile_objects()
         self.init_values = self._compile_init_values()
+        
+        if self.debug:
+            self.filename = f'debug_{rddl._AST.domain.name}_{rddl._AST.instance.name}.txt'
+            fp = open(self.filename, 'w')
+            fp.write('')
+            fp.close()
 
     def _compile_objects(self):
         grounded = {}
@@ -123,10 +129,17 @@ class RDDLTensors:
                         f'must be one of {set(objects.keys())}.\n'
                         f'{msg}')
             
+    def write_debug_message(self, msg: str):
+        if self.debug:
+            fp = open(self.filename, 'a')
+            timestamp = str(datetime.datetime.now())
+            fp.write(timestamp + ': ' + msg + '\n')
+            fp.close()
+        
     def map(self, var: str,
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
-            gnp=np, 
+            gnp=np,
             msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
         '''Returns a function that transforms a pvariable value tensor to one
         whose shape matches a desired output signature. This operation is
@@ -228,18 +241,17 @@ class RDDLTensors:
             else:
                 return sample
         
-        if self.debug:
-            operation = gnp.einsum if use_einsum else (
-                gnp.transpose if use_tr else 'None')
-            warnings.warn(
-                f'computing info for pvariable transform:' 
+        operation = gnp.einsum if use_einsum else (
+                        gnp.transpose if use_tr else 'None')
+        self.write_debug_message(
+            f'computing info for pvariable transform:' 
                 f'\n\tvar        ={var}'
                 f'\n\tinputs     ={sign_in}'
                 f'\n\ttargets    ={sign_out}'
                 f'\n\tnew axes   ={new_axis}'
                 f'\n\toperation  ={operation}, subscripts={subscripts}\n'
-            )
-        
+        )
+            
         return _transform
     
     def expand(self, var: str, values: np.ndarray) -> Iterable[Tuple[str, Value]]:

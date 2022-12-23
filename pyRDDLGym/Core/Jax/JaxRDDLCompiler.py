@@ -2,7 +2,6 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
-import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -43,7 +42,7 @@ class JaxRDDLCompiler:
         # static analysis and compilation
         self.static = RDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
-        self.tensors = RDDLTensors(rddl, debug)
+        self.tensors = RDDLTensors(rddl, debug=debug)
         
         # initialize all fluent and non-fluent values
         self.init_values = self.tensors.init_values
@@ -504,15 +503,13 @@ class JaxRDDLCompiler:
             sample = jax_op(val, axis=axis)
             return sample, key, err
         
-        if self.debug:
-            warnings.warn(
-                f'compiling static graph for aggregation:'
+        self.tensors.write_debug_message(
+            f'compiling static graph for aggregation:'
                 f'\n\toperator       ={op} {pvars}'
                 f'\n\tinput objects  ={new_objects}'
                 f'\n\toutput objects ={objects}'
-                f'\n\treduction axis ={axis}'
-                f'\n\treduction op   ={valid_ops[op]}\n'
-            )
+                f'\n\treduction op   ={valid_ops[op]}, axes={axis}\n'
+        )
                 
         return _f
                

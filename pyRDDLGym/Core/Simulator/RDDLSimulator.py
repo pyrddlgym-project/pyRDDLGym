@@ -42,7 +42,7 @@ class RDDLSimulator:
         # static analysis and compilation
         self.static = RDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
-        self.tensors = RDDLTensors(rddl, debug)
+        self.tensors = RDDLTensors(rddl, debug=debug)
         
         # initialize all fluent and non-fluent values
         self.init_values = self.tensors.init_values
@@ -222,7 +222,7 @@ class RDDLSimulator:
         new_actions = {action: np.copy(value) 
                        for action, value in self.noop_actions.items()}
         
-        for action, value in actions.items():            
+        for action, value in actions.items(): 
             if action not in self.rddl.actions:
                 raise RDDLInvalidActionError(
                     f'<{action}> is not a valid action-fluent.')
@@ -516,14 +516,13 @@ class RDDLSimulator:
                     f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
                 
-            if self.debug:
-                warnings.warn(
-                    f'computing object info for aggregation:'
+            self.tensors.write_debug_message(
+                f'computing object info for aggregation:'
                     f'\n\toperator       ={op} {pvars}'
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\toutput objects ={objects}'
-                    f'\n\toperation       ={valid_ops[op]}, axes={reduced_axes}\n'
-                )                      
+                    f'\n\toperation      ={valid_ops[op]}, axes={reduced_axes}\n'
+            )                      
         new_objects, axis = expr.cached_objects
         
         # sample the argument and aggregate over the reduced axes
@@ -894,7 +893,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         elif etype == 'relational':
             var, lim, loc, active = self._parse_bounds_relational(
                 expr, objects, search_vars)
-            if var is not None and loc is not None:   
+            if var is not None and loc is not None: 
                 if self.rddl.is_grounded:
                     if loc == 1:
                         if self._bounds[var][loc] > lim:
@@ -902,7 +901,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                     else:
                         if self._bounds[var][loc] < lim:
                             self._bounds[var][loc] = lim
-                else:        
+                else: 
                     variations = self.rddl.variations([o[1] for o in objects])
                     lims = np.ravel(lim)
                     for args, lim in zip(variations, lims, strict=True):
