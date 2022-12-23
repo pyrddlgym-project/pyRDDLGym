@@ -234,7 +234,7 @@ class RDDLSimulator:
                 var, objects = self.rddl.parse(action)
                 tensor = new_actions[var]
                 
-                if not np.can_cast(value, tensor.dtype, casting='same_kind'):
+                if not np.can_cast(value, tensor.dtype):
                     raise RDDLTypeError(
                         f'Value {value} of action <{action}> '
                         f'cannot be cast to type {tensor.dtype}.')

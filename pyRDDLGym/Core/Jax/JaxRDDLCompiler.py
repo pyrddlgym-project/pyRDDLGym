@@ -28,7 +28,7 @@ class JaxRDDLCompiler:
     
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
-                 debug: bool=True) -> None:
+                 debug: bool=False) -> None:
         
         # jax compilation will only work on lifted domains for now
         if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
@@ -361,7 +361,7 @@ class JaxRDDLCompiler:
         def _f(x, key):
             val, key, err = jax_expr(x, key)
             sample = jnp.asarray(val, dtype=dtype)
-            invalid = jnp.logical_not(jnp.can_cast(val, dtype, casting='safe'))
+            invalid = (not jnp.can_cast(val, dtype)) and jnp.any(sample != val)
             err |= invalid * ERR
             return sample, key, err
         
