@@ -211,8 +211,10 @@ class RDDLTensors:
         use_tr = lhs != rhs
         if use_einsum:
             subscripts = lhs + '->' + rhs
+        elif use_tr:
+            subscripts = tuple(np.argsort(permutation))  # inverse permutation
         else:
-            subscripts = tuple(np.argsort(permutation))  # inverse permutation      
+            subscripts = None
                 
         def _transform(arg):
             sample = arg
@@ -227,15 +229,15 @@ class RDDLTensors:
                 return sample
         
         if self.debug:
-            operation = 'einsum' if use_einsum else ('transpose' if use_tr else 'None')
+            operation = gnp.einsum if use_einsum else (
+                gnp.transpose if use_tr else 'None')
             warnings.warn(
                 f'computing info for pvariable transform:' 
                 f'\n\tvar        ={var}'
                 f'\n\tinputs     ={sign_in}'
                 f'\n\ttargets    ={sign_out}'
                 f'\n\tnew axes   ={new_axis}'
-                f'\n\toperation  ={operation}'
-                f'\n\tsubscripts ={subscripts}'
+                f'\n\toperation  ={operation}, subscripts={subscripts}\n'
             )
         
         return _transform

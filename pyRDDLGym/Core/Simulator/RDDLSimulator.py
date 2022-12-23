@@ -522,8 +522,7 @@ class RDDLSimulator:
                     f'\n\toperator       ={op} {pvars}'
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\toutput objects ={objects}'
-                    f'\n\treduction axes ={reduced_axes}'
-                    f'\n\treduction op   ={valid_ops[op]}\n'
+                    f'\n\toperation       ={valid_ops[op]}, axes={reduced_axes}\n'
                 )                      
         new_objects, axis = expr.cached_objects
         
