@@ -405,27 +405,14 @@ class RDDLSimulator:
         if self.rddl.is_grounded:
             return np.asarray(arg)
         
-        # cache and read the tensor information for the fluent
-        cached_info = getattr(expr, 'cached_info', None)
-        if cached_info is None:
-            cached_sub_map = self.tensors.map(
-                var, pvars, objects,
-                str(expr), RDDLSimulator._print_stack_trace(expr))            
-            _, _, new_dims = cached_sub_map
-            new_axes = (1,) * len(new_dims)
-            cached_shapes = (arg.shape + new_axes, arg.shape + new_dims)
-            cached_info = cached_sub_map + cached_shapes
-            expr.cached_info = cached_info            
-        permute, identity, new_dims, new_shape, broadcast_shape = cached_info
-        
         # argument is reshaped to match the free variables "objects"
-        sample = arg
-        if new_dims:
-            sample = np.reshape(arg, newshape=new_shape) 
-            sample = np.broadcast_to(sample, shape=broadcast_shape)
-        if not identity:
-            sample = np.einsum(permute, sample)
-        return sample
+        cached_transform = getattr(expr, 'cached_transform', None)
+        if cached_transform is None:
+            cached_transform = self.tensors.map(
+                var, pvars, objects,
+                msg=RDDLSimulator._print_stack_trace(expr))            
+            expr.cached_transform = cached_transform        
+        return cached_transform(arg)
     
     # ===========================================================================
     # mathematical
