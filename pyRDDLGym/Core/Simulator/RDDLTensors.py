@@ -34,14 +34,14 @@ class RDDLTensors:
         self.rddl = rddl
         self.debug = debug
         
-        self.index_of_object, self.grounded = self._compile_objects()
-        self.init_values = self._compile_init_values()
-        
+        self.filename = f'debug_{rddl._AST.domain.name}_{rddl._AST.instance.name}.txt'
         if self.debug:
-            self.filename = f'debug_{rddl._AST.domain.name}_{rddl._AST.instance.name}.txt'
             fp = open(self.filename, 'w')
             fp.write('')
             fp.close()
+            
+        self.index_of_object, self.grounded = self._compile_objects()
+        self.init_values = self._compile_init_values()
 
     def _compile_objects(self):
         grounded = {}
@@ -90,7 +90,18 @@ class RDDLTensors:
                     init_arrays[var] = array                
             else:
                 init_arrays[var] = dtype(init_values.get(var, default))
-                 
+        
+        if self.debug:
+            tensor_info = '\n\t'.join(
+                (f'{k}{self.rddl.param_types[k]}, '
+                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
+                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}')
+                for k, v in init_arrays.items())
+            self.write_debug_message(
+                f'initializing pvariable tensors:' 
+                    f'\n\t{tensor_info}\n'
+            )
+            
         return init_arrays
         
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
