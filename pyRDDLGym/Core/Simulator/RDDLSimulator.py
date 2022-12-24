@@ -123,11 +123,11 @@ class RDDLSimulator:
         }
     
     @property
-    def states(self):
+    def states(self) -> Args:
         return self.state.copy()
 
     @property
-    def isPOMDP(self):
+    def isPOMDP(self) -> bool:
         return self._pomdp
 
     # ===========================================================================
