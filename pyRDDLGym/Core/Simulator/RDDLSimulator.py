@@ -473,21 +473,56 @@ class RDDLSimulator:
         
         elif n == 2:
             lhs, rhs = args
+            
+            # reorder simple expression to be evaluated first
+            if rhs.is_constant_expression() or rhs.is_pvariable_expression():
+                lhs, rhs = rhs, lhs
+            
+            # evaluate left operand
             lhs = self._sample(lhs, objects, subs)
+            RDDLSimulator._check_type(
+                lhs, bool, f'Argument 1 of logical operator {op}', expr)
+            
+            # check for possible short circuit
+            if (op == '^' and not np.any(lhs)) or (op == '|' and np.all(lhs)):
+                return lhs
+            
+            # evaluate right operand and compute result naively
             rhs = self._sample(rhs, objects, subs)
-            RDDLSimulator._check_types(
-                lhs, rhs, bool, f'Arguments of logical operator {op}', expr)
+            RDDLSimulator._check_type(
+                rhs, bool, f'Argument 2 of logical operator {op}', expr)
             return valid_ops[op](lhs, rhs)
         
-        elif self.rddl.is_grounded and n > 0:
-            samples = [self._sample(arg, objects, subs) for arg in args]
-            samples = np.stack(samples, axis=0)
-            RDDLSimulator._check_type(
-                samples, bool, f'Argument of logical operator {op}', expr)
-            if op == '^':
-                return np.all(samples, axis=0)
-            elif op == '|':
-                return np.any(samples, axis=0)
+        elif self.rddl.is_grounded and n > 0 and (op == '^' or op == '|'):
+            
+            # evaluate simple expressions first
+            for i, arg in enumerate(args):
+                if arg.is_constant_expression() or arg.is_pvariable_expression():
+                    sample = self._sample(arg, objects, subs)
+                    RDDLSimulator._check_type(
+                        sample, bool, 
+                        f'Argument {i + 1} of logical operator {op}', expr)
+                    sample = bool(sample)
+                    if op == '^' and not sample:
+                        return np.asarray(False)
+                    elif op == '|' and sample:
+                        return np.asarray(True)
+            
+            # evaluate complex expressions last
+            for i, arg in enumerate(args):
+                if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
+                    sample = self._sample(arg, objects, subs)
+                    RDDLSimulator._check_type(
+                        sample, bool, 
+                        f'Argument {i + 1} of logical operator {op}', expr)
+                    sample = bool(sample)
+                    if op == '^' and not sample:
+                        return np.asarray(False)
+                    elif op == '|' and sample:
+                        return np.asarray(True)
+            
+            # if ^ (|) then we did not encounter a false (true) value to this point
+            return np.asarray(op == '^')
             
         RDDLSimulator._check_arity(args, 2, 'Logical operator', expr)
         
