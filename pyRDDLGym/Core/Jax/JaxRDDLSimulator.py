@@ -59,7 +59,7 @@ class JaxRDDLSimulator(RDDLSimulator):
                                if ftype == 'observ-fluent']
         self._pomdp = bool(self.observ_fluents)
         
-    def handle_error_code(self, error, msg):
+    def handle_error_code(self, error, msg) -> None:
         if self.raise_error:
             errors = JaxRDDLCompiler.get_error_messages(error)
             if errors:
@@ -67,7 +67,7 @@ class JaxRDDLSimulator(RDDLSimulator):
                 errors = '\n'.join(f'{i + 1}. {s}' for i, s in enumerate(errors))
                 raise RDDLInvalidExpressionError(message + errors)
     
-    def _check_state_invariants(self) -> None:
+    def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
         for i, invariant in enumerate(self.invariants):
             sample, self.key, error = invariant(self.subs, self.key)
