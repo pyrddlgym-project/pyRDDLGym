@@ -42,6 +42,8 @@ class RDDLTensors:
             
         self.index_of_object, self.grounded = self._compile_objects()
         self.init_values = self._compile_init_values()
+        
+        self._cached_transforms = {}
 
     def _compile_objects(self):
         grounded = {}
@@ -239,19 +241,28 @@ class RDDLTensors:
             subscripts = tuple(np.argsort(permutation))  # inverse permutation
         else:
             subscripts = None
-                
-        def _transform(arg):
-            sample = arg
-            if new_dims:
-                sample = gnp.expand_dims(sample, axis=new_axis)
-                sample = gnp.broadcast_to(sample, shape=out_shape)
-            if use_einsum:
-                return gnp.einsum(subscripts, sample)
-            elif use_tr:
-                return gnp.transpose(sample, axes=subscripts)
-            else:
-                return sample
         
+        # check if the tensor transform with the given signature already exists
+        # if so, just retrieve it from the cache
+        # if not, create it and store it in the cache
+        transform_id = f'{in_shape}_{new_dims}_{use_einsum}_{use_tr}_{subscripts}'
+        _transform = self._cached_transforms.get(transform_id, None)        
+        if _transform is None:
+            
+            def _transform(arg):
+                sample = arg
+                if new_dims:
+                    sample = gnp.expand_dims(sample, axis=new_axis)
+                    sample = gnp.broadcast_to(sample, shape=out_shape)
+                if use_einsum:
+                    return gnp.einsum(subscripts, sample)
+                elif use_tr:
+                    return gnp.transpose(sample, axes=subscripts)
+                else:
+                    return sample
+            
+            self._cached_transforms[transform_id] = _transform
+            
         operation = gnp.einsum if use_einsum else (
                         gnp.transpose if use_tr else 'None')
         self.write_debug_message(
