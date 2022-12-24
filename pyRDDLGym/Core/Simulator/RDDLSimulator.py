@@ -558,7 +558,7 @@ class RDDLSimulator:
                     f'\n\toutput objects ={objects}'
                     f'\n\toperation      ={valid_ops[op]}, axes={reduced_axes}\n'
             )                      
-        new_objects, axis = expr.cached_objects
+        new_objects, axis = cached_objects
         
         # sample the argument and aggregate over the reduced axes
         arg = self._sample(arg, new_objects, subs)                
