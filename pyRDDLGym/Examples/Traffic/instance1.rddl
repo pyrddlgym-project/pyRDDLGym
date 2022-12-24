@@ -1,0 +1,44 @@
+non-fluents two_intersections {
+    domain = BLX_model;
+
+    objects {
+		intersection : {i1, i2, s1, s2, s3, s4, s5, s6};
+	};
+
+	non-fluents {
+	    SINK(s1)                = true;
+	    SINK(s2)                = true;
+	    SINK(s3)                = true;
+	    SINK(s4)                = true;
+	    SINK(s5)                = true;
+	    SINK(s6)                = true;
+	    SOURCE(s1)              = true;
+	    SOURCE(s2)              = true;
+	    SOURCE(s3)              = true;
+	    SOURCE(s4)              = true;
+	    SOURCE(s5)              = true;
+	    SOURCE(s6)              = true;
+		LINK(s1,i1)             = true;
+		LINK(s2,i1)             = true;
+		LINK(s3,i1)             = true;
+		LINK(i1,s1)             = true;
+		LINK(i1,s2)             = true;
+		LINK(i1,s3)             = true;
+		LINK(i1,i2)             = true;
+		LINK(i2,i1)             = true;
+		LINK(s4,i2)             = true;
+		LINK(s5,i2)             = true;
+		LINK(s6,i2)             = true;
+		LINK(i2,s4)             = true;
+		LINK(i2,s5)             = true;
+		LINK(i2,s6)             = true;
+ 	};
+}
+
+instance two_intersections_inst {
+    domain = MLX_model;
+ 	non-fluents = two_intersections;
+	max-nondef-actions = pos-inf;
+	horizon = 10;
+	discount = 1.0;
+}
