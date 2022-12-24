@@ -93,7 +93,7 @@ class RDDLTensors:
         
         if self.debug:
             tensor_info = '\n\t'.join(
-                (f'{k}{self.rddl.param_types[k]}, '
+                (f'{k}{[] if self.rddl.is_grounded else self.rddl.param_types[k]}, '
                  f'shape={v.shape if type(v) is np.ndarray else ()}, '
                  f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}')
                 for k, v in init_arrays.items())
