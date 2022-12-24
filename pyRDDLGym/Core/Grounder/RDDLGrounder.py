@@ -106,6 +106,7 @@ class RDDLGrounder(Grounder):
         # added on Dec 17 (Mike)
         model.param_types, model.variable_types, model.variable_ranges = \
             self._extract_variable_information()
+        model.SetAST(self.AST)
         
         return model
 
