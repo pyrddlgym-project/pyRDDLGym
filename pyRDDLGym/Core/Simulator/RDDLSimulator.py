@@ -984,15 +984,15 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                 expr, objects, search_vars)
             if var is not None and loc is not None: 
                 if self.rddl.is_grounded:
-                    self._parse_bound(var, loc, lim)
+                    self._update_bound(var, loc, lim)
                 else: 
                     variations = self.rddl.variations([o[1] for o in objects])
                     lims = np.ravel(lim)
                     for args, lim in zip(variations, lims, strict=True):
                         key = self.rddl.ground_name(var, [args[i] for i in active])
-                        self._parse_bound(key, loc, lim)
+                        self._update_bound(key, loc, lim)
     
-    def _parse_bound(self, key, loc, lim):
+    def _update_bound(self, key, loc, lim):
         if loc == 1:
             if self._bounds[key][loc] > lim:
                 self._bounds[key][loc] = lim
