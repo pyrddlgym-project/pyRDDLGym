@@ -245,13 +245,13 @@ class RDDLTensors:
         # check if the tensor transform with the given signature already exists
         # if so, just retrieve it from the cache
         # if not, create it and store it in the cache
-        transform_id = f'{in_shape}_{new_dims}_{use_einsum}_{use_tr}_{subscripts}'
+        transform_id = f'{new_axis}_{out_shape}_{use_einsum}_{use_tr}_{subscripts}'
         _transform = self._cached_transforms.get(transform_id, None)        
         if _transform is None:
             
             def _transform(arg):
                 sample = arg
-                if new_dims:
+                if new_axis:
                     sample = gnp.expand_dims(sample, axis=new_axis)
                     sample = gnp.broadcast_to(sample, shape=out_shape)
                 if use_einsum:
