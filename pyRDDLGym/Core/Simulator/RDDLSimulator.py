@@ -569,9 +569,11 @@ class RDDLSimulator:
         pred = self._sample(pred, objects, subs)
         RDDLSimulator._check_type(pred, bool, 'Predicate', expr)
         
-        if pred.size == 1:  # can short-circuit
-            arg = arg1 if bool(pred) else arg2
-            return self._sample(arg, objects, subs)
+        count_true = np.sum(pred)
+        if count_true == pred.size:  # all elements of pred are true
+            return self._sample(arg1, objects, subs)
+        elif count_true == 0:  # all elements of pred are false
+            return self._sample(arg2, objects, subs)
         else:
             arg1 = self._sample(arg1, objects, subs)
             arg2 = self._sample(arg2, objects, subs)
