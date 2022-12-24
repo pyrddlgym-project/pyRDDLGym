@@ -1,6 +1,6 @@
 import datetime
 import numpy as np
-from typing import Iterable, List, Tuple
+from typing import Callable, Iterable, List, Tuple
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -30,7 +30,7 @@ class RDDLTensors:
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
-    def __init__(self, rddl: RDDLModel, debug: bool=False):
+    def __init__(self, rddl: RDDLModel, debug: bool=False) -> None:
         self.rddl = rddl
         self.debug = debug
         
@@ -142,7 +142,7 @@ class RDDLTensors:
                         f'must be one of {set(objects.keys())}.\n'
                         f'{msg}')
             
-    def write_debug_message(self, msg: str):
+    def write_debug_message(self, msg: str) -> None:
         if self.debug:
             fp = open(self.filename, 'a')
             timestamp = str(datetime.datetime.now())
@@ -153,7 +153,7 @@ class RDDLTensors:
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
             gnp=np,
-            msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
+            msg: str='') -> Callable[[np.ndarray], np.ndarray]:
         '''Returns a function that transforms a pvariable value tensor to one
         whose shape matches a desired output signature. This operation is
         achieved by adding new dimensions to the value as needed, and performing
