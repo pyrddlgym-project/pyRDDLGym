@@ -271,7 +271,8 @@ class RDDLTensors:
                 f'\n\tinputs     ={sign_in}'
                 f'\n\ttargets    ={sign_out}'
                 f'\n\tnew axes   ={new_axis}'
-                f'\n\toperation  ={operation}, subscripts={subscripts}\n'
+                f'\n\toperation  ={operation}, subscripts={subscripts}'
+                f'\n\tunique id  ={id(_transform)}\n'
         )
             
         return _transform
