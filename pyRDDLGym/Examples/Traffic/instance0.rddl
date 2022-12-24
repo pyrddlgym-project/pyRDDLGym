@@ -1,0 +1,39 @@
+non-fluents isolated_intersection {
+    domain = BLX_model;
+
+    objects {
+		intersection : {i1, s1, s2, s3, s4};
+	};
+
+	non-fluents {
+	    SINK(s1)                = true;
+	    SINK(s2)                = true;
+	    SINK(s3)                = true;
+	    SINK(s4)                = true;
+
+	    SOURCE(s1)              = true;
+	    SOURCE(s2)              = true;
+	    SOURCE(s3)              = true;
+	    SOURCE(s4)              = true;
+
+		LINK(s1,i1)             = true;
+		LINK(s2,i1)             = true;
+		LINK(s3,i1)             = true;
+		LINK(s4,i1)             = true;
+		LINK(i1,s1)             = true;
+		LINK(i1,s2)             = true;
+		LINK(i1,s3)             = true;
+		LINK(i1,s4)             = true;
+ 	};
+}
+
+instance isolated_intersection_inst {
+    domain = BLX_model;
+ 	non-fluents = isolated_intersection;
+// 	init-state = {
+// 	    qd(i1,s1) = 0;
+// 	};
+	max-nondef-actions = pos-inf;
+	horizon = 10;
+	discount = 1.0;
+}
