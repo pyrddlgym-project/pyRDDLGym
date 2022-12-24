@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import jax.random as random
 import jax.nn.initializers as initializers
 import optax
-from typing import Dict, Generator
+from typing import Dict, Iterable
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -222,7 +222,7 @@ class JaxRDDLBackpropPlanner:
     # training
     # ===========================================================================
     
-    def optimize(self, epochs: int, step: int=1) -> Generator[Dict, None, None]:
+    def optimize(self, epochs: int, step: int=1) -> Iterable[Dict[str, object]]:
         ''' Compute an optimal straight-line plan.
         
         @param epochs: the maximum number of steps of gradient descent
