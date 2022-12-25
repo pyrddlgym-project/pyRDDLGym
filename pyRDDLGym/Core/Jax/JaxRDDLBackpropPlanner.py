@@ -11,7 +11,9 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
+from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import JaxRDDLCompilerWithGrad
+from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import ProductLogic
 
  
 class JaxRDDLBackpropPlanner:
@@ -23,7 +25,7 @@ class JaxRDDLBackpropPlanner:
                  action_bounds: Dict={},
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
-                 log_full_path: bool=False) -> None:
+                 logic: FuzzyLogic=ProductLogic()) -> None:
         
         # jax compilation will only work on lifted domains for now
         if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
@@ -39,7 +41,7 @@ class JaxRDDLBackpropPlanner:
         self._action_bounds = action_bounds
         self.initializer = initializer
         self.optimizer = optimizer
-        self.log_full_path = log_full_path
+        self.logic = logic
         
         self._compile_rddl()
         self._compile_action_info()        
@@ -50,7 +52,7 @@ class JaxRDDLBackpropPlanner:
     # ===========================================================================
     
     def _compile_rddl(self):
-        self.compiled = JaxRDDLCompilerWithGrad(rddl=self.rddl)
+        self.compiled = JaxRDDLCompilerWithGrad(rddl=self.rddl, logic=self.logic)
         self.compiled.compile()
         
         self.test_compiled = JaxRDDLCompiler(rddl=self.rddl)
