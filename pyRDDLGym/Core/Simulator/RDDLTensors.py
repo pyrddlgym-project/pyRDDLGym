@@ -287,4 +287,7 @@ class RDDLTensors:
         '''
         keys = self.grounded[var]
         values = np.ravel(values)
-        return zip(keys, values, strict=True)
+        if len(keys) != values.size:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Size of value array is not compatible with variable <{var}>.')
+        return zip(keys, values)
