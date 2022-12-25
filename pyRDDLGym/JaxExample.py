@@ -9,20 +9,21 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 from pyRDDLGym.Core.Parser import parser as parser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
+from pyRDDLGym.Policies.Agents import RandomAgent
 
 # ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
 ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-ENV = 'Wildfire'
+ENV = 'Traffic'
 # ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
 # ENV = 'Reservoir'
 # ENV = 'RecSim'
 
-DO_PLAN = True
+DO_PLAN = False
   
 
 def rddl_simulate(plan):
@@ -108,8 +109,14 @@ def main():
         
     else:
         
+        myEnv = RDDLEnv.RDDLEnv(domain=domain,
+                                instance=instance,
+                                enforce_action_constraints=True)
+        agent = RandomAgent(action_space=myEnv.action_space, 
+                            num_actions=myEnv.numConcurrentActions)
+        
         def plan(step):
-            return {}
+            return {k: bool(v) for k, v in agent.sample_action().items()}
 
         jax_simulate(model, key, plan)
 

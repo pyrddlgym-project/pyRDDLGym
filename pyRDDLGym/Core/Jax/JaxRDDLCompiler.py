@@ -99,12 +99,17 @@ class JaxRDDLCompiler:
             'tanh': jnp.tanh,
             'exp': jnp.exp,
             'ln': jnp.log,
-            'sqrt': jnp.sqrt
+            'sqrt': jnp.sqrt,
+            'lngamma': jax.scipy.special.gammaln,
+            'gamma': lambda x: jnp.exp(jax.scipy.special.gammaln(x))
         }        
         self.KNOWN_BINARY = {
+            'div': jnp.floor_divide,
+            'mod': jnp.mod,
             'min': jnp.minimum,
             'max': jnp.maximum,
-            'pow': jnp.power
+            'pow': jnp.power,
+            'log': lambda x, y: jnp.log(x) / jnp.log(y)
         }
         self.CONTROL_OPS = {
             'if': jnp.where
