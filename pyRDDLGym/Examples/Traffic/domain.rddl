@@ -5,14 +5,14 @@
 //  Author: Ayal Taitler (ataitler@gmail.com)
 //
 //  Reference:
-//      S. Lin, B. De Schutter, Y. Xi, and J. Hellendoorn, “A simplified macroscopic urban
-//      traffic network model for model-based predictive control,” Proceedings of the 12th
+//      S. Lin, B. De Schutter, Y. Xi, and J. Hellendoorn, "A simplified macroscopic urban
+//      traffic network model for model-based predictive control," Proceedings of the 12th
 //      IFAC Symposium on Transportation Systems, Redondo Beach, California, pp. 286–
 //      291, Sept. 2009
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-domain BLX_model{
+domain BLX_model {
 
     types {
         intersection : object;
@@ -119,8 +119,8 @@ domain BLX_model{
         gama(?u,?d) = LINK(?u,?d) * mod[ (Cl(?u,?d) - qd(?u,?d))*Lv , (Nl(?u,?d)*V(?u,?d)*Ts) ];
 
         Ma(?u,?d) =
-            LINK(?u,?d) * (1 - gama(?u,?d)) * sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)]
-            + LINK(?u,?d) * gama(?u,?d) * sum_{?i : intersection}[Mltau1(?i,?u,?d)*LINK(?i,?u)];
+            LINK(?u,?d) * (1 - gama(?u,?d)) * (sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)])
+            + LINK(?u,?d) * gama(?u,?d) * (sum_{?i : intersection}[Mltau1(?i,?u,?d)*LINK(?i,?u)]);
 
         Mltau(?u,?d,?o) = if (tau(?u,?d) == 0) then Ml(?u,?d,?o)
                           else if (tau(?u,?d) == 1) then Ml1(?u,?d,?o)
