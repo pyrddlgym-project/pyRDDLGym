@@ -592,20 +592,32 @@ class RDDLSimulator:
             cached_objects = (new_objects, reduced_axes)
             expr.cached_objects = cached_objects
             
+            # check for undefined types
             bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
             if bad_types:
                 raise RDDLInvalidObjectError(
                     f'Type(s) {bad_types} are not defined, '
                     f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
-                
+            
+            # check for duplicated iteration variables
+            for _, (free_new, _) in pvars:
+                for free_old, _ in objects:
+                    if free_new == free_old:
+                        raise RDDLInvalidObjectError(
+                            f'Iteration variable <{free_new}> is already defined '
+                            f'in outer scope.\n' + 
+                            RDDLSimulator._print_stack_trace(expr))
+            
+            # debug compiler info
             self.tensors.write_debug_message(
                 f'computing object info for aggregation:'
                     f'\n\toperator       ={op} {pvars}'
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\toutput objects ={objects}'
                     f'\n\toperation      ={valid_ops[op]}, axes={reduced_axes}\n'
-            )                      
+            )
+                            
         new_objects, axis = cached_objects
         
         # sample the argument and aggregate over the reduced axes
