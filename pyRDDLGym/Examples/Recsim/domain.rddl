@@ -24,7 +24,7 @@ domain recsim_ecosystem_welfare {
 		item-by(provider, item) : { state-fluent, bool, default = false};
 		item-gen-randomness(item):  { interm-fluent, real, level = 1 };
 		item-feature-randomness(item, feature):  { interm-fluent, real, level = 1 };
-		item-gen-cdf(provider) : { interm-fluent, bool, level = 2 };
+		item-gen-cdf(provider) : { interm-fluent, real, level = 2 };
 		provider-sat-norm: {interm-fluent, real, level = 1};
 		consumer-num-recs(consumer): { interm-fluent, real, level = 1 };
 		sanitized-recommend(consumer, item): { interm-fluent, bool, level = 2 };

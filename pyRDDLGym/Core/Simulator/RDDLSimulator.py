@@ -94,10 +94,10 @@ class RDDLSimulator:
         }
         self.UNARY = {        
             'abs': np.abs,
-            'sgn': np.sign,
-            'round': np.round,
-            'floor': np.floor,
-            'ceil': np.ceil,
+            'sgn': lambda x: np.sign(x).astype(RDDLTensors.INT),
+            'round': lambda x: np.round(x).astype(RDDLTensors.INT),
+            'floor': lambda x: np.floor(x).astype(RDDLTensors.INT),
+            'ceil': lambda x: np.ceil(x).astype(RDDLTensors.INT),
             'cos': np.cos,
             'sin': np.sin,
             'tan': np.tan,
@@ -114,8 +114,8 @@ class RDDLSimulator:
             'gamma': lambda x: np.exp(lngamma(x))
         }        
         self.BINARY = {
-            'div': np.floor_divide,
-            'mod': np.mod,
+            'div': lambda x: np.floor_divide(x).astype(RDDLTensors.INT),
+            'mod': lambda x: np.mod(x).astype(RDDLTensors.INT),
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
@@ -145,8 +145,10 @@ class RDDLSimulator:
     @staticmethod
     def _check_type(value, valid, msg, expr):
         if not np.can_cast(value, valid):
+            dtype = getattr(value, 'dtype', type(value))
             raise RDDLTypeError(
-                f'{msg} must evaluate to {valid}, got {value}.\n' + 
+                f'{msg} must evaluate to {valid}, '
+                f'got {value} of type {dtype}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -154,8 +156,10 @@ class RDDLSimulator:
         for valid_type in valid:
             if np.can_cast(value, valid_type):
                 return
+        dtype = getattr(value, 'dtype', type(value))
         raise RDDLTypeError(
-            f'{msg} must evaluate to a type in {valid}, got {value}.\n' + 
+            f'{msg} must evaluate to a type in {valid}, '
+            f'got {value} of type {dtype}.\n' + 
             RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -226,17 +230,12 @@ class RDDLSimulator:
                     f'<{action}> is not a valid action-fluent.')
             
             if self.rddl.is_grounded:
-                new_actions[action] = value
-                
+                new_actions[action] = value                
             else:
                 var, objects = self.rddl.parse(action)
-                tensor = new_actions[var]
-                
-                if not np.can_cast(value, tensor.dtype):
-                    raise RDDLTypeError(
-                        f'Value {value} of action <{action}> '
-                        f'cannot be cast to type {tensor.dtype}.')
-            
+                tensor = new_actions[var]                
+                RDDLSimulator._check_type(
+                    value, tensor.dtype, f'Action-fluent <{action}>', '')            
                 tensor[self.tensors.coordinates(objects, '')] = value
          
         return new_actions
@@ -309,13 +308,18 @@ class RDDLSimulator:
         subs = self.subs
         subs.update(actions)
         
+        tensors, rddl = self.tensors, self.rddl
+        
         for cpfs in self.levels.values():
             for cpf in cpfs:
-                objects, expr = self.rddl.cpfs[cpf]
-                subs[cpf] = self._sample(expr, objects, subs)
+                objects, expr = rddl.cpfs[cpf]
+                sample = self._sample(expr, objects, subs)
+                dtype = tensors.NUMPY_TYPES[rddl.variable_ranges[cpf]]
+                RDDLSimulator._check_type(sample, dtype, f'CPF <{cpf}>', expr)
+                subs[cpf] = sample
         reward = self.sample_reward()
         
-        if self.rddl.is_grounded:
+        if rddl.is_grounded:
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
             self.state = {var: subs[var] for var in self.next_states.values()}
@@ -323,15 +327,15 @@ class RDDLSimulator:
             self.state = {}
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
-                self.state.update(self.tensors.expand(state, subs[state]))
-        
+                self.state.update(tensors.expand(state, subs[state]))
+            
         if self._pomdp: 
-            if self.rddl.is_grounded:
+            if rddl.is_grounded:
                 obs = {var: subs[var] for var in self.observ_fluents}
             else:
                 obs = {}
                 for var in self.observ_fluents:
-                    obs.update(self.tensors.expand(var, subs[var]))
+                    obs.update(tensors.expand(var, subs[var]))
         else:
             obs = self.state
         
@@ -441,7 +445,6 @@ class RDDLSimulator:
                 return self._sample_product_grounded(args, objects, subs)
             elif op == '+':
                 samples = [self._sample(arg, objects, subs) for arg in args]
-                samples = 1 * np.stack(samples, axis=0)
                 return np.sum(samples, axis=0)                
             
         RDDLSimulator._check_arity(args, 2, 'Arithmetic operator', expr)
@@ -455,7 +458,7 @@ class RDDLSimulator:
         if not np.any(lhs):
             return lhs
             
-        rhs = 1 * self._sample(rhs, objects, subs)
+        rhs = self._sample(rhs, objects, subs)
         return lhs * rhs
     
     def _sample_product_grounded(self, args, objects, subs):
