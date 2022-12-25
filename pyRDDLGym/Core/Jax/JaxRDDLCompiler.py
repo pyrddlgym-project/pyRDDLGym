@@ -488,13 +488,23 @@ class JaxRDDLCompiler:
         new_objects = objects + [p[1] for p in pvars]
         axis = tuple(range(len(objects), len(new_objects)))
         
-        fails = {p for _, p in new_objects if p not in self.rddl.objects}
-        if fails:
+        # check for undefined types
+        bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
+        if bad_types:
             raise RDDLInvalidObjectError(
-                f'Type(s) {fails} are not defined, '
+                f'Type(s) {bad_types} are not defined, '
                 f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
         
+        # check for duplicated iteration variables
+        for _, (free_new, _) in pvars:
+            for free_old in objects:
+                if free_new == free_old:
+                    raise RDDLInvalidObjectError(
+                        f'Iteration variable <{free_new}> is already defined '
+                        f'in outer scope.\n' + 
+                        JaxRDDLCompiler._print_stack_trace(expr))
+                        
         jax_expr = self._jax(arg, new_objects)
         jax_op = valid_ops[op]        
         
@@ -503,6 +513,7 @@ class JaxRDDLCompiler:
             sample = jax_op(val, axis=axis)
             return sample, key, err
         
+        # debug compiler info
         self.tensors.write_debug_message(
             f'compiling static graph for aggregation:'
                 f'\n\toperator       ={op} {pvars}'
