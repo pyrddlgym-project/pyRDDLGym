@@ -32,7 +32,22 @@ class FuzzyLogic:
         return self.Not(self.forall(self.Not(x), axis=axis))
     
     def If(self, c, a, b):
-        raise NotImplemented
+        raise NotImplementedError
+
+
+class BooleanLogic(FuzzyLogic):
+    
+    def And(self, a, b):
+        return jnp.logical_and(a, b)
+    
+    def Not(self, x):
+        return jnp.logical_not(x)
+
+    def forall(self, x, axis=None):
+        return jnp.all(x, axis=axis)
+    
+    def If(self, c, a, b):
+        return jnp.where(c, a, b)
 
 
 class ProductLogic(FuzzyLogic):
