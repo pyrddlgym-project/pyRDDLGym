@@ -39,6 +39,7 @@ setup(
                          'Examples/UAV/Mixed/*.rddl',
                          'Examples/Wildfire/*.rddl',
                          'Examples/Supply_Chain/*.rddl',
+                         'Examples/Traffic/*.rddl',
                          ]},
       classifiers=[
         "Development Status :: 3 - Alpha",
