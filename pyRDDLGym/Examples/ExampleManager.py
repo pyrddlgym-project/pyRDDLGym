@@ -24,7 +24,8 @@ EXP_DICT = {
     'positions in  in the 3d Space.', '/UAV/Mixed/', 'UAVs'),
     'Wildfire' : ('A boolean version of the wildfire fighting domain.', '/Wildfire/', 'Wildfire'),
     'SupplyChain' : ('A supply chain with factory and multiple warehouses.', '/Supply_Chain/', 'SupplyChain'),
-    'Traffic' : ('', '/Traffic/', None)
+    'Traffic' : ('BLX/QTM traffic model.', '/Traffic/', None),
+    'PropDBN' : ('Simple propositional DBN.', '/PropDBN/', None),
 }
 
 
