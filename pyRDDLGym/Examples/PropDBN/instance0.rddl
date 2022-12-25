@@ -1,0 +1,14 @@
+non-fluents propdbn_nf {
+    domain = PropDBN;
+    objects {
+	};
+}
+
+instance inst_propdbn {
+    domain = propdnb ;
+    non-fluents = propdbn_nf;
+    init-state { p ; r ; };
+    max-nondef-actions = 1;
+    horizon = 20;
+    discount = 0.9;
+}
