@@ -13,7 +13,7 @@ from pyRDDLGym.Core.Parser.expr import Value
 
 class RDDLTensors:
     
-    INT = np.int32
+    INT = np.int64
     REAL = np.float64
         
     NUMPY_TYPES = {
