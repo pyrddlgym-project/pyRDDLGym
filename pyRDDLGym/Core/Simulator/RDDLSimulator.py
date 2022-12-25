@@ -144,22 +144,20 @@ class RDDLSimulator:
     
     @staticmethod
     def _check_type(value, valid, msg, expr):
-        dtype = value.dtype            
-        if dtype != valid:
+        if not np.can_cast(value, valid):
             raise RDDLTypeError(
-                f'{msg} must evaluate to {valid}, got {value} of type {dtype}.\n' + 
+                f'{msg} must evaluate to {valid}, got {value}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
-    def _check_types(value1, value2, valid, msg, expr):
-        dtype1 = value1.dtype
-        dtype2 = value2.dtype
-        if dtype1 != valid and dtype2 != valid:
-            raise RDDLTypeError(
-                f'{msg} must evaluate to {valid}, got {value1} of type {dtype1} '
-                f'and {value2} of type {dtype2}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
-            
+    def _check_type_in(value, valid, msg, expr):
+        for valid_type in valid:
+            if np.can_cast(value, valid_type):
+                return
+        raise RDDLTypeError(
+            f'{msg} must evaluate to a type in {valid}, got {value}.\n' + 
+            RDDLSimulator._print_stack_trace(expr))
+    
     @staticmethod
     def _check_op(op, valid, msg, expr):
         if op not in valid:
@@ -515,8 +513,10 @@ class RDDLSimulator:
                 lhs, rhs = args
                 lhs = self._sample(lhs, objects, subs)
                 rhs = self._sample(rhs, objects, subs)
-                RDDLSimulator._check_types(
-                    lhs, rhs, bool, f'Argument of logical operator {op}', expr)
+                RDDLSimulator._check_type(
+                    lhs, bool, f'Argument 1 of logical operator {op}', expr)
+                RDDLSimulator._check_type(
+                    rhs, bool, f'Argument 2 of logical operator {op}', expr)
                 return valid_ops[op](lhs, rhs)
         
         elif self.rddl.is_grounded and n > 0 and (op == '^' or op == '|'):
@@ -731,7 +731,8 @@ class RDDLSimulator:
         
         arg, = args
         arg = self._sample(arg, objects, subs)
-        RDDLSimulator._check_type(arg, bool, 'Argument of KronDelta', expr)
+        RDDLSimulator._check_type_in(
+            arg, {bool, RDDLTensors.INT}, 'Argument of KronDelta', expr)
         return arg
     
     def _sample_dirac_delta(self, expr, objects, subs):
