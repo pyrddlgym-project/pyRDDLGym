@@ -1000,7 +1000,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                 else: 
                     variations = self.rddl.variations([o[1] for o in objects])
                     lims = np.ravel(lim)
-                    for args, lim in zip(variations, lims, strict=True):
+                    for args, lim in zip(variations, lims):
                         key = self.rddl.ground_name(var, [args[i] for i in active])
                         self._update_bound(key, loc, lim)
     
