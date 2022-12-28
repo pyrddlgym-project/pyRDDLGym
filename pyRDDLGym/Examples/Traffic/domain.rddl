@@ -50,11 +50,13 @@ domain BLX_model {
         // arrival rate at sources - the variance for a uniform distribution
         ARRIVAL(intersection)                :  { non-fluent, int, default = 1 };
         // time ordering for time-delayed queues
-        Next(time, time)                     :  { non-fluent, bool, default = false };
+        NEXT(time, time)                     :  { non-fluent, bool, default = false };
         // is the time index first in the queue, i,e., no delay
         TIME-HEAD(time)                      :  {non-fluent, bool, default = false };
         // is the time index last in the queue, i,e., maximum delay memory depth
         TIME-TAIL(time)                      :  {non-fluent, bool, default = false };
+        // time object to actual time delay index
+        TIME-VAL(time)                       :  { non-fluent, int, default = 1 };
 
 
         //////////////////////////////
@@ -85,41 +87,6 @@ domain BLX_model {
         //////////////////////////////
         // number of cars leaving link (u,d) and turning towards link Om - state because of the time delay "memory"
         Ml(intersection, intersection, intersection, time) :  { state-fluent, real, default = 0 };
-        //Ml(intersection, intersection, intersection) :  { state-fluent, real, default = 0 };
-        // one time unit delay queue
-//        Ml1(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        // two time units delay queue
-//        Ml2(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml3(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml4(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml5(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml6(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml7(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml8(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml9(intersection, intersection, intersection):  { state-fluent, real, default = 0 };
-//        Ml10(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml11(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml12(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml13(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml14(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml15(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml16(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml17(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml18(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml19(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml20(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml21(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml22(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml23(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml24(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml25(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml26(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml27(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml28(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml29(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml30(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-//        Ml31(intersection, intersection, intersection): { state-fluent, real, default = 0 };
-
 
         // available storage space of link (u,d) in number of cars
         S(intersection, intersection)                :  { state-fluent, real, default = 100 };
@@ -166,149 +133,45 @@ domain BLX_model {
         // time delay queue of k-tau(k)
         Mltau(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*(TIME-VAL(?t) == tau(?u,?d))]);
 
-//        Mltau(?u,?d,?o) = if (tau(?u,?d) == 0) then Ml(?u,?d,?o)
-//                          else if (tau(?u,?d) == 1) then Ml1(?u,?d,?o)
-//                          else if (tau(?u,?d) == 2) then Ml2(?u,?d,?o)
-//                          else if (tau(?u,?d) == 3) then Ml3(?u,?d,?o)
-//                          else if (tau(?u,?d) == 4) then Ml4(?u,?d,?o)
-//                          else if (tau(?u,?d) == 5) then Ml5(?u,?d,?o)
-//                          else if (tau(?u,?d) == 6) then Ml6(?u,?d,?o)
-//                          else if (tau(?u,?d) == 7) then Ml7(?u,?d,?o)
-//                          else if (tau(?u,?d) == 8) then Ml8(?u,?d,?o)
-//                          else if (tau(?u,?d) == 9) then Ml9(?u,?d,?o)
-//                          else if (tau(?u,?d) == 10) then Ml10(?u,?d,?o)
-//                          else if (tau(?u,?d) == 11) then Ml11(?u,?d,?o)
-//                          else if (tau(?u,?d) == 12) then Ml12(?u,?d,?o)
-//                          else if (tau(?u,?d) == 13) then Ml13(?u,?d,?o)
-//                          else if (tau(?u,?d) == 14) then Ml14(?u,?d,?o)
-//                          else if (tau(?u,?d) == 15) then Ml15(?u,?d,?o)
-//                          else if (tau(?u,?d) == 16) then Ml16(?u,?d,?o)
-//                          else if (tau(?u,?d) == 17) then Ml17(?u,?d,?o)
-//                          else if (tau(?u,?d) == 18) then Ml18(?u,?d,?o)
-//                          else if (tau(?u,?d) == 19) then Ml19(?u,?d,?o)
-//                          else if (tau(?u,?d) == 20) then Ml20(?u,?d,?o)
-//                          else if (tau(?u,?d) == 21) then Ml21(?u,?d,?o)
-//                          else if (tau(?u,?d) == 22) then Ml22(?u,?d,?o)
-//                          else if (tau(?u,?d) == 23) then Ml23(?u,?d,?o)
-//                          else if (tau(?u,?d) == 24) then Ml24(?u,?d,?o)
-//                          else if (tau(?u,?d) == 25) then Ml25(?u,?d,?o)
-//                          else if (tau(?u,?d) == 26) then Ml26(?u,?d,?o)
-//                          else if (tau(?u,?d) == 27) then Ml27(?u,?d,?o)
-//                          else if (tau(?u,?d) == 28) then Ml28(?u,?d,?o)
-//                          else if (tau(?u,?d) == 29) then Ml29(?u,?d,?o)
-//                          else if (tau(?u,?d) == 30) then Ml30(?u,?d,?o)
-//                          else 0;
-
         // time delay queue of time k-tau(k)-1
-        Mltau1(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*(TIME-VAL(?t)+1 == tau(?u,?d))]);
-//        Mltau1(?u,?d,?o) = if (tau(?u,?d) == 0) then Ml1(?u,?d,?o)
-//                          else if (tau(?u,?d) == 1) then Ml2(?u,?d,?o)
-//                          else if (tau(?u,?d) == 2) then Ml3(?u,?d,?o)
-//                          else if (tau(?u,?d) == 3) then Ml4(?u,?d,?o)
-//                          else if (tau(?u,?d) == 4) then Ml5(?u,?d,?o)
-//                          else if (tau(?u,?d) == 5) then Ml6(?u,?d,?o)
-//                          else if (tau(?u,?d) == 6) then Ml7(?u,?d,?o)
-//                          else if (tau(?u,?d) == 7) then Ml8(?u,?d,?o)
-//                          else if (tau(?u,?d) == 8) then Ml9(?u,?d,?o)
-//                          else if (tau(?u,?d) == 9) then Ml10(?u,?d,?o)
-//                          else if (tau(?u,?d) == 10) then Ml11(?u,?d,?o)
-//                          else if (tau(?u,?d) == 11) then Ml12(?u,?d,?o)
-//                          else if (tau(?u,?d) == 12) then Ml13(?u,?d,?o)
-//                          else if (tau(?u,?d) == 13) then Ml14(?u,?d,?o)
-//                          else if (tau(?u,?d) == 14) then Ml15(?u,?d,?o)
-//                          else if (tau(?u,?d) == 15) then Ml16(?u,?d,?o)
-//                          else if (tau(?u,?d) == 16) then Ml17(?u,?d,?o)
-//                          else if (tau(?u,?d) == 17) then Ml18(?u,?d,?o)
-//                          else if (tau(?u,?d) == 18) then Ml19(?u,?d,?o)
-//                          else if (tau(?u,?d) == 19) then Ml20(?u,?d,?o)
-//                          else if (tau(?u,?d) == 20) then Ml21(?u,?d,?o)
-//                          else if (tau(?u,?d) == 21) then Ml22(?u,?d,?o)
-//                          else if (tau(?u,?d) == 22) then Ml23(?u,?d,?o)
-//                          else if (tau(?u,?d) == 23) then Ml24(?u,?d,?o)
-//                          else if (tau(?u,?d) == 24) then Ml25(?u,?d,?o)
-//                          else if (tau(?u,?d) == 25) then Ml26(?u,?d,?o)
-//                          else if (tau(?u,?d) == 26) then Ml27(?u,?d,?o)
-//                          else if (tau(?u,?d) == 27) then Ml28(?u,?d,?o)
-//                          else if (tau(?u,?d) == 28) then Ml29(?u,?d,?o)
-//                          else if (tau(?u,?d) == 29) then Ml30(?u,?d,?o)
-//                          else if (tau(?u,?d) == 30) then Ml31(?u,?d,?o)
-//                          else 0;
-
-        // arriving queue at link (u,d)
-        Ma(?u,?d) =
-            LINK(?u,?d) * (1 - gama(?u,?d)) * (sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)])
-            + LINK(?u,?d) * gama(?u,?d) * (sum_{?i : intersection}[Mltau1(?i,?u,?d)*LINK(?i,?u)]);
+        Mltau1(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*((TIME-VAL(?t)-1) == tau(?u,?d))]);
 
         // how many cars should arrive for the direction of u on the link (u,d) if u is a source
         arrivals(?u) =  Uniform(0,ARRIVAL(?u)) * 10;
+
+        // arriving queue at link (u,d)
+        Ma(?u,?d) =
+            SOURCE(?u)*arrivals(?u)
+            + LINK(?u,?d) * (1 - gama(?u,?d)) * (sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)])
+            + LINK(?u,?d) * gama(?u,?d) * (sum_{?i : intersection}[Mltau1(?i,?u,?d)*LINK(?i,?u)]);
 
 
         ////////////////////////////////////
         // State space evolution
         ////////////////////////////////////
 
-        Ml'(?u,?d,?o?,?t) =
-                            if (TIME-HEAD(?t))
-                                then if (b(?u,?d,?o))
-                                    then max[ 0, min[ q(?u,?d,?o)+Ma(?u,?d)*BETA(?u,?d,?o), min[S(?d,?o),
-                                            BETA(?u,?d,?o)*MU(?u,?d)*Ts] ] ] * LINK(?u,?d)*LINK(?d,?o)
-                                    else 0
-                            else if (TIME-TAIL(?t))
-                                then 0
-                                else (sum_{t1 : time}[ Ml(?u,?d,?o,?t1) * NEXT(?t1,?t) ]);
+        Ml'(?u,?d,?o,?t) =
+                    TIME-TAIL(?t) * b(?u,?d,?o) * max[ 0, min[ q(?u,?d,?o)+Ma(?u,?d)*BETA(?u,?d,?o), min[S(?d,?o),
+                                                        BETA(?u,?d,?o)*MU(?u,?d)*Ts] ] ] * LINK(?u,?d)*LINK(?d,?o)
+                    + (1 - TIME-TAIL(?t)) * (sum_{?t1 : time}[ Ml(?u,?d,?o,?t1) * NEXT(?t1,?t) ]);
 
-//        Ml31'(?u,?d,?o) = Ml30(?u,?d,?o);
-//        Ml30'(?u,?d,?o) = Ml29(?u,?d,?o);
-//        Ml29'(?u,?d,?o) = Ml28(?u,?d,?o);
-//        Ml28'(?u,?d,?o) = Ml27(?u,?d,?o);
-//        Ml27'(?u,?d,?o) = Ml26(?u,?d,?o);
-//        Ml26'(?u,?d,?o) = Ml25(?u,?d,?o);
-//        Ml25'(?u,?d,?o) = Ml24(?u,?d,?o);
-//        Ml24'(?u,?d,?o) = Ml23(?u,?d,?o);
-//        Ml23'(?u,?d,?o) = Ml22(?u,?d,?o);
-//        Ml22'(?u,?d,?o) = Ml21(?u,?d,?o);
-//        Ml21'(?u,?d,?o) = Ml20(?u,?d,?o);
-//        Ml20'(?u,?d,?o) = Ml19(?u,?d,?o);
-//        Ml19'(?u,?d,?o) = Ml18(?u,?d,?o);
-//        Ml18'(?u,?d,?o) = Ml17(?u,?d,?o);
-//        Ml17'(?u,?d,?o) = Ml16(?u,?d,?o);
-//        Ml16'(?u,?d,?o) = Ml15(?u,?d,?o);
-//        Ml15'(?u,?d,?o) = Ml14(?u,?d,?o);
-//        Ml14'(?u,?d,?o) = Ml13(?u,?d,?o);
-//        Ml13'(?u,?d,?o) = Ml12(?u,?d,?o);
-//        Ml12'(?u,?d,?o) = Ml11(?u,?d,?o);
-//        Ml11'(?u,?d,?o) = Ml10(?u,?d,?o);
-//        Ml10'(?u,?d,?o) = Ml9(?u,?d,?o);
-//        Ml9'(?u,?d,?o) = Ml8(?u,?d,?o);
-//        Ml8'(?u,?d,?o) = Ml7(?u,?d,?o);
-//        Ml7'(?u,?d,?o) = Ml6(?u,?d,?o);
-//        Ml6'(?u,?d,?o) = Ml5(?u,?d,?o);
-//        Ml5'(?u,?d,?o) = Ml4(?u,?d,?o);
-//        Ml4'(?u,?d,?o) = Ml3(?u,?d,?o);
-//        Ml3'(?u,?d,?o) = Ml2(?u,?d,?o);
-//        Ml2'(?u,?d,?o) = Ml1(?u,?d,?o);
-//        Ml1'(?u,?d,?o) = Ml(?u,?d,?o);
-//        Ml'(?u,?d,?o) = if (b(?u,?d,?o))
-//                       then max[ 0, min[ q(?u,?d,?o)+Ma(?u,?d)*BETA(?u,?d,?o), min[S(?d,?o), BETA(?u,?d,?o)*MU(?u,?d)*Ts]   ]]
-//                            *LINK(?u,?d)*LINK(?d,?o)
-//                       else 0;
+        q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])] * LINK(?d,?o)*LINK(?u,?d);
 
-        q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - Ml(?u,?d,?o) + SOURCE(?u)*arrivals(?u)] * LINK(?d,?o)*LINK(?u,?d);
         qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o)* LINK(?d,?o)]) * LINK(?u,?d);
 
         S'(?u,?d) = round[ [S(?u,?d)
-                    - (sum_{?i : intersection}[ Ml(?i,?u,?d) * LINK(?i,?d) ])
-                    + (sum_{?o : intersection}[ Ml(?u,?d,?o) * LINK(?d,?o) ])] * LINK(?u,?d) ] ;
+                    - (sum_{?i : intersection}[ (sum_{?t : time}[Ml(?i,?u,?d,?t)*TIME-HEAD(?t)]) * LINK(?i,?d) ])
+                    + (sum_{?o : intersection}[ (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)]) * LINK(?d,?o) ])] * LINK(?u,?d) ] ;
 
         // n_{u,d}(k+1) = n_{u,d}(k) - m^l_{u,d}(k) + \sum_{entering turns (u',d')} m^l_{u',d'}(k)
-        Nc'(?u,?d) = max[0, [Nc(?u,?d)
-                     - (sum_{?o : intersection}[Ml(?u,?d,?o)*LINK(?d,?o)])
-                     + (sum_{?i : intersection}[Ml(?i,?u,?d)*LINK(?i,?u)])] * LINK(?u,?d) * (1-SINK(?d))] ;
+        Nc'(?u,?d) = max[0, [Nc(?u,?d) + SOURCE(?u)*arrivals(?u)
+                     - (sum_{?o : intersection}[(sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])*LINK(?d,?o)])  //Leaving
+                     + (sum_{?i : intersection}[(sum_{?t : time}[Ml(?i,?u,?d,?t)*TIME-HEAD(?t)])*LINK(?i,?u)])] * LINK(?u,?d) * (1-SINK(?d))] ;
 
     };
 
-    // number of cars in the network
-    reward = sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)];
+    // minus number of cars in the network
+    reward = -sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)];
 
     state-invariants {
         // no more than 4 neighbours outgoing
