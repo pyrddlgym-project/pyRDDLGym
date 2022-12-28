@@ -114,8 +114,8 @@ class RDDLSimulator:
             'gamma': lambda x: np.exp(lngamma(x))
         }        
         self.BINARY = {
-            'div': lambda x: np.floor_divide(x).astype(RDDLTensors.INT),
-            'mod': lambda x: np.mod(x).astype(RDDLTensors.INT),
+            'div': lambda x, y: np.floor_divide(x, y).astype(RDDLTensors.INT),
+            'mod': lambda x, y: np.mod(x, y).astype(RDDLTensors.INT),
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
@@ -174,7 +174,7 @@ class RDDLSimulator:
         actual = len(args)
         if actual != required:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'{msg} requires {required} arguments, got {actual}.\n' + 
+                f'{msg} requires {required} arguments, got {actual}.\n' +
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -653,7 +653,8 @@ class RDDLSimulator:
             lhs, rhs = args
             lhs = 1 * self._sample(lhs, objects, subs)
             rhs = 1 * self._sample(rhs, objects, subs)
-            return self.BINARY[name](lhs, rhs)
+            temp = self.BINARY[name](lhs, rhs)
+            return temp
         
         RDDLSimulator._raise_unsupported(f'Function {name}', expr)
     
