@@ -16,7 +16,8 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
 # ENV = 'RecSim'
-ENV = 'RaceCar'
+# ENV = 'RaceCar'
+ENV = 'Traffic'
 
 
 def main():
@@ -24,12 +25,12 @@ def main():
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
-                            instance=EnvInfo.get_instance(0),
+                            instance=EnvInfo.get_instance(1),
                             enforce_action_constraints=True)
     
     # set up the environment visualizer
     # frames_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Visualizer', 'Frames')
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
+    # myEnv.set_visualizer(EnvInfo.get_visualizer())
                         # movie_gen=MovieGenerator(frames_path, ENV, 200), movie_per_episode=True)
     
     # set up an example aget
