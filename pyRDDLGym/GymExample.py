@@ -17,7 +17,8 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'Elevators'
 # ENV = 'RecSim'
 # ENV = 'RaceCar'
-ENV = 'Traffic'
+# ENV = 'Traffic'
+ENV = 'PropDBN'
 
 
 def main():
@@ -25,7 +26,7 @@ def main():
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
-                            instance=EnvInfo.get_instance(1),
+                            instance=EnvInfo.get_instance(0),
                             enforce_action_constraints=True)
     
     # set up the environment visualizer
