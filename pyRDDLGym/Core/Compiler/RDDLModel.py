@@ -21,6 +21,8 @@ class PlanningModel(metaclass=ABCMeta):
         self._actions = None
         self._objects = None
         self._objects_rev = None
+        self._enums = None
+        self._enums_rev = None
         self._actionsranges = None
         self._derived = None
         self._interm = None
@@ -57,7 +59,7 @@ class PlanningModel(metaclass=ABCMeta):
     @objects.setter
     def objects(self, value):
         self._objects = value
-        
+    
     @property
     def objects_rev(self):
         return self._objects_rev
@@ -66,6 +68,22 @@ class PlanningModel(metaclass=ABCMeta):
     def objects_rev(self, value):
         self._objects_rev = value
 
+    @property
+    def enums(self):
+        return self._enums
+
+    @enums.setter
+    def enums(self, value):
+        self._enums = value
+    
+    @property
+    def enums_rev(self):
+        return self._enums_rev
+
+    @enums_rev.setter
+    def enums_rev(self, value):
+        self._enums_rev = value
+        
     @property
     def nonfluents(self):
         return self._nonfluents
@@ -365,21 +383,35 @@ class PlanningModel(metaclass=ABCMeta):
     def is_non_fluent_expression(self, expr: Expression) -> bool:
         '''Determines whether or not expression is a non-fluent.
         '''
-        if isinstance(expr, tuple):
+        if isinstance(expr, (tuple, list, set)):
+            for arg in expr:
+                if not self.is_non_fluent_expression(arg):
+                    return False
             return True
+        
+        elif not isinstance(expr, Expression):
+            return True
+        
         etype, _ = expr.etype
         if etype == 'constant':
             return True
+        
         elif etype == 'randomvar':
             return False
+        
         elif etype == 'pvar':
             name = expr.args[0]
-            var = self.parse(name)[0]
-            if var not in self.variable_types:
-                raise RDDLUndefinedVariableError(
-                    f'Variable <{var}> is not defined in the domain, '
-                    f'must be one of {set(self.variable_types.keys())}.')
-            return self.variable_types[var] == 'non-fluent'
+            if name in self.enums_rev:
+                return True
+            else:
+                var = self.parse(name)[0]
+                var_type = self.variable_types.get(var, None)      
+                if var_type is None:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{var}> is not defined in the domain, '
+                        f'must be one of {set(self.variable_types.keys())}.')
+                return var_type == 'non-fluent'
+        
         else:
             for arg in expr.args:
                 if not self.is_non_fluent_expression(arg):
