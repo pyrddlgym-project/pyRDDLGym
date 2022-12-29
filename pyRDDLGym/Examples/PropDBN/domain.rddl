@@ -22,7 +22,7 @@ domain propdbn {
     };
 
     pvariables {
-        p : { state-fluent , enum_level , default = false };
+        p : { state-fluent , enum_level , default = @low };
         q : { state-fluent , real , default = false };
         r : { state-fluent , bool , default = false };
 
@@ -57,6 +57,7 @@ domain propdbn {
     };
 
     // A boolean functions as a 0/1 integer when a numerical value is needed
-    reward = q - r + 5 * ( p == @high );
+    //reward = q - r + 5 * ( p == @high );
+    reward = q - r + 5;
 
 }

@@ -752,6 +752,7 @@ class RDDLParser(object):
         '''range_const : bool_type
                        | double_type
                        | int_type
+                       | ENUM_VAL
                        | IDENT'''
         p[0] = p[1]
 
