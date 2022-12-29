@@ -48,7 +48,7 @@ domain propdbn {
         q' = switch ( p ) {
                 case @low : i1 + 1.0 + Normal (0.0 , i1 * i1 ) ,
                 case @medium : i1 + 2.0 + Normal (0.0 , i1 * i1 /2.0) ,
-                case @high : i1 + 3.0 + Normal (0.0 , i1 * i1 /4.0)
+                default : i1 + 3.0 + Normal (0.0 , i1 * i1 /4.0)
         };
 
         // KronDelta is a delta function for a discrete argument
@@ -57,7 +57,7 @@ domain propdbn {
     };
 
     // A boolean functions as a 0/1 integer when a numerical value is needed
-    //reward = q - r + 5 * ( p == @high );
-    reward = q - r + 5;
+    reward = q - r + 5 * ( p == @high );
+//    reward = q - r + 5;
 
 }
