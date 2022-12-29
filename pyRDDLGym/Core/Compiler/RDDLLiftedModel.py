@@ -1,6 +1,7 @@
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedCPFError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 
@@ -156,11 +157,17 @@ class RDDLLiftedModel(RDDLModel):
             name, objects = cpf.pvar[1]
             if objects is None:
                 objects = []
-            types = self.param_types[name]
+                
+            types = self.param_types.get(name, None)
+            if types is None:
+                raise RDDLUndefinedCPFError(
+                    f'CPF <{name}> is not defined in pvariable scope.')
+                
             if len(types) != len(objects):
                 raise RDDLInvalidObjectError(
                     f'CPF <{name}> expects {len(types)} parameters, '
                     f'got {len(objects)}.')
+                
             objects = [(o, types[i]) for i, o in enumerate(objects)]
             cpfs[name] = (objects, cpf.expr)
         
