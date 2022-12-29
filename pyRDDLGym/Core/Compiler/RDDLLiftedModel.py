@@ -11,7 +11,9 @@ class RDDLLiftedModel(RDDLModel):
         super(RDDLLiftedModel, self).__init__()
         
         self.SetAST(rddl)
-        self.objects, self.objects_rev = self._extract_objects()
+        self.objects, self.objects_rev, self.enums, self.enums_rev = \
+            self._extract_objects()
+
         self.param_types, self.variable_types, self.variable_ranges = \
             self._extract_variable_information()  
                 
@@ -33,19 +35,39 @@ class RDDLLiftedModel(RDDLModel):
                 
     def _extract_objects(self):
         ast_objects = self._AST.non_fluents.objects
-        if (not ast_objects) or (ast_objects[0] is None):
+        if (not ast_objects) or ast_objects[0] is None:
             ast_objects = []
-        objects = dict(ast_objects)
+        ast_objects = dict(ast_objects)
+         
+        objects, enums = {}, {}     
+        for name, pvalues in self._AST.domain.types:
+            if pvalues == 'object':
+                objects[name] = ast_objects.get(name, None)
+                if objects[name] is None:
+                    raise RDDLInvalidObjectError(
+                        f'Type <{name}> has no objects defined in the instance.')
+            else:
+                enums[name] = pvalues        
         
         objects_rev = {}
-        for ptype, objs in objects.items():
-            for obj in objs:
+        for name, values in objects.items():
+            for obj in values:
                 if obj in objects_rev:
                     raise RDDLInvalidObjectError(
-                        f'Types <{ptype}> and <{objects_rev[obj]}> '
-                        f'cannot share the same object <{obj}>.')
-                objects_rev[obj] = ptype
-        return objects, objects_rev
+                        f'Types <{name}> and <{objects_rev[obj]}> '
+                        f'can not share the same object <{obj}>.')
+                objects_rev[obj] = name
+        
+        enums_rev = {}
+        for name, values in enums.items():
+            for obj in values:
+                if obj in enums_rev:
+                    raise RDDLInvalidObjectError(
+                        f'Enums <{name}> and <{enums_rev[obj]}> '
+                        f'can not share the same literal <{obj}>.')
+                enums_rev[obj] = name
+        
+        return objects, objects_rev, enums, enums_rev
     
     def _extract_variable_information(self):
         var_params, var_types, var_ranges = {}, {}, {}

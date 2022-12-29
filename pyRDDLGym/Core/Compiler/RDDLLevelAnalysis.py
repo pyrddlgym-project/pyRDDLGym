@@ -7,6 +7,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Parser.expr import Expression
 
 VALID_DEPENDENCIES = {
     'derived-fluent': {'state-fluent', 'derived-fluent'},
@@ -71,16 +72,29 @@ class RDDLLevelAnalysis:
         return cpf_graph
     
     def _update_call_graph(self, graph, cpf, expr):
-        if isinstance(expr, tuple):
+        if isinstance(expr, (tuple, list, set)):
+            for arg in expr:
+                self._update_call_graph(graph, cpf, arg)
+        
+        elif not isinstance(expr, Expression):
             pass
+        
         elif expr.is_pvariable_expression():
             name, *_ = expr.args
-            var = self.rddl.parse(name)[0]
-            if var not in self.rddl.variable_types:
-                raise RDDLUndefinedVariableError(
-                    f'Variable <{name}> in CPF <{cpf}> is not defined.')
-            if self.rddl.variable_types[var] != 'non-fluent':
-                graph.setdefault(cpf, set()).add(name)
+            if name not in self.rddl.enums_rev:
+                var = self.rddl.parse(name)[0]
+                var_type = self.rddl.variable_types.get(var, None)
+                if var_type is None:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{name}> in CPF <{cpf}> is not defined.')
+                elif var_type != 'non-fluent':
+                    graph.setdefault(cpf, set()).add(name)
+                
+        elif expr.etype == ('control', 'switch'):
+            (_, (var, _)), *cases = expr.args
+            graph.setdefault(cpf, set()).add(var)
+            self._update_call_graph(graph, cpf, cases)
+                    
         elif not expr.is_constant_expression():
             for arg in expr.args:
                 self._update_call_graph(graph, cpf, arg)
