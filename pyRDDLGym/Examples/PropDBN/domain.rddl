@@ -31,6 +31,7 @@ domain propdbn {
 
 		i1(param) : { interm-fluent , int , level = 1 };
 		i2(param) : { interm-fluent , enum_level , level = 2 };
+		i3(param) : { interm-fluent , enum_level, level = 3 };
 
 		o1(param) : { observ-fluent , bool };
 		o2(param) : { observ-fluent , real };
@@ -60,6 +61,12 @@ domain propdbn {
 			@medium : if ( i1(?p) >= 2) then 0.2 else 0.5 ,
 			@high : 0.3
 		);
+		
+		i3(?p) = switch ( s(?p) ) {
+			case @low2 : @low,
+			case @medium2 : @medium,
+			case @high2 : @high
+		};
 		
 		o1(?p) = Bernoulli ( ( p'(?p) + q'(?p) + r'(?p) ) / 3.0 );
 	
