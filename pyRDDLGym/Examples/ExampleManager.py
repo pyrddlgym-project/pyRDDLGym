@@ -26,6 +26,7 @@ EXP_DICT = {
     'SupplyChain' : ('A supply chain with factory and multiple warehouses.', '/Supply_Chain/', 'SupplyChain'),
     'Traffic' : ('BLX/QTM traffic model.', '/Traffic/', None),
     'PropDBN' : ('Simple propositional DBN.', '/PropDBN/', None),
+    'WildlifePreserve' : ('Complex domain from IPPC 2018.', '/WildlifePreserve/', None),
 }
 
 
