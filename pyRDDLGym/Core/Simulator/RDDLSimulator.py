@@ -191,14 +191,15 @@ class RDDLSimulator:
     @staticmethod
     def _check_positive(value, strict, msg, expr):
         if strict:
-            failed = not np.all(value > 0)
-            message = f'{msg} must be positive, got {value}.\n'
+            if not np.all(value > 0):
+                raise RDDLValueOutOfRangeError(
+                    f'{msg} must be positive, got {value}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
         else:
-            failed = not np.all(value >= 0)
-            message = f'{msg} must be non-negative, got {value}.\n'
-        if failed:
-            raise RDDLValueOutOfRangeError(
-                message + RDDLSimulator._print_stack_trace(expr))
+            if not np.all(value >= 0):
+                raise RDDLValueOutOfRangeError(
+                    f'{msg} must be non-negative, got {value}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _check_bounds(lb, ub, msg, expr):
@@ -248,8 +249,7 @@ class RDDLSimulator:
             else:
                 var, objects = self.rddl.parse(action)
                 tensor = new_actions[var]                
-                RDDLSimulator._check_type(
-                    value, tensor.dtype, f'Action-fluent <{action}>', '')            
+                RDDLSimulator._check_type(value, tensor.dtype, action, '')            
                 tensor[self.tensors.coordinates(objects, '')] = value
          
         return new_actions
@@ -258,8 +258,7 @@ class RDDLSimulator:
         '''Throws an exception if the state invariants are not satisfied.'''
         for i, invariant in enumerate(self.rddl.invariants):
             sample = self._sample(invariant, [], self.subs)
-            RDDLSimulator._check_type(
-                sample, bool, f'Invariant {i + 1}', invariant)
+            RDDLSimulator._check_type(sample, bool, 'Invariant', invariant)
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
                     f'Invariant {i + 1} is not satisfied.\n' + 
@@ -272,8 +271,7 @@ class RDDLSimulator:
         
         for i, precond in enumerate(self.rddl.preconditions):
             sample = self._sample(precond, [], self.subs)
-            RDDLSimulator._check_type(
-                sample, bool, f'Precondition {i + 1}', precond)
+            RDDLSimulator._check_type(sample, bool, 'Precondition', precond)
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
                     f'Precondition {i + 1} is not satisfied.\n' + 
@@ -283,8 +281,7 @@ class RDDLSimulator:
         '''Return True if a terminal state has been reached.'''
         for i, terminal in enumerate(self.rddl.terminals):
             sample = self._sample(terminal, [], self.subs)
-            RDDLSimulator._check_type(
-                sample, bool, f'Termination {i + 1}', terminal)
+            RDDLSimulator._check_type(sample, bool, 'Termination', terminal)
             if bool(sample):
                 return True
         return False
@@ -331,7 +328,7 @@ class RDDLSimulator:
                 objects, expr = rddl.cpfs[cpf]
                 sample = self._sample(expr, objects, subs)
                 dtype = self._cpf_dtypes[cpf]
-                RDDLSimulator._check_type(sample, dtype, f'CPF <{cpf}>', expr)
+                RDDLSimulator._check_type(sample, dtype, cpf, expr)
                 subs[cpf] = sample
         
         # evaluate reward
@@ -411,7 +408,7 @@ class RDDLSimulator:
     def _sample_pvar(self, expr, objects, subs):
         _, name = expr.etype
         args = expr.args
-        RDDLSimulator._check_arity(args, 2, f'Variable <{name}>', expr)
+        RDDLSimulator._check_arity(args, 2, name, expr)
         var, pvars = args
         
         # literal of enumerated type is treated as integer
@@ -488,7 +485,7 @@ class RDDLSimulator:
                 samples = [self._sample(arg, objects, subs) for arg in args]
                 return np.sum(samples, axis=0)                
             
-        RDDLSimulator._check_arity(args, 2, 'Arithmetic operator', expr)
+        RDDLSimulator._check_arity(args, 2, f'Arithmetic operator {op}', expr)
     
     def _sample_product(self, args, objects, subs):
         lhs, rhs = args
@@ -529,7 +526,7 @@ class RDDLSimulator:
         args = expr.args
         valid_ops = self.RELATIONAL_OPS
         RDDLSimulator._check_op(op, valid_ops, 'Relational', expr)
-        RDDLSimulator._check_arity(args, 2, f'Relational operator {op}', expr)
+        RDDLSimulator._check_arity(args, 2, op, expr)
         
         lhs, rhs = args
         lhs = 1 * self._sample(lhs, objects, subs)
@@ -568,7 +565,7 @@ class RDDLSimulator:
         elif self.rddl.is_grounded and n > 0 and (op == '^' or op == '|'):
             return self._sample_and_or_grounded(args, op, expr, objects, subs)
             
-        RDDLSimulator._check_arity(args, 2, 'Logical operator', expr)
+        RDDLSimulator._check_arity(args, 2, f'Logical operator {op}', expr)
     
     def _sample_and_or(self, args, op, expr, objects, subs):
         lhs, rhs = args
@@ -663,7 +660,7 @@ class RDDLSimulator:
                     f'\n\toutput objects ={objects}'
                     f'\n\toperation      ={valid_ops[op]}, axes={reduced_axes}\n'
             )           
-        else:                 
+        else: 
             new_objects, reduced_axes = cached_objects
         
         # sample the argument and aggregate over the reduced axes
@@ -684,13 +681,13 @@ class RDDLSimulator:
         args = expr.args
         
         if name in self.UNARY:
-            RDDLSimulator._check_arity(args, 1, f'Unary function {name}', expr)
+            RDDLSimulator._check_arity(args, 1, name, expr)
             arg, = args
             arg = 1 * self._sample(arg, objects, subs)
             return self.UNARY[name](arg)
         
         elif name in self.BINARY:
-            RDDLSimulator._check_arity(args, 2, f'Binary function {name}', expr)
+            RDDLSimulator._check_arity(args, 2, name, expr)
             lhs, rhs = args
             lhs = 1 * self._sample(lhs, objects, subs)
             rhs = 1 * self._sample(rhs, objects, subs)
