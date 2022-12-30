@@ -1,10 +1,9 @@
 import datetime
 import numpy as np
-from typing import Callable, Iterable, List, Tuple
+from typing import Callable, Iterable, List, Set, Tuple, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
@@ -175,6 +174,7 @@ class RDDLTensors:
     def map(self, var: str,
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
+            literals: List[int],
             gnp=np,
             msg: str='') -> Callable[[np.ndarray], np.ndarray]:
         '''Returns a function that transforms a pvariable value tensor to one
@@ -188,6 +188,8 @@ class RDDLTensors:
         which var will be evaluated
         :param sign_out: a list of tuples (objecti, typei) representing the
             desired signature of the output pvariable tensor
+        :param literals: which indices of obj_in are treated as
+            literal (e.g. enum literal or another pvariable) parameters
         :param gnp: the library in which to perform tensor arithmetic 
         (either numpy or jax.numpy)
         :param msg: a stack trace to print for error handling
@@ -197,20 +199,24 @@ class RDDLTensors:
         types_in = self.rddl.param_types.get(var, [])
         if obj_in is None:
             obj_in = []
-        n_in = len(obj_in)
-        n_req = len(types_in)
-        if n_in != n_req:
+        if len(obj_in) != len(types_in):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {n_req} parameters, got {n_in}.'
+                f'Variable <{var}> requires {len(types_in)} parameters, '
+                f'got {len(obj_in)}.'
                 f'\n{msg}')
-            
+        
+        # eliminate literals
+        old_sign_in = tuple(zip(obj_in, types_in))
+        literals = set(literals)
+        types_in = [ptype for i, ptype in enumerate(types_in) if i not in literals]
+        obj_in = [ptype for i, ptype in enumerate(obj_in) if i not in literals]
+        
         # reached limit on number of valid dimensions
         valid_symbols = RDDLTensors.VALID_SYMBOLS
-        n_max = len(valid_symbols)
         n_out = len(sign_out)
-        if n_out > n_max:
-            raise RDDLNotImplementedError(
-                f'At most {n_max} object arguments are supported, '
+        if n_out > len(valid_symbols):
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'At most {len(valid_symbols)} object arguments are supported, '
                 f'but variable <{var}> has {n_out} arguments.'
                 f'\n{msg}')
         
@@ -227,8 +233,7 @@ class RDDLTensors:
                     if t_out != t_in: 
                         raise RDDLInvalidObjectError(
                             f'Argument {i_in + 1} of variable <{var}> '
-                            f'expects object of type <{t_in}>, '
-                            f'got <{o_out}> of type <{t_out}>.'
+                            f'expects type <{t_in}>, got <{o_out}> of type <{t_out}>.'
                             f'\n{msg}')
             
             # need to expand the shape of the value array
@@ -236,7 +241,7 @@ class RDDLTensors:
                 permutation.append(i_out)
                 new_dims.append(len(self.rddl.objects[t_out]))
                 
-        # safeguard against any free types
+        # safeguard against any free remaining variables not accounted for
         free = {sign_in[i][0] for i, p in enumerate(permutation) if p is None}
         if free:
             raise RDDLInvalidNumberOfArgumentsError(
@@ -290,17 +295,57 @@ class RDDLTensors:
         operation = gnp.einsum if use_einsum else (
                         gnp.transpose if use_tr else 'None')
         self.write_debug_message(
-            f'computing info for pvariable transform:' 
-                f'\n\tvar        ={var}'
-                f'\n\tinputs     ={sign_in}'
-                f'\n\ttargets    ={sign_out}'
-                f'\n\tnew axes   ={new_axis}'
-                f'\n\toperation  ={operation}, subscripts={subscripts}'
-                f'\n\tunique id  ={id(_transform)}\n'
+            f'computing info for filling missing pvariable arguments:' 
+                f'\n\tvar           ={var}'
+                f'\n\toriginal args ={old_sign_in}'
+                f'\n\tliterals      ={literals}'
+                f'\n\tnew args      ={sign_in}'
+                f'\n\ttarget args   ={sign_out}'
+                f'\n\tnew axes      ={new_axis}'
+                f'\n\toperation     ={operation}, subscripts={subscripts}'
+                f'\n\tunique op id  ={id(_transform)}\n'
         )
             
         return _transform
     
+    def literal_slice(self, var: str, 
+                      pvars: List[str],
+                      msg: str='') -> Tuple[Set[int], Tuple[Union[int, slice], ...]]:
+        '''Given a var and a list of pvariable arguments containing both free 
+        and/or enum literals, produces a tuple of slice or int objects that, 
+        when indexed into an array of the appropriate shape, produces an array 
+        where all literals are evaluated in the array. Also returns a set of 
+        indices of pvars that are literals.
+        '''
+        if pvars is None:
+            pvars = []
+            
+        types_in = self.rddl.param_types.get(var, [])
+        if len(pvars) != len(types_in):
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Variable <{var}> requires {len(types_in)} parameters, '
+                f'got {len(pvars)}.'
+                f'\n{msg}')
+            
+        cached_slices = []
+        literals = set()
+        for i, pvar in enumerate(pvars):
+            if pvar in self.rddl.enum_literals:
+                enum_type = self.rddl.objects_rev[pvar]
+                if types_in[i] != enum_type: 
+                    raise RDDLInvalidObjectError(
+                        f'Argument {i + 1} of variable <{var}> '
+                        f'expects type <{types_in[i]}>, '
+                        f'got <{pvar}> of type <{enum_type}>.'
+                        f'\n{msg}')
+                slice_object = self.index_of_object[pvar]
+                literals.add(i)
+            else:
+                slice_object = slice(None)
+            cached_slices.append(slice_object)
+        cached_slices = tuple(cached_slices)
+        return cached_slices, literals
+        
     def expand(self, var: str, values: np.ndarray) -> Iterable[Tuple[str, Value]]:
         '''Produces a grounded representation of the pvariable var from its 
         tensor representation. The output is a dict whose keys are grounded

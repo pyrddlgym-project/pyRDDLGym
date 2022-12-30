@@ -88,6 +88,7 @@ class RDDLSimulator:
         }
         self.LOGICAL_OPS = {
             '^': np.logical_and,
+            '&': np.logical_and,
             '|': np.logical_or,
             '~': np.logical_xor,
             '=>': lambda e1, e2: np.logical_or(np.logical_not(e1), e2),
@@ -433,13 +434,21 @@ class RDDLSimulator:
         if self.rddl.is_grounded:
             return np.asarray(arg)
         
-        # argument is reshaped to match the free variables "objects"
-        cached_transform = expr.cached_sim_info
-        if cached_transform is None:
+        # enum literals will be converted to integers and used to slice the array
+        # then array will be reshaped to match the free variables "objects"
+        cached_info = expr.cached_sim_info
+        if cached_info is None:
+            msg = RDDLSimulator._print_stack_trace(expr)
+            cached_slices, literals = self.tensors.literal_slice(
+                var, pvars, msg=msg)
             cached_transform = self.tensors.map(
-                var, pvars, objects,
-                msg=RDDLSimulator._print_stack_trace(expr))            
-            expr.cached_sim_info = cached_transform        
+                var, pvars, objects, literals, msg=msg)                 
+            cached_info = (cached_slices, cached_transform)       
+            expr.cached_sim_info = (cached_slices, cached_transform)
+        else:
+            cached_slices, cached_transform = cached_info
+            
+        arg = arg[cached_slices]
         return cached_transform(arg)
     
     # ===========================================================================
@@ -789,7 +798,7 @@ class RDDLSimulator:
         expressions = [None] * len(enum_values)
         for literal in enum_values:
             arg = case_dict.get(literal, None)
-            if arg is not None:                
+            if arg is not None: 
                 index = self.tensors.index_of_object[literal]
                 expressions[index] = arg
         
