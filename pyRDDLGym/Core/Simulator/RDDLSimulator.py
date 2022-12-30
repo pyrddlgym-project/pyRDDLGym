@@ -155,12 +155,19 @@ class RDDLSimulator:
         return '>> ' + trace
     
     @staticmethod
-    def _check_type(value, valid, msg, expr):
+    def _check_type(value, valid, msg, expr, arg=None):
         if not np.can_cast(value, valid):
             dtype = getattr(value, 'dtype', type(value))
-            raise RDDLTypeError(
-                f'{msg} must evaluate to {valid}, got {value} of type {dtype}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+            if arg is None:
+                raise RDDLTypeError(
+                    f'{msg} must evaluate to {valid}, '
+                    f'got {value} of type {dtype}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            else:
+                raise RDDLTypeError(
+                    f'Argument {arg} of {msg} must evaluate to {valid}, '
+                    f'got {value} of type {dtype}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _check_type_in(value, valid, msg, expr):
@@ -279,7 +286,7 @@ class RDDLSimulator:
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
-        for i, terminal in enumerate(self.rddl.terminals):
+        for _, terminal in enumerate(self.rddl.terminals):
             sample = self._sample(terminal, [], self.subs)
             RDDLSimulator._check_type(sample, bool, 'Termination', terminal)
             if bool(sample):
@@ -545,8 +552,7 @@ class RDDLSimulator:
         if n == 1 and op == '~':
             arg, = args
             arg = self._sample(arg, objects, subs)
-            RDDLSimulator._check_type(
-                arg, bool, f'Argument of logical operator {op}', expr)
+            RDDLSimulator._check_type(arg, bool, op, expr, arg='')
             return np.logical_not(arg)
         
         elif n == 2:
@@ -556,10 +562,8 @@ class RDDLSimulator:
                 lhs, rhs = args
                 lhs = self._sample(lhs, objects, subs)
                 rhs = self._sample(rhs, objects, subs)
-                RDDLSimulator._check_type(
-                    lhs, bool, f'Argument 1 of logical operator {op}', expr)
-                RDDLSimulator._check_type(
-                    rhs, bool, f'Argument 2 of logical operator {op}', expr)
+                RDDLSimulator._check_type(lhs, bool, op, expr, arg=1)
+                RDDLSimulator._check_type(rhs, bool, op, expr, arg=2)
                 return valid_ops[op](lhs, rhs)
         
         elif self.rddl.is_grounded and n > 0 and (op == '^' or op == '|'):
@@ -573,15 +577,13 @@ class RDDLSimulator:
             lhs, rhs = rhs, lhs  # prioritize simple expressions
             
         lhs = self._sample(lhs, objects, subs)
-        RDDLSimulator._check_type(
-            lhs, bool, f'Argument 1 of logical operator {op}', expr)
+        RDDLSimulator._check_type(lhs, bool, op, expr, arg=1)
             
         if (op == '^' and not np.any(lhs)) or (op == '|' and np.all(lhs)):
             return lhs
             
         rhs = self._sample(rhs, objects, subs)
-        RDDLSimulator._check_type(
-            rhs, bool, f'Argument 2 of logical operator {op}', expr)
+        RDDLSimulator._check_type(rhs, bool, op, expr, arg=2)
         
         if op == '^':
             return np.logical_and(lhs, rhs)
@@ -592,23 +594,21 @@ class RDDLSimulator:
         for i, arg in enumerate(args):  # go through simple expressions first
             if arg.is_constant_expression() or arg.is_pvariable_expression():
                 sample = self._sample(arg, objects, subs)
-                RDDLSimulator._check_type(
-                    sample, bool, f'Argument {i + 1} of logical operator {op}', expr)
+                RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
-                if op == '^' and not sample:
+                if (not sample) and op == '^':
                     return np.asarray(False)
-                elif op == '|' and sample:
+                elif sample and op == '|':
                     return np.asarray(True)
             
         for i, arg in enumerate(args):  # go through complex expressions last
             if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
                 sample = self._sample(arg, objects, subs)
-                RDDLSimulator._check_type(
-                    sample, bool, f'Argument {i + 1} of logical operator {op}', expr)
+                RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
-                if op == '^' and not sample:
+                if (not sample) and op == '^':
                     return np.asarray(False)
-                elif op == '|' and sample:
+                elif sample and op == '|':
                     return np.asarray(True)
             
         return np.asarray(op == '^')
@@ -666,8 +666,7 @@ class RDDLSimulator:
         # sample the argument and aggregate over the reduced axes
         arg = self._sample(arg, new_objects, subs)                
         if op == 'forall' or op == 'exists':
-            RDDLSimulator._check_type(
-                arg, bool, f'Argument of aggregation {op}', expr)
+            RDDLSimulator._check_type(arg, bool, op, expr, arg='')
         else:
             arg = 1 * arg
         return valid_ops[op](arg, axis=reduced_axes)
