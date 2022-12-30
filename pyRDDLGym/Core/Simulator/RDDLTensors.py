@@ -46,15 +46,13 @@ class RDDLTensors:
         self._cached_transforms = {}
 
     def _compile_objects(self):
-        grounded = {}
-        for var, types in self.rddl.param_types.items():
-            grounded[var] = list(self.rddl.grounded_names(var, types))
+        grounded = {var: list(self.rddl.grounded_names(var, types))
+                    for var, types in self.rddl.param_types.items()}
         
-        index_of_object = {}
-        for objects in self.rddl.objects.values():
-            for i, obj in enumerate(objects):
-                index_of_object[obj] = i  
-    
+        index_of_object = {obj: i 
+                           for objects in self.rddl.objects.values() 
+                            for i, obj in enumerate(objects)}
+        
         return index_of_object, grounded
         
     def _compile_init_values(self):
@@ -67,7 +65,6 @@ class RDDLTensors:
                        if value is not None}
 
         # enum literals are converted to integers
-        new_init_values = init_values.copy()
         for name, value in init_values.items():
             var = self.rddl.parse(name)[0]
             prange = self.rddl.variable_ranges[var]
@@ -76,8 +73,7 @@ class RDDLTensors:
                     raise RDDLInvalidObjectError(
                         f'Literal <{value}> does not belong to enum <{prange}>, '
                         f'must be one of {set(self.rddl.objects[prange])}.')
-                new_init_values[name] = self.index_of_object[value]
-        init_values = new_init_values
+                init_values[name] = self.index_of_object[value]
         
         init_arrays = {}
         for var in self.rddl.variable_ranges.keys():
@@ -99,20 +95,15 @@ class RDDLTensors:
             # create a tensor filled with init_values
             types = self.rddl.param_types[var]
             dtype = RDDLTensors.NUMPY_TYPES[prange]
-            if types:
-                if self.rddl.is_grounded:
-                    for name in self.rddl.grounded_names(var, types):
-                        init_arrays[name] = dtype(init_values.get(name, default)) 
-                else:
-                    grounded_values = [
-                        init_values.get(name, default) 
-                        for name in self.rddl.grounded_names(var, types)
-                    ]
-                    array = np.asarray(grounded_values, dtype=dtype)
-                    array = np.reshape(array, newshape=self.shape(types), order='C')
-                    init_arrays[var] = array                
+            if self.rddl.is_grounded or not types:
+                for name in self.rddl.grounded_names(var, types):
+                    init_arrays[name] = dtype(init_values.get(name, default)) 
             else:
-                init_arrays[var] = dtype(init_values.get(var, default))
+                grounded_values = [init_values.get(name, default) 
+                                   for name in self.rddl.grounded_names(var, types)]
+                array = np.asarray(grounded_values, dtype=dtype)
+                array = np.reshape(array, newshape=self.shape(types), order='C')
+                init_arrays[var] = array     
         
         # log initial values to file
         if self.debug:
@@ -120,7 +111,8 @@ class RDDLTensors:
                 (f'{k}{[] if self.rddl.is_grounded else self.rddl.param_types[k]}, '
                  f'shape={v.shape if type(v) is np.ndarray else ()}, '
                  f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}')
-                for k, v in init_arrays.items())
+                for k, v in init_arrays.items()
+            )
             self.write_debug_message(
                 f'initializing pvariable tensors:' 
                     f'\n\t{tensor_info}\n'
@@ -168,7 +160,7 @@ class RDDLTensors:
         if self.debug:
             fp = open(self.filename, 'a')
             timestamp = str(datetime.datetime.now())
-            fp.write(timestamp + ': ' + msg + '\n')
+            fp.write(f'{timestamp}: {msg}\n')
             fp.close()
         
     def map(self, var: str,
@@ -208,15 +200,15 @@ class RDDLTensors:
         # eliminate literals
         old_sign_in = tuple(zip(obj_in, types_in))
         literals = set(literals)
-        types_in = [ptype for i, ptype in enumerate(types_in) if i not in literals]
-        obj_in = [ptype for i, ptype in enumerate(obj_in) if i not in literals]
+        types_in = [p for i, p in enumerate(types_in) if i not in literals]
+        obj_in = [p for i, p in enumerate(obj_in) if i not in literals]
         
         # reached limit on number of valid dimensions
         valid_symbols = RDDLTensors.VALID_SYMBOLS
         n_out = len(sign_out)
         if n_out > len(valid_symbols):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'At most {len(valid_symbols)} object arguments are supported, '
+                f'At most {len(valid_symbols)} parameters/variable are supported, '
                 f'but variable <{var}> has {n_out} arguments.'
                 f'\n{msg}')
         
@@ -283,11 +275,10 @@ class RDDLTensors:
                     sample = gnp.expand_dims(sample, axis=new_axis)
                     sample = gnp.broadcast_to(sample, shape=out_shape)
                 if use_einsum:
-                    return gnp.einsum(subscripts, sample)
+                    sample = gnp.einsum(subscripts, sample)
                 elif use_tr:
-                    return gnp.transpose(sample, axes=subscripts)
-                else:
-                    return sample
+                    sample = gnp.transpose(sample, axes=subscripts)
+                return sample
             
             self._cached_transforms[transform_id] = _transform
         
@@ -308,7 +299,7 @@ class RDDLTensors:
             
         return _transform
     
-    def literal_slice(self, var: str, 
+    def literal_slice(self, var: str,
                       pvars: List[str],
                       msg: str='') -> Tuple[Set[int], Tuple[Union[int, slice], ...]]:
         '''Given a var and a list of pvariable arguments containing both free 
@@ -355,8 +346,8 @@ class RDDLTensors:
         :param values: the tensor whose values correspond to those of var(?...)        
         '''
         keys = self.grounded[var]
-        values = np.ravel(values)
+        values = np.ravel(values, order='C')
         if len(keys) != values.size:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Size of value array is not compatible with variable <{var}>.')
+                f'Variable <{var}> requires {len(keys)} values, got {values.size}.')
         return zip(keys, values)

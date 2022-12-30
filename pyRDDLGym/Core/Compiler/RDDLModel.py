@@ -346,11 +346,12 @@ class PlanningModel(metaclass=ABCMeta):
             return [()]
         objects_by_type = []
         for ptype in ptypes:
-            if ptype not in self.objects:
+            objects = self.objects.get(ptype, None)
+            if objects is None:
                 raise RDDLInvalidObjectError(
                     f'Type <{ptype}> is not valid, '
                     f'must be one of {set(self.objects.keys())}.')
-            objects_by_type.append(self.objects[ptype])
+            objects_by_type.append(objects)
         return itertools.product(*objects_by_type)
     
     def grounded_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
