@@ -298,13 +298,15 @@ class RDDLSimulator:
         '''Resets the state variables to their initial values.'''
         subs = self.subs = self.init_values.copy()
         
+        # update state
         if self.rddl.is_grounded:
             self.state = {var: subs[var] for var in self.next_states.values()}
         else:
             self.state = {}
             for var in self.next_states.values():
                 self.state.update(self.tensors.expand(var, subs[var]))
-            
+        
+        # update observation
         if self._pomdp:
             obs = {var: None for var in self.observ_fluents}
         else:
@@ -322,6 +324,7 @@ class RDDLSimulator:
         subs = self.subs
         subs.update(actions)
         
+        # evaluate CPFs in topological order
         tensors, rddl = self.tensors, self.rddl
         for cpfs in self.levels.values():
             for cpf in cpfs:
@@ -330,8 +333,11 @@ class RDDLSimulator:
                 dtype = self._cpf_dtypes[cpf]
                 RDDLSimulator._check_type(sample, dtype, f'CPF <{cpf}>', expr)
                 subs[cpf] = sample
+        
+        # evaluate reward
         reward = self.sample_reward()
         
+        # update state
         if rddl.is_grounded:
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
@@ -341,7 +347,8 @@ class RDDLSimulator:
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
                 self.state.update(tensors.expand(state, subs[state]))
-            
+        
+        # update observation
         if self._pomdp: 
             if rddl.is_grounded:
                 obs = {var: subs[var] for var in self.observ_fluents}
@@ -442,8 +449,7 @@ class RDDLSimulator:
             cached_slices, literals = self.tensors.literal_slice(
                 var, pvars, msg=msg)
             cached_transform = self.tensors.map(
-                var, pvars, objects, literals, msg=msg)                 
-            cached_info = (cached_slices, cached_transform)       
+                var, pvars, objects, literals, msg=msg)
             expr.cached_sim_info = (cached_slices, cached_transform)
         else:
             cached_slices, cached_transform = cached_info
@@ -532,6 +538,8 @@ class RDDLSimulator:
     
     def _sample_logical(self, expr, objects, subs):
         _, op = expr.etype
+        if op == '&':
+            op = '^'
         args = expr.args
         valid_ops = self.LOGICAL_OPS
         RDDLSimulator._check_op(op, valid_ops, 'Logical', expr)
@@ -627,9 +635,8 @@ class RDDLSimulator:
         cached_objects = expr.cached_sim_info
         if cached_objects is None:
             new_objects = objects + [p[1] for p in pvars]
-            reduced_axes = tuple(range(len(objects), len(new_objects)))             
-            cached_objects = (new_objects, reduced_axes)
-            expr.cached_sim_info = cached_objects
+            reduced_axes = tuple(range(len(objects), len(new_objects)))   
+            expr.cached_sim_info = (new_objects, reduced_axes)
             
             # check for undefined types
             bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
@@ -655,8 +662,9 @@ class RDDLSimulator:
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\toutput objects ={objects}'
                     f'\n\toperation      ={valid_ops[op]}, axes={reduced_axes}\n'
-            )                            
-        new_objects, axis = cached_objects
+            )           
+        else:                 
+            new_objects, reduced_axes = cached_objects
         
         # sample the argument and aggregate over the reduced axes
         arg = self._sample(arg, new_objects, subs)                
@@ -665,7 +673,7 @@ class RDDLSimulator:
                 arg, bool, f'Argument of aggregation {op}', expr)
         else:
             arg = 1 * arg
-        return valid_ops[op](arg, axis=axis)
+        return valid_ops[op](arg, axis=reduced_axes)
     
     # ===========================================================================
     # function
@@ -686,8 +694,7 @@ class RDDLSimulator:
             lhs, rhs = args
             lhs = 1 * self._sample(lhs, objects, subs)
             rhs = 1 * self._sample(rhs, objects, subs)
-            temp = self.BINARY[name](lhs, rhs)
-            return temp
+            return self.BINARY[name](lhs, rhs)
         
         RDDLSimulator._raise_unsupported(f'Function {name}', expr)
     
@@ -698,6 +705,7 @@ class RDDLSimulator:
     def _sample_control(self, expr, objects, subs):
         _, op = expr.etype
         RDDLSimulator._check_op(op, self.CONTROL_OPS, 'Control', expr)
+        
         if op == 'if':
             return self._sample_if(expr, objects, subs)
         else:
@@ -711,12 +719,15 @@ class RDDLSimulator:
         pred = self._sample(pred, objects, subs)
         RDDLSimulator._check_type(pred, bool, 'If predicate', expr)
         
-        count_true = np.sum(pred)
-        if count_true == pred.size:  # all elements of pred are true
-            return self._sample(arg1, objects, subs)
-        elif count_true == 0:  # all elements of pred are false
-            return self._sample(arg2, objects, subs)
+        first_elem = pred.flat[0]
+        if np.all(pred == first_elem):
+            
+            # short circuit if all predicate values are equal
+            arg = arg1 if first_elem else arg2
+            return self._sample(arg, objects, subs)
         else:
+            
+            # cannot short circuit, branch on each one
             arg1 = self._sample(arg1, objects, subs)
             arg2 = self._sample(arg2, objects, subs)
             return np.where(pred, arg1, arg2)
@@ -729,11 +740,9 @@ class RDDLSimulator:
         if cached_expr is None:
             
             # must be a pvar
-            etype, _ = pred.etype
-            if etype != 'pvar':
+            if not pred.is_pvariable_expression():
                 raise RDDLNotImplementedError(
-                    f'Switch predicate can only be a variable, '
-                    f'not a complex expression of type <{etype}>.\n' + 
+                    f'Switch predicate is not a pvariable.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
             
             # type in pvariables scope must be an enum
@@ -755,9 +764,9 @@ class RDDLSimulator:
                     RDDLSimulator._print_stack_trace(expr))
             
             cached_expr = self._order_enum_cases(enum_type, case_dict, expr)
-            expr.cached_sim_info = cached_expr
-            
+            expr.cached_sim_info = cached_expr            
         cached_cases, cached_default = cached_expr
+        
         pred = self._sample(pred, objects, subs)
         RDDLSimulator._check_type(pred, RDDLTensors.INT, 'Switch predicate', expr)
         
@@ -768,7 +777,7 @@ class RDDLSimulator:
             arg = cached_cases[first_elem]
             if arg is None:
                 arg = cached_default
-            return self._sample(arg, objects, subs)
+            return self._sample(arg, objects, subs)        
         else:
             
             # cannot short circuit, branch on case value

@@ -116,19 +116,23 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs
         subs.update(actions)
         
+        # compute CPFs in topological order
         for cpfs in self.levels.values():
             for cpf in cpfs:
                 subs[cpf], self.key, error = self.cpfs[cpf](subs, self.key)
                 self.handle_error_code(error, f'CPF <{cpf}>')            
+                
+        # sample reward
         reward = self.sample_reward()
         
+        # update state
         for next_state, state in self.next_states.items():
             subs[state] = subs[next_state]
-        
         self.state = {}
         for var in self.next_states.values():
             self.state.update(self.tensors.expand(var, subs[var]))
         
+        # update observation
         if self._pomdp: 
             obs = {}
             for var in self.observ_fluents:

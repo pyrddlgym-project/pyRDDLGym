@@ -2,7 +2,6 @@ from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.cpf import CPF
 
 
-
 class RDDLDecompiler:
     
     def _symbolic(self, value, params):
@@ -73,7 +72,7 @@ class RDDLDecompiler:
         
     def _decompile_func(self, expr, enclose, level):
         _, op = expr.etype
-        decompiled = ', '.join(self._decompile(arg, False, level) 
+        decompiled = ', '.join(self._decompile(arg, False, level)
                                for arg in expr.args)
         return f'{op}[{decompiled}]'
             

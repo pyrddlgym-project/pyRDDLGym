@@ -128,7 +128,8 @@ class RDDLLevelAnalysis:
                 dep_type = self.rddl.variable_types.get(var, var)
                 if dep_type not in VALID_DEPENDENCIES[cpf_type] or (
                     not self.allow_synchronous_state
-                    and cpf_type == dep_type == 'next-state-fluent'):
+                    and cpf_type == dep_type == 'next-state-fluent'
+                ):
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
