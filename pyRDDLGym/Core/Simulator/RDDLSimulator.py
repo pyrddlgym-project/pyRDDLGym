@@ -158,8 +158,7 @@ class RDDLSimulator:
         if not np.can_cast(value, valid):
             dtype = getattr(value, 'dtype', type(value))
             raise RDDLTypeError(
-                f'{msg} must evaluate to {valid}, '
-                f'got {value} of type {dtype}.\n' + 
+                f'{msg} must evaluate to {valid}, got {value} of type {dtype}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -169,7 +168,7 @@ class RDDLSimulator:
                 return
         dtype = getattr(value, 'dtype', type(value))
         raise RDDLTypeError(
-            f'{msg} must evaluate to a type in {valid}, '
+            f'{msg} must evaluate to one of {valid}, '
             f'got {value} of type {dtype}.\n' + 
             RDDLSimulator._print_stack_trace(expr))
     
@@ -391,12 +390,12 @@ class RDDLSimulator:
         if self.rddl.is_grounded:
             return np.asarray(expr.args)
         
-        # argument is reshaped to match the free variables "objects"
-        cached_value = getattr(expr, 'cached_value', None)
+        # argument is reshaped to match the free variables "objects"        
+        cached_value = expr.cached_sim_info
         if cached_value is None:
             shape = self.tensors.shape([pobj[1] for pobj in objects])
             cached_value = np.full(shape=shape, fill_value=expr.args)
-            expr.cached_value = cached_value
+            expr.cached_sim_info = cached_value
         return cached_value
     
     def _sample_pvar(self, expr, objects, subs):
@@ -414,11 +413,11 @@ class RDDLSimulator:
                 return np.asarray(enum_index)
                     
             # argument is reshaped to match the free variables "objects"
-            cached_value = getattr(expr, 'cached_value', None)
+            cached_value = expr.cached_sim_info
             if cached_value is None:
                 shape = self.tensors.shape([pobj[1] for pobj in objects])
                 cached_value = np.full(shape=shape, fill_value=enum_index)
-                expr.cached_value = cached_value
+                expr.cached_sim_info = cached_value
             return cached_value
         
         # extract variable value
@@ -433,12 +432,12 @@ class RDDLSimulator:
             return np.asarray(arg)
         
         # argument is reshaped to match the free variables "objects"
-        cached_transform = getattr(expr, 'cached_transform', None)
+        cached_transform = expr.cached_sim_info
         if cached_transform is None:
             cached_transform = self.tensors.map(
                 var, pvars, objects,
                 msg=RDDLSimulator._print_stack_trace(expr))            
-            expr.cached_transform = cached_transform        
+            expr.cached_sim_info = cached_transform        
         return cached_transform(arg)
     
     # ===========================================================================
@@ -614,12 +613,12 @@ class RDDLSimulator:
 
         # cache and read reduced axes tensor info for the aggregation
         * pvars, arg = args
-        cached_objects = getattr(expr, 'cached_objects', None)
+        cached_objects = expr.cached_sim_info
         if cached_objects is None:
             new_objects = objects + [p[1] for p in pvars]
             reduced_axes = tuple(range(len(objects), len(new_objects)))             
             cached_objects = (new_objects, reduced_axes)
-            expr.cached_objects = cached_objects
+            expr.cached_sim_info = cached_objects
             
             # check for undefined types
             bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
@@ -715,7 +714,7 @@ class RDDLSimulator:
         pred, *cases = expr.args
         
         # cache the sorted expressions by enum index on the first pass
-        cached_expr = getattr(expr, 'cached_expr', None)
+        cached_expr = expr.cached_sim_info
         if cached_expr is None:
             
             # must be a pvar
@@ -745,7 +744,7 @@ class RDDLSimulator:
                     RDDLSimulator._print_stack_trace(expr))
             
             cached_expr = self._order_enum_cases(enum_type, case_dict, expr)
-            expr.cached_expr = cached_expr
+            expr.cached_sim_info = cached_expr
             
         cached_cases, cached_default = cached_expr
         pred = self._sample(pred, objects, subs)
@@ -1061,7 +1060,7 @@ class RDDLSimulator:
     def _sample_discrete(self, expr, objects, subs):
         
         # cache the sorted expressions by enum index on the first pass
-        cached_expr = getattr(expr, 'cached_expr', None)
+        cached_expr = expr.cached_sim_info
         if cached_expr is None:
             (_, enum_type), *cases = expr.args
             case_dict = dict(c for _, c in cases)
@@ -1071,7 +1070,7 @@ class RDDLSimulator:
                     RDDLSimulator._print_stack_trace(expr))
             
             cached_expr, _ = self._order_enum_cases(enum_type, case_dict, expr)
-            expr.cached_expr = cached_expr
+            expr.cached_sim_info = cached_expr
         
         # calculate the CDF and check sum to one
         pdfs = [self._sample(arg, objects, subs) for arg in cached_expr]
