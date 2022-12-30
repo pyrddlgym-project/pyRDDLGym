@@ -61,6 +61,16 @@ class RDDLSimulator:
                 self.observ_fluents.append(name)
         self._pomdp = bool(self.observ_fluents)
         
+        # enumerated types are converted to integers internally
+        self._cpf_dtypes = {}
+        for cpfs in self.levels.values():
+            for cpf in cpfs:
+                var = rddl.parse(cpf)[0]
+                prange = rddl.variable_ranges[var]
+                if prange in rddl.enums:
+                    prange = 'int'
+                self._cpf_dtypes[cpf] = RDDLTensors.NUMPY_TYPES[prange]
+        
         # basic operations
         self.ARITHMETIC_OPS = {
             '+': np.add,
@@ -121,6 +131,7 @@ class RDDLSimulator:
             'pow': np.power,
             'log': lambda x, y: np.log(x) / np.log(y)
         }
+        self.CONTROL_OPS = {'if', 'switch'}
     
     @property
     def states(self) -> Args:
@@ -174,7 +185,7 @@ class RDDLSimulator:
         actual = len(args)
         if actual != required:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'{msg} requires {required} arguments, got {actual}.\n' +
+                f'{msg} requires {required} arguments, got {actual}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -314,7 +325,7 @@ class RDDLSimulator:
             for cpf in cpfs:
                 objects, expr = rddl.cpfs[cpf]
                 sample = self._sample(expr, objects, subs)
-                dtype = tensors.NUMPY_TYPES[rddl.variable_ranges[cpf]]
+                dtype = self._cpf_dtypes[cpf]
                 RDDLSimulator._check_type(sample, dtype, f'CPF <{cpf}>', expr)
                 subs[cpf] = sample
         reward = self.sample_reward()
@@ -375,12 +386,15 @@ class RDDLSimulator:
     # ===========================================================================
         
     def _sample_constant(self, expr, objects, _):
+        
+        # grounded domain only returns a scalar
         if self.rddl.is_grounded:
             return np.asarray(expr.args)
         
+        # argument is reshaped to match the free variables "objects"
         cached_value = getattr(expr, 'cached_value', None)
         if cached_value is None:
-            shape = tuple(len(self.rddl.objects[ptype]) for _, ptype in objects)
+            shape = self.tensors.shape([pobj[1] for pobj in objects])
             cached_value = np.full(shape=shape, fill_value=expr.args)
             expr.cached_value = cached_value
         return cached_value
@@ -389,21 +403,32 @@ class RDDLSimulator:
         _, name = expr.etype
         args = expr.args
         RDDLSimulator._check_arity(args, 2, f'Variable <{name}>', expr)
-        
-        # check the variable is valid
         var, pvars = args
-        if var not in subs:
-            raise RDDLUndefinedVariableError(
-                f'Variable <{var}> is not defined in the instance.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+        
+        # literal of enumerated type is treated as integer
+        enum_index = self.tensors.index_of_enum.get(var, None)
+        if enum_index is not None:
+
+            # grounded domain only returns a scalar
+            if self.rddl.is_grounded:
+                return np.asarray(enum_index)
+                    
+            # argument is reshaped to match the free variables "objects"
+            cached_value = getattr(expr, 'cached_value', None)
+            if cached_value is None:
+                shape = self.tensors.shape([pobj[1] for pobj in objects])
+                cached_value = np.full(shape=shape, fill_value=enum_index)
+                expr.cached_value = cached_value
+            return cached_value
         
         # extract variable value
-        arg = subs[var]
+        arg = subs.get(var, None)
         if arg is None:
             raise RDDLUndefinedVariableError(
                 f'Variable <{var}> is referenced before assignment.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
         
+        # grounded domain only returns a scalar
         if self.rddl.is_grounded:
             return np.asarray(arg)
         
@@ -579,7 +604,8 @@ class RDDLSimulator:
     
     def _sample_aggregation(self, expr, objects, subs):
         if self.rddl.is_grounded:
-            raise Exception(f'Aggregation {expr} in grounded domain.')
+            raise Exception(
+                f'Internal error: aggregation in grounded domain {expr}.')
         
         _, op = expr.etype
         args = expr.args
@@ -619,8 +645,7 @@ class RDDLSimulator:
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\toutput objects ={objects}'
                     f'\n\toperation      ={valid_ops[op]}, axes={reduced_axes}\n'
-            )
-                            
+            )                            
         new_objects, axis = cached_objects
         
         # sample the argument and aggregate over the reduced axes
@@ -639,9 +664,7 @@ class RDDLSimulator:
     def _sample_func(self, expr, objects, subs):
         _, name = expr.etype
         args = expr.args
-        if isinstance(args, Expression):
-            args = (args,)
-            
+        
         if name in self.UNARY:
             RDDLSimulator._check_arity(args, 1, f'Unary function {name}', expr)
             arg, = args
@@ -664,13 +687,19 @@ class RDDLSimulator:
     
     def _sample_control(self, expr, objects, subs):
         _, op = expr.etype
+        RDDLSimulator._check_op(op, self.CONTROL_OPS, 'Control', expr)
+        if op == 'if':
+            return self._sample_if(expr, objects, subs)
+        else:
+            return self._sample_switch(expr, objects, subs)    
+        
+    def _sample_if(self, expr, objects, subs):
         args = expr.args
-        RDDLSimulator._check_op(op, {'if'}, 'Control', expr)
         RDDLSimulator._check_arity(args, 3, 'If then else', expr)
         
         pred, arg1, arg2 = args
         pred = self._sample(pred, objects, subs)
-        RDDLSimulator._check_type(pred, bool, 'Predicate', expr)
+        RDDLSimulator._check_type(pred, bool, 'If predicate', expr)
         
         count_true = np.sum(pred)
         if count_true == pred.size:  # all elements of pred are true
@@ -681,7 +710,82 @@ class RDDLSimulator:
             arg1 = self._sample(arg1, objects, subs)
             arg2 = self._sample(arg2, objects, subs)
             return np.where(pred, arg1, arg2)
+    
+    def _sample_switch(self, expr, objects, subs):
+        pred, *cases = expr.args
         
+        # cache the sorted expressions by enum index on the first pass
+        cached_expr = getattr(expr, 'cached_expr', None)
+        if cached_expr is None:
+            
+            # must be a pvar
+            etype, _ = pred.etype
+            if etype != 'pvar':
+                raise RDDLNotImplementedError(
+                    f'Switch predicate can only be a variable, '
+                    f'not a complex expression of type <{etype}>.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            
+            # type in pvariables scope must be an enum
+            name, _ = pred.args
+            var = self.rddl.parse(name)[0]
+            enum_type = self.rddl.variable_ranges[var]
+            if enum_type not in self.rddl.enums:
+                raise RDDLTypeError(
+                    f'Switch predicate <{name}> of type <{enum_type}> is not an '
+                    f'enum type, must be one of {set(self.rddl.enums.keys())}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            
+            cached_expr = self._order_enum_cases(enum_type, cases, expr)
+            expr.cached_expr = cached_expr
+        
+        pred = self._sample(pred, objects, subs)
+        RDDLSimulator._check_type(pred, RDDLTensors.INT, 'Switch predicate', expr)
+        
+        # short circuit if all switches equal
+        first_elem = pred.flat[0]
+        if np.all(pred == first_elem):  
+            arg = cached_expr[first_elem]
+            return self._sample(arg, objects, subs)
+        else:
+            values = [self._sample(arg, objects, subs) for arg in cached_expr]
+            values = np.asarray(values)
+            pred = np.expand_dims(pred, axis=0)
+            return np.take_along_axis(values, pred, axis=0)        
+        
+    def _order_enum_cases(self, enum_type, cases, expr): 
+                
+        enum_values = self.rddl.enums.get(enum_type, None)
+        if enum_values is None:
+            raise RDDLUndefinedVariableError(
+                f'Enum type <{enum_type}> in case list is not defined, ' 
+                f'must be one of {set(self.rddl.enums.keys())}.\n' + 
+                RDDLSimulator._print_stack_trace(expr))
+            
+        cases = dict((c for _, c in cases))
+        for literal in cases.keys():
+            if self.rddl.enums_rev.get(literal, None) != enum_type:
+                raise RDDLUndefinedVariableError(
+                    f'Enum literal <{literal}> is not a member of type '
+                    f'<{enum_type}>, must be one of {set(enum_values)}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            
+        if len(cases) != len(expr.args) - 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Case list contains duplicated literals.\n' + 
+                RDDLSimulator._print_stack_trace(expr))
+                
+        expressions = []
+        for literal in enum_values:
+            arg = cases.get(literal, None)
+            if arg is None:
+                raise RDDLUndefinedVariableError(
+                    f'Enum literal <{literal}> of type <{enum_type}> '
+                    f'is missing in case list.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            expressions.append(arg)  
+        return expressions 
+                
     # ===========================================================================
     # random variables
     # ===========================================================================
@@ -726,7 +830,9 @@ class RDDLSimulator:
             return self._sample_cauchy(expr, objects, subs)
         elif name == 'Gompertz':
             return self._sample_gompertz(expr, objects, subs)
-        else:  # no support for enum
+        elif name == 'Discrete':
+            return self._sample_discrete(expr, objects, subs)
+        else:
             RDDLSimulator._raise_unsupported(f'Distribution {name}', expr)
 
     def _sample_kron_delta(self, expr, objects, subs):
@@ -926,7 +1032,27 @@ class RDDLSimulator:
         U = self.rng.uniform(size=shape.shape)
         sample = np.log(1.0 - np.log1p(-U) / shape) / scale
         return sample
+    
+    def _sample_discrete(self, expr, objects, subs):
         
+        # cache the sorted expressions by enum index on the first pass
+        cached_expr = getattr(expr, 'cached_expr', None)
+        if cached_expr is None:
+            (_, enum_type), *cases = expr.args
+            cached_expr = self._order_enum_cases(enum_type, cases, expr)
+            expr.cached_expr = cached_expr
+        
+        # calculate the CDF to use inverse CDF sampling
+        pdfs = [self._sample(arg, objects, subs) for arg in cached_expr]
+        cdfs = np.cumsum(pdfs, axis=0)
+        if not np.allclose(cdfs[-1, ...], 1.0):
+            raise RDDLValueOutOfRangeError(
+                f'Discrete probabilities must sum to 1, got {cdfs[-1, ...]}.\n' + 
+                RDDLSimulator._print_stack_trace(expr)) 
+                       
+        U = self.rng.random(size=(1,) + cdfs.shape[1:])
+        return np.argmax(U < cdfs, axis=0)
+
 
 def lngamma(x):
     xmin = np.min(x)
