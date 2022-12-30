@@ -12,7 +12,7 @@ class RDDLLiftedModel(RDDLModel):
         super(RDDLLiftedModel, self).__init__()
         
         self.SetAST(rddl)
-        self.objects, self.objects_rev, self.enums, self.enums_rev = \
+        self.objects, self.objects_rev, self.enum_types, self.enum_literals = \
             self._extract_objects()
 
         self.param_types, self.variable_types, self.variable_ranges = \
@@ -40,15 +40,18 @@ class RDDLLiftedModel(RDDLModel):
             ast_objects = []
         ast_objects = dict(ast_objects)
          
-        objects, enums = {}, {}     
+        objects = {}
+        enum_types, enum_literals = set(), set()    
         for name, pvalues in self._AST.domain.types:
-            if pvalues == 'object':
+            if pvalues == 'object':  # objects
                 objects[name] = ast_objects.get(name, None)
                 if objects[name] is None:
                     raise RDDLInvalidObjectError(
                         f'Type <{name}> has no objects defined in the instance.')
-            else:
-                enums[name] = pvalues        
+            else:  # enumerated types
+                objects[name] = pvalues
+                enum_types.add(name)
+                enum_literals.update(pvalues)        
         
         objects_rev = {}
         for name, values in objects.items():
@@ -58,17 +61,8 @@ class RDDLLiftedModel(RDDLModel):
                         f'Types <{name}> and <{objects_rev[obj]}> '
                         f'can not share the same object <{obj}>.')
                 objects_rev[obj] = name
-        
-        enums_rev = {}
-        for name, values in enums.items():
-            for obj in values:
-                if obj in enums_rev:
-                    raise RDDLInvalidObjectError(
-                        f'Enums <{name}> and <{enums_rev[obj]}> '
-                        f'can not share the same literal <{obj}>.')
-                enums_rev[obj] = name
-        
-        return objects, objects_rev, enums, enums_rev
+                
+        return objects, objects_rev, enum_types, enum_literals
     
     def _extract_variable_information(self):
         var_params, var_types, var_ranges = {}, {}, {}
@@ -89,8 +83,7 @@ class RDDLLiftedModel(RDDLModel):
         return var_params, var_types, var_ranges
 
     def _extract_states(self):
-        states, statesranges = {}, {}
-        nextstates, prevstates = {}, {}
+        states, statesranges, nextstates, prevstates = {}, {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_state_fluent():
                 for name in self.grounded_names(pvar.name, pvar.param_types):

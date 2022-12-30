@@ -41,8 +41,7 @@ class RDDLTensors:
             fp.write('')
             fp.close()
             
-        self.index_of_object, self.grounded, self.index_of_enum = \
-            self._compile_objects()
+        self.index_of_object, self.grounded = self._compile_objects()
         self.init_values = self._compile_init_values()
         
         self._cached_transforms = {}
@@ -57,12 +56,7 @@ class RDDLTensors:
             for i, obj in enumerate(objects):
                 index_of_object[obj] = i  
     
-        index_of_enum = {}
-        for values in self.rddl.enums.values():
-            for i, value in enumerate(values):
-                index_of_enum[value] = i
-                        
-        return index_of_object, grounded, index_of_enum
+        return index_of_object, grounded
         
     def _compile_init_values(self):
         init_values = {}
@@ -73,34 +67,34 @@ class RDDLTensors:
                        for name, value in init_values.items() 
                        if value is not None}
 
-        # enumerated values are converted to integers
+        # enum literals are converted to integers
         new_init_values = init_values.copy()
         for name, value in init_values.items():
             var = self.rddl.parse(name)[0]
             prange = self.rddl.variable_ranges[var]
-            if prange in self.rddl.enums:
-                index = self.index_of_enum.get(value, None)
-                if index is None:
+            if prange in self.rddl.enum_types:
+                if self.rddl.objects_rev.get(value, None) != prange:
                     raise RDDLInvalidObjectError(
-                        f'Literal <{value}> does not belong to enum <{prange}>.')
-                new_init_values[name] = index
+                        f'Literal <{value}> does not belong to enum <{prange}>, '
+                        f'must be one of {set(self.rddl.objects[prange])}.')
+                new_init_values[name] = self.index_of_object[value]
         init_values = new_init_values
         
         init_arrays = {}
         for var in self.rddl.variable_ranges.keys():
             
             # try to extract a default value if missing for a primitive type
-            # enumerated types are treated as integers
+            # enum types are treated as integers
             prange = self.rddl.variable_ranges[var]
             default = RDDLTensors.DEFAULT_VALUES.get(prange, None)
             if default is None:
-                if prange in self.rddl.enums:
+                if prange in self.rddl.enum_types:
                     prange = 'int'
                     default = 0
                 else:
                     raise RDDLTypeError(
                         f'Type <{prange}> of variable <{var}> is not valid, '
-                        f'must be an enum type in {set(self.rddl.enums.keys())} '
+                        f'must be an enum type in {self.rddl.enum_types} '
                         f'or one of {set(RDDLTensors.DEFAULT_VALUES.keys())}.')   
             
             # create a tensor filled with init_values

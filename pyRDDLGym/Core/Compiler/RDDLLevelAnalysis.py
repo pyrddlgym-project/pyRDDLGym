@@ -81,12 +81,15 @@ class RDDLLevelAnalysis:
         
         elif expr.is_pvariable_expression():
             name, *_ = expr.args
-            if name not in self.rddl.enums_rev:
-                var = self.rddl.parse(name)[0]
+            if name in self.rddl.enum_literals:
+                pass  # enum literal
+            else:
+                var = self.rddl.parse(name)[0]  # pvariable
                 var_type = self.rddl.variable_types.get(var, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> in CPF <{cpf}> is not defined.')
+                        f'Variable or literal <{name}> in CPF <{cpf}> '
+                        f'is not defined.')
                 elif var_type != 'non-fluent':
                     graph.setdefault(cpf, set()).add(name)
                 
@@ -129,7 +132,7 @@ class RDDLLevelAnalysis:
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
-    def _validate_cpf_definitions(self, graph):             
+    def _validate_cpf_definitions(self, graph): 
         for cpf in self.rddl.cpfs.keys():
             var = self.rddl.parse(cpf)[0]
             fluent_type = self.rddl.variable_types.get(var, var)

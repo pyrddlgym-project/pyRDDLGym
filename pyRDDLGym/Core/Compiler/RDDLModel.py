@@ -21,8 +21,8 @@ class PlanningModel(metaclass=ABCMeta):
         self._actions = None
         self._objects = None
         self._objects_rev = None
-        self._enums = None
-        self._enums_rev = None
+        self._enum_types = None
+        self._enum_literals = None
         self._actionsranges = None
         self._derived = None
         self._interm = None
@@ -39,12 +39,10 @@ class PlanningModel(metaclass=ABCMeta):
         self._pvar_to_type = None
         self._gvar_to_type = None
 
-        # new definitions
         self._max_allowed_actions = None
         self._horizon = None
         self._discount = None
         
-        # added on Dec 17 (Mike)
         self._param_types = None
         self._variable_types = None
         self._variable_ranges = None
@@ -67,23 +65,23 @@ class PlanningModel(metaclass=ABCMeta):
     @objects_rev.setter
     def objects_rev(self, value):
         self._objects_rev = value
-
-    @property
-    def enums(self):
-        return self._enums
-
-    @enums.setter
-    def enums(self, value):
-        self._enums = value
     
     @property
-    def enums_rev(self):
-        return self._enums_rev
+    def enum_types(self):
+        return self._enum_types
 
-    @enums_rev.setter
-    def enums_rev(self, value):
-        self._enums_rev = value
-        
+    @enum_types.setter
+    def enum_types(self, value):
+        self._enum_types = value
+    
+    @property
+    def enum_literals(self):
+        return self._enum_literals
+
+    @enum_literals.setter
+    def enum_literals(self, value):
+        self._enum_literals = value
+    
     @property
     def nonfluents(self):
         return self._nonfluents
@@ -284,7 +282,6 @@ class PlanningModel(metaclass=ABCMeta):
     def max_allowed_actions(self, val):
         self._max_allowed_actions = val
     
-    # added on Dec 17 (Mike)
     @property
     def param_types(self):
         return self._param_types
@@ -368,9 +365,9 @@ class PlanningModel(metaclass=ABCMeta):
         '''Determines whether or not the given variable can be evaluated
         for the given list of objects.
         '''
-        if var not in self.param_types:
+        ptypes = self.param_types.get(var, None)
+        if ptypes is None:
             return False
-        ptypes = self.param_types[var]
         if objects is None:
             objects = []
         if len(ptypes) != len(objects):
@@ -401,16 +398,17 @@ class PlanningModel(metaclass=ABCMeta):
         
         elif etype == 'pvar':
             name = expr.args[0]
-            if name in self.enums_rev:  # enum literal
-                return True
+            if name in self.enum_literals:
+                return True  # enum literal
             
-            else:  # non-enum variable
-                var = self.parse(name)[0]
+            else:
+                var = self.parse(name)[0]  # pvariable
                 var_type = self.variable_types.get(var, None)      
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
-                        f'Variable <{var}> is not defined in the domain, '
-                        f'must be one of {set(self.variable_types.keys())}.')
+                        f'Variable or literal <{var}> is not defined, '
+                        f'must be an enum literal in {self.enum_literals} '
+                        f'or one of {set(self.variable_types.keys())}.')
                 return var_type == 'non-fluent'
         
         else:
