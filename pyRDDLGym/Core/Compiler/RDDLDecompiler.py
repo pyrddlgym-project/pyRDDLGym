@@ -88,8 +88,8 @@ class RDDLDecompiler:
             value = f'if ({pred})\n{indent}then {if_true}\n{indent}else {if_false}'
 
         else:  # switch
-            (_, (var, params)), *args = expr.args
-            symbol = self._symbolic(var, params)
+            pvar, *args = expr.args
+            symbol = self._decompile_pvar(pvar, False, level)
             cases = []
             for _, (literal, arg) in args:
                 decompiled = self._decompile(arg, False, level + 1)
