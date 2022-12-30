@@ -67,7 +67,7 @@ class RDDLSimulator:
             for cpf in cpfs:
                 var = rddl.parse(cpf)[0]
                 prange = rddl.variable_ranges[var]
-                if prange in rddl.enums:
+                if prange in rddl.enum_types:
                     prange = 'int'
                 self._cpf_dtypes[cpf] = RDDLTensors.NUMPY_TYPES[prange]
         
@@ -319,7 +319,6 @@ class RDDLSimulator:
         subs.update(actions)
         
         tensors, rddl = self.tensors, self.rddl
-        
         for cpfs in self.levels.values():
             for cpf in cpfs:
                 objects, expr = rddl.cpfs[cpf]
@@ -405,8 +404,8 @@ class RDDLSimulator:
         var, pvars = args
         
         # literal of enumerated type is treated as integer
-        enum_index = self.tensors.index_of_enum.get(var, None)
-        if enum_index is not None:
+        if var in self.rddl.enum_literals:
+            enum_index = self.tensors.index_of_object[var]
 
             # grounded domain only returns a scalar
             if self.rddl.is_grounded:
@@ -729,10 +728,10 @@ class RDDLSimulator:
             name, _ = pred.args
             var = self.rddl.parse(name)[0]
             enum_type = self.rddl.variable_ranges[var]
-            if enum_type not in self.rddl.enums:
+            if enum_type not in self.rddl.enum_types:
                 raise RDDLTypeError(
-                    f'Switch predicate <{name}> of type <{enum_type}> is not an '
-                    f'enum type, must be one of {set(self.rddl.enums.keys())}.\n' + 
+                    f'Type <{enum_type}> of switch predicate <{name}> is not an '
+                    f'enum type, must be one of {self.rddl.enum_types}.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
             
             # default statement becomes ("default", expr)
@@ -772,21 +771,14 @@ class RDDLSimulator:
             return np.take_along_axis(case_values, pred, axis=0)        
         
     def _order_enum_cases(self, enum_type, case_dict, expr): 
-
-        # enum type must be valid
-        enum_values = self.rddl.enums.get(enum_type, None)
-        if enum_values is None:
-            raise RDDLUndefinedVariableError(
-                f'Enum type <{enum_type}> in case list is not defined, ' 
-                f'must be one of {set(self.rddl.enums.keys())}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+        enum_values = self.rddl.objects[enum_type]
         
-        # check that enum literal belongs to type
+        # check that all literals belong to enum_type
         for literal in case_dict.keys():
             if literal != 'default' \
-            and self.rddl.enums_rev.get(literal, None) != enum_type:
+            and self.rddl.objects_rev.get(literal, None) != enum_type:
                 raise RDDLUndefinedVariableError(
-                    f'Enum literal <{literal}> is not a member of type '
+                    f'Literal <{literal}> does not belong to enum type '
                     f'<{enum_type}>, must be one of {set(enum_values)}.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
         
@@ -795,7 +787,7 @@ class RDDLSimulator:
         for literal in enum_values:
             arg = case_dict.get(literal, None)
             if arg is not None:                
-                index = self.tensors.index_of_enum[literal]
+                index = self.tensors.index_of_object[literal]
                 expressions[index] = arg
         
         # if default statement is missing, cases must be comprehensive
@@ -1063,6 +1055,15 @@ class RDDLSimulator:
         cached_expr = expr.cached_sim_info
         if cached_expr is None:
             (_, enum_type), *cases = expr.args
+            
+            # enum type must be a valid enum type
+            if enum_type not in self.rddl.enum_types:
+                raise RDDLTypeError(
+                    f'Type <{enum_type}> in Discrete distribution is not an '
+                    f'enum, must be one of {self.rddl.enum_types}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            
+            # no duplicate cases are allowed
             case_dict = dict(c for _, c in cases)
             if len(case_dict) != len(cases):
                 raise RDDLInvalidNumberOfArgumentsError(
