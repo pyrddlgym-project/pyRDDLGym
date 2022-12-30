@@ -68,6 +68,7 @@ class JaxRDDLCompiler:
         self.LOGICAL_NOT = jnp.logical_not
         self.LOGICAL_OPS = {
             '^': jnp.logical_and,
+            '&': jnp.logical_and,
             '|': jnp.logical_or,
             '~': jnp.logical_xor,
             '=>': lambda e1, e2: jnp.logical_or(jnp.logical_not(e1), e2),
@@ -391,7 +392,7 @@ class JaxRDDLCompiler:
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args            
         transform = self.tensors.map(
-            var, pvars, objects,
+            var, pvars, objects, [],
             gnp=jnp,
             msg=JaxRDDLCompiler._print_stack_trace(expr))
         

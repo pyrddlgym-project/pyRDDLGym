@@ -84,6 +84,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         # overwrite basic operations with fuzzy ones
         self.LOGICAL_OPS = {
             '^': logic.And,
+            '&': logic.And,
             '|': logic.Or,
             '~': logic.xor,
             '=>': logic.implies,
