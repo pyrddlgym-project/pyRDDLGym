@@ -89,13 +89,13 @@ class RDDLDecompiler:
 
         else:  # switch
             pvar, *args = expr.args
-            symbol = self._decompile_pvar(pvar, False, level)
+            pred = self._decompile(pvar, False, level)
             cases = []
             for _, (literal, arg) in args:
                 decompiled = self._decompile(arg, False, level + 1)
                 cases.append(f'case {literal} : {decompiled}')
             cases = f',\n{indent}'.join(cases)
-            value = f'switch({symbol}) {{ \n{indent}{cases}\n }}'
+            value = f'switch({pred}) {{ \n{indent}{cases}\n }}'
 
         if enclose: 
             value = f'( {value} )'
