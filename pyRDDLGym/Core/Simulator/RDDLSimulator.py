@@ -736,55 +736,80 @@ class RDDLSimulator:
                     f'enum type, must be one of {set(self.rddl.enums.keys())}.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
             
-            cached_expr = self._order_enum_cases(enum_type, cases, expr)
+            # default statement becomes ("default", expr)
+            case_dict = dict((cvalue if ctype == 'case' else (ctype, cvalue)) 
+                             for ctype, cvalue in cases)
+            if len(case_dict) != len(cases):
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Duplicated literal or default cases.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            
+            cached_expr = self._order_enum_cases(enum_type, case_dict, expr)
             expr.cached_expr = cached_expr
-        
+            
+        cached_cases, cached_default = cached_expr
         pred = self._sample(pred, objects, subs)
         RDDLSimulator._check_type(pred, RDDLTensors.INT, 'Switch predicate', expr)
         
-        # short circuit if all switches equal
         first_elem = pred.flat[0]
-        if np.all(pred == first_elem):  
-            arg = cached_expr[first_elem]
+        if np.all(pred == first_elem): 
+            
+            # short circuit if all switches equal
+            arg = cached_cases[first_elem]
+            if arg is None:
+                arg = cached_default
             return self._sample(arg, objects, subs)
         else:
-            values = [self._sample(arg, objects, subs) for arg in cached_expr]
-            values = np.asarray(values)
+            
+            # cannot short circuit, branch on case value
+            default_values = None
+            if cached_default is not None:
+                default_values = self._sample(cached_default, objects, subs)
+            case_values = [(default_values if arg is None 
+                            else self._sample(arg, objects, subs))
+                           for arg in cached_cases]
+            case_values = np.asarray(case_values)
             pred = np.expand_dims(pred, axis=0)
-            return np.take_along_axis(values, pred, axis=0)        
+            return np.take_along_axis(case_values, pred, axis=0)        
         
-    def _order_enum_cases(self, enum_type, cases, expr): 
-                
+    def _order_enum_cases(self, enum_type, case_dict, expr): 
+
+        # enum type must be valid
         enum_values = self.rddl.enums.get(enum_type, None)
         if enum_values is None:
             raise RDDLUndefinedVariableError(
                 f'Enum type <{enum_type}> in case list is not defined, ' 
                 f'must be one of {set(self.rddl.enums.keys())}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
-            
-        cases = dict((c for _, c in cases))
-        for literal in cases.keys():
-            if self.rddl.enums_rev.get(literal, None) != enum_type:
+        
+        # check that enum literal belongs to type
+        for literal in case_dict.keys():
+            if literal != 'default' \
+            and self.rddl.enums_rev.get(literal, None) != enum_type:
                 raise RDDLUndefinedVariableError(
                     f'Enum literal <{literal}> is not a member of type '
                     f'<{enum_type}>, must be one of {set(enum_values)}.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
-            
-        if len(cases) != len(expr.args) - 1:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Case list contains duplicated literals.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
-                
-        expressions = []
+        
+        # store expressions in order of canonical literal index
+        expressions = [None] * len(enum_values)
         for literal in enum_values:
-            arg = cases.get(literal, None)
-            if arg is None:
-                raise RDDLUndefinedVariableError(
-                    f'Enum literal <{literal}> of type <{enum_type}> '
-                    f'is missing in case list.\n' + 
-                    RDDLSimulator._print_stack_trace(expr))
-            expressions.append(arg)  
-        return expressions 
+            arg = case_dict.get(literal, None)
+            if arg is not None:                
+                index = self.tensors.index_of_enum[literal]
+                expressions[index] = arg
+        
+        # if default statement is missing, cases must be comprehensive
+        default_expr = case_dict.get('default', None)
+        if default_expr is None:
+            for i, arg in enumerate(expressions):
+                if arg is None:
+                    raise RDDLUndefinedVariableError(
+                        f'Enum literal <{enum_values[i]}> of type <{enum_type}> '
+                        f'is missing in case list.\n' + 
+                        RDDLSimulator._print_stack_trace(expr))
+            
+        return (expressions, default_expr)
                 
     # ===========================================================================
     # random variables
@@ -1039,17 +1064,24 @@ class RDDLSimulator:
         cached_expr = getattr(expr, 'cached_expr', None)
         if cached_expr is None:
             (_, enum_type), *cases = expr.args
-            cached_expr = self._order_enum_cases(enum_type, cases, expr)
+            case_dict = dict(c for _, c in cases)
+            if len(case_dict) != len(cases):
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Duplicated literal or default cases.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
+            
+            cached_expr, _ = self._order_enum_cases(enum_type, case_dict, expr)
             expr.cached_expr = cached_expr
         
-        # calculate the CDF to use inverse CDF sampling
+        # calculate the CDF and check sum to one
         pdfs = [self._sample(arg, objects, subs) for arg in cached_expr]
         cdfs = np.cumsum(pdfs, axis=0)
         if not np.allclose(cdfs[-1, ...], 1.0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must sum to 1, got {cdfs[-1, ...]}.\n' + 
-                RDDLSimulator._print_stack_trace(expr)) 
-                       
+                RDDLSimulator._print_stack_trace(expr))     
+        
+        # use inverse CDF sampling                  
         U = self.rng.random(size=(1,) + cdfs.shape[1:])
         return np.argmax(U < cdfs, axis=0)
 
