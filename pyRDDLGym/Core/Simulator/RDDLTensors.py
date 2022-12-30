@@ -34,17 +34,19 @@ class RDDLTensors:
         self.rddl = rddl
         self.debug = debug
         
+        self.index_of_object, self.grounded, self.index_of_enum = \
+            self._compile_objects()
+        self.init_values = self._compile_init_values()
+        
+        self._cached_transforms = {}
+
+        # clear the log file
         self.filename = f'debug_{rddl._AST.domain.name}_{rddl._AST.instance.name}.txt'
         if self.debug:
             fp = open(self.filename, 'w')
             fp.write('')
             fp.close()
             
-        self.index_of_object, self.grounded = self._compile_objects()
-        self.init_values = self._compile_init_values()
-        
-        self._cached_transforms = {}
-
     def _compile_objects(self):
         grounded = {}
         for var, types in self.rddl.param_types.items():
@@ -53,10 +55,15 @@ class RDDLTensors:
         index_of_object = {}
         for objects in self.rddl.objects.values():
             for i, obj in enumerate(objects):
-                index_of_object[obj] = i      
-                  
-        return index_of_object, grounded
+                index_of_object[obj] = i  
     
+        index_of_enum = {}
+        for values in self.rddl.enums.values():
+            for i, value in enumerate(values):
+                index_of_enum[value] = i
+                        
+        return index_of_object, grounded, index_of_enum
+        
     def _compile_init_values(self):
         init_values = {}
         init_values.update(self.rddl.nonfluents)
@@ -65,17 +72,38 @@ class RDDLTensors:
         init_values = {name: value 
                        for name, value in init_values.items() 
                        if value is not None}
+
+        # enumerated values are converted to integers
+        new_init_values = init_values.copy()
+        for name, value in init_values.items():
+            var = self.rddl.parse(name)[0]
+            prange = self.rddl.variable_ranges[var]
+            if prange in self.rddl.enums:
+                index = self.index_of_enum.get(value, None)
+                if index is None:
+                    raise RDDLInvalidObjectError(
+                        f'Literal <{value}> does not belong to enum <{prange}>.')
+                new_init_values[name] = index
+        init_values = new_init_values
         
         init_arrays = {}
         for var in self.rddl.variable_ranges.keys():
-            prange = self.rddl.variable_ranges[var]
-            valid_ranges = RDDLTensors.DEFAULT_VALUES
-            if prange not in valid_ranges:
-                raise RDDLTypeError(
-                    f'Type <{prange}> of variable <{var}> is not valid, '
-                    f'must be one of {set(valid_ranges.keys())}.')                
-            default = valid_ranges[prange]
             
+            # try to extract a default value if missing for a primitive type
+            # enumerated types are treated as integers
+            prange = self.rddl.variable_ranges[var]
+            default = RDDLTensors.DEFAULT_VALUES.get(prange, None)
+            if default is None:
+                if prange in self.rddl.enums:
+                    prange = 'int'
+                    default = 0
+                else:
+                    raise RDDLTypeError(
+                        f'Type <{prange}> of variable <{var}> is not valid, '
+                        f'must be an enum type in {set(self.rddl.enums.keys())} '
+                        f'or one of {set(RDDLTensors.DEFAULT_VALUES.keys())}.')   
+            
+            # create a tensor filled with init_values
             types = self.rddl.param_types[var]
             dtype = RDDLTensors.NUMPY_TYPES[prange]
             if types:
@@ -93,6 +121,7 @@ class RDDLTensors:
             else:
                 init_arrays[var] = dtype(init_values.get(var, default))
         
+        # log initial values to file
         if self.debug:
             tensor_info = '\n\t'.join(
                 (f'{k}{[] if self.rddl.is_grounded else self.rddl.param_types[k]}, '
@@ -262,7 +291,8 @@ class RDDLTensors:
                     return sample
             
             self._cached_transforms[transform_id] = _transform
-            
+        
+        # write mapping info to log file
         operation = gnp.einsum if use_einsum else (
                         gnp.transpose if use_tr else 'None')
         self.write_debug_message(
