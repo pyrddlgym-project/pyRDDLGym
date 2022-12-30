@@ -91,9 +91,14 @@ class RDDLDecompiler:
             pvar, *args = expr.args
             pred = self._decompile(pvar, False, level)
             cases = []
-            for _, (literal, arg) in args:
-                decompiled = self._decompile(arg, False, level + 1)
-                cases.append(f'case {literal} : {decompiled}')
+            for case_type, value in args:
+                if case_type == 'case':
+                    literal, arg = value
+                    decompiled = self._decompile(arg, False, level + 1)
+                    cases.append(f'case {literal} : {decompiled}')
+                else:  # default
+                    decompiled = self._decompile(value, False, level + 1)
+                    cases.append(f'default : {decompiled}')
             cases = f',\n{indent}'.join(cases)
             value = f'switch({pred}) {{ \n{indent}{cases}\n }}'
 
