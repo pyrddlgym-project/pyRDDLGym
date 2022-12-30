@@ -1,14 +1,14 @@
 non-fluents propdbn_nf {
     domain = PropDBN;
     objects {
-		param : { p1, p2, p3 };
+		param : { p1 };
 	};
 }
 
 instance inst_propdbn {
     domain = propdnb ;
     non-fluents = propdbn_nf;
-    init-state { p(p1) ; p(p2) ; p(p3) ; r(p1) ; r(p2) ; r(p3) ; };
+    init-state { p(p1) ; r(p1) ; };
     max-nondef-actions = 1;
     horizon = 20;
     discount = 0.9;
