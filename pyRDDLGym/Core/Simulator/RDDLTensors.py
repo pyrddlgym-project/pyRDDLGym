@@ -34,12 +34,6 @@ class RDDLTensors:
         self.rddl = rddl
         self.debug = debug
         
-        self.index_of_object, self.grounded, self.index_of_enum = \
-            self._compile_objects()
-        self.init_values = self._compile_init_values()
-        
-        self._cached_transforms = {}
-
         # clear the log file
         self.filename = f'debug_{rddl._AST.domain.name}_{rddl._AST.instance.name}.txt'
         if self.debug:
@@ -47,6 +41,12 @@ class RDDLTensors:
             fp.write('')
             fp.close()
             
+        self.index_of_object, self.grounded, self.index_of_enum = \
+            self._compile_objects()
+        self.init_values = self._compile_init_values()
+        
+        self._cached_transforms = {}
+
     def _compile_objects(self):
         grounded = {}
         for var, types in self.rddl.param_types.items():
