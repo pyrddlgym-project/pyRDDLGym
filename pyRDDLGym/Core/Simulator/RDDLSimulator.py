@@ -239,6 +239,9 @@ class RDDLSimulator:
                 raise RDDLInvalidActionError(
                     f'<{action}> is not a valid action-fluent.')
             
+            if value in self.rddl.enum_literals:
+                value = self.tensors.index_of_object[value]
+                
             if self.rddl.is_grounded:
                 new_actions[action] = value                
             else:
