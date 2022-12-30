@@ -401,9 +401,10 @@ class PlanningModel(metaclass=ABCMeta):
         
         elif etype == 'pvar':
             name = expr.args[0]
-            if name in self.enums_rev:
+            if name in self.enums_rev:  # enum literal
                 return True
-            else:
+            
+            else:  # non-enum variable
                 var = self.parse(name)[0]
                 var_type = self.variable_types.get(var, None)      
                 if var_type is None:

@@ -90,11 +90,6 @@ class RDDLLevelAnalysis:
                 elif var_type != 'non-fluent':
                     graph.setdefault(cpf, set()).add(name)
                 
-        elif expr.etype == ('control', 'switch'):
-            (_, (var, _)), *cases = expr.args
-            graph.setdefault(cpf, set()).add(var)
-            self._update_call_graph(graph, cpf, cases)
-                    
         elif not expr.is_constant_expression():
             for arg in expr.args:
                 self._update_call_graph(graph, cpf, arg)
