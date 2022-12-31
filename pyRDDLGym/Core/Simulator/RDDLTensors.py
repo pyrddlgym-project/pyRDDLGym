@@ -135,8 +135,8 @@ class RDDLTensors:
                 if obj not in index_of_obj:
                     raise RDDLInvalidObjectError(
                         f'Object <{obj}> is not valid, '
-                        f'must be one of {set(index_of_obj.keys())}.\n'
-                        f'{msg}')
+                        f'must be one of {set(index_of_obj.keys())}.'
+                        f'\n{msg}')
     
     def shape(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Given a list of RDDL types, returns the shape of a tensor
@@ -153,8 +153,8 @@ class RDDLTensors:
                 if ptype not in objects:
                     raise RDDLInvalidObjectError(
                         f'Type <{ptype}> is not valid, '
-                        f'must be one of {set(objects.keys())}.\n'
-                        f'{msg}')
+                        f'must be one of {set(objects.keys())}.'
+                        f'\n{msg}')
             
     def write_debug_message(self, msg: str) -> None:
         if self.debug:
@@ -208,7 +208,7 @@ class RDDLTensors:
         n_out = len(sign_out)
         if n_out > len(valid_symbols):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'At most {len(valid_symbols)} parameters/variable are supported, '
+                f'At most {len(valid_symbols)} parameter arguments are supported '
                 f'but variable <{var}> has {n_out} arguments.'
                 f'\n{msg}')
         
@@ -234,7 +234,7 @@ class RDDLTensors:
                 new_dims.append(len(self.rddl.objects[t_out]))
                 
         # safeguard against any free remaining variables not accounted for
-        free = {sign_in[i][0] for i, p in enumerate(permutation) if p is None}
+        free = {obj_in[i] for i, p in enumerate(permutation) if p is None}
         if free:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> has unresolved parameter(s) {free}.'
@@ -325,9 +325,8 @@ class RDDLTensors:
                 enum_type = self.rddl.objects_rev[pvar]
                 if types_in[i] != enum_type: 
                     raise RDDLInvalidObjectError(
-                        f'Argument {i + 1} of variable <{var}> '
-                        f'expects type <{types_in[i]}>, '
-                        f'got <{pvar}> of type <{enum_type}>.'
+                        f'Argument {i + 1} of variable <{var}> expects type '
+                        f'<{types_in[i]}>, got <{pvar}> of type <{enum_type}>.'
                         f'\n{msg}')
                 slice_object = self.index_of_object[pvar]
                 literals.add(i)
