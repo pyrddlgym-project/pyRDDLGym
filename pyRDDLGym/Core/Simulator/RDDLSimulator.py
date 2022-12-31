@@ -132,7 +132,8 @@ class RDDLSimulator:
             'pow': np.power,
             'log': lambda x, y: np.log(x) / np.log(y)
         }
-        self.CONTROL_OPS = {'if', 'switch'}
+        self.CONTROL_OPS = {'if': np.where,
+                            'switch': np.select}
     
     @property
     def states(self) -> Args:
@@ -184,7 +185,8 @@ class RDDLSimulator:
     def _check_op(op, valid, msg, expr):
         if op not in valid:
             raise RDDLNotImplementedError(
-                f'{msg} operator {op} is not supported: must be in {valid}.\n' + 
+                f'{msg} operator {op} is not supported: '
+                f'must be in {set(valid.keys())}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
