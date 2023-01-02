@@ -100,28 +100,28 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         jax_cpfs = {}
         for _, cpfs in self.levels.items():
             for cpf in cpfs:
-                objects, expr = self.rddl.cpfs[cpf]
+                _, expr = self.rddl.cpfs[cpf]
                 dtype = JaxRDDLCompiler.JAX_TYPES['real']
-                jax_cpfs[cpf] = self._jax(expr, objects, dtype=dtype)
+                jax_cpfs[cpf] = self._jax(expr, dtype=dtype)
         return jax_cpfs
     
-    def _jax_logical(self, expr, objects):
+    def _jax_logical(self, expr):
         _, op = expr.etype
         warnings.warn(f'Logical operator {op} uses fuzzy logic.', stacklevel=2)        
-        return super(JaxRDDLCompilerWithGrad, self)._jax_logical(expr, objects)
+        return super(JaxRDDLCompilerWithGrad, self)._jax_logical(expr)
     
-    def _jax_aggregation(self, expr, objects):
+    def _jax_aggregation(self, expr):
         _, op = expr.etype
         warnings.warn(f'Aggregation operator {op} uses fuzzy logic.', stacklevel=2)        
-        return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr, objects)
+        return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr)
         
-    def _jax_control(self, expr, objects):
+    def _jax_control(self, expr):
         _, op = expr.etype
         warnings.warn(f'Control operator {op} uses fuzzy logic.', stacklevel=2)        
-        return super(JaxRDDLCompilerWithGrad, self)._jax_control(expr, objects)
+        return super(JaxRDDLCompilerWithGrad, self)._jax_control(expr)
 
-    def _jax_kron(self, expr, objects):
+    def _jax_kron(self, expr):
         warnings.warn('KronDelta will be ignored.', stacklevel=2)                       
         arg, = expr.args
-        arg = self._jax(arg, objects)
+        arg = self._jax(arg)
         return arg

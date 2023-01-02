@@ -33,10 +33,8 @@ class JaxRDDLSimulator(RDDLSimulator):
         # static analysis and compilation
         compiled = JaxRDDLCompiler(rddl, **compiler_args)
         compiled.compile()
-        self.compiled = compiled
-        self.static = compiled.static
         self.levels = compiled.levels
-        self.tensors = compiled.tensors
+        self.traced = compiled.traced
         
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
@@ -71,8 +69,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         '''Throws an exception if the state invariants are not satisfied.'''
         for i, invariant in enumerate(self.invariants):
             sample, self.key, error = invariant(self.subs, self.key)
-            self.handle_error_code(error, f'invariant {i + 1}')
-            
+            self.handle_error_code(error, f'invariant {i + 1}')            
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
                     f'Invariant {i + 1} is not satisfied.')
@@ -85,8 +82,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         for i, precond in enumerate(self.preconds):
             sample, self.key, error = precond(self.subs, self.key)
-            self.handle_error_code(error, f'precondition {i + 1}')
-            
+            self.handle_error_code(error, f'precondition {i + 1}')            
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
                     f'Precondition {i + 1} is not satisfied.')
@@ -95,8 +91,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         '''return True if a terminal state has been reached.'''
         for i, terminal in enumerate(self.terminals):
             sample, self.key, error = terminal(self.subs, self.key)
-            self.handle_error_code(error, f'termination {i + 1}')           
-             
+            self.handle_error_code(error, f'termination {i + 1}')
             if bool(sample):
                 return True
         return False
@@ -126,20 +121,20 @@ class JaxRDDLSimulator(RDDLSimulator):
         reward = self.sample_reward()
         
         # update state
+        states = {}
         for next_state, state in self.next_states.items():
-            subs[state] = subs[next_state]
-        self.state = {}
-        for var in self.next_states.values():
-            self.state.update(self.tensors.expand(var, subs[var]))
+            value = subs[state] = subs[next_state]
+            states.update(self.traced.expand(state, value))
         
         # update observation
         if self._pomdp: 
             obs = {}
             for var in self.observ_fluents:
-                obs.update(self.tensors.expand(var, subs[var]))
+                obs.update(self.traced.expand(var, subs[var]))
         else:
-            obs = self.state
+            obs = states
         
+        self.state = states
         done = self.check_terminal_states()        
         return obs, reward, done
         
