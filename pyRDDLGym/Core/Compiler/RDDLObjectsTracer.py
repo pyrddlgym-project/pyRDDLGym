@@ -257,7 +257,7 @@ class RDDLObjectsTracer:
             
         if self.rddl.is_grounded: 
             # grounded domain only returns a scalar (e.g. array with one elem)
-            expr.cached_sim_info = np.asarray(const)
+            expr.cached_sim_info = const
         else: 
             # argument is reshaped to match the free variables "objects"
             expr.cached_sim_info = self._array_from_scalar(const, objects)
@@ -272,7 +272,7 @@ class RDDLObjectsTracer:
             const = self.index_of_object[var]
             if self.rddl.is_grounded: 
                 # grounded domain only returns a scalar
-                expr.cached_sim_info = np.asarray(const)
+                expr.cached_sim_info = const
             else: 
                 # argument reshaped to match the free variables "objects"
                 expr.cached_sim_info = self._array_from_scalar(const, objects)
@@ -280,12 +280,15 @@ class RDDLObjectsTracer:
             # store the enum type info
             expr.enum_type = self.rddl.objects_rev[var]            
         else: 
-            # enum literal args converted to int and slice the array
-            # then array reshaped to match the free variables "objects"
-            msg = RDDLObjectsTracer._print_stack_trace(expr)
-            slices, literals = self._slice(var, pvars, msg=msg)
-            transform = self._map(var, pvars, objects, literals, msg=msg)
-            expr.cached_sim_info = (slices, transform)
+            if self.rddl.is_grounded:
+                expr.cached_sim_info = None
+            else:
+                # enum literal args converted to int and slice the array
+                # then array reshaped to match the free variables "objects"
+                msg = RDDLObjectsTracer._print_stack_trace(expr)
+                slices, literals = self._slice(var, pvars, msg=msg)
+                transform = self._map(var, pvars, objects, literals, msg=msg)
+                expr.cached_sim_info = (slices, transform)
             
             # store the enum type info
             base_var = self.rddl.parse(var)[0]

@@ -229,8 +229,11 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _process_actions(self, actions):
-        new_actions = {action: np.copy(value) 
-                       for action, value in self.noop_actions.items()}
+        if self.rddl.is_grounded:
+            new_actions = self.noop_actions.copy()
+        else:
+            new_actions = {action: np.copy(value) 
+                           for action, value in self.noop_actions.items()}
         
         for action, value in actions.items(): 
             if action not in self.rddl.actions:
@@ -405,14 +408,11 @@ class RDDLSimulator:
                 f'Variable <{var}> is referenced before assignment.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
         
-        # grounded domain returns value tensor directly
-        if self.rddl.is_grounded:
-            return np.asarray(sample)
-        
         # lifted domain must slice and/or reshape value tensor
-        slices, transform = expr.cached_sim_info
-        sample = sample[slices]
-        sample = transform(sample)
+        if not self.rddl.is_grounded:
+            slices, transform = expr.cached_sim_info
+            sample = sample[slices]
+            sample = transform(sample)
         return sample
     
     # ===========================================================================
@@ -469,18 +469,18 @@ class RDDLSimulator:
         for arg in args:  # go through simple expressions first
             if arg.is_constant_expression() or arg.is_pvariable_expression():
                 sample = self._sample(arg, subs)
-                prod *= sample.item()
+                prod *= sample
                 if prod == 0:
-                    return np.asarray(prod)
+                    return prod
                 
         for arg in args:  # go through complex expressions last
             if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
                 sample = self._sample(arg, subs)
-                prod *= sample.item()
+                prod *= sample
                 if prod == 0:
-                    return np.asarray(prod)
+                    return prod
                 
-        return np.asarray(prod)
+        return prod
         
     # ===========================================================================
     # boolean
@@ -560,9 +560,9 @@ class RDDLSimulator:
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
                 if (not sample) and op == '^':
-                    return np.asarray(False)
+                    return False
                 elif sample and op == '|':
-                    return np.asarray(True)
+                    return True
             
         for i, arg in enumerate(args):  # go through complex expressions last
             if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
@@ -570,11 +570,11 @@ class RDDLSimulator:
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
                 if (not sample) and op == '^':
-                    return np.asarray(False)
+                    return False
                 elif sample and op == '|':
-                    return np.asarray(True)
+                    return True
             
-        return np.asarray(op == '^')
+        return (op == '^')
             
     # ===========================================================================
     # aggregation
@@ -647,7 +647,8 @@ class RDDLSimulator:
         sample_pred = self._sample(pred, subs)
         RDDLSimulator._check_type(sample_pred, bool, 'If predicate', expr)
         
-        first_elem = sample_pred.flat[0]
+        first_elem = bool(sample_pred if self.rddl.is_grounded \
+                          else sample_pred.flat[0])
         if np.all(sample_pred == first_elem):  # can short circuit
             arg = arg1 if first_elem else arg2
             return self._sample(arg, subs)
@@ -663,7 +664,8 @@ class RDDLSimulator:
             sample_pred, RDDLObjectsTracer.INT, 'Switch predicate', expr)
         
         cases, default = expr.cached_sim_info   
-        first_elem = sample_pred.flat[0]
+        first_elem = int(sample_pred if self.rddl.is_grounded \
+                         else sample_pred.flat[0])
         if np.all(sample_pred == first_elem):  # can short circuit
             arg = cases[first_elem]
             if arg is None:
@@ -769,7 +771,8 @@ class RDDLSimulator:
         pr, = args
         sample_pr = self._sample(pr, subs)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'Bernoulli p', expr)
-        return self.rng.uniform(size=sample_pr.shape) <= sample_pr
+        size = None if self.rddl.is_grounded else sample_pr.shape
+        return self.rng.uniform(size=size) <= sample_pr
     
     def _sample_normal(self, expr, subs):
         args = expr.args
@@ -913,7 +916,8 @@ class RDDLSimulator:
         sample_mean = self._sample(mean, subs)
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_scale, True, 'Cauchy scale', expr)
-        cauchy01 = self.rng.standard_cauchy(size=sample_mean.shape)
+        size = None if self.rddl.is_grounded else sample_mean.shape
+        cauchy01 = self.rng.standard_cauchy(size=size)
         return sample_mean + sample_scale * cauchy01
     
     def _sample_gompertz(self, expr, subs):
@@ -925,7 +929,8 @@ class RDDLSimulator:
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Gompertz shape', expr)
         RDDLSimulator._check_positive(sample_scale, True, 'Gompertz scale', expr)
-        U = self.rng.uniform(size=sample_shape.shape)
+        size = None if self.rddl.is_grounded else sample_shape.shape
+        U = self.rng.uniform(size=size)
         return np.log(1.0 - np.log1p(-U) / sample_shape) / sample_scale
     
     def _sample_discrete(self, expr, subs):
