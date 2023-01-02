@@ -43,6 +43,12 @@ class RDDLSimulator:
         self.traced = RDDLObjectsTracer(rddl, tensorlib=np, debug=debug)
         self.traced.trace()
         
+        # log levels
+        levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                  for (k, v) in self.levels.items())
+        self.traced._append_log(f'computed order of CPF evaluation:\n' 
+                                    f'\t{levels_info}\n')
+        
         # initialize all fluent and non-fluent values
         self.init_values = self.traced.init_values
         self.subs = self.init_values.copy()

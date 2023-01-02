@@ -48,6 +48,12 @@ class JaxRDDLCompiler:
         self.traced = RDDLObjectsTracer(rddl, tensorlib=jnp, debug=debug)
         self.traced.trace()
         
+        # log levels
+        levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                  for (k, v) in self.levels.items())
+        self.traced._append_log(f'computed order of CPF evaluation:\n' 
+                                    f'\t{levels_info}\n')
+        
         # initialize all fluent and non-fluent values
         self.init_values = self.traced.init_values
         self.next_states = {var + '\'': var
@@ -396,11 +402,14 @@ class JaxRDDLCompiler:
         
         if var in self.rddl.enum_literals:
             
+            # enum literal is converted to canonical integer index
             def _f(_, key):
                 sample = jnp.asarray(expr.cached_sim_info)
                 return sample, key, ERR
         
         else: 
+            
+            # must slice and/or reshape value tensor to match free variables
             slices, transform = expr.cached_sim_info
             
             def _f(x, key):
@@ -514,6 +523,7 @@ class JaxRDDLCompiler:
     def _jax_functional(self, expr):
         _, op = expr.etype
         
+        # unary function
         if op in self.KNOWN_UNARY:
             JaxRDDLCompiler._check_num_args(expr, 1)                            
             arg, = expr.args
@@ -521,6 +531,7 @@ class JaxRDDLCompiler:
             jax_op = self.KNOWN_UNARY[op]
             return JaxRDDLCompiler._jax_unary(jax_expr, jax_op)
             
+        # binary function
         elif op in self.KNOWN_BINARY:
             JaxRDDLCompiler._check_num_args(expr, 2)                
             lhs, rhs = expr.args
