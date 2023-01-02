@@ -152,6 +152,9 @@ class RDDLLevelAnalysis:
         graph = self.build_call_graph()
         order = RDDLLevelAnalysis._topological_sort(graph)
         
+        # use the graph structure to group CPFs into levels 0, 1, 2, ...
+        # two CPFs in the same level cannot depend on each other
+        # a CPF can only depend on another CPF of a lower level than it
         levels, result = {}, {}
         for var in order:
             if var in self.rddl.cpfs:

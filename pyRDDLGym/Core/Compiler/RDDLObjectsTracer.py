@@ -37,6 +37,13 @@ class RDDLObjectsTracer:
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
     def __init__(self, rddl: RDDLModel, tensorlib=np, debug: bool=False):
+        '''Creates a new objects tracer object for the given RDDL domain.
+        
+        :param rddl: the RDDL domain to trace
+        :param tensorlib: whether to use np (numpy) or jax.numpy (jax) for tensor
+        arithmetic (einsum, transpose, etc.)
+        :param debug: whether to log tracer information to a .log file
+        '''
         self.rddl = rddl
         self.tensorlib = tensorlib
         self.debug = debug   
@@ -211,6 +218,10 @@ class RDDLObjectsTracer:
     # ===========================================================================
     
     def trace(self):
+        '''Compiles objects and initial value tensors for the given RDDL. Then
+        traces all expressions in the CPF block and all constraints to annotate
+        AST nodes with object information.
+        '''
         self._clear_log()        
         self._compile_objects()
         self._compile_init_values()  
@@ -311,7 +322,8 @@ class RDDLObjectsTracer:
         '''
         if pvars is None:
             pvars = []
-            
+        
+        # check that the number of pvariable arguments matches definition
         types_in = self.rddl.param_types.get(var, [])
         if len(pvars) != len(types_in):
             raise RDDLInvalidNumberOfArgumentsError(
@@ -324,14 +336,21 @@ class RDDLObjectsTracer:
         for (i, pvar) in enumerate(pvars):
             if pvar in self.rddl.enum_literals:
                 enum_type = self.rddl.objects_rev[pvar]
+                
+                # check that the enum type argument is correct
                 if types_in[i] != enum_type: 
                     raise RDDLInvalidObjectError(
                         f'Argument {i + 1} of variable <{var}> expects type '
                         f'<{types_in[i]}>, got <{pvar}> of type <{enum_type}>.'
                         f'\n{msg}')
+                
+                # an enum literal argument (e.g., @x) corresponds to slicing
+                # value tensor at this axis with canonical index of the literal  
                 slice_object = self.index_of_object[pvar]
                 literals.add(i)
             else:
+                # a proper type argument (e.g., ?x) corresponds to NOT slicing
+                # value tensor at all (e.g., by using :) at this axis
                 slice_object = slice(None)
             cached_slices.append(slice_object)
         cached_slices = tuple(cached_slices)
