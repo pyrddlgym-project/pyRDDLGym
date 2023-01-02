@@ -438,7 +438,13 @@ class RDDLSimulator:
             else:
                 sample_lhs = 1 * self._sample(lhs, subs)
                 sample_rhs = 1 * self._sample(rhs, subs)
-                return numpy_op(sample_lhs, sample_rhs)
+                try:
+                    return numpy_op(sample_lhs, sample_rhs)
+                except:
+                    raise ArithmeticError(
+                        f'Cannot execute arithmetic operation {op} '
+                        f'with arguments {sample_lhs} and {sample_rhs}.\n' +
+                        RDDLSimulator._print_stack_trace(expr))
         
         elif self.rddl.is_grounded and n > 0:
             if op == '*':
