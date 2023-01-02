@@ -1008,13 +1008,18 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
 
         for name, bounds in self._bounds.items():
             RDDLSimulator._check_bounds(*bounds, f'Variable <{name}>', bounds)
-
+            
+        # log bounds to file
+        bounds_info = '\n\t'.join(f'{k}: {v}' for (k, v) in self._bounds.items())
+        self.traced._append_log(f'computed simulation bounds:\n' 
+                                    f'\t{bounds_info}\n')
+        
     def _parse_bounds(self, expr, objects, search_vars):
         etype, op = expr.etype
         
         if etype == 'aggregation' and op == 'forall' and not self.rddl.is_grounded:
-            * _, arg = expr.args
-            new_objects, _ = expr.cached_sim_info
+            * pargs, arg = expr.args
+            new_objects = objects + [parg for (_, parg) in pargs]
             self._parse_bounds(arg, new_objects, search_vars)
             
         elif etype == 'boolean' and op == '^':
