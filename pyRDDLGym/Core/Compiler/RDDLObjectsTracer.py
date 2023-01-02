@@ -438,9 +438,9 @@ class RDDLObjectsTracer:
         # check if the tensor transform with the given signature already exists
         # if yes, retrieve it from the cache; if no, create it and cache it
         _id = f'{new_axis}_{out_shape}_{use_einsum}_{use_tr}_{subscripts}'
-        _transform = self._cached_transforms.get(_id, None)        
+        _transform = self._cached_transforms.get(_id, None)     
+        mynp = self.tensorlib   
         if _transform is None:
-            mynp = self.tensorlib
             
             def _transform(arg):
                 sample = arg
@@ -456,8 +456,8 @@ class RDDLObjectsTracer:
             self._cached_transforms[_id] = _transform
         
         # log information about the new transformation
-        operation = self.tensorlib.einsum if use_einsum else (
-                        self.tensorlib.transpose if use_tr else 'None')
+        operation = mynp.einsum if use_einsum else (
+                        mynp.transpose if use_tr else 'None')
         self._append_log(
             f'computing info for filling missing pvariable arguments:' 
                 f'\n\tvar           ={var}'
@@ -677,7 +677,16 @@ class RDDLObjectsTracer:
                         f'Enum literal <{enum_values[i]}> of type <{enum_type}> '
                         f'is missing in case list.\n' + 
                         RDDLObjectsTracer._print_stack_trace(expr))
-            
+        
+        # log cases ordering
+        active_expr = [i for i, v in enumerate(expressions) if v is not None]
+        self._append_log(
+            f'computing case info for {expr.etype[1]}:'
+                f'\n\tenum type ={enum_type}'
+                f'\n\tcases     ={active_expr}'
+                f'\n\tdefault   ={default_expr is not None}\n'
+        )     
+        
         return (expressions, default_expr)
     
     # ===========================================================================
