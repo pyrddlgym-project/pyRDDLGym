@@ -229,20 +229,26 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _process_actions(self, actions):
+        
+        # initialize new_actions with no-op actions
         if self.rddl.is_grounded:
             new_actions = self.noop_actions.copy()
         else:
             new_actions = {action: np.copy(value) 
                            for action, value in self.noop_actions.items()}
         
+        # override new_actions with any new actions
         for action, value in actions.items(): 
             if action not in self.rddl.actions:
                 raise RDDLInvalidActionError(
                     f'<{action}> is not a valid action-fluent.')
             
+            # enum literals are converted to their canonical int indices
             if value in self.rddl.enum_literals:
                 value = self.traced.index_of_object[value]
-                
+            
+            # for a grounded domain, the value is assigned as-is
+            # for a lifted domain, assign to value tensor at correct coordinate
             if self.rddl.is_grounded:
                 new_actions[action] = value                
             else:
@@ -384,7 +390,7 @@ class RDDLSimulator:
             return self._sample_random(expr, subs)
         else:
             raise RDDLNotImplementedError(
-                f'Internal error: expression type is not supported.\n' +
+                f'Internal error: expression type is not supported.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
                 
     # ===========================================================================
@@ -431,6 +437,7 @@ class RDDLSimulator:
             arg, = args
             return -1 * self._sample(arg, subs)
         
+        # for * try to short-circuit if possible
         elif n == 2:
             lhs, rhs = args
             if op == '*':
@@ -443,9 +450,10 @@ class RDDLSimulator:
                 except:
                     raise ArithmeticError(
                         f'Cannot execute arithmetic operation {op} '
-                        f'with arguments {sample_lhs} and {sample_rhs}.\n' +
+                        f'with arguments {sample_lhs} and {sample_rhs}.\n' + 
                         RDDLSimulator._print_stack_trace(expr))
         
+        # for a grounded domain, we can short-circuit * and +
         elif self.rddl.is_grounded and n > 0:
             if op == '*':
                 return self._sample_product_grounded(args, subs)
@@ -464,7 +472,9 @@ class RDDLSimulator:
             lhs, rhs = rhs, lhs
             
         sample_lhs = 1 * self._sample(lhs, subs)
-        if not np.any(sample_lhs):  # short circuit if all zero
+        
+        # short circuit if all zero
+        if not np.any(sample_lhs):
             return sample_lhs
             
         sample_rhs = self._sample(rhs, subs)
@@ -472,14 +482,17 @@ class RDDLSimulator:
     
     def _sample_product_grounded(self, args, subs):
         prod = 1
-        for arg in args:  # go through simple expressions first
+        
+        # go through simple expressions first
+        for arg in args:  
             if arg.is_constant_expression() or arg.is_pvariable_expression():
                 sample = self._sample(arg, subs)
                 prod *= sample
                 if prod == 0:
                     return prod
-                
-        for arg in args:  # go through complex expressions last
+        
+        # go through complex expressions last
+        for arg in args:  
             if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
                 sample = self._sample(arg, subs)
                 prod *= sample
@@ -520,6 +533,7 @@ class RDDLSimulator:
             RDDLSimulator._check_type(sample, bool, op, expr, arg='')
             return np.logical_not(sample)
         
+        # try to short-circuit ^ and | if possible
         elif n == 2:
             if op == '^' or op == '|':
                 return self._sample_and_or(args, op, expr, subs)
@@ -531,6 +545,7 @@ class RDDLSimulator:
                 RDDLSimulator._check_type(sample_rhs, bool, op, expr, arg=2)
                 return numpy_op(sample_lhs, sample_rhs)
         
+        # for a grounded domain, we can short-circuit ^ and |
         elif self.rddl.is_grounded and n > 0 and (op == '^' or op == '|'):
             return self._sample_and_or_grounded(args, op, expr, subs)
             
@@ -541,12 +556,15 @@ class RDDLSimulator:
     
     def _sample_and_or(self, args, op, expr, subs):
         lhs, rhs = args
+        
+        # prioritize simple expressions
         if rhs.is_constant_expression() or rhs.is_pvariable_expression():
-            lhs, rhs = rhs, lhs  # prioritize simple expressions
+            lhs, rhs = rhs, lhs 
             
         sample_lhs = self._sample(lhs, subs)
         RDDLSimulator._check_type(sample_lhs, bool, op, expr, arg=1)
-            
+        
+        # short-circuit if all True/False
         if (op == '^' and not np.any(sample_lhs)) \
         or (op == '|' and np.all(sample_lhs)):
             return sample_lhs
@@ -560,7 +578,9 @@ class RDDLSimulator:
             return np.logical_or(sample_lhs, sample_rhs)
     
     def _sample_and_or_grounded(self, args, op, expr, subs): 
-        for i, arg in enumerate(args):  # go through simple expressions first
+        
+        # go through simple expressions first
+        for i, arg in enumerate(args):
             if arg.is_constant_expression() or arg.is_pvariable_expression():
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
@@ -569,8 +589,9 @@ class RDDLSimulator:
                     return False
                 elif sample and op == '|':
                     return True
-            
-        for i, arg in enumerate(args):  # go through complex expressions last
+        
+        # go through complex expressions last
+        for i, arg in enumerate(args):
             if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
@@ -613,6 +634,7 @@ class RDDLSimulator:
         _, name = expr.etype
         args = expr.args
         
+        # unary function
         unary_op = self.UNARY.get(name, None)
         if unary_op is not None:
             RDDLSimulator._check_arity(args, 1, name, expr)
@@ -620,6 +642,7 @@ class RDDLSimulator:
             sample = 1 * self._sample(arg, subs)
             return unary_op(sample)
         
+        # binary function
         binary_op = self.BINARY.get(name, None)
         if binary_op is not None:
             RDDLSimulator._check_arity(args, 2, name, expr)
@@ -653,9 +676,12 @@ class RDDLSimulator:
         sample_pred = self._sample(pred, subs)
         RDDLSimulator._check_type(sample_pred, bool, 'If predicate', expr)
         
+        # can short circuit if all elements of predicate tensor equal
         first_elem = bool(sample_pred if self.rddl.is_grounded \
                           else sample_pred.flat[0])
-        if np.all(sample_pred == first_elem):  # can short circuit
+        all_equal = np.all(sample_pred == first_elem)
+        
+        if all_equal:
             arg = arg1 if first_elem else arg2
             return self._sample(arg, subs)
         else:
@@ -669,10 +695,13 @@ class RDDLSimulator:
         RDDLSimulator._check_type(
             sample_pred, RDDLObjectsTracer.INT, 'Switch predicate', expr)
         
+        # can short circuit if all elements of predicate tensor equal
         cases, default = expr.cached_sim_info   
         first_elem = int(sample_pred if self.rddl.is_grounded \
                          else sample_pred.flat[0])
-        if np.all(sample_pred == first_elem):  # can short circuit
+        all_equal = np.all(sample_pred == first_elem)
+        
+        if all_equal:
             arg = cases[first_elem]
             if arg is None:
                 arg = default

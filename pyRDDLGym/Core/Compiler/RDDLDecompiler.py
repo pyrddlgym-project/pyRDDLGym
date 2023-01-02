@@ -20,9 +20,18 @@ class RDDLDecompiler:
         return value
 
     def decompile_expr(self, expr: Expression) -> str:
+        '''Converts an AST expression to a string representing valid RDDL code.
+        
+        :param expr: the expression to convert
+        '''
         return self._decompile(expr, False, 0)
     
     def decompile_cpf(self, cpf: CPF) -> str:
+        '''Converts a CPF object to its equivalent string as it would appear in
+        the cpfs {...} block in a RDDL domain description. 
+        
+        :param cpf: the CPF object to convert
+        '''
         lhs = self._symbolic(*cpf.pvar[1])
         rhs = self.decompile_expr(cpf.expr)
         return f'{lhs} = {rhs};'
