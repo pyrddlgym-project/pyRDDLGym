@@ -3,6 +3,9 @@ from pyRDDLGym.Core.Parser.cpf import CPF
 
 
 class RDDLDecompiler:
+    '''Converts AST representation (e.g., Expression) to a string that represents
+    the corresponding expression in RDDL.
+    '''
     
     def _symbolic(self, value, params):
         value = str(value)
@@ -104,7 +107,7 @@ class RDDLDecompiler:
         if enclose: 
             value = f'( {value} )'
         return value
-                
+    
     def _decompile_random(self, expr, enclose, level):
         _, op = expr.etype
         

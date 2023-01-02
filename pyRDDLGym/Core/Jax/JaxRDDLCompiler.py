@@ -2,20 +2,23 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
+import jax.scipy as jscipy
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
+from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Simulator.RDDLTensors import RDDLTensors
 
 
 class JaxRDDLCompiler:
+    '''Compiles a RDDL AST representation into an equivalent JAX representation.
+    All operations are identical to their numpy equivalents.
+    '''
     
     INT = jnp.int32
     REAL = jnp.float32
@@ -40,12 +43,13 @@ class JaxRDDLCompiler:
         jax.config.update('jax_log_compiles', self.debug)
         
         # static analysis and compilation
-        self.static = RDDLLevelAnalysis(rddl, allow_synchronous_state)
-        self.levels = self.static.compute_levels()
-        self.tensors = RDDLTensors(rddl, debug=debug)
+        sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
+        self.levels = sorter.compute_levels()
+        self.traced = RDDLObjectsTracer(rddl, tensorlib=jnp, debug=debug)
+        self.traced.trace()
         
         # initialize all fluent and non-fluent values
-        self.init_values = self.tensors.init_values
+        self.init_values = self.traced.init_values
         self.next_states = {var + '\'': var
                             for var, ftype in rddl.variable_types.items()
                             if ftype == 'state-fluent'}
@@ -101,8 +105,8 @@ class JaxRDDLCompiler:
             'exp': jnp.exp,
             'ln': jnp.log,
             'sqrt': jnp.sqrt,
-            'lngamma': jax.scipy.special.gammaln,
-            'gamma': lambda x: jnp.exp(jax.scipy.special.gammaln(x))
+            'lngamma': jscipy.special.gammaln,
+            'gamma': lambda x: jnp.exp(jscipy.special.gammaln(x))
         }        
         self.KNOWN_BINARY = {
             'div': jnp.floor_divide,
@@ -128,24 +132,24 @@ class JaxRDDLCompiler:
         self.reward = self._compile_reward()
     
     def _compile_constraints(self, constraints):
-        return [self._jax(c, [], dtype=bool) for c in constraints]
+        return [self._jax(c, dtype=bool) for c in constraints]
         
     def _compile_cpfs(self):
         jax_cpfs = {}
         for cpfs in self.levels.values():
             for cpf in cpfs:
-                objects, expr = self.rddl.cpfs[cpf]
+                _, expr = self.rddl.cpfs[cpf]
                 prange = self.rddl.variable_ranges[cpf]
                 if prange not in JaxRDDLCompiler.JAX_TYPES:
                     raise RDDLTypeError(
                         f'Type <{prange}> of CPF <{cpf}> is not valid, '
                         f'must be one of {set(JaxRDDLCompiler.JAX_TYPES.keys())}.')
                 dtype = JaxRDDLCompiler.JAX_TYPES[prange]
-                jax_cpfs[cpf] = self._jax(expr, objects, dtype=dtype)
+                jax_cpfs[cpf] = self._jax(expr, dtype=dtype)
         return jax_cpfs
     
     def _compile_reward(self):
-        return self._jax(self.rddl.reward, [], dtype=JaxRDDLCompiler.REAL)
+        return self._jax(self.rddl.reward, dtype=JaxRDDLCompiler.REAL)
     
     def compile_rollouts(self, policy, n_steps: int, n_batch: int,
                          check_constraints: bool=False):
@@ -331,26 +335,26 @@ class JaxRDDLCompiler:
     # expression compilation
     # ===========================================================================
     
-    def _jax(self, expr, objects, dtype=None):
+    def _jax(self, expr, dtype=None):
         etype, _ = expr.etype
         if etype == 'constant':
-            jax_expr = self._jax_constant(expr, objects)
+            jax_expr = self._jax_constant(expr)
         elif etype == 'pvar':
-            jax_expr = self._jax_pvar(expr, objects)
+            jax_expr = self._jax_pvar(expr)
         elif etype == 'arithmetic':
-            jax_expr = self._jax_arithmetic(expr, objects)
+            jax_expr = self._jax_arithmetic(expr)
         elif etype == 'relational':
-            jax_expr = self._jax_relational(expr, objects)
+            jax_expr = self._jax_relational(expr)
         elif etype == 'boolean':
-            jax_expr = self._jax_logical(expr, objects)
+            jax_expr = self._jax_logical(expr)
         elif etype == 'aggregation':
-            jax_expr = self._jax_aggregation(expr, objects)
+            jax_expr = self._jax_aggregation(expr)
         elif etype == 'func':
-            jax_expr = self._jax_functional(expr, objects)
+            jax_expr = self._jax_functional(expr)
         elif etype == 'control':
-            jax_expr = self._jax_control(expr, objects)
+            jax_expr = self._jax_control(expr)
         elif etype == 'randomvar':
-            jax_expr = self._jax_random(expr, objects)
+            jax_expr = self._jax_random(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression {expr} is not supported.\n' + 
@@ -377,29 +381,33 @@ class JaxRDDLCompiler:
     # leaves
     # ===========================================================================
     
-    def _jax_constant(self, expr, objects):
+    def _jax_constant(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        shape = tuple(len(self.rddl.objects[ptype]) for _, ptype in objects)
-        const = expr.args
         
         def _f(_, key):
-            sample = jnp.full(shape=shape, fill_value=const)
+            sample = jnp.asarray(expr.cached_sim_info)
             return sample, key, ERR
 
         return _f
     
-    def _jax_pvar(self, expr, objects):
+    def _jax_pvar(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        var, pvars = expr.args            
-        transform = self.tensors.map(
-            var, pvars, objects, [],
-            gnp=jnp,
-            msg=JaxRDDLCompiler._print_stack_trace(expr))
+        var, _ = expr.args  
         
-        def _f(x, key):
-            val = jnp.asarray(x[var])
-            sample = transform(val)
-            return sample, key, ERR
+        if var in self.rddl.enum_literals:
+            
+            def _f(_, key):
+                sample = jnp.asarray(expr.cached_sim_info)
+                return sample, key, ERR
+        
+        else: 
+            slices, transform = expr.cached_sim_info
+            
+            def _f(x, key):
+                sample = jnp.asarray(x[var])
+                sample = sample[slices]
+                sample = transform(sample)
+                return sample, key, ERR
         
         return _f
     
@@ -411,8 +419,8 @@ class JaxRDDLCompiler:
     def _jax_unary(jax_expr, jax_op):
         
         def _f(x, key):
-            val, key, err = jax_expr(x, key)
-            sample = jax_op(val)
+            sample, key, err = jax_expr(x, key)
+            sample = jax_op(sample)
             return sample, key, err
         
         return _f
@@ -421,15 +429,15 @@ class JaxRDDLCompiler:
     def _jax_binary(jax_lhs, jax_rhs, jax_op):
         
         def _f(x, key):
-            val1, key, err1 = jax_lhs(x, key)
-            val2, key, err2 = jax_rhs(x, key)
-            sample = jax_op(val1, val2)
+            sample1, key, err1 = jax_lhs(x, key)
+            sample2, key, err2 = jax_rhs(x, key)
+            sample = jax_op(sample1, sample2)
             err = err1 | err2
             return sample, key, err
         
         return _f
         
-    def _jax_arithmetic(self, expr, objects):
+    def _jax_arithmetic(self, expr):
         _, op = expr.etype
         valid_ops = self.ARITHMETIC_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
@@ -439,31 +447,31 @@ class JaxRDDLCompiler:
         
         if n == 1 and op == '-':
             arg, = args
-            jax_expr = self._jax(arg, objects)
+            jax_expr = self._jax(arg)
             return JaxRDDLCompiler._jax_unary(jax_expr, jnp.negative)
                     
         elif n == 2:
             lhs, rhs = args
-            jax_lhs = self._jax(lhs, objects)
-            jax_rhs = self._jax(rhs, objects)
+            jax_lhs = self._jax(lhs)
+            jax_rhs = self._jax(rhs)
             jax_op = valid_ops[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
         JaxRDDLCompiler._check_num_args(expr, 2)
     
-    def _jax_relational(self, expr, objects):
+    def _jax_relational(self, expr):
         _, op = expr.etype
         valid_ops = self.RELATIONAL_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         lhs, rhs = expr.args
-        jax_lhs = self._jax(lhs, objects)
-        jax_rhs = self._jax(rhs, objects)
+        jax_lhs = self._jax(lhs)
+        jax_rhs = self._jax(rhs)
         jax_op = valid_ops[op]
         return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
            
-    def _jax_logical(self, expr, objects):
+    def _jax_logical(self, expr):
         _, op = expr.etype
         valid_ops = self.LOGICAL_OPS    
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
@@ -473,78 +481,51 @@ class JaxRDDLCompiler:
         
         if n == 1 and op == '~':
             arg, = args
-            jax_expr = self._jax(arg, objects)
+            jax_expr = self._jax(arg)
             return JaxRDDLCompiler._jax_unary(jax_expr, self.LOGICAL_NOT)
         
         elif n == 2:
             lhs, rhs = args
-            jax_lhs = self._jax(lhs, objects)
-            jax_rhs = self._jax(rhs, objects)
+            jax_lhs = self._jax(lhs)
+            jax_rhs = self._jax(rhs)
             jax_op = valid_ops[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
         JaxRDDLCompiler._check_num_args(expr, 2)
     
-    def _jax_aggregation(self, expr, objects):
+    def _jax_aggregation(self, expr):
         _, op = expr.etype
         valid_ops = self.AGGREGATION_OPS      
         JaxRDDLCompiler._check_valid_op(expr, valid_ops) 
         
-        * pvars, arg = expr.args  
-        new_objects = objects + [p[1] for p in pvars]
-        axis = tuple(range(len(objects), len(new_objects)))
+        * _, arg = expr.args  
+        _, axes = expr.cached_sim_info
         
-        # check for undefined types
-        bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
-        if bad_types:
-            raise RDDLInvalidObjectError(
-                f'Type(s) {bad_types} are not defined, '
-                f'must be one of {set(self.rddl.objects.keys())}.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
-        
-        # check for duplicated iteration variables
-        for _, (free_new, _) in pvars:
-            for free_old in objects:
-                if free_new == free_old:
-                    raise RDDLInvalidObjectError(
-                        f'Iteration variable <{free_new}> is already defined '
-                        f'in outer scope.\n' + 
-                        JaxRDDLCompiler._print_stack_trace(expr))
-                        
-        jax_expr = self._jax(arg, new_objects)
+        jax_expr = self._jax(arg)
         jax_op = valid_ops[op]        
         
         def _f(x, key):
-            val, key, err = jax_expr(x, key)
-            sample = jax_op(val, axis=axis)
+            sample, key, err = jax_expr(x, key)
+            sample = jax_op(sample, axis=axes)
             return sample, key, err
         
-        # debug compiler info
-        self.tensors.write_debug_message(
-            f'compiling static graph for aggregation:'
-                f'\n\toperator       ={op} {pvars}'
-                f'\n\tinput objects  ={new_objects}'
-                f'\n\toutput objects ={objects}'
-                f'\n\treduction op   ={valid_ops[op]}, axes={axis}\n'
-        )
-                
         return _f
                
-    def _jax_functional(self, expr, objects):
+    def _jax_functional(self, expr):
         _, op = expr.etype
         
         if op in self.KNOWN_UNARY:
             JaxRDDLCompiler._check_num_args(expr, 1)                            
             arg, = expr.args
-            jax_expr = self._jax(arg, objects)
+            jax_expr = self._jax(arg)
             jax_op = self.KNOWN_UNARY[op]
             return JaxRDDLCompiler._jax_unary(jax_expr, jax_op)
             
         elif op in self.KNOWN_BINARY:
             JaxRDDLCompiler._check_num_args(expr, 2)                
             lhs, rhs = expr.args
-            jax_lhs = self._jax(lhs, objects)
-            jax_rhs = self._jax(rhs, objects)
+            jax_lhs = self._jax(lhs)
+            jax_rhs = self._jax(rhs)
             jax_op = self.KNOWN_BINARY[op]
             return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
         
@@ -556,23 +537,23 @@ class JaxRDDLCompiler:
     # control flow
     # ===========================================================================
     
-    def _jax_control(self, expr, objects):
+    def _jax_control(self, expr):
         _, op = expr.etype
         valid_ops = self.CONTROL_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
         JaxRDDLCompiler._check_num_args(expr, 3)
         
         pred, if_true, if_false = expr.args        
-        jax_pred = self._jax(pred, objects)
-        jax_true = self._jax(if_true, objects)
-        jax_false = self._jax(if_false, objects)        
+        jax_pred = self._jax(pred)
+        jax_true = self._jax(if_true)
+        jax_false = self._jax(if_false)        
         jax_op = self.CONTROL_OPS[op]
         
         def _f(x, key):
-            val1, key, err1 = jax_pred(x, key)
-            val2, key, err2 = jax_true(x, key)
-            val3, key, err3 = jax_false(x, key)
-            sample = jax_op(val1, val2, val3)
+            sample1, key, err1 = jax_pred(x, key)
+            sample2, key, err2 = jax_true(x, key)
+            sample3, key, err3 = jax_false(x, key)
+            sample = jax_op(sample1, sample2, sample3)
             err = err1 | err2 | err3
             return sample, key, err
             
@@ -582,66 +563,66 @@ class JaxRDDLCompiler:
     # random variables
     # ===========================================================================
     
-    def _jax_random(self, expr, objects):
+    def _jax_random(self, expr):
         _, name = expr.etype
         if name == 'KronDelta':
-            return self._jax_kron(expr, objects)        
+            return self._jax_kron(expr)        
         elif name == 'DiracDelta':
-            return self._jax_dirac(expr, objects)
+            return self._jax_dirac(expr)
         elif name == 'Uniform':
-            return self._jax_uniform(expr, objects)
+            return self._jax_uniform(expr)
         elif name == 'Normal':
-            return self._jax_normal(expr, objects)
+            return self._jax_normal(expr)
         elif name == 'Exponential':
-            return self._jax_exponential(expr, objects)
+            return self._jax_exponential(expr)
         elif name == 'Weibull':
-            return self._jax_weibull(expr, objects)   
+            return self._jax_weibull(expr)   
         elif name == 'Bernoulli':
-            return self._jax_bernoulli(expr, objects)
+            return self._jax_bernoulli(expr)
         elif name == 'Poisson':
-            return self._jax_poisson(expr, objects)
+            return self._jax_poisson(expr)
         elif name == 'Gamma':
-            return self._jax_gamma(expr, objects)
+            return self._jax_gamma(expr)
         elif name == 'Beta':
-            return self._jax_beta(expr, objects)
+            return self._jax_beta(expr)
         elif name == 'Geometric':
-            return self._jax_geometric(expr, objects)
+            return self._jax_geometric(expr)
         elif name == 'Pareto':
-            return self._jax_pareto(expr, objects)
+            return self._jax_pareto(expr)
         elif name == 'Student':
-            return self._jax_student(expr, objects)
+            return self._jax_student(expr)
         elif name == 'Gumbel':
-            return self._jax_gumbel(expr, objects)
+            return self._jax_gumbel(expr)
         elif name == 'Laplace':
-            return self._jax_laplace(expr, objects)
+            return self._jax_laplace(expr)
         elif name == 'Cauchy':
-            return self._jax_cauchy(expr, objects)
+            return self._jax_cauchy(expr)
         elif name == 'Gompertz':
-            return self._jax_gompertz(expr, objects)
+            return self._jax_gompertz(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
         
-    def _jax_kron(self, expr, objects):
+    def _jax_kron(self, expr):
         JaxRDDLCompiler._check_num_args(expr, 1)
         arg, = expr.args
-        arg = self._jax(arg, objects, dtype=bool)
+        arg = self._jax(arg, dtype=bool)
         return arg
     
-    def _jax_dirac(self, expr, objects):
+    def _jax_dirac(self, expr):
         JaxRDDLCompiler._check_num_args(expr, 1)
         arg, = expr.args
-        arg = self._jax(arg, objects, dtype=JaxRDDLCompiler.REAL)
+        arg = self._jax(arg, dtype=JaxRDDLCompiler.REAL)
         return arg
     
-    def _jax_uniform(self, expr, objects):
+    def _jax_uniform(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_UNIFORM']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_lb, arg_ub = expr.args
-        jax_lb = self._jax(arg_lb, objects)
-        jax_ub = self._jax(arg_ub, objects)
+        jax_lb = self._jax(arg_lb)
+        jax_ub = self._jax(arg_ub)
         
         def _f(x, key):
             lb, key, err1 = jax_lb(x, key)
@@ -656,13 +637,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_normal(self, expr, objects):
+    def _jax_normal(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_NORMAL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_var = expr.args
-        jax_mean = self._jax(arg_mean, objects)
-        jax_var = self._jax(arg_var, objects)
+        jax_mean = self._jax(arg_mean)
+        jax_var = self._jax(arg_var)
         
         def _f(x, key):
             mean, key, err1 = jax_mean(x, key)
@@ -678,32 +659,32 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_exponential(self, expr, objects):
+    def _jax_exponential(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_EXPONENTIAL']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_scale, = expr.args
-        jax_scale = self._jax(arg_scale, objects)
+        jax_scale = self._jax(arg_scale)
                 
         def _f(x, key):
             scale, key, err = jax_scale(x, key)
             key, subkey = random.split(key)
-            Exp = random.exponential(
+            Exp1 = random.exponential(
                 key=subkey, shape=scale.shape, dtype=JaxRDDLCompiler.REAL)
-            sample = scale * Exp
+            sample = scale * Exp1
             out_of_bounds = jnp.any(scale <= 0)
             err |= out_of_bounds * ERR
             return sample, key, err
         
         return _f
     
-    def _jax_weibull(self, expr, objects):
+    def _jax_weibull(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_WEIBULL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape, objects)
-        jax_scale = self._jax(arg_scale, objects)
+        jax_shape = self._jax(arg_shape)
+        jax_scale = self._jax(arg_scale)
         
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)
@@ -718,12 +699,12 @@ class JaxRDDLCompiler:
         
         return _f
             
-    def _jax_bernoulli(self, expr, objects):
+    def _jax_bernoulli(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_prob, = expr.args
-        jax_prob = self._jax(arg_prob, objects)
+        jax_prob = self._jax(arg_prob)
         
         def _f(x, key):
             prob, key, err = jax_prob(x, key)
@@ -737,12 +718,12 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_poisson(self, expr, objects):
+    def _jax_poisson(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_POISSON']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_rate, = expr.args
-        jax_rate = self._jax(arg_rate, objects)
+        jax_rate = self._jax(arg_rate)
         
         def _f(x, key):
             rate, key, err = jax_rate(x, key)
@@ -755,13 +736,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_gamma(self, expr, objects):
+    def _jax_gamma(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GAMMA']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape, objects)
-        jax_scale = self._jax(arg_scale, objects)
+        jax_shape = self._jax(arg_shape)
+        jax_scale = self._jax(arg_scale)
         
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)
@@ -775,13 +756,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_beta(self, expr, objects):
+    def _jax_beta(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BETA']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_rate = expr.args
-        jax_shape = self._jax(arg_shape, objects)
-        jax_rate = self._jax(arg_rate, objects)
+        jax_shape = self._jax(arg_shape)
+        jax_rate = self._jax(arg_rate)
         
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)
@@ -794,12 +775,12 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_geometric(self, expr, objects):
+    def _jax_geometric(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GEOMETRIC']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_prob, = expr.args
-        jax_prob = self._jax(arg_prob, objects)
+        jax_prob = self._jax(arg_prob)
         
         def _f(x, key):
             prob, key, err = jax_prob(x, key)
@@ -813,13 +794,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_pareto(self, expr, objects):
+    def _jax_pareto(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_PARETO']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape, objects)
-        jax_scale = self._jax(arg_scale, objects)
+        jax_shape = self._jax(arg_shape)
+        jax_scale = self._jax(arg_scale)
         
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)
@@ -832,12 +813,12 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_student(self, expr, objects):
+    def _jax_student(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_STUDENT']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_df, = expr.args
-        jax_df = self._jax(arg_df, objects)
+        jax_df = self._jax(arg_df)
         
         def _f(x, key):
             df, key, err = jax_df(x, key)
@@ -849,13 +830,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_gumbel(self, expr, objects):
+    def _jax_gumbel(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GUMBEL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_scale = expr.args
-        jax_mean = self._jax(arg_mean, objects)
-        jax_scale = self._jax(arg_scale, objects)
+        jax_mean = self._jax(arg_mean)
+        jax_scale = self._jax(arg_scale)
         
         def _f(x, key):
             mean, key, err1 = jax_mean(x, key)
@@ -870,13 +851,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_laplace(self, expr, objects):
+    def _jax_laplace(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_LAPLACE']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_scale = expr.args
-        jax_mean = self._jax(arg_mean, objects)
-        jax_scale = self._jax(arg_scale, objects)
+        jax_mean = self._jax(arg_mean)
+        jax_scale = self._jax(arg_scale)
         
         def _f(x, key):
             mean, key, err1 = jax_mean(x, key)
@@ -891,13 +872,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_cauchy(self, expr, objects):
+    def _jax_cauchy(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_CAUCHY']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_scale = expr.args
-        jax_mean = self._jax(arg_mean, objects)
-        jax_scale = self._jax(arg_scale, objects)
+        jax_mean = self._jax(arg_mean)
+        jax_scale = self._jax(arg_scale)
         
         def _f(x, key):
             mean, key, err1 = jax_mean(x, key)
@@ -912,13 +893,13 @@ class JaxRDDLCompiler:
         
         return _f
     
-    def _jax_gompertz(self, expr, objects):
+    def _jax_gompertz(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GOMPERTZ']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape, objects)
-        jax_scale = self._jax(arg_scale, objects)
+        jax_shape = self._jax(arg_shape)
+        jax_scale = self._jax(arg_scale)
         
         def _f(x, key):
             shape, key, err1 = jax_shape(x, key)

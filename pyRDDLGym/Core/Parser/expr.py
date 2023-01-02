@@ -20,6 +20,7 @@ class Expression(object):
     def __init__(self, expr: Union['Expression', Tuple]) -> None:
         self._expr = expr
         self.cached_sim_info = None
+        self.enum_type = None
 
     def __getitem__(self, i):
         return self._expr[i]

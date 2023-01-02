@@ -7,6 +7,8 @@ from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
 
 
 class RDDLLiftedModel(RDDLModel):
+    '''Represents a RDDL domain + instance in lifted form.
+    '''
     
     def __init__(self, rddl):
         super(RDDLLiftedModel, self).__init__()
