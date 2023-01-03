@@ -17,6 +17,7 @@ are supported for the purpose of gym spaces definitions.
 We have extended the RDDL language and also support the following:
 * Automatic reasoning of levels. Levels are no longer required (and ignored by the infrastructure).
 * Terminal states can now be explicitly defined. The termination block has been added to the language.
+* New probability distributions (binomial, beta, geometric, pareto, student-t, and many more) and mathematical functions (gamma, beta).
 
 All other features of RDDL are supported according to the language definition.
 

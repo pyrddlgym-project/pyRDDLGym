@@ -1,0 +1,63 @@
+// //////////////////////////////////////////////////////////////////////
+// A simple DBN ( variables are not parameterized ) exhibiting use of
+// bools , ints , reals , enumerated types , intermediate variables , and
+// observation variables .
+//
+// Author : Scott Sanner ( ssanner [at] gmail .com )
+// //////////////////////////////////////////////////////////////////////
+domain propdbn {
+
+    requirements = {
+        reward-deterministic , // Reward is a deterministic function
+        integer-valued , // Uses integer variables
+        continuous , // Uses continuous variables
+        multivalued , // Uses enumerated variables
+        intermediate-nodes , // Uses intermediate nodes
+        partially-observed // Uses observation nodes
+    };
+
+    // User - defined types
+    types {
+        enum_level : { @low , @medium , @high }; // An enumerated type
+    };
+
+    pvariables {
+        p : { state-fluent , enum_level , default = @low };
+        q : { state-fluent , real , default = false };
+        r : { state-fluent , bool , default = false };
+
+//        i1 : { interm-fluent , int };
+//        i2 : { interm-fluent , enum_level };
+
+//        o1 : { observ-fluent , bool };
+//        o2 : { observ-fluent , real };
+
+        a : { action-fluent , bool , default = false };
+    };
+
+    cpfs {
+
+        // Some standard Bernoulli conditional probability tables
+        p' = Discrete ( enum_level ,
+                        @low : if ( i1 >= 2) then 0.5 else 0.2 ,
+                        @medium : if ( i1 >= 2) then 0.2 else 0.5 ,
+                        @high : 0.3
+        );
+
+
+        q' = switch ( p ) {
+                case @low : i1 + 1.0 + Normal (0.0 , i1 * i1 ) ,
+                case @medium : i1 + 2.0 + Normal (0.0 , i1 * i1 /2.0) ,
+                default : i1 + 3.0 + Normal (0.0 , i1 * i1 /4.0)
+        };
+
+        // KronDelta is a delta function for a discrete argument
+        r' = if (~q) then KronDelta ( r ) else KronDelta ( r <=> q );
+
+    };
+
+    // A boolean functions as a 0/1 integer when a numerical value is needed
+    reward = q - r + 5 * ( p == @high );
+//    reward = q - r + 5;
+
+}

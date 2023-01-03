@@ -42,7 +42,7 @@ class RDDLSimulator:
         # static analysis and compilation
         self.static = RDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
-        self.tensors = RDDLTensors(rddl, debug)
+        self.tensors = RDDLTensors(rddl, debug=debug)
         
         # initialize all fluent and non-fluent values
         self.init_values = self.tensors.init_values
@@ -94,10 +94,10 @@ class RDDLSimulator:
         }
         self.UNARY = {        
             'abs': np.abs,
-            'sgn': np.sign,
-            'round': np.round,
-            'floor': np.floor,
-            'ceil': np.ceil,
+            'sgn': lambda x: np.sign(x).astype(RDDLTensors.INT),
+            'round': lambda x: np.round(x).astype(RDDLTensors.INT),
+            'floor': lambda x: np.floor(x).astype(RDDLTensors.INT),
+            'ceil': lambda x: np.ceil(x).astype(RDDLTensors.INT),
             'cos': np.cos,
             'sin': np.sin,
             'tan': np.tan,
@@ -114,8 +114,8 @@ class RDDLSimulator:
             'gamma': lambda x: np.exp(lngamma(x))
         }        
         self.BINARY = {
-            'div': np.floor_divide,
-            'mod': np.mod,
+            'div': lambda x, y: np.floor_divide(x, y).astype(RDDLTensors.INT),
+            'mod': lambda x, y: np.mod(x, y).astype(RDDLTensors.INT),
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
@@ -123,11 +123,11 @@ class RDDLSimulator:
         }
     
     @property
-    def states(self):
+    def states(self) -> Args:
         return self.state.copy()
 
     @property
-    def isPOMDP(self):
+    def isPOMDP(self) -> bool:
         return self._pomdp
 
     # ===========================================================================
@@ -144,22 +144,24 @@ class RDDLSimulator:
     
     @staticmethod
     def _check_type(value, valid, msg, expr):
-        dtype = value.dtype            
-        if dtype != valid:
+        if not np.can_cast(value, valid):
+            dtype = getattr(value, 'dtype', type(value))
             raise RDDLTypeError(
-                f'{msg} must evaluate to {valid}, got {value} of type {dtype}.\n' + 
+                f'{msg} must evaluate to {valid}, '
+                f'got {value} of type {dtype}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
-    def _check_types(value1, value2, valid, msg, expr):
-        dtype1 = value1.dtype
-        dtype2 = value2.dtype
-        if dtype1 != valid and dtype2 != valid:
-            raise RDDLTypeError(
-                f'{msg} must evaluate to {valid}, got {value1} of type {dtype1} '
-                f'and {value2} of type {dtype2}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
-            
+    def _check_type_in(value, valid, msg, expr):
+        for valid_type in valid:
+            if np.can_cast(value, valid_type):
+                return
+        dtype = getattr(value, 'dtype', type(value))
+        raise RDDLTypeError(
+            f'{msg} must evaluate to a type in {valid}, '
+            f'got {value} of type {dtype}.\n' + 
+            RDDLSimulator._print_stack_trace(expr))
+    
     @staticmethod
     def _check_op(op, valid, msg, expr):
         if op not in valid:
@@ -172,7 +174,7 @@ class RDDLSimulator:
         actual = len(args)
         if actual != required:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'{msg} requires {required} arguments, got {actual}.\n' + 
+                f'{msg} requires {required} arguments, got {actual}.\n' +
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -222,23 +224,18 @@ class RDDLSimulator:
         new_actions = {action: np.copy(value) 
                        for action, value in self.noop_actions.items()}
         
-        for action, value in actions.items():            
+        for action, value in actions.items(): 
             if action not in self.rddl.actions:
                 raise RDDLInvalidActionError(
                     f'<{action}> is not a valid action-fluent.')
             
             if self.rddl.is_grounded:
-                new_actions[action] = value
-                
+                new_actions[action] = value                
             else:
                 var, objects = self.rddl.parse(action)
-                tensor = new_actions[var]
-                
-                if not np.can_cast(value, tensor.dtype, casting='same_kind'):
-                    raise RDDLTypeError(
-                        f'Value {value} of action <{action}> '
-                        f'cannot be cast to type {tensor.dtype}.')
-            
+                tensor = new_actions[var]                
+                RDDLSimulator._check_type(
+                    value, tensor.dtype, f'Action-fluent <{action}>', '')            
                 tensor[self.tensors.coordinates(objects, '')] = value
          
         return new_actions
@@ -311,13 +308,18 @@ class RDDLSimulator:
         subs = self.subs
         subs.update(actions)
         
+        tensors, rddl = self.tensors, self.rddl
+        
         for cpfs in self.levels.values():
             for cpf in cpfs:
-                objects, expr = self.rddl.cpfs[cpf]
-                subs[cpf] = self._sample(expr, objects, subs)
+                objects, expr = rddl.cpfs[cpf]
+                sample = self._sample(expr, objects, subs)
+                dtype = tensors.NUMPY_TYPES[rddl.variable_ranges[cpf]]
+                RDDLSimulator._check_type(sample, dtype, f'CPF <{cpf}>', expr)
+                subs[cpf] = sample
         reward = self.sample_reward()
         
-        if self.rddl.is_grounded:
+        if rddl.is_grounded:
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
             self.state = {var: subs[var] for var in self.next_states.values()}
@@ -325,15 +327,15 @@ class RDDLSimulator:
             self.state = {}
             for next_state, state in self.next_states.items():
                 subs[state] = subs[next_state]
-                self.state.update(self.tensors.expand(state, subs[state]))
-        
+                self.state.update(tensors.expand(state, subs[state]))
+            
         if self._pomdp: 
-            if self.rddl.is_grounded:
+            if rddl.is_grounded:
                 obs = {var: subs[var] for var in self.observ_fluents}
             else:
                 obs = {}
                 for var in self.observ_fluents:
-                    obs.update(self.tensors.expand(var, subs[var]))
+                    obs.update(tensors.expand(var, subs[var]))
         else:
             obs = self.state
         
@@ -378,11 +380,9 @@ class RDDLSimulator:
         
         cached_value = getattr(expr, 'cached_value', None)
         if cached_value is None:
-            *_, shape = self.tensors.map(
-                '', [], objects,
-                str(expr), RDDLSimulator._print_stack_trace(expr))  
+            shape = tuple(len(self.rddl.objects[ptype]) for _, ptype in objects)
             cached_value = np.full(shape=shape, fill_value=expr.args)
-            expr.cached_value = cached_value   
+            expr.cached_value = cached_value
         return cached_value
     
     def _sample_pvar(self, expr, objects, subs):
@@ -407,30 +407,17 @@ class RDDLSimulator:
         if self.rddl.is_grounded:
             return np.asarray(arg)
         
-        # cache and read the tensor information for the fluent
-        cached_info = getattr(expr, 'cached_info', None)
-        if cached_info is None:
-            cached_sub_map = self.tensors.map(
-                var, pvars, objects,
-                str(expr), RDDLSimulator._print_stack_trace(expr))            
-            _, _, new_dims = cached_sub_map
-            new_axes = (1,) * len(new_dims)
-            cached_shapes = (arg.shape + new_axes, arg.shape + new_dims)
-            cached_info = cached_sub_map + cached_shapes
-            expr.cached_info = cached_info            
-        permute, identity, new_dims, new_shape, broadcast_shape = cached_info
-        
         # argument is reshaped to match the free variables "objects"
-        sample = arg
-        if new_dims:
-            sample = np.reshape(arg, newshape=new_shape) 
-            sample = np.broadcast_to(sample, shape=broadcast_shape)
-        if not identity:
-            sample = np.einsum(permute, sample)
-        return sample
+        cached_transform = getattr(expr, 'cached_transform', None)
+        if cached_transform is None:
+            cached_transform = self.tensors.map(
+                var, pvars, objects,
+                msg=RDDLSimulator._print_stack_trace(expr))            
+            expr.cached_transform = cached_transform        
+        return cached_transform(arg)
     
     # ===========================================================================
-    # mathematical
+    # arithmetic
     # ===========================================================================
     
     def _sample_arithmetic(self, expr, objects, subs):
@@ -445,20 +432,56 @@ class RDDLSimulator:
             return -1 * self._sample(arg, objects, subs)
         
         elif n == 2:
-            lhs, rhs = args
-            lhs = 1 * self._sample(lhs, objects, subs)
-            rhs = 1 * self._sample(rhs, objects, subs)
-            return valid_ops[op](lhs, rhs)
+            if op == '*':
+                return self._sample_product(args, objects, subs)
+            else:
+                lhs, rhs = args
+                lhs = 1 * self._sample(lhs, objects, subs)
+                rhs = 1 * self._sample(rhs, objects, subs)
+                return valid_ops[op](lhs, rhs)
         
         elif self.rddl.is_grounded and n > 0:
-            samples = [1 * self._sample(arg, objects, subs) for arg in args]
-            samples = np.stack(samples, axis=0)
-            if op == '+':
-                return np.sum(samples, axis=0)
-            elif op == '*':
-                return np.prod(samples, axis=0)
+            if op == '*':
+                return self._sample_product_grounded(args, objects, subs)
+            elif op == '+':
+                samples = [self._sample(arg, objects, subs) for arg in args]
+                return np.sum(samples, axis=0)                
             
         RDDLSimulator._check_arity(args, 2, 'Arithmetic operator', expr)
+    
+    def _sample_product(self, args, objects, subs):
+        lhs, rhs = args
+        if rhs.is_constant_expression() or rhs.is_pvariable_expression():
+            lhs, rhs = rhs, lhs
+            
+        lhs = 1 * self._sample(lhs, objects, subs)
+        if not np.any(lhs):
+            return lhs
+            
+        rhs = self._sample(rhs, objects, subs)
+        return lhs * rhs
+    
+    def _sample_product_grounded(self, args, objects, subs):
+        prod = 1
+        for arg in args:  # go through simple expressions first
+            if arg.is_constant_expression() or arg.is_pvariable_expression():
+                sample = self._sample(arg, objects, subs)
+                prod *= sample.item()
+                if prod == 0:
+                    return np.asarray(prod)
+                
+        for arg in args:  # go through complex expressions last
+            if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
+                sample = self._sample(arg, objects, subs)
+                prod *= sample.item()
+                if prod == 0:
+                    return np.asarray(prod)
+                
+        return np.asarray(prod)
+        
+    # ===========================================================================
+    # boolean
+    # ===========================================================================
     
     def _sample_relational(self, expr, objects, subs):
         _, op = expr.etype
@@ -487,25 +510,73 @@ class RDDLSimulator:
             return np.logical_not(arg)
         
         elif n == 2:
-            lhs, rhs = args
-            lhs = self._sample(lhs, objects, subs)
-            rhs = self._sample(rhs, objects, subs)
-            RDDLSimulator._check_types(
-                lhs, rhs, bool, f'Arguments of logical operator {op}', expr)
-            return valid_ops[op](lhs, rhs)
+            if op == '^' or op == '|':
+                return self._sample_and_or(args, op, expr, objects, subs)
+            else:
+                lhs, rhs = args
+                lhs = self._sample(lhs, objects, subs)
+                rhs = self._sample(rhs, objects, subs)
+                RDDLSimulator._check_type(
+                    lhs, bool, f'Argument 1 of logical operator {op}', expr)
+                RDDLSimulator._check_type(
+                    rhs, bool, f'Argument 2 of logical operator {op}', expr)
+                return valid_ops[op](lhs, rhs)
         
-        elif self.rddl.is_grounded and n > 0:
-            samples = [self._sample(arg, objects, subs) for arg in args]
-            samples = np.stack(samples, axis=0)
-            RDDLSimulator._check_type(
-                samples, bool, f'Argument of logical operator {op}', expr)
-            if op == '^':
-                return np.all(samples, axis=0)
-            elif op == '|':
-                return np.any(samples, axis=0)
+        elif self.rddl.is_grounded and n > 0 and (op == '^' or op == '|'):
+            return self._sample_and_or_grounded(args, op, expr, objects, subs)
             
         RDDLSimulator._check_arity(args, 2, 'Logical operator', expr)
+    
+    def _sample_and_or(self, args, op, expr, objects, subs):
+        lhs, rhs = args
+        if rhs.is_constant_expression() or rhs.is_pvariable_expression():
+            lhs, rhs = rhs, lhs  # prioritize simple expressions
+            
+        lhs = self._sample(lhs, objects, subs)
+        RDDLSimulator._check_type(
+            lhs, bool, f'Argument 1 of logical operator {op}', expr)
+            
+        if (op == '^' and not np.any(lhs)) or (op == '|' and np.all(lhs)):
+            return lhs
+            
+        rhs = self._sample(rhs, objects, subs)
+        RDDLSimulator._check_type(
+            rhs, bool, f'Argument 2 of logical operator {op}', expr)
         
+        if op == '^':
+            return np.logical_and(lhs, rhs)
+        else:
+            return np.logical_or(lhs, rhs)
+    
+    def _sample_and_or_grounded(self, args, op, expr, objects, subs): 
+        for i, arg in enumerate(args):  # go through simple expressions first
+            if arg.is_constant_expression() or arg.is_pvariable_expression():
+                sample = self._sample(arg, objects, subs)
+                RDDLSimulator._check_type(
+                    sample, bool, f'Argument {i + 1} of logical operator {op}', expr)
+                sample = bool(sample)
+                if op == '^' and not sample:
+                    return np.asarray(False)
+                elif op == '|' and sample:
+                    return np.asarray(True)
+            
+        for i, arg in enumerate(args):  # go through complex expressions last
+            if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
+                sample = self._sample(arg, objects, subs)
+                RDDLSimulator._check_type(
+                    sample, bool, f'Argument {i + 1} of logical operator {op}', expr)
+                sample = bool(sample)
+                if op == '^' and not sample:
+                    return np.asarray(False)
+                elif op == '|' and sample:
+                    return np.asarray(True)
+            
+        return np.asarray(op == '^')
+            
+    # ===========================================================================
+    # aggregation
+    # ===========================================================================
+    
     def _sample_aggregation(self, expr, objects, subs):
         if self.rddl.is_grounded:
             raise Exception(f'Aggregation {expr} in grounded domain.')
@@ -524,23 +595,33 @@ class RDDLSimulator:
             cached_objects = (new_objects, reduced_axes)
             expr.cached_objects = cached_objects
             
+            # check for undefined types
             bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
             if bad_types:
                 raise RDDLInvalidObjectError(
                     f'Type(s) {bad_types} are not defined, '
                     f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
-                
-            if self.debug:
-                warnings.warn(
-                    f'computing object info for aggregation:'
+            
+            # check for duplicated iteration variables
+            for _, (free_new, _) in pvars:
+                for free_old, _ in objects:
+                    if free_new == free_old:
+                        raise RDDLInvalidObjectError(
+                            f'Iteration variable <{free_new}> is already defined '
+                            f'in outer scope.\n' + 
+                            RDDLSimulator._print_stack_trace(expr))
+            
+            # debug compiler info
+            self.tensors.write_debug_message(
+                f'computing object info for aggregation:'
                     f'\n\toperator       ={op} {pvars}'
                     f'\n\tinput objects  ={new_objects}'
                     f'\n\toutput objects ={objects}'
-                    f'\n\treduction axes ={reduced_axes}'
-                    f'\n\treduction op   ={valid_ops[op]}\n'
-                )                      
-        new_objects, axis = expr.cached_objects
+                    f'\n\toperation      ={valid_ops[op]}, axes={reduced_axes}\n'
+            )
+                            
+        new_objects, axis = cached_objects
         
         # sample the argument and aggregate over the reduced axes
         arg = self._sample(arg, new_objects, subs)                
@@ -550,6 +631,10 @@ class RDDLSimulator:
         else:
             arg = 1 * arg
         return valid_ops[op](arg, axis=axis)
+    
+    # ===========================================================================
+    # function
+    # ===========================================================================
     
     def _sample_func(self, expr, objects, subs):
         _, name = expr.etype
@@ -568,7 +653,8 @@ class RDDLSimulator:
             lhs, rhs = args
             lhs = 1 * self._sample(lhs, objects, subs)
             rhs = 1 * self._sample(rhs, objects, subs)
-            return self.BINARY[name](lhs, rhs)
+            temp = self.BINARY[name](lhs, rhs)
+            return temp
         
         RDDLSimulator._raise_unsupported(f'Function {name}', expr)
     
@@ -586,9 +672,11 @@ class RDDLSimulator:
         pred = self._sample(pred, objects, subs)
         RDDLSimulator._check_type(pred, bool, 'Predicate', expr)
         
-        if pred.size == 1:  # can short-circuit
-            arg = arg1 if bool(pred) else arg2
-            return self._sample(arg, objects, subs)
+        count_true = np.sum(pred)
+        if count_true == pred.size:  # all elements of pred are true
+            return self._sample(arg1, objects, subs)
+        elif count_true == 0:  # all elements of pred are false
+            return self._sample(arg2, objects, subs)
         else:
             arg1 = self._sample(arg1, objects, subs)
             arg2 = self._sample(arg2, objects, subs)
@@ -647,7 +735,8 @@ class RDDLSimulator:
         
         arg, = args
         arg = self._sample(arg, objects, subs)
-        RDDLSimulator._check_type(arg, bool, 'Argument of KronDelta', expr)
+        RDDLSimulator._check_type_in(
+            arg, {bool, RDDLTensors.INT}, 'Argument of KronDelta', expr)
         return arg
     
     def _sample_dirac_delta(self, expr, objects, subs):
@@ -910,26 +999,24 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         elif etype == 'relational':
             var, lim, loc, active = self._parse_bounds_relational(
                 expr, objects, search_vars)
-            if var is not None and loc is not None:   
+            if var is not None and loc is not None: 
                 if self.rddl.is_grounded:
-                    if loc == 1:
-                        if self._bounds[var][loc] > lim:
-                            self._bounds[var][loc] = lim
-                    else:
-                        if self._bounds[var][loc] < lim:
-                            self._bounds[var][loc] = lim
-                else:        
+                    self._update_bound(var, loc, lim)
+                else: 
                     variations = self.rddl.variations([o[1] for o in objects])
                     lims = np.ravel(lim)
-                    for args, lim in zip(variations, lims, strict=True):
+                    for args, lim in zip(variations, lims):
                         key = self.rddl.ground_name(var, [args[i] for i in active])
-                        if loc == 1:
-                            if self._bounds[key][loc] > lim:
-                                self._bounds[key][loc] = lim
-                        else:
-                            if self._bounds[key][loc] < lim:
-                                self._bounds[key][loc] = lim
-
+                        self._update_bound(key, loc, lim)
+    
+    def _update_bound(self, key, loc, lim):
+        if loc == 1:
+            if self._bounds[key][loc] > lim:
+                self._bounds[key][loc] = lim
+        else:
+            if self._bounds[key][loc] < lim:
+                self._bounds[key][loc] = lim
+        
     def _parse_bounds_relational(self, expr, objects, search_vars):
         left, right = expr.args    
         _, op = expr.etype

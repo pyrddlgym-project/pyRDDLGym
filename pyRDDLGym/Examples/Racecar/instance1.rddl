@@ -1,0 +1,61 @@
+non-fluents racecar_straight {
+    domain = racecar;
+
+    objects {
+		b : {b1,b2,b3,b4};
+	};
+
+	non-fluents {
+	    // upper line
+		X1(b1) = 0.000000000000;
+		Y1(b1) = 0.100000000000;
+		X2(b1) = 1.00000000000;
+		Y2(b1) = 0.100000000000;
+
+		// right line
+		X1(b2) = 1.00000000000;
+		Y1(b2) = 0.100000000000;
+		X2(b2) = 1.00000000000;
+		Y2(b2) = -0.10000000000;
+
+		// lower line
+		X1(b3) = 0.000000000000;
+		Y1(b3) = -0.10000000000;
+		X2(b3) = 1.00000000000;
+		Y2(b3) = -0.10000000000;
+
+		// left line
+		X1(b4) = 0.000000000000;
+		Y1(b4) = 0.100000000000;
+		X2(b4) = 0.000000000000;
+		Y2(b4) = -0.10000000000;
+
+		X0 			= 0.1;
+		Y0 			= 0.0;
+		GX			= 0.9;
+		GY			= 0.0;
+		RADIUS		= 0.05;
+	};
+}
+
+
+// Specify race car domain
+instance inst_racecar_circle {
+
+	domain = racecar;
+
+	non-fluents = racecar_circle;
+
+	init-state {
+	    x 	= 0.1;
+		y 	= 0.0;
+		vx 	= 0.0;
+		vy 	= 0.0;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 100;
+	discount = 1.0;
+}

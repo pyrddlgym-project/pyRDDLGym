@@ -2,7 +2,6 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
-import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -29,7 +28,7 @@ class JaxRDDLCompiler:
     
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
-                 debug: bool=True) -> None:
+                 debug: bool=False) -> None:
         
         # jax compilation will only work on lifted domains for now
         if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
@@ -43,7 +42,7 @@ class JaxRDDLCompiler:
         # static analysis and compilation
         self.static = RDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = self.static.compute_levels()
-        self.tensors = RDDLTensors(rddl, debug)
+        self.tensors = RDDLTensors(rddl, debug=debug)
         
         # initialize all fluent and non-fluent values
         self.init_values = self.tensors.init_values
@@ -100,12 +99,17 @@ class JaxRDDLCompiler:
             'tanh': jnp.tanh,
             'exp': jnp.exp,
             'ln': jnp.log,
-            'sqrt': jnp.sqrt
+            'sqrt': jnp.sqrt,
+            'lngamma': jax.scipy.special.gammaln,
+            'gamma': lambda x: jnp.exp(jax.scipy.special.gammaln(x))
         }        
         self.KNOWN_BINARY = {
+            'div': jnp.floor_divide,
+            'mod': jnp.mod,
             'min': jnp.minimum,
             'max': jnp.maximum,
-            'pow': jnp.power
+            'pow': jnp.power,
+            'log': lambda x, y: jnp.log(x) / jnp.log(y)
         }
         self.CONTROL_OPS = {
             'if': jnp.where
@@ -362,7 +366,7 @@ class JaxRDDLCompiler:
         def _f(x, key):
             val, key, err = jax_expr(x, key)
             sample = jnp.asarray(val, dtype=dtype)
-            invalid = jnp.logical_not(jnp.can_cast(val, dtype, casting='safe'))
+            invalid = (not jnp.can_cast(val, dtype)) and jnp.any(sample != val)
             err |= invalid * ERR
             return sample, key, err
         
@@ -374,9 +378,7 @@ class JaxRDDLCompiler:
     
     def _jax_constant(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        * _, shape = self.tensors.map(
-            '', [], objects,
-            str(expr), JaxRDDLCompiler._print_stack_trace(expr))
+        shape = tuple(len(self.rddl.objects[ptype]) for _, ptype in objects)
         const = expr.args
         
         def _f(_, key):
@@ -388,19 +390,14 @@ class JaxRDDLCompiler:
     def _jax_pvar(self, expr, objects):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args            
-        permute, identity, new_dims = self.tensors.map(
+        transform = self.tensors.map(
             var, pvars, objects,
-            str(expr), JaxRDDLCompiler._print_stack_trace(expr))
-        new_axes = (1,) * len(new_dims)
+            gnp=jnp,
+            msg=JaxRDDLCompiler._print_stack_trace(expr))
         
         def _f(x, key):
             val = jnp.asarray(x[var])
-            sample = val
-            if new_dims:
-                sample = jnp.reshape(val, newshape=val.shape + new_axes) 
-                sample = jnp.broadcast_to(sample, shape=val.shape + new_dims)
-            if not identity:
-                sample = jnp.einsum(permute, sample)
+            sample = transform(val)
             return sample, key, ERR
         
         return _f
@@ -496,13 +493,23 @@ class JaxRDDLCompiler:
         new_objects = objects + [p[1] for p in pvars]
         axis = tuple(range(len(objects), len(new_objects)))
         
-        fails = {p for _, p in new_objects if p not in self.rddl.objects}
-        if fails:
+        # check for undefined types
+        bad_types = {p for _, p in new_objects if p not in self.rddl.objects}
+        if bad_types:
             raise RDDLInvalidObjectError(
-                f'Type(s) {fails} are not defined, '
+                f'Type(s) {bad_types} are not defined, '
                 f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
         
+        # check for duplicated iteration variables
+        for _, (free_new, _) in pvars:
+            for free_old in objects:
+                if free_new == free_old:
+                    raise RDDLInvalidObjectError(
+                        f'Iteration variable <{free_new}> is already defined '
+                        f'in outer scope.\n' + 
+                        JaxRDDLCompiler._print_stack_trace(expr))
+                        
         jax_expr = self._jax(arg, new_objects)
         jax_op = valid_ops[op]        
         
@@ -511,15 +518,14 @@ class JaxRDDLCompiler:
             sample = jax_op(val, axis=axis)
             return sample, key, err
         
-        if self.debug:
-            warnings.warn(
-                f'compiling static graph for aggregation:'
+        # debug compiler info
+        self.tensors.write_debug_message(
+            f'compiling static graph for aggregation:'
                 f'\n\toperator       ={op} {pvars}'
                 f'\n\tinput objects  ={new_objects}'
                 f'\n\toutput objects ={objects}'
-                f'\n\treduction axis ={axis}'
-                f'\n\treduction op   ={valid_ops[op]}\n'
-            )
+                f'\n\treduction op   ={valid_ops[op]}, axes={axis}\n'
+        )
                 
         return _f
                
