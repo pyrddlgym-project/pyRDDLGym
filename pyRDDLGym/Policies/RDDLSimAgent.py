@@ -40,7 +40,7 @@ class RDDLSimAgent:
         self.total_reward = 0.0
 
         # Data in case there is a dump request
-        self.data = []
+        self.logs = []
 
     def run(self):
         ''' starts the RDDLSimAgent to wait for a planner to connect'''
@@ -77,7 +77,7 @@ class RDDLSimAgent:
 
     def run_round(self, connection):
 
-        data.append([])
+        self.logs.append([])
 
         # handle round request
         data = self.receive_message(connection)
@@ -98,14 +98,14 @@ class RDDLSimAgent:
             data = self.receive_message(connection)
             actions = self.process_action(data)
 
-            data[-1].append({
+            self.logs[-1].append({
                 "state": str(state),
                 "actions": str(actions),
             })
 
             next_state, reward, done, info = self.env.step(actions)
 
-            data[-1][-1]["reward"] = float(reward)
+            self.logs[-1][-1]["reward"] = float(reward)
 
             round_reward += reward
             state = next_state
@@ -116,7 +116,7 @@ class RDDLSimAgent:
                 self.send_message(connection, msg)
                 self.total_reward += round_reward
 
-                data[-1].append({
+                self.logs[-1].append({
                     "reward": float(round_reward),
                     "state": str(state),
                     "actions": False,
@@ -130,7 +130,7 @@ class RDDLSimAgent:
     def dump_data(self, fn):
         """Dumps the data to a json file"""
         with open(fn, "w") as f:
-            json.dump(self.data, f)
+            json.dump(self.logs, f)
 
     def send_message(self, connection, msg):
         #print(f"sending message: {msg}")
