@@ -16,7 +16,8 @@ from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
     
-    def __init__(self, domain, instance=None, enforce_action_constraints=False):
+    def __init__(self, domain, instance=None, enforce_action_constraints=False,
+                 debug=False):
         super(RDDLEnv, self).__init__()
         self.enforce_action_constraints = enforce_action_constraints
         
@@ -31,7 +32,7 @@ class RDDLEnv(gym.Env):
 
         # define the model sampler
         self.model = RDDLLiftedModel(rddl)
-        self.sampler = RDDLSimulatorWConstraints(self.model)
+        self.sampler = RDDLSimulatorWConstraints(self.model, debug=debug)
         bounds = self.sampler.bounds
 
         # set roll-out parameters

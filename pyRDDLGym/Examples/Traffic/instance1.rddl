@@ -1,0 +1,73 @@
+non-fluents two_intersections {
+    domain = BLX_model;
+
+    objects {
+		intersection : {i1, i2, s1, s2, s3, s4, s5, s6};
+		time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9};
+	};
+
+	non-fluents {
+	    // sink intersections
+	    SINK(s1)                = true;
+	    SINK(s2)                = true;
+	    SINK(s3)                = true;
+	    SINK(s4)                = true;
+	    SINK(s5)                = true;
+	    SINK(s6)                = true;
+
+	    // source intersections
+	    SOURCE(s1)              = true;
+	    SOURCE(s2)              = true;
+	    SOURCE(s3)              = true;
+	    SOURCE(s4)              = true;
+	    SOURCE(s5)              = true;
+	    SOURCE(s6)              = true;
+
+	    // roads between intersections
+		LINK(s1,i1)             = true;
+		LINK(s2,i1)             = true;
+		LINK(s3,i1)             = true;
+		LINK(i1,s1)             = true;
+		LINK(i1,s2)             = true;
+		LINK(i1,s3)             = true;
+		LINK(i1,i2)             = true;
+		LINK(i2,i1)             = true;
+		LINK(s4,i2)             = true;
+		LINK(s5,i2)             = true;
+		LINK(s6,i2)             = true;
+		LINK(i2,s4)             = true;
+		LINK(i2,s5)             = true;
+		LINK(i2,s6)             = true;
+
+		// time delay properties
+		TIME-HEAD(t0)           = true;
+        TIME-TAIL(t9)           = true;
+        TIME-VAL(t0)            = 0;
+        TIME-VAL(t1)            = 1;
+        TIME-VAL(t2)            = 2;
+        TIME-VAL(t3)            = 3;
+        TIME-VAL(t4)            = 4;
+        TIME-VAL(t5)            = 5;
+        TIME-VAL(t6)            = 6;
+        TIME-VAL(t7)            = 7;
+        TIME-VAL(t8)            = 8;
+        TIME-VAL(t9)            = 9;
+        NEXT(t0,t1)             = true;
+        NEXT(t1,t2)             = true;
+        NEXT(t2,t3)             = true;
+        NEXT(t3,t4)             = true;
+        NEXT(t4,t5)             = true;
+        NEXT(t5,t6)             = true;
+        NEXT(t6,t7)             = true;
+        NEXT(t7,t8)             = true;
+        NEXT(t8,t9)             = true;
+ 	};
+}
+
+instance two_intersections_inst {
+    domain = MLX_model;
+ 	non-fluents = two_intersections;
+	max-nondef-actions = pos-inf;
+	horizon = 10;
+	discount = 1.0;
+}

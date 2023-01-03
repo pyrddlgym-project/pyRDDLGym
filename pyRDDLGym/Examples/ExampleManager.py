@@ -24,6 +24,8 @@ EXP_DICT = {
     'positions in  in the 3d Space.', '/UAV/Mixed/', 'UAVs'),
     'Wildfire' : ('A boolean version of the wildfire fighting domain.', '/Wildfire/', 'Wildfire'),
     'SupplyChain' : ('A supply chain with factory and multiple warehouses.', '/Supply_Chain/', 'SupplyChain'),
+    'Traffic' : ('BLX/QTM traffic model.', '/Traffic/', None),
+    'PropDBN' : ('Simple propositional DBN.', '/PropDBN/', None),
 }
 
 
@@ -66,10 +68,12 @@ class ExampleManager:
         return self.path_to_env + instance
 
     def get_visualizer(self):
-        viz_package_name = 'pyRDDLGym.Visualizer.' + EXP_DICT[self.env][2] + 'Viz'
-        viz_class_name = EXP_DICT[self.env][2] + 'Visualizer'
-        viz_package = __import__(viz_package_name, {}, {}, viz_class_name)
-        viz = getattr(viz_package, viz_class_name)
+        viz = None
+        if EXP_DICT[self.env][2]:
+            viz_package_name = 'pyRDDLGym.Visualizer.' + EXP_DICT[self.env][2] + 'Viz'
+            viz_class_name = EXP_DICT[self.env][2] + 'Visualizer'
+            viz_package = __import__(viz_package_name, {}, {}, viz_class_name)
+            viz = getattr(viz_package, viz_class_name)
         return viz
 
     @staticmethod

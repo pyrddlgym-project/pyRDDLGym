@@ -554,7 +554,8 @@ class RDDLParser(object):
 
     def p_pvar_expr(self, p):
         '''pvar_expr : IDENT LPAREN term_list RPAREN
-                     | IDENT'''
+                     | IDENT
+                     | ENUM_VAL'''
         if len(p) == 2:
             p[0] = ('pvar_expr', (p[1], None))
         elif len(p) == 5:
@@ -620,9 +621,12 @@ class RDDLParser(object):
 
     def p_control_expr(self, p):
         '''control_expr : IF LPAREN expr RPAREN THEN expr ELSE expr %prec IF
-                        | SWITCH LPAREN term RPAREN LCURLY case_list RCURLY'''
+                        | SWITCH LPAREN expr RPAREN LCURLY case_list RCURLY'''
+                        # | SWITCH LPAREN term RPAREN LCURLY case_list RCURLY
+        # if-then-else
         if len(p) == 9:
             p[0] = (p[1], (p[3], p[6], p[8]))
+        # switch
         elif len(p) == 8:
             p[0] = (p[1], (p[3], *p[6]))
 
@@ -749,6 +753,7 @@ class RDDLParser(object):
         '''range_const : bool_type
                        | double_type
                        | int_type
+                       | ENUM_VAL
                        | IDENT'''
         p[0] = p[1]
 

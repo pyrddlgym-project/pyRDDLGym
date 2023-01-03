@@ -1,6 +1,6 @@
+import datetime
 import numpy as np
-from typing import Iterable, List, Tuple
-import warnings
+from typing import Callable, Iterable, List, Tuple
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -13,7 +13,7 @@ from pyRDDLGym.Core.Parser.expr import Value
 
 class RDDLTensors:
     
-    INT = np.int32
+    INT = np.int64
     REAL = np.float64
         
     NUMPY_TYPES = {
@@ -30,12 +30,20 @@ class RDDLTensors:
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
-    def __init__(self, rddl: RDDLModel, debug: bool=False):
+    def __init__(self, rddl: RDDLModel, debug: bool=False) -> None:
         self.rddl = rddl
         self.debug = debug
         
+        self.filename = f'debug_{rddl._AST.domain.name}_{rddl._AST.instance.name}.txt'
+        if self.debug:
+            fp = open(self.filename, 'w')
+            fp.write('')
+            fp.close()
+            
         self.index_of_object, self.grounded = self._compile_objects()
         self.init_values = self._compile_init_values()
+        
+        self._cached_transforms = {}
 
     def _compile_objects(self):
         grounded = {}
@@ -84,7 +92,18 @@ class RDDLTensors:
                     init_arrays[var] = array                
             else:
                 init_arrays[var] = dtype(init_values.get(var, default))
-                 
+        
+        if self.debug:
+            tensor_info = '\n\t'.join(
+                (f'{k}{[] if self.rddl.is_grounded else self.rddl.param_types[k]}, '
+                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
+                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}')
+                for k, v in init_arrays.items())
+            self.write_debug_message(
+                f'initializing pvariable tensors:' 
+                    f'\n\t{tensor_info}\n'
+            )
+            
         return init_arrays
         
     def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
@@ -123,30 +142,31 @@ class RDDLTensors:
                         f'must be one of {set(objects.keys())}.\n'
                         f'{msg}')
             
+    def write_debug_message(self, msg: str) -> None:
+        if self.debug:
+            fp = open(self.filename, 'a')
+            timestamp = str(datetime.datetime.now())
+            fp.write(timestamp + ': ' + msg + '\n')
+            fp.close()
+        
     def map(self, var: str,
             obj_in: List[str],
             sign_out: List[Tuple[str, str]],
-            expr: str, msg: str='') -> Tuple[str, bool, Tuple[int, ...]]:
-        '''Given:       
-        1. a pvariable var
-        2. a list of objects [o1, ...] at which var should be evaluated, and 
-        3. a desired signature [(object1, type1), (object2, type2)...],
-          
-        a call to map produces a tuple of three things if it is possible (and 
-        raises an exception if not):
-        
-        1. a mapping 'permutation(a,b,c...) -> (a,b,c...)' that represents the 
-        np.einsum transform on the tensor var with [o1, ...] to produce the
-        tensor representation of var with the desired signature
-        2. whether the permutation above is the identity, and
-        3. a tuple of new dimensions that need to be added to var in order to 
-        broadcast to the desired signature shape.
+            gnp=np,
+            msg: str='') -> Callable[[np.ndarray], np.ndarray]:
+        '''Returns a function that transforms a pvariable value tensor to one
+        whose shape matches a desired output signature. This operation is
+        achieved by adding new dimensions to the value as needed, and performing
+        a combination of transposition/reshape/einsum operations to coerce the 
+        value to the desired shape.
         
         :param var: a string pvariable defined in the domain
-        :param obj_in: a list of desired objects [o1, ...] as above
+        :param obj_in: a list of desired object quantifications, e.g. ?x, ?y at
+        which var will be evaluated
         :param sign_out: a list of tuples (objecti, typei) representing the
             desired signature of the output pvariable tensor
-        :param expr: a string representation of the expression for logging
+        :param gnp: the library in which to perform tensor arithmetic 
+        (either numpy or jax.numpy)
         :param msg: a stack trace to print for error handling
         '''
                 
@@ -171,15 +191,15 @@ class RDDLTensors:
                 f'but variable <{var}> has {n_out} arguments.'
                 f'\n{msg}')
         
-        # find a map permutation(a,b,c...) -> (a,b,c...) for the correct einsum
+        # find a map permutation(a,b,c...) -> (a,b,c...) for correct transpose
         sign_in = tuple(zip(obj_in, types_in))
-        lhs = [None] * len(obj_in)
+        permutation = [None] * len(obj_in)
         new_dims = []
         for i_out, (o_out, t_out) in enumerate(sign_out):
             new_dim = True
             for i_in, (o_in, t_in) in enumerate(sign_in):
                 if o_in == o_out:
-                    lhs[i_in] = valid_symbols[i_out]
+                    permutation[i_in] = i_out
                     new_dim = False
                     if t_out != t_in: 
                         raise RDDLInvalidObjectError(
@@ -190,34 +210,72 @@ class RDDLTensors:
             
             # need to expand the shape of the value array
             if new_dim:
-                lhs.append(valid_symbols[i_out])
+                permutation.append(i_out)
                 new_dims.append(len(self.rddl.objects[t_out]))
                 
         # safeguard against any free types
-        free = {sign_in[i][0] for i, p in enumerate(lhs) if p is None}
+        free = {sign_in[i][0] for i, p in enumerate(permutation) if p is None}
         if free:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> has unresolved parameter(s) {free}.'
                 f'\n{msg}')
         
-        # this is the necessary information for np.einsum
-        lhs = ''.join(lhs)
+        # compute the mapping function as follows:
+        # 1. append new axes to value tensor equal to # of missing variables
+        # 2. broadcast new axes to the desired shape (# of objects of each type)
+        # 3. rearrange the axes as needed to match the desired variables in order
+        #     3a. in most cases, it suffices to use np.transform (cheaper)
+        #     3b. in cases where we have a more complex contraction like 
+        #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
+        in_shape = self.shape(types_in)
+        out_shape = in_shape + tuple(new_dims)
+        new_axis = tuple(range(len(in_shape), len(out_shape)))
+         
+        lhs = ''.join(valid_symbols[p] for p in permutation)        
         rhs = valid_symbols[:n_out]
-        permute = lhs + ' -> ' + rhs
-        identity = lhs == rhs
-        new_dims = tuple(new_dims)
+        use_einsum = len(set(lhs)) != len(lhs)
+        use_tr = lhs != rhs
+        if use_einsum:
+            subscripts = lhs + '->' + rhs
+        elif use_tr:
+            subscripts = tuple(np.argsort(permutation))  # inverse permutation
+        else:
+            subscripts = None
         
-        if self.debug:
-            warnings.warn(
-                f'computing info for pvariable transform:' 
-                f'\n\texpr     ={expr}'
-                f'\n\tinputs   ={sign_in}'
-                f'\n\ttargets  ={sign_out}'
-                f'\n\tnew axes ={new_dims}'
-                f'\n\teinsum   ={permute}\n'
-            )
-        
-        return (permute, identity, new_dims)
+        # check if the tensor transform with the given signature already exists
+        # if so, just retrieve it from the cache
+        # if not, create it and store it in the cache
+        transform_id = f'{new_axis}_{out_shape}_{use_einsum}_{use_tr}_{subscripts}'
+        _transform = self._cached_transforms.get(transform_id, None)        
+        if _transform is None:
+            
+            def _transform(arg):
+                sample = arg
+                if new_axis:
+                    sample = gnp.expand_dims(sample, axis=new_axis)
+                    sample = gnp.broadcast_to(sample, shape=out_shape)
+                if use_einsum:
+                    return gnp.einsum(subscripts, sample)
+                elif use_tr:
+                    return gnp.transpose(sample, axes=subscripts)
+                else:
+                    return sample
+            
+            self._cached_transforms[transform_id] = _transform
+            
+        operation = gnp.einsum if use_einsum else (
+                        gnp.transpose if use_tr else 'None')
+        self.write_debug_message(
+            f'computing info for pvariable transform:' 
+                f'\n\tvar        ={var}'
+                f'\n\tinputs     ={sign_in}'
+                f'\n\ttargets    ={sign_out}'
+                f'\n\tnew axes   ={new_axis}'
+                f'\n\toperation  ={operation}, subscripts={subscripts}'
+                f'\n\tunique id  ={id(_transform)}\n'
+        )
+            
+        return _transform
     
     def expand(self, var: str, values: np.ndarray) -> Iterable[Tuple[str, Value]]:
         '''Produces a grounded representation of the pvariable var from its 
@@ -229,4 +287,7 @@ class RDDLTensors:
         '''
         keys = self.grounded[var]
         values = np.ravel(values)
-        return zip(keys, values, strict=True)
+        if len(keys) != values.size:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Size of value array is not compatible with variable <{var}>.')
+        return zip(keys, values)
