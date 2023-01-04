@@ -2,7 +2,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
-import jax.scipy as jscipy
+import jax.scipy as jscipy 
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -12,7 +12,10 @@ from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
+from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
+
 from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.Core.Debug.Logger import Logger
 
 
 class JaxRDDLCompiler:
@@ -31,31 +34,40 @@ class JaxRDDLCompiler:
     
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
-                 debug: bool=False) -> None:
+                 logger: Logger=None) -> None:
         
         # jax compilation will only work on lifted domains for now
-        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
+        if not isinstance(rddl, RDDLLiftedModel):
             raise RDDLNotImplementedError(
                 'Jax compilation only works on lifted domains for now.')
         
         self.rddl = rddl
-        self.debug = debug
-        jax.config.update('jax_log_compiles', self.debug)
+        self.logger = logger
+        jax.config.update('jax_log_compiles', logger is not None)
         
-        # static analysis and compilation
+        # compile initial values
+        if self.logger is not None:
+            self.logger.clear()
+        self.initializer = RDDLValueInitializer(rddl, logger=self.logger)
+        self.init_values = self.initializer.initialize()
+        
+        # compute dependency graph for CPFs and sort them by evaluation order
         sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
-        self.levels = sorter.compute_levels()
-        self.traced = RDDLObjectsTracer(rddl, tensorlib=jnp, debug=debug)
-        self.traced.trace()
+        self.levels = sorter.compute_levels()        
         
-        # log levels
-        levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
-                                  for (k, v) in self.levels.items())
-        self.traced._append_log(f'computed order of CPF evaluation:\n' 
-                                    f'\t{levels_info}\n')
+        # log dependency graph information to file
+        if self.logger is not None: 
+            levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                      for (k, v) in self.levels.items())
+            message = (f'computed order of CPF evaluation:\n' 
+                       f'\t{levels_info}\n')
+            self.logger.log(message)
+        
+        # trace expressions to cache information to be used later
+        tracer = RDDLObjectsTracer(rddl, tensorlib=jnp, logger=self.logger)
+        tracer.trace()
         
         # initialize all fluent and non-fluent values
-        self.init_values = self.traced.init_values
         self.next_states = {var + '\'': var
                             for var, ftype in rddl.variable_types.items()
                             if ftype == 'state-fluent'}
@@ -163,10 +175,10 @@ class JaxRDDLCompiler:
             
         # compute a batched version of the initial values
         init_subs = {}
-        for name, value in self.init_values.items():
+        for (name, value) in self.init_values.items():
             init_subs[name] = np.broadcast_to(
                 value, shape=(n_batch,) + np.shape(value))            
-        for next_state, state in self.next_states.items():
+        for (next_state, state) in self.next_states.items():
             init_subs[next_state] = init_subs[state]
         
         # this performs a single step update
@@ -179,25 +191,25 @@ class JaxRDDLCompiler:
             # check preconditions
             if check_constraints:
                 preconds = jnp.zeros(shape=(len(self.preconditions),), dtype=bool)
-                for i, precond in enumerate(self.preconditions):
+                for (i, precond) in enumerate(self.preconditions):
                     sample, key, precond_err = precond(subs, key)
                     preconds = preconds.at[i].set(sample)
                     error |= precond_err
             
             # calculate CPFs in topological order and reward
-            for name, cpf in self.cpfs.items():
+            for (name, cpf) in self.cpfs.items():
                 subs[name], key, cpf_err = cpf(subs, key)
                 error |= cpf_err                
             reward, key, reward_err = self.reward(subs, key)
             error |= reward_err
             
-            for next_state, state in self.next_states.items():
+            for (next_state, state) in self.next_states.items():
                 subs[state] = subs[next_state]
             
             # check the invariants in the new state
             if check_constraints:
                 invariants = jnp.zeros(shape=(len(self.invariants),), dtype=bool)
-                for i, invariant in enumerate(self.invariants):
+                for (i, invariant) in enumerate(self.invariants):
                     sample, key, invariant_err = invariant(subs, key)
                     invariants = invariants.at[i].set(sample)
                     error |= invariant_err
@@ -328,7 +340,7 @@ class JaxRDDLCompiler:
     @staticmethod
     def get_error_codes(error):
         binary = reversed(bin(error)[2:])
-        errors = [i for i, c in enumerate(binary) if c == '1']
+        errors = [i for (i, c) in enumerate(binary) if c == '1']
         return errors
     
     @staticmethod
@@ -374,14 +386,14 @@ class JaxRDDLCompiler:
     def _jax_cast(self, jax_expr, dtype):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        def _f(x, key):
+        def _jax_wrapped_type_cast(x, key):
             val, key, err = jax_expr(x, key)
             sample = jnp.asarray(val, dtype=dtype)
             invalid = (not jnp.can_cast(val, dtype)) and jnp.any(sample != val)
             err |= invalid * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_type_cast
    
     # ===========================================================================
     # leaves
@@ -389,36 +401,49 @@ class JaxRDDLCompiler:
     
     def _jax_constant(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        cached_value = expr.cached_sim_info
         
-        def _f(_, key):
-            sample = jnp.asarray(expr.cached_sim_info)
+        def _f_constant(_, key):
+            sample = cached_value
             return sample, key, ERR
 
-        return _f
+        return _f_constant
     
     def _jax_pvar(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, _ = expr.args  
         
+        # boundary case: enum literal is converted to canonical integer index
         if var in self.rddl.enum_literals:
+            cached_literal = expr.cached_sim_info
             
-            # enum literal is converted to canonical integer index
-            def _f(_, key):
-                sample = jnp.asarray(expr.cached_sim_info)
+            def _jax_wrapped_pvar_literal(_, key):
+                sample = cached_literal
                 return sample, key, ERR
+            
+            return _jax_wrapped_pvar_literal
         
-        else: 
+        # boundary case: no shape information (e.g. scalar pvar)
+        shape_info = expr.cached_sim_info 
+        if shape_info is None:
             
-            # must slice and/or reshape value tensor to match free variables
-            slices, transform = expr.cached_sim_info
+            def _jax_wrapped_pvar_scalar(x, key):
+                sample = x[var]          
+                return sample, key, ERR
             
-            def _f(x, key):
-                sample = jnp.asarray(x[var])
+            return _jax_wrapped_pvar_scalar
+        
+        # must slice and/or reshape value tensor to match free variables
+        slices, transform = shape_info 
+                
+        def _jax_wrapped_pvar_tensor(x, key):
+            sample = jnp.asarray(x[var])
+            if slices:
                 sample = sample[slices]
-                sample = transform(sample)
-                return sample, key, ERR
+            sample = transform(sample)
+            return sample, key, ERR
         
-        return _f
+        return _jax_wrapped_pvar_tensor
     
     # ===========================================================================
     # mathematical
@@ -427,24 +452,24 @@ class JaxRDDLCompiler:
     @staticmethod
     def _jax_unary(jax_expr, jax_op):
         
-        def _f(x, key):
+        def _jax_wrapped_unary_op(x, key):
             sample, key, err = jax_expr(x, key)
             sample = jax_op(sample)
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_unary_op
     
     @staticmethod
     def _jax_binary(jax_lhs, jax_rhs, jax_op):
         
-        def _f(x, key):
+        def _jax_wrapped_binary_op(x, key):
             sample1, key, err1 = jax_lhs(x, key)
             sample2, key, err2 = jax_rhs(x, key)
             sample = jax_op(sample1, sample2)
             err = err1 | err2
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_binary_op
         
     def _jax_arithmetic(self, expr):
         _, op = expr.etype
@@ -513,12 +538,12 @@ class JaxRDDLCompiler:
         jax_expr = self._jax(arg)
         jax_op = valid_ops[op]        
         
-        def _f(x, key):
+        def _jax_wrapped_aggregation(x, key):
             sample, key, err = jax_expr(x, key)
             sample = jax_op(sample, axis=axes)
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_aggregation
                
     def _jax_functional(self, expr):
         _, op = expr.etype
@@ -560,7 +585,7 @@ class JaxRDDLCompiler:
         jax_false = self._jax(if_false)        
         jax_op = self.CONTROL_OPS[op]
         
-        def _f(x, key):
+        def _jax_wrapped_if_then_else(x, key):
             sample1, key, err1 = jax_pred(x, key)
             sample2, key, err2 = jax_true(x, key)
             sample3, key, err3 = jax_false(x, key)
@@ -568,7 +593,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | err3
             return sample, key, err
             
-        return _f
+        return _jax_wrapped_if_then_else
     
     # ===========================================================================
     # random variables
@@ -635,7 +660,7 @@ class JaxRDDLCompiler:
         jax_lb = self._jax(arg_lb)
         jax_ub = self._jax(arg_ub)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_uniform(x, key):
             lb, key, err1 = jax_lb(x, key)
             ub, key, err2 = jax_ub(x, key)
             key, subkey = random.split(key)
@@ -646,7 +671,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_uniform
     
     def _jax_normal(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_NORMAL']
@@ -656,7 +681,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_var = self._jax(arg_var)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_normal(x, key):
             mean, key, err1 = jax_mean(x, key)
             var, key, err2 = jax_var(x, key)
             std = jnp.sqrt(var)
@@ -668,7 +693,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_normal
     
     def _jax_exponential(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_EXPONENTIAL']
@@ -677,7 +702,7 @@ class JaxRDDLCompiler:
         arg_scale, = expr.args
         jax_scale = self._jax(arg_scale)
                 
-        def _f(x, key):
+        def _jax_wrapped_distribution_exp(x, key):
             scale, key, err = jax_scale(x, key)
             key, subkey = random.split(key)
             Exp1 = random.exponential(
@@ -687,7 +712,7 @@ class JaxRDDLCompiler:
             err |= out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_exp
     
     def _jax_weibull(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_WEIBULL']
@@ -697,7 +722,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_weibull(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -708,7 +733,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_weibull
             
     def _jax_bernoulli(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
@@ -717,7 +742,7 @@ class JaxRDDLCompiler:
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_bernoulli(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
@@ -727,7 +752,7 @@ class JaxRDDLCompiler:
             err |= out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_bernoulli
     
     def _jax_poisson(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_POISSON']
@@ -736,7 +761,7 @@ class JaxRDDLCompiler:
         arg_rate, = expr.args
         jax_rate = self._jax(arg_rate)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_poisson(x, key):
             rate, key, err = jax_rate(x, key)
             key, subkey = random.split(key)
             sample = random.poisson(
@@ -745,7 +770,7 @@ class JaxRDDLCompiler:
             err |= out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_poisson
     
     def _jax_gamma(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GAMMA']
@@ -755,7 +780,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_gamma(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -765,7 +790,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_gamma
     
     def _jax_beta(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BETA']
@@ -775,7 +800,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_rate = self._jax(arg_rate)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_beta(x, key):
             shape, key, err1 = jax_shape(x, key)
             rate, key, err2 = jax_rate(x, key)
             key, subkey = random.split(key)
@@ -784,7 +809,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_beta
     
     def _jax_geometric(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GEOMETRIC']
@@ -793,7 +818,7 @@ class JaxRDDLCompiler:
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_geometric(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
@@ -803,7 +828,7 @@ class JaxRDDLCompiler:
             err |= out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_geometric
     
     def _jax_pareto(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_PARETO']
@@ -813,7 +838,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_pareto(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -822,7 +847,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_pareto
     
     def _jax_student(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_STUDENT']
@@ -831,7 +856,7 @@ class JaxRDDLCompiler:
         arg_df, = expr.args
         jax_df = self._jax(arg_df)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_t(x, key):
             df, key, err = jax_df(x, key)
             key, subkey = random.split(key)
             sample = random.t(key=subkey, df=df)
@@ -839,7 +864,7 @@ class JaxRDDLCompiler:
             err |= out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_t
     
     def _jax_gumbel(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GUMBEL']
@@ -849,7 +874,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_scale = self._jax(arg_scale)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_gumbel(x, key):
             mean, key, err1 = jax_mean(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -860,7 +885,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_gumbel
     
     def _jax_laplace(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_LAPLACE']
@@ -870,7 +895,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_scale = self._jax(arg_scale)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_laplace(x, key):
             mean, key, err1 = jax_mean(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -881,7 +906,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_laplace
     
     def _jax_cauchy(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_CAUCHY']
@@ -891,7 +916,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_scale = self._jax(arg_scale)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_cauchy(x, key):
             mean, key, err1 = jax_mean(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -902,7 +927,7 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_cauchy
     
     def _jax_gompertz(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GOMPERTZ']
@@ -912,7 +937,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
-        def _f(x, key):
+        def _jax_wrapped_distribution_gompertz(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -923,5 +948,5 @@ class JaxRDDLCompiler:
             err = err1 | err2 | out_of_bounds * ERR
             return sample, key, err
         
-        return _f
+        return _jax_wrapped_distribution_gompertz
     
