@@ -275,11 +275,11 @@ class RDDLObjectsTracer:
         # check if the tensor transform with the given signature already exists
         # if yes, retrieve it from the cache; if no, create it and cache it
         _id = f'{new_axis}_{out_shape}_{use_einsum}_{use_tr}_{subscripts}'
-        _transform = self._cached_transforms.get(_id, None)     
+        _wrapped_fill_missing_pvar_params = self._cached_transforms.get(_id, None)     
         mynp = self.tensorlib   
-        if _transform is None:
+        if _wrapped_fill_missing_pvar_params is None:
             
-            def _transform(arg):
+            def _wrapped_fill_missing_pvar_params(arg):
                 sample = arg
                 if new_axis:
                     sample = mynp.expand_dims(sample, axis=new_axis)
@@ -290,7 +290,7 @@ class RDDLObjectsTracer:
                     sample = mynp.transpose(sample, axes=subscripts)
                 return sample
             
-            self._cached_transforms[_id] = _transform
+            self._cached_transforms[_id] = _wrapped_fill_missing_pvar_params
         
         # log information about the new transformation
         if self.logger is not None:
@@ -304,10 +304,10 @@ class RDDLObjectsTracer:
                        f'\n\ttarget args   ={sign_out}'
                        f'\n\tnew axes      ={new_axis}'
                        f'\n\toperation     ={operation}, subscripts={subscripts}'
-                       f'\n\tunique op id  ={id(_transform)}\n')
+                       f'\n\tunique op id  ={id(_wrapped_fill_missing_pvar_params)}\n')
             self.logger.log(message)
             
-        return _transform
+        return _wrapped_fill_missing_pvar_params
     
     # ===========================================================================
     # compound expressions

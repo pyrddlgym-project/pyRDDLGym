@@ -3,13 +3,14 @@ from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-from pyRDDLGym.Core.Parser.expr import Value
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
+
+from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Parser.expr import Value
 
 Args = Dict[str, Value]
 
@@ -19,22 +20,19 @@ class JaxRDDLSimulator(RDDLSimulator):
     def __init__(self, rddl: RDDLLiftedModel,
                  key: jax.random.PRNGKey,
                  raise_error: bool=False,
+                 logger: Logger=None,
                  **compiler_args) -> None:
-        
-        # jax compilation will only work on lifted domains for now
-        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
-            raise RDDLNotImplementedError(
-                'Jax compilation only works on lifted domains for now.')
-            
         self.rddl = rddl
         self.key = key
         self.raise_error = raise_error
+        self.logger = logger
         
-        # static analysis and compilation
-        compiled = JaxRDDLCompiler(rddl, **compiler_args)
+        # compilation
+        compiled = JaxRDDLCompiler(rddl, logger=logger, **compiler_args)
         compiled.compile()
+        self.initializer = compiled.initializer
+        self.init_values = compiled.init_values
         self.levels = compiled.levels
-        self.traced = compiled.traced
         
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
@@ -42,18 +40,15 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.reward = jax.jit(compiled.reward)
         self.cpfs = jax.tree_map(jax.jit, compiled.cpfs)
         
-        # initialize all fluent and non-fluent values        
-        self.init_values = compiled.init_values            
+        # initialize all fluent and non-fluent values    
+        self.subs = self.init_values.copy() 
+        self.state = None 
         self.noop_actions = {var: values 
-                             for var, values in self.init_values.items() 
-                             if self.rddl.variable_types[var] == 'action-fluent'}
-        self.subs = self.init_values.copy()
+                             for (var, values) in self.init_values.items() 
+                             if rddl.variable_types[var] == 'action-fluent'}
         self.next_states = compiled.next_states
-        self.state = None
-        
-        # is a POMDP
         self.observ_fluents = [var 
-                               for var, ftype in rddl.variable_types.items()
+                               for (var, ftype) in rddl.variable_types.items()
                                if ftype == 'observ-fluent']
         self._pomdp = bool(self.observ_fluents)
         
@@ -67,7 +62,7 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
-        for i, invariant in enumerate(self.invariants):
+        for (i, invariant) in enumerate(self.invariants):
             sample, self.key, error = invariant(self.subs, self.key)
             self.handle_error_code(error, f'invariant {i + 1}')            
             if not bool(sample):
@@ -80,7 +75,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs
         subs.update(actions)
         
-        for i, precond in enumerate(self.preconds):
+        for (i, precond) in enumerate(self.preconds):
             sample, self.key, error = precond(self.subs, self.key)
             self.handle_error_code(error, f'precondition {i + 1}')            
             if not bool(sample):
@@ -89,7 +84,7 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
-        for i, terminal in enumerate(self.terminals):
+        for (i, terminal) in enumerate(self.terminals):
             sample, self.key, error = terminal(self.subs, self.key)
             self.handle_error_code(error, f'termination {i + 1}')
             if bool(sample):
@@ -121,20 +116,19 @@ class JaxRDDLSimulator(RDDLSimulator):
         reward = self.sample_reward()
         
         # update state
-        states = {}
-        for next_state, state in self.next_states.items():
-            value = subs[state] = subs[next_state]
-            states.update(self.traced.expand(state, value))
+        self.state = {}
+        for (next_state, state) in self.next_states.items():
+            subs[state] = subs[next_state]
+            self.state.update(self.rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
             obs = {}
             for var in self.observ_fluents:
-                obs.update(self.traced.expand(var, subs[var]))
+                obs.update(self.rddl.ground_values(var, subs[var]))
         else:
-            obs = states
+            obs = self.state
         
-        self.state = states
         done = self.check_terminal_states()        
         return obs, reward, done
         
