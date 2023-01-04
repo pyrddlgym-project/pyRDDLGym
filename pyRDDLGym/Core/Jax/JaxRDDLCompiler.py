@@ -67,11 +67,6 @@ class JaxRDDLCompiler:
         tracer = RDDLObjectsTracer(rddl, tensorlib=jnp, logger=self.logger)
         tracer.trace()
         
-        # initialize all fluent and non-fluent values
-        self.next_states = {var + '\'': var
-                            for var, ftype in rddl.variable_types.items()
-                            if ftype == 'state-fluent'}
-        
         # basic operations        
         self.ARITHMETIC_OPS = {
             '+': jnp.add,
@@ -178,7 +173,7 @@ class JaxRDDLCompiler:
         for (name, value) in self.init_values.items():
             init_subs[name] = np.broadcast_to(
                 value, shape=(n_batch,) + np.shape(value))            
-        for (next_state, state) in self.next_states.items():
+        for (state, next_state) in self.rddl.next_state.items():
             init_subs[next_state] = init_subs[state]
         
         # this performs a single step update
@@ -203,7 +198,7 @@ class JaxRDDLCompiler:
             reward, key, reward_err = self.reward(subs, key)
             error |= reward_err
             
-            for (next_state, state) in self.next_states.items():
+            for (state, next_state) in self.rddl.next_state.items():
                 subs[state] = subs[next_state]
             
             # check the invariants in the new state

@@ -65,17 +65,11 @@ class RDDLSimulator:
         
         # initialize all fluent and non-fluent values        
         self.subs = self.init_values.copy()
-        self.state = None        
-        self.noop_actions, self.next_states, self.observ_fluents = {}, {}, []
-        for var, value in self.init_values.items():
-            vtype = rddl.variable_types[var]
-            if vtype == 'action-fluent':
-                self.noop_actions[var] = value
-            elif vtype == 'state-fluent':
-                self.next_states[var + '\''] = var
-            elif vtype == 'observ-fluent':
-                self.observ_fluents.append(var)
-        self._pomdp = bool(self.observ_fluents)
+        self.state = None  
+        self.noop_actions = {var: values
+                             for (var, values) in self.init_values.items()
+                             if rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(self.rddl.observ)
         
         # enumerated types are converted to integers internally
         self._cpf_dtypes = {}
@@ -252,7 +246,6 @@ class RDDLSimulator:
         
         # override new_actions with any new actions
         for (action, value) in actions.items(): 
-            # TODO: check validity of action
             
             # enum literals are converted to their canonical int indices
             if value in rddl.enum_literals:
@@ -314,12 +307,12 @@ class RDDLSimulator:
         
         # update state
         self.state = {}
-        for state in self.next_states.values():
+        for state in self.rddl.states:
             self.state.update(self.rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp:
-            obs = {var: None for var in self.observ_fluents}
+            obs = {var: None for var in self.rddl.observ}
         else:
             obs = self.state
         
@@ -350,14 +343,14 @@ class RDDLSimulator:
         
         # update state
         self.state = {}
-        for (next_state, state) in self.next_states.items():
+        for (state, next_state) in self.rddl.next_state.items():
             subs[state] = subs[next_state]
             self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
             obs = {}
-            for var in self.observ_fluents:
+            for var in self.rddl.observ:
                 obs.update(rddl.ground_values(var, subs[var]))
         else:
             obs = self.state
@@ -1008,24 +1001,20 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         
         self.epsilon = 0.001
         
-        self._bounds, states, actions = {}, set(), set()
+        self._bounds = {}
         for (var, vtype) in self.rddl.variable_types.items():
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
                 ptypes = self.rddl.param_types[var]
                 for gname in self.rddl.ground_names(var, ptypes):
                     self._bounds[gname] = [-self.BigM, +self.BigM]
-                if vtype == 'action-fluent':
-                    actions.add(var)
-                elif vtype == 'state-fluent':
-                    states.add(var)
 
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
         for precond in self.rddl.preconditions:
-            self._parse_bounds(precond, [], actions)
+            self._parse_bounds(precond, [], self.rddl.actions)
             
         for invariant in self.rddl.invariants:
-            self._parse_bounds(invariant, [], states)
+            self._parse_bounds(invariant, [], self.rddl.states)
 
         for (name, bounds) in self._bounds.items():
             RDDLSimulator._check_bounds(*bounds, f'Variable <{name}>', bounds)

@@ -46,11 +46,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.noop_actions = {var: values 
                              for (var, values) in self.init_values.items() 
                              if rddl.variable_types[var] == 'action-fluent'}
-        self.next_states = compiled.next_states
-        self.observ_fluents = [var 
-                               for (var, ftype) in rddl.variable_types.items()
-                               if ftype == 'observ-fluent']
-        self._pomdp = bool(self.observ_fluents)
+        self._pomdp = bool(self.rddl.observ)
         
     def handle_error_code(self, error, msg) -> None:
         if self.raise_error:
@@ -117,14 +113,14 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         # update state
         self.state = {}
-        for (next_state, state) in self.next_states.items():
+        for (state, next_state) in self.rddl.next_state.items():
             subs[state] = subs[next_state]
             self.state.update(self.rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
             obs = {}
-            for var in self.observ_fluents:
+            for var in self.rddl.observ:
                 obs.update(self.rddl.ground_values(var, subs[var]))
         else:
             obs = self.state

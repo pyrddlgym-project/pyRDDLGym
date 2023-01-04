@@ -86,13 +86,17 @@ class RDDLLevelAnalysis:
             if name in self.rddl.enum_literals:
                 pass
             
-            # check that name is valid variable, and make var a dependent of cpf
+            # variable defined in pvariables {..} scope
             else:
+                
+                # check that name is valid variable
                 var_type = self.rddl.variable_types.get(name, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
                         f'Variable or literal <{name}> in CPF <{cpf}> '
                         f'is not defined.')
+                
+                # if var is a fluent assign it as dependent of cpf
                 elif var_type != 'non-fluent':
                     graph.setdefault(cpf, set()).add(name)
                 
