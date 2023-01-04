@@ -47,7 +47,8 @@ class RDDLObjectsTracer:
         self.rddl = rddl
         self.tensorlib = tensorlib
         self.debug = debug   
-             
+            
+        # where the log is written to
         self.filename = f'{rddl._AST.domain.name}_{rddl._AST.instance.name}.log'
         
     # ===========================================================================
@@ -130,6 +131,8 @@ class RDDLObjectsTracer:
         # if the init_values are missing use the default value of range
         self.init_values = {}
         for (var, prange) in rddl.variable_ranges.items():
+            if prange in rddl.enum_types:
+                prange = 'int'
             dtype = RDDLObjectsTracer.NUMPY_TYPES[prange]
             default = self._get_default_value_from_prange(prange, var)
             ptypes = rddl.param_types[var]
@@ -260,9 +263,10 @@ class RDDLObjectsTracer:
                 f'got {len(pvars)}.'
                 f'\n{msg}')
             
-        cached_slices = []
-        literals = set()
+        cached_slices, literals = [], set()
         for (i, pvar) in enumerate(pvars):
+            
+            # is an enum literal
             if pvar in self.rddl.enum_literals:
                 enum_type = self.rddl.objects_rev[pvar]
                 
@@ -275,15 +279,15 @@ class RDDLObjectsTracer:
                 
                 # an enum literal argument (e.g., @x) corresponds to slicing
                 # value tensor at this axis with canonical index of the literal  
-                slice_object = self.rddl.index_of_object[pvar]
+                cached_slices.append(self.rddl.index_of_object[pvar])
                 literals.add(i)
+            
+            # is a proper type argument (e.g., ?x): in this case do NOT slice
+            # value tensor at all (e.g., emulate numpy's :) at this axis
             else:
-                # a proper type argument (e.g., ?x) corresponds to NOT slicing
-                # value tensor at all (e.g., by using :) at this axis
-                slice_object = slice(None)
-            cached_slices.append(slice_object)
-        cached_slices = tuple(cached_slices)
-        return (cached_slices, literals)
+                cached_slices.append(slice(None))
+                        
+        return (tuple(cached_slices), literals)
 
     def _map(self, var: str,
              obj_in: List[str],
@@ -431,6 +435,7 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of operator {expr.etype[1]}')
+            
         expr.cached_sim_info = None
         expr.enum_type = None
     
@@ -456,6 +461,7 @@ class RDDLObjectsTracer:
                 f'Relational operator {op} is not valid for comparing enum types, '
                 f'must be one of {valid_enum_types}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
+            
         expr.cached_sim_info = None
         expr.enum_type = None  
     
@@ -466,6 +472,7 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of operator {expr.etype[1]}')
+            
         expr.cached_sim_info = None
         expr.enum_type = None
     
@@ -520,6 +527,7 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of function {expr.etype[1]}') 
+            
         expr.cached_sim_info = None
         expr.enum_type = None
             
@@ -548,6 +556,7 @@ class RDDLObjectsTracer:
                 f'Branches in if then else cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))     
+            
         expr.cached_sim_info = None   
         expr.enum_type = next(iter(enum_types))
     
@@ -592,7 +601,7 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Cases in switch cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))            
+                RDDLObjectsTracer._print_stack_trace(expr))                        
         expr.enum_type = next(iter(enum_types))
         
     def _order_cases(self, enum_type, case_dict, expr): 
@@ -674,6 +683,7 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Expression in case {i + 1} of distribution Discrete') 
+            
         expr.enum_type = enum_type
     
     def _trace_random_other(self, expr, objects):
@@ -683,6 +693,7 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of distribution {expr.etype[1]}') 
+            
         expr.cached_sim_info = None
         expr.enum_type = None
         
