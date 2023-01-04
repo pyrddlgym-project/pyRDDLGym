@@ -52,7 +52,7 @@ class RDDLLiftedModel(PlanningModel):
          
         objects = {}
         enum_types, enum_literals = set(), set()    
-        for name, pvalues in self._AST.domain.types:
+        for (name, pvalues) in self._AST.domain.types:
             if pvalues == 'object':  # objects
                 objects[name] = ast_objects.get(name, None)
                 if objects[name] is None:
@@ -64,7 +64,7 @@ class RDDLLiftedModel(PlanningModel):
                 enum_literals.update(pvalues)        
         
         objects_rev = {}
-        for name, values in objects.items():
+        for (name, values) in objects.items():
             for obj in values:
                 if obj in objects_rev:
                     raise RDDLInvalidObjectError(
@@ -92,7 +92,7 @@ class RDDLLiftedModel(PlanningModel):
     
     def _flatten_grounded_dict(self, grounded_dict):
         new_dict = {}
-        for var, values_dict in grounded_dict.items():
+        for (var, values_dict) in grounded_dict.items():
             if self.param_types[var]:
                 new_dict[var] = list(values_dict.values())
             else:
@@ -113,7 +113,7 @@ class RDDLLiftedModel(PlanningModel):
                 
         initstates = copy.deepcopy(states)
         if hasattr(self._AST.instance, 'init_state'):
-            for (name, params), value in self._AST.instance.init_state:
+            for ((name, params), value) in self._AST.instance.init_state:
                 if name in initstates:
                     gname = self.ground_name(name, params)
                     if gname in initstates[name]:
@@ -168,7 +168,7 @@ class RDDLLiftedModel(PlanningModel):
                                      for gname in self.ground_names(name, ptypes)}
                         
         if hasattr(self._AST.non_fluents, 'init_non_fluent'):
-            for (name, params), value in self._AST.non_fluents.init_non_fluent:
+            for ((name, params), value) in self._AST.non_fluents.init_non_fluent:
                 if name in non_fluents:
                     gname = self.ground_name(name, params)
                     if gname in non_fluents[name]:
@@ -194,10 +194,10 @@ class RDDLLiftedModel(PlanningModel):
                     f'CPF <{name}> expects {len(types)} parameters, '
                     f'got {len(objects)}.')
                 
-            objects = [(o, types[i]) for i, o in enumerate(objects)]
+            objects = [(o, types[i]) for (i, o) in enumerate(objects)]
             cpfs[name] = (objects, cpf.expr)
         
-        for var, fluent_type in self.variable_types.items():
+        for (var, fluent_type) in self.variable_types.items():
             if fluent_type in {'derived-fluent', 'interm-fluent', 
                                'next-state-fluent', 'observ-fluent'}:
                 if var not in cpfs:

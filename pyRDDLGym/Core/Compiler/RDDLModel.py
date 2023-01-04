@@ -390,7 +390,7 @@ class PlanningModel(metaclass=ABCMeta):
             objects = []
         if len(ptypes) != len(objects):
             return False
-        for ptype, obj in zip(ptypes, objects):
+        for (ptype, obj) in zip(ptypes, objects):
             if obj not in self.objects_rev or ptype != self.objects_rev[obj]:
                 return False
         return True
@@ -417,8 +417,7 @@ class PlanningModel(metaclass=ABCMeta):
         elif etype == 'pvar':
             name = expr.args[0]
             if name in self.enum_literals:
-                return True  # enum literal
-            
+                return True  # enum literal            
             else:
                 var_type = self.variable_types.get(name, None)  # pvariable      
                 if var_type is None:
@@ -491,7 +490,7 @@ class PlanningModel(metaclass=ABCMeta):
     
     def ground_actionsranges(self):
         return {name: prange 
-                for action, prange in self.actionsranges.items()
+                for (action, prange) in self.actionsranges.items()
                     for name in self.grounded_names[action]}
     
     def ground_states(self):
@@ -502,7 +501,7 @@ class PlanningModel(metaclass=ABCMeta):
     
     def ground_statesranges(self):
         return {name: prange 
-                for state, prange in self.statesranges.items()
+                for (state, prange) in self.statesranges.items()
                     for name in self.grounded_names[state]}
     
     def ground_observ(self):
@@ -513,7 +512,7 @@ class PlanningModel(metaclass=ABCMeta):
     
     def ground_observranges(self):
         return {name: prange 
-                for obs, prange in self.observranges.items()
+                for (obs, prange) in self.observranges.items()
                     for name in self.grounded_names[obs]}
         
     def ground_nonfluents(self):
