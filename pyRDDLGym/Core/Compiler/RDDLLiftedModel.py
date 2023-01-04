@@ -4,6 +4,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedCPFError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 
@@ -124,13 +125,25 @@ class RDDLLiftedModel(PlanningModel):
         initstates = copy.deepcopy(states)
         if hasattr(self._AST.instance, 'init_state'):
             for ((name, params), value) in self._AST.instance.init_state:
-                if name in initstates:
-                    gname = self.ground_name(name, params)
-                    if gname in initstates[name]:
-                        initstates[name][gname] = value
-        
+                
+                # check whether name is a valid state-fluent
+                if name not in initstates:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{name}> referenced in init-state block '
+                        f'is not a valid state-fluent.')
+                    
+                # extract the grounded name, and check that parameters are valid
+                gname = self.ground_name(name, params)
+                if gname not in initstates[name]:
+                    raise RDDLInvalidObjectError(
+                        f'Parameters {params} of state-fluent {name} '
+                        f'as declared in the init-state block are not valid.')
+                    
+                initstates[name][gname] = value
+                
         # state dictionary associates the variable lifted name with a list of
         # values for all variations of parameter arguments in C-based order
+        # if the fluent does not have parameters, then the value is a scalar
         states = self._flatten_grounded_dict(states)
         initstates = self._flatten_grounded_dict(initstates)     
         return states, statesranges, nextstates, prevstates, initstates
@@ -190,11 +203,22 @@ class RDDLLiftedModel(PlanningModel):
         # update non-fluent values with the values in the instance
         if hasattr(self._AST.non_fluents, 'init_non_fluent'):
             for ((name, params), value) in self._AST.non_fluents.init_non_fluent:
-                if name in non_fluents:
-                    gname = self.ground_name(name, params)
-                    if gname in non_fluents[name]:
-                        non_fluents[name][gname] = value
-                        
+                
+                # check whether name is a valid non-fluent
+                if name not in non_fluents:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{name}> referenced in non-fluents block '
+                        f'is not a valid non-fluent.')
+                
+                # extract the grounded name, and check that parameters are valid
+                gname = self.ground_name(name, params)                
+                if gname not in non_fluents[name]:
+                    raise RDDLInvalidObjectError(
+                        f'Parameters {params} of non-fluent {name} '
+                        f'as declared in the non-fluents block are not valid.')
+                
+                non_fluents[name][gname] = value
+                                        
         # non-fluents are stored similar to states described above
         return self._flatten_grounded_dict(non_fluents)
     
