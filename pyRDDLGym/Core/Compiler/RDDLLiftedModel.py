@@ -18,27 +18,22 @@ class RDDLLiftedModel(PlanningModel):
         
         self.SetAST(rddl)
         
-        self.objects, self.objects_rev, self.index_of_object, \
-            self.enum_types, self.enum_literals = self._extract_objects()
-            
-        self.param_types, self.variable_types, self.variable_ranges, \
-            self.grounded_names = self._extract_variable_information()  
+        self._extract_objects()            
+        self._extract_variable_information()  
                 
-        self.states, self.statesranges, self.next_state, self.prev_state, \
-            self.init_state = self._extract_states()
-        self.actions, self.actionsranges = self._extract_actions()
-        self.derived, self.interm = self._extract_derived_and_interm()
-        self.observ, self.observranges = self._extract_observ()
-        self.nonfluents = self._extract_non_fluents()
+        self._extract_states()
+        self._extract_actions()
+        self._extract_derived_and_interm()
+        self._extract_observ()
+        self._extract_non_fluents()
         
         self.reward = self._AST.domain.reward
-        self.cpfs = self._extract_cpfs()
-        self.terminals, self.preconditions, self.invariants = \
-            self._extract_constraints()
+        self._extract_cpfs()
+        self._extract_constraints()
         
-        self.horizon = self._extract_horizon()
-        self.discount = self._extract_discount()
-        self.max_allowed_actions = self._extract_max_actions()
+        self._extract_horizon()
+        self._extract_discount()
+        self._extract_max_actions()
         
     def _extract_objects(self):
         ast_objects = self._AST.non_fluents.objects
@@ -50,21 +45,21 @@ class RDDLLiftedModel(PlanningModel):
         objects, enum_types, enum_literals = {}, set(), set()    
         for (name, pvalues) in self._AST.domain.types:
             
-            # objects
-            if pvalues == 'object':  
+            # object
+            if pvalues == 'object': 
                 objects[name] = ast_objects.get(name, None)
                 if objects[name] is None:
                     raise RDDLInvalidObjectError(
                         f'Type <{name}> has no objects defined in the instance.')
             
-            # enumerated types
-            else:  
+            # enumerated type
+            else: 
                 objects[name] = pvalues
                 enum_types.add(name)
                 enum_literals.update(pvalues)        
         
         # make sure different types do not share the same object
-        # then record the type that each object corresponds to
+        # record the type that each object or enum literal corresponds to
         objects_rev = {}
         for (name, values) in objects.items():
             for obj in values:
@@ -79,7 +74,9 @@ class RDDLLiftedModel(PlanningModel):
                          for objects in objects.values() 
                             for (i, obj) in enumerate(objects)}
         
-        return objects, objects_rev, objects_index, enum_types, enum_literals
+        self.objects, self.objects_rev = objects, objects_rev
+        self.index_of_object = objects_index
+        self.enum_types, self.enum_literals = enum_types, enum_literals
     
     def _extract_variable_information(self):
         
@@ -104,17 +101,20 @@ class RDDLLiftedModel(PlanningModel):
         # maps each variable (as appears in RDDL) to list of grounded variations
         var_grounded = {var: list(self.ground_names(var, types))
                         for (var, types) in var_params.items()}        
-                
-        return var_params, var_types, var_ranges, var_grounded
+        
+        self.param_types, self.variable_types, self.variable_ranges = \
+            var_params, var_types, var_ranges
+        self.grounded_names = var_grounded
     
     def _grounded_dict_to_dict_of_list(self, grounded_dict):
         new_dict = {}
         for (var, values_dict) in grounded_dict.items():
+            grounded_names = list(values_dict.values())
             if self.param_types[var]:
-                new_dict[var] = list(values_dict.values())
+                new_dict[var] = grounded_names
             else:
-                assert len(values_dict) == 1
-                new_dict[var] = next(iter(values_dict.values()))
+                assert len(grounded_names) == 1
+                new_dict[var] = grounded_names[0]
         return new_dict
     
     def _extract_states(self):
@@ -155,7 +155,10 @@ class RDDLLiftedModel(PlanningModel):
         # if the fluent does not have parameters, then the value is a scalar
         states = self._grounded_dict_to_dict_of_list(states)
         initstates = self._grounded_dict_to_dict_of_list(initstates)     
-        return states, statesranges, nextstates, prevstates, initstates
+        
+        self.states, self.statesranges = states, statesranges
+        self.next_state, self.prev_state = nextstates, prevstates
+        self.init_state = initstates
     
     def _value_list_or_scalar_from_default(self, ptypes, default):
         if ptypes is None:
@@ -174,7 +177,7 @@ class RDDLLiftedModel(PlanningModel):
                 actionsranges[pvar.name] = pvar.range
                 actions[pvar.name] = self._value_list_or_scalar_from_default(
                     pvar.param_types, pvar.default)
-        return actions, actionsranges
+        self.actions, self.actionsranges = actions, actionsranges
     
     def _extract_derived_and_interm(self):
         
@@ -187,7 +190,7 @@ class RDDLLiftedModel(PlanningModel):
             elif pvar.is_intermediate_fluent():
                 interm[pvar.name] = self._value_list_or_scalar_from_default(
                     pvar.param_types, pvar.default)
-        return derived, interm
+        self.derived, self.interm = derived, interm
     
     def _extract_observ(self):
         
@@ -198,7 +201,7 @@ class RDDLLiftedModel(PlanningModel):
                 observranges[pvar.name] = pvar.range
                 observ[pvar.name] = self._value_list_or_scalar_from_default(
                     pvar.param_types, pvar.default)
-        return observ, observranges
+        self.observ, self.observranges = observ, observranges
         
     def _extract_non_fluents(self):
         
@@ -230,14 +233,12 @@ class RDDLLiftedModel(PlanningModel):
                 non_fluents[name][gname] = value
                                         
         # non-fluents are stored similar to states described above
-        return self._grounded_dict_to_dict_of_list(non_fluents)
+        self.nonfluents = self._grounded_dict_to_dict_of_list(non_fluents)
     
     def _extract_cpfs(self):
         cpfs = {}
         for cpf in self._AST.domain.cpfs[1]:
             name, objects = cpf.pvar[1]
-            if objects is None:
-                objects = []
             
             # make sure the CPF is defined in pvariables {...} scope
             types = self.param_types.get(name, None)
@@ -246,26 +247,28 @@ class RDDLLiftedModel(PlanningModel):
                     f'CPF <{name}> is not defined in pvariable scope.')
             
             # make sure the number of parameters matches that in cpfs {...}
+            if objects is None:
+                objects = []
             if len(types) != len(objects):
                 raise RDDLInvalidObjectError(
                     f'CPF <{name}> expects {len(types)} parameters, '
                     f'got {len(objects)}.')
             
-            # CPFs are stored as dictionary that associates cpf name
-            # with a pair, where the first element is the type argument info,
-            # and the second element is the AST expression
+            # CPFs are stored as dictionary that associates cpf name with a pair 
+            # the first element is the type argument list
+            # the second element is the AST expression
             objects = [(o, types[i]) for (i, o) in enumerate(objects)]
             cpfs[name] = (objects, cpf.expr)
         
         # make sure all CPFs have a valid expression in cpfs {...}
         for (var, fluent_type) in self.variable_types.items():
-            if fluent_type in {'derived-fluent', 'interm-fluent', 
+            if fluent_type in {'derived-fluent', 'interm-fluent',
                                'next-state-fluent', 'observ-fluent'} \
             and var not in cpfs:
                 raise RDDLMissingCPFDefinitionError(
                     f'{fluent_type} CPF <{var}> is missing a valid definition.')
                     
-        return cpfs
+        self.cpfs = cpfs
     
     def _extract_constraints(self):
         terminals, preconds, invariants = [], [], []
@@ -275,26 +278,27 @@ class RDDLLiftedModel(PlanningModel):
             preconds = self._AST.domain.preconds
         if hasattr(self._AST.domain, 'invariants'):
             invariants = self._AST.domain.invariants
-        return terminals, preconds, invariants
+        self.terminals, self.preconditions, self.invariants = \
+            terminals, preconds, invariants
 
     def _extract_horizon(self):
         horizon = self._AST.instance.horizon
         if not (horizon >= 0):
             raise RDDLValueOutOfRangeError(
                 f'Horizon {horizon} in the instance is not >= 0.')
-        return horizon
+        self.horizon = horizon
 
     def _extract_max_actions(self):
         numactions = self._AST.instance.max_nondef_actions
         if numactions == 'pos-inf':
-            return len(self.actions)
+            self.max_allowed_actions = len(self.actions)
         else:
-            return int(numactions)
+            self.max_allowed_actions = int(numactions)
 
     def _extract_discount(self):
         discount = self._AST.instance.discount
         if not (0. <= discount <= 1.):
             raise RDDLValueOutOfRangeError(
                 f'Discount factor {discount} in the instance is not in [0, 1].')
-        return discount
+        self.discount = discount
     
