@@ -9,7 +9,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionE
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import RDDLGroundedModel
 from pyRDDLGym.Core.Parser.expr import Expression
 
 PRIME = '\''
@@ -28,7 +28,7 @@ AGGREG_OP_TO_STRING_DICT = {
 class Grounder(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
-    def Ground(self) -> RDDLModel:
+    def Ground(self) -> RDDLGroundedModel:
         pass
 
 
@@ -64,7 +64,7 @@ class RDDLGrounder(Grounder):
         self.preconditions = []
         self.invariants = []
 
-    def Ground(self) -> RDDLModel:
+    def Ground(self) -> RDDLGroundedModel:
         self._extract_objects()
         self._ground_non_fluents()
         self._ground_pvariables_and_cpf()
@@ -74,7 +74,7 @@ class RDDLGrounder(Grounder):
         self._ground_constraints()
 
         # update model object
-        model = RDDLModel()
+        model = RDDLGroundedModel()
         model.states = self.states
         model.actions = self.actions
         model.nonfluents = self.nonfluents
@@ -92,8 +92,8 @@ class RDDLGrounder(Grounder):
         model.interm = self.interm
         model.observ = self.observ
         model.observranges = self.observranges
-        model.objects = self.objects
-        model.objects_rev = self.objects_rev
+        model.objects = {} #self.objects
+        model.objects_rev = {} #self.objects_rev
         model.actionsranges = self.actionsranges
         model.statesranges = self.statesranges
         model.gvar_to_type = self.gvar_to_type
@@ -110,6 +110,9 @@ class RDDLGrounder(Grounder):
         
         model.enum_types = set()
         model.enum_literals = set()
+        
+        model.grounded_names = {name: [name] for name in model.param_types.keys()}
+        model.index_of_object = {}
         
         return model
 
@@ -571,18 +574,20 @@ class RDDLGrounder(Grounder):
     def _extract_variable_information(self):
         var_params, var_types, var_ranges = {}, {}, {}
         for pvar in self.AST.domain.pvariables:
-            primed_name = name = pvar.name
-            if pvar.is_state_fluent():
-                primed_name = name + PRIME
-            ptypes = pvar.param_types
-            if ptypes is None:
-                ptypes = []
-            var_params[name] = ptypes
-            var_params[primed_name] = ptypes        
-            var_types[name] = pvar.fluent_type
-            if pvar.is_state_fluent():
-                var_types[primed_name] = 'next-state-fluent'                
-            var_ranges[name] = pvar.range
-            var_ranges[primed_name] = pvar.range            
+            objects = pvar.param_types
+            if objects is None:
+                objects = []
+            if objects:
+                variations = list(self._ground_objects(objects))
+                grounded = self._generate_grounded_names(pvar.name, variations)
+            else:
+                grounded = [pvar.name]
+            for name in grounded:
+                primed_name = (name + PRIME) if pvar.is_state_fluent() else name
+                var_params[name] = var_params[primed_name] = []        
+                var_types[name] = pvar.fluent_type
+                if pvar.is_state_fluent():
+                    var_types[primed_name] = 'next-state-fluent'                
+                var_ranges[name] = var_ranges[primed_name] = pvar.range            
         return var_params, var_types, var_ranges
     

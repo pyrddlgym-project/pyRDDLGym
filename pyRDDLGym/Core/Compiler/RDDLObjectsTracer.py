@@ -1,6 +1,6 @@
 import datetime
 import numpy as np
-from typing import Callable, Iterable, List, Set, Tuple, Union
+from typing import Callable, List, Set, Tuple, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -9,8 +9,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
-from pyRDDLGym.Core.Parser.expr import Expression, Value
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
+from pyRDDLGym.Core.Parser.expr import Expression
 
 
 class RDDLObjectsTracer:
@@ -33,10 +33,10 @@ class RDDLObjectsTracer:
         'real': 0.0,
         'bool': False
     }
-    
+        
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
-    def __init__(self, rddl: RDDLModel, tensorlib=np, debug: bool=False):
+    def __init__(self, rddl: PlanningModel, tensorlib=np, debug: bool=False):
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
@@ -86,15 +86,31 @@ class RDDLObjectsTracer:
     # compilation of RDDL domain objects and initial value tensors
     # ===========================================================================
     
-    def _compile_objects(self): 
-        rddl = self.rddl       
-        self.grounded = {var: list(rddl.grounded_names(var, types))
-                         for (var, types) in rddl.param_types.items()}    
-            
-        self.index_of_object = {obj: i 
-                                for objects in rddl.objects.values() 
-                                    for (i, obj) in enumerate(objects)}
-        
+    def _get_default_value_from_prange(self, prange, var):
+        if prange in self.rddl.enum_types:
+            prange = 'int'
+        default = RDDLObjectsTracer.DEFAULT_VALUES.get(prange, None)
+        if default is None:
+            raise RDDLTypeError(
+                f'Type <{prange}> of variable <{var}> is not valid, '
+                f'must be an enum type in {self.rddl.enum_types} '
+                f'or one of {set(RDDLObjectsTracer.DEFAULT_VALUES.keys())}.')   
+        return default
+
+    def _enum_literals_to_ints(self, literals, prange, var):
+        integers = []
+        for literal in literals:
+            if literal is None:
+                integers.append(0)
+            elif self.rddl.objects_rev.get(literal, None) == prange:
+                integers.append(self.rddl.index_of_object[literal])
+            else:
+                raise RDDLInvalidObjectError(
+                    f'Literal <{literal}> assigned to variable <{var}> '
+                    f'does not belong to enum <{prange}>, '
+                    f'must be one of {set(self.rddl.objects[prange])}.')
+        return integers
+    
     def _compile_init_values(self):
         rddl = self.rddl
                 
@@ -103,116 +119,39 @@ class RDDLObjectsTracer:
         init_values.update(rddl.nonfluents)
         init_values.update(rddl.init_state)
         init_values.update(rddl.actions)
-        init_values = {name: value 
-                       for (name, value) in init_values.items() 
-                       if value is not None}
 
         # enum literals are converted to integers
-        for (name, value) in init_values.items():
-            var = rddl.parse(name)[0]
+        for (var, values) in init_values.items():
             prange = rddl.variable_ranges[var]
             if prange in rddl.enum_types:
-                if rddl.objects_rev.get(value, None) != prange:
-                    raise RDDLInvalidObjectError(
-                        f'Literal <{value}> does not belong to enum <{prange}>, '
-                        f'must be one of {set(rddl.objects[prange])}.')
-                init_values[name] = self.index_of_object[value]
+                init_values[var] = self._enum_literals_to_ints(values, prange, var)
         
-        init_arrays = {}
-        for var in rddl.variable_ranges.keys():
-            
-            # try to extract a default value if missing for a primitive type
-            # enum types are treated as integers
-            prange = rddl.variable_ranges[var]
-            default = RDDLObjectsTracer.DEFAULT_VALUES.get(prange, None)
-            if default is None:
-                if prange in rddl.enum_types:
-                    prange = 'int'
-                    default = 0
-                else:
-                    raise RDDLTypeError(
-                        f'Type <{prange}> of variable <{var}> is not valid, '
-                        f'must be an enum type in {rddl.enum_types} '
-                        f'or one of {set(RDDLObjectsTracer.DEFAULT_VALUES.keys())}.')   
-            
-            # create a tensor filled with init_values
-            types = rddl.param_types[var]
+        # create a tensor for each pvar with the init_values
+        # if the init_values are missing use the default value of range
+        self.init_values = {}
+        for (var, prange) in rddl.variable_ranges.items():
             dtype = RDDLObjectsTracer.NUMPY_TYPES[prange]
-            if rddl.is_grounded or not types:
-                for name in rddl.grounded_names(var, types):
-                    init_arrays[name] = dtype(init_values.get(name, default)) 
+            default = self._get_default_value_from_prange(prange, var)
+            ptypes = rddl.param_types[var]
+            if ptypes:
+                shape = rddl.object_counts(ptypes)
+                values = init_values.get(var, [default] * np.prod(shape))
+                values = [default if v is None else v for v in values]
+                array = np.asarray(values, dtype=dtype)
+                array = np.reshape(array, newshape=shape, order='C')
+                self.init_values[var] = array
             else:
-                grounded_values = [init_values.get(name, default) 
-                                   for name in rddl.grounded_names(var, types)]
-                array = np.asarray(grounded_values, dtype=dtype)
-                array = np.reshape(array, newshape=self.shape(types), order='C')
-                init_arrays[var] = array     
-        self.init_values = init_arrays
+                self.init_values[var] = dtype(init_values.get(var, default))   
         
         # log shapes of initial values
         tensor_info = '\n\t'.join((
-            f'{k}{[] if rddl.is_grounded else rddl.param_types[k]}, '
+            f'{k}{rddl.param_types[k]}, '
             f'shape={v.shape if type(v) is np.ndarray else ()}, '
             f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
-        ) for k, v in init_arrays.items())
+        ) for (k, v) in self.init_values.items())
         self._append_log(f'initializing pvariable tensors:' 
                             f'\n\t{tensor_info}\n')
-        
-    # ===========================================================================
-    # basic utility functions (e.g., shape, coordinate info)
-    # ===========================================================================
     
-    def coordinates(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
-        '''Converts a list of objects into their coordinate representation.
-        
-        :param objects: object instances corresponding to valid types defined
-        in the RDDL domain
-        :param msg: an error message to print in case the conversion fails.
-        '''
-        index_of_obj = self.index_of_object
-        try:
-            return tuple(index_of_obj[obj] for obj in objects)
-        except:
-            for obj in objects:
-                if obj not in index_of_obj:
-                    raise RDDLInvalidObjectError(
-                        f'Object <{obj}> is not valid, '
-                        f'must be one of {set(index_of_obj.keys())}.'
-                        f'\n{msg}')
-    
-    def shape(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
-        '''Given a list of RDDL types, returns the shape of a tensor
-        that would hold all values of a pvariable with those type arguments
-        
-        :param types: a list of RDDL types
-        :param msg: an error message to print in case the calculation fails
-        '''
-        objects = self.rddl.objects
-        try:
-            return tuple(len(objects[ptype]) for ptype in types)
-        except:
-            for ptype in types:
-                if ptype not in objects:
-                    raise RDDLInvalidObjectError(
-                        f'Type <{ptype}> is not valid, '
-                        f'must be one of {set(objects.keys())}.'
-                        f'\n{msg}')
-    
-    def expand(self, var: str, values: np.ndarray) -> Iterable[Tuple[str, Value]]:
-        '''Produces a grounded representation of the pvariable var from its 
-        tensor representation. The output is a dict whose keys are grounded
-        representations of the var, and values are read from the tensor.
-        
-        :param var: the pvariable
-        :param values: the tensor whose values correspond to those of var(?...)        
-        '''
-        keys = self.grounded[var]
-        values = np.ravel(values, order='C')
-        if len(keys) != values.size:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {len(keys)} values, got {values.size}.')
-        return zip(keys, values)
-
     # ===========================================================================
     # main tracing routines
     # ===========================================================================
@@ -223,12 +162,11 @@ class RDDLObjectsTracer:
         AST nodes with object information.
         '''
         self._clear_log()        
-        self._compile_objects()
         self._compile_init_values()  
         self._cached_transforms = {}
         
         rddl = self.rddl
-        for objects, expr in rddl.cpfs.values():
+        for (objects, expr) in rddl.cpfs.values():
             self._trace(expr, objects)
         self._trace(rddl.reward, [])
         for expr in rddl.invariants + rddl.preconditions + rddl.terminals:
@@ -240,6 +178,7 @@ class RDDLObjectsTracer:
         
     def _trace(self, expr, objects):
         etype, _ = expr.etype
+        expr.cached_free_params_in_scope = objects
         if etype == 'constant':
             return self._trace_constant(expr, objects)
         elif etype == 'pvar':
@@ -264,52 +203,42 @@ class RDDLObjectsTracer:
     # ===========================================================================
     
     def _trace_constant(self, expr, objects):
-        const = expr.args 
-            
-        if self.rddl.is_grounded: 
-            # grounded domain only returns a scalar (e.g. array with one elem)
-            expr.cached_sim_info = const
-        else: 
-            # argument is reshaped to match the free variables "objects"
-            expr.cached_sim_info = self._array_from_scalar(const, objects)
-    
+        const = expr.args
+        expr.cached_sim_info = self._array_from_scalar(const, objects)
         expr.enum_type = None
         
     def _trace_pvar(self, expr, objects):
         var, pvars = expr.args   
              
         if var in self.rddl.enum_literals: 
+            
             # enum literal value treated as int
-            const = self.index_of_object[var]
-            if self.rddl.is_grounded: 
-                # grounded domain only returns a scalar
-                expr.cached_sim_info = const
-            else: 
-                # argument reshaped to match the free variables "objects"
-                expr.cached_sim_info = self._array_from_scalar(const, objects)
-        
-            # store the enum type info
+            const = self.rddl.index_of_object[var]
+            expr.cached_sim_info = self._array_from_scalar(const, objects)
             expr.enum_type = self.rddl.objects_rev[var]            
         else: 
-            if self.rddl.is_grounded:
-                expr.cached_sim_info = None
-            else:
-                # enum literal args converted to int and slice the array
-                # then array reshaped to match the free variables "objects"
+            
+            # enum literal args converted to int and slice the array
+            # then array reshaped to match the free variables "objects"
+            if objects:
                 msg = RDDLObjectsTracer._print_stack_trace(expr)
                 slices, literals = self._slice(var, pvars, msg=msg)
                 transform = self._map(var, pvars, objects, literals, msg=msg)
                 expr.cached_sim_info = (slices, transform)
+            else:
+                expr.cached_sim_info = None
             
             # store the enum type info
-            base_var = self.rddl.parse(var)[0]
-            prange = self.rddl.variable_ranges.get(base_var, None)
+            prange = self.rddl.variable_ranges.get(var, None)
             expr.enum_type = prange if prange in self.rddl.enum_types else None
         
     def _array_from_scalar(self, scalar, objects):
-        ptypes = [ptype for (_, ptype) in objects]
-        shape = self.shape(ptypes)
-        return np.full(shape=shape, fill_value=scalar)
+        if objects:
+            ptypes = [ptype for (_, ptype) in objects]
+            shape = self.rddl.object_counts(ptypes)
+            return np.full(shape=shape, fill_value=scalar)
+        else:
+            return scalar
         
     def _slice(self, var: str,
                pvars: List[str],
@@ -346,7 +275,7 @@ class RDDLObjectsTracer:
                 
                 # an enum literal argument (e.g., @x) corresponds to slicing
                 # value tensor at this axis with canonical index of the literal  
-                slice_object = self.index_of_object[pvar]
+                slice_object = self.rddl.index_of_object[pvar]
                 literals.add(i)
             else:
                 # a proper type argument (e.g., ?x) corresponds to NOT slicing
@@ -439,7 +368,7 @@ class RDDLObjectsTracer:
         #     3a. in most cases, it suffices to use np.transform (cheaper)
         #     3b. in cases where we have a more complex contraction like 
         #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
-        in_shape = self.shape(types_in)
+        in_shape = self.rddl.object_counts(types_in)
         out_shape = in_shape + tuple(new_dims)
         new_axis = tuple(range(len(in_shape), len(out_shape)))
          
@@ -502,6 +431,7 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of operator {expr.etype[1]}')
+        expr.cached_sim_info = None
         expr.enum_type = None
     
     def _trace_relational(self, expr, objects):
@@ -525,7 +455,8 @@ class RDDLObjectsTracer:
             raise RDDLNotImplementedError(
                 f'Relational operator {op} is not valid for comparing enum types, '
                 f'must be one of {valid_enum_types}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))        
+                RDDLObjectsTracer._print_stack_trace(expr))
+        expr.cached_sim_info = None
         expr.enum_type = None  
     
     def _trace_logical(self, expr, objects):
@@ -535,14 +466,10 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of operator {expr.etype[1]}')
+        expr.cached_sim_info = None
         expr.enum_type = None
     
     def _trace_aggregation(self, expr, objects):
-        if self.rddl.is_grounded:
-            raise Exception(
-                f'Internal error: aggregation in grounded domain.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-            
         _, op = expr.etype
         * pargs, arg = expr.args
         
@@ -593,6 +520,7 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of function {expr.etype[1]}') 
+        expr.cached_sim_info = None
         expr.enum_type = None
             
     # ===========================================================================
@@ -619,7 +547,8 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Branches in if then else cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))            
+                RDDLObjectsTracer._print_stack_trace(expr))     
+        expr.cached_sim_info = None   
         expr.enum_type = next(iter(enum_types))
     
     def _trace_switch(self, expr, objects):
@@ -632,12 +561,11 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
             
         # type in pvariables scope must be an enum
-        name, _ = pred.args
-        var = self.rddl.parse(name)[0]
+        var, _ = pred.args
         enum_type = self.rddl.variable_ranges[var]
         if enum_type not in self.rddl.enum_types:
             raise RDDLTypeError(
-                f'Type <{enum_type}> of switch predicate <{name}> is not an '
+                f'Type <{enum_type}> of switch predicate <{var}> is not an '
                 f'enum type, must be one of {self.rddl.enum_types}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
             
@@ -684,7 +612,7 @@ class RDDLObjectsTracer:
         for literal in enum_values:
             arg = case_dict.get(literal, None)
             if arg is not None: 
-                index = self.index_of_object[literal]
+                index = self.rddl.index_of_object[literal]
                 expressions[index] = arg
         
         # if default statement is missing, cases must be comprehensive
@@ -755,5 +683,6 @@ class RDDLObjectsTracer:
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, f'Argument {i + 1} of distribution {expr.etype[1]}') 
+        expr.cached_sim_info = None
         expr.enum_type = None
         

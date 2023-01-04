@@ -6,7 +6,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionE
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Parser.expr import Expression
 
 VALID_DEPENDENCIES = {
@@ -32,7 +32,7 @@ class RDDLLevelAnalysis:
     according to the RDDL language specification.     
     '''
         
-    def __init__(self, rddl: RDDLModel,
+    def __init__(self, rddl: PlanningModel,
                  allow_synchronous_state: bool=True) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
@@ -84,8 +84,7 @@ class RDDLLevelAnalysis:
             if name in self.rddl.enum_literals:
                 pass  # enum literal
             else:
-                var = self.rddl.parse(name)[0]  # pvariable
-                var_type = self.rddl.variable_types.get(var, None)
+                var_type = self.rddl.variable_types.get(name, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
                         f'Variable or literal <{name}> in CPF <{cpf}> '
@@ -103,8 +102,7 @@ class RDDLLevelAnalysis:
     
     def _validate_dependencies(self, graph):
         for cpf, deps in graph.items():
-            var = self.rddl.parse(cpf)[0]
-            cpf_type = self.rddl.variable_types.get(var, var)
+            cpf_type = self.rddl.variable_types.get(cpf, cpf)
             
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
@@ -124,8 +122,7 @@ class RDDLLevelAnalysis:
             
             # check that all dependencies are valid
             for dep in deps: 
-                var = self.rddl.parse(dep)[0]
-                dep_type = self.rddl.variable_types.get(var, var)
+                dep_type = self.rddl.variable_types.get(dep, dep)
                 if dep_type not in VALID_DEPENDENCIES[cpf_type] or (
                     not self.allow_synchronous_state
                     and cpf_type == dep_type == 'next-state-fluent'
@@ -135,11 +132,10 @@ class RDDLLevelAnalysis:
     
     def _validate_cpf_definitions(self, graph): 
         for cpf in self.rddl.cpfs.keys():
-            var = self.rddl.parse(cpf)[0]
-            fluent_type = self.rddl.variable_types.get(var, var)
+            fluent_type = self.rddl.variable_types.get(cpf, cpf)
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-' + fluent_type
-                var = var + '\''
+                cpf = cpf + '\''
             if fluent_type in VALID_DEPENDENCIES and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
                     f'{fluent_type} CPF <{cpf}> is missing a definition.')

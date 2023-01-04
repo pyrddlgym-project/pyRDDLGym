@@ -1,12 +1,14 @@
+import copy
+
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedCPFError
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 
 
-class RDDLLiftedModel(RDDLModel):
+class RDDLLiftedModel(PlanningModel):
     '''Represents a RDDL domain + instance in lifted form.
     '''
     
@@ -16,7 +18,7 @@ class RDDLLiftedModel(RDDLModel):
         self.SetAST(rddl)
         self.objects, self.objects_rev, self.enum_types, self.enum_literals = \
             self._extract_objects()
-
+            
         self.param_types, self.variable_types, self.variable_ranges = \
             self._extract_variable_information()  
                 
@@ -36,6 +38,12 @@ class RDDLLiftedModel(RDDLModel):
         self.discount = self._extract_discount()
         self.max_allowed_actions = self._extract_max_actions()
                 
+        self.grounded_names = {var: list(self.ground_names(var, types))
+                               for (var, types) in self.param_types.items()}                
+        self.index_of_object = {obj: i 
+                                for objects in self.objects.values() 
+                                    for (i, obj) in enumerate(objects)}
+        
     def _extract_objects(self):
         ast_objects = self._AST.non_fluents.objects
         if (not ast_objects) or ast_objects[0] is None:
@@ -63,7 +71,7 @@ class RDDLLiftedModel(RDDLModel):
                         f'Types <{name}> and <{objects_rev[obj]}> '
                         f'can not share the same object <{obj}>.')
                 objects_rev[obj] = name
-                
+            
         return objects, objects_rev, enum_types, enum_literals
     
     def _extract_variable_information(self):
@@ -75,75 +83,98 @@ class RDDLLiftedModel(RDDLModel):
             ptypes = pvar.param_types
             if ptypes is None:
                 ptypes = []
-            var_params[name] = ptypes
-            var_params[primed_name] = ptypes        
+            var_params[name] = var_params[primed_name] = ptypes        
             var_types[name] = pvar.fluent_type
             if pvar.is_state_fluent():
                 var_types[primed_name] = 'next-state-fluent'                
-            var_ranges[name] = pvar.range
-            var_ranges[primed_name] = pvar.range            
+            var_ranges[name] = var_ranges[primed_name] = pvar.range            
         return var_params, var_types, var_ranges
-
+    
+    def _flatten_grounded_dict(self, grounded_dict):
+        new_dict = {}
+        for var, values_dict in grounded_dict.items():
+            if self.param_types[var]:
+                new_dict[var] = list(values_dict.values())
+            else:
+                assert len(values_dict) == 1
+                new_dict[var] = next(iter(values_dict.values()))
+        return new_dict
+    
     def _extract_states(self):
         states, statesranges, nextstates, prevstates = {}, {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_state_fluent():
-                for name in self.grounded_names(pvar.name, pvar.param_types):
-                    states[name] = pvar.default
-                    statesranges[name] = pvar.range
-                    nextstates[name] = name + '\''
-                    prevstates[name + '\''] = name
+                name, ptypes = pvar.name, pvar.param_types
+                statesranges[name] = pvar.range
+                nextstates[name] = name + '\''
+                prevstates[name + '\''] = name
+                states[name] = {gname: pvar.default 
+                                for gname in self.ground_names(name, ptypes)}                
                 
-        initstates = states.copy()
+        initstates = copy.deepcopy(states)
         if hasattr(self._AST.instance, 'init_state'):
-            for (var, params), value in self._AST.instance.init_state:
-                name = self.ground_name(var, params)
+            for (name, params), value in self._AST.instance.init_state:
                 if name in initstates:
-                    initstates[name] = value
+                    gname = self.ground_name(name, params)
+                    if gname in initstates[name]:
+                        initstates[name][gname] = value
+        
+        states = self._flatten_grounded_dict(states)
+        initstates = self._flatten_grounded_dict(initstates)     
         return states, statesranges, nextstates, prevstates, initstates
+    
+    def _num_variations(self, ptypes):
+        if ptypes is None:
+            ptypes = []
+        prod = 1
+        for ptype in ptypes:
+            prod *= len(self.objects[ptype])
+        return prod
     
     def _extract_actions(self):
         actions, actionsranges = {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_action_fluent():
-                for name in self.grounded_names(pvar.name, pvar.param_types):
-                    actionsranges[name] = pvar.range
-                    actions[name] = pvar.default
+                name, ptypes = pvar.name, pvar.param_types
+                actionsranges[name] = pvar.range
+                actions[name] = [pvar.default] * self._num_variations(ptypes)
         return actions, actionsranges
     
     def _extract_derived_and_interm(self):
         derived, interm = {}, {}
         for pvar in self._AST.domain.pvariables:
-            name = pvar.name
+            name, ptypes = pvar.name, pvar.param_types
             if pvar.is_derived_fluent():
-                for name in self.grounded_names(pvar.name, pvar.param_types):
-                    derived[name] = pvar.default
+                derived[name] = [pvar.default] * self._num_variations(ptypes)
             elif pvar.is_intermediate_fluent():
-                for name in self.grounded_names(pvar.name, pvar.param_types):
-                    interm[name] = pvar.default
+                interm[name] = [pvar.default] * self._num_variations(ptypes)
         return derived, interm
     
     def _extract_observ(self):
         observ, observranges = {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_observ_fluent():
-                for name in self.grounded_names(pvar.name, pvar.param_types):
-                    observranges[name] = pvar.range
-                    observ[name] = pvar.default
+                name, ptypes = pvar.name, pvar.param_types
+                observranges[name] = pvar.range
+                observ[name] = [pvar.default] * self._num_variations(ptypes)
         return observ, observranges
         
     def _extract_non_fluents(self):
         non_fluents = {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_non_fluent():
-                for name in self.grounded_names(pvar.name, pvar.param_types):
-                    non_fluents[name] = pvar.default
+                name, ptypes = pvar.name, pvar.param_types
+                non_fluents[name] = {gname: pvar.default
+                                     for gname in self.ground_names(name, ptypes)}
                         
         if hasattr(self._AST.non_fluents, 'init_non_fluent'):
-            for (var, params), value in self._AST.non_fluents.init_non_fluent:
-                name = self.ground_name(var, params)
+            for (name, params), value in self._AST.non_fluents.init_non_fluent:
                 if name in non_fluents:
-                    non_fluents[name] = value             
+                    gname = self.ground_name(name, params)
+                    if gname in non_fluents[name]:
+                        non_fluents[name][gname] = value
+                        
+        non_fluents = self._flatten_grounded_dict(non_fluents)
         return non_fluents
     
     def _extract_cpfs(self):
@@ -205,8 +236,4 @@ class RDDLLiftedModel(RDDLModel):
             raise RDDLValueOutOfRangeError(
                 f'Discount factor {discount} in the instance is not in [0, 1].')
         return discount
-    
-    @property
-    def is_grounded(self):
-        return False
     

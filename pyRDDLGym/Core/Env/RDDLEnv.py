@@ -12,6 +12,7 @@ from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
+from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 
 
 class RDDLEnv(gym.Env):
@@ -31,7 +32,11 @@ class RDDLEnv(gym.Env):
         rddl = parser.parse(domain)
 
         # define the model sampler
-        self.model = RDDLLiftedModel(rddl)
+        self.model = RDDLGrounder(rddl).Ground()# RDDLLiftedModel(rddl)
+        
+        from pprint import pprint
+        pprint(vars(self.model))
+        
         self.sampler = RDDLSimulatorWConstraints(self.model, debug=debug)
         bounds = self.sampler.bounds
 
@@ -44,12 +49,13 @@ class RDDLEnv(gym.Env):
         self.done = False
 
         # set default actions
-        self.defaultAction = copy.deepcopy(self.model.actions)
+        self.defaultAction = self.model.ground_actions()
 
         # define the actions bounds
         action_space = Dict()
-        for act in self.model.actions:
-            act_range = self.model.actionsranges[act]
+        self.actionsranges = self.model.ground_actionsranges()
+        for act in self.defaultAction:
+            act_range = self.actionsranges[act]
             if act_range in self.model.enum_types:
                 action_space[act] = Discrete(len(self.model.objects[act_range]))            
             elif act_range == 'real':
@@ -73,11 +79,11 @@ class RDDLEnv(gym.Env):
 
         # define the states bounds
         if self.sampler.isPOMDP:
-            search_dict = self.model.observ
-            ranges = self.model.observranges
+            search_dict = self.model.ground_observ()
+            ranges = self.model.ground_observranges()
         else:
-            search_dict = self.model.states
-            ranges = self.model.statesranges
+            search_dict = self.model.ground_states()
+            ranges = self.model.ground_statesranges()
             
         state_space = Dict()
         for state in search_dict:
@@ -137,7 +143,7 @@ class RDDLEnv(gym.Env):
         clipped_actions = copy.deepcopy(self.defaultAction)
         for act in actions:
             if str(self.action_space[act]) == 'Discrete(2)':
-                if self.model.actionsranges[act] == 'bool':
+                if self.actionsranges[act] == 'bool':
                     clipped_actions[act] = bool(actions[act])
             else:
                 clipped_actions[act] = actions[act]
@@ -219,4 +225,4 @@ class RDDLEnv(gym.Env):
     
     @property
     def non_fluents(self):
-        return self.model.nonfluents
+        return self.model.ground_nonfluents()
