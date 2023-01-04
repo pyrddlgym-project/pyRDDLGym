@@ -8,6 +8,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgume
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
@@ -29,10 +30,14 @@ class RDDLEnv(gym.Env):
         parser = RDDLParser(lexer=None, verbose=False)
         parser.build()
         rddl = parser.parse(domain)
-
-        # define the model sampler
         self.model = RDDLLiftedModel(rddl)
-        self.sampler = RDDLSimulatorWConstraints(self.model, debug=debug)
+        
+        # for logging
+        ast = self.model._AST
+        logger = Logger(f'{ast.domain.name}_{ast.instance.name}.log') if debug else None
+        
+        # define the model sampler     
+        self.sampler = RDDLSimulatorWConstraints(self.model, logger=logger)
         bounds = self.sampler.bounds
 
         # set roll-out parameters
@@ -44,17 +49,17 @@ class RDDLEnv(gym.Env):
         self.done = False
 
         # set default actions
-        self.defaultAction = self.model.ground_actions()
+        self.defaultAction = self.model.groundactions()
 
         # define the actions bounds
+        self.actionsranges = self.model.groundactionsranges()
         action_space = Dict()
-        self.actionsranges = self.model.ground_actionsranges()
         for act in self.defaultAction:
             act_range = self.actionsranges[act]
             if act_range in self.model.enum_types:
                 action_space[act] = Discrete(len(self.model.objects[act_range]))            
             elif act_range == 'real':
-                action_space[act] = Box(low=bounds[act][0], 
+                action_space[act] = Box(low=bounds[act][0],
                                         high=bounds[act][1],
                                         dtype=np.float32)
             elif act_range == 'bool':
@@ -74,11 +79,11 @@ class RDDLEnv(gym.Env):
 
         # define the states bounds
         if self.sampler.isPOMDP:
-            search_dict = self.model.ground_observ()
-            ranges = self.model.ground_observranges()
+            search_dict = self.model.groundobserv()
+            ranges = self.model.groundobservranges()
         else:
-            search_dict = self.model.ground_states()
-            ranges = self.model.ground_statesranges()
+            search_dict = self.model.groundstates()
+            ranges = self.model.groundstatesranges()
             
         state_space = Dict()
         for state in search_dict:
@@ -220,4 +225,4 @@ class RDDLEnv(gym.Env):
     
     @property
     def non_fluents(self):
-        return self.model.ground_nonfluents()
+        return self.model.groundnonfluents()

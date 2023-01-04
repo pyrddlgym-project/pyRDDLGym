@@ -16,7 +16,10 @@ from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
+from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
+
 from pyRDDLGym.Core.Parser.expr import Expression, Value
+from pyRDDLGym.Core.Debug.Logger import Logger
 
 Args = Dict[str, Value]
 
@@ -26,31 +29,41 @@ class RDDLSimulator:
     def __init__(self, rddl: PlanningModel,
                  allow_synchronous_state: bool=True,
                  rng: np.random.Generator=np.random.default_rng(),
-                 debug: bool=False) -> None:
+                 logger: Logger=None) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param rddl: the RDDL model
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rng: the random number generator
-        :param debug: whether to print compiler information
+        :param logger: to log information about compilation to file
         '''
         self.rddl = rddl
         self.rng = rng
+        self.logger = logger
         
-        # static analysis
+        # compile initial values
+        if self.logger is not None:
+            self.logger.clear()
+        self.initializer = RDDLValueInitializer(rddl, logger=self.logger)
+        self.init_values = self.initializer.initialize()
+        
+        # compute dependency graph for CPFs and sort them by evaluation order
         sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = sorter.compute_levels()        
-        self.traced = RDDLObjectsTracer(rddl, tensorlib=np, debug=debug)
-        self.traced.trace()
         
-        # log levels
-        levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
-                                  for (k, v) in self.levels.items())
-        self.traced._append_log(f'computed order of CPF evaluation:\n' 
-                                    f'\t{levels_info}\n')
+        # log dependency graph information to file
+        if self.logger is not None:            
+            levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                      for (k, v) in self.levels.items())
+            message = (f'computed order of CPF evaluation:\n' 
+                       f'\t{levels_info}\n')
+            self.logger.log(message)
         
-        # initialize all fluent and non-fluent values
-        self.init_values = self.traced.init_values
+        # trace expressions to cache information to be used later
+        tracer = RDDLObjectsTracer(rddl, tensorlib=np, logger=self.logger)
+        tracer.trace()
+        
+        # initialize all fluent and non-fluent values        
         self.subs = self.init_values.copy()
         self.state = None        
         self.noop_actions, self.next_states, self.observ_fluents = {}, {}, []
@@ -71,7 +84,7 @@ class RDDLSimulator:
                 prange = rddl.variable_ranges[cpf]
                 if prange in rddl.enum_types:
                     prange = 'int'
-                self._cpf_dtypes[cpf] = RDDLObjectsTracer.NUMPY_TYPES[prange]
+                self._cpf_dtypes[cpf] = RDDLValueInitializer.NUMPY_TYPES[prange]
         
         # basic operations
         self.ARITHMETIC_OPS = {
@@ -107,10 +120,10 @@ class RDDLSimulator:
         }
         self.UNARY = {        
             'abs': np.abs,
-            'sgn': lambda x: np.sign(x).astype(RDDLObjectsTracer.INT),
-            'round': lambda x: np.round(x).astype(RDDLObjectsTracer.INT),
-            'floor': lambda x: np.floor(x).astype(RDDLObjectsTracer.INT),
-            'ceil': lambda x: np.ceil(x).astype(RDDLObjectsTracer.INT),
+            'sgn': lambda x: np.sign(x).astype(RDDLValueInitializer.INT),
+            'round': lambda x: np.round(x).astype(RDDLValueInitializer.INT),
+            'floor': lambda x: np.floor(x).astype(RDDLValueInitializer.INT),
+            'ceil': lambda x: np.ceil(x).astype(RDDLValueInitializer.INT),
             'cos': np.cos,
             'sin': np.sin,
             'tan': np.tan,
@@ -127,8 +140,8 @@ class RDDLSimulator:
             'gamma': lambda x: np.exp(lngamma(x))
         }        
         self.BINARY = {
-            'div': lambda x, y: np.floor_divide(x, y).astype(RDDLObjectsTracer.INT),
-            'mod': lambda x, y: np.mod(x, y).astype(RDDLObjectsTracer.INT),
+            'div': lambda x, y: np.floor_divide(x, y).astype(RDDLValueInitializer.INT),
+            'mod': lambda x, y: np.mod(x, y).astype(RDDLValueInitializer.INT),
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
@@ -234,7 +247,7 @@ class RDDLSimulator:
     
     def _process_actions(self, actions):
         new_actions = {action: np.copy(value) 
-                        for (action, value) in self.noop_actions.items()}
+                       for (action, value) in self.noop_actions.items()}
         rddl = self.rddl
         
         # override new_actions with any new actions
@@ -336,10 +349,10 @@ class RDDLSimulator:
         reward = self.sample_reward()
         
         # update state
-        states = {}
+        self.state = {}
         for (next_state, state) in self.next_states.items():
             subs[state] = subs[next_state]
-            states.update(rddl.ground_values(state, subs[state]))
+            self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
@@ -347,9 +360,8 @@ class RDDLSimulator:
             for var in self.observ_fluents:
                 obs.update(rddl.ground_values(var, subs[var]))
         else:
-            obs = states
+            obs = self.state
         
-        self.state = states
         done = self.check_terminal_states()        
         return obs, reward, done
         
@@ -680,7 +692,7 @@ class RDDLSimulator:
         pred, *_ = expr.args             
         sample_pred = self._sample(pred, subs)
         RDDLSimulator._check_type(
-            sample_pred, RDDLObjectsTracer.INT, 'Switch predicate', expr)
+            sample_pred, RDDLValueInitializer.INT, 'Switch predicate', expr)
         
         # can short circuit if all elements of predicate tensor equal
         cases, default = expr.cached_sim_info   
@@ -762,7 +774,7 @@ class RDDLSimulator:
         arg, = args
         sample = self._sample(arg, subs)
         RDDLSimulator._check_types(
-            sample, {bool, RDDLObjectsTracer.INT}, 'Argument of KronDelta', expr)
+            sample, {bool, RDDLValueInitializer.INT}, 'Argument of KronDelta', expr)
         return sample
     
     def _sample_dirac_delta(self, expr, subs):
@@ -772,7 +784,7 @@ class RDDLSimulator:
         arg, = args
         sample = self._sample(arg, subs)
         RDDLSimulator._check_type(
-            sample, RDDLObjectsTracer.REAL, 'Argument of DiracDelta', expr)        
+            sample, RDDLValueInitializer.REAL, 'Argument of DiracDelta', expr)        
         return sample
     
     def _sample_uniform(self, expr, subs):
@@ -853,7 +865,7 @@ class RDDLSimulator:
         count, pr = args
         sample_count = self._sample(count, subs)
         sample_pr = self._sample(pr, subs)
-        RDDLSimulator._check_type(sample_count, RDDLObjectsTracer.INT, 'Binomial count', expr)
+        RDDLSimulator._check_type(sample_count, RDDLValueInitializer.INT, 'Binomial count', expr)
         RDDLSimulator._check_positive(sample_count, False, 'Binomial count', expr)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'Binomial p', expr)
         return self.rng.binomial(sample_count, sample_pr)
@@ -1000,8 +1012,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         for (var, vtype) in self.rddl.variable_types.items():
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
                 ptypes = self.rddl.param_types[var]
-                for name in self.rddl.ground_names(var, ptypes):
-                    self._bounds[name] = [-self.BigM, +self.BigM]
+                for gname in self.rddl.ground_names(var, ptypes):
+                    self._bounds[gname] = [-self.BigM, +self.BigM]
                 if vtype == 'action-fluent':
                     actions.add(var)
                 elif vtype == 'state-fluent':
@@ -1019,9 +1031,12 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             RDDLSimulator._check_bounds(*bounds, f'Variable <{name}>', bounds)
             
         # log bounds to file
-        bounds_info = '\n\t'.join(f'{k}: {v}' for (k, v) in self._bounds.items())
-        self.traced._append_log(f'computed simulation bounds:\n' 
-                                    f'\t{bounds_info}\n')
+        if self.logger is not None:
+            bounds_info = '\n\t'.join(f'{k}: {v}' 
+                                      for (k, v) in self._bounds.items())
+            message = (f'computed simulation bounds:\n' 
+                       f'\t{bounds_info}\n')
+            self.logger.log(message)
         
     def _parse_bounds(self, expr, objects, search_vars):
         etype, op = expr.etype
