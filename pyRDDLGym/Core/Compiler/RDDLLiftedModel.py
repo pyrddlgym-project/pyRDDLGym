@@ -17,11 +17,12 @@ class RDDLLiftedModel(PlanningModel):
         super(RDDLLiftedModel, self).__init__()
         
         self.SetAST(rddl)
-        self.objects, self.objects_rev, self.enum_types, self.enum_literals = \
-            self._extract_objects()
+        
+        self.objects, self.objects_rev, self.index_of_object, \
+            self.enum_types, self.enum_literals = self._extract_objects()
             
-        self.param_types, self.variable_types, self.variable_ranges = \
-            self._extract_variable_information()  
+        self.param_types, self.variable_types, self.variable_ranges, \
+            self.grounded_names = self._extract_variable_information()  
                 
         self.states, self.statesranges, self.next_state, self.prev_state, \
             self.init_state = self._extract_states()
@@ -38,12 +39,6 @@ class RDDLLiftedModel(PlanningModel):
         self.horizon = self._extract_horizon()
         self.discount = self._extract_discount()
         self.max_allowed_actions = self._extract_max_actions()
-                
-        self.grounded_names = {var: list(self.ground_names(var, types))
-                               for (var, types) in self.param_types.items()}                
-        self.index_of_object = {obj: i 
-                                for objects in self.objects.values() 
-                                    for (i, obj) in enumerate(objects)}
         
     def _extract_objects(self):
         ast_objects = self._AST.non_fluents.objects
@@ -52,8 +47,7 @@ class RDDLLiftedModel(PlanningModel):
         ast_objects = dict(ast_objects)
         
         # record the set of objects of each type
-        objects = {}
-        enum_types, enum_literals = set(), set()    
+        objects, enum_types, enum_literals = {}, set(), set()    
         for (name, pvalues) in self._AST.domain.types:
             
             # objects
@@ -79,10 +73,20 @@ class RDDLLiftedModel(PlanningModel):
                         f'Types <{name}> and <{objects_rev[obj]}> '
                         f'can not share the same object <{obj}>.')
                 objects_rev[obj] = name
-            
-        return objects, objects_rev, enum_types, enum_literals
+        
+        # maps each object to its canonical order as appears in RDDL definition
+        objects_index = {obj: i 
+                         for objects in objects.values() 
+                            for (i, obj) in enumerate(objects)}
+        
+        return objects, objects_rev, objects_index, enum_types, enum_literals
     
     def _extract_variable_information(self):
+        
+        # extract some basic information about variables in the domain:
+        # - their object parameters needed to evaluate
+        # - their types (e.g. state-fluent, action-fluent)
+        # - their ranges (e.g. int, real, enum-type)
         var_params, var_types, var_ranges = {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             primed_name = name = pvar.name
@@ -95,10 +99,15 @@ class RDDLLiftedModel(PlanningModel):
             var_types[name] = pvar.fluent_type
             if pvar.is_state_fluent():
                 var_types[primed_name] = 'next-state-fluent'                
-            var_ranges[name] = var_ranges[primed_name] = pvar.range            
-        return var_params, var_types, var_ranges
+            var_ranges[name] = var_ranges[primed_name] = pvar.range    
+        
+        # maps each variable (as appears in RDDL) to list of grounded variations
+        var_grounded = {var: list(self.ground_names(var, types))
+                        for (var, types) in var_params.items()}        
+                
+        return var_params, var_types, var_ranges, var_grounded
     
-    def _flatten_grounded_dict(self, grounded_dict):
+    def _grounded_dict_to_dict_of_list(self, grounded_dict):
         new_dict = {}
         for (var, values_dict) in grounded_dict.items():
             if self.param_types[var]:
@@ -144,17 +153,17 @@ class RDDLLiftedModel(PlanningModel):
         # state dictionary associates the variable lifted name with a list of
         # values for all variations of parameter arguments in C-based order
         # if the fluent does not have parameters, then the value is a scalar
-        states = self._flatten_grounded_dict(states)
-        initstates = self._flatten_grounded_dict(initstates)     
+        states = self._grounded_dict_to_dict_of_list(states)
+        initstates = self._grounded_dict_to_dict_of_list(initstates)     
         return states, statesranges, nextstates, prevstates, initstates
     
-    def _num_variations(self, ptypes):
+    def _value_list_or_scalar_from_default(self, ptypes, default):
         if ptypes is None:
-            ptypes = []
-        prod = 1
+            return default
+        num_variations = 1
         for ptype in ptypes:
-            prod *= len(self.objects[ptype])
-        return prod
+            num_variations *= len(self.objects[ptype])
+        return [default] * num_variations
     
     def _extract_actions(self):
         
@@ -162,9 +171,9 @@ class RDDLLiftedModel(PlanningModel):
         actions, actionsranges = {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_action_fluent():
-                name, ptypes = pvar.name, pvar.param_types
-                actionsranges[name] = pvar.range
-                actions[name] = [pvar.default] * self._num_variations(ptypes)
+                actionsranges[pvar.name] = pvar.range
+                actions[pvar.name] = self._value_list_or_scalar_from_default(
+                    pvar.param_types, pvar.default)
         return actions, actionsranges
     
     def _extract_derived_and_interm(self):
@@ -172,11 +181,12 @@ class RDDLLiftedModel(PlanningModel):
         # derived/interm are stored similar to states described above
         derived, interm = {}, {}
         for pvar in self._AST.domain.pvariables:
-            name, ptypes = pvar.name, pvar.param_types
             if pvar.is_derived_fluent():
-                derived[name] = [pvar.default] * self._num_variations(ptypes)
+                derived[pvar.name] = self._value_list_or_scalar_from_default(
+                    pvar.param_types, pvar.default)
             elif pvar.is_intermediate_fluent():
-                interm[name] = [pvar.default] * self._num_variations(ptypes)
+                interm[pvar.name] = self._value_list_or_scalar_from_default(
+                    pvar.param_types, pvar.default)
         return derived, interm
     
     def _extract_observ(self):
@@ -185,9 +195,9 @@ class RDDLLiftedModel(PlanningModel):
         observ, observranges = {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_observ_fluent():
-                name, ptypes = pvar.name, pvar.param_types
-                observranges[name] = pvar.range
-                observ[name] = [pvar.default] * self._num_variations(ptypes)
+                observranges[pvar.name] = pvar.range
+                observ[pvar.name] = self._value_list_or_scalar_from_default(
+                    pvar.param_types, pvar.default)
         return observ, observranges
         
     def _extract_non_fluents(self):
@@ -220,7 +230,7 @@ class RDDLLiftedModel(PlanningModel):
                 non_fluents[name][gname] = value
                                         
         # non-fluents are stored similar to states described above
-        return self._flatten_grounded_dict(non_fluents)
+        return self._grounded_dict_to_dict_of_list(non_fluents)
     
     def _extract_cpfs(self):
         cpfs = {}

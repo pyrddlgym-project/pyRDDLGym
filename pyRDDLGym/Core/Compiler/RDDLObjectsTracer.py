@@ -1,4 +1,3 @@
-import datetime
 import numpy as np
 from typing import Callable, List, Set, Tuple, Union
 
@@ -10,6 +9,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableErro
 
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
+from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
 
 
@@ -19,55 +19,20 @@ class RDDLObjectsTracer:
     inside expressions. Also compiles initial value tensors for all pvariables.
     '''
     
-    INT = np.int64
-    REAL = np.float64
-        
-    NUMPY_TYPES = {
-        'int': INT,
-        'real': REAL,
-        'bool': bool
-    }
-    
-    DEFAULT_VALUES = {
-        'int': 0,
-        'real': 0.0,
-        'bool': False
-    }
-        
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
-    def __init__(self, rddl: PlanningModel, tensorlib=np, debug: bool=False):
+    def __init__(self, rddl: PlanningModel, tensorlib=np, logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
         :param tensorlib: whether to use np (numpy) or jax.numpy (jax) for tensor
         arithmetic (einsum, transpose, etc.)
-        :param debug: whether to log tracer information to a .log file
+        :param logger: to log compilation information during tracing to file
         '''
         self.rddl = rddl
         self.tensorlib = tensorlib
-        self.debug = debug   
+        self.logger = logger
             
-        # where the log is written to
-        self.filename = f'{rddl._AST.domain.name}_{rddl._AST.instance.name}.log'
-        
-    # ===========================================================================
-    # logging and error handling
-    # ===========================================================================
-    
-    def _clear_log(self):
-        if self.debug:
-            fp = open(self.filename, 'w')
-            fp.write('')
-            fp.close()
-        
-    def _append_log(self, msg: str) -> None:
-        if self.debug:
-            fp = open(self.filename, 'a')
-            timestamp = str(datetime.datetime.now())
-            fp.write(f'{timestamp}: {msg}\n')
-            fp.close()
-    
     @staticmethod
     def _check_not_enum(arg, expr, msg):
         if arg.enum_type is not None:
@@ -83,96 +48,12 @@ class RDDLObjectsTracer:
             trace = str(expr)
         return f'>> {trace}'
     
-    # ===========================================================================
-    # compilation of RDDL domain objects and initial value tensors
-    # ===========================================================================
-    
-    def _get_default_value_from_prange(self, prange, var):
-        if prange in self.rddl.enum_types:
-            prange = 'int'
-        default = RDDLObjectsTracer.DEFAULT_VALUES.get(prange, None)
-        if default is None:
-            raise RDDLTypeError(
-                f'Type <{prange}> of variable <{var}> is not valid, '
-                f'must be an enum type in {self.rddl.enum_types} '
-                f'or one of {set(RDDLObjectsTracer.DEFAULT_VALUES.keys())}.')   
-        return default
-
-    def _enum_literals_to_ints(self, literals, prange, var):
-        is_scalar = isinstance(literals, str)
-        if is_scalar:
-            literals = [literals]
-        integers = []
-        for literal in literals:
-            if literal is None:
-                integers.append(0)
-            elif self.rddl.objects_rev.get(literal, None) == prange:
-                integers.append(self.rddl.index_of_object[literal])
-            else:
-                raise RDDLInvalidObjectError(
-                    f'Literal <{literal}> assigned to variable <{var}> '
-                    f'does not belong to enum <{prange}>, '
-                    f'must be one of {set(self.rddl.objects[prange])}.')
-        if is_scalar:
-            integers = integers[0]
-        return integers
-    
-    def _compile_init_values(self):
-        rddl = self.rddl
-                
-        # initial values consists of non-fluents, state and action fluents
-        init_values = {}
-        init_values.update(rddl.nonfluents)
-        init_values.update(rddl.init_state)
-        init_values.update(rddl.actions)
-
-        # enum literals are converted to integers
-        for (var, values) in init_values.items():
-            prange = rddl.variable_ranges[var]
-            if prange in rddl.enum_types:
-                init_values[var] = self._enum_literals_to_ints(values, prange, var)
-        
-        # create a tensor for each pvar with the init_values
-        # if the init_values are missing use the default value of range
-        self.init_values = {}
-        for (var, prange) in rddl.variable_ranges.items():
-            if prange in rddl.enum_types:
-                prange = 'int'
-            dtype = RDDLObjectsTracer.NUMPY_TYPES[prange]
-            default = self._get_default_value_from_prange(prange, var)
-            ptypes = rddl.param_types[var]
-            if ptypes:
-                shape = rddl.object_counts(ptypes)
-                values = init_values.get(var, [default] * np.prod(shape))
-                values = [default if v is None else v for v in values]
-                array = np.asarray(values, dtype=dtype)
-                array = np.reshape(array, newshape=shape, order='C')
-                self.init_values[var] = array
-            else:
-                self.init_values[var] = dtype(init_values.get(var, default))   
-        
-        # log shapes of initial values
-        tensor_info = '\n\t'.join((
-            f'{k}{rddl.param_types[k]}, '
-            f'shape={v.shape if type(v) is np.ndarray else ()}, '
-            f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
-        ) for (k, v) in self.init_values.items())
-        self._append_log(f'initializing pvariable tensors:' 
-                            f'\n\t{tensor_info}\n')
-    
-    # ===========================================================================
-    # main tracing routines
-    # ===========================================================================
-    
     def trace(self):
         '''Compiles objects and initial value tensors for the given RDDL. Then
         traces all expressions in the CPF block and all constraints to annotate
         AST nodes with object information.
         '''
-        self._clear_log()        
-        self._compile_init_values()  
-        self._cached_transforms = {}
-        
+        self._cached_transforms = {}        
         rddl = self.rddl
         for (objects, expr) in rddl.cpfs.values():
             self._trace(expr, objects)
@@ -241,12 +122,11 @@ class RDDLObjectsTracer:
             expr.enum_type = prange if prange in self.rddl.enum_types else None
         
     def _array_from_scalar(self, scalar, objects):
-        if objects:
-            ptypes = [ptype for (_, ptype) in objects]
-            shape = self.rddl.object_counts(ptypes)
-            return np.full(shape=shape, fill_value=scalar)
-        else:
+        if not objects:
             return scalar
+        ptypes = [ptype for (_, ptype) in objects]
+        shape = self.rddl.object_counts(ptypes)
+        return np.full(shape=shape, fill_value=scalar)
         
     def _slice(self, var: str,
                pvars: List[str],
@@ -413,19 +293,19 @@ class RDDLObjectsTracer:
             self._cached_transforms[_id] = _transform
         
         # log information about the new transformation
-        operation = mynp.einsum if use_einsum else (
-                        mynp.transpose if use_tr else 'None')
-        self._append_log(
-            f'computing info for filling missing pvariable arguments:' 
-                f'\n\tvar           ={var}'
-                f'\n\toriginal args ={old_sign_in}'
-                f'\n\tliterals      ={literals}'
-                f'\n\tnew args      ={sign_in}'
-                f'\n\ttarget args   ={sign_out}'
-                f'\n\tnew axes      ={new_axis}'
-                f'\n\toperation     ={operation}, subscripts={subscripts}'
-                f'\n\tunique op id  ={id(_transform)}\n'
-        )
+        if self.logger is not None:
+            operation = mynp.einsum if use_einsum else (
+                            mynp.transpose if use_tr else 'None')
+            message = (f'computing info for filling missing pvariable arguments:' 
+                       f'\n\tvar           ={var}'
+                       f'\n\toriginal args ={old_sign_in}'
+                       f'\n\tliterals      ={literals}'
+                       f'\n\tnew args      ={sign_in}'
+                       f'\n\ttarget args   ={sign_out}'
+                       f'\n\tnew axes      ={new_axis}'
+                       f'\n\toperation     ={operation}, subscripts={subscripts}'
+                       f'\n\tunique op id  ={id(_transform)}\n')
+            self.logger.log(message)
             
         return _transform
     
@@ -489,15 +369,7 @@ class RDDLObjectsTracer:
         new_objects = objects + [ptype for (_, ptype) in pargs]
         reduced_axes = tuple(range(len(objects), len(new_objects)))   
         expr.cached_sim_info = (new_objects, reduced_axes)
-                
-        self._append_log(
-            f'computing object info for aggregation:'
-                f'\n\toperator       ={op} {pargs}'
-                f'\n\tinput objects  ={new_objects}'
-                f'\n\toutput objects ={objects}'
-                f'\n\toperation axes ={reduced_axes}\n'
-        )        
-            
+        
         # check for undefined types
         bad_types = {ptype 
                      for (_, ptype) in new_objects 
@@ -524,6 +396,15 @@ class RDDLObjectsTracer:
         RDDLObjectsTracer._check_not_enum(
             arg, expr, f'Argument of aggregation {op}')        
         expr.enum_type = None
+        
+        # log information about aggregation operation
+        if self.logger is not None:
+            message = (f'computing object info for aggregation:'
+                       f'\n\toperator       ={op} {pargs}'
+                       f'\n\tinput objects  ={new_objects}'
+                       f'\n\toutput objects ={objects}'
+                       f'\n\toperation axes ={reduced_axes}\n')
+            self.logger.log(message)        
         
     def _trace_func(self, expr, objects):
         for (i, arg) in enumerate(expr.args):
@@ -606,7 +487,8 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Cases in switch cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))                        
+                RDDLObjectsTracer._print_stack_trace(expr))    
+                                
         expr.enum_type = next(iter(enum_types))
         
     def _order_cases(self, enum_type, case_dict, expr): 
@@ -640,13 +522,13 @@ class RDDLObjectsTracer:
                         RDDLObjectsTracer._print_stack_trace(expr))
         
         # log cases ordering
-        active_expr = [i for (i, v) in enumerate(expressions) if v is not None]
-        self._append_log(
-            f'computing case info for {expr.etype[1]}:'
-                f'\n\tenum type ={enum_type}'
-                f'\n\tcases     ={active_expr}'
-                f'\n\tdefault   ={default_expr is not None}\n'
-        )     
+        if self.logger is not None:
+            active_expr = [i for (i, v) in enumerate(expressions) if v is not None]
+            message = (f'computing case info for {expr.etype[1]}:'
+                       f'\n\tenum type ={enum_type}'
+                       f'\n\tcases     ={active_expr}'
+                       f'\n\tdefault   ={default_expr is not None}\n')
+            self.logger.log(message)     
         
         return (expressions, default_expr)
     

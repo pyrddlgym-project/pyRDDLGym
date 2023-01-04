@@ -3,14 +3,16 @@ import itertools
 import numpy as np
 from typing import Dict, Iterable, List, Tuple
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
 from pyRDDLGym.Core.Parser.expr import Expression, Value
 
 
 class PlanningModel(metaclass=ABCMeta):
+    '''The base class representing all RDDL domain + instance.
+    '''
 
     def __init__(self):
         self._AST = None
@@ -52,6 +54,10 @@ class PlanningModel(metaclass=ABCMeta):
         self._grounded_names = None
         self._index_of_object = None
         
+    # ===========================================================================
+    # properties
+    # ===========================================================================
+    
     def SetAST(self, AST):
         self._AST = AST
 
@@ -327,6 +333,10 @@ class PlanningModel(metaclass=ABCMeta):
     def index_of_object(self, val):
         self._index_of_object = val
     
+    # ===========================================================================
+    # utility methods
+    # ===========================================================================
+    
     def ground_name(self, name: str, objects: Iterable[str]) -> str:
         '''Given a variable name and list of objects as arguments, produces a 
         grounded representation <variable>_<obj1>_<obj2>_...
@@ -356,7 +366,7 @@ class PlanningModel(metaclass=ABCMeta):
         return var, objects
     
     def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
-        '''Given a list of types, computes the cartesian product of all object
+        '''Given a list of types, computes the Cartesian product of all object
         enumerations that corresponds to those types.
         '''
         if ptypes is None or not ptypes:
@@ -438,7 +448,7 @@ class PlanningModel(metaclass=ABCMeta):
             return True
     
     def indices(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
-        '''Returns the canonical indices of a list of objects according to the
+        '''Returns the canonical indices of a sequence of objects according to the
         order they are listed in the instance
         
         :param objects: object instances corresponding to valid types defined
@@ -474,9 +484,9 @@ class PlanningModel(metaclass=ABCMeta):
                         f'\n{msg}')
     
     def ground_values(self, var: str, values: Iterable[Value]) -> Dict[str, Value]:
-        '''Produces a dictionary mapping grounded variables from var and values.
+        '''Produces a dictionary mapping grounded variables of var and values.
         
-        :param var: the pvariable
+        :param var: the pvariable as it appears in RDDL
         :param values: the values of var(?...) in C-based order      
         '''
         keys = self.grounded_names[var]
@@ -486,47 +496,55 @@ class PlanningModel(metaclass=ABCMeta):
                 f'Variable <{var}> requires {len(keys)} values, got {values.size}.')
         return dict(zip(keys, values))
     
-    def ground_actions(self):
+    def ground_values_from_dict(self, dict_values: Dict[str, object]) -> Dict[str, Value]:
+        '''Converts a dictionary of values such as nonfluents, states, observ
+        which has entries <var>: <list of values> to a grounded <var>: <value>
+        form, where each variable <var> is grounded out.
+        
+        :param dict_values: the value dictionary, where values are scalars
+        or lists in C-based order
+        '''
         grounded = {}
-        for item in self.actions.items():
+        for item in dict_values.items():
             grounded.update(self.ground_values(*item))
         return grounded
     
-    def ground_actionsranges(self):
+    def ground_ranges_from_dict(self, dict_ranges: Dict[str, str]) -> Dict[str, str]:
+        '''Converts a dictionary of ranges such as statesranges
+        which has entries <var>: <range> to a grounded <var>: <range>
+        form, where each variable <var> is grounded out.
+        
+        :param dict_ranges: the ranges dictionary mapping variable to range
+        '''
         return {name: prange 
-                for (action, prange) in self.actionsranges.items()
+                for (action, prange) in dict_ranges.items()
                     for name in self.grounded_names[action]}
     
-    def ground_states(self):
-        grounded = {}
-        for item in self.states.items():
-            grounded.update(self.ground_values(*item))
-        return grounded
+    def groundnonfluents(self):
+        return self.ground_values_from_dict(self.nonfluents)
     
-    def ground_statesranges(self):
-        return {name: prange 
-                for (state, prange) in self.statesranges.items()
-                    for name in self.grounded_names[state]}
+    def groundstates(self):
+        return self.ground_values_from_dict(self.states)
     
-    def ground_observ(self):
-        grounded = {}
-        for item in self.observ.items():
-            grounded.update(self.ground_values(*item))
-        return grounded
+    def groundstatesranges(self):
+        return self.ground_ranges_from_dict(self.statesranges)
     
-    def ground_observranges(self):
-        return {name: prange 
-                for (obs, prange) in self.observranges.items()
-                    for name in self.grounded_names[obs]}
-        
-    def ground_nonfluents(self):
-        grounded = {}
-        for item in self.nonfluents.items():
-            grounded.update(self.ground_values(*item))
-        return grounded
+    def groundactions(self):
+        return self.ground_values_from_dict(self.actions)
+    
+    def groundactionsranges(self):
+        return self.ground_ranges_from_dict(self.actionsranges)
+    
+    def groundobserv(self):
+        return self.ground_values_from_dict(self.observ)
+    
+    def groundobservranges(self):
+        return self.ground_ranges_from_dict(self.observranges)
 
     
 class RDDLGroundedModel(PlanningModel):
+    '''A class representing a RDDL domain + instance in grounded form.
+    '''
 
     def __init__(self):
         super().__init__()
