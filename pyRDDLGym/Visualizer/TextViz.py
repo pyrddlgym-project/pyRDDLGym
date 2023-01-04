@@ -5,14 +5,14 @@ import numpy as np
 from PIL import Image
 import pprint
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym import Visualizer
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class TextVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel,
+    def __init__(self, model: PlanningModel,
                  figure_size=[5, 10],
                  dpi=100,
                  fontsize=10,

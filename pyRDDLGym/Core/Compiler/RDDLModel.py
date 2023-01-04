@@ -1,11 +1,13 @@
 from abc import ABCMeta
 import itertools
-from typing import Iterable, List, Tuple
+import numpy as np
+from typing import Dict, Iterable, List, Tuple
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
-from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.Core.Parser.expr import Expression, Value
 
 
 class PlanningModel(metaclass=ABCMeta):
@@ -46,6 +48,9 @@ class PlanningModel(metaclass=ABCMeta):
         self._param_types = None
         self._variable_types = None
         self._variable_ranges = None
+        
+        self._grounded_names = None
+        self._index_of_object = None
         
     def SetAST(self, AST):
         self._AST = AST
@@ -305,10 +310,22 @@ class PlanningModel(metaclass=ABCMeta):
     @variable_ranges.setter
     def variable_ranges(self, val):
         self._variable_ranges = val
-    
+        
     @property
-    def is_grounded(self):
-        return True
+    def grounded_names(self):
+        return self._grounded_names
+
+    @grounded_names.setter
+    def grounded_names(self, val):
+        self._grounded_names = val
+        
+    @property
+    def index_of_object(self):
+        return self._index_of_object
+
+    @index_of_object.setter
+    def index_of_object(self, val):
+        self._index_of_object = val
     
     def ground_name(self, name: str, objects: Iterable[str]) -> str:
         '''Given a variable name and list of objects as arguments, produces a 
@@ -354,7 +371,7 @@ class PlanningModel(metaclass=ABCMeta):
             objects_by_type.append(objects)
         return itertools.product(*objects_by_type)
     
-    def grounded_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
+    def ground_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
         '''Given a variable name and list of types, produces a new iterator
         whose elements are the grounded representations in the cartesian product 
         of all object enumerations that corresponds to those types.
@@ -403,11 +420,10 @@ class PlanningModel(metaclass=ABCMeta):
                 return True  # enum literal
             
             else:
-                var = self.parse(name)[0]  # pvariable
-                var_type = self.variable_types.get(var, None)      
+                var_type = self.variable_types.get(name, None)  # pvariable      
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
-                        f'Variable or literal <{var}> is not defined, '
+                        f'Variable or literal <{name}> is not defined, '
                         f'must be an enum literal in {self.enum_literals} '
                         f'or one of {set(self.variable_types.keys())}.')
                 return var_type == 'non-fluent'
@@ -417,9 +433,97 @@ class PlanningModel(metaclass=ABCMeta):
                 if not self.is_non_fluent_expression(arg):
                     return False
             return True
+    
+    def indices(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
+        '''Returns the canonical indices of a list of objects according to the
+        order they are listed in the instance
+        
+        :param objects: object instances corresponding to valid types defined
+        in the RDDL domain
+        :param msg: an error message to print in case the conversion fails.
+        '''
+        index_of_obj = self.index_of_object
+        try:
+            return tuple(index_of_obj[obj] for obj in objects)
+        except:
+            for obj in objects:
+                if obj not in index_of_obj:
+                    raise RDDLInvalidObjectError(
+                        f'Object <{obj}> is not valid, '
+                        f'must be one of {set(index_of_obj.keys())}.'
+                        f'\n{msg}')
+    
+    def object_counts(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
+        '''Returns a tuple containing the number of objects of each type.
+        
+        :param types: a list of RDDL types
+        :param msg: an error message to print in case the calculation fails
+        '''
+        objects = self.objects
+        try:
+            return tuple(len(objects[ptype]) for ptype in types)
+        except:
+            for ptype in types:
+                if ptype not in objects:
+                    raise RDDLInvalidObjectError(
+                        f'Type <{ptype}> is not valid, '
+                        f'must be one of {set(objects.keys())}.'
+                        f'\n{msg}')
+    
+    def ground_values(self, var: str, values: Iterable[Value]) -> Dict[str, Value]:
+        '''Produces a dictionary mapping grounded variables from var and values.
+        
+        :param var: the pvariable
+        :param values: the values of var(?...) in C-based order      
+        '''
+        keys = self.grounded_names[var]
+        values = np.ravel(values, order='C')
+        if len(keys) != values.size:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Variable <{var}> requires {len(keys)} values, got {values.size}.')
+        return dict(zip(keys, values))
+    
+    def ground_actions(self):
+        grounded = {}
+        for item in self.actions.items():
+            grounded.update(self.ground_values(*item))
+        return grounded
+    
+    def ground_actionsranges(self):
+        return {name: prange 
+                for action, prange in self.actionsranges.items()
+                    for name in self.grounded_names[action]}
+    
+    def ground_states(self):
+        grounded = {}
+        for item in self.states.items():
+            grounded.update(self.ground_values(*item))
+        return grounded
+    
+    def ground_statesranges(self):
+        return {name: prange 
+                for state, prange in self.statesranges.items()
+                    for name in self.grounded_names[state]}
+    
+    def ground_observ(self):
+        grounded = {}
+        for item in self.observ.items():
+            grounded.update(self.ground_values(*item))
+        return grounded
+    
+    def ground_observranges(self):
+        return {name: prange 
+                for obs, prange in self.observranges.items()
+                    for name in self.grounded_names[obs]}
+        
+    def ground_nonfluents(self):
+        grounded = {}
+        for item in self.nonfluents.items():
+            grounded.update(self.ground_values(*item))
+        return grounded
 
     
-class RDDLModel(PlanningModel):
+class RDDLGroundedModel(PlanningModel):
 
     def __init__(self):
         super().__init__()
