@@ -99,7 +99,6 @@ class RDDLObjectsTracer:
         return default
 
     def _enum_literals_to_ints(self, literals, prange, var):
-        print(f'{literals} {prange} {var}')
         is_scalar = isinstance(literals, str)
         if is_scalar:
             literals = [literals]
