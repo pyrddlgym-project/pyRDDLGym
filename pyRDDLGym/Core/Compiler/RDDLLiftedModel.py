@@ -49,20 +49,27 @@ class RDDLLiftedModel(PlanningModel):
         if (not ast_objects) or ast_objects[0] is None:
             ast_objects = []
         ast_objects = dict(ast_objects)
-         
+        
+        # record the set of objects of each type
         objects = {}
         enum_types, enum_literals = set(), set()    
         for (name, pvalues) in self._AST.domain.types:
-            if pvalues == 'object':  # objects
+            
+            # objects
+            if pvalues == 'object':  
                 objects[name] = ast_objects.get(name, None)
                 if objects[name] is None:
                     raise RDDLInvalidObjectError(
                         f'Type <{name}> has no objects defined in the instance.')
-            else:  # enumerated types
+            
+            # enumerated types
+            else:  
                 objects[name] = pvalues
                 enum_types.add(name)
                 enum_literals.update(pvalues)        
         
+        # make sure different types do not share the same object
+        # then record the type that each object corresponds to
         objects_rev = {}
         for (name, values) in objects.items():
             for obj in values:
@@ -101,6 +108,8 @@ class RDDLLiftedModel(PlanningModel):
         return new_dict
     
     def _extract_states(self):
+        
+        # get the default value for each grounded state variable
         states, statesranges, nextstates, prevstates = {}, {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_state_fluent():
@@ -110,7 +119,8 @@ class RDDLLiftedModel(PlanningModel):
                 prevstates[name + '\''] = name
                 states[name] = {gname: pvar.default 
                                 for gname in self.ground_names(name, ptypes)}                
-                
+        
+        # update the state values with the values in the instance
         initstates = copy.deepcopy(states)
         if hasattr(self._AST.instance, 'init_state'):
             for ((name, params), value) in self._AST.instance.init_state:
@@ -119,6 +129,8 @@ class RDDLLiftedModel(PlanningModel):
                     if gname in initstates[name]:
                         initstates[name][gname] = value
         
+        # state dictionary associates the variable lifted name with a list of
+        # values for all variations of parameter arguments in C-based order
         states = self._flatten_grounded_dict(states)
         initstates = self._flatten_grounded_dict(initstates)     
         return states, statesranges, nextstates, prevstates, initstates
@@ -132,6 +144,8 @@ class RDDLLiftedModel(PlanningModel):
         return prod
     
     def _extract_actions(self):
+        
+        # actions are stored similar to states described above
         actions, actionsranges = {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_action_fluent():
@@ -141,6 +155,8 @@ class RDDLLiftedModel(PlanningModel):
         return actions, actionsranges
     
     def _extract_derived_and_interm(self):
+        
+        # derived/interm are stored similar to states described above
         derived, interm = {}, {}
         for pvar in self._AST.domain.pvariables:
             name, ptypes = pvar.name, pvar.param_types
@@ -151,6 +167,8 @@ class RDDLLiftedModel(PlanningModel):
         return derived, interm
     
     def _extract_observ(self):
+        
+        # observed are stored similar to states described above
         observ, observranges = {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_observ_fluent():
@@ -160,13 +178,16 @@ class RDDLLiftedModel(PlanningModel):
         return observ, observranges
         
     def _extract_non_fluents(self):
+        
+        # extract non-fluents values from the domain defaults
         non_fluents = {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_non_fluent():
                 name, ptypes = pvar.name, pvar.param_types
                 non_fluents[name] = {gname: pvar.default
                                      for gname in self.ground_names(name, ptypes)}
-                        
+        
+        # update non-fluent values with the values in the instance
         if hasattr(self._AST.non_fluents, 'init_non_fluent'):
             for ((name, params), value) in self._AST.non_fluents.init_non_fluent:
                 if name in non_fluents:
@@ -174,8 +195,8 @@ class RDDLLiftedModel(PlanningModel):
                     if gname in non_fluents[name]:
                         non_fluents[name][gname] = value
                         
-        non_fluents = self._flatten_grounded_dict(non_fluents)
-        return non_fluents
+        # non-fluents are stored similar to states described above
+        return self._flatten_grounded_dict(non_fluents)
     
     def _extract_cpfs(self):
         cpfs = {}
@@ -183,26 +204,32 @@ class RDDLLiftedModel(PlanningModel):
             name, objects = cpf.pvar[1]
             if objects is None:
                 objects = []
-                
+            
+            # make sure the CPF is defined in pvariables {...} scope
             types = self.param_types.get(name, None)
             if types is None:
                 raise RDDLUndefinedCPFError(
                     f'CPF <{name}> is not defined in pvariable scope.')
-                
+            
+            # make sure the number of parameters matches that in cpfs {...}
             if len(types) != len(objects):
                 raise RDDLInvalidObjectError(
                     f'CPF <{name}> expects {len(types)} parameters, '
                     f'got {len(objects)}.')
-                
+            
+            # CPFs are stored as dictionary that associates cpf name
+            # with a pair, where the first element is the type argument info,
+            # and the second element is the AST expression
             objects = [(o, types[i]) for (i, o) in enumerate(objects)]
             cpfs[name] = (objects, cpf.expr)
         
+        # make sure all CPFs have a valid expression in cpfs {...}
         for (var, fluent_type) in self.variable_types.items():
             if fluent_type in {'derived-fluent', 'interm-fluent', 
-                               'next-state-fluent', 'observ-fluent'}:
-                if var not in cpfs:
-                    raise RDDLMissingCPFDefinitionError(
-                        f'{fluent_type} CPF <{var}> is missing a valid definition.')
+                               'next-state-fluent', 'observ-fluent'} \
+            and var not in cpfs:
+                raise RDDLMissingCPFDefinitionError(
+                    f'{fluent_type} CPF <{var}> is missing a valid definition.')
                     
         return cpfs
     

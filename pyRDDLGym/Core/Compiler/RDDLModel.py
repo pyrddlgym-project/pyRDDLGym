@@ -416,10 +416,14 @@ class PlanningModel(metaclass=ABCMeta):
         
         elif etype == 'pvar':
             name = expr.args[0]
+            
+            # enum literal is non-fluent
             if name in self.enum_literals:
-                return True  # enum literal            
+                return True
+             
+            # pvariable must be well-defined and "non-fluent" type
             else:
-                var_type = self.variable_types.get(name, None)  # pvariable      
+                var_type = self.variable_types.get(name, None)     
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
                         f'Variable or literal <{name}> is not defined, '

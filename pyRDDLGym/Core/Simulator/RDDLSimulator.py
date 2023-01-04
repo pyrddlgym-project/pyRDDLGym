@@ -4,6 +4,7 @@ from typing import Dict, Union
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
@@ -249,6 +250,9 @@ class RDDLSimulator:
                 new_actions[action] = value
             else:
                 var, objects = rddl.parse(action)
+                if var not in new_actions:                    
+                    raise RDDLInvalidActionError(
+                        f'<{action}> is not a valid action-fluent.')
                 tensor = new_actions[var]                
                 RDDLSimulator._check_type(value, tensor.dtype, action, '')            
                 tensor[rddl.indices(objects)] = value
@@ -403,7 +407,8 @@ class RDDLSimulator:
         shape_info = expr.cached_sim_info
         if shape_info is not None:
             slices, transform = shape_info
-            sample = sample[slices]
+            if slices: 
+                sample = sample[slices]
             sample = transform(sample)
         return sample
     

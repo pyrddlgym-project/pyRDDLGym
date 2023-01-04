@@ -81,10 +81,13 @@ class RDDLLevelAnalysis:
         
         elif expr.is_pvariable_expression():
             name, *_ = expr.args
+            
+            # enum literals are ignored
             if name in self.rddl.enum_literals:
                 pass
+            
+            # check that name is valid variable, and make var a dependent of cpf
             else:
-                # check that name is valid variable, then cpf depends on it
                 var_type = self.rddl.variable_types.get(name, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
@@ -125,13 +128,16 @@ class RDDLLevelAnalysis:
             for dep in deps: 
                 dep_type = self.rddl.variable_types.get(dep, dep)
                 if dep_type not in VALID_DEPENDENCIES[cpf_type] or (
-                    not self.allow_synchronous_state
+                    (not self.allow_synchronous_state)
                     and cpf_type == dep_type == 'next-state-fluent'
                 ):
                     raise RDDLInvalidDependencyInCPFError(
-                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
+                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>. '
+                        f'Set allow_synchronous_state=True to disable this error.')                
     
     def _validate_cpf_definitions(self, graph): 
+        
+        # check that all CPFs have a valid definition
         for cpf in self.rddl.cpfs:
             fluent_type = self.rddl.variable_types.get(cpf, cpf)
             if fluent_type == 'state-fluent':
@@ -175,13 +181,19 @@ class RDDLLevelAnalysis:
     
     @staticmethod
     def _sort_variables(order, graph, var, unmarked, temp):
-        if var not in unmarked:
+        
+        # var has already been visited
+        if var not in unmarked: 
             return
+        
+        # a cycle is detected
         elif var in temp:
             cycle = ','.join(temp)
             raise RDDLInvalidDependencyInCPFError(
                 f'Cyclic dependency detected, suspected CPFs {{{cycle}}}.')
-        else:
+        
+        # recursively sort all variables on which var depends
+        else: 
             temp.add(var)
             if var in graph:
                 for dep in graph[var]:
