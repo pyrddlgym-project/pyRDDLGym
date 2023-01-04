@@ -51,7 +51,7 @@ class RDDLLevelAnalysis:
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
-        for name, (_, expr) in self.rddl.cpfs.items():
+        for (name, (_, expr)) in self.rddl.cpfs.items():
             self._update_call_graph(cpf_graph, name, expr)
             if name not in cpf_graph:
                 cpf_graph[name] = set()
@@ -59,7 +59,7 @@ class RDDLLevelAnalysis:
         self._validate_cpf_definitions(cpf_graph)
         
         # check validity of reward, constraints, termination
-        for name, exprs in [
+        for (name, exprs) in [
             ('reward', [self.rddl.reward]),
             ('precondition', self.rddl.preconditions),
             ('invariant', self.rddl.invariants),
@@ -82,8 +82,9 @@ class RDDLLevelAnalysis:
         elif expr.is_pvariable_expression():
             name, *_ = expr.args
             if name in self.rddl.enum_literals:
-                pass  # enum literal
+                pass
             else:
+                # check that name is valid variable, then cpf depends on it
                 var_type = self.rddl.variable_types.get(name, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
@@ -101,7 +102,7 @@ class RDDLLevelAnalysis:
     # ===========================================================================
     
     def _validate_dependencies(self, graph):
-        for cpf, deps in graph.items():
+        for (cpf, deps) in graph.items():
             cpf_type = self.rddl.variable_types.get(cpf, cpf)
             
             # warn use of derived fluent
@@ -131,7 +132,7 @@ class RDDLLevelAnalysis:
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
     
     def _validate_cpf_definitions(self, graph): 
-        for cpf in self.rddl.cpfs.keys():
+        for cpf in self.rddl.cpfs:
             fluent_type = self.rddl.variable_types.get(cpf, cpf)
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-' + fluent_type

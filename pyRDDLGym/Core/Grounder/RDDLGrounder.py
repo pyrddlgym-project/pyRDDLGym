@@ -111,7 +111,7 @@ class RDDLGrounder(Grounder):
         model.enum_types = set()
         model.enum_literals = set()
         
-        model.grounded_names = {name: [name] for name in model.param_types.keys()}
+        model.grounded_names = {name: [name] for name in model.param_types}
         model.index_of_object = {}
         
         return model

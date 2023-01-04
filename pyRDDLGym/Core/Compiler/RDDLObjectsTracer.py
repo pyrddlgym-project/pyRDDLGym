@@ -337,9 +337,9 @@ class RDDLObjectsTracer:
         sign_in = tuple(zip(obj_in, types_in))
         permutation = [None] * len(obj_in)
         new_dims = []
-        for i_out, (o_out, t_out) in enumerate(sign_out):
+        for (i_out, (o_out, t_out)) in enumerate(sign_out):
             new_dim = True
-            for i_in, (o_in, t_in) in enumerate(sign_in):
+            for (i_in, (o_in, t_in)) in enumerate(sign_in):
                 if o_in == o_out:
                     permutation[i_in] = i_out
                     new_dim = False
@@ -425,7 +425,7 @@ class RDDLObjectsTracer:
     # ===========================================================================
     
     def _trace_arithmetic(self, expr, objects):
-        for i, arg in enumerate(expr.args):
+        for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects)
         
             # argument cannot be enum type
@@ -460,7 +460,7 @@ class RDDLObjectsTracer:
         expr.enum_type = None  
     
     def _trace_logical(self, expr, objects):
-        for i, arg in enumerate(expr.args):
+        for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects)
             
             # argument cannot be enum type
@@ -497,7 +497,7 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
             
         # check for duplicated iteration variables
-        for _, (free_new, _) in pargs:
+        for (_, (free_new, _)) in pargs:
             for (free_old, _) in objects:
                 if free_new == free_old:
                     raise RDDLInvalidObjectError(
@@ -514,7 +514,7 @@ class RDDLObjectsTracer:
         expr.enum_type = None
         
     def _trace_func(self, expr, objects):
-        for i, arg in enumerate(expr.args):
+        for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects)
             
             # argument cannot be enum type
@@ -599,7 +599,7 @@ class RDDLObjectsTracer:
         enum_values = self.rddl.objects[enum_type]
         
         # check that all literals belong to enum_type
-        for literal in case_dict.keys():
+        for literal in case_dict:
             if literal != 'default' \
             and self.rddl.objects_rev.get(literal, None) != enum_type:
                 raise RDDLUndefinedVariableError(
@@ -618,7 +618,7 @@ class RDDLObjectsTracer:
         # if default statement is missing, cases must be comprehensive
         default_expr = case_dict.get('default', None)
         if default_expr is None:
-            for i, arg in enumerate(expressions):
+            for (i, arg) in enumerate(expressions):
                 if arg is None:
                     raise RDDLUndefinedVariableError(
                         f'Enum literal <{enum_values[i]}> of type <{enum_type}> '
@@ -626,7 +626,7 @@ class RDDLObjectsTracer:
                         RDDLObjectsTracer._print_stack_trace(expr))
         
         # log cases ordering
-        active_expr = [i for i, v in enumerate(expressions) if v is not None]
+        active_expr = [i for (i, v) in enumerate(expressions) if v is not None]
         self._append_log(
             f'computing case info for {expr.etype[1]}:'
                 f'\n\tenum type ={enum_type}'
@@ -668,7 +668,7 @@ class RDDLObjectsTracer:
         expr.cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr)
     
         # trace each case expression
-        for i, arg in enumerate(case_dict.values()):
+        for (i, arg) in enumerate(case_dict.values()):
             self._trace(arg, objects)
             
             # argument cannot be enum type
@@ -677,7 +677,7 @@ class RDDLObjectsTracer:
         expr.enum_type = enum_type
     
     def _trace_random_other(self, expr, objects):
-        for i, arg in enumerate(expr.args):
+        for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects)
                 
             # argument cannot be enum type

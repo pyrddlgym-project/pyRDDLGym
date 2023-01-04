@@ -12,7 +12,6 @@ from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
-from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 
 
 class RDDLEnv(gym.Env):
@@ -32,11 +31,7 @@ class RDDLEnv(gym.Env):
         rddl = parser.parse(domain)
 
         # define the model sampler
-        self.model = RDDLGrounder(rddl).Ground()# RDDLLiftedModel(rddl)
-        
-        from pprint import pprint
-        pprint(vars(self.model))
-        
+        self.model = RDDLLiftedModel(rddl)
         self.sampler = RDDLSimulatorWConstraints(self.model, debug=debug)
         bounds = self.sampler.bounds
 

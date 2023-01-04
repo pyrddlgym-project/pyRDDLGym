@@ -233,7 +233,7 @@ class RDDLSimulator:
     
     def _process_actions(self, actions):
         new_actions = {action: np.copy(value) 
-                        for action, value in self.noop_actions.items()}
+                        for (action, value) in self.noop_actions.items()}
         rddl = self.rddl
         
         # override new_actions with any new actions
@@ -245,19 +245,19 @@ class RDDLSimulator:
                 value = rddl.index_of_object[value]
             
             # parse action string and assign to the correct coordinates
-            var, objects = rddl.parse(action)
-            if objects:
+            if action in new_actions:
+                new_actions[action] = value
+            else:
+                var, objects = rddl.parse(action)
                 tensor = new_actions[var]                
                 RDDLSimulator._check_type(value, tensor.dtype, action, '')            
                 tensor[rddl.indices(objects)] = value
-            else:
-                new_actions[var] = value
                 
         return new_actions
     
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
-        for i, invariant in enumerate(self.rddl.invariants):
+        for (i, invariant) in enumerate(self.rddl.invariants):
             sample = self._sample(invariant, self.subs)
             RDDLSimulator._check_type(sample, bool, 'Invariant', invariant)
             if not bool(sample):
@@ -270,7 +270,7 @@ class RDDLSimulator:
         actions = self._process_actions(actions)
         self.subs.update(actions)
         
-        for i, precond in enumerate(self.rddl.preconditions):
+        for (i, precond) in enumerate(self.rddl.preconditions):
             sample = self._sample(precond, self.subs)
             RDDLSimulator._check_type(sample, bool, 'Precondition', precond)
             if not bool(sample):
@@ -280,7 +280,7 @@ class RDDLSimulator:
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
-        for _, terminal in enumerate(self.rddl.terminals):
+        for (_, terminal) in enumerate(self.rddl.terminals):
             sample = self._sample(terminal, self.subs)
             RDDLSimulator._check_type(sample, bool, 'Termination', terminal)
             if bool(sample):
@@ -333,7 +333,7 @@ class RDDLSimulator:
         
         # update state
         states = {}
-        for next_state, state in self.next_states.items():
+        for (next_state, state) in self.next_states.items():
             subs[state] = subs[next_state]
             states.update(rddl.ground_values(state, subs[state]))
         
@@ -566,7 +566,7 @@ class RDDLSimulator:
     def _sample_and_or_grounded(self, args, op, expr, subs): 
         
         # go through simple expressions first
-        for i, arg in enumerate(args):
+        for (i, arg) in enumerate(args):
             if arg.is_constant_expression() or arg.is_pvariable_expression():
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
@@ -577,7 +577,7 @@ class RDDLSimulator:
                     return True
         
         # go through complex expressions last
-        for i, arg in enumerate(args):
+        for (i, arg) in enumerate(args):
             if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
@@ -992,7 +992,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         self.epsilon = 0.001
         
         self._bounds, states, actions = {}, set(), set()
-        for var, vtype in self.rddl.variable_types.items():
+        for (var, vtype) in self.rddl.variable_types.items():
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
                 ptypes = self.rddl.param_types[var]
                 for name in self.rddl.ground_names(var, ptypes):
@@ -1010,7 +1010,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         for invariant in self.rddl.invariants:
             self._parse_bounds(invariant, [], states)
 
-        for name, bounds in self._bounds.items():
+        for (name, bounds) in self._bounds.items():
             RDDLSimulator._check_bounds(*bounds, f'Variable <{name}>', bounds)
             
         # log bounds to file
@@ -1092,7 +1092,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             eps, loc = self._get_op_code(op, is_left_pvar)
             lim = const + eps
             
-            arg_to_index = {o[0]: i for i, o in enumerate(objects)}
+            arg_to_index = {o[0]: i for (i, o) in enumerate(objects)}
             active = [arg_to_index[arg] for arg in args if arg in arg_to_index]
 
             return var, lim, loc, active
