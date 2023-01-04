@@ -99,6 +99,10 @@ class RDDLObjectsTracer:
         return default
 
     def _enum_literals_to_ints(self, literals, prange, var):
+        print(f'{literals} {prange} {var}')
+        is_scalar = isinstance(literals, str)
+        if is_scalar:
+            literals = [literals]
         integers = []
         for literal in literals:
             if literal is None:
@@ -110,6 +114,8 @@ class RDDLObjectsTracer:
                     f'Literal <{literal}> assigned to variable <{var}> '
                     f'does not belong to enum <{prange}>, '
                     f'must be one of {set(self.rddl.objects[prange])}.')
+        if is_scalar:
+            integers = integers[0]
         return integers
     
     def _compile_init_values(self):
