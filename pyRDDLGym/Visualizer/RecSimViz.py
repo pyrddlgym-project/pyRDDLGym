@@ -16,7 +16,7 @@ class RecSimVisualizer(StateViz):
                  display=False) -> None:
         self._model = model
         self._states = model.states
-        self._nonfluents = model.nonfluents
+        self._nonfluents = model.groundnonfluents()
         self._objects = model.objects
         self._figure_size = figure_size
         self._display = display
@@ -58,7 +58,7 @@ class RecSimVisualizer(StateViz):
         self._creator_means = np.zeros((self._num_creators, space_dim))
         self._user_interests = np.zeros((self._num_users, space_dim))
 
-        for key, value in self._model.nonfluents.items():
+        for key, value in self._nonfluents.items():
             tokens = key.split('_')
             if tokens[0] == 'CONSUMER-AFFINITY':
                 self._user_interests[

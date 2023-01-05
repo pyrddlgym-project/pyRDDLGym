@@ -21,7 +21,7 @@ class RacecarVisualizer(StateViz):
         self._vector_len = vector_len
         self._wait_time = wait_time
         
-        self._nonfluents = model.nonfluents
+        self._nonfluents = model.groundnonfluents()
         
         self.fig = plt.figure(figsize=self._figure_size)
         self.ax = plt.gca()
