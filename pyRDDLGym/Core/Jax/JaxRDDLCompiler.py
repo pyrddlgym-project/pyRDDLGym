@@ -130,12 +130,32 @@ class JaxRDDLCompiler:
     # main compilation subroutines
     # ===========================================================================
      
-    def compile(self) -> None: 
+    def compile(self, log_jax_expr: bool=False) -> None: 
         self.invariants = self._compile_constraints(self.rddl.invariants)
         self.preconditions = self._compile_constraints(self.rddl.preconditions)
         self.termination = self._compile_constraints(self.rddl.terminals)
         self.cpfs = self._compile_cpfs()
         self.reward = self._compile_reward()
+        
+        if log_jax_expr and self.logger is not None:
+            printed = self.print_jax()
+            printed_cpfs = '\n\n'.join(f'{k}: {v}' 
+                                       for (k, v) in printed['cpfs'].items())
+            printed_reward = printed['reward']
+            printed_invariants = '\n\n'.join(v for v in printed['invariants'])
+            printed_preconds = '\n\n'.join(v for v in printed['preconditions'])
+            printed_terminals = '\n\n'.join(v for v in printed['terminations'])
+            message = (f'compiled JAX CPFs:\n\n'
+                       f'{printed_cpfs}\n\n'
+                       f'compiled JAX reward:\n\n'
+                       f'{printed_reward}\n\n'
+                       f'compiled JAX invariants:\n\n'
+                       f'{printed_invariants}\n\n'
+                       f'compiled JAX preconditions:\n\n'
+                       f'{printed_preconds}\n\n'
+                       f'compiled JAX terminations:\n\n'
+                       f'{printed_terminals}\n')
+            self.logger.log(message)
     
     def _compile_constraints(self, constraints):
         return [self._jax(c, dtype=bool) for c in constraints]
