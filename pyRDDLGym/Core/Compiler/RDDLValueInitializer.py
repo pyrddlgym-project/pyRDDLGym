@@ -52,14 +52,14 @@ class RDDLValueInitializer:
         np_init_values = {}
         for (var, prange) in rddl.variable_ranges.items():
             
-            # get numpy type from prange: enum type treated as int
+            # enum types are treated as int
             if prange in rddl.enum_types:
                 prange = 'int'
-            dtype = RDDLValueInitializer.NUMPY_TYPES[prange]
             
-            # get the default value for the numpy type
+            # get default value and dtype
             default = RDDLValueInitializer.DEFAULT_VALUES.get(prange, None)
-            if default is None:
+            dtype = RDDLValueInitializer.NUMPY_TYPES.get(prange, None)
+            if default is None or dtype is None:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
                     f'must be an enum type in {self.rddl.enum_types} '
