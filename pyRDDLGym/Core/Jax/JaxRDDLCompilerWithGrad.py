@@ -76,10 +76,9 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         # actions and CPFs must be continuous
         warnings.warn(f'Initial values of CPFs and action-fluents '
                       f'will be cast to real.', stacklevel=2)   
-        for var, values in self.init_values.items():
+        for (var, values) in self.init_values.items():
             if self.rddl.variable_types[var] != 'non-fluent':
-                self.init_values[var] = np.asarray(
-                    values, dtype=JaxRDDLCompiler.REAL)        
+                self.init_values[var] = np.asarray(values, dtype=JaxRDDLCompiler.REAL)        
         
         # overwrite basic operations with fuzzy ones
         self.LOGICAL_OPS = {
@@ -98,11 +97,10 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     def _compile_cpfs(self):
         warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
         jax_cpfs = {}
-        for _, cpfs in self.levels.items():
+        for (_, cpfs) in self.levels.items():
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
-                dtype = JaxRDDLCompiler.JAX_TYPES['real']
-                jax_cpfs[cpf] = self._jax(expr, dtype=dtype)
+                jax_cpfs[cpf] = self._jax(expr, dtype=JaxRDDLCompiler.REAL)
         return jax_cpfs
     
     def _jax_logical(self, expr):

@@ -2,6 +2,8 @@ import datetime
 
 
 class Logger:
+    '''Provides functionality for writing messages to a log file.
+    '''
     
     def __init__(self, filename: str) -> None:
         self.filename = filename

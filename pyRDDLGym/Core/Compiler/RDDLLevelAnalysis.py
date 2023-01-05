@@ -137,7 +137,7 @@ class RDDLLevelAnalysis:
                 ):
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>. '
-                        f'Set allow_synchronous_state=True to disable this error.')                
+                        f'Set allow_synchronous_state=True to allow this.')                
     
     def _validate_cpf_definitions(self, graph): 
         
@@ -149,7 +149,7 @@ class RDDLLevelAnalysis:
                 cpf = cpf + '\''
             if fluent_type in VALID_DEPENDENCIES and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{cpf}> is missing a definition.')
+                    f'{fluent_type} CPF <{cpf}> is not defined in cpfs block.')
                     
     # ===========================================================================
     # topological sort
@@ -194,7 +194,7 @@ class RDDLLevelAnalysis:
         elif var in temp:
             cycle = ','.join(temp)
             raise RDDLInvalidDependencyInCPFError(
-                f'Cyclic dependency detected, suspected CPFs {{{cycle}}}.')
+                f'Cyclic dependency detected among CPFs {{{cycle}}}.')
         
         # recursively sort all variables on which var depends
         else: 

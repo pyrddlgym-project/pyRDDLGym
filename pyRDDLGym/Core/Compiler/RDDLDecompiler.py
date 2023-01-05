@@ -11,10 +11,10 @@ class RDDLDecompiler:
         value = str(value)
         if params is not None and params:
             if isinstance(params, dict):
-                args = ','.join(f'{k}:{v}' for k, v in params.items())
+                args = ', '.join(f'{k}:{v}' for k, v in params.items())
                 args = f'_{{{args}}}'
             else:
-                args = ','.join(map(str, params))
+                args = ', '.join(map(str, params))
                 args = f'({args})'
             value += args
         return value
@@ -102,7 +102,7 @@ class RDDLDecompiler:
             pvar, *args = expr.args
             pred = self._decompile(pvar, False, level)
             cases = []
-            for case_type, value in args:
+            for (case_type, value) in args:
                 if case_type == 'case':
                     literal, arg = value
                     decompiled = self._decompile(arg, False, level + 1)
@@ -123,7 +123,7 @@ class RDDLDecompiler:
         if op == 'Discrete':
             (_, var), *args = expr.args
             cases = [var]
-            for _, (literal, arg) in args:
+            for (_, (literal, arg)) in args:
                 decompiled = self._decompile(arg, False, level + 1)
                 cases.append(f'{literal} : {decompiled}')
             indent = '\t' * (level + 1)
