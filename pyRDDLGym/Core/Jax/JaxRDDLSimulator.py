@@ -19,7 +19,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         
     def __init__(self, rddl: RDDLLiftedModel,
                  key: jax.random.PRNGKey,
-                 raise_error: bool=False,
+                 raise_error: bool=True,
                  logger: Logger=None,
                  **compiler_args) -> None:
         self.rddl = rddl

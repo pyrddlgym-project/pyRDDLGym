@@ -6,7 +6,6 @@ import jax.scipy as scipy
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
@@ -123,7 +122,8 @@ class JaxRDDLCompiler:
             'log': lambda x, y: jnp.log(x) / jnp.log(y)
         }
         self.CONTROL_OPS = {
-            'if': jnp.where
+            'if': jnp.where,
+            'switch': jnp.select
         }
         
     # ===========================================================================
@@ -166,11 +166,7 @@ class JaxRDDLCompiler:
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
                 prange = self.rddl.variable_ranges[cpf]
-                dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, None)
-                if dtype is None:
-                    raise RDDLTypeError(
-                        f'Type <{prange}> of CPF <{cpf}> is not valid, '
-                        f'must be one of {set(JaxRDDLCompiler.JAX_TYPES.keys())}.')
+                dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, JaxRDDLCompiler.INT)
                 jax_cpfs[cpf] = self._jax(expr, dtype=dtype)
         return jax_cpfs
     
@@ -230,17 +226,17 @@ class JaxRDDLCompiler:
                     terminated = jnp.logical_or(terminated, sample)
                     error |= terminal_err
             
-            carried = (subs, params, key)
             logged = {'fluent': subs,
                       'action': action,
                       'reward': reward,
-                      'error': error}
-            
+                      'error': error}            
             if check_constraints:
                 logged['preconditions'] = preconds
                 logged['invariants'] = invariants
                 logged['terminated'] = terminated
-            return carried, logged
+                
+            carried = (subs, params, key)
+            return (carried, logged)
         
         # this performs a single roll-out starting from subs
         def _rollout(subs, params, key):
@@ -274,7 +270,7 @@ class JaxRDDLCompiler:
         printed['terminations'] = [str(jax.make_jaxpr(expr)(subs, key))
                                    for expr in self.termination]
         printed['cpfs'] = {name: str(jax.make_jaxpr(expr)(subs, key))
-                           for name, expr in self.cpfs.items()}
+                           for (name, expr) in self.cpfs.items()}
         printed['reward'] = str(jax.make_jaxpr(self.reward)(subs, key))
         return printed
         
@@ -323,7 +319,9 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_GUMBEL': 4096,
         'INVALID_PARAM_LAPLACE': 8192,
         'INVALID_PARAM_CAUCHY': 16384,
-        'INVALID_PARAM_GOMPERTZ': 32768      
+        'INVALID_PARAM_GOMPERTZ': 32768,
+        'INVALID_PARAM_DISCRETE': 65536,
+        'INVALID_PARAM_KRON_DELTA': 131072
     }
     
     INVERSE_ERROR_CODES = {
@@ -342,7 +340,9 @@ class JaxRDDLCompiler:
         12: 'Found Gumbel(m, s) distribution where s <= 0.',
         13: 'Found Laplace(m, s) distribution where s <= 0.',
         14: 'Found Cauchy(m, s) distribution where s <= 0.',
-        15: 'Found Gompertz(k, l) distribution where either k <= 0 or l <= 0.'
+        15: 'Found Gompertz(k, l) distribution where either k <= 0 or l <= 0.',
+        16: 'Found Discrete(p) distribution where either p < 0 or p does not sum to 1.',
+        17: 'Found KronDelta(x) where x is not int nor bool.'
     }
     
     @staticmethod
@@ -458,21 +458,26 @@ class JaxRDDLCompiler:
     # ===========================================================================
     
     @staticmethod
-    def _jax_unary(jax_expr, jax_op):
+    def _jax_unary(jax_expr, jax_op, at_least_int=False):
         
         def _jax_wrapped_unary_op(x, key):
             sample, key, err = jax_expr(x, key)
+            if at_least_int:
+                sample = sample * 1
             sample = jax_op(sample)
             return sample, key, err
         
         return _jax_wrapped_unary_op
     
     @staticmethod
-    def _jax_binary(jax_lhs, jax_rhs, jax_op):
+    def _jax_binary(jax_lhs, jax_rhs, jax_op, at_least_int=False):
         
         def _jax_wrapped_binary_op(x, key):
             sample1, key, err1 = jax_lhs(x, key)
             sample2, key, err2 = jax_rhs(x, key)
+            if at_least_int:
+                sample1 = sample1 * 1
+                sample2 = sample2 * 1
             sample = jax_op(sample1, sample2)
             err = err1 | err2
             return sample, key, err
@@ -490,14 +495,16 @@ class JaxRDDLCompiler:
         if n == 1 and op == '-':
             arg, = args
             jax_expr = self._jax(arg)
-            return JaxRDDLCompiler._jax_unary(jax_expr, jnp.negative)
+            return JaxRDDLCompiler._jax_unary(
+                jax_expr, jnp.negative, at_least_int=True)
                     
         elif n == 2:
             lhs, rhs = args
             jax_lhs = self._jax(lhs)
             jax_rhs = self._jax(rhs)
             jax_op = valid_ops[op]
-            return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
+            return JaxRDDLCompiler._jax_binary(
+                jax_lhs, jax_rhs, jax_op, at_least_int=True)
         
         JaxRDDLCompiler._check_num_args(expr, 2)
     
@@ -511,7 +518,8 @@ class JaxRDDLCompiler:
         jax_lhs = self._jax(lhs)
         jax_rhs = self._jax(rhs)
         jax_op = valid_ops[op]
-        return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
+        return JaxRDDLCompiler._jax_binary(
+            jax_lhs, jax_rhs, jax_op, at_least_int=True)
            
     def _jax_logical(self, expr):
         _, op = expr.etype
@@ -562,7 +570,8 @@ class JaxRDDLCompiler:
             arg, = expr.args
             jax_expr = self._jax(arg)
             jax_op = self.KNOWN_UNARY[op]
-            return JaxRDDLCompiler._jax_unary(jax_expr, jax_op)
+            return JaxRDDLCompiler._jax_unary(
+                jax_expr, jax_op, at_least_int=True)
             
         # binary function
         elif op in self.KNOWN_BINARY:
@@ -571,7 +580,8 @@ class JaxRDDLCompiler:
             jax_lhs = self._jax(lhs)
             jax_rhs = self._jax(rhs)
             jax_op = self.KNOWN_BINARY[op]
-            return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
+            return JaxRDDLCompiler._jax_binary(
+                jax_lhs, jax_rhs, jax_op, at_least_int=True)
         
         raise RDDLNotImplementedError(
                 f'Function {op} is not supported.\n' + 
@@ -585,23 +595,54 @@ class JaxRDDLCompiler:
         _, op = expr.etype
         valid_ops = self.CONTROL_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
+        
+        if op == 'if':
+            return self._jax_if(expr)
+        else:
+            return self._jax_switch(expr)
+    
+    def _jax_if(self, expr):
         JaxRDDLCompiler._check_num_args(expr, 3)
         
         pred, if_true, if_false = expr.args        
         jax_pred = self._jax(pred)
         jax_true = self._jax(if_true)
-        jax_false = self._jax(if_false)        
-        jax_op = self.CONTROL_OPS[op]
+        jax_false = self._jax(if_false)
         
         def _jax_wrapped_if_then_else(x, key):
             sample1, key, err1 = jax_pred(x, key)
             sample2, key, err2 = jax_true(x, key)
             sample3, key, err3 = jax_false(x, key)
-            sample = jax_op(sample1, sample2, sample3)
+            sample = jnp.where(sample1, sample2, sample3)
             err = err1 | err2 | err3
             return sample, key, err
             
         return _jax_wrapped_if_then_else
+    
+    def _jax_switch(self, expr):
+        pred, *_ = expr.args             
+        jax_pred = self._jax(pred)
+        cases, default = self.traced.cached_sim_info(expr)  
+        
+        jax_def = None if default is None else self._jax(default)
+        jax_cases = [(jax_def if arg is None else self._jax(arg))
+                     for arg in cases]
+                    
+        def _jax_wrapped_switch(x, key):
+            sample_pred, key, err = jax_pred(x, key)
+            sample_pred = jnp.expand_dims(sample_pred, axis=0) 
+            
+            sample_cases = []
+            for jax_case in jax_cases:
+                sample_case, key, err_case = jax_case(x, key)
+                sample_cases.append(sample_case)
+                err |= err_case                
+            sample_cases = jnp.asarray(sample_cases)
+                      
+            sample = jnp.take_along_axis(sample_cases, sample_pred, axis=0)
+            return sample, key, err    
+        
+        return _jax_wrapped_switch
     
     # ===========================================================================
     # random variables
@@ -643,16 +684,26 @@ class JaxRDDLCompiler:
             return self._jax_cauchy(expr)
         elif name == 'Gompertz':
             return self._jax_gompertz(expr)
+        elif name == 'Discrete':
+            return self._jax_discrete(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
         
     def _jax_kron(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_KRON_DELTA']
         JaxRDDLCompiler._check_num_args(expr, 1)
         arg, = expr.args
-        arg = self._jax(arg, dtype=bool)
-        return arg
+        arg = self._jax(arg)
+        
+        def _jax_wrapped_check_bool_or_int(x, key):
+            sample, key, err = arg(x, key)
+            invalid_type = not jnp.can_cast(sample, JaxRDDLCompiler.INT)
+            err |= (invalid_type * ERR)
+            return sample, key, err
+                        
+        return _jax_wrapped_check_bool_or_int
     
     def _jax_dirac(self, expr):
         JaxRDDLCompiler._check_num_args(expr, 1)
@@ -958,3 +1009,30 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gompertz
     
+    def _jax_discrete(self, expr):
+        ERR0 = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
+        
+        jax_pdfs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
+        
+        def _jax_wrapped_distribution_discrete(x, key):
+            err = ERR0
+            sample_pdfs = []
+            for jax_pdf in jax_pdfs:
+                sample_pdf, key, err_pdf = jax_pdf(x, key)
+                sample_pdfs.append(sample_pdf)
+                err |= err_pdf
+            sample_pdfs = jnp.asarray(sample_pdfs)
+            sample_cdf = jnp.cumsum(sample_pdfs, axis=0)
+            out_of_bounds = jnp.logical_or(
+                jnp.any(sample_pdfs < 0),
+                jnp.logical_not(jnp.allclose(sample_cdf[-1, ...], 1.0)))
+            err |= (out_of_bounds * ERR)
+            
+            key, subkey = random.split(key)
+            shape = (1,) + jnp.shape(sample_cdf)[1:]
+            U = random.uniform(key=subkey, shape=shape, dtype=JaxRDDLCompiler.REAL)
+            sample = jnp.argmax(U < sample_cdf, axis=0)
+            return sample, key, err
+        
+        return _jax_wrapped_distribution_discrete
