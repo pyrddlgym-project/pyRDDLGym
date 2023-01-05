@@ -58,7 +58,7 @@ class JaxRDDLCompiler:
         
         # trace expressions to cache information to be used later
         tracer = RDDLObjectsTracer(rddl, tensorlib=jnp, logger=self.logger)
-        tracer.trace()
+        self.traced = tracer.trace()
         
         # basic operations        
         self.ARITHMETIC_OPS = {
@@ -389,7 +389,7 @@ class JaxRDDLCompiler:
     
     def _jax_constant(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        cached_value = expr.cached_sim_info
+        cached_value = self.traced.cached_sim_info(expr)
         
         def _f_constant(_, key):
             sample = cached_value
@@ -403,7 +403,7 @@ class JaxRDDLCompiler:
         
         # boundary case: enum literal is converted to canonical integer index
         if var in self.rddl.enum_literals:
-            cached_literal = expr.cached_sim_info
+            cached_literal = self.traced.cached_sim_info(expr)
             
             def _jax_wrapped_pvar_literal(_, key):
                 sample = cached_literal
@@ -412,7 +412,7 @@ class JaxRDDLCompiler:
             return _jax_wrapped_pvar_literal
         
         # boundary case: no shape information (e.g. scalar pvar)
-        shape_info = expr.cached_sim_info 
+        shape_info = self.traced.cached_sim_info(expr)
         if shape_info is None:
             
             def _jax_wrapped_pvar_scalar(x, key):
@@ -521,7 +521,7 @@ class JaxRDDLCompiler:
         JaxRDDLCompiler._check_valid_op(expr, valid_ops) 
         
         * _, arg = expr.args  
-        _, axes = expr.cached_sim_info
+        _, axes = self.traced.cached_sim_info(expr)
         
         jax_expr = self._jax(arg)
         jax_op = valid_ops[op]        
