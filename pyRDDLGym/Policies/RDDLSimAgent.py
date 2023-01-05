@@ -98,9 +98,13 @@ class RDDLSimAgent:
             data = self.receive_message(connection)
             actions = self.process_action(data)
 
+            # Convert to string then back to json
+            state_json = json.loads(str(state))
+            actions_json = json.loads(str(actions))
+
             self.logs[-1].append({
-                "state": state,
-                "actions": actions,
+                "state": state_json,
+                "actions": actions_json,
             })
 
             next_state, reward, done, info = self.env.step(actions)
