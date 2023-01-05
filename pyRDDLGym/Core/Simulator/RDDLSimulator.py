@@ -957,10 +957,18 @@ class RDDLSimulator:
     
     def _sample_discrete(self, expr, subs):
         
-        # calculate the CDF and check sum to one
-        pdf = [self._sample(arg, subs) 
-               for arg in self.traced.cached_sim_info(expr)]
+        # calculate the CDF
+        pdf = np.asarray([self._sample(arg, subs) 
+                          for arg in self.traced.cached_sim_info(expr)])
         cdf = np.cumsum(pdf, axis=0)
+        
+        # must be a valid density
+        if not np.all(pdf >= 0):
+            raise RDDLValueOutOfRangeError(
+                f'Discrete probabilities must be non-negative, got {pdf}.\n' + 
+                RDDLSimulator._print_stack_trace(expr))  
+             
+        # CDF must sum to one
         if not np.allclose(cdf[-1, ...], 1.0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must sum to 1, got {cdf[-1, ...]}.\n' + 
