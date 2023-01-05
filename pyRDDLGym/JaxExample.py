@@ -16,7 +16,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-ENV = 'Traffic'
+ENV = 'WildlifePreserve'
 # ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
@@ -116,7 +116,8 @@ def main():
                             num_actions=myEnv.numConcurrentActions)
         
         def plan(step):
-            return {k: bool(v) for k, v in agent.sample_action().items()}
+            return {k: (bool(v) if v == 0 or v == 1 else v) 
+                    for k, v in agent.sample_action().items()}
 
         jax_simulate(model, key, plan)
 
