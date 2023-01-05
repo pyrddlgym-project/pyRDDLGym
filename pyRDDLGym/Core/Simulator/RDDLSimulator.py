@@ -60,7 +60,7 @@ class RDDLSimulator:
         
         # trace expressions to cache information to be used later
         tracer = RDDLObjectsTracer(rddl, tensorlib=np, logger=self.logger)
-        tracer.trace()
+        self.traced = tracer.trace()
         
         # initialize all fluent and non-fluent values        
         self.subs = self.init_values.copy()
@@ -385,14 +385,14 @@ class RDDLSimulator:
     # ===========================================================================
         
     def _sample_constant(self, expr, _):
-        return expr.cached_sim_info
+        return self.traced.cached_sim_info(expr)
     
     def _sample_pvar(self, expr, subs):
         var, *_ = expr.args
         
         # literal of enumerated type is treated as integer
         if var in self.rddl.enum_literals:
-            return expr.cached_sim_info
+            return self.traced.cached_sim_info(expr)
         
         # extract variable value
         sample = subs.get(var, None)
@@ -402,7 +402,7 @@ class RDDLSimulator:
                 RDDLSimulator._print_stack_trace(expr))
         
         # lifted domain must slice and/or reshape value tensor
-        shape_info = expr.cached_sim_info
+        shape_info = self.traced.cached_sim_info(expr)
         if shape_info is not None:
             slices, transform = shape_info
             if slices: 
@@ -443,7 +443,7 @@ class RDDLSimulator:
                         RDDLSimulator._print_stack_trace(expr))
         
         # for a grounded domain, we can short-circuit * and +
-        elif (not expr.cached_objects_in_scope) and n > 0:
+        elif n > 0 and not self.traced.cached_objects_in_scope(expr):
             if op == '*':
                 return self._sample_product_grounded(args, subs)
             elif op == '+':
@@ -534,8 +534,8 @@ class RDDLSimulator:
                 return numpy_op(sample_lhs, sample_rhs)
         
         # for a grounded domain, we can short-circuit ^ and |
-        elif (not expr.cached_objects_in_scope) \
-        and n > 0 and (op == '^' or op == '|'):
+        elif n > 0 and (op == '^' or op == '|') \
+        and not self.traced.cached_objects_in_scope(expr):
             return self._sample_and_or_grounded(args, op, expr, subs)
             
         raise RDDLInvalidNumberOfArgumentsError(
@@ -608,7 +608,7 @@ class RDDLSimulator:
             RDDLSimulator._check_type(sample, bool, op, expr, arg='')
         else:
             sample = 1 * sample
-        _, axes = expr.cached_sim_info
+        _, axes = self.traced.cached_sim_info(expr)
         return numpy_op(sample, axis=axes)
      
     # ===========================================================================
@@ -662,7 +662,8 @@ class RDDLSimulator:
         RDDLSimulator._check_type(sample_pred, bool, 'If predicate', expr)
         
         # can short circuit if all elements of predicate tensor equal
-        first_elem = bool(sample_pred.flat[0] if expr.cached_objects_in_scope \
+        first_elem = bool(sample_pred.flat[0] 
+                          if self.traced.cached_objects_in_scope(expr) 
                           else sample_pred)
         all_equal = np.all(sample_pred == first_elem)
         
@@ -681,8 +682,9 @@ class RDDLSimulator:
             sample_pred, RDDLValueInitializer.INT, 'Switch predicate', expr)
         
         # can short circuit if all elements of predicate tensor equal
-        cases, default = expr.cached_sim_info   
-        first_elem = bool(sample_pred.flat[0] if expr.cached_objects_in_scope \
+        cases, default = self.traced.cached_sim_info(expr)  
+        first_elem = bool(sample_pred.flat[0] 
+                          if self.traced.cached_objects_in_scope(expr) 
                           else sample_pred)
         all_equal = np.all(sample_pred == first_elem)
         
@@ -791,7 +793,7 @@ class RDDLSimulator:
         pr, = args
         sample_pr = self._sample(pr, subs)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'Bernoulli p', expr)
-        size = sample_pr.shape if expr.cached_objects_in_scope else None
+        size = sample_pr.shape if self.traced.cached_objects_in_scope(expr) else None
         return self.rng.uniform(size=size) <= sample_pr
     
     def _sample_normal(self, expr, subs):
@@ -936,7 +938,7 @@ class RDDLSimulator:
         sample_mean = self._sample(mean, subs)
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_scale, True, 'Cauchy scale', expr)
-        size = sample_mean.shape if expr.cached_objects_in_scope else None
+        size = sample_mean.shape if self.traced.cached_objects_in_scope(expr) else None
         cauchy01 = self.rng.standard_cauchy(size=size)
         return sample_mean + sample_scale * cauchy01
     
@@ -949,14 +951,15 @@ class RDDLSimulator:
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Gompertz shape', expr)
         RDDLSimulator._check_positive(sample_scale, True, 'Gompertz scale', expr)
-        size = sample_shape.shape if expr.cached_objects_in_scope else None
+        size = sample_shape.shape if self.traced.cached_objects_in_scope(expr) else None
         U = self.rng.uniform(size=size)
         return np.log(1.0 - np.log1p(-U) / sample_shape) / sample_scale
     
     def _sample_discrete(self, expr, subs):
         
         # calculate the CDF and check sum to one
-        pdf = [self._sample(arg, subs) for arg in expr.cached_sim_info]
+        pdf = [self._sample(arg, subs) 
+               for arg in self.traced.cached_sim_info(expr)]
         cdf = np.cumsum(pdf, axis=0)
         if not np.allclose(cdf[-1, ...], 1.0):
             raise RDDLValueOutOfRangeError(

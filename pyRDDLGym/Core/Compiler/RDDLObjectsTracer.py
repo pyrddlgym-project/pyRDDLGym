@@ -13,6 +13,32 @@ from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
 
 
+class RDDLTracedObjects:
+    
+    def __init__(self) -> None:
+        self._current_id = 0
+        self._cached_objects_in_scope = []
+        self._cached_enum_type = []
+        self._cached_sim_info = []
+        
+    def _append(self, expr, objects, enum_type, info) -> None:
+        expr.id = self._current_id
+        self._current_id += 1
+                
+        self._cached_objects_in_scope.append(objects)
+        self._cached_enum_type.append(enum_type)
+        self._cached_sim_info.append(info)
+        
+    def cached_objects_in_scope(self, expr: Expression):
+        return self._cached_objects_in_scope[expr.id]
+    
+    def cached_enum_type(self, expr: Expression) -> str:
+        return self._cached_enum_type[expr.id]
+    
+    def cached_sim_info(self, expr: Expression) -> object:
+        return self._cached_sim_info[expr.id]
+    
+
 class RDDLObjectsTracer:
     '''Performs static/compile-time tracing of a RDDL AST representation and
     annotates nodes with useful information about objects and enums that appear
@@ -21,7 +47,9 @@ class RDDLObjectsTracer:
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
-    def __init__(self, rddl: PlanningModel, tensorlib=np, logger: Logger=None) -> None:
+    def __init__(self, rddl: PlanningModel,
+                 tensorlib=np,
+                 logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
@@ -34,10 +62,11 @@ class RDDLObjectsTracer:
         self.logger = logger
             
     @staticmethod
-    def _check_not_enum(arg, expr, msg):
-        if arg.enum_type is not None:
+    def _check_not_enum(arg, expr, out, msg):
+        enum_type = out.cached_enum_type(arg)
+        if enum_type is not None:
             raise RDDLTypeError(
-                f'{msg} can not be an enum type <{arg.enum_type}>.\n' + 
+                f'{msg} can not be an enum type <{enum_type}>.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr)) 
                 
     @staticmethod
@@ -48,85 +77,89 @@ class RDDLObjectsTracer:
             trace = str(expr)
         return f'>> {trace}'
     
-    def trace(self):
+    def trace(self) -> RDDLTracedObjects:
         '''Traces all expressions in CPF block and all constraints and annotates
         AST nodes with object information.
         '''   
-        rddl = self.rddl
-        self._cached_transforms = {}     
+        rddl = self.rddl 
+        self._cached_transforms = {}
+        out = RDDLTracedObjects()   
         for (objects, expr) in rddl.cpfs.values():
-            self._trace(expr, objects)
-        self._trace(rddl.reward, [])
+            self._trace(expr, objects, out)
+        self._trace(rddl.reward, [], out)
         for expr in rddl.invariants + rddl.preconditions + rddl.terminals:
-            self._trace(expr, [])
+            self._trace(expr, [], out)
+        return out
         
     # ===========================================================================
     # start of tracing subroutines
     # ===========================================================================
         
-    def _trace(self, expr, objects):
-        expr.cached_objects_in_scope = objects
+    def _trace(self, expr, objects, out):
         etype, _ = expr.etype
         if etype == 'constant':
-            return self._trace_constant(expr, objects)
+            self._trace_constant(expr, objects, out)
         elif etype == 'pvar':
-            return self._trace_pvar(expr, objects)
+            self._trace_pvar(expr, objects, out)
         elif etype == 'arithmetic':
-            return self._trace_arithmetic(expr, objects)
+            self._trace_arithmetic(expr, objects, out)
         elif etype == 'relational':
-            return self._trace_relational(expr, objects)
+            self._trace_relational(expr, objects, out)
         elif etype == 'boolean':
-            return self._trace_logical(expr, objects)
+            self._trace_logical(expr, objects, out)
         elif etype == 'aggregation':
-            return self._trace_aggregation(expr, objects)
+            self._trace_aggregation(expr, objects, out)
         elif etype == 'func':
-            return self._trace_func(expr, objects)
+            self._trace_func(expr, objects, out)
         elif etype == 'control':
-            return self._trace_control(expr, objects)
+            self._trace_control(expr, objects, out)
         elif etype == 'randomvar':
-            return self._trace_random(expr, objects)
+            self._trace_random(expr, objects, out)
     
     # ===========================================================================
     # leaves
     # ===========================================================================
     
-    def _trace_constant(self, expr, objects):
+    def _trace_constant(self, expr, objects, out):
         if objects:
             ptypes = (ptype for (_, ptype) in objects)
             shape = self.rddl.object_counts(ptypes)
-            expr.cached_sim_info = np.full(shape=shape, fill_value=expr.args)
+            cached_value = np.full(shape=shape, fill_value=expr.args)
         else:
-            expr.cached_sim_info = expr.args
-        expr.enum_type = None
+            cached_value = expr.args
+            
+        out._append(expr, objects, None, cached_value)
         
-    def _trace_pvar(self, expr, objects):
+    def _trace_pvar(self, expr, objects, out):
         var, pvars = expr.args   
-             
+            
         # enum literal value treated as int
-        if var in self.rddl.enum_literals:             
+        if var in self.rddl.enum_literals: 
             const = self.rddl.index_of_object[var]
             if objects:
                 ptypes = (ptype for (_, ptype) in objects)
                 shape = self.rddl.object_counts(ptypes)
-                expr.cached_sim_info = np.full(shape=shape, fill_value=const)
+                cached_value = np.full(shape=shape, fill_value=const)
             else:
-                expr.cached_sim_info = const
-            expr.enum_type = self.rddl.objects_rev[var]          
+                cached_value = const
+                
+            enum_type = self.rddl.objects_rev[var]            
+            out._append(expr, objects, enum_type, cached_value)
         
-        else: 
-            # if the pvar has free variables:
-            # 1. enum literal args (e.g. @x) converted to ints and slice the array
-            # 2. resulting array is reshaped and axes rearranged to match objects
+        # if the pvar has free variables:
+        # 1. enum literal args (e.g. @x) converted to ints and slice the array
+        # 2. resulting array is reshaped and axes rearranged to match objects
+        else:
             if objects:
                 slices, literals = self._slice(var, pvars)
                 transform = self._map(var, pvars, objects, literals)
-                expr.cached_sim_info = (slices, transform)
+                cached_sim_info = (slices, transform)
             else:
-                expr.cached_sim_info = None
+                cached_sim_info = None
             
-            # store the enum type info
             prange = self.rddl.variable_ranges.get(var, None)
-            expr.enum_type = prange if prange in self.rddl.enum_types else None
+            enum_type = prange if prange in self.rddl.enum_types else None            
+            out._append(expr, objects, enum_type, cached_sim_info)
         
     def _slice(self, var: str,
                pvars: List[str]) -> Tuple[Set[int], Tuple[Union[int, slice], ...]]:
@@ -311,24 +344,23 @@ class RDDLObjectsTracer:
     # compound expressions
     # ===========================================================================
     
-    def _trace_arithmetic(self, expr, objects):
+    def _trace_arithmetic(self, expr, objects, out): 
         for (i, arg) in enumerate(expr.args):
-            self._trace(arg, objects)
+            self._trace(arg, objects, out)
         
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
-                arg, expr, f'Argument {i + 1} of operator {expr.etype[1]}')
-            
-        expr.cached_sim_info = None
-        expr.enum_type = None
-    
-    def _trace_relational(self, expr, objects):
+                arg, expr, out, f'Argument {i + 1} of operator {expr.etype[1]}')  
+              
+        out._append(expr, objects, None, None)
+        
+    def _trace_relational(self, expr, objects, out):
         _, op = expr.etype
         for arg in expr.args:
-            self._trace(arg, objects)            
+            self._trace(arg, objects, out)            
         
         # can not mix different enum types or primitive and enum types
-        enum_types = {arg.enum_type for arg in expr.args}
+        enum_types = {out.cached_enum_type(arg) for arg in expr.args}
         if len(enum_types) != 1:
             raise RDDLTypeError(
                 f'Relational operator {op} can not compare arguments '
@@ -342,29 +374,27 @@ class RDDLObjectsTracer:
                 f'Relational operator {op} is not valid for comparing enum types, '
                 f'must be either == or ~=.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
-            
-        expr.cached_sim_info = None
-        expr.enum_type = None  
+        
+        out._append(expr, objects, None, None)
     
-    def _trace_logical(self, expr, objects):
+    def _trace_logical(self, expr, objects, out):
         for (i, arg) in enumerate(expr.args):
-            self._trace(arg, objects)
+            self._trace(arg, objects, out)
             
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
-                arg, expr, f'Argument {i + 1} of operator {expr.etype[1]}')
-            
-        expr.cached_sim_info = None
-        expr.enum_type = None
+                arg, expr, out, f'Argument {i + 1} of operator {expr.etype[1]}')
+        
+        out._append(expr, objects, None, None)
     
-    def _trace_aggregation(self, expr, objects):
+    def _trace_aggregation(self, expr, objects, out):
         _, op = expr.etype
         * pargs, arg = expr.args
         
         # cache and read reduced axes tensor info for the aggregation
         new_objects = objects + [ptype for (_, ptype) in pargs]
         reduced_axes = tuple(range(len(objects), len(new_objects)))   
-        expr.cached_sim_info = (new_objects, reduced_axes)
+        cached_sim_info = (new_objects, reduced_axes)
         
         # check for undefined types
         bad_types = {ptype 
@@ -386,12 +416,13 @@ class RDDLObjectsTracer:
                         RDDLObjectsTracer._print_stack_trace(expr))
         
         # trace the aggregated expression with the new objects
-        self._trace(arg, new_objects)
+        self._trace(arg, new_objects, out)
         
         # argument cannot be enum type
         RDDLObjectsTracer._check_not_enum(
-            arg, expr, f'Argument of aggregation {op}')        
-        expr.enum_type = None
+            arg, expr, out, f'Argument of aggregation {op}')     
+        
+        out._append(expr, objects, None, cached_sim_info)
         
         # log information about aggregation operation
         if self.logger is not None:
@@ -402,46 +433,45 @@ class RDDLObjectsTracer:
                        f'\n\toperation axes ={reduced_axes}\n')
             self.logger.log(message)        
         
-    def _trace_func(self, expr, objects):
+    def _trace_func(self, expr, objects, out):
         for (i, arg) in enumerate(expr.args):
-            self._trace(arg, objects)
+            self._trace(arg, objects, out)
             
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
-                arg, expr, f'Argument {i + 1} of function {expr.etype[1]}') 
-            
-        expr.cached_sim_info = None
-        expr.enum_type = None
+                arg, expr, out, f'Argument {i + 1} of function {expr.etype[1]}') 
+        
+        out._append(expr, objects, None, None)
             
     # ===========================================================================
     # control flow
     # ===========================================================================
     
-    def _trace_control(self, expr, objects):
+    def _trace_control(self, expr, objects, out):
         _, op = expr.etype
         if op == 'if':
-            self._trace_if(expr, objects)
+            self._trace_if(expr, objects, out)
         elif op == 'switch':
-            self._trace_switch(expr, objects)
+            self._trace_switch(expr, objects, out)
             
-    def _trace_if(self, expr, objects):
+    def _trace_if(self, expr, objects, out):
         pred, *cases = expr.args
-        self._trace(pred, objects)
+        self._trace(pred, objects, out)
         for arg in cases:
-            self._trace(arg, objects)
+            self._trace(arg, objects, out)
         
         # can not mix different enum types or primitive and enum types
-        enum_types = {arg.enum_type for arg in cases}
+        enum_types = {out.cached_enum_type(arg) for arg in cases}
         if len(enum_types) != 1:
             raise RDDLTypeError(
                 f'Branches in if then else statement cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))     
-            
-        expr.cached_sim_info = None   
-        expr.enum_type = next(iter(enum_types))
     
-    def _trace_switch(self, expr, objects):
+        enum_type = next(iter(enum_types))
+        out._append(expr, objects, enum_type, None)
+        
+    def _trace_switch(self, expr, objects, out):
         pred, *cases = expr.args
         
         # must be a pvar
@@ -468,22 +498,23 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # order enum cases by canonical ordering of literals
-        expr.cached_sim_info = self._order_cases(enum_type, case_dict, expr)
+        cached_sim_info = self._order_cases(enum_type, case_dict, expr)
         
         # trace predicate and cases
-        self._trace(pred, objects)
+        self._trace(pred, objects, out)
         for arg in case_dict.values():
-            self._trace(arg, objects)
+            self._trace(arg, objects, out)
         
         # can not mix different enum types or primitive and enum types
-        enum_types = {arg.enum_type for arg in case_dict.values()}
+        enum_types = {out.cached_enum_type(arg) for arg in case_dict.values()}
         if len(enum_types) != 1:
             raise RDDLTypeError(
                 f'Case expressions in switch statement cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))    
                                 
-        expr.enum_type = next(iter(enum_types))
+        enum_type = next(iter(enum_types))
+        out._append(expr, objects, enum_type, cached_sim_info)
         
     def _order_cases(self, enum_type, case_dict, expr): 
         enum_values = self.rddl.objects[enum_type]
@@ -530,14 +561,14 @@ class RDDLObjectsTracer:
     # random variable
     # ===========================================================================
     
-    def _trace_random(self, expr, objects):
+    def _trace_random(self, expr, objects, out):
         _, name = expr.etype
         if name == 'Discrete':
-            self._trace_discrete(expr, objects)
+            self._trace_discrete(expr, objects, out)
         else:
-            self._trace_random_other(expr, objects)
+            self._trace_random_other(expr, objects, out)
                 
-    def _trace_discrete(self, expr, objects):
+    def _trace_discrete(self, expr, objects, out):
         (_, enum_type), *cases = expr.args
             
         # enum type must be a valid enum type
@@ -555,26 +586,25 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # order enum cases by canonical ordering of literals
-        expr.cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr)
+        cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr)
     
         # trace each case expression
         for (i, arg) in enumerate(case_dict.values()):
-            self._trace(arg, objects)
+            self._trace(arg, objects, out)
             
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
-                arg, expr, f'Expression in case {i + 1} of distribution Discrete') 
-            
-        expr.enum_type = enum_type
+                arg, expr, out, f'Expression in case {i + 1} of Discrete') 
+        
+        out._append(expr, objects, enum_type, cached_sim_info)
     
-    def _trace_random_other(self, expr, objects):
+    def _trace_random_other(self, expr, objects, out):
         for (i, arg) in enumerate(expr.args):
-            self._trace(arg, objects)
+            self._trace(arg, objects, out)
                 
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
-                arg, expr, f'Argument {i + 1} of distribution {expr.etype[1]}') 
-            
-        expr.cached_sim_info = None
-        expr.enum_type = None
+                arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}') 
+        
+        out._append(expr, objects, None, None)
         

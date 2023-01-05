@@ -32,6 +32,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         compiled.compile()
         self.init_values = compiled.init_values
         self.levels = compiled.levels
+        self.traced = compiled.traced
         
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
@@ -104,7 +105,8 @@ class JaxRDDLSimulator(RDDLSimulator):
         # compute CPFs in topological order
         for cpfs in self.levels.values():
             for cpf in cpfs:
-                subs[cpf], self.key, error = self.cpfs[cpf](subs, self.key)
+                jax_expr = self.cpfs[cpf]
+                subs[cpf], self.key, error = jax_expr(subs, self.key)
                 self.handle_error_code(error, f'CPF <{cpf}>')            
                 
         # sample reward
