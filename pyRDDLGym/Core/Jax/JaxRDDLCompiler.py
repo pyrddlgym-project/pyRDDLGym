@@ -457,19 +457,24 @@ class JaxRDDLCompiler:
     # ===========================================================================
     
     @staticmethod
-    def _jax_unary(jax_expr, jax_op, at_least_int=False):
+    def _jax_unary(jax_expr, jax_op, at_least_int=False, check_dtype=None):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _jax_wrapped_unary_op(x, key):
             sample, key, err = jax_expr(x, key)
             if at_least_int:
                 sample = 1 * sample
             sample = jax_op(sample)
+            if check_dtype is not None:
+                invalid = jnp.logical_not(jnp.can_cast(sample, check_dtype))
+                err |= (invalid * ERR)
             return sample, key, err
         
         return _jax_wrapped_unary_op
     
     @staticmethod
-    def _jax_binary(jax_lhs, jax_rhs, jax_op, at_least_int=False):
+    def _jax_binary(jax_lhs, jax_rhs, jax_op, at_least_int=False, check_dtype=None):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         def _jax_wrapped_binary_op(x, key):
             sample1, key, err1 = jax_lhs(x, key)
@@ -479,6 +484,11 @@ class JaxRDDLCompiler:
                 sample2 = 1 * sample2
             sample = jax_op(sample1, sample2)
             err = err1 | err2
+            if check_dtype is not None:
+                invalid = jnp.logical_not(jnp.logical_and(
+                    jnp.can_cast(sample1, check_dtype),
+                    jnp.can_cast(sample2, check_dtype)))
+                err |= (invalid * ERR)
             return sample, key, err
         
         return _jax_wrapped_binary_op
@@ -531,14 +541,16 @@ class JaxRDDLCompiler:
         if n == 1 and op == '~':
             arg, = args
             jax_expr = self._jax(arg)
-            return JaxRDDLCompiler._jax_unary(jax_expr, self.LOGICAL_NOT)
+            return JaxRDDLCompiler._jax_unary(
+                jax_expr, self.LOGICAL_NOT, check_dtype=bool)
         
         elif n == 2:
             lhs, rhs = args
             jax_lhs = self._jax(lhs)
             jax_rhs = self._jax(rhs)
             jax_op = valid_ops[op]
-            return JaxRDDLCompiler._jax_binary(jax_lhs, jax_rhs, jax_op)
+            return JaxRDDLCompiler._jax_binary(
+                jax_lhs, jax_rhs, jax_op, check_dtype=bool)
         
         JaxRDDLCompiler._check_num_args(expr, 2)
     
@@ -608,6 +620,7 @@ class JaxRDDLCompiler:
             return self._jax_switch(expr)
     
     def _jax_if(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         JaxRDDLCompiler._check_num_args(expr, 3)
         jax_op = self.CONTROL_OPS['if']
         
@@ -622,6 +635,8 @@ class JaxRDDLCompiler:
             sample3, key, err3 = jax_false(x, key)
             sample = jax_op(sample1, sample2, sample3)
             err = err1 | err2 | err3
+            invalid = jnp.logical_not(jnp.can_cast(sample1, bool))
+            err |= (invalid * ERR)
             return sample, key, err
             
         return _jax_wrapped_if_then_else
@@ -712,9 +727,8 @@ class JaxRDDLCompiler:
         # just check that the sample can be cast to int
         def _jax_wrapped_distribution_kron(x, key):
             sample, key, err = arg(x, key)
-            invalid_type = jnp.logical_not(
-                jnp.can_cast(sample, JaxRDDLCompiler.INT))
-            err |= (invalid_type * ERR)
+            invalid = jnp.logical_not(jnp.can_cast(sample, JaxRDDLCompiler.INT))
+            err |= (invalid * ERR)
             return sample, key, err
                         
         return _jax_wrapped_distribution_kron
@@ -825,7 +839,7 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
-            sample = U < prob
+            sample = jnp.less(U, prob)
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
@@ -1073,7 +1087,7 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             shape = (1,) + jnp.shape(sample_cdf)[1:]
             U = random.uniform(key=subkey, shape=shape, dtype=JaxRDDLCompiler.REAL)
-            sample = jnp.argmax(U < sample_cdf, axis=0)
+            sample = jnp.argmax(jnp.less(U, sample_cdf), axis=0)
             return sample, key, err
         
         return _jax_wrapped_distribution_discrete
