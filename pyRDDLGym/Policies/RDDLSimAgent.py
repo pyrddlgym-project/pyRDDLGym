@@ -118,7 +118,7 @@ class RDDLSimAgent:
 
                 self.logs[-1].append({
                     "reward": float(round_reward),
-                    "state": str(state),
+                    "state": json.loads(str(state).replace('\'', '"').replace('True', 'true').replace('False', 'false')),
                     "actions": False,
                 })
 
