@@ -2,7 +2,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
-import jax.scipy as jscipy 
+import jax.scipy as scipy 
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -13,9 +13,8 @@ from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
-
-from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Parser.expr import Expression
 
 
 class JaxRDDLCompiler:
@@ -35,21 +34,15 @@ class JaxRDDLCompiler:
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
                  logger: Logger=None) -> None:
-        
-        # jax compilation will only work on lifted domains for now
-        if not isinstance(rddl, RDDLLiftedModel):
-            raise RDDLNotImplementedError(
-                'Jax compilation only works on lifted domains for now.')
-        
         self.rddl = rddl
         self.logger = logger
-        jax.config.update('jax_log_compiles', logger is not None)
+        jax.config.update('jax_log_compiles', True)
         
         # compile initial values
         if self.logger is not None:
             self.logger.clear()
-        self.initializer = RDDLValueInitializer(rddl, logger=self.logger)
-        self.init_values = self.initializer.initialize()
+        initializer = RDDLValueInitializer(rddl, logger=self.logger)
+        self.init_values = initializer.initialize()
         
         # compute dependency graph for CPFs and sort them by evaluation order
         sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
@@ -118,8 +111,8 @@ class JaxRDDLCompiler:
             'exp': jnp.exp,
             'ln': jnp.log,
             'sqrt': jnp.sqrt,
-            'lngamma': jscipy.special.gammaln,
-            'gamma': lambda x: jnp.exp(jscipy.special.gammaln(x))
+            'lngamma': scipy.special.gammaln,
+            'gamma': lambda x: jnp.exp(scipy.special.gammaln(x))
         }        
         self.KNOWN_BINARY = {
             'div': jnp.floor_divide,
@@ -153,11 +146,11 @@ class JaxRDDLCompiler:
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
                 prange = self.rddl.variable_ranges[cpf]
-                if prange not in JaxRDDLCompiler.JAX_TYPES:
+                dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, None)
+                if dtype is None:
                     raise RDDLTypeError(
                         f'Type <{prange}> of CPF <{cpf}> is not valid, '
                         f'must be one of {set(JaxRDDLCompiler.JAX_TYPES.keys())}.')
-                dtype = JaxRDDLCompiler.JAX_TYPES[prange]
                 jax_cpfs[cpf] = self._jax(expr, dtype=dtype)
         return jax_cpfs
     
@@ -171,8 +164,8 @@ class JaxRDDLCompiler:
         # compute a batched version of the initial values
         init_subs = {}
         for (name, value) in self.init_values.items():
-            init_subs[name] = np.broadcast_to(
-                value, shape=(n_batch,) + np.shape(value))            
+            new_shape = (n_batch,) + np.shape(value)
+            init_subs[name] = np.broadcast_to(value, shape=new_shape)            
         for (state, next_state) in self.rddl.next_state.items():
             init_subs[next_state] = init_subs[state]
         
@@ -660,7 +653,7 @@ class JaxRDDLCompiler:
             ub, key, err2 = jax_ub(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
-                key=subkey, shape=lb.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(lb), dtype=JaxRDDLCompiler.REAL)
             sample = lb + (ub - lb) * U
             out_of_bounds = jnp.any(lb > ub)
             err = err1 | err2 | out_of_bounds * ERR
@@ -682,7 +675,7 @@ class JaxRDDLCompiler:
             std = jnp.sqrt(var)
             key, subkey = random.split(key)
             Z = random.normal(
-                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + std * Z
             out_of_bounds = jnp.any(var < 0)
             err = err1 | err2 | out_of_bounds * ERR
@@ -701,7 +694,7 @@ class JaxRDDLCompiler:
             scale, key, err = jax_scale(x, key)
             key, subkey = random.split(key)
             Exp1 = random.exponential(
-                key=subkey, shape=scale.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
             sample = scale * Exp1
             out_of_bounds = jnp.any(scale <= 0)
             err |= out_of_bounds * ERR
@@ -722,7 +715,7 @@ class JaxRDDLCompiler:
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
-                key=subkey, shape=shape.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
             sample = scale * jnp.power(-jnp.log1p(-U), 1.0 / shape)
             out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
             err = err1 | err2 | out_of_bounds * ERR
@@ -741,7 +734,7 @@ class JaxRDDLCompiler:
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
-                key=subkey, shape=prob.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
             sample = U < prob
             out_of_bounds = jnp.any((prob < 0) | (prob > 1))
             err |= out_of_bounds * ERR
@@ -817,7 +810,7 @@ class JaxRDDLCompiler:
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
-                key=subkey, shape=prob.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
             sample = jnp.floor(jnp.log1p(-U) / jnp.log1p(-prob)) + 1
             out_of_bounds = jnp.any((prob < 0) | (prob > 1))
             err |= out_of_bounds * ERR
@@ -874,7 +867,7 @@ class JaxRDDLCompiler:
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
             Gumbel01 = random.gumbel(
-                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Gumbel01
             out_of_bounds = jnp.any(scale <= 0)
             err = err1 | err2 | out_of_bounds * ERR
@@ -895,7 +888,7 @@ class JaxRDDLCompiler:
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
             Laplace01 = random.laplace(
-                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Laplace01
             out_of_bounds = jnp.any(scale <= 0)
             err = err1 | err2 | out_of_bounds * ERR
@@ -916,7 +909,7 @@ class JaxRDDLCompiler:
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
             Cauchy01 = random.cauchy(
-                key=subkey, shape=mean.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Cauchy01
             out_of_bounds = jnp.any(scale <= 0)
             err = err1 | err2 | out_of_bounds * ERR
@@ -937,7 +930,7 @@ class JaxRDDLCompiler:
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
-                key=subkey, shape=shape.shape, dtype=JaxRDDLCompiler.REAL)
+                key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
             sample = jnp.log(1.0 - jnp.log1p(-U) / shape) / scale
             out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
             err = err1 | err2 | out_of_bounds * ERR

@@ -49,7 +49,7 @@ class RDDLValueInitializer:
         
         # create a tensor for each pvar with the init_values
         # if the init_values are missing use the default value of range
-        init_values_final = {}
+        np_init_values = {}
         for (var, prange) in rddl.variable_ranges.items():
             
             # get numpy type from prange: enum type treated as int
@@ -79,7 +79,7 @@ class RDDLValueInitializer:
                     values = np.full(shape=shape, fill_value=default)
             else:
                 values = dtype(init_values.get(var, default))   
-            init_values_final[var] = values
+            np_init_values[var] = values
         
         # log shapes of initial values
         if self.logger is not None:
@@ -87,30 +87,31 @@ class RDDLValueInitializer:
                 f'{k}{rddl.param_types[k]}, '
                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
-            ) for (k, v) in init_values_final.items())
+            ) for (k, v) in np_init_values.items())
             message = (f'initializing pvariable tensors:' 
                        f'\n\t{tensor_info}\n')
             self.logger.log(message)
         
-        return init_values_final
+        return np_init_values
     
     def _enum_literals_to_ints(self, literals, prange, var):
         rddl = self.rddl
         is_scalar = isinstance(literals, str)
         if is_scalar:
             literals = [literals]
-        integers = []
+        indices = []
         for literal in literals:
             if literal is None:
-                integers.append(0)
+                indices.append(0)
             elif rddl.objects_rev.get(literal, None) == prange:
-                integers.append(rddl.index_of_object[literal])
+                index = rddl.index_of_object[literal]
+                indices.append(index)
             else:
                 raise RDDLInvalidObjectError(
                     f'Literal <{literal}> assigned to variable <{var}> '
                     f'does not belong to enum <{prange}>, '
                     f'must be one of {set(rddl.objects[prange])}.')
         if is_scalar:
-            integers = integers[0]
-        return integers
+            indices = indices[0]
+        return indices
     

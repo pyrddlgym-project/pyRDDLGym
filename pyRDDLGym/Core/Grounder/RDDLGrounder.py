@@ -63,6 +63,15 @@ class RDDLGrounder(Grounder):
         self.terminals = []
         self.preconditions = []
         self.invariants = []
+        
+        self.index_of_object = {}
+        self.enum_types = set()
+        self.enum_literals = set()
+        
+        self.param_types = {}
+        self.variable_types = {}
+        self.variable_ranges = {}
+        self.grounded_names = {}   
 
     def Ground(self) -> RDDLGroundedModel:
         self._extract_objects()
@@ -72,6 +81,8 @@ class RDDLGrounder(Grounder):
         # self._groundPvariables()
         self.reward = self._scan_expr_tree(self.AST.domain.reward, {})  # empty args dictionary
         self._ground_constraints()
+        
+        self._extract_variable_information()
 
         # update model object
         model = RDDLGroundedModel()
@@ -103,16 +114,16 @@ class RDDLGrounder(Grounder):
         model.horizon = self._ground_horizon()
         model.discount = self._ground_discount()
         
-        # added on Dec 17 (Mike)
-        model.param_types, model.variable_types, model.variable_ranges = \
-            self._extract_variable_information()
         model.SetAST(self.AST)
         
-        model.enum_types = set()
-        model.enum_literals = set()
+        model.param_types = self.param_types
+        model.variable_types = self.variable_types
+        model.variable_ranges = self.variable_ranges
         
-        model.grounded_names = {name: [name] for name in model.param_types}
-        model.index_of_object = {}
+        model.index_of_object = self.index_of_object
+        model.enum_types = self.enum_types
+        model.enum_literals = self.enum_literals        
+        model.grounded_names = self.grounded_names
         
         return model
 
@@ -146,6 +157,9 @@ class RDDLGrounder(Grounder):
                 self.objects[obj_type[0]] = obj_type[1]
                 for obj in obj_type[1]:
                     self.objects_rev[obj] = obj_type[0]
+        self.index_of_object = {}
+        self.enum_types = set()
+        self.enum_literals = set()
 
     def _ground_objects(self, args):
         objects_by_type = []
@@ -588,6 +602,10 @@ class RDDLGrounder(Grounder):
                 var_types[name] = pvar.fluent_type
                 if pvar.is_state_fluent():
                     var_types[primed_name] = 'next-state-fluent'                
-                var_ranges[name] = var_ranges[primed_name] = pvar.range            
-        return var_params, var_types, var_ranges
-    
+                var_ranges[name] = var_ranges[primed_name] = pvar.range 
+        grounded_names = {name: [name] for name in var_params}
+          
+        self.param_types, self.variable_types, self.variable_ranges = \
+            var_params, var_types, var_ranges
+        self.grounded_names = grounded_names
+        

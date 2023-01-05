@@ -17,9 +17,8 @@ from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
-
-from pyRDDLGym.Core.Parser.expr import Expression, Value
 from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Parser.expr import Expression, Value
 
 Args = Dict[str, Value]
 
@@ -44,15 +43,15 @@ class RDDLSimulator:
         # compile initial values
         if self.logger is not None:
             self.logger.clear()
-        self.initializer = RDDLValueInitializer(rddl, logger=self.logger)
-        self.init_values = self.initializer.initialize()
+        initializer = RDDLValueInitializer(rddl, logger=self.logger)
+        self.init_values = initializer.initialize()
         
         # compute dependency graph for CPFs and sort them by evaluation order
         sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
         self.levels = sorter.compute_levels()        
         
         # log dependency graph information to file
-        if self.logger is not None:            
+        if self.logger is not None: 
             levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
                                       for (k, v) in self.levels.items())
             message = (f'computed order of CPF evaluation:\n' 
@@ -69,16 +68,7 @@ class RDDLSimulator:
         self.noop_actions = {var: values
                              for (var, values) in self.init_values.items()
                              if rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(self.rddl.observ)
-        
-        # enumerated types are converted to integers internally
-        self._cpf_dtypes = {}
-        for cpfs in self.levels.values():
-            for cpf in cpfs:
-                prange = rddl.variable_ranges[cpf]
-                if prange in rddl.enum_types:
-                    prange = 'int'
-                self._cpf_dtypes[cpf] = RDDLValueInitializer.NUMPY_TYPES[prange]
+        self._pomdp = bool(rddl.observ)
         
         # basic operations
         self.ARITHMETIC_OPS = {
@@ -256,7 +246,7 @@ class RDDLSimulator:
                 new_actions[action] = value
             else:
                 var, objects = rddl.parse(action)
-                if var not in new_actions:                    
+                if var not in new_actions: 
                     raise RDDLInvalidActionError(
                         f'<{action}> is not a valid action-fluent.')
                 tensor = new_actions[var]                
@@ -306,13 +296,14 @@ class RDDLSimulator:
         subs = self.subs = self.init_values.copy()
         
         # update state
+        rddl = self.rddl
         self.state = {}
-        for state in self.rddl.states:
-            self.state.update(self.rddl.ground_values(state, subs[state]))
+        for state in rddl.states:
+            self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp:
-            obs = {var: None for var in self.rddl.observ}
+            obs = {var: None for var in rddl.observ}
         else:
             obs = self.state
         
@@ -334,7 +325,9 @@ class RDDLSimulator:
             for cpf in cpfs:
                 _, expr = rddl.cpfs[cpf]
                 sample = self._sample(expr, subs)
-                dtype = self._cpf_dtypes[cpf]
+                prange = rddl.variable_ranges[cpf]
+                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                    prange, RDDLValueInitializer.INT)
                 RDDLSimulator._check_type(sample, dtype, cpf, expr)
                 subs[cpf] = sample
         
@@ -343,14 +336,14 @@ class RDDLSimulator:
         
         # update state
         self.state = {}
-        for (state, next_state) in self.rddl.next_state.items():
+        for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
             self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
             obs = {}
-            for var in self.rddl.observ:
+            for var in rddl.observ:
                 obs.update(rddl.ground_values(var, subs[var]))
         else:
             obs = self.state
@@ -450,7 +443,7 @@ class RDDLSimulator:
                         RDDLSimulator._print_stack_trace(expr))
         
         # for a grounded domain, we can short-circuit * and +
-        elif (not expr.cached_free_params_in_scope) and n > 0:
+        elif (not expr.cached_objects_in_scope) and n > 0:
             if op == '*':
                 return self._sample_product_grounded(args, subs)
             elif op == '+':
@@ -479,7 +472,7 @@ class RDDLSimulator:
         prod = 1
         
         # go through simple expressions first
-        for arg in args:  
+        for arg in args: 
             if arg.is_constant_expression() or arg.is_pvariable_expression():
                 sample = self._sample(arg, subs)
                 prod *= sample
@@ -487,7 +480,7 @@ class RDDLSimulator:
                     return prod
         
         # go through complex expressions last
-        for arg in args:  
+        for arg in args: 
             if not (arg.is_constant_expression() or arg.is_pvariable_expression()):
                 sample = self._sample(arg, subs)
                 prod *= sample
@@ -541,7 +534,7 @@ class RDDLSimulator:
                 return numpy_op(sample_lhs, sample_rhs)
         
         # for a grounded domain, we can short-circuit ^ and |
-        elif (not expr.cached_free_params_in_scope) \
+        elif (not expr.cached_objects_in_scope) \
         and n > 0 and (op == '^' or op == '|'):
             return self._sample_and_or_grounded(args, op, expr, subs)
             
@@ -669,7 +662,7 @@ class RDDLSimulator:
         RDDLSimulator._check_type(sample_pred, bool, 'If predicate', expr)
         
         # can short circuit if all elements of predicate tensor equal
-        first_elem = bool(sample_pred.flat[0] if expr.cached_free_params_in_scope \
+        first_elem = bool(sample_pred.flat[0] if expr.cached_objects_in_scope \
                           else sample_pred)
         all_equal = np.all(sample_pred == first_elem)
         
@@ -689,7 +682,7 @@ class RDDLSimulator:
         
         # can short circuit if all elements of predicate tensor equal
         cases, default = expr.cached_sim_info   
-        first_elem = bool(sample_pred.flat[0] if expr.cached_free_params_in_scope \
+        first_elem = bool(sample_pred.flat[0] if expr.cached_objects_in_scope \
                           else sample_pred)
         all_equal = np.all(sample_pred == first_elem)
         
@@ -699,8 +692,9 @@ class RDDLSimulator:
                 arg = default
             return self._sample(arg, subs)        
         else: 
-            sample_default = None
-            if default is not None:
+            if default is None: 
+                sample_default = None
+            else: 
                 sample_default = self._sample(default, subs)
             sample_cases = np.asarray([
                 (sample_default if arg is None else self._sample(arg, subs))
@@ -797,7 +791,7 @@ class RDDLSimulator:
         pr, = args
         sample_pr = self._sample(pr, subs)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'Bernoulli p', expr)
-        size = sample_pr.shape if expr.cached_free_params_in_scope else None
+        size = sample_pr.shape if expr.cached_objects_in_scope else None
         return self.rng.uniform(size=size) <= sample_pr
     
     def _sample_normal(self, expr, subs):
@@ -942,7 +936,7 @@ class RDDLSimulator:
         sample_mean = self._sample(mean, subs)
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_scale, True, 'Cauchy scale', expr)
-        size = sample_mean.shape if expr.cached_free_params_in_scope else None
+        size = sample_mean.shape if expr.cached_objects_in_scope else None
         cauchy01 = self.rng.standard_cauchy(size=size)
         return sample_mean + sample_scale * cauchy01
     
@@ -955,7 +949,7 @@ class RDDLSimulator:
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Gompertz shape', expr)
         RDDLSimulator._check_positive(sample_scale, True, 'Gompertz scale', expr)
-        size = sample_shape.shape if expr.cached_free_params_in_scope else None
+        size = sample_shape.shape if expr.cached_objects_in_scope else None
         U = self.rng.uniform(size=size)
         return np.log(1.0 - np.log1p(-U) / sample_shape) / sample_scale
     
@@ -1046,7 +1040,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                 if objects:
                     ptypes = [ptype for (_, ptype) in objects]
                     variations = self.rddl.variations(ptypes)
-                    lims = np.ravel(lim)
+                    lims = np.ravel(lim, order='C')
                     for (args, lim) in zip(variations, lims):
                         key = self.rddl.ground_name(var, [args[i] for i in active])
                         self._update_bound(key, loc, lim)

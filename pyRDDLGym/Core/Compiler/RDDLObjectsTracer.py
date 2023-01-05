@@ -16,7 +16,7 @@ from pyRDDLGym.Core.Parser.expr import Expression
 class RDDLObjectsTracer:
     '''Performs static/compile-time tracing of a RDDL AST representation and
     annotates nodes with useful information about objects and enums that appear
-    inside expressions. Also compiles initial value tensors for all pvariables.
+    inside expressions.
     '''
     
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -49,8 +49,7 @@ class RDDLObjectsTracer:
         return f'>> {trace}'
     
     def trace(self):
-        '''Compiles objects and initial value tensors for the given RDDL. Then
-        traces all expressions in the CPF block and all constraints to annotate
+        '''Traces all expressions in CPF block and all constraints and annotates
         AST nodes with object information.
         '''   
         rddl = self.rddl
@@ -66,8 +65,8 @@ class RDDLObjectsTracer:
     # ===========================================================================
         
     def _trace(self, expr, objects):
+        expr.cached_objects_in_scope = objects
         etype, _ = expr.etype
-        expr.cached_free_params_in_scope = objects
         if etype == 'constant':
             return self._trace_constant(expr, objects)
         elif etype == 'pvar':
@@ -92,11 +91,12 @@ class RDDLObjectsTracer:
     # ===========================================================================
     
     def _trace_constant(self, expr, objects):
-        const = expr.args
         if objects:
-            shape = self.rddl.object_counts((ptype for (_, ptype) in objects))
-            const = np.full(shape=shape, fill_value=const)
-        expr.cached_sim_info = const
+            ptypes = (ptype for (_, ptype) in objects)
+            shape = self.rddl.object_counts(ptypes)
+            expr.cached_sim_info = np.full(shape=shape, fill_value=expr.args)
+        else:
+            expr.cached_sim_info = expr.args
         expr.enum_type = None
         
     def _trace_pvar(self, expr, objects):
@@ -106,9 +106,11 @@ class RDDLObjectsTracer:
         if var in self.rddl.enum_literals:             
             const = self.rddl.index_of_object[var]
             if objects:
-                shape = self.rddl.object_counts((ptype for (_, ptype) in objects))
-                const = np.full(shape=shape, fill_value=const)
-            expr.cached_sim_info = const
+                ptypes = (ptype for (_, ptype) in objects)
+                shape = self.rddl.object_counts(ptypes)
+                expr.cached_sim_info = np.full(shape=shape, fill_value=const)
+            else:
+                expr.cached_sim_info = const
             expr.enum_type = self.rddl.objects_rev[var]          
         
         else: 
@@ -166,8 +168,8 @@ class RDDLObjectsTracer:
             # is a proper type argument (e.g., ?x): in this case do NOT slice
             # value tensor at all (e.g., emulate numpy's :) at this axis
             else:
-                empty_slice = slice(None)
-                cached_slices.append(empty_slice)
+                colon = slice(None)
+                cached_slices.append(colon)
                         
         return (tuple(cached_slices), literals)
 
@@ -432,7 +434,7 @@ class RDDLObjectsTracer:
         enum_types = {arg.enum_type for arg in cases}
         if len(enum_types) != 1:
             raise RDDLTypeError(
-                f'Branches in if then else cannot produce values '
+                f'Branches in if then else statement cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))     
             
@@ -462,7 +464,7 @@ class RDDLObjectsTracer:
                           for (ctype, cvalue) in cases)
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default cases.\n' + 
+                f'Duplicated literal or default case(s).\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # order enum cases by canonical ordering of literals
@@ -477,7 +479,7 @@ class RDDLObjectsTracer:
         enum_types = {arg.enum_type for arg in case_dict.values()}
         if len(enum_types) != 1:
             raise RDDLTypeError(
-                f'Cases in switch cannot produce values '
+                f'Case expressions in switch statement cannot produce values '
                 f'of different enum types or mix enum and non-enum types.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))    
                                 
@@ -515,7 +517,7 @@ class RDDLObjectsTracer:
         
         # log cases ordering
         if self.logger is not None:
-            active_expr = [i for (i, v) in enumerate(expressions) if v is not None]
+            active_expr = [i for (i, e) in enumerate(expressions) if e is not None]
             message = (f'computing case info for {expr.etype[1]}:'
                        f'\n\tenum type ={enum_type}'
                        f'\n\tcases     ={active_expr}'

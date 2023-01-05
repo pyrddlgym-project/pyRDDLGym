@@ -30,7 +30,6 @@ class JaxRDDLSimulator(RDDLSimulator):
         # compilation
         compiled = JaxRDDLCompiler(rddl, logger=logger, **compiler_args)
         compiled.compile()
-        self.initializer = compiled.initializer
         self.init_values = compiled.init_values
         self.levels = compiled.levels
         
@@ -112,16 +111,17 @@ class JaxRDDLSimulator(RDDLSimulator):
         reward = self.sample_reward()
         
         # update state
+        rddl = self.rddl
         self.state = {}
-        for (state, next_state) in self.rddl.next_state.items():
+        for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
-            self.state.update(self.rddl.ground_values(state, subs[state]))
+            self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
             obs = {}
-            for var in self.rddl.observ:
-                obs.update(self.rddl.ground_values(var, subs[var]))
+            for var in rddl.observ:
+                obs.update(rddl.ground_values(var, subs[var]))
         else:
             obs = self.state
         

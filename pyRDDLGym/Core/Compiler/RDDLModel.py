@@ -401,7 +401,8 @@ class PlanningModel(metaclass=ABCMeta):
         if len(ptypes) != len(objects):
             return False
         for (ptype, obj) in zip(ptypes, objects):
-            if obj not in self.objects_rev or ptype != self.objects_rev[obj]:
+            ptype_of_obj = self.objects_rev.get(obj, None)
+            if ptype_of_obj is None or ptype != ptype_of_obj:
                 return False
         return True
     

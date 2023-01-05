@@ -6,7 +6,6 @@ import jax.nn.initializers as initializers
 import optax
 from typing import Dict, Iterable
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
@@ -26,12 +25,6 @@ class JaxRDDLBackpropPlanner:
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  logic: FuzzyLogic=ProductLogic()) -> None:
-        
-        # jax compilation will only work on lifted domains for now
-        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
-            raise RDDLNotImplementedError(
-                'Jax compilation only works on lifted domains for now.')
-            
         self.rddl = rddl
         self.key = key
         self.batch_size_train = batch_size_train
@@ -61,7 +54,7 @@ class JaxRDDLBackpropPlanner:
     def _compile_action_info(self):
         self.action_shapes, self.action_bounds = {}, {}
         self.bool_actions = False
-        for name, prange in self.rddl.variable_ranges.items():
+        for (name, prange) in self.rddl.variable_ranges.items():
             if self.rddl.variable_types[name] == 'action-fluent':
                 value = self.compiled.init_values[name]
                 shape = (self.rddl.horizon,)
@@ -114,18 +107,18 @@ class JaxRDDLBackpropPlanner:
         # TODO: use a one-hot for integer actions
         def _soft(_, step, params, key):
             plan = {}
-            for var, param in params.items():
+            for (var, param) in params.items():
                 if self.rddl.variable_ranges[var] == 'real': 
                     plan[var] = param[step]
                 else:
                     plan[var] = jnp.asarray(
                         param[step], dtype=JaxRDDLCompiler.REAL)
-            return plan, key
+            return (plan, key)
         
         def _hard(subs, step, params, key):
             soft, key = _soft(subs, step, params, key)
             hard = {}
-            for var, param in soft.items():
+            for (var, param) in soft.items():
                 prange = self.rddl.variable_ranges[var]
                 if prange == 'real':
                     hard[var] = param
@@ -134,21 +127,21 @@ class JaxRDDLBackpropPlanner:
                         jnp.round(param), dtype=JaxRDDLCompiler.INT)
                 elif prange == 'bool':
                     hard[var] = param > 0.5
-            return hard, key
+            return (hard, key)
         
-        return _soft, _hard
+        return (_soft, _hard)
              
     def _jax_init(self, initializer, optimizer):
         
         def _init(key):
             params = {}
-            for var, shape in self.action_shapes.items():
+            for (var, shape) in self.action_shapes.items():
                 key, subkey = random.split(key)
                 param = initializer(subkey, shape, dtype=JaxRDDLCompiler.REAL)
                 param = jnp.clip(param, *self.action_bounds[var])
                 params[var] = param
             opt_state = optimizer.init(params)
-            return params, key, opt_state
+            return (params, key, opt_state)
         
         return _init
     
@@ -160,7 +153,7 @@ class JaxRDDLBackpropPlanner:
             logged['return'] = returns
             loss = -jnp.mean(returns)
             key = keys[-1]
-            return loss, (key, logged)
+            return (loss, (key, logged))
         
         return _loss
     
@@ -168,16 +161,16 @@ class JaxRDDLBackpropPlanner:
         
         def _clip(params):
             new_params = {}
-            for var, param in params.items():
+            for (var, param) in params.items():
                 new_params[var] = jnp.clip(param, *self.action_bounds[var])
             return new_params
         
-        use_sogbofa_clip_trick = self.bool_actions and \
-            self.rddl.max_allowed_actions < len(self.rddl.actions)
+        use_sogbofa_clip_trick = self.bool_actions \
+            and self.rddl.max_allowed_actions < len(self.rddl.actions)
         
         def _sogbofa_surplus(params):
             total, count = 0.0, 0
-            for var, param in params.items():
+            for (var, param) in params.items():
                 if self.rddl.variable_ranges[var] == 'bool':
                     total += jnp.sum(param)
                     count += jnp.sum(param > 0)
@@ -191,7 +184,7 @@ class JaxRDDLBackpropPlanner:
         def _sogbofa_clip_body(values):
             params, (surplus, _) = values
             new_params = {}
-            for var, param in params.items():
+            for (var, param) in params.items():
                 if self.rddl.variable_ranges[var] == 'bool':
                     new_params[var] = jnp.maximum(param - surplus, 0.0)
                 else:
@@ -216,7 +209,7 @@ class JaxRDDLBackpropPlanner:
             params = _clip(params)
             if use_sogbofa_clip_trick:
                 params = _sogbofa_clip_batched(params)
-            return params, key, opt_state, logged
+            return (params, key, opt_state, logged)
         
         return _update
             
@@ -261,12 +254,12 @@ class JaxRDDLBackpropPlanner:
             actions, key = self.test_policy(None, step, params, key)
             actions = jax.tree_map(np.ravel, actions)
             grounded_actions = {}
-            for var, action in actions.items():
-                grounded_action = self.compiled.traced.expand(var, action)
+            for (var, action) in actions.items():
+                grounded_action = self.rddl.ground_values(var, action)
                 if self.rddl.variable_ranges[var] == 'bool':
                     grounded_action = {gvar: value 
-                                       for gvar, value in grounded_action
+                                       for gvar, value in grounded_action.items()
                                        if value == True}
                 grounded_actions.update(grounded_action)
             plan.append(grounded_actions)
-        return plan, key
+        return (plan, key)

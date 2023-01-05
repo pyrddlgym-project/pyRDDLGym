@@ -36,13 +36,16 @@ class RDDLLiftedModel(PlanningModel):
         self._extract_max_actions()
         
     def _extract_objects(self):
+        
+        # objects of each type as defined in the non-fluents {..} block
         ast_objects = self._AST.non_fluents.objects
         if (not ast_objects) or ast_objects[0] is None:
             ast_objects = []
         ast_objects = dict(ast_objects)
         
-        # record the set of objects of each type
-        objects, enum_types, enum_literals = {}, set(), set()    
+        # record the set of objects of each type defined in the domain
+        objects, objects_rev = {}, {}
+        enum_types, enum_literals = set(), set()    
         for (name, pvalues) in self._AST.domain.types:
             
             # object
@@ -58,11 +61,9 @@ class RDDLLiftedModel(PlanningModel):
                 enum_types.add(name)
                 enum_literals.update(pvalues)        
         
-        # make sure different types do not share the same object
-        # record the type that each object or enum literal corresponds to
-        objects_rev = {}
-        for (name, values) in objects.items():
-            for obj in values:
+            # make sure types do not share an object
+            # record the type that each object corresponds to
+            for obj in objects[name]:
                 if obj in objects_rev:
                     raise RDDLInvalidObjectError(
                         f'Types <{name}> and <{objects_rev[obj]}> '
@@ -81,9 +82,9 @@ class RDDLLiftedModel(PlanningModel):
     def _extract_variable_information(self):
         
         # extract some basic information about variables in the domain:
-        # - their object parameters needed to evaluate
-        # - their types (e.g. state-fluent, action-fluent)
-        # - their ranges (e.g. int, real, enum-type)
+        # 1. their object parameters needed to evaluate
+        # 2. their types (e.g. state-fluent, action-fluent)
+        # 3. their ranges (e.g. int, real, enum-type)
         var_params, var_types, var_ranges = {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             primed_name = name = pvar.name
@@ -145,7 +146,7 @@ class RDDLLiftedModel(PlanningModel):
                 gname = self.ground_name(name, params)
                 if gname not in initstates[name]:
                     raise RDDLInvalidObjectError(
-                        f'Parameters {params} of state-fluent {name} '
+                        f'Parameter(s) {params} of state-fluent {name} '
                         f'as declared in the init-state block are not valid.')
                     
                 initstates[name][gname] = value
@@ -227,7 +228,7 @@ class RDDLLiftedModel(PlanningModel):
                 gname = self.ground_name(name, params)                
                 if gname not in non_fluents[name]:
                     raise RDDLInvalidObjectError(
-                        f'Parameters {params} of non-fluent {name} '
+                        f'Parameter(s) {params} of non-fluent {name} '
                         f'as declared in the non-fluents block are not valid.')
                 
                 non_fluents[name][gname] = value
@@ -244,14 +245,14 @@ class RDDLLiftedModel(PlanningModel):
             types = self.param_types.get(name, None)
             if types is None:
                 raise RDDLUndefinedCPFError(
-                    f'CPF <{name}> is not defined in pvariable scope.')
+                    f'CPF <{name}> is not defined in pvariable block.')
             
             # make sure the number of parameters matches that in cpfs {...}
             if objects is None:
                 objects = []
             if len(types) != len(objects):
                 raise RDDLInvalidObjectError(
-                    f'CPF <{name}> expects {len(types)} parameters, '
+                    f'CPF <{name}> expects {len(types)} parameter(s), '
                     f'got {len(objects)}.')
             
             # CPFs are stored as dictionary that associates cpf name with a pair 
@@ -266,7 +267,7 @@ class RDDLLiftedModel(PlanningModel):
                                'next-state-fluent', 'observ-fluent'} \
             and var not in cpfs:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{var}> is missing a valid definition.')
+                    f'{fluent_type} CPF <{var}> is not defined in cpfs block.')
                     
         self.cpfs = cpfs
     
