@@ -394,14 +394,15 @@ class JaxRDDLCompiler:
     def _jax_cast(self, jax_expr, dtype):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        def _jax_wrapped_type_cast(x, key):
+        def _jax_wrapped_cast(x, key):
             val, key, err = jax_expr(x, key)
             sample = jnp.asarray(val, dtype=dtype)
-            invalid = (not jnp.can_cast(val, dtype)) and jnp.any(sample != val)
-            err |= invalid * ERR
+            invalid = jnp.logical_and(jnp.logical_not(jnp.can_cast(val, dtype)), 
+                                      jnp.any(sample != val))
+            err |= (invalid * ERR)
             return sample, key, err
         
-        return _jax_wrapped_type_cast
+        return _jax_wrapped_cast
    
     # ===========================================================================
     # leaves
@@ -412,8 +413,7 @@ class JaxRDDLCompiler:
         cached_value = self.traced.cached_sim_info(expr)
         
         def _f_constant(_, key):
-            sample = cached_value
-            return sample, key, ERR
+            return cached_value, key, ERR
 
         return _f_constant
     
@@ -426,8 +426,7 @@ class JaxRDDLCompiler:
             cached_literal = self.traced.cached_sim_info(expr)
             
             def _jax_wrapped_pvar_literal(_, key):
-                sample = cached_literal
-                return sample, key, ERR
+                return cached_literal, key, ERR
             
             return _jax_wrapped_pvar_literal
         
@@ -436,8 +435,7 @@ class JaxRDDLCompiler:
         if shape_info is None:
             
             def _jax_wrapped_pvar_scalar(x, key):
-                sample = x[var]          
-                return sample, key, ERR
+                return x[var], key, ERR
             
             return _jax_wrapped_pvar_scalar
         
@@ -463,7 +461,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_unary_op(x, key):
             sample, key, err = jax_expr(x, key)
             if at_least_int:
-                sample = sample * 1
+                sample = 1 * sample
             sample = jax_op(sample)
             return sample, key, err
         
@@ -476,8 +474,8 @@ class JaxRDDLCompiler:
             sample1, key, err1 = jax_lhs(x, key)
             sample2, key, err2 = jax_rhs(x, key)
             if at_least_int:
-                sample1 = sample1 * 1
-                sample2 = sample2 * 1
+                sample1 = 1 * sample1
+                sample2 = 1 * sample2
             sample = jax_op(sample1, sample2)
             err = err1 | err2
             return sample, key, err
@@ -547,6 +545,7 @@ class JaxRDDLCompiler:
         _, op = expr.etype
         valid_ops = self.AGGREGATION_OPS      
         JaxRDDLCompiler._check_valid_op(expr, valid_ops) 
+        is_floating = op not in {'forall', 'exists'}
         
         * _, arg = expr.args  
         _, axes = self.traced.cached_sim_info(expr)
@@ -556,6 +555,8 @@ class JaxRDDLCompiler:
         
         def _jax_wrapped_aggregation(x, key):
             sample, key, err = jax_expr(x, key)
+            if is_floating:
+                sample = 1 * sample
             sample = jax_op(sample, axis=axes)
             return sample, key, err
         
@@ -697,13 +698,13 @@ class JaxRDDLCompiler:
         arg, = expr.args
         arg = self._jax(arg)
         
-        def _jax_wrapped_check_bool_or_int(x, key):
+        def _jax_wrapped_distribution_kron(x, key):
             sample, key, err = arg(x, key)
-            invalid_type = not jnp.can_cast(sample, JaxRDDLCompiler.INT)
+            invalid_type = jnp.logical_not(jnp.can_cast(sample, JaxRDDLCompiler.INT))
             err |= (invalid_type * ERR)
             return sample, key, err
                         
-        return _jax_wrapped_check_bool_or_int
+        return _jax_wrapped_distribution_kron
     
     def _jax_dirac(self, expr):
         JaxRDDLCompiler._check_num_args(expr, 1)
@@ -726,8 +727,8 @@ class JaxRDDLCompiler:
             U = random.uniform(
                 key=subkey, shape=jnp.shape(lb), dtype=JaxRDDLCompiler.REAL)
             sample = lb + (ub - lb) * U
-            out_of_bounds = jnp.any(lb > ub)
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(lb <= ub))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_uniform
@@ -748,8 +749,8 @@ class JaxRDDLCompiler:
             Z = random.normal(
                 key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + std * Z
-            out_of_bounds = jnp.any(var < 0)
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(var >= 0))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_normal
@@ -767,8 +768,8 @@ class JaxRDDLCompiler:
             Exp1 = random.exponential(
                 key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
             sample = scale * Exp1
-            out_of_bounds = jnp.any(scale <= 0)
-            err |= out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(scale > 0))
+            err |= (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_exp
@@ -788,8 +789,8 @@ class JaxRDDLCompiler:
             U = random.uniform(
                 key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
             sample = scale * jnp.power(-jnp.log1p(-U), 1.0 / shape)
-            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all((shape > 0) & (scale > 0)))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_weibull
@@ -807,8 +808,8 @@ class JaxRDDLCompiler:
             U = random.uniform(
                 key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
             sample = U < prob
-            out_of_bounds = jnp.any((prob < 0) | (prob > 1))
-            err |= out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
+            err |= (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_bernoulli
@@ -825,8 +826,8 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             sample = random.poisson(
                 key=subkey, lam=rate, dtype=JaxRDDLCompiler.INT)
-            out_of_bounds = jnp.any(rate < 0)
-            err |= out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(rate >= 0))
+            err |= (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_poisson
@@ -845,8 +846,8 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             Gamma = random.gamma(key=subkey, a=shape, dtype=JaxRDDLCompiler.REAL)
             sample = scale * Gamma
-            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all((shape > 0) & (scale > 0)))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_gamma
@@ -864,8 +865,8 @@ class JaxRDDLCompiler:
             rate, key, err2 = jax_rate(x, key)
             key, subkey = random.split(key)
             sample = random.beta(key=subkey, a=shape, b=rate)
-            out_of_bounds = jnp.any((shape <= 0) | (rate <= 0))
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all((shape > 0) & (rate > 0)))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_beta
@@ -883,8 +884,8 @@ class JaxRDDLCompiler:
             U = random.uniform(
                 key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
             sample = jnp.floor(jnp.log1p(-U) / jnp.log1p(-prob)) + 1
-            out_of_bounds = jnp.any((prob < 0) | (prob > 1))
-            err |= out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all((prob > 0) & (prob <= 1)))
+            err |= (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_geometric
@@ -902,8 +903,8 @@ class JaxRDDLCompiler:
             scale, key, err2 = jax_scale(x, key)
             key, subkey = random.split(key)
             sample = scale * random.pareto(key=subkey, b=shape)
-            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all((shape > 0) & (scale > 0)))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_pareto
@@ -919,8 +920,8 @@ class JaxRDDLCompiler:
             df, key, err = jax_df(x, key)
             key, subkey = random.split(key)
             sample = random.t(key=subkey, df=df)
-            out_of_bounds = jnp.any(df <= 0)
-            err |= out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(df > 0))
+            err |= (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_t
@@ -940,8 +941,8 @@ class JaxRDDLCompiler:
             Gumbel01 = random.gumbel(
                 key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Gumbel01
-            out_of_bounds = jnp.any(scale <= 0)
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(scale > 0))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_gumbel
@@ -961,8 +962,8 @@ class JaxRDDLCompiler:
             Laplace01 = random.laplace(
                 key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Laplace01
-            out_of_bounds = jnp.any(scale <= 0)
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(scale > 0))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_laplace
@@ -982,8 +983,8 @@ class JaxRDDLCompiler:
             Cauchy01 = random.cauchy(
                 key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
             sample = mean + scale * Cauchy01
-            out_of_bounds = jnp.any(scale <= 0)
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all(scale > 0))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_cauchy
@@ -1003,8 +1004,8 @@ class JaxRDDLCompiler:
             U = random.uniform(
                 key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
             sample = jnp.log(1.0 - jnp.log1p(-U) / shape) / scale
-            out_of_bounds = jnp.any((shape <= 0) | (scale <= 0))
-            err = err1 | err2 | out_of_bounds * ERR
+            out_of_bounds = jnp.logical_not(jnp.all((shape > 0) & (scale > 0)))
+            err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_gompertz
@@ -1024,9 +1025,9 @@ class JaxRDDLCompiler:
                 err |= err_pdf
             sample_pdfs = jnp.asarray(sample_pdfs)
             sample_cdf = jnp.cumsum(sample_pdfs, axis=0)
-            out_of_bounds = jnp.logical_or(
-                jnp.any(sample_pdfs < 0),
-                jnp.logical_not(jnp.allclose(sample_cdf[-1, ...], 1.0)))
+            out_of_bounds = jnp.logical_not(jnp.logical_and(
+                jnp.all(sample_pdfs >= 0),
+                jnp.allclose(sample_cdf[-1, ...], 1.0)))
             err |= (out_of_bounds * ERR)
             
             key, subkey = random.split(key)
