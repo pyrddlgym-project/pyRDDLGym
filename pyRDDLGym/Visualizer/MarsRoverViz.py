@@ -15,8 +15,8 @@ class MarsRoverVisualizer(StateViz):
                  fontsize=8,
                  display=False) -> None:
         self._model = model
-        self._states = model.states
-        self._nonfluents = model.nonfluents
+        self._states = model.groundstates()
+        self._nonfluents = model.groundnonfluents()
         self._objects = model.objects
         self._figure_size = figure_size
         self._dpi = dpi

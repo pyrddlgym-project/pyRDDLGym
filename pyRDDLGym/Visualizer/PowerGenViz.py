@@ -13,7 +13,7 @@ class PowerGenVisualizer(StateViz):
 
         self._model = model
         self._states = model.states
-        self._nonfluents = model.nonfluents
+        self._nonfluents = model.groundnonfluents()
         self._objects = model.objects
         self._figure_size = None
         self._dpi = dpi
