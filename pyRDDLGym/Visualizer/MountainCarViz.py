@@ -4,14 +4,14 @@ from PIL import Image
 import pygame
 from pygame import gfxdraw
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 # code comes from openai gym
 class MountainCarVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel, figure_size=[600, 400], wait_time=100) -> None:
+    def __init__(self, model: PlanningModel, figure_size=[600, 400], wait_time=100) -> None:
         self._model = model
         self._figure_size = figure_size
         self._wait_time = wait_time

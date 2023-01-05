@@ -4,13 +4,13 @@ from matplotlib import collections  as mc
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class RacecarVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel,
+    def __init__(self, model: PlanningModel,
                  figure_size=(4, 4),
                  car_radius=0.04,
                  vector_len=0.15,
