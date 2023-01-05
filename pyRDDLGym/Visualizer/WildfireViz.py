@@ -2,14 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Visualizer.StateViz import StateViz
 from pyRDDLGym import Visualizer
 
 
 class WildfireVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel,
+    def __init__(self, model: PlanningModel,
                  dpi=50,
                  fontsize=8,
                  display=False) -> None:

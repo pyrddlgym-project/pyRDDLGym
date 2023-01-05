@@ -2,14 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 import pyRDDLGym.Visualizer as Visualizer
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class RecSimVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel,
+    def __init__(self, model: PlanningModel,
                  figure_size=[5, 10],
                  dpi=100,
                  fontsize=10,
