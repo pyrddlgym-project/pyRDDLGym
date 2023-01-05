@@ -39,7 +39,6 @@ class CartPoleVisualizer(StateViz):
         axleoffset = cartheight / 4.0
         
         surf.fill((255, 255, 255))
-        print(state)
         cartx = state['pos'] * scale + self._figure_size[0] / 2.0  # MIDDLE OF CART
         carty = 100  # TOP OF CART
         cart_coords = [(l, b), (l, t), (r, t), (r, b)]
