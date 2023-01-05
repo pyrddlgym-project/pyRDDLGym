@@ -131,10 +131,15 @@ class RDDLLevelAnalysis:
             # check that all dependencies are valid
             for dep in deps: 
                 dep_type = self.rddl.variable_types.get(dep, dep)
-                if dep_type not in VALID_DEPENDENCIES[cpf_type] or (
-                    (not self.allow_synchronous_state)
-                    and cpf_type == dep_type == 'next-state-fluent'
-                ):
+                
+                # completely illegal dependency
+                if dep_type not in VALID_DEPENDENCIES[cpf_type]:
+                    raise RDDLInvalidDependencyInCPFError(
+                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.') 
+                
+                # s' cannot depend on s' if allow_synchronous_state = False
+                elif (not self.allow_synchronous_state) and \
+                cpf_type == dep_type == 'next-state-fluent':
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>. '
                         f'Set allow_synchronous_state=True to allow this.')                
