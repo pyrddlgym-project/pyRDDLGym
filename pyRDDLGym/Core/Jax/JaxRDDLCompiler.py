@@ -543,6 +543,7 @@ class JaxRDDLCompiler:
         JaxRDDLCompiler._check_num_args(expr, 2)
     
     def _jax_aggregation(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         _, op = expr.etype
         valid_ops = self.AGGREGATION_OPS      
         JaxRDDLCompiler._check_valid_op(expr, valid_ops) 
@@ -558,6 +559,9 @@ class JaxRDDLCompiler:
             sample, key, err = jax_expr(x, key)
             if is_floating:
                 sample = 1 * sample
+            else:
+                invalid = jnp.logical_not(jnp.can_cast(sample, bool))
+                err |= (invalid * ERR)
             sample = jax_op(sample, axis=axes)
             return sample, key, err
         
@@ -605,6 +609,7 @@ class JaxRDDLCompiler:
     
     def _jax_if(self, expr):
         JaxRDDLCompiler._check_num_args(expr, 3)
+        jax_op = self.CONTROL_OPS['if']
         
         pred, if_true, if_false = expr.args        
         jax_pred = self._jax(pred)
@@ -615,7 +620,7 @@ class JaxRDDLCompiler:
             sample1, key, err1 = jax_pred(x, key)
             sample2, key, err2 = jax_true(x, key)
             sample3, key, err3 = jax_false(x, key)
-            sample = jnp.where(sample1, sample2, sample3)
+            sample = jax_op(sample1, sample2, sample3)
             err = err1 | err2 | err3
             return sample, key, err
             
