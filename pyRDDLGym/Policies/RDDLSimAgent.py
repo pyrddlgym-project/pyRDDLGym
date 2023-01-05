@@ -99,8 +99,8 @@ class RDDLSimAgent:
             actions = self.process_action(data)
 
             self.logs[-1].append({
-                "state": str(state),
-                "actions": str(actions),
+                "state": json.loads(str(state).replace('\'', '"').replace('True', 'true').replace('False', 'false')),
+                "actions": json.loads(str(actions).replace('\'', '"').replace('"true"', 'true')),
             })
 
             next_state, reward, done, info = self.env.step(actions)
