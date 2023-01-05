@@ -397,7 +397,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_cast(x, key):
             val, key, err = jax_expr(x, key)
             sample = jnp.asarray(val, dtype=dtype)
-            invalid = jnp.logical_and(jnp.logical_not(jnp.can_cast(val, dtype)), 
+            invalid = jnp.logical_and(jnp.logical_not(jnp.can_cast(val, dtype)),
                                       jnp.any(sample != val))
             err |= (invalid * ERR)
             return sample, key, err
@@ -435,7 +435,8 @@ class JaxRDDLCompiler:
         if shape_info is None:
             
             def _jax_wrapped_pvar_scalar(x, key):
-                return x[var], key, ERR
+                sample = x[var]
+                return sample, key, ERR
             
             return _jax_wrapped_pvar_scalar
         
@@ -625,21 +626,26 @@ class JaxRDDLCompiler:
         jax_pred = self._jax(pred)
         cases, default = self.traced.cached_sim_info(expr)  
         
+        # wrap cases as JAX expressions
         jax_def = None if default is None else self._jax(default)
         jax_cases = [(jax_def if arg is None else self._jax(arg))
                      for arg in cases]
                     
         def _jax_wrapped_switch(x, key):
-            sample_pred, key, err = jax_pred(x, key)
-            sample_pred = jnp.expand_dims(sample_pred, axis=0) 
             
+            # sample predicate
+            sample_pred, key, err = jax_pred(x, key) 
+            
+            # sample cases
             sample_cases = []
             for jax_case in jax_cases:
                 sample_case, key, err_case = jax_case(x, key)
                 sample_cases.append(sample_case)
                 err |= err_case                
             sample_cases = jnp.asarray(sample_cases)
-                      
+            
+            # predicate (enum) is an integer - use it to extract from case array
+            sample_pred = jnp.expand_dims(sample_pred, axis=0)
             sample = jnp.take_along_axis(sample_cases, sample_pred, axis=0)
             return sample, key, err    
         
@@ -698,9 +704,11 @@ class JaxRDDLCompiler:
         arg, = expr.args
         arg = self._jax(arg)
         
+        # just check that the sample can be cast to int
         def _jax_wrapped_distribution_kron(x, key):
             sample, key, err = arg(x, key)
-            invalid_type = jnp.logical_not(jnp.can_cast(sample, JaxRDDLCompiler.INT))
+            invalid_type = jnp.logical_not(
+                jnp.can_cast(sample, JaxRDDLCompiler.INT))
             err |= (invalid_type * ERR)
             return sample, key, err
                         
@@ -720,6 +728,7 @@ class JaxRDDLCompiler:
         jax_lb = self._jax(arg_lb)
         jax_ub = self._jax(arg_ub)
         
+        # reparameterization trick U(a, b) = a + (b - a) * U(0, 1)
         def _jax_wrapped_distribution_uniform(x, key):
             lb, key, err1 = jax_lb(x, key)
             ub, key, err2 = jax_ub(x, key)
@@ -741,6 +750,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_var = self._jax(arg_var)
         
+        # reparameterization trick N(m, s^2) = m + s * N(0, 1)
         def _jax_wrapped_distribution_normal(x, key):
             mean, key, err1 = jax_mean(x, key)
             var, key, err2 = jax_var(x, key)
@@ -761,7 +771,8 @@ class JaxRDDLCompiler:
         
         arg_scale, = expr.args
         jax_scale = self._jax(arg_scale)
-                
+        
+        # reparameterization trick Exp(s) = s * Exp(1)
         def _jax_wrapped_distribution_exp(x, key):
             scale, key, err = jax_scale(x, key)
             key, subkey = random.split(key)
@@ -782,6 +793,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
+        # reparameterization trick W(s, r) = r * (-ln(1 - U(0, 1))) ** (1 / s)
         def _jax_wrapped_distribution_weibull(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -802,6 +814,7 @@ class JaxRDDLCompiler:
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob)
         
+        # reparameterization trick Bern(p) = U(0, 1) < p
         def _jax_wrapped_distribution_bernoulli(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
@@ -821,6 +834,7 @@ class JaxRDDLCompiler:
         arg_rate, = expr.args
         jax_rate = self._jax(arg_rate)
         
+        # uses the implicit JAX subroutine, which seems to be reparameterized
         def _jax_wrapped_distribution_poisson(x, key):
             rate, key, err = jax_rate(x, key)
             key, subkey = random.split(key)
@@ -840,6 +854,9 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
+        # partial reparameterization trick Gamma(s, r) = r * Gamma(s, 1)
+        # uses the implicit JAX subroutine for Gamma(s, 1) 
+        # which seems to be reparameterized
         def _jax_wrapped_distribution_gamma(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -860,6 +877,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_rate = self._jax(arg_rate)
         
+        # uses the implicit JAX subroutine, which seems to be reparameterized
         def _jax_wrapped_distribution_beta(x, key):
             shape, key, err1 = jax_shape(x, key)
             rate, key, err2 = jax_rate(x, key)
@@ -878,13 +896,14 @@ class JaxRDDLCompiler:
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob)
         
+        # reparameterization trick Geom(p) = floor(ln(U(0, 1)) / ln(p)) + 1
         def _jax_wrapped_distribution_geometric(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
             sample = jnp.floor(jnp.log1p(-U) / jnp.log1p(-prob)) + 1
-            out_of_bounds = jnp.logical_not(jnp.all((prob > 0) & (prob <= 1)))
+            out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
         
@@ -898,6 +917,9 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
+        # partial reparameterization trick Pareto(s, r) = r * Pareto(s, 1)
+        # uses the implicit JAX subroutine for Pareto(s, 1) 
+        # which seems to be reparameterized
         def _jax_wrapped_distribution_pareto(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -916,6 +938,8 @@ class JaxRDDLCompiler:
         arg_df, = expr.args
         jax_df = self._jax(arg_df)
         
+        # uses the implicit JAX subroutine for student(df) 
+        # which seems to be reparameterized
         def _jax_wrapped_distribution_t(x, key):
             df, key, err = jax_df(x, key)
             key, subkey = random.split(key)
@@ -934,6 +958,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_scale = self._jax(arg_scale)
         
+        # reparameterization trick Gumbel(m, s) = m + s * Gumbel(0, 1)
         def _jax_wrapped_distribution_gumbel(x, key):
             mean, key, err1 = jax_mean(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -955,6 +980,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_scale = self._jax(arg_scale)
         
+        # reparameterization trick Laplace(m, s) = m + s * Laplace(0, 1)
         def _jax_wrapped_distribution_laplace(x, key):
             mean, key, err1 = jax_mean(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -976,6 +1002,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(arg_mean)
         jax_scale = self._jax(arg_scale)
         
+        # reparameterization trick Cauchy(m, s) = m + s * Cauchy(0, 1)
         def _jax_wrapped_distribution_cauchy(x, key):
             mean, key, err1 = jax_mean(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -997,6 +1024,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_scale = self._jax(arg_scale)
         
+        # reparameterization trick Gompertz(s, r) = ln(1 - log(U(0, 1)) / s) / r
         def _jax_wrapped_distribution_gompertz(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -1017,6 +1045,8 @@ class JaxRDDLCompiler:
         jax_pdfs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
         
         def _jax_wrapped_distribution_discrete(x, key):
+            
+            # sample case probabilities
             err = ERR0
             sample_pdfs = []
             for jax_pdf in jax_pdfs:
@@ -1024,12 +1054,17 @@ class JaxRDDLCompiler:
                 sample_pdfs.append(sample_pdf)
                 err |= err_pdf
             sample_pdfs = jnp.asarray(sample_pdfs)
+            
+            # compute cumulative distribution function
             sample_cdf = jnp.cumsum(sample_pdfs, axis=0)
+            
+            # check this is a valid PDF
             out_of_bounds = jnp.logical_not(jnp.logical_and(
                 jnp.all(sample_pdfs >= 0),
                 jnp.allclose(sample_cdf[-1, ...], 1.0)))
             err |= (out_of_bounds * ERR)
             
+            # reparameterization trick using inverse CDF sampling
             key, subkey = random.split(key)
             shape = (1,) + jnp.shape(sample_cdf)[1:]
             U = random.uniform(key=subkey, shape=shape, dtype=JaxRDDLCompiler.REAL)
