@@ -115,6 +115,10 @@ class RDDLObjectsTracer:
             self._trace_control(expr, objects, out)
         elif etype == 'randomvar':
             self._trace_random(expr, objects, out)
+        else:
+            raise RDDLNotImplementedError(
+                f'Internal error: expression type is not supported.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
     
     # ===========================================================================
     # leaves
