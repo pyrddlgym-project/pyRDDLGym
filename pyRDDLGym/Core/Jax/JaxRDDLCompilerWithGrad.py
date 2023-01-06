@@ -1,74 +1,16 @@
 import numpy as np
-import jax.numpy as jnp
 import warnings
 
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-
-
-class FuzzyLogic:
-    
-    def And(self, a, b):
-        raise NotImplementedError
-    
-    def Not(self, x):
-        raise NotImplementedError
-    
-    def Or(self, a, b):
-        return self.Not(self.And(self.Not(a), self.Not(b)))
-    
-    def xor(self, a, b):
-        return self.And(self.Or(a, b), self.Not(self.And(a, b)))
-    
-    def implies(self, a, b):
-        return self.Or(self.Not(a), b)
-    
-    def equiv(self, a, b):
-        return self.And(self.implies(a, b), self.implies(b, a))
-    
-    def forall(self, x, axis=None):
-        raise NotImplementedError
-    
-    def exists(self, x, axis=None):
-        return self.Not(self.forall(self.Not(x), axis=axis))
-    
-    def If(self, c, a, b):
-        raise NotImplementedError
-
-
-class BooleanLogic(FuzzyLogic):
-    
-    def And(self, a, b):
-        return jnp.logical_and(a, b)
-    
-    def Not(self, x):
-        return jnp.logical_not(x)
-
-    def forall(self, x, axis=None):
-        return jnp.all(x, axis=axis)
-    
-    def If(self, c, a, b):
-        return jnp.where(c, a, b)
-
-
-class ProductLogic(FuzzyLogic):
-    
-    def And(self, a, b):
-        return a * b
-    
-    def Not(self, x):
-        return 1.0 - x
-    
-    def implies(self, a, b):
-        return 1.0 - a * (1.0 - b)
-
-    def forall(self, x, axis=None):
-        return jnp.prod(x, axis=axis)
-    
-    def If(self, c, a, b):
-        return c * a + (1 - c) * b
+from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic, ProductLogic
 
 
 class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
+    '''Compiles a RDDL AST representation to an equivalent JAX representation. 
+    Unlike its parent class, this class treats all fluents as real-valued, and
+    replaces all mathematical operations by equivalent ones with a well defined 
+    (e.g. non-zero) gradient where appropriate. 
+    '''
     
     def __init__(self, *args, logic: FuzzyLogic=ProductLogic(), **kwargs) -> None:
         super(JaxRDDLCompilerWithGrad, self).__init__(*args, **kwargs)
@@ -81,6 +23,15 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
                 self.init_values[var] = np.asarray(values, dtype=JaxRDDLCompiler.REAL)        
         
         # overwrite basic operations with fuzzy ones
+        self.RELATIONAL_OPS = {
+            '>=': logic.greaterEqual,
+            '<=': logic.lessEqual,
+            '<': logic.less,
+            '>': logic.greater,
+            '==': logic.equal,
+            '~=': logic.notEqual
+        }
+        self.LOGICAL_NOT = logic.Not  
         self.LOGICAL_OPS = {
             '^': logic.And,
             '&': logic.And,
@@ -89,7 +40,6 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             '=>': logic.implies,
             '<=>': logic.equiv
         }
-        self.LOGICAL_NOT = logic.Not  
         self.AGGREGATION_OPS['exists'] = logic.exists
         self.AGGREGATION_OPS['forall'] = logic.forall
         self.CONTROL_OPS['if'] = logic.If
@@ -123,3 +73,4 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         arg, = expr.args
         arg = self._jax(arg)
         return arg
+

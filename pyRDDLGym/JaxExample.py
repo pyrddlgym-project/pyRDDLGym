@@ -16,14 +16,14 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-ENV = 'WildlifePreserve'
+ENV = 'MountainCar'
 # ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
 # ENV = 'Reservoir'
 # ENV = 'RecSim'
 
-DO_PLAN = False
+DO_PLAN = True
   
 
 def rddl_simulate(plan):
@@ -94,7 +94,7 @@ def main():
         
         planner = JaxRDDLBackpropPlanner(
             model, key, 32, 32,
-            optimizer=optax.rmsprop(0.02),
+            optimizer=optax.rmsprop(0.01),
             initializer=jax.nn.initializers.normal(),
             action_bounds={'action': (0.0, 2.0)})
         
@@ -116,8 +116,7 @@ def main():
                             num_actions=myEnv.numConcurrentActions)
         
         def plan(step):
-            return {k: (bool(v) if v == 0 or v == 1 else v) 
-                    for k, v in agent.sample_action().items()}
+            return {k: v for k, v in agent.sample_action().items()}
 
         jax_simulate(model, key, plan)
 
