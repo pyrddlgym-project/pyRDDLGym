@@ -87,8 +87,8 @@ class JaxRDDLCompiler:
             'sum': jnp.sum,
             'avg': jnp.mean,
             'prod': jnp.prod,
-            'min': jnp.min,
-            'max': jnp.max,
+            'minimum': jnp.min,
+            'maximum': jnp.max,
             'forall': jnp.all,
             'exists': jnp.any  
         }

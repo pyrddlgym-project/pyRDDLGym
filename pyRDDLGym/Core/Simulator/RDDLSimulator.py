@@ -97,8 +97,8 @@ class RDDLSimulator:
             'sum': np.sum,
             'avg': np.mean,
             'prod': np.prod,
-            'min': np.min,
-            'max': np.max,
+            'minimum': np.min,
+            'maximum': np.max,
             'forall': np.all,
             'exists': np.any  
         }
