@@ -54,6 +54,12 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
                 jax_cpfs[cpf] = self._jax(expr, dtype=JaxRDDLCompiler.REAL)
         return jax_cpfs
     
+    def _jax_relational(self, expr):
+        _, op = expr.etype
+        warnings.warn(f'Relational operator {op} uses sigmoid approximation.', 
+                      stacklevel=2)        
+        return super(JaxRDDLCompilerWithGrad, self)._jax_relational(expr)
+    
     def _jax_logical(self, expr):
         _, op = expr.etype
         warnings.warn(f'Logical operator {op} uses fuzzy logic.', stacklevel=2)        
@@ -61,9 +67,18 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     
     def _jax_aggregation(self, expr):
         _, op = expr.etype
-        warnings.warn(f'Aggregation operator {op} uses fuzzy logic.', stacklevel=2)        
+        if op == 'forall' or op == 'exists':
+            warnings.warn(f'Aggregation operator {op} uses fuzzy logic.', 
+                          stacklevel=2)        
         return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr)
-        
+    
+    def _jax_functional(self, expr):
+        _, op = expr.etype
+        if op == 'sgn':
+            warnings.warn(f'Function {op} uses tanh approximation.', 
+                          stacklevel=2) 
+        return super(JaxRDDLCompilerWithGrad, self)._jax_functional(expr)
+    
     def _jax_control(self, expr):
         _, op = expr.etype
         warnings.warn(f'Control operator {op} uses fuzzy logic.', stacklevel=2)        
