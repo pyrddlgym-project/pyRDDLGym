@@ -42,6 +42,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         }
         self.AGGREGATION_OPS['exists'] = logic.exists
         self.AGGREGATION_OPS['forall'] = logic.forall
+        self.KNOWN_UNARY['sgn'] = logic.signum
         self.CONTROL_OPS['if'] = logic.If
     
     def _compile_cpfs(self):
