@@ -10,9 +10,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import JaxRDDLCompilerWithGrad
-from pyRDDLGym.Core.Jax.JaxRDDLCompilerWithGrad import ProductLogic
+from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic, ProductLogic
 
  
 class JaxRDDLBackpropPlanner:
@@ -57,9 +56,7 @@ class JaxRDDLBackpropPlanner:
         for (name, prange) in self.rddl.variable_ranges.items():
             if self.rddl.variable_types[name] == 'action-fluent':
                 value = self.compiled.init_values[name]
-                shape = (self.rddl.horizon,)
-                if type(value) is np.ndarray:
-                    shape = shape + value.shape
+                shape = (self.rddl.horizon,) + np.shape(value)
                 self.action_shapes[name] = shape
                     
                 if prange not in JaxRDDLCompiler.JAX_TYPES:
@@ -258,7 +255,7 @@ class JaxRDDLBackpropPlanner:
                 grounded_action = self.rddl.ground_values(var, action)
                 if self.rddl.variable_ranges[var] == 'bool':
                     grounded_action = {gvar: value 
-                                       for gvar, value in grounded_action.items()
+                                       for (gvar, value) in grounded_action.items()
                                        if value == True}
                 grounded_actions.update(grounded_action)
             plan.append(grounded_actions)
