@@ -68,7 +68,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     def _jax_aggregation(self, expr):
         _, op = expr.etype
         if op == 'forall' or op == 'exists':
-            warnings.warn(f'Aggregation operator {op} uses fuzzy logic.', 
+            warnings.warn(f'Aggregation operator <{op}> uses fuzzy logic.', 
                           stacklevel=2)        
         return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr)
     
@@ -81,7 +81,9 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     
     def _jax_control(self, expr):
         _, op = expr.etype
-        warnings.warn(f'Control operator {op} uses fuzzy logic.', stacklevel=2)        
+        if op == 'if':
+            warnings.warn(f'Control operator <{op}> uses linear approximation.', 
+                          stacklevel=2)        
         return super(JaxRDDLCompilerWithGrad, self)._jax_control(expr)
 
     def _jax_kron(self, expr):
