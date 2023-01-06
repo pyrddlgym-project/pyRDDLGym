@@ -46,6 +46,11 @@ class RDDLSimAgent:
         ''' starts the RDDLSimAgent to wait for a planner to connect'''
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Force the connection to this port (sometimes it stays locked after repeated runs).
+        # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
         with sock:
             sock.bind(self.address)
             sock.listen(1)
