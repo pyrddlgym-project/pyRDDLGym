@@ -49,6 +49,9 @@ class FuzzyLogic:
     def lessEqual(self, a, b):
         return self.Not(self.greater(a, b))
     
+    def signum(self, x):
+        raise NotImplementedError
+    
 
 class ProductLogic(FuzzyLogic):
     
@@ -80,6 +83,9 @@ class ProductLogic(FuzzyLogic):
     
     def greater(self, a, b):
         return self.greaterEqual(a, b)
+    
+    def signum(self, x):
+        return jax.nn.tanh(self._w * x)
 
     
 if __name__ == '__main__':
