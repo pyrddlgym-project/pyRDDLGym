@@ -81,6 +81,7 @@ class RDDLlex(object):
             'Uniform': 'UNIFORM',
             'Bernoulli': 'BERNOULLI',
             'Discrete': 'DISCRETE',
+            'UnnormDiscrete': 'UNNORMDISCRETE',
             'Normal': 'NORMAL',
             'Poisson': 'POISSON',
             'Exponential': 'EXPONENTIAL',
@@ -638,6 +639,7 @@ class RDDLParser(object):
                           | NORMAL LPAREN expr COMMA expr RPAREN
                           | EXPONENTIAL LPAREN expr RPAREN
                           | DISCRETE LPAREN IDENT COMMA lconst_case_list RPAREN
+                          | UNNORMDISCRETE LPAREN IDENT COMMA lconst_case_list RPAREN
                           | DIRICHLET LPAREN IDENT COMMA expr RPAREN
                           | POISSON LPAREN expr RPAREN
                           | WEIBULL LPAREN expr COMMA expr RPAREN

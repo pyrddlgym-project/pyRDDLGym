@@ -750,7 +750,9 @@ class RDDLSimulator:
         elif name == 'Gompertz':
             return self._sample_gompertz(expr, subs)
         elif name == 'Discrete':
-            return self._sample_discrete(expr, subs)
+            return self._sample_discrete(expr, subs, unnorm=False)
+        elif name == 'UnnormDiscrete':
+            return self._sample_discrete(expr, subs, unnorm=True)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -955,20 +957,22 @@ class RDDLSimulator:
         U = self.rng.uniform(size=size)
         return np.log(1.0 - np.log1p(-U) / sample_shape) / sample_scale
     
-    def _sample_discrete(self, expr, subs):
+    def _sample_discrete(self, expr, subs, unnorm):
         
         # calculate the CDF
         pdf = np.asarray([self._sample(arg, subs) 
                           for arg in self.traced.cached_sim_info(expr)])
         cdf = np.cumsum(pdf, axis=0)
         
-        # must be a valid density
+        # must be non-negative
         if not np.all(pdf >= 0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must be non-negative, got {pdf}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))  
-             
+          
         # CDF must sum to one
+        if unnorm:
+            cdf /= cdf[-1:, ...]
         if not np.allclose(cdf[-1, ...], 1.0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must sum to 1, got {cdf[-1, ...]}.\n' + 

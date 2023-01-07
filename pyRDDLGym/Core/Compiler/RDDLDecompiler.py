@@ -120,7 +120,7 @@ class RDDLDecompiler:
     def _decompile_random(self, expr, enclose, level):
         _, op = expr.etype
         
-        if op == 'Discrete':
+        if op == 'Discrete' or op == 'UnnormDiscrete':
             (_, var), *args = expr.args
             cases = [var]
             for (_, (literal, arg)) in args:

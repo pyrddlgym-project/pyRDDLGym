@@ -567,7 +567,7 @@ class RDDLObjectsTracer:
     
     def _trace_random(self, expr, objects, out):
         _, name = expr.etype
-        if name == 'Discrete':
+        if name == 'Discrete' or name == 'UnnormDiscrete':
             self._trace_discrete(expr, objects, out)
         else:
             self._trace_random_other(expr, objects, out)
@@ -582,13 +582,19 @@ class RDDLObjectsTracer:
                 f'enum, must be one of {self.rddl.enum_types}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
             
-        # no duplicate cases are allowed, and no default assumed
+        # no duplicate cases are allowed
         case_dict = dict(case_tup for (_, case_tup) in cases)
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Duplicated literal or default cases.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
+        # no default cases are allowed
+        if 'default' in case_dict:
+            raise RDDLNotImplementedError(
+                f'Default case not allowed in Discrete distribution.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+            
         # order enum cases by canonical ordering of literals
         cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr)
     
