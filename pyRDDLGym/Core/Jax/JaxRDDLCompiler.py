@@ -712,7 +712,9 @@ class JaxRDDLCompiler:
         elif name == 'Gompertz':
             return self._jax_gompertz(expr)
         elif name == 'Discrete':
-            return self._jax_discrete(expr)
+            return self._jax_discrete(expr, unnorm=False)
+        elif name == 'UnnormDiscrete':
+            return self._jax_discrete(expr, unnorm=True)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -1057,7 +1059,7 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gompertz
     
-    def _jax_discrete(self, expr):
+    def _jax_discrete(self, expr, unnorm):
         ERR0 = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
@@ -1078,9 +1080,13 @@ class JaxRDDLCompiler:
             sample_cdf = jnp.cumsum(sample_pdfs, axis=0)
             
             # check this is a valid PDF
-            out_of_bounds = jnp.logical_not(jnp.logical_and(
-                jnp.all(sample_pdfs >= 0),
-                jnp.allclose(sample_cdf[-1, ...], 1.0)))
+            if unnorm:
+                out_of_bounds = jnp.logical_not(jnp.all(sample_pdfs >= 0))
+                sample_cdf = sample_cdf / sample_cdf[-1:, ...]
+            else:
+                out_of_bounds = jnp.logical_not(jnp.logical_and(
+                    jnp.all(sample_pdfs >= 0),
+                    jnp.allclose(sample_cdf[-1, ...], 1.0)))
             err |= (out_of_bounds * ERR)
             
             # reparameterization trick using inverse CDF sampling
