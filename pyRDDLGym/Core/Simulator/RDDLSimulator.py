@@ -972,7 +972,7 @@ class RDDLSimulator:
           
         # CDF must sum to one
         if unnorm:
-            cdf /= cdf[-1:, ...]
+            cdf = cdf / cdf[-1:, ...]
         if not np.allclose(cdf[-1, ...], 1.0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must sum to 1, got {cdf[-1, ...]}.\n' + 
