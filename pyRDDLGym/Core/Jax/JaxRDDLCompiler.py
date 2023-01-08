@@ -263,15 +263,15 @@ class JaxRDDLCompiler:
         subs = self.init_values
         key = jax.random.PRNGKey(42)
         printed = {}
+        printed['cpfs'] = {name: str(jax.make_jaxpr(expr)(subs, key))
+                           for (name, expr) in self.cpfs.items()}
+        printed['reward'] = str(jax.make_jaxpr(self.reward)(subs, key))
         printed['invariants'] = [str(jax.make_jaxpr(expr)(subs, key))
                                  for expr in self.invariants]
         printed['preconditions'] = [str(jax.make_jaxpr(expr)(subs, key))
                                     for expr in self.preconditions]
         printed['terminations'] = [str(jax.make_jaxpr(expr)(subs, key))
                                    for expr in self.termination]
-        printed['cpfs'] = {name: str(jax.make_jaxpr(expr)(subs, key))
-                           for (name, expr) in self.cpfs.items()}
-        printed['reward'] = str(jax.make_jaxpr(self.reward)(subs, key))
         return printed
         
     @staticmethod
