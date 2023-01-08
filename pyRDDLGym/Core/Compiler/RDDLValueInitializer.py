@@ -95,22 +95,28 @@ class RDDLValueInitializer:
         return np_init_values
     
     def _enum_literals_to_ints(self, literals, prange, var):
-        rddl = self.rddl
         is_scalar = isinstance(literals, str)
         if is_scalar:
             literals = [literals]
+            
         indices = []
         for literal in literals:
             if literal is None:
                 indices.append(0)
-            elif rddl.objects_rev.get(literal, None) == prange:
-                index = rddl.index_of_object[literal]
-                indices.append(index)
             else:
-                raise RDDLInvalidObjectError(
-                    f'Literal <{literal}> assigned to variable <{var}> '
-                    f'does not belong to enum <{prange}>, '
-                    f'must be one of {set(rddl.objects[prange])}.')
+                
+                # literal is either undefined or not the right type
+                literal = self.rddl.literal_name(literal)
+                if self.rddl.objects_rev.get(literal, None) != prange:
+                    raise RDDLInvalidObjectError(
+                        f'Value <{literal}> assigned to variable <{var}> '
+                        f'does not belong to enum <{prange}>, '
+                        f'must be one of {set(self.rddl.objects[prange])}.')
+                
+                # canonical index of literal in object list
+                index = self.rddl.index_of_object[literal]
+                indices.append(index)
+                
         if is_scalar:
             indices = indices[0]
         return indices

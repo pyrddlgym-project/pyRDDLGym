@@ -419,10 +419,10 @@ class JaxRDDLCompiler:
     
     def _jax_pvar(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        var, _ = expr.args  
+        var, pvars = expr.args  
         
         # boundary case: enum literal is converted to canonical integer index
-        if var in self.rddl.enum_literals:
+        if not pvars and self.rddl.is_literal(var):
             cached_literal = self.traced.cached_sim_info(expr)
             
             def _jax_wrapped_pvar_literal(_, key):
