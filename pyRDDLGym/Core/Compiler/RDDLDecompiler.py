@@ -1,3 +1,5 @@
+from typing import Dict, List, Union
+
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.cpf import CPF
 
@@ -7,11 +9,11 @@ class RDDLDecompiler:
     the corresponding expression in RDDL.
     '''
     
-    def _symbolic(self, value, params):
+    def _symbolic(self, value, params, aggregation):
         value = str(value)
         if params is not None and params:
-            if isinstance(params, dict):
-                args = ', '.join(f'{k}:{v}' for k, v in params.items())
+            if aggregation:
+                args = ', '.join(f'{k}: {v}' for (k, v) in params)
                 args = f'_{{{args}}}'
             else:
                 args = ', '.join(map(str, params))
@@ -32,9 +34,25 @@ class RDDLDecompiler:
         
         :param cpf: the CPF object to convert
         '''
-        lhs = self._symbolic(*cpf.pvar[1])
+        lhs = self._symbolic(*cpf.pvar[1], aggregation=False)
         rhs = self.decompile_expr(cpf.expr)
         return f'{lhs} = {rhs};'
+    
+    def decompile_exprs(self, rddl) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
+        '''Converts a RDDL model to a dictionary of decompiled expression strings,
+        as they would appear in the domain description file.
+        '''
+        decompiled = {}
+        decompiled['cpfs'] = {name: self.decompile_expr(expr)
+                              for (name, (_, expr)) in rddl.cpfs.items()}
+        decompiled['reward'] = self.decompile_expr(rddl.reward)
+        decompiled['invariants'] = [self.decompile_expr(expr) 
+                                    for expr in rddl.invariants]
+        decompiled['preconditions'] = [self.decompile_expr(expr) 
+                                       for expr in rddl.preconditions]
+        decompiled['terminations'] = [self.decompile_expr(expr) 
+                                      for expr in rddl.terminals]
+        return decompiled
         
     def _decompile(self, expr, enclose, level):
         etype, _ = expr.etype
@@ -56,12 +74,18 @@ class RDDLDecompiler:
             raise Exception(f'Internal error: type {etype} is undefined.')
     
     def _decompile_constant(self, expr, enclose, level):
-        return str(expr.args)
+        value = expr.args
+        if isinstance(value, bool):
+            if value == True:
+                value = 'true'
+            elif value == False:
+                value = 'false'
+        return str(value)
         
     def _decompile_pvar(self, expr, enclose, level):
         _, name = expr.etype
         _, params = expr.args        
-        return self._symbolic(name, params)
+        return self._symbolic(name, params, aggregation=False)
         
     def _decompile_math(self, expr, enclose, level):
         _, op = expr.etype
@@ -77,8 +101,8 @@ class RDDLDecompiler:
     def _decompile_aggregation(self, expr, enclose, level):
         * pvars, arg = expr.args
         _, op = expr.etype
-        params = dict(p[1] for p in pvars)
-        agg = self._symbolic(op, params)
+        params = [p[1] for p in pvars]
+        agg = self._symbolic(op, params, aggregation=True)
         decompiled = self._decompile(arg, False, level)        
         return f'( {agg} [ {decompiled} ] )'
         
