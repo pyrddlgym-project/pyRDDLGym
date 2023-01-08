@@ -576,7 +576,7 @@ class PlanningModel(metaclass=ABCMeta):
         printed['reward'] = str(self.reward)
         printed['invariants'] = [str(expr) for expr in self.invariants]
         printed['preconditions'] = [str(expr) for expr in self.preconditions]
-        printed['terminations'] = [str(expr) for expr in self.termination]
+        printed['terminations'] = [str(expr) for expr in self.terminals]
         return printed
 
     
