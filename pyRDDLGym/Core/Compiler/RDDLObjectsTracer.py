@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Callable, List, Set, Tuple, Union
+from typing import List, Set, Tuple, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -179,7 +179,7 @@ class RDDLObjectsTracer:
             if objects:
                 slices, literals = self._slice(var, pvars)
                 transform = self._map(var, pvars, objects, literals)
-                cached_sim_info = (slices, transform)
+                cached_sim_info = (slices,) + transform
             else:
                 cached_sim_info = None
             
@@ -242,13 +242,12 @@ class RDDLObjectsTracer:
     def _map(self, var: str,
              obj_in: List[str],
              sign_out: List[Tuple[str, str]],
-             literals: Set[int]) -> Callable[[np.ndarray], np.ndarray]:
-        '''Returns a function that transforms a pvariable value tensor to one
-        whose shape matches a desired output signature. This operation is
+             literals: Set[int]) -> Tuple[object, ...]:
+        '''Returns information needed to reshape and transform value tensor for a
+        parameterized variable to match desired output signature. This operation is
         achieved by adding new dimensions to the value as needed, and performing
         a combination of transposition/reshape/einsum operations to coerce the 
-        value to the desired shape. Also returns a string of additional info
-        about the transformation.
+        value to the desired shape.
         
         :param var: a string pvariable defined in the domain
         :param obj_in: a list of desired object quantifications, e.g. ?x, ?y at
@@ -257,9 +256,6 @@ class RDDLObjectsTracer:
             desired signature of the output pvariable tensor
         :param literals: which indices of obj_in are treated as
             literal (e.g. enum literal or another pvariable) parameters
-        :param gnp: the library in which to perform tensor arithmetic 
-        (either numpy or jax.numpy)
-        :param msg: a stack trace to print for error handling
         '''
                
         # check that the number of input objects match fluent type definition
