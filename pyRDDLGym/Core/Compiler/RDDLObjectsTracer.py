@@ -48,17 +48,13 @@ class RDDLObjectsTracer:
     VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
     def __init__(self, rddl: PlanningModel,
-                 tensorlib=np,
                  logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
-        :param tensorlib: whether to use numpy or jax.numpy (jax) for tensor
-        arithmetic (einsum, transpose, etc.)
         :param logger: to log compilation information during tracing to file
         '''
         self.rddl = rddl
-        self.tensorlib = tensorlib
         self.logger = logger
             
     @staticmethod
@@ -82,7 +78,6 @@ class RDDLObjectsTracer:
         AST nodes with object information.
         '''   
         rddl = self.rddl 
-        self._cached_transforms = {}
         out = RDDLTracedObjects()   
         
         # trace CPFs; for enum-valued check type matches
@@ -340,31 +335,10 @@ class RDDLObjectsTracer:
         else:
             subscripts = None
         
-        # check if the tensor transform with the given signature already exists
-        # if yes retrieve it from the cache, otherwise build and cache it    
-        _np = self.tensorlib
-        _id = f'{new_axis}_{out_shape}_{use_einsum}_{use_tr}_{subscripts}'
-        _wrapped_fill_missing_params = self._cached_transforms.get(_id, None) 
-        
-        if _wrapped_fill_missing_params is None:
-            
-            def _wrapped_fill_missing_params(arg):
-                sample = arg
-                if new_axis:
-                    sample = _np.expand_dims(sample, axis=new_axis)
-                    sample = _np.broadcast_to(sample, shape=out_shape)
-                if use_einsum:
-                    sample = _np.einsum(subscripts, sample)
-                elif use_tr:
-                    sample = _np.transpose(sample, axes=subscripts)
-                return sample
-            
-            self._cached_transforms[_id] = _wrapped_fill_missing_params
-        
         # log information about the new transformation
         if self.logger is not None:
-            operation = _np.einsum if use_einsum else (
-                            _np.transpose if use_tr else 'None')
+            operation = 'einsum' if use_einsum else (
+                'transpose' if use_tr else 'None')
             message = (f'computing info for filling missing pvariable arguments:' 
                        f'\n\tvar           ={var}'
                        f'\n\toriginal args ={old_sign_in}'
@@ -372,11 +346,10 @@ class RDDLObjectsTracer:
                        f'\n\tnew args      ={sign_in}'
                        f'\n\ttarget args   ={sign_out}'
                        f'\n\tnew axes      ={new_axis}'
-                       f'\n\toperation     ={operation}, subscripts={subscripts}'
-                       f'\n\tunique op id  ={id(_wrapped_fill_missing_params)}\n')
+                       f'\n\toperation     ={operation}, subscripts={subscripts}\n')
             self.logger.log(message)
             
-        return _wrapped_fill_missing_params
+        return (new_axis, out_shape, use_einsum, use_tr, subscripts)
     
     # ===========================================================================
     # compound expressions
