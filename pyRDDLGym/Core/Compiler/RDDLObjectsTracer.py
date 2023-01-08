@@ -84,11 +84,37 @@ class RDDLObjectsTracer:
         rddl = self.rddl 
         self._cached_transforms = {}
         out = RDDLTracedObjects()   
-        for (objects, expr) in rddl.cpfs.values():
+        
+        # trace CPFs; for enum-valued check type matches
+        for (cpf, (objects, expr)) in rddl.cpfs.items():
             self._trace(expr, objects, out)
+            cpf_range = rddl.variable_ranges[cpf]
+            expr_range = out.cached_enum_type(expr)
+            if cpf_range in rddl.enum_types and expr_range != cpf_range:
+                if expr_range is None:
+                    raise RDDLTypeError(
+                        f'CPF <{cpf}> expects enum value of type <{cpf_range}>, '
+                        f'got non-enum value.')
+                else:
+                    raise RDDLTypeError(
+                        f'CPF <{cpf}> expects enum value of type <{cpf_range}>, '
+                        f'got enum value of type <{expr_range}>.')
+
+        # trace reward; check not enum value
         self._trace(rddl.reward, [], out)
-        for expr in rddl.invariants + rddl.preconditions + rddl.terminals:
+        RDDLObjectsTracer._check_not_enum(rddl.reward, rddl.reward, out, 'reward')
+        
+        # trace all constraints; check not enum value
+        for (i, expr) in enumerate(rddl.invariants):
             self._trace(expr, [], out)
+            RDDLObjectsTracer._check_not_enum(expr, expr, out, f'Invariant {i + 1}')
+        for (i, expr) in enumerate(rddl.preconditions):
+            self._trace(expr, [], out)
+            RDDLObjectsTracer._check_not_enum(expr, expr, out, f'Precondition {i + 1}')
+        for (i, expr) in enumerate(rddl.terminals):
+            self._trace(expr, [], out)
+            RDDLObjectsTracer._check_not_enum(expr, expr, out, f'Termination {i + 1}')
+            
         return out
         
     # ===========================================================================
