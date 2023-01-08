@@ -266,8 +266,8 @@ class RDDLObjectsTracer:
         (either numpy or jax.numpy)
         :param msg: a stack trace to print for error handling
         '''
-                
-        # check that the input objects match fluent type definition
+               
+        # check that the number of input objects match fluent type definition
         if obj_in is None:
             obj_in = []
         types_in = self.rddl.param_types.get(var, [])
@@ -444,9 +444,20 @@ class RDDLObjectsTracer:
                 f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
             
-        # check for duplicated iteration variables
+        # check for valid type arguments
+        pargs_to_type = set()
         for (_, (free_new, _)) in pargs:
-            for (free_old, _) in objects:
+            
+            # check that there is no duplicated iteration variable
+            if free_new in pargs_to_type:
+                raise RDDLInvalidObjectError(
+                    f'Iteration variable <{free_new}> is repeated in aggregation.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))             
+            pargs_to_type.add(free_new)
+             
+            # check if iteration variable is same as one defined in outer scope
+            # since there is ambiguity to which is referred I raise an error
+            for (free_old, _) in objects: 
                 if free_new == free_old:
                     raise RDDLInvalidObjectError(
                         f'Iteration variable <{free_new}> is already defined '
