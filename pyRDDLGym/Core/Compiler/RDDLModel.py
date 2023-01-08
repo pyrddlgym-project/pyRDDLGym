@@ -568,6 +568,16 @@ class PlanningModel(metaclass=ABCMeta):
     
     def groundobservranges(self):
         return self.ground_ranges_from_dict(self.observranges)
+    
+    def print_expr(self):
+        printed = {}
+        printed['cpfs'] = {name: str(expr) 
+                           for (name, (_, expr)) in self.cpfs.items()}
+        printed['reward'] = str(self.reward)
+        printed['invariants'] = [str(expr) for expr in self.invariants]
+        printed['preconditions'] = [str(expr) for expr in self.preconditions]
+        printed['terminations'] = [str(expr) for expr in self.termination]
+        return printed
 
     
 class RDDLGroundedModel(PlanningModel):
