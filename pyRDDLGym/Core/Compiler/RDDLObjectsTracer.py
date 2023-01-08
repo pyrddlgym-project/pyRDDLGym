@@ -445,24 +445,24 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
             
         # check for valid type arguments
-        pargs_to_type = set()
+        outer_scope_vars = {var for (var, _) in objects}
+        free_vars_seen = set()
         for (_, (free_new, _)) in pargs:
             
             # check that there is no duplicated iteration variable
-            if free_new in pargs_to_type:
+            if free_new in free_vars_seen:
                 raise RDDLInvalidObjectError(
                     f'Iteration variable <{free_new}> is repeated in aggregation.\n' + 
                     RDDLObjectsTracer._print_stack_trace(expr))             
-            pargs_to_type.add(free_new)
+            free_vars_seen.add(free_new)
              
             # check if iteration variable is same as one defined in outer scope
             # since there is ambiguity to which is referred I raise an error
-            for (free_old, _) in objects: 
-                if free_new == free_old:
-                    raise RDDLInvalidObjectError(
-                        f'Iteration variable <{free_new}> is already defined '
-                        f'in outer scope.\n' + 
-                        RDDLObjectsTracer._print_stack_trace(expr))
+            if free_new in outer_scope_vars:
+                raise RDDLInvalidObjectError(
+                    f'Iteration variable <{free_new}> is already defined '
+                    f'in outer scope.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
         
         # trace the aggregated expression with the new objects
         self._trace(arg, new_objects, out)
