@@ -80,10 +80,10 @@ class RDDLLevelAnalysis:
             pass
         
         elif expr.is_pvariable_expression():
-            name, *_ = expr.args
+            name, pvars = expr.args
             
             # enum literals are ignored
-            if name in self.rddl.enum_literals:
+            if not pvars and self.rddl.is_literal(name):
                 pass
             
             # variable defined in pvariables {..} scope
@@ -93,8 +93,8 @@ class RDDLLevelAnalysis:
                 var_type = self.rddl.variable_types.get(name, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
-                        f'Variable or literal <{name}> in CPF <{cpf}> '
-                        f'is not defined.')
+                        f'Variable <{name}> is not defined. '
+                        f'Please check expression for CPF <{cpf}>.')
                 
                 # if var is a fluent assign it as dependent of cpf
                 elif var_type != 'non-fluent':

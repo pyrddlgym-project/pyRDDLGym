@@ -389,6 +389,35 @@ class PlanningModel(metaclass=ABCMeta):
         for objects in self.variations(ptypes):
             yield self.ground_name(name, objects)
         
+    def is_literal(self, name: str, msg='') -> bool:
+        
+        # this must be a literal
+        if name[0] == '@':
+            if name not in self.enum_literals:
+                raise RDDLInvalidObjectError(
+                    f'Literal <{name}> is not defined, '
+                    f'must be one of {self.enum_literals}. {msg}')
+            return True
+        
+        # this could either be a literal or variable
+        # literal if a variable does not exist with the same name
+        # literal if a variable has the same name but free parameters
+        # ambiguous if a variable has the same name but no free parameters
+        literal = '@' + name
+        if literal in self.enum_literals:
+            params = self.param_types.get(name, None)
+            if params is not None and not params:
+                raise RDDLInvalidObjectError(
+                    f'Ambiguous reference to literal <{literal}> or '
+                    f'variable <{name}> with no parameters. {msg}')
+            return True
+        
+        # this must be a variable or free parameter
+        return False
+    
+    def literal_name(self, name: str) -> str:
+        return name if name[0] == '@' else ('@' + name)
+        
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given variable can be evaluated
         for the given list of objects.
@@ -426,20 +455,18 @@ class PlanningModel(metaclass=ABCMeta):
             return False
         
         elif etype == 'pvar':
-            name = expr.args[0]
+            name, pvars = expr.args
             
             # enum literal is non-fluent
-            if name in self.enum_literals:
+            if not pvars and self.is_literal(name):
                 return True
-             
-            # pvariable must be well-defined and "non-fluent" type
+            
+            # variable must be well-defined and non-fluent
             else:
                 var_type = self.variable_types.get(name, None)     
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
-                        f'Variable or literal <{name}> is not defined, '
-                        f'must be an enum literal in {self.enum_literals} '
-                        f'or one of {set(self.variable_types.keys())}.')
+                        f'Variable <{name}> is not defined.')
                 return var_type == 'non-fluent'
         
         else:

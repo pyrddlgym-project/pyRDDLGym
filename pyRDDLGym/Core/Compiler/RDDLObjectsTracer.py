@@ -138,8 +138,9 @@ class RDDLObjectsTracer:
         var, pvars = expr.args   
             
         # enum literal value treated as int
-        if var in self.rddl.enum_literals: 
-            const = self.rddl.index_of_object[var]
+        if not pvars and self.rddl.is_literal(var): 
+            literal = self.rddl.literal_name(var)
+            const = self.rddl.index_of_object[literal]
             if objects:
                 ptypes = (ptype for (_, ptype) in objects)
                 shape = self.rddl.object_counts(ptypes)
@@ -147,7 +148,7 @@ class RDDLObjectsTracer:
             else:
                 cached_value = const
                 
-            enum_type = self.rddl.objects_rev[var]            
+            enum_type = self.rddl.objects_rev[literal]            
             out._append(expr, objects, enum_type, cached_value)
         
         # if the pvar has free variables:
@@ -186,11 +187,18 @@ class RDDLObjectsTracer:
         cached_slices, literals = [], set()
         for (i, pvar) in enumerate(pvars):
             
+            # nested fluents not yet supported
+            if isinstance(pvar, tuple):
+                raise RDDLNotImplementedError(
+                    f'Nested variables are not yet supported.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(pvars))
+            
             # is an enum literal
-            if pvar in self.rddl.enum_literals:
+            if self.rddl.is_literal(pvar):
+                literal = self.rddl.literal_name(pvar)
                 
                 # check that the enum type argument is correct
-                enum_type = self.rddl.objects_rev[pvar]
+                enum_type = self.rddl.objects_rev[literal]
                 if types_in[i] != enum_type: 
                     raise RDDLInvalidObjectError(
                         f'Argument {i + 1} of variable <{var}> expects type '
@@ -198,7 +206,7 @@ class RDDLObjectsTracer:
                 
                 # an enum literal argument (e.g., @x) corresponds to slicing
                 # value tensor at this axis with canonical index of the literal  
-                index = self.rddl.index_of_object[pvar]
+                index = self.rddl.index_of_object[literal]
                 cached_slices.append(index)
                 literals.add(i)
             

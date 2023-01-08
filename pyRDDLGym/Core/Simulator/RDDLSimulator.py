@@ -246,11 +246,12 @@ class RDDLSimulator:
                 new_actions[action] = value
             else:
                 var, objects = rddl.parse(action)
-                if var not in new_actions: 
+                tensor = new_actions.get(var, None)
+                if tensor is None: 
                     raise RDDLInvalidActionError(
-                        f'<{action}> is not a valid action-fluent.')
-                tensor = new_actions[var]                
-                RDDLSimulator._check_type(value, tensor.dtype, action, '')            
+                        f'<{action}> is not a valid action-fluent, ' 
+                        f'must be one of {set(new_actions.keys())}.')
+                RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
                 tensor[rddl.indices(objects)] = value
                 
         return new_actions
@@ -388,10 +389,10 @@ class RDDLSimulator:
         return self.traced.cached_sim_info(expr)
     
     def _sample_pvar(self, expr, subs):
-        var, *_ = expr.args
+        var, pvars = expr.args
         
         # literal of enumerated type is treated as integer
-        if var in self.rddl.enum_literals:
+        if not pvars and self.rddl.is_literal(var):
             return self.traced.cached_sim_info(expr)
         
         # extract variable value
