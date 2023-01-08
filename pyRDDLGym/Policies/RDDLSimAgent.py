@@ -14,22 +14,18 @@ class RDDLSimAgent:
     def __init__(self, domain, instance, numrounds, time, port=2323):
         self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
 
-        # read domain file
+        # concatenate domain and instance files
         f = open(domain)
-        self.domain = f.read()
-        self.domain = os.linesep.join([s for s in self.domain.splitlines() if s.strip()])
-        self.domain = base64.b64encode(str.encode(self.domain))
-        self.domain = self.domain.decode("ascii")
+        self.task = f.read()
         f.close()
-
-        # read instance file
         f = open(instance)
-        self.instance = f.read()
-        self.instance = os.linesep.join([s for s in self.instance.splitlines() if s.strip()])
-        self.instance = base64.b64encode(str.encode(self.instance))
-        self.instance = self.instance.decode("ascii")
+        self.task = self.task + f.read()
         f.close()
 
+        # encode task
+        self.task = base64.b64encode(str.encode(self.task))
+        self.task = self.task.decode("ascii")
+        
         # initialize RDDLSimAgent
         self.roundsleft = numrounds
         self.currentround = 0
@@ -155,7 +151,7 @@ class RDDLSimAgent:
 
     def build_session_request_msg(self):
         msg = "<session-init>"
-        msg = msg + "<task>" + str(self.domain) + str(self.instance) + "</task>"
+        msg = msg + "<task>" + str(self.task) + "</task>"
         msg = msg + "<session-id>0</session-id>"
         msg = msg + "<num-rounds>" + str(self.roundsleft) + "</num-rounds>"
         msg = msg + "<time-allowed>" + str(self.time) + "</time-allowed>"
