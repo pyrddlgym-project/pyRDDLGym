@@ -56,7 +56,7 @@ class JaxRDDLCompiler:
             self.logger.log(message)
         
         # trace expressions to cache information to be used later
-        tracer = RDDLObjectsTracer(rddl, tensorlib=jnp, logger=self.logger)
+        tracer = RDDLObjectsTracer(rddl, logger=self.logger)
         self.traced = tracer.trace()
         
         # basic operations        
@@ -441,13 +441,19 @@ class JaxRDDLCompiler:
             return _jax_wrapped_pvar_scalar
         
         # must slice and/or reshape value tensor to match free variables
-        slices, transform = shape_info 
+        slices, (axis, shape, use_einsum, use_tr, subscripts) = shape_info 
                 
         def _jax_wrapped_pvar_tensor(x, key):
             sample = jnp.asarray(x[var])
             if slices:
                 sample = sample[slices]
-            sample = transform(sample)
+            if axis:
+                sample = jnp.expand_dims(sample, axis=axis)
+                sample = jnp.broadcast_to(sample, shape=shape)
+            if use_einsum:
+                sample = jnp.einsum(subscripts, sample)
+            elif use_tr:
+                sample = jnp.transpose(sample, axes=subscripts)
             return sample, key, ERR
         
         return _jax_wrapped_pvar_tensor

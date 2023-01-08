@@ -59,7 +59,7 @@ class RDDLSimulator:
             self.logger.log(message)
         
         # trace expressions to cache information to be used later
-        tracer = RDDLObjectsTracer(rddl, tensorlib=np, logger=self.logger)
+        tracer = RDDLObjectsTracer(rddl, logger=self.logger)
         self.traced = tracer.trace()
         
         # initialize all fluent and non-fluent values        
@@ -405,10 +405,16 @@ class RDDLSimulator:
         # lifted domain must slice and/or reshape value tensor
         shape_info = self.traced.cached_sim_info(expr)
         if shape_info is not None:
-            slices, transform = shape_info
+            slices, (axis, shape, use_einsum, use_tr, subscripts) = shape_info
             if slices: 
                 sample = sample[slices]
-            sample = transform(sample)
+            if axis:
+                sample = np.expand_dims(sample, axis=axis)
+                sample = np.broadcast_to(sample, shape=shape)
+            if use_einsum:
+                sample = np.einsum(subscripts, sample)
+            elif use_tr:
+                sample = np.transpose(sample, axes=subscripts)
         return sample
     
     # ===========================================================================
