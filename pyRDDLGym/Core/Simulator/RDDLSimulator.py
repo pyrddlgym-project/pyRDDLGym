@@ -405,16 +405,16 @@ class RDDLSimulator:
         # lifted domain must slice and/or reshape value tensor
         shape_info = self.traced.cached_sim_info(expr)
         if shape_info is not None:
-            slices, axis, shape, use_einsum, use_tr, subscripts = shape_info
+            slices, axis, shape, op_code, op_args = shape_info
             if slices: 
                 sample = sample[slices]
             if axis:
                 sample = np.expand_dims(sample, axis=axis)
                 sample = np.broadcast_to(sample, shape=shape)
-            if use_einsum:
-                sample = np.einsum(subscripts, sample)
-            elif use_tr:
-                sample = np.transpose(sample, axes=subscripts)
+            if op_code == 0:
+                sample = np.einsum(sample, *op_args)
+            elif op_code == 1:
+                sample = np.transpose(sample, axes=op_args)
         return sample
     
     # ===========================================================================

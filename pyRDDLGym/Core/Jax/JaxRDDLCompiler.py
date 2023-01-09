@@ -441,7 +441,7 @@ class JaxRDDLCompiler:
             return _jax_wrapped_pvar_scalar
         
         # must slice and/or reshape value tensor to match free variables
-        slices, axis, shape, use_einsum, use_tr, subscripts = shape_info 
+        slices, axis, shape, op_code, op_args = shape_info 
                 
         def _jax_wrapped_pvar_tensor(x, key):
             sample = jnp.asarray(x[var])
@@ -450,10 +450,10 @@ class JaxRDDLCompiler:
             if axis:
                 sample = jnp.expand_dims(sample, axis=axis)
                 sample = jnp.broadcast_to(sample, shape=shape)
-            if use_einsum:
-                sample = jnp.einsum(subscripts, sample)
-            elif use_tr:
-                sample = jnp.transpose(sample, axes=subscripts)
+            if op_code == 0:
+                sample = jnp.einsum(sample, *op_args)
+            elif op_code == 1:
+                sample = jnp.transpose(sample, axes=op_args)
             return sample, key, ERR
         
         return _jax_wrapped_pvar_tensor

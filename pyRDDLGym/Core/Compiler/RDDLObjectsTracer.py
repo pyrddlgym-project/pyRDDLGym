@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Set, Tuple, Union
+from typing import List, Tuple, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -44,9 +44,7 @@ class RDDLObjectsTracer:
     annotates nodes with useful information about objects and enums that appear
     inside expressions.
     '''
-    
-    VALID_SYMBOLS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    
+        
     def __init__(self, rddl: PlanningModel,
                  logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
@@ -176,54 +174,48 @@ class RDDLObjectsTracer:
         # 1. enum literal args (e.g. @x) converted to ints and slice the array
         # 2. resulting array is reshaped and axes rearranged to match objects
         else:
-            if objects:
-                slices, literals = self._slice(var, pvars)
-                transform = self._map(var, pvars, objects, literals)
-                cached_sim_info = (slices,) + transform
-            else:
-                cached_sim_info = None
-            
+            cached_sim_info = self._map(expr, objects)           
             prange = self.rddl.variable_ranges.get(var, None)
             enum_type = prange if prange in self.rddl.enum_types else None            
             out._append(expr, objects, enum_type, cached_sim_info)
         
-    def _slice(self, var: str,
-               pvars: List[str]) -> Tuple[Set[int], Tuple[Union[int, slice], ...]]:
-        '''Given a var and a list of pvariable arguments containing both free 
-        and/or enum literals, produces a tuple of slice or int objects that, 
-        when indexed into an array of the appropriate shape, produces an array 
-        where all literals are evaluated in the array. Also returns a set of 
-        indices of pvars that are literals.
-        '''
+    def _map(self, expr: Expression,
+             objects: Union[List[Tuple[str, str]], None]) -> Tuple[object, ...]:
+        '''Returns information needed to reshape and transform value tensor for a
+        parameterized variable to match desired output signature.
         
-        # check that the number of pvariable arguments matches definition
-        if pvars is None:
-            pvars = []
-        types_in = self.rddl.param_types.get(var, [])
-        if len(pvars) != len(types_in):
+        :param expr: outputs of expression value tensor to transform
+        :param objects: a list of tuples (objecti, typei) representing the
+            desired signature of the output value tensor
+        '''
+        var, args = expr.args
+        
+        # check that the number of input objects match fluent type definition
+        if args is None:
+            args = []
+        args_types = self.rddl.param_types.get(var, [])
+        if len(args) != len(args_types):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {len(types_in)} parameter(s), '
-                f'got {len(pvars)}.')
-            
+                f'Variable <{var}> requires {len(args_types)} parameter(s), '
+                f'got {len(args)}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # literals are converted to canonical indices in their object list
+        # and used to extract from the value tensor at the corresponding axis
         cached_slices, literals = [], set()
-        for (i, pvar) in enumerate(pvars):
-            
-            # nested fluents not yet supported
-            if isinstance(pvar, tuple):
-                raise RDDLNotImplementedError(
-                    f'Nested variables are not yet supported.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(pvars))
+        for (i, arg) in enumerate(args):
             
             # is an enum literal
-            if self.rddl.is_literal(pvar):
-                literal = self.rddl.literal_name(pvar)
+            if self.rddl.is_literal(arg):
                 
                 # check that the enum type argument is correct
+                literal = self.rddl.literal_name(arg)
                 enum_type = self.rddl.objects_rev[literal]
-                if types_in[i] != enum_type: 
+                if args_types[i] != enum_type: 
                     raise RDDLInvalidObjectError(
                         f'Argument {i + 1} of variable <{var}> expects type '
-                        f'<{types_in[i]}>, got <{pvar}> of type <{enum_type}>.')
+                        f'<{args_types[i]}>, got <{arg}> of type <{enum_type}>.\n' + 
+                        RDDLObjectsTracer._print_stack_trace(expr))
                 
                 # an enum literal argument (e.g., @x) corresponds to slicing
                 # value tensor at this axis with canonical index of the literal  
@@ -236,78 +228,48 @@ class RDDLObjectsTracer:
             else:
                 colon = slice(None)
                 cached_slices.append(colon)
-                        
-        return (tuple(cached_slices), literals)
-
-    def _map(self, var: str,
-             obj_in: List[str],
-             sign_out: List[Tuple[str, str]],
-             literals: Set[int]) -> Tuple[object, ...]:
-        '''Returns information needed to reshape and transform value tensor for a
-        parameterized variable to match desired output signature. This operation is
-        achieved by adding new dimensions to the value as needed, and performing
-        a combination of transposition/reshape/einsum operations to coerce the 
-        value to the desired shape.
-        
-        :param var: a string pvariable defined in the domain
-        :param obj_in: a list of desired object quantifications, e.g. ?x, ?y at
-        which var will be evaluated
-        :param sign_out: a list of tuples (objecti, typei) representing the
-            desired signature of the output pvariable tensor
-        :param literals: which indices of obj_in are treated as
-            literal (e.g. enum literal or another pvariable) parameters
-        '''
-               
-        # check that the number of input objects match fluent type definition
-        if obj_in is None:
-            obj_in = []
-        types_in = self.rddl.param_types.get(var, [])
-        if len(obj_in) != len(types_in):
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {len(types_in)} parameter(s), '
-                f'got {len(obj_in)}.')
+        cached_slices = tuple(cached_slices)
         
         # eliminate literals
-        old_sign_in = tuple(zip(obj_in, types_in))
-        types_in = [p for (i, p) in enumerate(types_in) if i not in literals]
-        obj_in = [p for (i, p) in enumerate(obj_in) if i not in literals]
+        old_args_info = list(zip(args, args_types))
+        args = [p for (i, p) in enumerate(args) if i not in literals]
+        args_types = [p for (i, p) in enumerate(args_types) if i not in literals]
         
-        # reached limit on number of valid dimensions
-        valid_symbols = RDDLObjectsTracer.VALID_SYMBOLS
-        n_out = len(sign_out)
-        if n_out > len(valid_symbols):
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'At most {len(valid_symbols)} parameter(s) are supported '
-                f'but variable <{var}> has {n_out} argument(s).')
+        # map each parameter argument in expr to indices where they occur
+        obj_to_index_in_expr = {}
+        for (i, arg) in enumerate(args):
+            obj_to_index_in_expr.setdefault(arg, []).append(i)        
         
-        # find a map permutation(a,b,c...) -> (a,b,c...) for correct transpose
-        sign_in = tuple(zip(obj_in, types_in))
-        permutation = [None] * len(obj_in)
+        # find a map permutation(a,b,c...) -> (a,b,c...) for correct transpose        
+        permuted = [None] * len(args)
         new_dims = []
-        for (i_out, (o_out, t_out)) in enumerate(sign_out):
-            new_dim = True
-            for (i_in, (o_in, t_in)) in enumerate(sign_in):
-                if o_in == o_out:
-                    permutation[i_in] = i_out
-                    new_dim = False
-                    if t_out != t_in: 
-                        raise RDDLInvalidObjectError(
-                            f'Argument {i_in + 1} of variable <{var}> '
-                            f'expects type <{t_in}>, got <{o_out}> of type <{t_out}>.')
+        for (i, (obj, ptype)) in enumerate(objects):
+            indices_of_obj_in_expr = obj_to_index_in_expr.get(obj, [])
             
-            # need to expand the shape of the value array
-            if new_dim:
-                permutation.append(i_out)
-                num_objects = len(self.rddl.objects[t_out])
-                new_dims.append(num_objects)
+            # if ? variables match then rearrange axes according to 
+            # indices of occurrence in expr and do not expand the value array
+            # make sure type arguments match
+            if indices_of_obj_in_expr:
+                for index_of_obj in indices_of_obj_in_expr:
+                    if ptype != args_types[index_of_obj]: 
+                        raise RDDLInvalidObjectError(
+                            f'Argument {i + 1} of variable <{var}> '
+                            f'expects object of type <{args_types[index_of_obj]}>, '
+                            f'got <{obj}> of type <{ptype}>.\n' + 
+                            RDDLObjectsTracer._print_stack_trace(expr))
+                    permuted[index_of_obj] = i
+            
+            # need to expand the value array
+            else:
+                permuted.append(i)
+                new_dims.append(len(self.rddl.objects[ptype]))
                 
         # safeguard against any free remaining variables not accounted for
-        free_variables = {obj_in[i] 
-                          for (i, p) in enumerate(permutation) 
-                          if p is None}
-        if free_variables:
+        unresolved = {args[i] for (i, p) in enumerate(permuted) if p is None}
+        if unresolved:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> has unresolved parameter(s) {free_variables}.')
+                f'Variable <{var}> has unresolved parameter(s) {unresolved}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
         
         # compute the mapping function as follows:
         # 1. append new axes to value tensor equal to # of missing variables
@@ -316,36 +278,35 @@ class RDDLObjectsTracer:
         #     3a. in most cases, it suffices to use np.transform (cheaper)
         #     3b. in cases where we have a more complex contraction like 
         #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
-        in_shape = self.rddl.object_counts(types_in)
-        out_shape = in_shape + tuple(new_dims)
-        new_axis = tuple(range(len(in_shape), len(out_shape)))
-         
-        lhs = ''.join(valid_symbols[p] for p in permutation)        
-        rhs = valid_symbols[:n_out]
-        use_einsum = len(set(lhs)) != len(lhs)
-        use_tr = lhs != rhs
-        if use_einsum:
-            subscripts = lhs + '->' + rhs
-        elif use_tr:
-            subscripts = tuple(np.argsort(permutation))  # inverse permutation
+        shape_arg = self.rddl.object_counts(args_types)
+        shape_req = shape_arg + tuple(new_dims)
+        new_axis = tuple(range(len(shape_arg), len(shape_req)))
+          
+        rhs = list(range(len(objects)))
+        if len(set(permuted)) != len(permuted):
+            op_args = (permuted, rhs)
+            op_code = 0
+        elif permuted != rhs:
+            op_args = tuple(np.argsort(permuted))  # inverse permutation
+            op_code = 1
         else:
-            subscripts = None
+            op_args = None
+            op_code = 2
         
         # log information about the new transformation
         if self.logger is not None:
-            operation = 'einsum' if use_einsum else (
-                'transpose' if use_tr else 'None')
-            message = (f'computing info for filling missing pvariable arguments:' 
-                       f'\n\tvar           ={var}'
-                       f'\n\toriginal args ={old_sign_in}'
-                       f'\n\tliterals      ={literals}'
-                       f'\n\tnew args      ={sign_in}'
-                       f'\n\ttarget args   ={sign_out}'
-                       f'\n\tnew axes      ={new_axis}'
-                       f'\n\toperation     ={operation}, subscripts={subscripts}\n')
+            operation = ['einsum', 'transpose', 'none'][op_code]
+            message = (f'computing info for pvariable tensor transformation:' 
+                       f'\n\tvar                 ={var}'
+                       f'\n\toriginal arg(s)     ={old_args_info}'
+                       f'\n\tslice               ={cached_slices}'
+                       f'\n\tnew arg(s)          ={list(zip(args, args_types))}'
+                       f'\n\trequired type(s)    ={objects}'
+                       f'\n\tnew axes to append  ={new_axis}'
+                       f'\n\ttransform operation ={operation} with {op_args}\n')
             self.logger.log(message)
             
-        return (new_axis, out_shape, use_einsum, use_tr, subscripts)
+        return (cached_slices, new_axis, shape_req, op_code, op_args)
     
     # ===========================================================================
     # compound expressions
