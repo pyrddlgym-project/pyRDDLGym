@@ -263,7 +263,8 @@ class RDDLObjectsTracer:
             else:
                 permuted.append(i)
                 new_dims.append(len(self.rddl.objects[ptype]))
-                
+        new_dims = tuple(new_dims)
+        
         # safeguard against any free remaining variables not accounted for
         unresolved = {args[i] for (i, p) in enumerate(permuted) if p is None}
         if unresolved:
@@ -279,7 +280,7 @@ class RDDLObjectsTracer:
         #     3b. in cases where we have a more complex contraction like 
         #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
         shape_arg = self.rddl.object_counts(args_types)
-        shape_req = shape_arg + tuple(new_dims)
+        shape_req = shape_arg + new_dims
         new_axis = tuple(range(len(shape_arg), len(shape_req)))
           
         rhs = list(range(len(objects)))
@@ -297,13 +298,13 @@ class RDDLObjectsTracer:
         if self.logger is not None:
             operation = ['einsum', 'transpose', 'none'][op_code]
             message = (f'computing info for pvariable tensor transformation:' 
-                       f'\n\tvar                 ={var}'
-                       f'\n\toriginal arg(s)     ={old_args_info}'
-                       f'\n\tslice               ={cached_slices}'
-                       f'\n\tnew arg(s)          ={list(zip(args, args_types))}'
-                       f'\n\trequired type(s)    ={objects}'
-                       f'\n\tnew axes to append  ={new_axis}'
-                       f'\n\ttransform operation ={operation} with {op_args}\n')
+                       f'\n\tvariable             ={var}'
+                       f'\n\toriginal argument(s) ={old_args_info}'
+                       f'\n\tslice                ={cached_slices}'
+                       f'\n\tnew argument(s)      ={list(zip(args, args_types))}'
+                       f'\n\trequired type(s)     ={objects}'
+                       f'\n\tnew axes to append   ={new_axis} of shape(s) {new_dims}'
+                       f'\n\ttransform operation  ={operation} with argument(s) {op_args}\n')
             self.logger.log(message)
             
         return (cached_slices, new_axis, shape_req, op_code, op_args)
