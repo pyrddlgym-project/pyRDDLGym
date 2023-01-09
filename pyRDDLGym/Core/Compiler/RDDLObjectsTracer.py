@@ -202,7 +202,7 @@ class RDDLObjectsTracer:
         
         # literals are converted to canonical indices in their object list
         # and used to extract from the value tensor at the corresponding axis
-        cached_slices, literals = [], set()
+        slices, literals = [], set()
         for (i, arg) in enumerate(args):
             
             # is an enum literal
@@ -218,17 +218,15 @@ class RDDLObjectsTracer:
                         RDDLObjectsTracer._print_stack_trace(expr))
                 
                 # an enum literal argument (e.g., @x) corresponds to slicing
-                # value tensor at this axis with canonical index of the literal  
-                index = self.rddl.index_of_object[literal]
-                cached_slices.append(index)
+                # value tensor at this axis with canonical index of the literal 
+                slices.append(self.rddl.index_of_object[literal])
                 literals.add(i)
             
             # is a proper type argument (e.g., ?x): in this case do NOT slice
             # value tensor at all (e.g., emulate numpy's :) at this axis
             else:
-                colon = slice(None)
-                cached_slices.append(colon)
-        cached_slices = tuple(cached_slices)
+                slices.append(slice(None))
+        slices = tuple(slices)
         
         # eliminate literals
         old_args_info = list(zip(args, args_types))
@@ -283,14 +281,14 @@ class RDDLObjectsTracer:
         shape_req = shape_arg + new_dims
         new_axis = tuple(range(len(shape_arg), len(shape_req)))
           
-        rhs = list(range(len(objects)))
-        if len(set(permuted)) != len(permuted):
-            op_args = (permuted, rhs)
+        identity = list(range(len(objects)))        
+        if len(set(permuted)) != len(permuted):  # einsum
+            op_args = (permuted, identity)
             op_code = 0
-        elif permuted != rhs:
+        elif permuted != identity:  # transpose
             op_args = tuple(np.argsort(permuted))  # inverse permutation
             op_code = 1
-        else:
+        else:  # do nothing
             op_args = None
             op_code = 2
         
@@ -300,14 +298,14 @@ class RDDLObjectsTracer:
             message = (f'computing info for pvariable tensor transformation:' 
                        f'\n\tvariable             ={var}'
                        f'\n\toriginal argument(s) ={old_args_info}'
-                       f'\n\tslice                ={cached_slices}'
+                       f'\n\tslice                ={slices}'
                        f'\n\tnew argument(s)      ={list(zip(args, args_types))}'
                        f'\n\trequired type(s)     ={objects}'
                        f'\n\tnew axes to append   ={new_axis} of shape(s) {new_dims}'
                        f'\n\ttransform operation  ={operation} with argument(s) {op_args}\n')
             self.logger.log(message)
             
-        return (cached_slices, new_axis, shape_req, op_code, op_args)
+        return (slices, new_axis, shape_req, op_code, op_args)
     
     # ===========================================================================
     # compound expressions
