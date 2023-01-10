@@ -44,7 +44,7 @@ class RDDLObjectsTracer:
     annotates nodes with useful information about objects and enums that appear
     inside expressions.
     '''
-        
+            
     def __init__(self, rddl: PlanningModel,
                  logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
@@ -170,9 +170,7 @@ class RDDLObjectsTracer:
             enum_type = self.rddl.objects_rev[literal]            
             out._append(expr, objects, enum_type, cached_value)
         
-        # if the pvar has free variables:
-        # 1. enum literal args (e.g. @x) converted to ints and slice the array
-        # 2. resulting array is reshaped and axes rearranged to match objects
+        # if the pvar has free variables
         else:
             cached_sim_info = self._map(expr, objects)           
             prange = self.rddl.variable_ranges.get(var, None)
@@ -196,19 +194,22 @@ class RDDLObjectsTracer:
         args_types = self.rddl.param_types.get(var, [])
         if len(args) != len(args_types):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {len(args_types)} parameter(s), '
+                f'Variable <{var}> requires {len(args_types)} argument(s), '
                 f'got {len(args)}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # literals are converted to canonical indices in their object list
         # and used to extract from the value tensor at the corresponding axis
-        slices, literals = [], set()
+        object_index = {obj: i for (i, (obj, _)) in enumerate(objects)}
+        slices = [slice(None)] * len(args)
+        do_slice = False
+        permuted = []
         for (i, arg) in enumerate(args):
             
             # is an enum literal
             if self.rddl.is_literal(arg):
                 
-                # check that the enum type argument is correct
+                # check that the type of the literal is correct
                 literal = self.rddl.literal_name(arg)
                 enum_type = self.rddl.objects_rev[literal]
                 if args_types[i] != enum_type: 
@@ -217,75 +218,52 @@ class RDDLObjectsTracer:
                         f'<{args_types[i]}>, got <{arg}> of type <{enum_type}>.\n' + 
                         RDDLObjectsTracer._print_stack_trace(expr))
                 
-                # an enum literal argument (e.g., @x) corresponds to slicing
-                # value tensor at this axis with canonical index of the literal 
-                slices.append(self.rddl.index_of_object[literal])
-                literals.add(i)
+                # extract value at current dimension at literal's canonical index
+                slices[i] = self.rddl.index_of_object[literal]
+                do_slice = True
             
-            # is a proper type argument (e.g., ?x): in this case do NOT slice
-            # value tensor at all (e.g., emulate numpy's :) at this axis
+            # is a free object (e.g., ?x)
             else:
-                slices.append(slice(None))
-        slices = tuple(slices)
+                    
+                # make sure argument is well defined
+                index_of_arg_in_objects = object_index.get(arg, None)
+                if index_of_arg_in_objects is None:
+                    raise RDDLInvalidObjectError(
+                        f'Undefined argument <{arg}> in variable <{var}>.\n' + 
+                        RDDLObjectsTracer._print_stack_trace(expr))
+                
+                # make sure type of argument is correct
+                _, ptype = objects[index_of_arg_in_objects]
+                if ptype != args_types[i]:
+                    raise RDDLInvalidObjectError(
+                        f'Argument {i + 1} of variable <{var}> expects object of '
+                        f'type <{args_types[i]}>, got <{arg}> of type <{ptype}>.\n' + 
+                        RDDLObjectsTracer._print_stack_trace(expr))
+                            
+                # update permutation
+                permuted.append(index_of_arg_in_objects)                        
+        slices = tuple(slices) if do_slice else ()
         
-        # eliminate literals
-        old_args_info = list(zip(args, args_types))
-        args = [p for (i, p) in enumerate(args) if i not in literals]
-        args_types = [p for (i, p) in enumerate(args_types) if i not in literals]
-        
-        # map each parameter argument in expr to indices where they occur
-        obj_to_index_in_expr = {}
-        for (i, arg) in enumerate(args):
-            obj_to_index_in_expr.setdefault(arg, []).append(i)        
-        
-        # find a map permutation(a,b,c...) -> (a,b,c...) for correct transpose        
-        permuted = [None] * len(args)
-        new_dims = []
-        for (i, (obj, ptype)) in enumerate(objects):
-            indices_of_obj_in_expr = obj_to_index_in_expr.get(obj, [])
-            
-            # if ? variables match then rearrange axes according to 
-            # indices of occurrence in expr and do not expand the value array
-            # make sure type arguments match
-            if indices_of_obj_in_expr:
-                for index_of_obj in indices_of_obj_in_expr:
-                    if ptype != args_types[index_of_obj]: 
-                        raise RDDLInvalidObjectError(
-                            f'Argument {i + 1} of variable <{var}> '
-                            f'expects object of type <{args_types[index_of_obj]}>, '
-                            f'got <{obj}> of type <{ptype}>.\n' + 
-                            RDDLObjectsTracer._print_stack_trace(expr))
-                    permuted[index_of_obj] = i
-            
-            # need to expand the value array
-            else:
-                permuted.append(i)
-                new_dims.append(len(self.rddl.objects[ptype]))
-        new_dims = tuple(new_dims)
-        
-        # safeguard against any free remaining variables not accounted for
-        unresolved = {args[i] for (i, p) in enumerate(permuted) if p is None}
-        if unresolved:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> has unresolved parameter(s) {unresolved}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+        # update permutation based on objects not in args
+        len_after_slice = len(permuted)
+        covered = set(permuted)
+        permuted.extend([i for i in range(len(objects)) if i not in covered])
         
         # compute the mapping function as follows:
+        # 0. first assume all literals are "sliced out" of the value tensor
         # 1. append new axes to value tensor equal to # of missing variables
         # 2. broadcast new axes to the desired shape (# of objects of each type)
         # 3. rearrange the axes as needed to match the desired variables in order
         #     3a. in most cases, it suffices to use np.transform (cheaper)
         #     3b. in cases where we have a more complex contraction like 
         #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
-        shape_arg = self.rddl.object_counts(args_types)
-        shape_req = shape_arg + new_dims
-        new_axis = tuple(range(len(shape_arg), len(shape_req)))
-          
-        identity = list(range(len(objects)))        
-        if len(set(permuted)) != len(permuted):  # einsum
-            op_args = (permuted, identity)
+        new_axis = tuple(range(len_after_slice, len(permuted)))  
+        new_shape = tuple(len(self.rddl.objects[objects[i][1]]) for i in permuted)
+        objects_range = list(range(len(objects)))        
+        if len(covered) != len_after_slice:  # einsum
+            op_args = (permuted, objects_range)
             op_code = 0
-        elif permuted != identity:  # transpose
+        elif permuted != objects_range:  # transpose
             op_args = tuple(np.argsort(permuted))  # inverse permutation
             op_code = 1
         else:  # do nothing
@@ -296,16 +274,16 @@ class RDDLObjectsTracer:
         if self.logger is not None:
             operation = ['einsum', 'transpose', 'none'][op_code]
             message = (f'computing info for pvariable tensor transformation:' 
-                       f'\n\tvariable             ={var}'
-                       f'\n\toriginal argument(s) ={old_args_info}'
-                       f'\n\tslice                ={slices}'
-                       f'\n\tnew argument(s)      ={list(zip(args, args_types))}'
-                       f'\n\trequired type(s)     ={objects}'
-                       f'\n\tnew axes to append   ={new_axis} of shape(s) {new_dims}'
-                       f'\n\ttransform operation  ={operation} with argument(s) {op_args}\n')
+                       f'\n\tvariable                ={var}'
+                       f'\n\tvariable evaluated at   ={list(zip(args, args_types))}'
+                       f'\n\tfree object(s) in scope ={objects}'
+                       f'\n\tslice                   ={slices}'
+                       f'\n\tnew axes to append      ={new_axis}'
+                       f'\n\tbroadcast shape         ={new_shape}'
+                       f'\n\ttransform operation     ={operation} with argument(s) {op_args}\n')
             self.logger.log(message)
             
-        return (slices, new_axis, shape_req, op_code, op_args)
+        return (slices, new_axis, new_shape, op_code, op_args)
     
     # ===========================================================================
     # compound expressions
@@ -405,10 +383,11 @@ class RDDLObjectsTracer:
         # log information about aggregation operation
         if self.logger is not None:
             message = (f'computing object info for aggregation:'
-                       f'\n\toperator       ={op} {pargs}'
-                       f'\n\tinput objects  ={new_objects}'
-                       f'\n\toutput objects ={objects}'
-                       f'\n\toperation axes ={reduced_axes}\n')
+                       f'\n\taggregation variables(s)      ={pargs}'
+                       f'\n\tfree object(s) in outer scope ={objects}'
+                       f'\n\tfree object(s) in inner scope ={new_objects}'
+                       f'\n\taggregation operation         ={op}'
+                       f'\n\taggregation axes              ={reduced_axes}\n')
             self.logger.log(message)        
         
     def _trace_func(self, expr, objects, out):
