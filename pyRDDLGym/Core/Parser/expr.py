@@ -130,16 +130,23 @@ class Expression(object):
         
         #if expr.name == 'NEIGHBOR':
         #    print('my name is neighbor')
-            
-        if isinstance(expr, tuple):
-            return '{}{}'.format(ident, str(expr))
-
-        if expr.etype[0] in ['pvar', 'constant']:
-            return '{}Expression(etype={}, args={})'.format(ident, expr.etype, expr.args)
-                    
+        
+        # CHANGED BY MIKE ON JAN 10
         if not isinstance(expr, Expression):
             return '{}{}'.format(ident, str(expr))
 
+        if expr.etype[0] == 'constant':
+            return '{}Expression(etype={}, args={})'.format(ident, expr.etype, expr.args)
+        
+        if expr.etype[0] == 'pvar':
+            name, params = expr.args
+            if not isinstance(params, list):
+                return '{}Expression(etype={}, args={})'.format(ident, expr.etype, expr.args)
+            
+            args = '[' + ', '.join(cls.__expr_str(param, 0) for param in params) + ']'
+            args = '({}, {})'.format(name, args)
+            return '{}Expression(etype={}, args={})'.format(ident, expr.etype, args)
+            
         args = list(cls.__expr_str(arg, level + 1) for arg in expr.args)
         args = '\n'.join(args)
         return '{}Expression(etype={}, args=\n{})'.format(ident, expr.etype, args)

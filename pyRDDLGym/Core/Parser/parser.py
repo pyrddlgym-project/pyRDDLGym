@@ -552,15 +552,16 @@ class RDDLParser(object):
                 | control_expr
                 | randomvar_expr'''
         p[0] = Expression(p[1])
-
+    
+    # CHANGED BY MIKE ON JAN 10
     def p_pvar_expr(self, p):
         '''pvar_expr : IDENT LPAREN term_list RPAREN
                      | IDENT
                      | ENUM_VAL'''
         if len(p) == 2:
-            p[0] = ('pvar_expr', (p[1], None))
+            p[0] = Expression(('pvar_expr', (p[1], None)))
         elif len(p) == 5:
-            p[0] = ('pvar_expr', (p[1], p[3]))
+            p[0] = Expression(('pvar_expr', (p[1], p[3])))
 
     def p_group_expr(self, p):
         '''group_expr : LBRACK expr RBRACK
