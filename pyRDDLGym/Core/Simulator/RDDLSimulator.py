@@ -48,12 +48,20 @@ class RDDLSimulator:
         
         # compute dependency graph for CPFs and sort them by evaluation order
         sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
-        self.levels = sorter.compute_levels()        
-        
+        levels = sorter.compute_levels()      
+        self.cpfs = []  
+        for cpfs in levels.values():
+            for cpf in cpfs:
+                _, expr = rddl.cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
+                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                    prange, RDDLValueInitializer.INT)
+                self.cpfs.append((cpf, expr, dtype))
+                
         # log dependency graph information to file
         if self.logger is not None: 
             levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
-                                      for (k, v) in self.levels.items())
+                                      for (k, v) in levels.items())
             message = (f'computed order of CPF evaluation:\n' 
                        f'\t{levels_info}\n')
             self.logger.log(message)
@@ -199,16 +207,14 @@ class RDDLSimulator:
     
     @staticmethod
     def _check_positive(value, strict, msg, expr):
-        if strict:
-            if not np.all(value > 0):
-                raise RDDLValueOutOfRangeError(
-                    f'{msg} must be positive, got {value}.\n' + 
-                    RDDLSimulator._print_stack_trace(expr))
-        else:
-            if not np.all(value >= 0):
-                raise RDDLValueOutOfRangeError(
-                    f'{msg} must be non-negative, got {value}.\n' + 
-                    RDDLSimulator._print_stack_trace(expr))
+        if strict and not np.all(value > 0):
+            raise RDDLValueOutOfRangeError(
+                f'{msg} must be positive, got {value}.\n' + 
+                RDDLSimulator._print_stack_trace(expr))
+        elif not strict and not np.all(value >= 0):
+            raise RDDLValueOutOfRangeError(
+                f'{msg} must be non-negative, got {value}.\n' + 
+                RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
     def _check_bounds(lb, ub, msg, expr):
@@ -232,9 +238,9 @@ class RDDLSimulator:
     def _process_actions(self, actions):
         new_actions = {action: np.copy(value) 
                        for (action, value) in self.noop_actions.items()}
-        rddl = self.rddl
         
         # override new_actions with any new actions
+        rddl = self.rddl
         for (action, value) in actions.items(): 
             
             # enum literals are converted to their canonical int indices
@@ -281,7 +287,7 @@ class RDDLSimulator:
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
-        for (_, terminal) in enumerate(self.rddl.terminals):
+        for terminal in self.rddl.terminals:
             sample = self._sample(terminal, self.subs)
             RDDLSimulator._check_type(sample, bool, 'Termination', terminal)
             if bool(sample):
@@ -322,15 +328,10 @@ class RDDLSimulator:
         
         # evaluate CPFs in topological order
         rddl = self.rddl
-        for cpfs in self.levels.values():
-            for cpf in cpfs:
-                _, expr = rddl.cpfs[cpf]
-                sample = self._sample(expr, subs)
-                prange = rddl.variable_ranges[cpf]
-                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
-                    prange, RDDLValueInitializer.INT)
-                RDDLSimulator._check_type(sample, dtype, cpf, expr)
-                subs[cpf] = sample
+        for (cpf, expr, dtype) in self.cpfs:
+            sample = self._sample(expr, subs)
+            RDDLSimulator._check_type(sample, dtype, cpf, expr)
+            subs[cpf] = sample
         
         # evaluate reward
         reward = self.sample_reward()
@@ -389,10 +390,10 @@ class RDDLSimulator:
         return self.traced.cached_sim_info(expr)
     
     def _sample_pvar(self, expr, subs):
-        var, pvars = expr.args
+        var, args = expr.args
         
         # literal of enumerated type is treated as integer
-        if not pvars and self.rddl.is_literal(var):
+        if not args and self.rddl.is_literal(var):
             return self.traced.cached_sim_info(expr)
         
         # extract variable value
@@ -407,9 +408,10 @@ class RDDLSimulator:
         if shape_info is not None:
             slices, axis, shape, op_code, op_args = shape_info
             if slices: 
-                if op_code == 3:
-                    slices = tuple((self._sample(arg, subs) if s is None else s)
-                                   for (arg, s) in zip(pvars, slices))
+                if op_code == -1:
+                    slices = tuple(
+                        (self._sample(arg, subs) if _slice is None else _slice)
+                        for (arg, _slice) in zip(args, slices))
                 sample = sample[slices]
             if axis:
                 sample = np.expand_dims(sample, axis=axis)
@@ -431,16 +433,17 @@ class RDDLSimulator:
         
         args = expr.args        
         n = len(args)
-           
+        
+        # unary negation
         if n == 1 and op == '-':
             arg, = args
             return -1 * self._sample(arg, subs)
         
-        # for * try to short-circuit if possible
+        # binary operator: for * try to short-circuit if possible
         elif n == 2:
             lhs, rhs = args
             if op == '*':
-                return self._sample_product(args, subs)
+                return self._sample_product(lhs, rhs, subs)
             else:
                 sample_lhs = 1 * self._sample(lhs, subs)
                 sample_rhs = 1 * self._sample(rhs, subs)
@@ -452,7 +455,7 @@ class RDDLSimulator:
                         f'with arguments {sample_lhs} and {sample_rhs}.\n' + 
                         RDDLSimulator._print_stack_trace(expr))
         
-        # for a grounded domain, we can short-circuit * and +
+        # for a grounded domain can short-circuit * and +
         elif n > 0 and not self.traced.cached_objects_in_scope(expr):
             if op == '*':
                 return self._sample_product_grounded(args, subs)
@@ -464,8 +467,9 @@ class RDDLSimulator:
             f'number of arguments.\n' + 
             RDDLSimulator._print_stack_trace(expr))
     
-    def _sample_product(self, args, subs):
-        lhs, rhs = args
+    def _sample_product(self, lhs, rhs, subs):
+        
+        # prioritize simple expressions
         if rhs.is_constant_expression() or rhs.is_pvariable_expression():
             lhs, rhs = rhs, lhs
             
@@ -533,10 +537,10 @@ class RDDLSimulator:
         
         # try to short-circuit ^ and | if possible
         elif n == 2:
+            lhs, rhs = args
             if op == '^' or op == '|':
-                return self._sample_and_or(args, op, expr, subs)
+                return self._sample_and_or(lhs, rhs, op, expr, subs)
             else:
-                lhs, rhs = args
                 sample_lhs = self._sample(lhs, subs)
                 sample_rhs = self._sample(rhs, subs)
                 RDDLSimulator._check_type(sample_lhs, bool, op, expr, arg=1)
@@ -553,8 +557,7 @@ class RDDLSimulator:
             f'number of arguments.\n' + 
             RDDLSimulator._print_stack_trace(expr))
     
-    def _sample_and_or(self, args, op, expr, subs):
-        lhs, rhs = args
+    def _sample_and_or(self, lhs, rhs, op, expr, subs):
         
         # prioritize simple expressions
         if rhs.is_constant_expression() or rhs.is_pvariable_expression():
@@ -584,7 +587,7 @@ class RDDLSimulator:
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
-                if (not sample) and op == '^':
+                if not sample and op == '^':
                     return False
                 elif sample and op == '|':
                     return True
@@ -595,12 +598,12 @@ class RDDLSimulator:
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
-                if (not sample) and op == '^':
+                if not sample and op == '^':
                     return False
                 elif sample and op == '|':
                     return True
             
-        return (op == '^')
+        return op == '^'
             
     # ===========================================================================
     # aggregation

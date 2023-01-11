@@ -444,7 +444,7 @@ class JaxRDDLCompiler:
         slices, axis, shape, op_code, op_args = shape_info 
         
         # compile nested expressions
-        if slices and op_code == 3:
+        if slices and op_code == -1:
             jax_nested_expr = [self._jax(arg) 
                                 if _slice is None 
                                 else (lambda _, key: (_slice, key, ERR))

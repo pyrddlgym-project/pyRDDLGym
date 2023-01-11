@@ -38,7 +38,16 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
         self.terminals = jax.tree_map(jax.jit, compiled.termination)
         self.reward = jax.jit(compiled.reward)
-        self.cpfs = jax.tree_map(jax.jit, compiled.cpfs)
+        jax_cpfs = jax.tree_map(jax.jit, compiled.cpfs)
+        
+        # level analysis
+        self.cpfs = []  
+        for cpfs in self.levels.values():
+            for cpf in cpfs:
+                expr = jax_cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
+                dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, JaxRDDLCompiler.INT)
+                self.cpfs.append((cpf, expr, dtype))
         
         # initialize all fluent and non-fluent values    
         self.subs = self.init_values.copy() 
@@ -103,11 +112,9 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs.update(actions)
         
         # compute CPFs in topological order
-        for cpfs in self.levels.values():
-            for cpf in cpfs:
-                jax_expr = self.cpfs[cpf]
-                subs[cpf], self.key, error = jax_expr(subs, self.key)
-                self.handle_error_code(error, f'CPF <{cpf}>')            
+        for (cpf, expr, _) in self.cpfs:
+            subs[cpf], self.key, error = expr(subs, self.key)
+            self.handle_error_code(error, f'CPF <{cpf}>')            
                 
         # sample reward
         reward = self.sample_reward()
