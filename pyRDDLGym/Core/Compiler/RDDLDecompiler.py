@@ -14,11 +14,10 @@ class RDDLDecompiler:
         if params is not None and params:
             if aggregation:
                 args = ', '.join(f'{k}: {v}' for (k, v) in params)
-                args = f'_{{{args}}}'
+                value += f'_{{{args}}}'
             else:
                 args = ', '.join(map(str, params))
-                args = f'({args})'
-            value += args
+                value += f'({args})'
         return value
 
     def decompile_expr(self, expr: Expression) -> str:
@@ -85,34 +84,36 @@ class RDDLDecompiler:
     def _decompile_pvar(self, expr, enclose, level):
         _, name = expr.etype
         _, params = expr.args  
-        params = ((self._decompile(arg, False, 0) 
-                   if isinstance(arg, Expression) 
-                   else arg) 
+        params = ((self._decompile(arg, False, 0) if isinstance(arg, Expression) 
+                   else arg)
                   for arg in params)
         return self._symbolic(name, params, aggregation=False)
         
     def _decompile_math(self, expr, enclose, level):
         _, op = expr.etype
-        decompiled = [self._decompile(arg, True, level) for arg in expr.args]
-        if len(decompiled) == 1:
-            value = str(op) + decompiled[0]
+        args = expr.args
+        if len(args) == 1:
+            arg, = args
+            value = str(op) + self._decompile(arg, True, level)
         else:
-            value = (' ' + str(op) + ' ').join(decompiled)
+            sep = ' ' + str(op) + ' '
+            value = sep.join(self._decompile(arg, True, level) for arg in args)
+            
         if enclose:
             value = f'( {value} )'
         return value
         
     def _decompile_aggregation(self, expr, enclose, level):
-        * pvars, arg = expr.args
         _, op = expr.etype
-        params = [p[1] for p in pvars]
+        * pvars, arg = expr.args
+        params = [pvar for (_, pvar) in pvars]
         agg = self._symbolic(op, params, aggregation=True)
         decompiled = self._decompile(arg, False, level)        
         return f'( {agg} [ {decompiled} ] )'
         
     def _decompile_func(self, expr, enclose, level):
         _, op = expr.etype
-        decompiled = ', '.join(self._decompile(arg, False, level)
+        decompiled = ', '.join(self._decompile(arg, False, level) 
                                for arg in expr.args)
         return f'{op}[{decompiled}]'
             
@@ -121,23 +122,25 @@ class RDDLDecompiler:
         indent = '\t' * (level + 1)
         
         if op == 'if':
-            pred = self._decompile(expr.args[0], False, level)
-            if_true = self._decompile(expr.args[1], True, level + 1)
-            if_false = self._decompile(expr.args[2], True, level + 1)
+            pred, if_true, if_false = expr.args
+            pred = self._decompile(pred, False, level)
+            if_true = self._decompile(if_true, True, level + 1)
+            if_false = self._decompile(if_false, True, level + 1)
             value = f'if ({pred})\n{indent}then {if_true}\n{indent}else {if_false}'
 
         else:  # switch
             pvar, *args = expr.args
             pred = self._decompile(pvar, False, level)
-            cases = []
-            for (case_type, value) in args:
+            cases = [''] * len(args)
+            for (i, _case) in enumerate(args):
+                case_type, value = _case
                 if case_type == 'case':
                     literal, arg = value
                     decompiled = self._decompile(arg, False, level + 1)
-                    cases.append(f'case {literal} : {decompiled}')
+                    cases[i] = f'case {literal} : {decompiled}'
                 else:  # default
                     decompiled = self._decompile(value, False, level + 1)
-                    cases.append(f'default : {decompiled}')
+                    cases[i] = f'default : {decompiled}'
             cases = f',\n{indent}'.join(cases)
             value = f'switch({pred}) {{ \n{indent}{cases}\n }}'
 
@@ -150,14 +153,15 @@ class RDDLDecompiler:
         
         if op == 'Discrete' or op == 'UnnormDiscrete':
             (_, var), *args = expr.args
-            cases = [var]
-            for (_, (literal, arg)) in args:
+            cases = [var] + [''] * len(args)
+            for (i, _case) in enumerate(args):
+                _, (literal, arg) = _case
                 decompiled = self._decompile(arg, False, level + 1)
-                cases.append(f'{literal} : {decompiled}')
+                cases[i + 1] = f'{literal} : {decompiled}'
             indent = '\t' * (level + 1)
             value = f',\n{indent}'.join(cases)
         
-        else:
+        else:  # Normal, exponential, etc...
             value = ', '.join(self._decompile(arg, False, level) 
                               for arg in expr.args)
             

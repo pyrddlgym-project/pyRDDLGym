@@ -537,8 +537,8 @@ class PlanningModel(metaclass=ABCMeta):
         or lists in C-based order
         '''
         grounded = {}
-        for item in dict_values.items():
-            grounded.update(self.ground_values(*item))
+        for (var, values) in dict_values.items():
+            grounded.update(self.ground_values(var, values))
         return grounded
     
     def ground_ranges_from_dict(self, dict_ranges: Dict[str, str]) -> Dict[str, str]:

@@ -707,10 +707,7 @@ class RDDLSimulator:
                 arg = default
             return self._sample(arg, subs)        
         else: 
-            if default is None: 
-                sample_default = None
-            else: 
-                sample_default = self._sample(default, subs)
+            sample_default = None if default is None else self._sample(default, subs)
             sample_cases = np.asarray([
                 (sample_default if arg is None else self._sample(arg, subs))
                 for arg in cases
@@ -1053,8 +1050,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
         etype, op = expr.etype
         
         if etype == 'aggregation' and op == 'forall':
-            * pargs, arg = expr.args
-            new_objects = objects + [parg for (_, parg) in pargs]
+            * pvars, arg = expr.args
+            new_objects = objects + [pvar for (_, pvar) in pvars]
             self._parse_bounds(arg, new_objects, search_vars)
             
         elif etype == 'boolean' and op == '^':
@@ -1070,7 +1067,8 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
                     variations = self.rddl.variations(ptypes)
                     lims = np.ravel(lim, order='C')
                     for (args, lim) in zip(variations, lims):
-                        key = self.rddl.ground_name(var, [args[i] for i in active])
+                        active_args = [args[i] for i in active]
+                        key = self.rddl.ground_name(var, active_args)
                         self._update_bound(key, loc, lim)
                 else:
                     self._update_bound(var, loc, lim)
@@ -1123,7 +1121,7 @@ class RDDLSimulatorWConstraints(RDDLSimulator):
             eps, loc = self._get_op_code(op, is_left_pvar)
             lim = const + eps
             
-            arg_to_index = {o[0]: i for (i, o) in enumerate(objects)}
+            arg_to_index = {obj[0]: i for (i, obj) in enumerate(objects)}
             active = [arg_to_index[arg] for arg in args if arg in arg_to_index]
 
             return var, lim, loc, active

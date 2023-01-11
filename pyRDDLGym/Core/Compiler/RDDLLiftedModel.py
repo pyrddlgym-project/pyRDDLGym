@@ -72,8 +72,8 @@ class RDDLLiftedModel(PlanningModel):
         
         # maps each object to its canonical order as appears in RDDL definition
         objects_index = {obj: i 
-                         for objects in objects.values() 
-                            for (i, obj) in enumerate(objects)}
+                         for objs in objects.values() 
+                            for (i, obj) in enumerate(objs)}
         
         self.objects, self.objects_rev = objects, objects_rev
         self.index_of_object = objects_index
@@ -219,19 +219,20 @@ class RDDLLiftedModel(PlanningModel):
             for ((name, params), value) in self._AST.non_fluents.init_non_fluent:
                 
                 # check whether name is a valid non-fluent
-                if name not in non_fluents:
+                grounded_names = non_fluents.get(name, None)
+                if grounded_names is None:
                     raise RDDLUndefinedVariableError(
                         f'Variable <{name}> referenced in non-fluents block '
                         f'is not a valid non-fluent.')
                 
                 # extract the grounded name, and check that parameters are valid
-                gname = self.ground_name(name, params)                
-                if gname not in non_fluents[name]:
+                gname = self.ground_name(name, params)                           
+                if gname not in grounded_names:
                     raise RDDLInvalidObjectError(
                         f'Parameter(s) {params} of non-fluent {name} '
                         f'as declared in the non-fluents block are not valid.')
                 
-                non_fluents[name][gname] = value
+                grounded_names[gname] = value
                                         
         # non-fluents are stored similar to states described above
         self.nonfluents = self._grounded_dict_to_dict_of_list(non_fluents)
@@ -258,7 +259,7 @@ class RDDLLiftedModel(PlanningModel):
             # CPFs are stored as dictionary that associates cpf name with a pair 
             # the first element is the type argument list
             # the second element is the AST expression
-            objects = [(o, types[i]) for (i, o) in enumerate(objects)]
+            objects = [(obj, types[i]) for (i, obj) in enumerate(objects)]
             cpfs[name] = (objects, cpf.expr)
         
         # make sure all CPFs have a valid expression in cpfs {...}

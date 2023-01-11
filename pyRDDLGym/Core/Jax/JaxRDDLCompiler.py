@@ -158,7 +158,7 @@ class JaxRDDLCompiler:
             self.logger.log(message)
     
     def _compile_constraints(self, constraints):
-        return [self._jax(c, dtype=bool) for c in constraints]
+        return [self._jax(expr, dtype=bool) for expr in constraints]
         
     def _compile_cpfs(self):
         jax_cpfs = {}
@@ -409,16 +409,16 @@ class JaxRDDLCompiler:
     # ===========================================================================
     
     def _jax_constant(self, expr):
-        ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         cached_value = self.traced.cached_sim_info(expr)
         
         def _f_constant(_, key):
-            return cached_value, key, ERR
+            return cached_value, key, NORMAL
 
         return _f_constant
     
     def _jax_pvar(self, expr):
-        ERR = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args  
         
         # boundary case: enum literal is converted to canonical integer index
@@ -426,7 +426,7 @@ class JaxRDDLCompiler:
             cached_literal = self.traced.cached_sim_info(expr)
             
             def _jax_wrapped_pvar_literal(_, key):
-                return cached_literal, key, ERR
+                return cached_literal, key, NORMAL
             
             return _jax_wrapped_pvar_literal
         
@@ -436,7 +436,7 @@ class JaxRDDLCompiler:
             
             def _jax_wrapped_pvar_scalar(x, key):
                 sample = x[var]
-                return sample, key, ERR
+                return sample, key, NORMAL
             
             return _jax_wrapped_pvar_scalar
         
@@ -445,18 +445,17 @@ class JaxRDDLCompiler:
         
         # compile nested expressions
         if slices and op_code == -1:
-            jax_nested_expr = [self._jax(arg) 
-                                if _slice is None 
-                                else (lambda _, key: (_slice, key, ERR))
+            
+            jax_nested_expr = [(self._jax(arg) if _slice is None 
+                                else (lambda _, key: (_slice, key, NORMAL)))
                                for (arg, _slice) in zip(pvars, slices)]    
             
             def _jax_wrapped_pvar_tensor_nested(x, key):
-                error = ERR
+                error = NORMAL
                 sample = jnp.asarray(x[var])
-                new_slices = []
-                for jax_expr in jax_nested_expr:
-                    new_slice, key, err = jax_expr(x, key)
-                    new_slices.append(new_slice)
+                new_slices = [None] * len(jax_nested_expr)
+                for (i, jax_expr) in enumerate(jax_nested_expr):
+                    new_slices[i], key, err = jax_expr(x, key)
                     error |= err
                 sample = sample[tuple(new_slices)]
                 return sample, key, error
@@ -477,7 +476,7 @@ class JaxRDDLCompiler:
                     sample = jnp.einsum(sample, *op_args)
                 elif op_code == 1:
                     sample = jnp.transpose(sample, axes=op_args)
-                return sample, key, ERR
+                return sample, key, NORMAL
             
             return _jax_wrapped_pvar_tensor_simple
     
@@ -585,6 +584,7 @@ class JaxRDDLCompiler:
     
     def _jax_aggregation(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
+        
         _, op = expr.etype
         valid_ops = self.AGGREGATION_OPS      
         JaxRDDLCompiler._check_valid_op(expr, valid_ops) 
@@ -686,10 +686,9 @@ class JaxRDDLCompiler:
             sample_pred, key, err = jax_pred(x, key) 
             
             # sample cases
-            sample_cases = []
-            for jax_case in jax_cases:
-                sample_case, key, err_case = jax_case(x, key)
-                sample_cases.append(sample_case)
+            sample_cases = [None] * len(jax_cases)
+            for (i, jax_case) in enumerate(jax_cases):
+                sample_cases[i], key, err_case = jax_case(x, key)
                 err |= err_case                
             sample_cases = jnp.asarray(sample_cases)
             
@@ -1089,7 +1088,7 @@ class JaxRDDLCompiler:
         return _jax_wrapped_distribution_gompertz
     
     def _jax_discrete(self, expr, unnorm):
-        ERR0 = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
         jax_pdfs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
@@ -1097,11 +1096,10 @@ class JaxRDDLCompiler:
         def _jax_wrapped_distribution_discrete(x, key):
             
             # sample case probabilities
-            err = ERR0
-            sample_pdfs = []
-            for jax_pdf in jax_pdfs:
-                sample_pdf, key, err_pdf = jax_pdf(x, key)
-                sample_pdfs.append(sample_pdf)
+            err = NORMAL
+            sample_pdfs = [None] * len(jax_pdfs)
+            for (i, jax_pdf) in enumerate(jax_pdfs):
+                sample_pdfs[i], key, err_pdf = jax_pdf(x, key)
                 err |= err_pdf
             sample_pdfs = jnp.asarray(sample_pdfs)
             

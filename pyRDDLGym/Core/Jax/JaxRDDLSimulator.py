@@ -81,7 +81,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs.update(actions)
         
         for (i, precond) in enumerate(self.preconds):
-            sample, self.key, error = precond(self.subs, self.key)
+            sample, self.key, error = precond(subs, self.key)
             self.handle_error_code(error, f'precondition {i + 1}')            
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
