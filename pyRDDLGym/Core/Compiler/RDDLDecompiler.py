@@ -75,16 +75,20 @@ class RDDLDecompiler:
     
     def _decompile_constant(self, expr, enclose, level):
         value = expr.args
-        if isinstance(value, bool):
-            if value == True:
-                value = 'true'
-            elif value == False:
-                value = 'false'
-        return str(value)
+        value = str(value)
+        if value == 'True':
+            value = 'true'
+        elif value == 'False':
+            value = 'false'
+        return value
         
     def _decompile_pvar(self, expr, enclose, level):
         _, name = expr.etype
-        _, params = expr.args        
+        _, params = expr.args  
+        params = ((self._decompile(arg, False, 0) 
+                   if isinstance(arg, Expression) 
+                   else arg) 
+                  for arg in params)
         return self._symbolic(name, params, aggregation=False)
         
     def _decompile_math(self, expr, enclose, level):
