@@ -442,11 +442,30 @@ class JaxRDDLCompiler:
         
         # must slice and/or reshape value tensor to match free variables
         slices, axis, shape, op_code, op_args = shape_info 
-                
+        
+        # compile nested expressions
+        if slices and op_code == 3:
+            jax_nested_expr = [self._jax(arg) 
+                                if _slice is None 
+                                else (lambda _, key: (_slice, key, ERR))
+                               for (arg, _slice) in zip(pvars, slices)]       
+        else:
+            jax_nested_expr = None
+            
         def _jax_wrapped_pvar_tensor(x, key):
+            error = ERR
             sample = jnp.asarray(x[var])
             if slices:
-                sample = sample[slices]
+                if op_code == 3:
+                    new_slices = []
+                    for jax_expr in jax_nested_expr:
+                        new_slice, key, err = jax_expr(x, key)
+                        new_slices.append(new_slice)
+                        error |= err
+                    new_slices = tuple(new_slices)
+                else:
+                    new_slices = slices                    
+                sample = sample[new_slices]
             if axis:
                 sample = jnp.expand_dims(sample, axis=axis)
                 sample = jnp.broadcast_to(sample, shape=shape)
