@@ -72,7 +72,8 @@ class RDDLValueInitializer:
             if ptypes:
                 shape = rddl.object_counts(ptypes)
                 if var in init_values:
-                    values = [default if v is None else v for v in init_values[var]]
+                    values = [(default if v is None else v) 
+                              for v in init_values[var]]
                     values = np.asarray(values, dtype=dtype)
                     values = np.reshape(values, newshape=shape, order='C')
                 else:
@@ -99,11 +100,9 @@ class RDDLValueInitializer:
         if is_scalar:
             literals = [literals]
             
-        indices = []
-        for literal in literals:
-            if literal is None:
-                indices.append(0)
-            else:
+        indices = [0] * len(literals)
+        for (i, literal) in enumerate(literals):
+            if literal is not None:
                 
                 # literal is either undefined or not the right type
                 literal = self.rddl.literal_name(literal)
@@ -114,10 +113,10 @@ class RDDLValueInitializer:
                         f'must be one of {set(self.rddl.objects[prange])}.')
                 
                 # canonical index of literal in object list
-                index = self.rddl.index_of_object[literal]
-                indices.append(index)
+                indices[i] = self.rddl.index_of_object[literal]
                 
         if is_scalar:
             indices = indices[0]
+            
         return indices
     

@@ -305,7 +305,7 @@ class RDDLObjectsTracer:
             new_axis = None
             new_shape = None
             op_args = None
-            op_code = 3
+            op_code = -1
         else:
             # update permutation based on objects not in args
             len_after_slice = len(permuted)
@@ -313,7 +313,7 @@ class RDDLObjectsTracer:
             permuted.extend([i for i in range(len(objects)) if i not in covered])
             
             # store the arguments for each operation: 
-            # 0 means einsum, 1 means transpose, and others are no-op
+            # 0 means einsum, 1 means transpose, and others (-1, 2) are no-op
             new_axis = tuple(range(len_after_slice, len(permuted)))  
             new_shape = tuple(object_shape[i] for i in permuted)
             objects_range = list(range(len(objects)))        
@@ -329,7 +329,7 @@ class RDDLObjectsTracer:
         
         # log information about the new transformation
         if self.logger is not None:
-            operation = ['einsum', 'transpose', 'none', 'none'][op_code]
+            operation = ['einsum', 'transpose', 'none'][op_code]
             message = (
                 f'computing info for pvariable tensor transformation:' 
                 f'\n\tvariable                ={var}'
