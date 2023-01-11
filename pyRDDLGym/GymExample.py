@@ -18,7 +18,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'RecSim'
 # ENV = 'RaceCar'
 # ENV = 'Traffic'
-ENV = 'WildlifePreserve'
+ENV = 'NestedTest'
 
 
 def main():
@@ -27,7 +27,8 @@ def main():
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
                             instance=EnvInfo.get_instance(0),
-                            enforce_action_constraints=False)
+                            enforce_action_constraints=False,
+                            debug=True)
     
     # set up the environment visualizer
     # frames_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Visualizer', 'Frames')
