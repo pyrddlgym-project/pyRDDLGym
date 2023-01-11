@@ -1,0 +1,32 @@
+// //////////////////////////////////////////////////////////////////////
+// A simple model to test nesting of fluents.
+// //////////////////////////////////////////////////////////////////////
+domain nestedtest {
+
+    requirements = {
+		reward-deterministic
+    };
+
+    types {
+		enum_level : { @l1 , @l2 , @l3 };
+    };
+
+    pvariables {
+		COST(enum_level) : { non-fluent , real , default = 1 };
+		NEXT(enum_level) : { non-fluent , enum_level, default = @l1 };
+		
+        matrix(enum_level, enum_level) : { state-fluent , enum_level , default = @l1 };	
+        vector(enum_level) : { state-fluent , enum_level , default = @l1 };	
+		
+		a : { action-fluent , bool , default = false };
+    };
+
+    cpfs {
+		
+        matrix'(?p, ?q) = NEXT(matrix(?p, ?q));	
+		vector'(?p) = matrix'(NEXT(?p), NEXT(?p));
+    };
+
+    reward = ( sum_{?p : enum_level, ?q : enum_level} [ COST(matrix(?p, ?q)) ] );
+	
+}
