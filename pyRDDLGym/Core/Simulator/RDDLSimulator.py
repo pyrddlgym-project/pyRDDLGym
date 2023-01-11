@@ -407,6 +407,9 @@ class RDDLSimulator:
         if shape_info is not None:
             slices, axis, shape, op_code, op_args = shape_info
             if slices: 
+                if op_code == 3:
+                    slices = tuple((self._sample(arg, subs) if s is None else s)
+                                   for (arg, s) in zip(pvars, slices))
                 sample = sample[slices]
             if axis:
                 sample = np.expand_dims(sample, axis=axis)

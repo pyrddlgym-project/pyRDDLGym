@@ -45,8 +45,7 @@ class RDDLObjectsTracer:
     inside expressions.
     '''
             
-    def __init__(self, rddl: PlanningModel,
-                 logger: Logger=None) -> None:
+    def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
@@ -172,19 +171,26 @@ class RDDLObjectsTracer:
         
         # if the pvar has free variables
         else:
-            cached_sim_info = self._map(expr, objects)           
+            if pvars is not None: 
+                for arg in pvars:
+                    if isinstance(arg, Expression):
+                        self._trace(arg, objects, out)
+                        
+            cached_sim_info = self._map(expr, objects, out)   
             prange = self.rddl.variable_ranges.get(var, None)
             enum_type = prange if prange in self.rddl.enum_types else None            
             out._append(expr, objects, enum_type, cached_sim_info)
         
     def _map(self, expr: Expression,
-             objects: Union[List[Tuple[str, str]], None]) -> Tuple[object, ...]:
+             objects: Union[List[Tuple[str, str]], None],
+             out: RDDLTracedObjects) -> Tuple[object, ...]:
         '''Returns information needed to reshape and transform value tensor for a
         parameterized variable to match desired output signature.
         
         :param expr: outputs of expression value tensor to transform
         :param objects: a list of tuples (objecti, typei) representing the
             desired signature of the output value tensor
+        :param cache where child of expr properties have been stored
         '''
         var, args = expr.args
         
@@ -198,24 +204,51 @@ class RDDLObjectsTracer:
                 f'got {len(args)}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
+        # test for nested expressions
+        is_arg_expr = [isinstance(arg, Expression) for arg in args]
+        nested = np.any(is_arg_expr)
+        
         # literals are converted to canonical indices in their object list
         # and used to extract from the value tensor at the corresponding axis
+        # 1. if there are nested variables, then they are left as None slices
+        #    since their values are only known at run time
+        # 2. if there are free variables ?x among nested variables, then they
+        #    are reshaped to match objects
+        object_shape = tuple(len(self.rddl.objects[ptype]) for (_, ptype) in objects)
         object_index = {obj: i for (i, (obj, _)) in enumerate(objects)}
         slices = [slice(None)] * len(args)
         do_slice = False
         permuted = []
         for (i, arg) in enumerate(args):
             
+            # is a nested fluent (e.g., fluent(another-fluent(?x)) )
+            if is_arg_expr[i]:
+                
+                # check that type of the inner fluent matches what var expects
+                enum_type = out.cached_enum_type(arg)
+                if args_types[i] != enum_type: 
+                    if enum_type is None:
+                        enum_type = 'real/int/bool'
+                    raise RDDLInvalidObjectError(
+                        f'Argument {i + 1} of variable <{var}> expects object '
+                        f'of type <{args_types[i]}>, got nested expression '
+                        f'of type <{enum_type}>.\n' + 
+                        RDDLObjectsTracer._print_stack_trace(expr))
+                
+                # leave slice blank since it's filled at runtime
+                slices[i] = None
+                
             # is an enum literal
-            if self.rddl.is_literal(arg):
+            elif self.rddl.is_literal(arg):
                 
                 # check that the type of the literal is correct
                 literal = self.rddl.literal_name(arg)
                 enum_type = self.rddl.objects_rev[literal]
                 if args_types[i] != enum_type: 
                     raise RDDLInvalidObjectError(
-                        f'Argument {i + 1} of variable <{var}> expects type '
-                        f'<{args_types[i]}>, got <{arg}> of type <{enum_type}>.\n' + 
+                        f'Argument {i + 1} of variable <{var}> expects object '
+                        f'of type <{args_types[i]}>, got <{arg}> '
+                        f'of type <{enum_type}>.\n' + 
                         RDDLObjectsTracer._print_stack_trace(expr))
                 
                 # extract value at current dimension at literal's canonical index
@@ -229,58 +262,84 @@ class RDDLObjectsTracer:
                 index_of_arg_in_objects = object_index.get(arg, None)
                 if index_of_arg_in_objects is None:
                     raise RDDLInvalidObjectError(
-                        f'Undefined argument <{arg}> in variable <{var}>.\n' + 
+                        f'Undefined argument <{arg}> at index {i + 1} '
+                        f'of variable <{var}>.\n' + 
                         RDDLObjectsTracer._print_stack_trace(expr))
                 
                 # make sure type of argument is correct
                 _, ptype = objects[index_of_arg_in_objects]
                 if ptype != args_types[i]:
                     raise RDDLInvalidObjectError(
-                        f'Argument {i + 1} of variable <{var}> expects object of '
-                        f'type <{args_types[i]}>, got <{arg}> of type <{ptype}>.\n' + 
+                        f'Argument {i + 1} of variable <{var}> expects object '
+                        f'of type <{args_types[i]}>, got <{arg}> '
+                        f'of type <{ptype}>.\n' + 
                         RDDLObjectsTracer._print_stack_trace(expr))
-                            
-                # update permutation
-                permuted.append(index_of_arg_in_objects)                        
-        slices = tuple(slices) if do_slice else ()
-        
-        # update permutation based on objects not in args
-        len_after_slice = len(permuted)
-        covered = set(permuted)
-        permuted.extend([i for i in range(len(objects)) if i not in covered])
+                                      
+                # if nesting is found, then free variables like ?x are implicitly 
+                # converted to arrays with shape of objects
+                # this way, the slice value array has shape that matches objects
+                if nested:
+                    indices = np.arange(len(self.rddl.objects[ptype]))
+                    newshape = [1] * len(objects)
+                    newshape[index_of_arg_in_objects] = indices.size
+                    indices = np.reshape(indices, newshape=newshape)
+                    indices = np.broadcast_to(indices, shape=object_shape)
+                    slices[i] = indices 
+                
+                # if no nesting, then we use einsum or transpose operations
+                else:
+                    permuted.append(index_of_arg_in_objects)
+                                                       
+        slices = tuple(slices) if do_slice or nested else ()
         
         # compute the mapping function as follows:
         # 0. first assume all literals are "sliced out" of the value tensor
+        #    if there is nesting then a slice is sufficient and do nothing else
         # 1. append new axes to value tensor equal to # of missing variables
         # 2. broadcast new axes to the desired shape (# of objects of each type)
         # 3. rearrange the axes as needed to match the desired variables in order
-        #     3a. in most cases, it suffices to use np.transform (cheaper)
-        #     3b. in cases where we have a more complex contraction like 
-        #         fluent(?x) = matrix(?x, ?x), we will use np.einsum
-        new_axis = tuple(range(len_after_slice, len(permuted)))  
-        new_shape = tuple(len(self.rddl.objects[objects[i][1]]) for i in permuted)
-        objects_range = list(range(len(objects)))        
-        if len(covered) != len_after_slice:  # einsum
-            op_args = (permuted, objects_range)
-            op_code = 0
-        elif permuted != objects_range:  # transpose
-            op_args = tuple(np.argsort(permuted))  # inverse permutation
-            op_code = 1
-        else:  # do nothing
+        #    3a. in most cases, it suffices to use np.transform (cheaper)
+        #    3b. in cases where we have a more complex contraction like 
+        #        fluent(?x) = matrix(?x, ?x), we will use np.einsum
+        if nested:
+            new_axis = None
+            new_shape = None
             op_args = None
-            op_code = 2
+            op_code = 3
+        else:
+            # update permutation based on objects not in args
+            len_after_slice = len(permuted)
+            covered = set(permuted)
+            permuted.extend([i for i in range(len(objects)) if i not in covered])
+            
+            # store the arguments for each operation: 
+            # 0 means einsum, 1 means transpose, and others are no-op
+            new_axis = tuple(range(len_after_slice, len(permuted)))  
+            new_shape = tuple(object_shape[i] for i in permuted)
+            objects_range = list(range(len(objects)))        
+            if len(covered) != len_after_slice:
+                op_args = (permuted, objects_range)
+                op_code = 0
+            elif permuted != objects_range:
+                op_args = tuple(np.argsort(permuted))  # inverse permutation
+                op_code = 1
+            else:
+                op_args = None
+                op_code = 2
         
         # log information about the new transformation
         if self.logger is not None:
-            operation = ['einsum', 'transpose', 'none'][op_code]
-            message = (f'computing info for pvariable tensor transformation:' 
-                       f'\n\tvariable                ={var}'
-                       f'\n\tvariable evaluated at   ={list(zip(args, args_types))}'
-                       f'\n\tfree object(s) in scope ={objects}'
-                       f'\n\tslice                   ={slices}'
-                       f'\n\tnew axes to append      ={new_axis}'
-                       f'\n\tbroadcast shape         ={new_shape}'
-                       f'\n\ttransform operation     ={operation} with argument(s) {op_args}\n')
+            operation = ['einsum', 'transpose', 'none', 'none'][op_code]
+            message = (
+                f'computing info for pvariable tensor transformation:' 
+                f'\n\tvariable                ={var}'
+                f'\n\tvariable evaluated at   ={list(zip(args, args_types))}'
+                f'\n\tfree object(s) in scope ={objects}'
+                f'\n\tslice                   ={slices}'
+                f'\n\tnew axes to append      ={new_axis}'
+                f'\n\tbroadcast shape         ={new_shape}'
+                f'\n\ttransform operation     ={operation} with argument(s) {op_args}\n'
+            )
             self.logger.log(message)
             
         return (slices, new_axis, new_shape, op_code, op_args)

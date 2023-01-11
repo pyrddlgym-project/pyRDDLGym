@@ -100,6 +100,11 @@ class RDDLLevelAnalysis:
                 elif var_type != 'non-fluent':
                     graph.setdefault(cpf, set()).add(name)
                 
+                # if a nested fluent
+                if pvars is not None:
+                    for arg in pvars:
+                        self._update_call_graph(graph, cpf, arg)
+                
         elif not expr.is_constant_expression():
             for arg in expr.args:
                 self._update_call_graph(graph, cpf, arg)

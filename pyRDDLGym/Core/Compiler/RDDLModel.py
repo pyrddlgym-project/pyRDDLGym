@@ -463,17 +463,21 @@ class PlanningModel(metaclass=ABCMeta):
             
             # variable must be well-defined and non-fluent
             else:
+                
+                # check well-defined
                 var_type = self.variable_types.get(name, None)     
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
                         f'Variable <{name}> is not defined.')
-                return var_type == 'non-fluent'
+                
+                # check nested fluents
+                if pvars is None:
+                    pvars = []
+                return var_type == 'non-fluent' \
+                    and self.is_non_fluent_expression(pvars)
         
         else:
-            for arg in expr.args:
-                if not self.is_non_fluent_expression(arg):
-                    return False
-            return True
+            return self.is_non_fluent_expression(expr.args)
     
     def indices(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Returns the canonical indices of a sequence of objects according to the
