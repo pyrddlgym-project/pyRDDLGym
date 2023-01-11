@@ -143,7 +143,7 @@ class RDDLLevelAnalysis:
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.') 
                 
                 # s' cannot depend on s' if allow_synchronous_state = False
-                elif (not self.allow_synchronous_state) and \
+                elif not self.allow_synchronous_state and \
                 cpf_type == dep_type == 'next-state-fluent':
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>. '
@@ -202,15 +202,16 @@ class RDDLLevelAnalysis:
         
         # a cycle is detected
         elif var in temp:
-            cycle = ','.join(temp)
+            cycle = ', '.join(temp)
             raise RDDLInvalidDependencyInCPFError(
                 f'Cyclic dependency detected among CPFs {{{cycle}}}.')
         
         # recursively sort all variables on which var depends
         else: 
             temp.add(var)
-            if var in graph:
-                for dep in graph[var]:
+            deps = graph.get(var, None)
+            if deps is not None:
+                for dep in deps:
                     RDDLLevelAnalysis._sort_variables(
                         order, graph, dep, unmarked, temp)
             temp.remove(var)

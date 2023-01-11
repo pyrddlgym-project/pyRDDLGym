@@ -56,8 +56,7 @@ class JaxRDDLBackpropPlanner:
         for (name, prange) in self.rddl.variable_ranges.items():
             if self.rddl.variable_types[name] == 'action-fluent':
                 value = self.compiled.init_values[name]
-                shape = (self.rddl.horizon,) + np.shape(value)
-                self.action_shapes[name] = shape
+                self.action_shapes[name] = (self.rddl.horizon,) + np.shape(value)
                     
                 if prange not in JaxRDDLCompiler.JAX_TYPES:
                     raise RDDLTypeError(
@@ -246,7 +245,7 @@ class JaxRDDLBackpropPlanner:
                 yield callback
                 
     def get_plan(self, params, key):
-        plan = []
+        plan = [None] * self.rddl.horizon
         for step in range(self.rddl.horizon):
             actions, key = self.test_policy(None, step, params, key)
             actions = jax.tree_map(np.ravel, actions)
@@ -258,5 +257,5 @@ class JaxRDDLBackpropPlanner:
                                        for (gvar, value) in grounded_action.items()
                                        if value == True}
                 grounded_actions.update(grounded_action)
-            plan.append(grounded_actions)
+            plan[step] = grounded_actions
         return (plan, key)

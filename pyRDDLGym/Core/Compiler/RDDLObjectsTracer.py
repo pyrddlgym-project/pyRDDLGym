@@ -171,11 +171,14 @@ class RDDLObjectsTracer:
         
         # if the pvar has free variables
         else:
+            
+            # trace the nested variables
             if pvars is not None: 
                 for arg in pvars:
                     if isinstance(arg, Expression):
                         self._trace(arg, objects, out)
-                        
+            
+            # find a way to map value tensor of expr to match objects
             cached_sim_info = self._map(expr, objects, out)   
             prange = self.rddl.variable_ranges.get(var, None)
             enum_type = prange if prange in self.rddl.enum_types else None            
@@ -291,6 +294,7 @@ class RDDLObjectsTracer:
                     permuted.append(index_of_arg_in_objects)
                                                        
         slices = tuple(slices) if do_slice or nested else ()
+        len_after_slice = len(permuted)
         
         # compute the mapping function as follows:
         # 0. first assume all literals are "sliced out" of the value tensor
@@ -308,7 +312,6 @@ class RDDLObjectsTracer:
             op_code = -1
         else:
             # update permutation based on objects not in args
-            len_after_slice = len(permuted)
             covered = set(permuted)
             permuted.extend([i for i in range(len(objects)) if i not in covered])
             
@@ -360,11 +363,12 @@ class RDDLObjectsTracer:
         
     def _trace_relational(self, expr, objects, out):
         _, op = expr.etype
-        for arg in expr.args:
+        args = expr.args
+        for arg in args:
             self._trace(arg, objects, out)            
         
         # can not mix different enum types or primitive and enum types
-        enum_types = {out.cached_enum_type(arg) for arg in expr.args}
+        enum_types = {out.cached_enum_type(arg) for arg in args}
         if len(enum_types) != 1:
             raise RDDLTypeError(
                 f'Relational operator {op} can not compare arguments '
@@ -393,10 +397,10 @@ class RDDLObjectsTracer:
     
     def _trace_aggregation(self, expr, objects, out):
         _, op = expr.etype
-        * pargs, arg = expr.args
+        * pvars, arg = expr.args
         
         # cache and read reduced axes tensor info for the aggregation
-        new_objects = objects + [ptype for (_, ptype) in pargs]
+        new_objects = objects + [ptype for (_, ptype) in pvars]
         reduced_axes = tuple(range(len(objects), len(new_objects)))   
         cached_sim_info = (new_objects, reduced_axes)
         
@@ -413,7 +417,7 @@ class RDDLObjectsTracer:
         # check for valid type arguments
         outer_scope_vars = {var for (var, _) in objects}
         free_vars_seen = set()
-        for (_, (free_new, _)) in pargs:
+        for (_, (free_new, _)) in pvars:
             
             # check that there is no duplicated iteration variable
             if free_new in free_vars_seen:
@@ -442,7 +446,7 @@ class RDDLObjectsTracer:
         # log information about aggregation operation
         if self.logger is not None:
             message = (f'computing object info for aggregation:'
-                       f'\n\taggregation variables(s)      ={pargs}'
+                       f'\n\taggregation variables(s)      ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'
                        f'\n\tfree object(s) in inner scope ={new_objects}'
                        f'\n\taggregation operation         ={op}'
@@ -471,13 +475,13 @@ class RDDLObjectsTracer:
             self._trace_switch(expr, objects, out)
             
     def _trace_if(self, expr, objects, out):
-        pred, *cases = expr.args
+        pred, *branches = expr.args
         self._trace(pred, objects, out)
-        for arg in cases:
+        for arg in branches:
             self._trace(arg, objects, out)
         
         # can not mix different enum types or primitive and enum types
-        enum_types = {out.cached_enum_type(arg) for arg in cases}
+        enum_types = {out.cached_enum_type(arg) for arg in branches}
         if len(enum_types) != 1:
             raise RDDLTypeError(
                 f'Branches in if then else statement cannot produce values '
@@ -498,7 +502,7 @@ class RDDLObjectsTracer:
             
         # type in pvariables scope must be an enum
         var, _ = pred.args
-        enum_type = self.rddl.variable_ranges[var]
+        enum_type = self.rddl.variable_ranges.get(var, None)
         if enum_type not in self.rddl.enum_types:
             raise RDDLTypeError(
                 f'Type <{enum_type}> of switch predicate <{var}> is not an '
@@ -506,8 +510,9 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
             
         # default statement becomes ("default", expr)
-        case_dict = dict((cvalue if ctype == 'case' else (ctype, cvalue)) 
-                          for (ctype, cvalue) in cases)
+        case_dict = dict((case_value if case_type == 'case' 
+                          else (case_type, case_value)) 
+                         for (case_type, case_value) in cases)
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Duplicated literal or default case(s).\n' + 

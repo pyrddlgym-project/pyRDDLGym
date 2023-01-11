@@ -79,13 +79,11 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
                           stacklevel=2) 
         return super(JaxRDDLCompilerWithGrad, self)._jax_functional(expr)
     
-    def _jax_control(self, expr):
-        _, op = expr.etype
-        if op == 'if':
-            warnings.warn(f'Control operator <{op}> uses linear approximation.', 
-                          stacklevel=2)        
-        return super(JaxRDDLCompilerWithGrad, self)._jax_control(expr)
-
+    def _jax_if(self, expr):
+        warnings.warn(f'Control operator <if> uses linear approximation.', 
+                      stacklevel=2)    
+        return super(JaxRDDLCompilerWithGrad, self)._jax_if(expr)
+            
     def _jax_kron(self, expr):
         warnings.warn('KronDelta will be ignored.', stacklevel=2)                       
         arg, = expr.args
