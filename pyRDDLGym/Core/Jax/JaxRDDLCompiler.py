@@ -473,7 +473,7 @@ class JaxRDDLCompiler:
                 sample = jnp.einsum(sample, *op_args)
             elif op_code == 1:
                 sample = jnp.transpose(sample, axes=op_args)
-            return sample, key, ERR
+            return sample, key, error
         
         return _jax_wrapped_pvar_tensor
     
