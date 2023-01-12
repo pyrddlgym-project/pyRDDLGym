@@ -870,13 +870,11 @@ class JaxRDDLCompiler:
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob)
         
-        # reparameterization trick Bern(p) = U(0, 1) < p
+        # uses the implicit JAX subroutine
         def _jax_wrapped_distribution_bernoulli(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
-            U = random.uniform(
-                key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
-            sample = jnp.less(U, prob)
+            sample = random.bernoulli(key=subkey, p=prob)
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
@@ -890,7 +888,7 @@ class JaxRDDLCompiler:
         arg_rate, = expr.args
         jax_rate = self._jax(arg_rate)
         
-        # uses the implicit JAX subroutine, which seems to be reparameterized
+        # uses the implicit JAX subroutine
         def _jax_wrapped_distribution_poisson(x, key):
             rate, key, err = jax_rate(x, key)
             key, subkey = random.split(key)
@@ -912,7 +910,6 @@ class JaxRDDLCompiler:
         
         # partial reparameterization trick Gamma(s, r) = r * Gamma(s, 1)
         # uses the implicit JAX subroutine for Gamma(s, 1) 
-        # which seems to be reparameterized
         def _jax_wrapped_distribution_gamma(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -933,7 +930,7 @@ class JaxRDDLCompiler:
         jax_shape = self._jax(arg_shape)
         jax_rate = self._jax(arg_rate)
         
-        # uses the implicit JAX subroutine, which seems to be reparameterized
+        # uses the implicit JAX subroutine
         def _jax_wrapped_distribution_beta(x, key):
             shape, key, err1 = jax_shape(x, key)
             rate, key, err2 = jax_rate(x, key)
@@ -975,7 +972,6 @@ class JaxRDDLCompiler:
         
         # partial reparameterization trick Pareto(s, r) = r * Pareto(s, 1)
         # uses the implicit JAX subroutine for Pareto(s, 1) 
-        # which seems to be reparameterized
         def _jax_wrapped_distribution_pareto(x, key):
             shape, key, err1 = jax_shape(x, key)
             scale, key, err2 = jax_scale(x, key)
@@ -994,8 +990,7 @@ class JaxRDDLCompiler:
         arg_df, = expr.args
         jax_df = self._jax(arg_df)
         
-        # uses the implicit JAX subroutine for student(df) 
-        # which seems to be reparameterized
+        # uses the implicit JAX subroutine for student(df)
         def _jax_wrapped_distribution_t(x, key):
             df, key, err = jax_df(x, key)
             key, subkey = random.split(key)
@@ -1123,7 +1118,7 @@ class JaxRDDLCompiler:
                     jnp.allclose(sample_cdf[-1, ...], 1.0)))
             err |= (out_of_bounds * ERR)
             
-            # reparameterization trick using inverse CDF sampling
+            # inverse CDF sampling
             key, subkey = random.split(key)
             shape = (1,) + jnp.shape(sample_cdf)[1:]
             U = random.uniform(key=subkey, shape=shape, dtype=JaxRDDLCompiler.REAL)
