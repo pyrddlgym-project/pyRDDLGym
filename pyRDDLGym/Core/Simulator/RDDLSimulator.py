@@ -379,7 +379,7 @@ class RDDLSimulator:
             return self._sample_random(expr, subs)
         else:
             raise RDDLNotImplementedError(
-                f'Internal error: expression type is not supported.\n' + 
+                f'Internal error: expression type {etype} is not supported.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
                 
     # ===========================================================================

@@ -419,7 +419,7 @@ class JaxRDDLCompiler:
             jax_expr = self._jax_random(expr)
         else:
             raise RDDLNotImplementedError(
-                f'Internal error: expression {expr} is not supported.\n' + 
+                f'Internal error: expression type {expr} is not supported.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
                 
         if dtype is not None:
