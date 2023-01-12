@@ -6,6 +6,7 @@ import warnings
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
@@ -597,6 +598,10 @@ class RDDLGrounder(Grounder):
             else:
                 grounded = [pvar.name]
             for name in grounded:
+                if name in var_params:
+                    raise RDDLRepeatedVariableError(
+                        f'{pvar.fluent_type} <{pvar.name}> has the same name as '
+                        f'another {var_types[name]}.')
                 primed_name = (name + PRIME) if pvar.is_state_fluent() else name
                 var_params[name] = var_params[primed_name] = []        
                 var_types[name] = pvar.fluent_type
