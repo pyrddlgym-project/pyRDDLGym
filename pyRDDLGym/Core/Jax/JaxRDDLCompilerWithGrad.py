@@ -20,6 +20,20 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
                  temp: float=0.1,
                  eps: float=1e-12,
                  **kwargs) -> None:
+        '''Creates a new RDDL to Jax compiler, where operations that are not
+        differentiable are converted to approximate forms that have defined 
+        gradients.
+        
+        :param *args: arguments to pass to base compiler
+        :param logic: Fuzzy logic object that specifies how exact operations
+        are converted to their approximate forms: this class may be subclassed
+        to customize these operations
+        :param temp: temperature parameter for Gumbel-softmax applied to Bernoulli
+        and discrete distributions
+        :param eps: minimum value of a probability before mapping through log: 
+        used to avoid underflow in log calculation
+        :param *kwargs: keyword arguments to pass to base compiler
+        '''
         super(JaxRDDLCompilerWithGrad, self).__init__(*args, **kwargs)
         self.temp = temp
         self.eps = eps

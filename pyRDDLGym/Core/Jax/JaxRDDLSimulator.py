@@ -22,6 +22,17 @@ class JaxRDDLSimulator(RDDLSimulator):
                  raise_error: bool=True,
                  logger: Logger=None,
                  **compiler_args) -> None:
+        '''Creates a new simulator for the given RDDL model with Jax as a backend.
+        
+        :param rddl: the RDDL model
+        :param key: the Jax PRNG key for sampling random variables
+        :param raise_error: whether errors are raised as they are encountered in
+        the Jax program: unlike the numpy sim, errors cannot be caught in the 
+        middle of evaluating a Jax expression; instead they are accumulated and
+        returned to the user upon complete evaluation of the expression
+        :param logger: to log information about compilation to file
+        :param **compiler_args: keyword arguments to pass to the Jax compiler
+        '''
         self.rddl = rddl
         self.key = key
         self.raise_error = raise_error

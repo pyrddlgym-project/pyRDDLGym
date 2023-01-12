@@ -48,6 +48,11 @@ class RDDLLevelAnalysis:
     # ===========================================================================
     
     def build_call_graph(self) -> Dict[str, Set[str]]:
+        '''Builds a call graph for the current RDDL, where keys represent parent
+        expressions (e.g., CPFs, reward) and values are sets of variables on 
+        which each parent depends. Also handles validation of the call graph to
+        make sure it follows RDDL rules.
+        '''
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
@@ -166,6 +171,10 @@ class RDDLLevelAnalysis:
     # ===========================================================================
     
     def compute_levels(self) -> Dict[int, Set[str]]:
+        '''Constructs a call graph for the current RDDL, and then runs a 
+        topological sort to determine the optimal order in which the CPFs in the 
+        RDDL should be be evaluated.
+        '''
         graph = self.build_call_graph()
         order = RDDLLevelAnalysis._topological_sort(graph)
         

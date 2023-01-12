@@ -390,6 +390,9 @@ class PlanningModel(metaclass=ABCMeta):
             yield self.ground_name(name, objects)
         
     def is_literal(self, name: str, msg='') -> bool:
+        '''Determines whether the quantity with the given name is a literal
+        (e.g., an object) belonging to an enum type.
+        '''
         
         # this must be a literal
         if name[0] == '@':
@@ -416,6 +419,8 @@ class PlanningModel(metaclass=ABCMeta):
         return False
     
     def literal_name(self, name: str) -> str:
+        '''Prepends @ to the given name if it is not already present.
+        '''
         return name if name[0] == '@' else ('@' + name)
         
     def is_compatible(self, var: str, objects: List[str]) -> bool:
@@ -574,6 +579,9 @@ class PlanningModel(metaclass=ABCMeta):
         return self.ground_ranges_from_dict(self.observranges)
     
     def print_expr(self):
+        '''Returns a dictionary containing string representations of all 
+        expressions in the current RDDL.
+        '''
         printed = {}
         printed['cpfs'] = {name: str(expr) 
                            for (name, (_, expr)) in self.cpfs.items()}

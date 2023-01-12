@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 import jax.scipy as scipy 
+from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -33,6 +34,13 @@ class JaxRDDLCompiler:
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
                  logger: Logger=None) -> None:
+        '''Creates a new RDDL to Jax compiler.
+        
+        :param rddl: the RDDL model to compile into Jax
+        :param allow_synchronous_state: whether next-state components can depend
+        on each other
+        :param logger: to log information about compilation to file
+        '''
         self.rddl = rddl
         self.logger = logger
         jax.config.update('jax_log_compiles', True)
@@ -131,6 +139,11 @@ class JaxRDDLCompiler:
     # ===========================================================================
      
     def compile(self, log_jax_expr: bool=False) -> None: 
+        '''Compiles the current RDDL into Jax expressions.
+        
+        :param log_jax_expr: whether to pretty-print the compiled Jax functions
+        to the log file
+        '''
         self.invariants = self._compile_constraints(self.rddl.invariants)
         self.preconditions = self._compile_constraints(self.rddl.preconditions)
         self.termination = self._compile_constraints(self.rddl.terminals)
@@ -175,6 +188,20 @@ class JaxRDDLCompiler:
     
     def compile_rollouts(self, policy, n_steps: int, n_batch: int,
                          check_constraints: bool=False):
+        '''Compiles the current RDDL into a wrapped function that samples multiple
+        rollouts (state trajectories) in batched form for the given policy. The
+        wrapped function takes the policy parameters and RNG key as input, and
+        returns a dictionary of all logged information from the rollouts.
+        
+        :param policy: a Jax compiled function that takes the subs dict, step
+        number, policy parameters and an RNG key and returns an action and the
+        next RNG key in the sequence
+        :param n_steps: the length of each rollout
+        :param n_batch: how many rollouts each batch performs
+        :param check_constraints: whether state, action and termination 
+        conditions should be checked on each time step: this info is stored in the
+        returned log and does not raise an exception
+        '''
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
             
         # compute a batched version of the initial values
@@ -259,7 +286,10 @@ class JaxRDDLCompiler:
     # error checks
     # ===========================================================================
     
-    def print_jax(self):
+    def print_jax(self) -> Dict:
+        '''Returns a dictionary containing the string representations of all 
+        Jax compiled expressions from the RDDL file.
+        '''
         subs = self.init_values
         key = jax.random.PRNGKey(42)
         printed = {}
@@ -347,12 +377,18 @@ class JaxRDDLCompiler:
     
     @staticmethod
     def get_error_codes(error):
+        '''Given a compacted integer error flag from the execution of Jax, and 
+        decomposes it into individual error codes.
+        '''
         binary = reversed(bin(error)[2:])
         errors = [i for (i, c) in enumerate(binary) if c == '1']
         return errors
     
     @staticmethod
     def get_error_messages(error):
+        '''Given a compacted integer error flag from the execution of Jax, and 
+        decomposes it into error strings.
+        '''
         codes = JaxRDDLCompiler.get_error_codes(error)
         messages = [JaxRDDLCompiler.INVERSE_ERROR_CODES[i] for i in codes]
         return messages

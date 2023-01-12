@@ -4,6 +4,8 @@ import math
 
 
 class FuzzyLogic:
+    '''A general class representing fuzzy logic in Jax.
+    '''
     
     def And(self, a, b):
         raise NotImplementedError
@@ -58,8 +60,17 @@ class FuzzyLogic:
     
 
 class ProductLogic(FuzzyLogic):
+    '''A class representing the Product t-norm fuzzy logic in Jax.
+    '''
     
     def __init__(self, sigmoid_weight: float=10.0):
+        '''Creates a new product fuzzy logic in Jax.
+        
+        :param sigmoid_weight: how concentrated the sigmoids should be;
+        this is currently used to convert relational (e.g. <=, ==) operations
+        to probabilities; higher values mean sharper probabilities that fall off
+        faster
+        '''
         self._w = sigmoid_weight
         self._normalizer = math.tanh(0.25 * self._w)
         
