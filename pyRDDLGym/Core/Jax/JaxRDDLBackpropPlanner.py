@@ -158,7 +158,7 @@ class JaxRDDLBackpropPlanner:
         bool_action_count = 0
         for (var, values) in rddl.actions.items():
             if rddl.variable_ranges[var] == 'bool':
-                bool_action_count += len(values)
+                bool_action_count += np.size(values)
         use_sogbofa_clip_trick = rddl.max_allowed_actions < bool_action_count
         
         # clipping trick from SOGBOFA is required
