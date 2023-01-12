@@ -9,17 +9,6 @@ class RDDLDecompiler:
     the corresponding expression in RDDL.
     '''
     
-    def _symbolic(self, value, params, aggregation):
-        value = str(value)
-        if params is not None and params:
-            if aggregation:
-                args = ', '.join(f'{k}: {v}' for (k, v) in params)
-                value += f'_{{{args}}}'
-            else:
-                args = ', '.join(map(str, params))
-                value += f'({args})'
-        return value
-
     def decompile_expr(self, expr: Expression) -> str:
         '''Converts an AST expression to a string representing valid RDDL code.
         
@@ -72,6 +61,17 @@ class RDDLDecompiler:
         else:
             raise Exception(f'Internal error: type {etype} is undefined.')
     
+    def _symbolic(self, value, params, aggregation):
+        value = str(value)
+        if params is not None and params:
+            if aggregation:
+                args = ', '.join(f'{k}: {v}' for (k, v) in params)
+                value += f'_{{{args}}}'
+            else:
+                args = ', '.join(map(str, params))
+                value += f'({args})'
+        return value
+
     def _decompile_constant(self, expr, enclose, level):
         value = expr.args
         value = str(value)

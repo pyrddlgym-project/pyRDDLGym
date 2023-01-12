@@ -29,10 +29,23 @@ class RDDLValueInitializer:
     }
         
     def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
+        '''Creates a new object to compile initial values from a RDDL file. 
+        Initial values of parameterized variables are stored in numpy arrays.
+        For a variable var(?x1, ?x2, ... ?xn), the numpy array has n dimensions, 
+        where the i-th dimension has number of elements equal to the number of 
+        elements in the type of ?xi.
+        
+        :param rddl: the RDDL file whose initial values to extract
+        :param logger: to log information about initial values to file
+        '''
         self.rddl = rddl
         self.logger = logger
     
     def initialize(self) -> Dict[str, Union[np.ndarray, INT, REAL, bool]]:
+        '''Compiles all initial values of all variables for the current RDDL file.
+        A dictionary is returned with variable names as keys (as they appear in
+        the RDDL) and value arrays as values. 
+        '''
         rddl = self.rddl
                 
         # initial values consists of non-fluents, state and action fluents

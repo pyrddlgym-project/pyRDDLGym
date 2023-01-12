@@ -14,6 +14,8 @@ from pyRDDLGym.Core.Parser.expr import Expression
 
 
 class RDDLTracedObjects:
+    '''A generic container for storing traced information for a RDDL file.
+    '''
     
     def __init__(self) -> None:
         self._current_id = 0
@@ -30,12 +32,15 @@ class RDDLTracedObjects:
         self._cached_sim_info.append(info)
         
     def cached_objects_in_scope(self, expr: Expression):
+        '''Returns the free variables/parameters in the scope of expression.'''
         return self._cached_objects_in_scope[expr.id]
     
-    def cached_enum_type(self, expr: Expression) -> str:
+    def cached_enum_type(self, expr: Expression) -> Union[str, None]:
+        '''Returns the returned enum type of expression or None if not an enum.'''
         return self._cached_enum_type[expr.id]
     
     def cached_sim_info(self, expr: Expression) -> object:
+        '''Returns compiled info that is specific to the expression.'''
         return self._cached_sim_info[expr.id]
     
 
