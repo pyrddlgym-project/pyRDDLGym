@@ -128,5 +128,4 @@ if __name__ == '__main__':
     case2 = jnp.asarray([1.5] * 10)
     case3 = jnp.asarray([10.] * 10)
     cases = jnp.asarray([case1, case2, case3])
-    print(pred)
     print(switch(pred, cases))

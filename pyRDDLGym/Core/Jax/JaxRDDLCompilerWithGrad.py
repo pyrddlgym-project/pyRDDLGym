@@ -16,8 +16,8 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     '''
     
     def __init__(self, *args,
-                 logic: FuzzyLogic=ProductLogic(), 
-                 temp: float=0.1, 
+                 logic: FuzzyLogic=ProductLogic(),
+                 temp: float=0.1,
                  eps: float=1e-12,
                  **kwargs) -> None:
         super(JaxRDDLCompilerWithGrad, self).__init__(*args, **kwargs)
@@ -56,7 +56,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             'if': logic.If,
             'switch': logic.Switch
         }
-    
+            
     def _compile_cpfs(self):
         warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
         jax_cpfs = {}
@@ -136,41 +136,41 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
-        jax_pdfs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
+        jax_probs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
         tau, eps = self.temp, self.eps
         
         def _jax_wrapped_distribution_discrete_gumbel_softmax(x, key):
             
             # sample case probabilities
-            err = NORMAL
-            sample_pdfs = [None] * len(jax_pdfs)
-            for (i, jax_pdf) in enumerate(jax_pdfs):
-                sample_pdfs[i], key, err_pdf = jax_pdf(x, key)
-                err |= err_pdf
-            sample_pdfs = jnp.asarray(sample_pdfs)
+            error = NORMAL
+            prob = [None] * len(jax_probs)
+            for (i, jax_prob) in enumerate(jax_probs):
+                prob[i], key, error_pdf = jax_prob(x, key)
+                error |= error_pdf
+            prob = jnp.asarray(prob)
             
             # check this is a valid PDF
             if unnorm:
-                out_of_bounds = jnp.logical_not(jnp.all(sample_pdfs >= 0))
-                normalizer = jnp.sum(sample_pdfs, axis=0, keepdims=True)
-                sample_pdfs = sample_pdfs / normalizer
+                out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
+                normalizer = jnp.sum(prob, axis=0, keepdims=True)
+                prob = prob / normalizer
             else:
                 out_of_bounds = jnp.logical_not(jnp.logical_and(
-                    jnp.all(sample_pdfs >= 0),
-                    jnp.allclose(jnp.sum(sample_pdfs, axis=0), 1.0)))
-            err |= (out_of_bounds * ERR)
+                    jnp.all(prob >= 0),
+                    jnp.allclose(jnp.sum(prob, axis=0), 1.0)))
+            error |= (out_of_bounds * ERR)
             
             # use the Gumbel-softmax trick
             key, subkey = random.split(key)
-            Gumbel01 = random.gumbel(key=subkey, shape=sample_pdfs.shape)
-            clipped_pdfs = jnp.maximum(sample_pdfs, eps)
-            sample = (Gumbel01 + jnp.log(clipped_pdfs)) / tau
+            Gumbel01 = random.gumbel(key=subkey, shape=prob.shape)
+            clipped_prob = jnp.maximum(prob, eps)
+            sample = (Gumbel01 + jnp.log(clipped_prob)) / tau
             sample = jax.nn.softmax(sample, axis=0)
             
             # convert softmax to approximate one-hot labels through combination
-            indices = jnp.arange(len(jax_pdfs))
-            indices = jnp.expand_dims(indices, axis=tuple(range(1, len(sample.shape))))
+            indices = jnp.arange(prob.shape[0])
+            indices = jnp.expand_dims(indices, axis=tuple(range(1, len(prob.shape))))
             sample = jnp.sum(sample * indices, axis=0)
-            return sample, key, err
+            return sample, key, error
         
         return _jax_wrapped_distribution_discrete_gumbel_softmax

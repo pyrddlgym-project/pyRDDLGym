@@ -243,7 +243,7 @@ class JaxRDDLCompiler:
                 logged['terminated'] = terminated
                 
             carried = (subs, params, key)
-            return (carried, logged)
+            return carried, logged
         
         # this performs a single roll-out starting from subs
         def _rollout(subs, params, key):
@@ -419,10 +419,10 @@ class JaxRDDLCompiler:
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         cached_value = self.traced.cached_sim_info(expr)
         
-        def _f_constant(_, key):
+        def _jax_wrapped_constant(_, key):
             return cached_value, key, NORMAL
 
-        return _f_constant
+        return _jax_wrapped_constant
     
     def _jax_pvar(self, expr):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
@@ -472,7 +472,7 @@ class JaxRDDLCompiler:
         # tensor variable but no nesting  
         else:
 
-            def _jax_wrapped_pvar_tensor_simple(x, key):
+            def _jax_wrapped_pvar_tensor_non_nested(x, key):
                 sample = jnp.asarray(x[var])
                 if slices:
                     sample = sample[slices]
@@ -485,7 +485,7 @@ class JaxRDDLCompiler:
                     sample = jnp.transpose(sample, axes=op_args)
                 return sample, key, NORMAL
             
-            return _jax_wrapped_pvar_tensor_simple
+            return _jax_wrapped_pvar_tensor_non_nested
     
     # ===========================================================================
     # mathematical
@@ -1093,36 +1093,34 @@ class JaxRDDLCompiler:
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
-        jax_pdfs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
+        jax_probs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
         
         def _jax_wrapped_distribution_discrete(x, key):
             
             # sample case probabilities
-            err = NORMAL
-            sample_pdfs = [None] * len(jax_pdfs)
-            for (i, jax_pdf) in enumerate(jax_pdfs):
-                sample_pdfs[i], key, err_pdf = jax_pdf(x, key)
-                err |= err_pdf
-            sample_pdfs = jnp.asarray(sample_pdfs)
-            
-            # compute cumulative distribution function
-            sample_cdf = jnp.cumsum(sample_pdfs, axis=0)
+            error = NORMAL
+            prob = [None] * len(jax_probs)
+            for (i, jax_prob) in enumerate(jax_probs):
+                prob[i], key, error_pdf = jax_prob(x, key)
+                error |= error_pdf
+            prob = jnp.asarray(prob)
             
             # check this is a valid PDF
             if unnorm:
-                out_of_bounds = jnp.logical_not(jnp.all(sample_pdfs >= 0))
-                sample_cdf = sample_cdf / sample_cdf[-1:, ...]
+                out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
+                normalizer = jnp.sum(prob, axis=0, keepdims=True)
+                prob = prob / normalizer
             else:
                 out_of_bounds = jnp.logical_not(jnp.logical_and(
-                    jnp.all(sample_pdfs >= 0),
-                    jnp.allclose(sample_cdf[-1, ...], 1.0)))
-            err |= (out_of_bounds * ERR)
+                    jnp.all(prob >= 0),
+                    jnp.allclose(jnp.sum(prob, axis=0), 1.0)))
+            error |= (out_of_bounds * ERR)
             
-            # inverse CDF sampling
+            # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            shape = (1,) + jnp.shape(sample_cdf)[1:]
-            U = random.uniform(key=subkey, shape=shape, dtype=JaxRDDLCompiler.REAL)
-            sample = jnp.argmax(jnp.less(U, sample_cdf), axis=0)
-            return sample, key, err
+            logits = jnp.log(prob)
+            sample = random.categorical(key=subkey, logits=logits, axis=0)
+            return sample, key, error
         
         return _jax_wrapped_distribution_discrete
+    
