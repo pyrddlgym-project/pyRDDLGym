@@ -1,3 +1,6 @@
+import jax
+import jax.numpy as jnp
+import jax.random as random
 import numpy as np
 import warnings
 
@@ -12,7 +15,9 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     (e.g. non-zero) gradient where appropriate. 
     '''
     
-    def __init__(self, *args, logic: FuzzyLogic=ProductLogic(), **kwargs) -> None:
+    def __init__(self, *args, 
+                 logic: FuzzyLogic=ProductLogic(), temp: float=0.1,
+                 **kwargs) -> None:
         super(JaxRDDLCompilerWithGrad, self).__init__(*args, **kwargs)
         
         # actions and CPFs must be continuous
@@ -47,6 +52,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             'if': logic.If,
             'switch': logic.Switch
         }
+        self.temp = temp
     
     def _compile_cpfs(self):
         warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
@@ -93,3 +99,29 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         arg, = expr.args
         arg = self._jax(arg)
         return arg
+    
+    def _jax_bernoulli(self, expr):
+        warnings.warn(f'Bernoulli uses Gumbel-softmax reparameterization.',
+                      stacklevel=2) 
+         
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
+        JaxRDDLCompiler._check_num_args(expr, 1)
+        
+        arg_prob, = expr.args
+        jax_prob = self._jax(arg_prob)
+        tau = self.temp
+        
+        # use the Gumbel-softmax trick to make this differentiable
+        def _jax_wrapped_distribution_gumbel_softmax(x, key):
+            prob, key, err = jax_prob(x, key)
+            key, subkey = random.split(key)
+            dist = jnp.asarray([1.0 - prob, prob])
+            Gumbel01 = random.gumbel(key=subkey, shape=dist.shape)
+            sample = (Gumbel01 + jnp.log(dist)) / tau
+            sample = jax.nn.softmax(sample, axis=0)[1, ...]      
+            out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
+            err |= (out_of_bounds * ERR)
+            return sample, key, err
+        
+        return _jax_wrapped_distribution_gumbel_softmax
+    
