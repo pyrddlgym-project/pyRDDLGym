@@ -2,6 +2,7 @@ import copy
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedCPFError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
@@ -86,8 +87,16 @@ class RDDLLiftedModel(PlanningModel):
         # 2. their types (e.g. state-fluent, action-fluent)
         # 3. their ranges (e.g. int, real, enum-type)
         var_params, var_types, var_ranges = {}, {}, {}
-        for pvar in self._AST.domain.pvariables:
+        for pvar in self._AST.domain.pvariables: 
+            
+            # make sure variable is not defined more than once        
             primed_name = name = pvar.name
+            if name in var_params:
+                raise RDDLRepeatedVariableError(
+                    f'{pvar.fluent_type} <{name}> has the same name as '
+                    f'another {var_types[name]}.')
+        
+            # variable is new: record its type, parameters and range
             if pvar.is_state_fluent():
                 primed_name = name + '\''
             ptypes = pvar.param_types
