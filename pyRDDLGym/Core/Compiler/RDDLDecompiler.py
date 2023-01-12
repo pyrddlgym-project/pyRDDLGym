@@ -83,10 +83,11 @@ class RDDLDecompiler:
         
     def _decompile_pvar(self, expr, enclose, level):
         _, name = expr.etype
-        _, params = expr.args  
-        params = ((self._decompile(arg, False, 0) if isinstance(arg, Expression) 
-                   else arg)
-                  for arg in params)
+        _, params = expr.args 
+        if params is not None:
+            params = ((self._decompile(arg, False, 0) if isinstance(arg, Expression) 
+                       else arg)
+                      for arg in params)
         return self._symbolic(name, params, aggregation=False)
         
     def _decompile_math(self, expr, enclose, level):
