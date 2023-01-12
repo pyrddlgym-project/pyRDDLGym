@@ -120,17 +120,10 @@ class JaxRDDLCompiler:
             'max': jnp.maximum,
             'pow': jnp.power,
             'log': lambda x, y: jnp.log(x) / jnp.log(y)
-        }
-        
-        def _jax_switch(pred, cases):
-            pred = jnp.expand_dims(pred, axis=0)
-            sample = jnp.take_along_axis(cases, pred, axis=0)
-            assert sample.shape[0] == 1
-            return sample[0, ...]
-        
+        }        
         self.CONTROL_OPS = {
             'if': jnp.where,
-            'switch': _jax_switch
+            'switch': self._jax_switch_helper()
         }
         
     # ===========================================================================
@@ -677,10 +670,20 @@ class JaxRDDLCompiler:
             
         return _jax_wrapped_if_then_else
     
+    def _jax_switch_helper(self):
+        
+        def _jax_switch_calc_exact(pred, cases):
+            pred = jnp.expand_dims(pred, axis=0)
+            sample = jnp.take_along_axis(cases, pred, axis=0)
+            assert sample.shape[0] == 1
+            return sample[0, ...]
+
+        return _jax_switch_calc_exact
+        
     def _jax_switch(self, expr):
         pred, *_ = expr.args             
         jax_pred = self._jax(pred)
-        jax_op = self.CONTROL_OPS['switch']
+        jax_switch = self.CONTROL_OPS['switch']
         
         # wrap cases as JAX expressions
         cases, default = self.traced.cached_sim_info(expr) 
@@ -701,7 +704,7 @@ class JaxRDDLCompiler:
             sample_cases = jnp.asarray(sample_cases)
             
             # predicate (enum) is an integer - use it to extract from case array
-            sample = jax_op(sample_pred, sample_cases)
+            sample = jax_switch(sample_pred, sample_cases)
             return sample, key, err    
         
         return _jax_wrapped_switch
@@ -1089,11 +1092,20 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gompertz
     
+    def _jax_discrete_helper(self):
+        
+        def _jax_discrete_calc_exact(prob, subkey):
+            logits = jnp.log(prob)
+            return random.categorical(key=subkey, logits=logits, axis=0)
+        
+        return _jax_discrete_calc_exact
+            
     def _jax_discrete(self, expr, unnorm):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
         jax_probs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
+        jax_discrete = self._jax_discrete_helper()
         
         def _jax_wrapped_distribution_discrete(x, key):
             
@@ -1118,8 +1130,7 @@ class JaxRDDLCompiler:
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            logits = jnp.log(prob)
-            sample = random.categorical(key=subkey, logits=logits, axis=0)
+            sample = jax_discrete(prob, subkey)
             return sample, key, error
         
         return _jax_wrapped_distribution_discrete
