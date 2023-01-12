@@ -713,7 +713,9 @@ class RDDLSimulator:
                 for arg in cases
             ])
             sample_pred = np.expand_dims(sample_pred, axis=0)
-            return np.take_along_axis(sample_cases, sample_pred, axis=0)        
+            sample = np.take_along_axis(sample_cases, sample_pred, axis=0)   
+            assert sample.shape[0] == 1
+            return sample[0, ...]
         
     # ===========================================================================
     # random variables
