@@ -1,5 +1,6 @@
 import copy
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
@@ -261,7 +262,7 @@ class RDDLLiftedModel(PlanningModel):
             if objects is None:
                 objects = []
             if len(types) != len(objects):
-                raise RDDLInvalidObjectError(
+                raise RDDLInvalidNumberOfArgumentsError(
                     f'CPF <{name}> expects {len(types)} parameter(s), '
                     f'got {len(objects)}.')
             

@@ -7,6 +7,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionErro
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
@@ -166,7 +167,7 @@ class RDDLGrounder(Grounder):
         objects_by_type = []
         for obj_type in args:
             if obj_type not in self.objects:
-                raise RDDLUndefinedVariableError(
+                raise RDDLTypeError(
                     f'Object type <{obj_type}> is not defined, '
                     f'should be one of <{set(self.objects.keys())}>.')
             objects_by_type.append(self.objects[obj_type])
@@ -206,7 +207,7 @@ class RDDLGrounder(Grounder):
             vtype = self.pvar_to_type[pvar_name]
             if pvar_name not in valid_non_fluents:
                 warnings.warn(
-                    f'Non-fluents block initializes an undefined pvariable <{pvar_name}>.',
+                    f'Non-fluents block initializes undefined variable <{pvar_name}>.',
                     stacklevel=2)
             variations_list = [init_vals[0][1]]
             val = init_vals[1]
@@ -307,6 +308,7 @@ class RDDLGrounder(Grounder):
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
                         f'CPF <{name}> is missing a valid definition.')
+                    
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -332,6 +334,7 @@ class RDDLGrounder(Grounder):
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
                         f'CPF <{name}> is missing a valid definition.')
+                    
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -357,6 +360,7 @@ class RDDLGrounder(Grounder):
                 if cpf is None:
                     raise RDDLMissingCPFDefinitionError(
                         f'CPF <{name}> is missing a valid definition.')
+                    
                 for g in grounded:
                     grounded_cpf = self._ground_single_cpf(
                         cpf, g, grounded_name_to_params_dict[g])
@@ -582,7 +586,7 @@ class RDDLGrounder(Grounder):
                     self.initstate[key] = val
                 else:
                     warnings.warn(
-                        f'Init-state block initializes an undefined state fluent <{key}>.',
+                        f'Init-state block initializes undefined state-fluent <{key}>.',
                         stacklevel=2)
                     
     # added on Dec 17 (Mike)

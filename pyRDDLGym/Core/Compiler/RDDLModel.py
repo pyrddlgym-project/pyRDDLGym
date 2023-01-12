@@ -5,6 +5,7 @@ from typing import Dict, Iterable, List, Tuple
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
 from pyRDDLGym.Core.Parser.expr import Expression, Value
@@ -375,7 +376,7 @@ class PlanningModel(metaclass=ABCMeta):
         for ptype in ptypes:
             objects = self.objects.get(ptype, None)
             if objects is None:
-                raise RDDLInvalidObjectError(
+                raise RDDLTypeError(
                     f'Type <{ptype}> is not valid, '
                     f'must be one of {set(self.objects.keys())}.')
             objects_by_type.append(objects)
@@ -515,7 +516,7 @@ class PlanningModel(metaclass=ABCMeta):
         except:
             for ptype in types:
                 if ptype not in objects:
-                    raise RDDLInvalidObjectError(
+                    raise RDDLTypeError(
                         f'Type <{ptype}> is not valid, '
                         f'must be one of {set(objects.keys())}.'
                         f'\n{msg}')
@@ -530,7 +531,8 @@ class PlanningModel(metaclass=ABCMeta):
         values = np.ravel(values, order='C')
         if len(keys) != values.size:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {len(keys)} values, got {values.size}.')
+                f'Variable <{var}> requires {len(keys)} argument(s), '
+                f'got {values.size}.')
         return dict(zip(keys, values))
     
     def ground_values_from_dict(self, dict_values: Dict[str, object]) -> Dict[str, Value]:

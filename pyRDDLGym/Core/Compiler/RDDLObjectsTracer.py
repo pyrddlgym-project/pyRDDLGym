@@ -4,6 +4,7 @@ from typing import List, Tuple, Union
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
@@ -140,7 +141,7 @@ class RDDLObjectsTracer:
             self._trace_random(expr, objects, out)
         else:
             raise RDDLNotImplementedError(
-                f'Internal error: expression type is not supported.\n' + 
+                f'Internal error: expression type {etype} is not supported.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
     
     # ===========================================================================
@@ -237,7 +238,7 @@ class RDDLObjectsTracer:
                 if args_types[i] != enum_type: 
                     if enum_type is None:
                         enum_type = 'real/int/bool'
-                    raise RDDLInvalidObjectError(
+                    raise RDDLTypeError(
                         f'Argument {i + 1} of variable <{var}> expects object '
                         f'of type <{args_types[i]}>, got nested expression '
                         f'of type <{enum_type}>.\n' + 
@@ -253,7 +254,7 @@ class RDDLObjectsTracer:
                 literal = self.rddl.literal_name(arg)
                 enum_type = self.rddl.objects_rev[literal]
                 if args_types[i] != enum_type: 
-                    raise RDDLInvalidObjectError(
+                    raise RDDLTypeError(
                         f'Argument {i + 1} of variable <{var}> expects object '
                         f'of type <{args_types[i]}>, got <{arg}> '
                         f'of type <{enum_type}>.\n' + 
@@ -270,14 +271,14 @@ class RDDLObjectsTracer:
                 index_of_arg_in_objects = object_index.get(arg, None)
                 if index_of_arg_in_objects is None:
                     raise RDDLInvalidObjectError(
-                        f'Undefined argument <{arg}> at index {i + 1} '
+                        f'Undefined argument <{arg}> at position {i + 1} '
                         f'of variable <{var}>.\n' + 
                         RDDLObjectsTracer._print_stack_trace(expr))
                 
                 # make sure type of argument is correct
                 _, ptype = objects[index_of_arg_in_objects]
                 if ptype != args_types[i]:
-                    raise RDDLInvalidObjectError(
+                    raise RDDLTypeError(
                         f'Argument {i + 1} of variable <{var}> expects object '
                         f'of type <{args_types[i]}>, got <{arg}> '
                         f'of type <{ptype}>.\n' + 
@@ -383,7 +384,7 @@ class RDDLObjectsTracer:
         # can not use operator besides == and ~= to compare enum types
         enum_type = next(iter(enum_types))
         if enum_type is not None and op != '==' and op != '~=':
-            raise RDDLNotImplementedError(
+            raise RDDLTypeError(
                 f'Relational operator {op} is not valid for comparing enum types, '
                 f'must be either == or ~=.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
@@ -414,7 +415,7 @@ class RDDLObjectsTracer:
                      for (_, ptype) in new_objects 
                      if ptype not in self.rddl.objects}
         if bad_types:
-            raise RDDLInvalidObjectError(
+            raise RDDLTypeError(
                 f'Type(s) {bad_types} are not defined, '
                 f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
@@ -426,7 +427,7 @@ class RDDLObjectsTracer:
             
             # check that there is no duplicated iteration variable
             if free_new in free_vars_seen:
-                raise RDDLInvalidObjectError(
+                raise RDDLRepeatedVariableError(
                     f'Iteration variable <{free_new}> is repeated in aggregation.\n' + 
                     RDDLObjectsTracer._print_stack_trace(expr))             
             free_vars_seen.add(free_new)
@@ -434,7 +435,7 @@ class RDDLObjectsTracer:
             # check if iteration variable is same as one defined in outer scope
             # since there is ambiguity to which is referred I raise an error
             if free_new in outer_scope_vars:
-                raise RDDLInvalidObjectError(
+                raise RDDLRepeatedVariableError(
                     f'Iteration variable <{free_new}> is already defined '
                     f'in outer scope.\n' + 
                     RDDLObjectsTracer._print_stack_trace(expr))
@@ -549,7 +550,7 @@ class RDDLObjectsTracer:
         for literal in case_dict:
             if literal != 'default' \
             and self.rddl.objects_rev.get(literal, None) != enum_type:
-                raise RDDLUndefinedVariableError(
+                raise RDDLInvalidObjectError(
                     f'Literal <{literal}> does not belong to enum type '
                     f'<{enum_type}>, must be one of {set(enum_values)}.\n' + 
                     RDDLObjectsTracer._print_stack_trace(expr))
@@ -608,7 +609,7 @@ class RDDLObjectsTracer:
         case_dict = dict(case_tup for (_, case_tup) in cases)
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default cases.\n' + 
+                f'Duplicated literal or default case(s).\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # no default cases are allowed
