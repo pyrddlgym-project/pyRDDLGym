@@ -36,6 +36,10 @@ class RDDLParseError(SyntaxError):
     pass
 
 
+class RDDLRepeatedVariableError(SyntaxError):
+    pass
+    
+
 class RDDLStateInvariantNotSatisfiedError(ValueError):
     pass
 
