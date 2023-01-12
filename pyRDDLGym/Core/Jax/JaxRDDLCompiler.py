@@ -121,9 +121,16 @@ class JaxRDDLCompiler:
             'pow': jnp.power,
             'log': lambda x, y: jnp.log(x) / jnp.log(y)
         }
+        
+        def _jax_switch(pred, cases):
+            pred = jnp.expand_dims(pred, axis=0)
+            sample = jnp.take_along_axis(cases, pred, axis=0)
+            assert sample.shape[0] == 1
+            return sample[0, ...]
+        
         self.CONTROL_OPS = {
             'if': jnp.where,
-            'switch': jnp.select
+            'switch': _jax_switch
         }
         
     # ===========================================================================
@@ -673,12 +680,13 @@ class JaxRDDLCompiler:
     def _jax_switch(self, expr):
         pred, *_ = expr.args             
         jax_pred = self._jax(pred)
-        cases, default = self.traced.cached_sim_info(expr)  
+        jax_op = self.CONTROL_OPS['switch']
         
         # wrap cases as JAX expressions
-        jax_def = None if default is None else self._jax(default)
-        jax_cases = [(jax_def if arg is None else self._jax(arg))
-                     for arg in cases]
+        cases, default = self.traced.cached_sim_info(expr) 
+        jax_default = None if default is None else self._jax(default)
+        jax_cases = [(jax_default if _case is None else self._jax(_case))
+                     for _case in cases]
                     
         def _jax_wrapped_switch(x, key):
             
@@ -693,8 +701,7 @@ class JaxRDDLCompiler:
             sample_cases = jnp.asarray(sample_cases)
             
             # predicate (enum) is an integer - use it to extract from case array
-            sample_pred = jnp.expand_dims(sample_pred, axis=0)
-            sample = jnp.take_along_axis(sample_cases, sample_pred, axis=0)
+            sample = jax_op(sample_pred, sample_cases)
             return sample, key, err    
         
         return _jax_wrapped_switch
