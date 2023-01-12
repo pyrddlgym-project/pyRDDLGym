@@ -20,7 +20,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
                       f'will be cast to real.', stacklevel=2)   
         for (var, values) in self.init_values.items():
             if self.rddl.variable_types[var] != 'non-fluent':
-                self.init_values[var] = np.asarray(values, dtype=JaxRDDLCompiler.REAL)        
+                self.init_values[var] = np.asarray(values, dtype=JaxRDDLCompiler.REAL) 
         
         # overwrite basic operations with fuzzy ones
         self.RELATIONAL_OPS = {
@@ -42,8 +42,11 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         }
         self.AGGREGATION_OPS['exists'] = logic.exists
         self.AGGREGATION_OPS['forall'] = logic.forall
-        self.KNOWN_UNARY['sgn'] = logic.signum
-        self.CONTROL_OPS['if'] = logic.If
+        self.KNOWN_UNARY['sgn'] = logic.signum        
+        self.CONTROL_OPS = {
+            'if': logic.If,
+            'switch': logic.Switch
+        }
     
     def _compile_cpfs(self):
         warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
@@ -56,7 +59,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     
     def _jax_relational(self, expr):
         _, op = expr.etype
-        warnings.warn(f'Relational operator {op} uses sigmoid approximation.', 
+        warnings.warn(f'Relational operator {op} uses sigmoid approximation.',
                       stacklevel=2)        
         return super(JaxRDDLCompilerWithGrad, self)._jax_relational(expr)
     
@@ -68,25 +71,25 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     def _jax_aggregation(self, expr):
         _, op = expr.etype
         if op == 'forall' or op == 'exists':
-            warnings.warn(f'Aggregation operator <{op}> uses fuzzy logic.', 
+            warnings.warn(f'Aggregation operator <{op}> uses fuzzy logic.',
                           stacklevel=2)        
         return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr)
     
     def _jax_functional(self, expr):
         _, op = expr.etype
         if op == 'sgn':
-            warnings.warn(f'Function {op} uses tanh approximation.', 
+            warnings.warn(f'Function {op} uses tanh approximation.',
                           stacklevel=2) 
         return super(JaxRDDLCompilerWithGrad, self)._jax_functional(expr)
     
-    def _jax_if(self, expr):
-        warnings.warn(f'Control operator <if> uses linear approximation.', 
+    def _jax_control(self, expr):
+        _, op = expr.etype
+        warnings.warn(f'Control operator <{op}> uses linear approximation.',
                       stacklevel=2)    
-        return super(JaxRDDLCompilerWithGrad, self)._jax_if(expr)
-            
+        return super(JaxRDDLCompilerWithGrad, self)._jax_control(expr)
+    
     def _jax_kron(self, expr):
         warnings.warn('KronDelta will be ignored.', stacklevel=2)                       
         arg, = expr.args
         arg = self._jax(arg)
         return arg
-
