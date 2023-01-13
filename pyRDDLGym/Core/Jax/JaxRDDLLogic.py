@@ -58,6 +58,12 @@ class FuzzyLogic:
     def signum(self, x):
         raise NotImplementedError
     
+    def argmax(self, x, axis):
+        raise NotImplementedError
+    
+    def argmin(self, x, axis):
+        return self.argmax(-x, axis)
+    
 
 class ProductLogic(FuzzyLogic):
     '''A class representing the Product t-norm fuzzy logic in Jax.
@@ -86,18 +92,19 @@ class ProductLogic(FuzzyLogic):
     def If(self, c, a, b):
         return c * a + (1 - c) * b
     
-    def Switch(self, pred, cases):
-        shape = cases.shape  
-        pred = jnp.expand_dims(pred, axis=0)
-        pred = jnp.broadcast_to(pred, shape=shape)    
-        num_cases = shape[0]
-        literals = jnp.arange(num_cases)
+    def _literal_array(self, shape):
+        literals = jnp.arange(shape[0])
         literals = jnp.expand_dims(literals, axis=tuple(range(1, len(shape))))
         literals = jnp.broadcast_to(literals, shape=shape)
-        weight = self.equal(pred, literals)
-        prob = jax.nn.softmax(self._w * weight, axis=0)
-        sample = jnp.sum(cases * prob, axis=0)
-        return sample
+        return literals
+        
+    def Switch(self, pred, cases):
+        pred = jnp.expand_dims(pred, axis=0)
+        pred = jnp.broadcast_to(pred, shape=cases.shape)    
+        literals = self._literal_array(cases.shape)
+        prob = self.equal(pred, literals)
+        prob = jax.nn.softmax(self._w * prob, axis=0)
+        return jnp.sum(cases * prob, axis=0)
     
     def equal(self, a, b):
         expr = a - b
@@ -114,7 +121,13 @@ class ProductLogic(FuzzyLogic):
     
     def signum(self, x):
         return jax.nn.tanh(self._w * x)
-
+    
+    def argmax(self, x, axis):
+        prob = jax.nn.softmax(self._w * x, axis=axis)
+        prob = jnp.moveaxis(prob, source=axis, destination=0)
+        literals = self._literal_array(prob.shape)
+        return jnp.sum(literals * prob, axis=0)
+        
     
 if __name__ == '__main__':
     logic = ProductLogic(10)
@@ -134,9 +147,19 @@ if __name__ == '__main__':
     def switch(pred, cases):
         return logic.Switch(pred, cases)
     
+    def argmaxmin(x):
+        amax = logic.argmax(x, axis=0)
+        amin = logic.argmin(x, axis=0)
+        return amax, amin
+        
     pred = jnp.asarray(jnp.linspace(0, 2, 10))
     case1 = jnp.asarray([-10.] * 10)
     case2 = jnp.asarray([1.5] * 10)
     case3 = jnp.asarray([10.] * 10)
     cases = jnp.asarray([case1, case2, case3])
     print(switch(pred, cases))
+    
+    values = jnp.asarray([2., 3., 5., 4.9, 4., 1., -1., -2.])
+    amax, amin = argmaxmin(values)
+    print(amax)
+    print(amin)
