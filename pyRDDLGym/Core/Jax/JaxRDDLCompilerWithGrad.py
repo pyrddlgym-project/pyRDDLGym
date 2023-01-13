@@ -63,8 +63,17 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             '=>': logic.implies,
             '<=>': logic.equiv
         }
-        self.AGGREGATION_OPS['exists'] = logic.exists
-        self.AGGREGATION_OPS['forall'] = logic.forall
+        self.AGGREGATION_OPS = {
+            'sum': jnp.sum,
+            'avg': jnp.mean,
+            'prod': jnp.prod,
+            'minimum': jnp.min,
+            'maximum': jnp.max,
+            'forall': logic.forall,
+            'exists': logic.exists,
+            'argmin': logic.argmin,
+            'argmax': logic.argmax
+        }
         self.KNOWN_UNARY['sgn'] = logic.signum        
         self.CONTROL_OPS = {
             'if': logic.If,
@@ -93,7 +102,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     
     def _jax_aggregation(self, expr):
         _, op = expr.etype
-        if op == 'forall' or op == 'exists':
+        if op in ['forall', 'exists', 'argmin', 'argmax']:
             warnings.warn(f'Aggregation operator <{op}> uses fuzzy logic.',
                           stacklevel=2)        
         return super(JaxRDDLCompilerWithGrad, self)._jax_aggregation(expr)
