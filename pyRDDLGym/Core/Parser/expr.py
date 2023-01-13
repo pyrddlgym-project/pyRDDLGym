@@ -55,6 +55,10 @@ class Expression(object):
             return ('aggregation', 'forall')
         elif self._expr[0] == 'exists':
             return ('aggregation', 'exists')
+        elif self._expr[0] == 'argmin':
+            return ('aggregation', 'argmin')
+        elif self._expr[0] == 'argmax':
+            return ('aggregation', 'argmax')        
         elif self._expr[0] == 'if':
             return ('control', 'if')
         elif self._expr[0] == 'switch':
@@ -79,7 +83,7 @@ class Expression(object):
             return self._expr[1]
         elif self._expr[0] == 'func':
             return self._expr[1][1]
-        elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists']:
+        elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists', 'argmin', 'argmax']:
             return self._expr[1]
         # elif self._expr[0] == 'if':
         elif self._expr[0] in ['if', 'switch']:

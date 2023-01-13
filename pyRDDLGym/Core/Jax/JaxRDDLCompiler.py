@@ -98,7 +98,9 @@ class JaxRDDLCompiler:
             'minimum': jnp.min,
             'maximum': jnp.max,
             'forall': jnp.all,
-            'exists': jnp.any  
+            'exists': jnp.any,
+            'argmin': jnp.argmin,
+            'argmax': jnp.argmax
         }
         self.KNOWN_UNARY = {        
             'abs': jnp.abs,
