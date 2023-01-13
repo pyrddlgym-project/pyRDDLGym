@@ -18,6 +18,7 @@ domain nestedtest {
         matrix(enum_level, enum_level) : { state-fluent , enum_level , default = @l1 };	
         vector(enum_level) : { state-fluent , enum_level , default = @l1 };	
 		scalar : { state-fluent, enum_level , default = @l1 };
+		biggest(enum_level) : { state-fluent , enum_level , default = @l1 };
 		
 		a : { action-fluent , bool , default = false };
     };
@@ -27,6 +28,7 @@ domain nestedtest {
         matrix'(?p, ?q) = NEXT(matrix(?p, ?q));	
 		vector'(?p) = matrix'(NEXT(?p), NEXT(?p));
 		scalar' = NEXT(NEXT(NEXT(matrix'(NEXT(NEXT(NEXT(@l1))), NEXT(NEXT(NEXT(@l3)))))));
+		biggest'(?p) = ( argmax_{?q : enum_level } [ COST(matrix'(?p, ?q)) ] );
     };
 
     reward = ( sum_{?p : enum_level, ?q : enum_level} [ COST(matrix(?p, ?q)) ] );
