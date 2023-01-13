@@ -144,6 +144,8 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         return _jax_wrapped_distribution_bernoulli_gumbel_softmax
     
     def _jax_discrete_helper(self):
+        warnings.warn(f'Discrete uses Gumbel-softmax reparameterization.',
+                      stacklevel=2) 
         tau, eps = self.temp, self.eps
         
         def _jax_discrete_calc_gumbel_softmax(prob, subkey):
@@ -156,8 +158,3 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             return jnp.sum(sample * indices, axis=0)
         
         return _jax_discrete_calc_gumbel_softmax
-
-    def _jax_discrete(self, expr, unnorm):
-        warnings.warn(f'Discrete uses Gumbel-softmax reparameterization.',
-                      stacklevel=2) 
-        return super(JaxRDDLCompilerWithGrad, self)._jax_discrete(expr, unnorm)

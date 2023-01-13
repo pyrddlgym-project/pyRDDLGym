@@ -409,6 +409,17 @@ class RDDLObjectsTracer:
         new_objects = objects + [ptype for (_, ptype) in pvars]
         reduced_axes = tuple(range(len(objects), len(new_objects)))   
         cached_sim_info = (new_objects, reduced_axes)
+        enum_type = None
+        
+        # argmax/argmin require exactly one parameter argument
+        if op == 'argmin' or op == 'argmax':
+            if len(pvars) != 1:
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Aggregation <{op}> requires one iteration variable, '
+                    f'got {len(pvars)}.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
+            cached_sim_info = (new_objects, reduced_axes[0])
+            _, (_, enum_type) = pvars[0]
         
         # check for undefined types
         bad_types = {ptype 
@@ -419,7 +430,7 @@ class RDDLObjectsTracer:
                 f'Type(s) {bad_types} are not defined, '
                 f'must be one of {set(self.rddl.objects.keys())}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
-            
+        
         # check for valid type arguments
         outer_scope_vars = {var for (var, _) in objects}
         free_vars_seen = set()
@@ -447,7 +458,7 @@ class RDDLObjectsTracer:
         RDDLObjectsTracer._check_not_enum(
             arg, expr, out, f'Argument of aggregation {op}')     
         
-        out._append(expr, objects, None, cached_sim_info)
+        out._append(expr, objects, enum_type, cached_sim_info)
         
         # log information about aggregation operation
         if self.logger is not None:

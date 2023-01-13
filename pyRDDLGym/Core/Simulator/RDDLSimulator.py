@@ -108,7 +108,9 @@ class RDDLSimulator:
             'minimum': np.min,
             'maximum': np.max,
             'forall': np.all,
-            'exists': np.any  
+            'exists': np.any,
+            'argmin': np.argmin,
+            'argmax': np.argmax
         }
         self.UNARY = {        
             'abs': np.abs,
