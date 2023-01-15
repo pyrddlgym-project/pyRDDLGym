@@ -537,10 +537,11 @@ class RDDLParser(object):
             p[0] = [p[1]]
 
     def p_term(self, p):
+        # CHANGED BY MIKE ON JAN 15
         '''term : VAR
                 | ENUM_VAL
-                | pvar_expr'''
-        # CHANGED BY MIKE ON JAN 15
+                | pvar_expr
+                | argmaxmin_expr'''        
         if isinstance(p[1], tuple):
             p[0] = Expression(p[1])
         else:
@@ -562,17 +563,11 @@ class RDDLParser(object):
         p[0] = Expression(p[1])
     
     def p_pvar_expr(self, p):
-        # CHANGED BY MIKE ON JAN 15
         '''pvar_expr : IDENT LPAREN term_list RPAREN
                      | IDENT
-                     | ENUM_VAL
-                     | argmaxmin_expr'''
-        # CHANGED BY MIKE ON JAN 15
+                     | ENUM_VAL'''
         if len(p) == 2:
-            if isinstance(p[1], tuple) and p[1][0] in ['argmax', 'argmin']:
-                p[0] = p[1]
-            else:
-                p[0] = ('pvar_expr', (p[1], None))
+            p[0] = ('pvar_expr', (p[1], None))
         elif len(p) == 5:
             p[0] = ('pvar_expr', (p[1], p[3]))
 
