@@ -341,6 +341,7 @@ class RDDLObjectsTracer:
             operation = ['einsum', 'transpose', 'none'][op_code]
             message = (
                 f'computing info for pvariable tensor transformation:' 
+                f'\n\taddress of expression   ={super(Expression, expr).__str__()}'
                 f'\n\tvariable                ={var}'
                 f'\n\tvariable evaluated at   ={list(zip(args, args_types))}'
                 f'\n\tfree object(s) in scope ={objects}'
