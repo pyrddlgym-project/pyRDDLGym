@@ -87,8 +87,12 @@ class RDDLLevelAnalysis:
         elif expr.is_pvariable_expression():
             name, pvars = expr.args
             
+            # free variables (e.g., ?x) are ignored
+            if self.rddl.is_free_variable(name):
+                pass
+            
             # enum literals are ignored
-            if not pvars and self.rddl.is_literal(name):
+            elif not pvars and self.rddl.is_literal(name):
                 pass
             
             # variable defined in pvariables {..} scope

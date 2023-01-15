@@ -394,8 +394,12 @@ class RDDLSimulator:
     def _sample_pvar(self, expr, subs):
         var, args = expr.args
         
+        # free variable (e.g., ?x) treated as integer array (0, 1, 2...)
+        if self.rddl.is_free_variable(var):
+            return self.traced.cached_sim_info(expr)
+        
         # literal of enumerated type is treated as integer
-        if not args and self.rddl.is_literal(var):
+        elif not args and self.rddl.is_literal(var):
             return self.traced.cached_sim_info(expr)
         
         # extract variable value
