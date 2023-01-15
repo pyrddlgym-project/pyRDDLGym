@@ -563,9 +563,11 @@ class RDDLParser(object):
         p[0] = Expression(p[1])
     
     def p_pvar_expr(self, p):
+        # CHANGED BY MIKE ON JAN 15
         '''pvar_expr : IDENT LPAREN term_list RPAREN
                      | IDENT
-                     | ENUM_VAL'''
+                     | ENUM_VAL
+                     | VAR'''
         if len(p) == 2:
             p[0] = ('pvar_expr', (p[1], None))
         elif len(p) == 5:
