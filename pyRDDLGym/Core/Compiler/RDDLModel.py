@@ -392,7 +392,7 @@ class PlanningModel(metaclass=ABCMeta):
     
     def is_free_variable(self, name: str) -> bool:
         '''Determines whether the quantity is a free variable (e.g., ?x).'''
-        return name and name[0] == '?'
+        return name[0] == '?'
         
     def is_literal(self, name: str, msg='') -> bool:
         '''Determines whether the quantity with the given name is a literal
