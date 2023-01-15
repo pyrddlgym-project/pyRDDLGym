@@ -67,6 +67,8 @@ class RDDLlex(object):
             'reward': 'REWARD',
             'forall': 'FORALL',
             'exists': 'EXISTS',
+            'argmax': 'ARGMAX',  # CHANGED BY MIKE ON JAN 15
+            'argmin': 'ARGMIN',  # CHANGED BY MIKE ON JAN 15
             # 'sum': 'SUM',
             'true': 'TRUE',
             'false': 'FALSE',
@@ -243,7 +245,7 @@ class RDDLParser(object):
             ('left', 'ASSIGN_EQUAL'),
             ('left', 'EXISTS'),
             ('left', 'FORALL'),
-            ('left', 'AGG_OPER'),
+            ('left', 'AGG_OPER', 'ARGMAX', 'ARGMIN'),  # CHANGED BY MIKE ON JAN 15
             ('left', 'EQUIV'),
             ('left', 'IMPLY'),
             ('left', 'OR'),
@@ -534,17 +536,18 @@ class RDDLParser(object):
         elif len(p) == 2:
             p[0] = [p[1]]
 
-    # CHANGED BY MIKE ON JAN 15
     def p_term(self, p):
         '''term : VAR
                 | ENUM_VAL
                 | pvar_expr'''
+        # CHANGED BY MIKE ON JAN 15
         if isinstance(p[1], tuple):
             p[0] = Expression(p[1])
         else:
             p[0] = p[1]
 
     def p_expr(self, p):
+        # CHANGED BY MIKE ON JAN 15
         '''expr : pvar_expr
                 | group_expr
                 | function_expr
@@ -553,16 +556,23 @@ class RDDLParser(object):
                 | quantifier_expr
                 | numerical_expr
                 | aggregation_expr
+                | argmaxmin_expr
                 | control_expr
                 | randomvar_expr'''
         p[0] = Expression(p[1])
     
     def p_pvar_expr(self, p):
+        # CHANGED BY MIKE ON JAN 15
         '''pvar_expr : IDENT LPAREN term_list RPAREN
                      | IDENT
-                     | ENUM_VAL'''
+                     | ENUM_VAL
+                     | argmaxmin_expr'''
+        # CHANGED BY MIKE ON JAN 15
         if len(p) == 2:
-            p[0] = ('pvar_expr', (p[1], None))
+            if isinstance(p[1], tuple) and p[1][0] in ['argmax', 'argmin']:
+                p[0] = p[1]
+            else:
+                p[0] = ('pvar_expr', (p[1], None))
         elif len(p) == 5:
             p[0] = ('pvar_expr', (p[1], p[3]))
 
@@ -622,6 +632,12 @@ class RDDLParser(object):
 
     def p_aggregation_expr(self, p):
         '''aggregation_expr : IDENT UNDERSCORE LCURLY typed_var_list RCURLY expr %prec AGG_OPER'''
+        p[0] = (p[1], (*p[4], p[6]))
+    
+    # CHANGED BY MIKE ON JAN 15
+    def p_argmaxmin_expr(self, p):
+        '''argmaxmin_expr : ARGMAX UNDERSCORE LCURLY typed_var_list RCURLY expr %prec ARGMAX
+                          | ARGMIN UNDERSCORE LCURLY typed_var_list RCURLY expr %prec ARGMIN'''
         p[0] = (p[1], (*p[4], p[6]))
 
     def p_control_expr(self, p):
