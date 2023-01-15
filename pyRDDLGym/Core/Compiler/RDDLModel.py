@@ -389,6 +389,10 @@ class PlanningModel(metaclass=ABCMeta):
         '''
         for objects in self.variations(ptypes):
             yield self.ground_name(name, objects)
+    
+    def is_free_variable(self, name: str) -> bool:
+        '''Determines whether the quantity is a free variable (e.g., ?x).'''
+        return name and name[0] == '?'
         
     def is_literal(self, name: str, msg='') -> bool:
         '''Determines whether the quantity with the given name is a literal
@@ -463,10 +467,14 @@ class PlanningModel(metaclass=ABCMeta):
         elif etype == 'pvar':
             name, pvars = expr.args
             
-            # enum literal is non-fluent
-            if not pvars and self.is_literal(name):
+            # a free variable (e.g., ?x) is non-fluent
+            if self.is_free_variable(name):
                 return True
-            
+                
+            # enum literal is non-fluent
+            elif not pvars and self.is_literal(name):
+                return True
+                        
             # variable must be well-defined and non-fluent
             else:
                 

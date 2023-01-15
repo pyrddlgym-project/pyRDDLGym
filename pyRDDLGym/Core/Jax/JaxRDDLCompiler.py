@@ -458,10 +458,20 @@ class JaxRDDLCompiler:
     def _jax_pvar(self, expr):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args  
+        cached_info = self.traced.cached_sim_info(expr)
+        
+        # boundary case: free variable is converted to array (0, 1, 2...)
+        if self.rddl.is_free_variable(var):
+            cached_value = cached_info
+
+            def _jax_wrapped_pvar_free_variable(_, key):
+                return cached_value, key, NORMAL
+            
+            return _jax_wrapped_pvar_free_variable
         
         # boundary case: enum literal is converted to canonical integer index
-        if not pvars and self.rddl.is_literal(var):
-            cached_literal = self.traced.cached_sim_info(expr)
+        elif not pvars and self.rddl.is_literal(var):
+            cached_literal = cached_info
             
             def _jax_wrapped_pvar_literal(_, key):
                 return cached_literal, key, NORMAL
@@ -469,8 +479,7 @@ class JaxRDDLCompiler:
             return _jax_wrapped_pvar_literal
         
         # boundary case: no shape information (e.g. scalar pvar)
-        shape_info = self.traced.cached_sim_info(expr)
-        if shape_info is None:
+        elif cached_info is None:
             
             def _jax_wrapped_pvar_scalar(x, key):
                 sample = x[var]
@@ -479,44 +488,45 @@ class JaxRDDLCompiler:
             return _jax_wrapped_pvar_scalar
         
         # must slice and/or reshape value tensor to match free variables
-        slices, axis, shape, op_code, op_args = shape_info 
-        
-        # compile nested expressions
-        if slices and op_code == -1:
-            
-            jax_nested_expr = [(self._jax(arg) if _slice is None 
-                                else (lambda _, key: (_slice, key, NORMAL)))
-                               for (arg, _slice) in zip(pvars, slices)]    
-            
-            def _jax_wrapped_pvar_tensor_nested(x, key):
-                error = NORMAL
-                sample = jnp.asarray(x[var])
-                new_slices = [None] * len(jax_nested_expr)
-                for (i, jax_expr) in enumerate(jax_nested_expr):
-                    new_slices[i], key, err = jax_expr(x, key)
-                    error |= err
-                sample = sample[tuple(new_slices)]
-                return sample, key, error
-            
-            return _jax_wrapped_pvar_tensor_nested
-            
-        # tensor variable but no nesting  
         else:
-
-            def _jax_wrapped_pvar_tensor_non_nested(x, key):
-                sample = jnp.asarray(x[var])
-                if slices:
-                    sample = sample[slices]
-                if axis:
-                    sample = jnp.expand_dims(sample, axis=axis)
-                    sample = jnp.broadcast_to(sample, shape=shape)
-                if op_code == 0:
-                    sample = jnp.einsum(sample, *op_args)
-                elif op_code == 1:
-                    sample = jnp.transpose(sample, axes=op_args)
-                return sample, key, NORMAL
-            
-            return _jax_wrapped_pvar_tensor_non_nested
+            slices, axis, shape, op_code, op_args = cached_info 
+        
+            # compile nested expressions
+            if slices and op_code == -1:
+                
+                jax_nested_expr = [(self._jax(arg) if _slice is None 
+                                    else (lambda _, key: (_slice, key, NORMAL)))
+                                   for (arg, _slice) in zip(pvars, slices)]    
+                
+                def _jax_wrapped_pvar_tensor_nested(x, key):
+                    error = NORMAL
+                    sample = jnp.asarray(x[var])
+                    new_slices = [None] * len(jax_nested_expr)
+                    for (i, jax_expr) in enumerate(jax_nested_expr):
+                        new_slices[i], key, err = jax_expr(x, key)
+                        error |= err
+                    sample = sample[tuple(new_slices)]
+                    return sample, key, error
+                
+                return _jax_wrapped_pvar_tensor_nested
+                
+            # tensor variable but no nesting  
+            else:
+    
+                def _jax_wrapped_pvar_tensor_non_nested(x, key):
+                    sample = jnp.asarray(x[var])
+                    if slices:
+                        sample = sample[slices]
+                    if axis:
+                        sample = jnp.expand_dims(sample, axis=axis)
+                        sample = jnp.broadcast_to(sample, shape=shape)
+                    if op_code == 0:
+                        sample = jnp.einsum(sample, *op_args)
+                    elif op_code == 1:
+                        sample = jnp.transpose(sample, axes=op_args)
+                    return sample, key, NORMAL
+                
+                return _jax_wrapped_pvar_tensor_non_nested
     
     # ===========================================================================
     # mathematical

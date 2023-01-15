@@ -160,9 +160,35 @@ class RDDLObjectsTracer:
         
     def _trace_pvar(self, expr, objects, out):
         var, pvars = expr.args   
+        
+        # free variable (e.g., ?x) treated as array
+        if self.rddl.is_free_variable(var):
+            obj_to_index = {pobj: i for (i, (pobj, _)) in enumerate(objects)}
+            index_of_var_in_objects = obj_to_index.get(var, None)
+                         
+            # var is not in objects
+            if index_of_var_in_objects is None:
+                raise RDDLInvalidObjectError(
+                    f'Free variable <{var}> is not defined in outer scope, '
+                    f'must be one of {set(obj_to_index.keys())}.')
             
+            # create an array whose shape matches objects
+            # along axis equal to index of var in objects values are (0, 1, ...)
+            ptypes = tuple(ptype for (_, ptype) in objects)
+            shape = self.rddl.object_counts(ptypes)
+            cached_value = np.arange(shape[index_of_var_in_objects])
+            cached_value = np.expand_dims(
+                cached_value, axis=tuple(range(1, len(ptypes))))
+            cached_value = np.swapaxes(
+                cached_value, axis1=0, axis2=index_of_var_in_objects)
+            cached_value = np.broadcast_to(cached_value, shape=shape)
+            
+            prange = ptypes[index_of_var_in_objects]
+            enum_type = prange if prange in self.rddl.enum_types else None
+            out._append(expr, objects, enum_type, cached_value)
+        
         # enum literal value treated as int
-        if not pvars and self.rddl.is_literal(var): 
+        elif not pvars and self.rddl.is_literal(var): 
             literal = self.rddl.literal_name(var)
             const = self.rddl.index_of_object[literal]
             if objects:
