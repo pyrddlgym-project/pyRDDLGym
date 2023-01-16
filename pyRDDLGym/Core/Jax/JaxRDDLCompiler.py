@@ -419,6 +419,8 @@ class JaxRDDLCompiler:
             jax_expr = self._jax_control(expr)
         elif etype == 'randomvar':
             jax_expr = self._jax_random(expr)
+        elif etype == 'randomvector':
+            jax_expr = self._jax_randomvector(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {expr} is not supported.\n' + 
@@ -1140,6 +1142,10 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gompertz
     
+    # ===========================================================================
+    # random variables with enum support
+    # ===========================================================================
+    
     def _jax_discrete_helper(self):
         
         def _jax_discrete_calc_exact(prob, subkey):
@@ -1183,3 +1189,48 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_discrete
     
+    # ===========================================================================
+    # random vectors
+    # ===========================================================================
+    
+    def _jax_randomvector(self, expr):
+        _, name = expr.etype
+        if name == 'Discrete':
+            return self._jax_discrete_vector(expr, unnorm=False)
+        elif name == 'UnnormDiscrete':
+            return self._jax_discrete_vector(expr, unnorm=True)
+        else:
+            raise RDDLNotImplementedError(
+                f'Vectorized distribution {name} is not supported.\n' + 
+                JaxRDDLCompiler._print_stack_trace(expr))
+            
+    def _jax_discrete_vector(self, expr, unnorm):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
+        
+        arg, = expr.args
+        jax_probs = self._jax(arg)
+        jax_discrete = self._jax_discrete_helper()
+
+        def _jax_wrapped_vectorized_distribution_discrete(x, key):
+            
+            # sample probabilities
+            prob, key, error = jax_probs(x, key)
+            prob = jnp.swapaxes(prob, axis1=0, axis2=-1)
+            
+            # check this is a valid PDF
+            if unnorm:
+                out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
+                normalizer = jnp.sum(prob, axis=0, keepdims=True)
+                prob = prob / normalizer
+            else:
+                out_of_bounds = jnp.logical_not(jnp.logical_and(
+                    jnp.all(prob >= 0),
+                    jnp.allclose(jnp.sum(prob, axis=0), 1.0)))
+            error |= (out_of_bounds * ERR)
+            
+            # dispatch to sampling subroutine
+            key, subkey = random.split(key)
+            sample = jax_discrete(prob, subkey)
+            return sample, key, error
+        
+        return _jax_wrapped_vectorized_distribution_discrete
