@@ -139,6 +139,8 @@ class RDDLObjectsTracer:
             self._trace_control(expr, objects, out)
         elif etype == 'randomvar':
             self._trace_random(expr, objects, out)
+        elif etype == 'randomvector':
+            self._trace_randomvector(expr, objects, out)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -239,10 +241,20 @@ class RDDLObjectsTracer:
                 f'got {len(args)}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
+        # for vector distributions the _ quantifiers are appended to objects
+        # they are given distinct names ?_, ?__, ?___, ... for each occurrence
+        new_objects, underscores = [], {}
+        for (i, arg) in enumerate(args):
+            if arg == '_':
+                next_free_var = '?' + '_' * (1 + len(underscores))
+                new_objects.append((next_free_var, args_types[i]))
+                underscores[i] = next_free_var
+        objects = objects + new_objects
+            
         # test for nested expressions
         is_arg_expr = [isinstance(arg, Expression) for arg in args]
         nested = np.any(is_arg_expr)
-        
+                
         # literals are converted to canonical indices in their object list
         # and used to extract from the value tensor at the corresponding axis
         # 1. if there are nested variables, then they are left as None slices
@@ -292,7 +304,10 @@ class RDDLObjectsTracer:
             
             # is a free object (e.g., ?x)
             else:
-                    
+                
+                # if argument is _ then it has a designated ? variable in objects
+                arg = underscores.get(i, arg)
+                
                 # make sure argument is well defined
                 index_of_arg_in_objects = object_index.get(arg, None)
                 if index_of_arg_in_objects is None:
@@ -678,4 +693,43 @@ class RDDLObjectsTracer:
                 arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}') 
         
         out._append(expr, objects, None, None)
+        
+    # ===========================================================================
+    # random vectors
+    # ===========================================================================
+    
+    def _trace_randomvector(self, expr, objects, out):
+        _, name = expr.etype
+        if name == 'Discrete' or name == 'UnnormDiscrete':
+            self._trace_discrete_vector(expr, objects, out)
+    
+    def _trace_discrete_vector(self, expr, objects, out):
+        args = expr.args
+        
+        # must have one argument
+        if len(args) != 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Vectorized Discrete requires one variable argument, '
+                f'got {len(args)}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # argument must have one _ to indicate sample dimension
+        arg, = args
+        _, (name, pvars) = arg
+        index_of_underscore = [i for (i, pvar) in enumerate(pvars) if pvar == '_']
+        if len(index_of_underscore) != 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Probability pvariable <{name}> in vectorized Discrete requires '
+                f'one _ argument to indicate sampling dimension, '
+                f'got {len(index_of_underscore)}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # trace the argument
+        self._trace(arg, objects, out)
+        
+        # return type of Discrete is the enum type corresponding to _
+        params = self.rddl.param_types[name]
+        enum_type = params[index_of_underscore[0]]
+        
+        out._append(expr, objects, enum_type, None)
         
