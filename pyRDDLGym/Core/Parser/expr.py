@@ -33,6 +33,8 @@ class Expression(object):
             return ('pvar', self._expr[1][0])
         elif self._expr[0] == 'randomvar':
             return ('randomvar', self._expr[1][0])
+        elif self._expr[0] == 'randomvector':
+            return ('randomvector', self._expr[1][0])
         elif self._expr[0] in ['+', '-', '*', '/']:
             return ('arithmetic', self._expr[0])
         elif self._expr[0] in ['^', '&', '|', '~', '=>', '<=>']:
@@ -74,6 +76,8 @@ class Expression(object):
         elif self._expr[0] == 'pvar_expr':
             return self._expr[1]
         elif self._expr[0] == 'randomvar':
+            return self._expr[1][1]
+        elif self._expr[0] == 'randomvector':
             return self._expr[1][1]
         elif self._expr[0] in ['+', '-', '*', '/']:
             return self._expr[1]
@@ -132,7 +136,7 @@ class Expression(object):
         '''Returns string representing the expression.'''
         ident = ' ' * level * 4
         
-        #if expr.name == 'NEIGHBOR':
+        # if expr.name == 'NEIGHBOR':
         #    print('my name is neighbor')
         
         # CHANGED BY MIKE ON JAN 10
@@ -179,7 +183,7 @@ class Expression(object):
             elif type(atom) in [tuple, list]:
                 scope.update(cls.__get_scope(atom))
             elif atom == 'pvar_expr':
-                functor, params = expr[i+1]
+                functor, params = expr[i + 1]
                 arity = len(params) if params is not None else 0
                 name = '{}/{}'.format(functor, arity)
                 scope.add(name)
