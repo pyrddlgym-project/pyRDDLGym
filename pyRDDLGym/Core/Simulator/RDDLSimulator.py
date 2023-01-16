@@ -379,6 +379,8 @@ class RDDLSimulator:
             return self._sample_control(expr, subs)
         elif etype == 'randomvar':
             return self._sample_random(expr, subs)
+        elif etype == 'randomvector':
+            return self._sample_randomvector(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -975,11 +977,18 @@ class RDDLSimulator:
         U = self.rng.uniform(size=size)
         return np.log(1.0 - np.log1p(-U) / sample_shape) / sample_scale
     
+    # ===========================================================================
+    # random variables with enum support
+    # ===========================================================================
+    
     def _sample_discrete(self, expr, subs, unnorm):
-        
-        # calculate the CDF
         pdf = np.asarray([self._sample(arg, subs) 
                           for arg in self.traced.cached_sim_info(expr)])
+        return self._sample_discrete_helper(pdf, unnorm, expr)
+    
+    def _sample_discrete_helper(self, pdf, unnorm, expr):
+        
+        # calculate the CDF
         cdf = np.cumsum(pdf, axis=0)
         
         # must be non-negative
@@ -999,7 +1008,31 @@ class RDDLSimulator:
         # use inverse CDF sampling                  
         U = self.rng.random(size=(1,) + cdf.shape[1:])
         return np.argmax(U < cdf, axis=0)
-
+        
+    # ===========================================================================
+    # random vectors
+    # ===========================================================================
+    
+    def _sample_randomvector(self, expr, subs):
+        _, name = expr.etype
+        if name == 'Discrete':
+            return self._sample_discrete_vector(expr, subs, unnorm=False)
+        elif name == 'UnnormDiscrete':
+            return self._sample_discrete_vector(expr, subs, unnorm=True)
+        else:
+            raise RDDLNotImplementedError(
+                f'Vectorized distribution {name} is not supported.\n' + 
+                RDDLSimulator._print_stack_trace(expr))
+        
+    def _sample_discrete_vector(self, expr, subs, unnorm):
+        args = expr.args
+        RDDLSimulator._check_arity(args, 1, 'Discrete', expr)
+        
+        arg, = args
+        pdf = self._sample(arg, subs)
+        pdf = np.swapaxes(pdf, axis1=0, axis2=-1)
+        return self._sample_discrete_helper(pdf, unnorm, expr)
+                
 
 def lngamma(x):
     xmin = np.min(x)

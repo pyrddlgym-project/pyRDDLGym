@@ -40,7 +40,7 @@ class RDDLlex(object):
             'requirements': 'REQUIREMENTS',
             'state-action-constraints': 'STATE_ACTION_CONSTRAINTS',
             'action-preconditions': 'ACTION_PRECONDITIONS',
-            'termination' : 'TERMINATION',
+            'termination': 'TERMINATION',
             'state-invariants': 'STATE_INVARIANTS',
             'types': 'TYPES',
             'object': 'OBJECT',
@@ -93,11 +93,11 @@ class RDDLlex(object):
             'Dirichlet': 'DIRICHLET',
             'Binomial': 'BINOMIAL',
             'NegativeBinomial': 'NEGATIVEBINOMIAL',
-            'Beta' : 'BETA',
-            'Geometric' : 'GEOMETRIC',
-            'Pareto' : 'PARETO',
-            'Student' : 'STUDENT',
-            'Gumbel' : 'GUMBEL',
+            'Beta': 'BETA',
+            'Geometric': 'GEOMETRIC',
+            'Pareto': 'PARETO',
+            'Student': 'STUDENT',
+            'Gumbel': 'GUMBEL',
             'Laplace': 'LAPLACE',
             'Cauchy': 'CAUCHY',
             'Gompertz': 'GOMPERTZ'
@@ -711,7 +711,8 @@ class RDDLParser(object):
 
     # CHANGED BY MIKE ON JAN 16
     def p_randomvector_expr(self, p):
-        '''randomvector_expr : DISCRETE LPAREN randomvector_pvar_expr RPAREN'''
+        '''randomvector_expr : DISCRETE LPAREN randomvector_pvar_expr RPAREN
+                             | UNNORMDISCRETE LPAREN randomvector_pvar_expr RPAREN'''
         p[0] = ('randomvector', (p[1], (p[3],)))
         
     def p_typed_var_list(self, p):
@@ -785,8 +786,6 @@ class RDDLParser(object):
             p[0] = p[1]
         else:
             p[0] = [p[1]]
-
-
 
     # def p_param_list(self, p):
     #     '''param_list : LPAREN string_list RPAREN
