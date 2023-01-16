@@ -559,7 +559,8 @@ class RDDLParser(object):
                 | aggregation_expr
                 | argmaxmin_expr
                 | control_expr
-                | randomvar_expr'''
+                | randomvar_expr 
+                | randomvector_expr'''
         p[0] = Expression(p[1])
     
     def p_pvar_expr(self, p):
@@ -678,7 +679,41 @@ class RDDLParser(object):
                 p[0] = ('randomvar', (p[1], (p[3], p[5])))
         elif len(p) == 5:
             p[0] = ('randomvar', (p[1], (p[3],)))
+    
+    # CHANGED BY MIKE ON JAN 16
+    def p_randomvector_term_list(self, p):
+        '''randomvector_term_list : randomvector_term_list COMMA randomvector_term
+                                  | randomvector_term
+                                  | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+    
+    # CHANGED BY MIKE ON JAN 16
+    def p_randomvector_term(self, p):
+        '''randomvector_term : VAR
+                             | ENUM_VAL
+                             | UNDERSCORE'''     
+        p[0] = p[1]
+    
+    # CHANGED BY MIKE ON JAN 16
+    def p_randomvector_pvar_expr(self, p):
+        '''randomvector_pvar_expr : IDENT LPAREN randomvector_term_list RPAREN
+                                  | IDENT'''
+        if len(p) == 2:
+            p[0] = Expression(('pvar_expr', (p[1], None)))
+        elif len(p) == 5:
+            p[0] = Expression(('pvar_expr', (p[1], p[3])))
 
+    # CHANGED BY MIKE ON JAN 16
+    def p_randomvector_expr(self, p):
+        '''randomvector_expr : DISCRETE LPAREN randomvector_pvar_expr RPAREN'''
+        p[0] = ('randomvector', (p[1], (p[3],)))
+        
     def p_typed_var_list(self, p):
         '''typed_var_list : typed_var_list COMMA typed_var
                           | typed_var'''
