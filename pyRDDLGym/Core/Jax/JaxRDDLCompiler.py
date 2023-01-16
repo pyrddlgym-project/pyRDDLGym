@@ -1215,9 +1215,6 @@ class JaxRDDLCompiler:
             
             # sample probabilities
             prob, key, error = jax_probs(x, key)
-            prob = jnp.swapaxes(prob, axis1=0, axis2=-1)
-            
-            # check this is a valid PDF
             if unnorm:
                 out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
                 normalizer = jnp.sum(prob, axis=0, keepdims=True)

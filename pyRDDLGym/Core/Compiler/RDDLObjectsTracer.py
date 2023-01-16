@@ -249,7 +249,7 @@ class RDDLObjectsTracer:
                 next_free_var = '?' + '_' * (1 + len(underscores))
                 new_objects.append((next_free_var, args_types[i]))
                 underscores[i] = next_free_var
-        objects = objects + new_objects
+        objects = new_objects + objects
             
         # test for nested expressions
         is_arg_expr = [isinstance(arg, Expression) for arg in args]

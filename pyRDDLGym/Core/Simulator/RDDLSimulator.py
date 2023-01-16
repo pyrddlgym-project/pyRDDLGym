@@ -1030,7 +1030,6 @@ class RDDLSimulator:
         
         arg, = args
         pdf = self._sample(arg, subs)
-        pdf = np.swapaxes(pdf, axis1=0, axis2=-1)
         return self._sample_discrete_helper(pdf, unnorm, expr)
                 
 
