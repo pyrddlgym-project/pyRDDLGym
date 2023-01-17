@@ -1025,11 +1025,10 @@ class RDDLSimulator:
                 RDDLSimulator._print_stack_trace(expr))
         
     def _sample_discrete_vector(self, expr, subs, unnorm):
-        args = expr.args
-        RDDLSimulator._check_arity(args, 1, 'Discrete', expr)
-        
+        _, args = expr.args
         arg, = args
         pdf = self._sample(arg, subs)
+        pdf = np.swapaxes(pdf, axis1=0, axis2=-1)
         return self._sample_discrete_helper(pdf, unnorm, expr)
                 
 
