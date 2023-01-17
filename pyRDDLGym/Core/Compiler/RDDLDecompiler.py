@@ -57,9 +57,7 @@ class RDDLDecompiler:
         elif etype == 'control':
             return self._decompile_control(expr, enclose, level)        
         elif etype == 'randomvar':
-            return self._decompile_random(expr, enclose, level)     
-        elif etype == 'randomvector':
-            return self._decompile_randomvector(expr, enclose, level)    
+            return self._decompile_random(expr, enclose, level)
         else:
             raise Exception(f'Internal error: type {etype} is undefined.')
     
@@ -164,17 +162,16 @@ class RDDLDecompiler:
             indent = '\t' * (level + 1)
             value = f',\n{indent}'.join(cases)
         
+        elif op == 'Discrete(p)' or op == 'UnnormDiscrete(p)':
+            op = op[:-3]
+            * pvars, args = expr.args
+            params = [pvar for (_, pvar) in pvars]
+            op = self._symbolic(op, params, aggregation=True)    
+            value = ', '.join(self._decompile(arg, False, level) 
+                              for arg in args)
+            
         else:  # Normal, exponential, etc...
             value = ', '.join(self._decompile(arg, False, level) 
                               for arg in expr.args)
             
         return f'{op}({value})'
-            
-    def _decompile_randomvector(self, expr, enclose, level):
-        _, op = expr.etype
-        * pvars, args = expr.args
-        params = [pvar for (_, pvar) in pvars]
-        agg = self._symbolic(op, params, aggregation=True)    
-        decompiled = ', '.join(self._decompile(arg, False, level) 
-                               for arg in args)
-        return f'{agg}({decompiled})'

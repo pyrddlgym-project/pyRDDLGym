@@ -428,8 +428,7 @@ class RDDLParser(object):
             p[0] = p[1]
 
     def p_cpf_def(self, p):
-        '''cpf_def : pvar_expr ASSIGN_EQUAL expr SEMI
-                   | pvar_expr ASSIGN_EQUAL randomvector_expr SEMI'''
+        '''cpf_def : pvar_expr ASSIGN_EQUAL expr SEMI'''
         p[0] = CPF(pvar=p[1], expr=p[3])
 
     def p_reward_section(self, p):
@@ -442,6 +441,7 @@ class RDDLParser(object):
                                 |  TERMINATION LCURLY RCURLY SEMI'''
         if len(p) == 6:
             p[0] = ('terminals', p[3])
+            
         elif len(p) == 5:
             p[0] = ('terminals', [])
         self._print_verbose('termination')
@@ -560,7 +560,8 @@ class RDDLParser(object):
                 | aggregation_expr
                 | argmaxmin_expr
                 | control_expr
-                | randomvar_expr'''
+                | randomvar_expr
+                | randomvar_from_pvar_expr'''
         p[0] = Expression(p[1])
     
     def p_pvar_expr(self, p):
@@ -681,10 +682,10 @@ class RDDLParser(object):
             p[0] = ('randomvar', (p[1], (p[3],)))
     
     # CHANGED BY MIKE ON JAN 16
-    def p_randomvector_expr(self, p):
-        '''randomvector_expr : DISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN
-                             | UNNORMDISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN'''
-        p[0] = Expression(('randomvector', (p[1], (*p[4], (p[7],)))))
+    def p_randomvar_from_pvar_expr(self, p):
+        '''randomvar_from_pvar_expr : DISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN
+                                    | UNNORMDISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN'''
+        p[0] = ('randomvar', (p[1] + '(p)', (*p[4], (p[7],))))
         
     def p_typed_var_list(self, p):
         '''typed_var_list : typed_var_list COMMA typed_var

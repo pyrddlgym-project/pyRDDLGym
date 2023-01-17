@@ -773,6 +773,10 @@ class RDDLSimulator:
             return self._sample_discrete(expr, subs, unnorm=False)
         elif name == 'UnnormDiscrete':
             return self._sample_discrete(expr, subs, unnorm=True)
+        elif name == 'Discrete(p)':
+            return self._sample_discrete_pvar(expr, subs, unnorm=False)
+        elif name == 'UnnormDiscrete(p)':
+            return self._sample_discrete_pvar(expr, subs, unnorm=True)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -981,54 +985,39 @@ class RDDLSimulator:
     # random variables with enum support
     # ===========================================================================
     
-    def _sample_discrete(self, expr, subs, unnorm):
-        pdf = np.asarray([self._sample(arg, subs) 
-                          for arg in self.traced.cached_sim_info(expr)])
-        return self._sample_discrete_helper(pdf, unnorm, expr)
-    
     def _sample_discrete_helper(self, pdf, unnorm, expr):
         
-        # calculate the CDF
-        cdf = np.cumsum(pdf, axis=0)
-        
-        # must be non-negative
+        # PDF must be non-negative
         if not np.all(pdf >= 0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must be non-negative, got {pdf}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))  
           
+        # calculate the CDF
+        cdf = np.cumsum(pdf, axis=-1)
+        
         # CDF must sum to one
         if unnorm:
-            cdf = cdf / cdf[-1:, ...]
-        if not np.allclose(cdf[-1, ...], 1.0):
+            cdf = cdf / cdf[..., -1:]
+        if not np.allclose(cdf[..., -1], 1.0):
             raise RDDLValueOutOfRangeError(
-                f'Discrete probabilities must sum to 1, got {cdf[-1, ...]}.\n' + 
+                f'Discrete probabilities must sum to 1, got {cdf[..., -1]}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))     
         
         # use inverse CDF sampling                  
-        U = self.rng.random(size=(1,) + cdf.shape[1:])
-        return np.argmax(U < cdf, axis=0)
+        U = self.rng.random(size=cdf.shape[:-1] + (1,))
+        return np.argmax(U < cdf, axis=-1)
         
-    # ===========================================================================
-    # random vectors
-    # ===========================================================================
+    def _sample_discrete(self, expr, subs, unnorm):
+        pdf = np.stack([self._sample(arg, subs) 
+                        for arg in self.traced.cached_sim_info(expr)],
+                       axis=-1)
+        return self._sample_discrete_helper(pdf, unnorm, expr)
     
-    def _sample_randomvector(self, expr, subs):
-        _, name = expr.etype
-        if name == 'Discrete':
-            return self._sample_discrete_vector(expr, subs, unnorm=False)
-        elif name == 'UnnormDiscrete':
-            return self._sample_discrete_vector(expr, subs, unnorm=True)
-        else:
-            raise RDDLNotImplementedError(
-                f'Vectorized distribution {name} is not supported.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
-        
-    def _sample_discrete_vector(self, expr, subs, unnorm):
+    def _sample_discrete_pvar(self, expr, subs, unnorm):
         _, args = expr.args
         arg, = args
         pdf = self._sample(arg, subs)
-        pdf = np.swapaxes(pdf, axis1=0, axis2=-1)
         return self._sample_discrete_helper(pdf, unnorm, expr)
                 
 
