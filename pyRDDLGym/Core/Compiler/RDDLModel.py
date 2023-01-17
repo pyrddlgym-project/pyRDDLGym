@@ -458,7 +458,7 @@ class PlanningModel(metaclass=ABCMeta):
         if etype == 'constant':
             return True
         
-        elif etype == 'randomvar' or etype == 'randomvector':
+        elif etype == 'randomvar':
             return False
         
         elif etype == 'pvar':

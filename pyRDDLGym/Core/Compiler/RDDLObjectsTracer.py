@@ -139,8 +139,6 @@ class RDDLObjectsTracer:
             self._trace_control(expr, objects, out)
         elif etype == 'randomvar':
             self._trace_random(expr, objects, out)
-        elif etype == 'randomvector':
-            self._trace_randomvector(expr, objects, out)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -430,12 +428,61 @@ class RDDLObjectsTracer:
         
         out._append(expr, objects, None, None)
     
+    def _trace_func(self, expr, objects, out):
+        for (i, arg) in enumerate(expr.args):
+            self._trace(arg, objects, out)
+            
+            # argument cannot be enum type
+            RDDLObjectsTracer._check_not_enum(
+                arg, expr, out, f'Argument {i + 1} of function {expr.etype[1]}') 
+        
+        out._append(expr, objects, None, None)
+            
+    # ===========================================================================
+    # aggregation
+    # ===========================================================================
+    
+    def _check_iteration_variables(self, objects, iter_objects, expr):
+        
+        # check for undefined types
+        bad_types = {ptype 
+                     for (_, ptype) in iter_objects 
+                     if ptype not in self.rddl.objects}
+        if bad_types:
+            raise RDDLTypeError(
+                f'Type(s) {bad_types} are not defined, '
+                f'must be one of {set(self.rddl.objects.keys())}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # check for valid type arguments
+        scope_vars = {var for (var, _) in objects}
+        seen_vars = set()
+        for (var, _) in iter_objects:
+            
+            # check that there is no duplicated iteration variable
+            if var in seen_vars:
+                raise RDDLRepeatedVariableError(
+                    f'Iteration variable <{var}> is repeated.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))             
+            seen_vars.add(var)
+             
+            # check if iteration variable is same as one defined in outer scope
+            # since there is ambiguity to which is referred I raise an error
+            if var in scope_vars:
+                raise RDDLRepeatedVariableError(
+                    f'Iteration variable <{var}> is already defined '
+                    f'in outer scope.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
+        
     def _trace_aggregation(self, expr, objects, out):
         _, op = expr.etype
         * pvars, arg = expr.args
         
         # cache and read reduced axes tensor info for the aggregation
-        new_objects = objects + [ptype for (_, ptype) in pvars]
+        # axes of new free variables in aggregation are appended to value array
+        iter_objects = [ptype for (_, ptype) in pvars]
+        self._check_iteration_variables(objects, iter_objects, expr)
+        new_objects = objects + iter_objects
         reduced_axes = tuple(range(len(objects), len(new_objects)))   
         cached_sim_info = (new_objects, reduced_axes)
         enum_type = None
@@ -449,36 +496,6 @@ class RDDLObjectsTracer:
                     RDDLObjectsTracer._print_stack_trace(expr))
             cached_sim_info = (new_objects, reduced_axes[0])
             _, (_, enum_type) = pvars[0]
-        
-        # check for undefined types
-        bad_types = {ptype 
-                     for (_, ptype) in new_objects 
-                     if ptype not in self.rddl.objects}
-        if bad_types:
-            raise RDDLTypeError(
-                f'Type(s) {bad_types} are not defined, '
-                f'must be one of {set(self.rddl.objects.keys())}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-        
-        # check for valid type arguments
-        outer_scope_vars = {var for (var, _) in objects}
-        free_vars_seen = set()
-        for (_, (free_new, _)) in pvars:
-            
-            # check that there is no duplicated iteration variable
-            if free_new in free_vars_seen:
-                raise RDDLRepeatedVariableError(
-                    f'Iteration variable <{free_new}> is repeated in aggregation.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))             
-            free_vars_seen.add(free_new)
-             
-            # check if iteration variable is same as one defined in outer scope
-            # since there is ambiguity to which is referred I raise an error
-            if free_new in outer_scope_vars:
-                raise RDDLRepeatedVariableError(
-                    f'Iteration variable <{free_new}> is already defined '
-                    f'in outer scope.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
         
         # trace the aggregated expression with the new objects
         self._trace(arg, new_objects, out)
@@ -499,16 +516,6 @@ class RDDLObjectsTracer:
                        f'\n\taggregation axes              ={reduced_axes}\n')
             self.logger.log(message)        
         
-    def _trace_func(self, expr, objects, out):
-        for (i, arg) in enumerate(expr.args):
-            self._trace(arg, objects, out)
-            
-            # argument cannot be enum type
-            RDDLObjectsTracer._check_not_enum(
-                arg, expr, out, f'Argument {i + 1} of function {expr.etype[1]}') 
-        
-        out._append(expr, objects, None, None)
-            
     # ===========================================================================
     # control flow
     # ===========================================================================
@@ -632,6 +639,8 @@ class RDDLObjectsTracer:
         _, name = expr.etype
         if name == 'Discrete' or name == 'UnnormDiscrete':
             self._trace_discrete(expr, objects, out)
+        elif name == 'Discrete(p)' or name == 'UnnormDiscrete(p)':
+            self._trace_discrete_pvar(expr, objects, out)
         else:
             self._trace_random_other(expr, objects, out)
                 
@@ -671,6 +680,36 @@ class RDDLObjectsTracer:
         
         out._append(expr, objects, enum_type, cached_sim_info)
     
+    def _trace_discrete_pvar(self, expr, objects, out):
+        _, name = expr.etype
+        * pvars, args = expr.args
+        
+        # check number of iteration variables and arguments
+        if len(pvars) != 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Discrete requires one iteration variable, got {len(pvars)}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        elif len(args) != 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Discrete requires one argument, got {len(args)}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # sampling variables are appended to scope free variables        
+        iter_objects = [pvar for (_, pvar) in pvars]     
+        self._check_iteration_variables(objects, iter_objects, expr)
+        new_objects = objects + iter_objects
+        
+        # trace the arguments
+        for (i, arg) in enumerate(args):
+            self._trace(arg, new_objects, out)
+                
+            # argument cannot be enum type
+            RDDLObjectsTracer._check_not_enum(
+                arg, expr, out, f'Argument {i + 1} of distribution {name}') 
+
+        (_, (_, enum_type)), = pvars
+        out._append(expr, objects, enum_type, None)
+
     def _trace_random_other(self, expr, objects, out):
         for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects, out)
@@ -681,71 +720,3 @@ class RDDLObjectsTracer:
         
         out._append(expr, objects, None, None)
         
-    # ===========================================================================
-    # random vectors
-    # ===========================================================================
-    
-    def _validate_randomvector(self, expr, objects, num_pvars, num_args):
-        _, op = expr.etype
-        * pvars, args = expr.args
-        
-        # check number of iteration variables
-        if len(pvars) != num_pvars:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'{op} requires {num_pvars} iteration variable(s), '
-                f'got {len(pvars)}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-        
-        # check number of arguments
-        if len(args) != num_args:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'{op} requires {num_args} argument(s), got {len(args)}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-        
-        # check for undefined type of iteration variable
-        bad_types = {ptype 
-                     for (_, (_, ptype)) in pvars 
-                     if ptype not in self.rddl.objects}
-        if bad_types:
-            raise RDDLTypeError(
-                f'Type(s) {bad_types} are not defined, '
-                f'must be one of {set(self.rddl.objects.keys())}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-            
-        # check iteration variables not same as one in outer scope
-        outer_scope_vars = {var for (var, _) in objects}
-        bad_vars = {pvar 
-                    for (_, (pvar, _)) in pvars 
-                    if pvar in outer_scope_vars}
-        if bad_vars:
-            raise RDDLRepeatedVariableError(
-                f'Iteration variable(s) {bad_vars} are already defined '
-                f'in outer scope.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-            
-    def _trace_randomvector(self, expr, objects, out):
-        
-        # check the number of iteration variables and arguments
-        _, name = expr.etype
-        * pvars, args = expr.args
-        if name == 'Discrete' or name == 'UnnormDiscrete':
-            self._validate_randomvector(expr, objects, num_pvars=1, num_args=1)
-            (_, (_, enum_type)), = pvars
-        else:
-            raise RDDLNotImplementedError(
-                f'Vectorized distribution {name} is not supported.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-        
-        # sampling variables are appended to scope free variables            
-        new_objects = objects + [pvar for (_, pvar) in pvars]
-        
-        # trace the arguments
-        for (i, arg) in enumerate(args):
-            self._trace(arg, new_objects, out)
-                
-            # argument cannot be enum type
-            RDDLObjectsTracer._check_not_enum(
-                arg, expr, out, f'Argument {i + 1} of distribution {name}') 
-
-        out._append(expr, objects, enum_type, None)
-    

@@ -419,8 +419,6 @@ class JaxRDDLCompiler:
             jax_expr = self._jax_control(expr)
         elif etype == 'randomvar':
             jax_expr = self._jax_random(expr)
-        elif etype == 'randomvector':
-            jax_expr = self._jax_randomvector(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {expr} is not supported.\n' + 
@@ -803,6 +801,10 @@ class JaxRDDLCompiler:
             return self._jax_discrete(expr, unnorm=False)
         elif name == 'UnnormDiscrete':
             return self._jax_discrete(expr, unnorm=True)
+        elif name == 'Discrete(p)':
+            return self._jax_discrete_pvar(expr, unnorm=False)
+        elif name == 'UnnormDiscrete(p)':
+            return self._jax_discrete_pvar(expr, unnorm=True)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -1150,7 +1152,7 @@ class JaxRDDLCompiler:
         
         def _jax_discrete_calc_exact(prob, subkey):
             logits = jnp.log(prob)
-            return random.categorical(key=subkey, logits=logits, axis=0)
+            return random.categorical(key=subkey, logits=logits, axis=-1)
         
         return _jax_discrete_calc_exact
             
@@ -1169,17 +1171,17 @@ class JaxRDDLCompiler:
             for (i, jax_prob) in enumerate(jax_probs):
                 prob[i], key, error_pdf = jax_prob(x, key)
                 error |= error_pdf
-            prob = jnp.asarray(prob)
+            prob = jnp.stack(prob, axis=-1)
             
             # check this is a valid PDF
             if unnorm:
                 out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
-                normalizer = jnp.sum(prob, axis=0, keepdims=True)
+                normalizer = jnp.sum(prob, axis=-1, keepdims=True)
                 prob = prob / normalizer
             else:
                 out_of_bounds = jnp.logical_not(jnp.logical_and(
                     jnp.all(prob >= 0),
-                    jnp.allclose(jnp.sum(prob, axis=0), 1.0)))
+                    jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
             error |= (out_of_bounds * ERR)
             
             # dispatch to sampling subroutine
@@ -1189,22 +1191,7 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_discrete
     
-    # ===========================================================================
-    # random vectors
-    # ===========================================================================
-    
-    def _jax_randomvector(self, expr):
-        _, name = expr.etype
-        if name == 'Discrete':
-            return self._jax_discrete_vector(expr, unnorm=False)
-        elif name == 'UnnormDiscrete':
-            return self._jax_discrete_vector(expr, unnorm=True)
-        else:
-            raise RDDLNotImplementedError(
-                f'Vectorized distribution {name} is not supported.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
-            
-    def _jax_discrete_vector(self, expr, unnorm):
+    def _jax_discrete_pvar(self, expr, unnorm):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
         _, args = expr.args
@@ -1212,19 +1199,18 @@ class JaxRDDLCompiler:
         jax_probs = self._jax(arg)
         jax_discrete = self._jax_discrete_helper()
 
-        def _jax_wrapped_vectorized_distribution_discrete(x, key):
+        def _jax_wrapped_distribution_discrete_pvar(x, key):
             
             # sample probabilities
             prob, key, error = jax_probs(x, key)
-            prob = jnp.swapaxes(prob, axis1=0, axis2=-1)
             if unnorm:
                 out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
-                normalizer = jnp.sum(prob, axis=0, keepdims=True)
+                normalizer = jnp.sum(prob, axis=-1, keepdims=True)
                 prob = prob / normalizer
             else:
                 out_of_bounds = jnp.logical_not(jnp.logical_and(
                     jnp.all(prob >= 0),
-                    jnp.allclose(jnp.sum(prob, axis=0), 1.0)))
+                    jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
             error |= (out_of_bounds * ERR)
             
             # dispatch to sampling subroutine
@@ -1232,4 +1218,4 @@ class JaxRDDLCompiler:
             sample = jax_discrete(prob, subkey)
             return sample, key, error
         
-        return _jax_wrapped_vectorized_distribution_discrete
+        return _jax_wrapped_distribution_discrete_pvar

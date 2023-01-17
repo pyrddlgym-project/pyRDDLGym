@@ -141,11 +141,11 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         def _jax_wrapped_distribution_bernoulli_gumbel_softmax(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
-            dist = jnp.asarray([prob, 1.0 - prob])
+            dist = jnp.stack([prob, 1.0 - prob], axis=-1)
             Gumbel01 = random.gumbel(key=subkey, shape=dist.shape)
             clipped_dist = jnp.maximum(dist, eps)
             sample = (Gumbel01 + jnp.log(clipped_dist)) / tau
-            sample = jax.nn.softmax(sample, axis=0)[0, ...]      
+            sample = jax.nn.softmax(sample, axis=-1)[..., 0]      
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
@@ -161,9 +161,9 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             Gumbel01 = random.gumbel(key=subkey, shape=prob.shape)
             clipped_prob = jnp.maximum(prob, eps)
             sample = (Gumbel01 + jnp.log(clipped_prob)) / tau
-            sample = jax.nn.softmax(sample, axis=0)
-            indices = jnp.arange(prob.shape[0])
-            indices = jnp.expand_dims(indices, axis=tuple(range(1, len(prob.shape))))
-            return jnp.sum(sample * indices, axis=0)
+            sample = jax.nn.softmax(sample, axis=-1)
+            indices = jnp.arange(prob.shape[-1])
+            indices = jnp.expand_dims(indices, axis=tuple(range(len(prob.shape) - 1)))
+            return jnp.sum(sample * indices, axis=-1)
         
         return _jax_discrete_calc_gumbel_softmax
