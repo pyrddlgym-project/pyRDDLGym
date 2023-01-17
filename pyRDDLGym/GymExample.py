@@ -28,7 +28,7 @@ def main():
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
                             instance=EnvInfo.get_instance(0),
                             enforce_action_constraints=False,
-                            debug=True)
+                            debug=False)
     
     # set up the environment visualizer
     # frames_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Visualizer', 'Frames')
