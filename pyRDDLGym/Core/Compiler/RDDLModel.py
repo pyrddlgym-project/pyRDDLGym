@@ -424,14 +424,12 @@ class PlanningModel(metaclass=ABCMeta):
         return False
     
     def literal_name(self, name: str) -> str:
-        '''Prepends @ to the given name if it is not already present.
-        '''
+        '''Prepends @ to the given name if it is not already present.'''
         return name if name[0] == '@' else ('@' + name)
         
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given variable can be evaluated
-        for the given list of objects.
-        '''
+        for the given list of objects.'''
         ptypes = self.param_types.get(var, None)
         if ptypes is None:
             return False
@@ -446,8 +444,7 @@ class PlanningModel(metaclass=ABCMeta):
         return True
     
     def is_non_fluent_expression(self, expr: Expression) -> bool:
-        '''Determines whether or not expression is a non-fluent.
-        '''
+        '''Determines whether or not expression is a non-fluent.'''
         if isinstance(expr, (tuple, list, set)):
             for arg in expr:
                 if not self.is_non_fluent_expression(arg):

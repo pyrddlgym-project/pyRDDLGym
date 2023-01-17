@@ -1207,7 +1207,8 @@ class JaxRDDLCompiler:
     def _jax_discrete_vector(self, expr, unnorm):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
-        arg, = expr.args
+        _, args = expr.args
+        arg, = args
         jax_probs = self._jax(arg)
         jax_discrete = self._jax_discrete_helper()
 
@@ -1215,6 +1216,7 @@ class JaxRDDLCompiler:
             
             # sample probabilities
             prob, key, error = jax_probs(x, key)
+            prob = jnp.swapaxes(prob, axis1=0, axis2=-1)
             if unnorm:
                 out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
                 normalizer = jnp.sum(prob, axis=0, keepdims=True)

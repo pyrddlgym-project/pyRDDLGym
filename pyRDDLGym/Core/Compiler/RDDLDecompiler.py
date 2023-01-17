@@ -172,6 +172,9 @@ class RDDLDecompiler:
             
     def _decompile_randomvector(self, expr, enclose, level):
         _, op = expr.etype
+        * pvars, args = expr.args
+        params = [pvar for (_, pvar) in pvars]
+        agg = self._symbolic(op, params, aggregation=True)    
         decompiled = ', '.join(self._decompile(arg, False, level) 
-                               for arg in expr.args)
-        return f'{op}({decompiled})'
+                               for arg in args)
+        return f'{agg}({decompiled})'

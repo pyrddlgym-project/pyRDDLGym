@@ -241,16 +241,6 @@ class RDDLObjectsTracer:
                 f'got {len(args)}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
-        # for vector distributions the _ quantifiers are appended to objects
-        # they are given distinct names ?_, ?__, ?___, ... for each occurrence
-        new_objects, underscores = [], {}
-        for (i, arg) in enumerate(args):
-            if arg == '_':
-                next_free_var = '?' + '_' * (1 + len(underscores))
-                new_objects.append((next_free_var, args_types[i]))
-                underscores[i] = next_free_var
-        objects = new_objects + objects
-            
         # test for nested expressions
         is_arg_expr = [isinstance(arg, Expression) for arg in args]
         nested = np.any(is_arg_expr)
@@ -304,9 +294,6 @@ class RDDLObjectsTracer:
             
             # is a free object (e.g., ?x)
             else:
-                
-                # if argument is _ then it has a designated ? variable in objects
-                arg = underscores.get(i, arg)
                 
                 # make sure argument is well defined
                 index_of_arg_in_objects = object_index.get(arg, None)
@@ -704,8 +691,32 @@ class RDDLObjectsTracer:
             self._trace_discrete_vector(expr, objects, out)
     
     def _trace_discrete_vector(self, expr, objects, out):
-        args = expr.args
+        _, op = expr.etype
+        * pvars, args = expr.args
         
+        # must have one iteration variable
+        if len(pvars) != 1:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Vectorized Discrete requires one iteration variable, '
+                f'got {len(pvars)}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # check for undefined type of iteration variable
+        (_, (pvar, ptype)), = pvars
+        if ptype not in self.rddl.objects:
+            raise RDDLTypeError(
+                f'Type {ptype} is not defined, must be one of '
+                f'{set(self.rddl.objects.keys())}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+            
+        # check iteration variable is not same as one defined in outer scope
+        outer_scope_vars = {var for (var, _) in objects}
+        if pvar in outer_scope_vars:
+            raise RDDLRepeatedVariableError(
+                f'Iteration variable <{pvar}> is already defined '
+                f'in outer scope.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+            
         # must have one argument
         if len(args) != 1:
             raise RDDLInvalidNumberOfArgumentsError(
@@ -713,23 +724,15 @@ class RDDLObjectsTracer:
                 f'got {len(args)}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
-        # argument must have one _ to indicate sample dimension
-        arg, = args
-        _, (name, pvars) = arg
-        index_of_underscore = [i for (i, pvar) in enumerate(pvars) if pvar == '_']
-        if len(index_of_underscore) != 1:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Probability pvariable <{name}> in vectorized Discrete requires '
-                f'one _ argument to indicate sampling dimension, '
-                f'got {len(index_of_underscore)}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
-        
         # trace the argument
-        self._trace(arg, objects, out)
+        arg, = args
+        new_objects = objects + [(pvar, ptype)]
+        self._trace(arg, new_objects, out)
         
-        # return type of Discrete is the enum type corresponding to _
-        params = self.rddl.param_types[name]
-        enum_type = params[index_of_underscore[0]]
-        
-        out._append(expr, objects, enum_type, None)
+        # argument cannot be enum type
+        RDDLObjectsTracer._check_not_enum(
+            arg, expr, out, f'Argument of vectorized Discrete {op}')    
+         
+        # return type of Discrete is that of the captured variable        
+        out._append(expr, objects, ptype, None)
         
