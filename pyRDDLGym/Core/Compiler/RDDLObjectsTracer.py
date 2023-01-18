@@ -50,7 +50,17 @@ class RDDLObjectsTracer:
     annotates nodes with useful information about objects and enums that appear
     inside expressions.
     '''
-            
+    
+    REQUIRED_DIST_PVARS = {
+        'MultivariateNormal': 1,
+        'Dirichlet': 1
+    }
+    
+    REQUIRED_DIST_UNDERSCORES = {
+        'MultivariateNormal': (1, 2),  # mean, covariance
+        'Dirichlet': (1,)  # weights
+    }
+
     def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
@@ -759,13 +769,9 @@ class RDDLObjectsTracer:
         sample_pvars, args = expr.args
         
         # determine how many instances of _ should appear in each argument
-        if op == 'MultivariateNormal':
-            required_sample_pvars = 1
-            required_underscores = (1, 2)
-        elif op == 'Dirichlet':
-            required_sample_pvars = 1
-            required_underscores = (1,)
-        else:
+        required_sample_pvars = RDDLObjectsTracer.REQUIRED_DIST_PVARS.get(op, None)
+        required_underscores = RDDLObjectsTracer.REQUIRED_DIST_UNDERSCORES.get(op, None)
+        if required_sample_pvars is None or required_underscores is None:
             raise RDDLNotImplementedError(
                 f'Internal error: distribution {op} is not supported.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
@@ -844,8 +850,6 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # figure out where sample_pvars occur in scope_pvars 
-        enum_type = next(iter(enum_types))
         sample_pvar_indices = [scope_pvars[pvar] for pvar in sample_pvars]        
-        out._append(expr, objects, enum_type, sample_pvar_indices)
-        
+        out._append(expr, objects, None, sample_pvar_indices)
         

@@ -986,19 +986,14 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _sample_discrete_helper(self, pdf, unnorm, expr):
+        RDDLSimulator._check_positive(pdf, False, 'Discrete probabilities', expr)
         
-        # PDF must be non-negative
-        if not np.all(pdf >= 0):
-            raise RDDLValueOutOfRangeError(
-                f'Discrete probabilities must be non-negative, got {pdf}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))  
-          
-        # calculate the CDF
+        # calculate CDF       
         cdf = np.cumsum(pdf, axis=-1)
-        
-        # CDF must sum to one
         if unnorm:
             cdf = cdf / cdf[..., -1:]
+            
+        # check valid CDF - still do this for unnorm to reject nan values
         if not np.allclose(cdf[..., -1], 1.0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must sum to 1, got {cdf[..., -1]}.\n' + 
@@ -1062,13 +1057,8 @@ class RDDLSimulator:
         alpha, = args
         sample_alpha = self._sample(alpha, subs)
         
-        # alpha must be positive
-        if not np.all(sample_alpha > 0):
-            raise RDDLValueOutOfRangeError(
-                f'Dirichlet alpha must be positive, got {sample_alpha}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))  
-            
         # sample Gamma(alpha_i, 1) and normalize across i
+        RDDLSimulator._check_positive(sample_alpha, True, 'Dirichlet alpha', expr)
         Gamma = self.rng.gamma(shape=sample_alpha, scale=1.0)
         sample = Gamma / np.sum(Gamma, axis=-1)
         
@@ -1078,7 +1068,7 @@ class RDDLSimulator:
         sample = np.swapaxes(sample, axis1=-1, axis2=index)
         return sample
         
-            
+        
 def lngamma(x):
     xmin = np.min(x)
     if not (xmin > 0):
