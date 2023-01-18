@@ -100,6 +100,7 @@ class RDDLlex(object):
             'Cauchy': 'CAUCHY',
             'Gompertz': 'GOMPERTZ',
             'MultivariateNormal': 'MULTIVARIATENORMAL',
+            'MultivariateStudent': 'MULTIVARIATESTUDENT',
             'Dirichlet': 'DIRICHLET',
             'Multinomial': 'MULTINOMIAL'
         }
@@ -692,9 +693,12 @@ class RDDLParser(object):
     # CHANGED BY MIKE ON JAN 17
     def p_randomvector_expr(self, p):
         '''randomvector_expr : MULTIVARIATENORMAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
+                             | MULTIVARIATESTUDENT LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
                              | DIRICHLET LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr RPAREN
                              | MULTINOMIAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN'''
-        if len(p) == 10:
+        if len(p) == 12:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8], p[10])))))
+        elif len(p) == 10:
             p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8])))))
         else:
             p[0] = Expression(('randomvector', (p[1], (p[3], (p[6],)))))

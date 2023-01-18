@@ -354,7 +354,8 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_GOMPERTZ': 32768,
         'INVALID_PARAM_DISCRETE': 65536,
         'INVALID_PARAM_KRON_DELTA': 131072,
-        'INVALID_PARAM_DIRICHLET': 262144
+        'INVALID_PARAM_DIRICHLET': 262144,
+        'INVALID_PARAM_MULTIVARIATE_STUDENT': 524288
     }
     
     INVERSE_ERROR_CODES = {
@@ -376,7 +377,8 @@ class JaxRDDLCompiler:
         15: 'Found Gompertz(k, l) distribution where either k <= 0 or l <= 0.',
         16: 'Found Discrete(p) distribution where either p < 0 or p does not sum to 1.',
         17: 'Found KronDelta(x) distribution where x is not int nor bool.',
-        18: 'Found Dirichlet(alpha) distribution where alpha < 0.'
+        18: 'Found Dirichlet(alpha) distribution where alpha < 0.',
+        19: 'Found MultivariateStudent(mean, cov, df) distribution where df <= 0.'
     }
     
     @staticmethod
@@ -1197,6 +1199,7 @@ class JaxRDDLCompiler:
     
     def _jax_discrete_pvar(self, expr, unnorm):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
+        JaxRDDLCompiler._check_num_args(expr, 1)
         
         _, args = expr.args
         arg, = args
@@ -1232,6 +1235,8 @@ class JaxRDDLCompiler:
         _, name = expr.etype
         if name == 'MultivariateNormal':
             return self._jax_multivariate_normal(expr)   
+        elif name == 'MultivariateStudent':
+            return self._jax_multivariate_student(expr)  
         elif name == 'Dirichlet':
             return self._jax_dirichlet(expr)
         else:
@@ -1239,9 +1244,8 @@ class JaxRDDLCompiler:
                 f'Distribution {name} is not supported.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
     
-    def _jax_multivariate_normal(self, expr):
+    def _jax_multivariate_normal(self, expr):        
         _, args = expr.args
-        
         mean, cov = args
         jax_mean = self._jax(mean)
         jax_cov = self._jax(cov)
@@ -1264,10 +1268,39 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_multivariate_normal
     
+    def _jax_multivariate_student(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_MULTIVARIATE_STUDENT']
+        
+        _, args = expr.args
+        mean, cov, df = args
+        jax_mean = self._jax(mean)
+        jax_cov = self._jax(cov)
+        jax_df = self._jax(df)
+        index = self.traced.cached_sim_info(expr)[0]
+        
+        # reparameterization trick MN(m, LL') = LZ + m, where Z ~ StudentT(0, 1)
+        def _jax_wrapped_distribution_multivariate_student(x, key):
+            sample_mean, key, err1 = jax_mean(x, key)
+            sample_cov, key, err2 = jax_cov(x, key)
+            sample_df, key, err3 = jax_df(x, key)
+            out_of_bounds = jnp.logical_not(jnp.all(sample_df > 0))
+            sample_df = sample_df[..., jnp.newaxis, jnp.newaxis]
+            sample_df = jnp.broadcast_to(sample_df, shape=sample_mean.shape + (1,))
+            key, subkey = random.split(key)
+            Z = random.t(key=subkey, df=sample_df, shape=sample_df.shape, 
+                         dtype=JaxRDDLCompiler.REAL)            
+            L = jnp.linalg.cholesky(sample_cov)
+            sample = jnp.matmul(L, Z)[..., 0] + sample_mean
+            sample = jnp.swapaxes(sample, axis1=-1, axis2=index)
+            err = err1 | err2 | err3 | (out_of_bounds * ERR)
+            return sample, key, err
+        
+        return _jax_wrapped_distribution_multivariate_student
+    
     def _jax_dirichlet(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DIRICHLET']
-        _, args = expr.args
         
+        _, args = expr.args
         alpha, = args
         jax_alpha = self._jax(alpha)
         index = self.traced.cached_sim_info(expr)[0]
