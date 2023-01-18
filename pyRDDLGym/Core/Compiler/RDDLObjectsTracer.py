@@ -801,6 +801,8 @@ class RDDLObjectsTracer:
             
             # sample_pvars cannot be argument parameters
             name, pvars = arg.args
+            if pvars is None:
+                pvars = []
             bad_pvars = {pvar for pvar in pvars if pvar in sample_pvar_set}
             if bad_pvars:
                 raise RDDLInvalidObjectError(
