@@ -729,7 +729,7 @@ class JaxRDDLCompiler:
     def _jax_switch_helper(self):
         
         def _jax_switch_calc_exact(pred, cases):
-            pred = jnp.expand_dims(pred, axis=0)
+            pred = pred[jnp.newaxis, ...]
             sample = jnp.take_along_axis(cases, pred, axis=0)
             assert sample.shape[0] == 1
             return sample[0, ...]
@@ -1172,7 +1172,8 @@ class JaxRDDLCompiler:
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         
-        jax_probs = [self._jax(arg) for arg in self.traced.cached_sim_info(expr)]
+        ordered_args = self.traced.cached_sim_info(expr)
+        jax_probs = [self._jax(arg) for arg in ordered_args]
         jax_discrete = self._jax_discrete_helper()
         
         def _jax_wrapped_distribution_discrete(x, key):
