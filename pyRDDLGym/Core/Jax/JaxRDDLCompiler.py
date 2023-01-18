@@ -353,7 +353,8 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_CAUCHY': 16384,
         'INVALID_PARAM_GOMPERTZ': 32768,
         'INVALID_PARAM_DISCRETE': 65536,
-        'INVALID_PARAM_KRON_DELTA': 131072
+        'INVALID_PARAM_KRON_DELTA': 131072,
+        'INVALID_PARAM_DIRICHLET': 262144
     }
     
     INVERSE_ERROR_CODES = {
@@ -374,7 +375,8 @@ class JaxRDDLCompiler:
         14: 'Found Cauchy(m, s) distribution where s <= 0.',
         15: 'Found Gompertz(k, l) distribution where either k <= 0 or l <= 0.',
         16: 'Found Discrete(p) distribution where either p < 0 or p does not sum to 1.',
-        17: 'Found KronDelta(x) where x is not int nor bool.'
+        17: 'Found KronDelta(x) distribution where x is not int nor bool.',
+        18: 'Found Dirichlet(alpha) distribution where alpha < 0.'
     }
     
     @staticmethod
@@ -1230,6 +1232,8 @@ class JaxRDDLCompiler:
         _, name = expr.etype
         if name == 'MultivariateNormal':
             return self._jax_multivariate_normal(expr)   
+        elif name == 'Dirichlet':
+            return self._jax_dirichlet(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -1249,7 +1253,7 @@ class JaxRDDLCompiler:
             sample_cov, key, err2 = jax_cov(x, key)
             key, subkey = random.split(key)
             Z = random.normal(
-                key=subkey, 
+                key=subkey,
                 shape=jnp.shape(sample_mean) + (1,),
                 dtype=JaxRDDLCompiler.REAL)            
             L = jnp.linalg.cholesky(sample_cov)
@@ -1259,3 +1263,24 @@ class JaxRDDLCompiler:
             return sample, key, err
         
         return _jax_wrapped_distribution_multivariate_normal
+    
+    def _jax_dirichlet(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DIRICHLET']
+        _, args = expr.args
+        
+        alpha, = args
+        jax_alpha = self._jax(alpha)
+        index = self.traced.cached_sim_info(expr)[0]
+        
+        # sample Gamma(alpha_i, 1) and normalize across i
+        def _jax_wrapped_distribution_dirichlet(x, key):
+            alpha, key, error = jax_alpha(x, key)
+            out_of_bounds = jnp.logical_not(jnp.all(alpha > 0))
+            error |= (out_of_bounds * ERR)
+            key, subkey = random.split(key)
+            Gamma = random.gamma(key=subkey, a=alpha)
+            sample = Gamma / jnp.sum(Gamma, axis=-1)
+            sample = jnp.swapaxes(sample, axis1=-1, axis2=index)
+            return sample, key, error
+        
+        return _jax_wrapped_distribution_dirichlet

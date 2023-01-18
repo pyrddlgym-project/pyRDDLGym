@@ -762,6 +762,9 @@ class RDDLObjectsTracer:
         if op == 'MultivariateNormal':
             required_sample_pvars = 1
             required_underscores = (1, 2)
+        elif op == 'Dirichlet':
+            required_sample_pvars = 1
+            required_underscores = (1,)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: distribution {op} is not supported.\n' + 
