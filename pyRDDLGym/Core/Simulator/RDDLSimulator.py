@@ -720,7 +720,7 @@ class RDDLSimulator:
                 (sample_default if arg is None else self._sample(arg, subs))
                 for arg in cases
             ])
-            sample_pred = np.expand_dims(sample_pred, axis=0)
+            sample_pred = sample_pred[np.newaxis, ...]
             sample = np.take_along_axis(sample_cases, sample_pred, axis=0)   
             assert sample.shape[0] == 1
             return sample[0, ...]
@@ -1027,6 +1027,8 @@ class RDDLSimulator:
             return self._sample_multivariate_student(expr, subs)
         elif name == 'Dirichlet':
             return self._sample_dirichlet(expr, subs)
+        elif name == 'Multinomial':
+            return self._sample_multinomial(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Multivariate distribution {name} is not supported.\n' + 
@@ -1045,7 +1047,7 @@ class RDDLSimulator:
         Z = self.rng.standard_normal(
             size=sample_mean.shape + (1,), dtype=RDDLValueInitializer.REAL)
         sample = np.matmul(L, Z)[..., 0] + sample_mean
-        
+
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
         index = self.traced.cached_sim_info(expr)[0]
@@ -1091,6 +1093,43 @@ class RDDLSimulator:
         # to match the order of the CPF variables
         index = self.traced.cached_sim_info(expr)[0]
         sample = np.swapaxes(sample, axis1=-1, axis2=index)
+        return sample
+    
+    def _sample_multinomial(self, expr, subs):
+        _, args = expr.args
+        RDDLSimulator._check_arity(args, 2, 'Multinomial', expr)
+        
+        prob, trials = args
+        sample_prob = self._sample(prob, subs)
+        sample_trials = self._sample(trials, subs)
+        
+        RDDLSimulator._check_type(sample_trials, RDDLValueInitializer.INT, 'Multinomial trials', expr)
+        RDDLSimulator._check_positive(sample_trials, False, 'Multinomial trials', expr)
+        
+        # prepend a trial axis to sample_prob
+        num_trials = int(sample_trials.flat[0])
+        sample_prob_shape = (num_trials,) + sample_prob.shape
+        sample_prob = sample_prob[np.newaxis, ...]
+        sample_prob = np.broadcast_to(sample_prob, shape=sample_prob_shape)
+        
+        # sample from the discrete distribution and prepend axis for categories
+        sample_discrete = self._sample_discrete_helper(sample_prob, False, expr)
+        num_categories = sample_prob.shape[-1]
+        sample_shape = (num_categories,) + sample_discrete.shape
+        sample_discrete = sample_discrete[np.newaxis, ...]
+        sample_discrete = np.broadcast_to(sample_discrete, shape=sample_shape)
+        
+        # compute mask per category against samples and sum along trial axis
+        non_category_axis = tuple(range(1, len(sample_discrete.shape)))
+        categories = np.arange(num_categories)
+        categories = np.expand_dims(categories, axis=non_category_axis)
+        masked_sample = (sample_discrete == categories)
+        sample = np.sum(masked_sample, axis=1)
+        
+        # since the sampling is done in the first dimension we need to move it
+        # to match the order of the CPF variables
+        index = self.traced.cached_sim_info(expr)[0]
+        sample = np.swapaxes(sample, axis1=0, axis2=index)
         return sample
         
         
