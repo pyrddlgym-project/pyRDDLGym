@@ -355,7 +355,8 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_DISCRETE': 65536,
         'INVALID_PARAM_KRON_DELTA': 131072,
         'INVALID_PARAM_DIRICHLET': 262144,
-        'INVALID_PARAM_MULTIVARIATE_STUDENT': 524288
+        'INVALID_PARAM_MULTIVARIATE_STUDENT': 524288,
+        'INVALID_PARAM_MULTINOMIAL': 1048576
     }
     
     INVERSE_ERROR_CODES = {
@@ -378,7 +379,8 @@ class JaxRDDLCompiler:
         16: 'Found Discrete(p) distribution where either p < 0 or p does not sum to 1.',
         17: 'Found KronDelta(x) distribution where x is not int nor bool.',
         18: 'Found Dirichlet(alpha) distribution where alpha < 0.',
-        19: 'Found MultivariateStudent(mean, cov, df) distribution where df <= 0.'
+        19: 'Found MultivariateStudent(mean, cov, df) distribution where df <= 0.',
+        20: 'Found Multinomial(p, n) distribution where either p < 0, p does not sum to 1, or n <= 0.'
     }
     
     @staticmethod
@@ -1157,8 +1159,12 @@ class JaxRDDLCompiler:
     def _jax_discrete_helper(self):
         
         def _jax_discrete_calc_exact(prob, subkey):
+            out_of_bounds = jnp.logical_not(jnp.logical_and(
+                jnp.all(prob >= 0),
+                jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
             logits = jnp.log(prob)
-            return random.categorical(key=subkey, logits=logits, axis=-1)
+            sample = random.categorical(key=subkey, logits=logits, axis=-1)
+            return sample, out_of_bounds
         
         return _jax_discrete_calc_exact
             
@@ -1171,28 +1177,21 @@ class JaxRDDLCompiler:
         
         def _jax_wrapped_distribution_discrete(x, key):
             
-            # sample case probabilities
+            # sample case probabilities and normalize as needed
             error = NORMAL
             prob = [None] * len(jax_probs)
             for (i, jax_prob) in enumerate(jax_probs):
                 prob[i], key, error_pdf = jax_prob(x, key)
                 error |= error_pdf
             prob = jnp.stack(prob, axis=-1)
-            
-            # check this is a valid PDF
             if unnorm:
-                out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
                 normalizer = jnp.sum(prob, axis=-1, keepdims=True)
                 prob = prob / normalizer
-            else:
-                out_of_bounds = jnp.logical_not(jnp.logical_and(
-                    jnp.all(prob >= 0),
-                    jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
-            error |= (out_of_bounds * ERR)
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample = jax_discrete(prob, subkey)
+            sample, out_of_bounds = jax_discrete(prob, subkey)
+            error |= (out_of_bounds * ERR)
             return sample, key, error
         
         return _jax_wrapped_distribution_discrete
@@ -1211,18 +1210,13 @@ class JaxRDDLCompiler:
             # sample probabilities
             prob, key, error = jax_probs(x, key)
             if unnorm:
-                out_of_bounds = jnp.logical_not(jnp.all(prob >= 0))
                 normalizer = jnp.sum(prob, axis=-1, keepdims=True)
                 prob = prob / normalizer
-            else:
-                out_of_bounds = jnp.logical_not(jnp.logical_and(
-                    jnp.all(prob >= 0),
-                    jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
-            error |= (out_of_bounds * ERR)
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample = jax_discrete(prob, subkey)
+            sample, out_of_bounds = jax_discrete(prob, subkey)
+            error |= (out_of_bounds * ERR)
             return sample, key, error
         
         return _jax_wrapped_distribution_discrete_pvar
@@ -1244,7 +1238,7 @@ class JaxRDDLCompiler:
                 f'Distribution {name} is not supported.\n' + 
                 JaxRDDLCompiler._print_stack_trace(expr))
     
-    def _jax_multivariate_normal(self, expr):        
+    def _jax_multivariate_normal(self, expr): 
         _, args = expr.args
         mean, cov = args
         jax_mean = self._jax(mean)
@@ -1287,13 +1281,13 @@ class JaxRDDLCompiler:
             sample_df = sample_df[..., jnp.newaxis, jnp.newaxis]
             sample_df = jnp.broadcast_to(sample_df, shape=sample_mean.shape + (1,))
             key, subkey = random.split(key)
-            Z = random.t(key=subkey, df=sample_df, shape=sample_df.shape, 
+            Z = random.t(key=subkey, df=sample_df, shape=sample_df.shape,
                          dtype=JaxRDDLCompiler.REAL)            
             L = jnp.linalg.cholesky(sample_cov)
             sample = jnp.matmul(L, Z)[..., 0] + sample_mean
             sample = jnp.swapaxes(sample, axis1=-1, axis2=index)
-            err = err1 | err2 | err3 | (out_of_bounds * ERR)
-            return sample, key, err
+            error = err1 | err2 | err3 | (out_of_bounds * ERR)
+            return sample, key, error
         
         return _jax_wrapped_distribution_multivariate_student
     
@@ -1317,3 +1311,4 @@ class JaxRDDLCompiler:
             return sample, key, error
         
         return _jax_wrapped_distribution_dirichlet
+          

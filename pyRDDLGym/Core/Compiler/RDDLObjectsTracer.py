@@ -54,13 +54,15 @@ class RDDLObjectsTracer:
     REQUIRED_DIST_PVARS = {
         'MultivariateNormal': 1,
         'MultivariateStudent': 1,
-        'Dirichlet': 1
+        'Dirichlet': 1,
+        'Multinomial': 1
     }
     
     REQUIRED_DIST_UNDERSCORES = {
         'MultivariateNormal': (1, 2),  # mean, covariance
         'MultivariateStudent': (1, 2, 0),  # mean, covariance, df
-        'Dirichlet': (1,)  # weights
+        'Dirichlet': (1,),  # weights
+        'Multinomial': (1, 0)  # distribution, trials
     }
 
     def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
@@ -777,6 +779,16 @@ class RDDLObjectsTracer:
             raise RDDLNotImplementedError(
                 f'Internal error: distribution {op} is not supported.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # temporary: for multinomial the trials must not be parameterized for now
+        if op == 'Multinomial':
+            (_, trials) = args
+            (_, trial_args) = trials.args
+            if trial_args:
+                raise RDDLNotImplementedError(
+                    f'Multinomial distribution does not support parameterized '
+                    f'trials count (support will be added in a future release).\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
         
         # check the number of sample parameters is correct
         if len(sample_pvars) != required_sample_pvars:
