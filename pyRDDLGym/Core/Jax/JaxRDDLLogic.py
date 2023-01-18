@@ -94,12 +94,12 @@ class ProductLogic(FuzzyLogic):
     
     def _literal_array(self, shape):
         literals = jnp.arange(shape[0])
-        literals = jnp.expand_dims(literals, axis=tuple(range(1, len(shape))))
+        literals = literals[(...,) + (jnp.newaxis,) * len(shape[1:])]
         literals = jnp.broadcast_to(literals, shape=shape)
         return literals
         
     def Switch(self, pred, cases):
-        pred = jnp.expand_dims(pred, axis=0)
+        pred = pred[jnp.newaxis, ...]
         pred = jnp.broadcast_to(pred, shape=cases.shape)    
         literals = self._literal_array(cases.shape)
         prob = self.equal(pred, literals)

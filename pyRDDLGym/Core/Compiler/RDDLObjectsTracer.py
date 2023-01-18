@@ -201,10 +201,9 @@ class RDDLObjectsTracer:
             # create an array whose shape matches objects
             # along axis equal to index of var in objects values are (0, 1, ...)
             ptypes = tuple(ptype for (_, ptype) in objects)
-            shape = self.rddl.object_counts(ptypes)
+            shape = self.rddl.object_counts(ptypes)            
             cached_value = np.arange(shape[index_of_var_in_objects])
-            cached_value = np.expand_dims(
-                cached_value, axis=tuple(range(1, len(ptypes))))
+            cached_value = cached_value[(...,) + (np.newaxis,) * len(ptypes[1:])]
             cached_value = np.swapaxes(
                 cached_value, axis1=0, axis2=index_of_var_in_objects)
             cached_value = np.broadcast_to(cached_value, shape=shape)
@@ -816,7 +815,7 @@ class RDDLObjectsTracer:
         # sample_pvars are excluded when tracing arguments (e.g., mean)
         # because they are only introduced through sampling which follows after 
         # evaluation of the arguments in a depth-first traversal
-        batch_objects = [pobj for pobj in objects if pobj[0] not in sample_pvar_set]
+        batch_objects = [pvar for pvar in objects if pvar[0] not in sample_pvar_set]
          
         # trace all parameters
         enum_types = set()
@@ -835,27 +834,25 @@ class RDDLObjectsTracer:
                     RDDLObjectsTracer._print_stack_trace(expr))
             
             # check number of _ parameters is valid in argument
-            underscore_indices = [j for (j, pvar) in enumerate(pvars) 
-                                  if pvar == '_']            
-            if len(underscore_indices) != required_underscores[i]:
+            underscores = [j for (j, pvar) in enumerate(pvars) if pvar == '_']            
+            if len(underscores) != required_underscores[i]:
                 raise RDDLInvalidNumberOfArgumentsError(
                     f'Argument <{name}> at position {i + 1} of {op} must contain '
                     f'{required_underscores[i]} sampling parameter(s) _, '
-                    f'got {len(underscore_indices)}.\n' + 
+                    f'got {len(underscores)}.\n' + 
                     RDDLObjectsTracer._print_stack_trace(expr))
             
             # trace argument
             self._trace(arg, batch_objects, out)
             
-            # record types represented by _
-            ptypes = self.rddl.param_types[name]
-            new_types = {ptypes[j] for j in underscore_indices}
-            enum_types.update(new_types)
-            
             # argument cannot be enum type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, out, f'Argument {i + 1} of {op}') 
         
+            # record types represented by _
+            ptypes = self.rddl.param_types[name]
+            enum_types.update({ptypes[j] for j in underscores})
+            
         # types represented by _ must be the same
         if len(enum_types) != 1:
             raise RDDLTypeError(

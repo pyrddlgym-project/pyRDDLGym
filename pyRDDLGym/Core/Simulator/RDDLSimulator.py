@@ -419,7 +419,8 @@ class RDDLSimulator:
                 if op_code == -1:
                     slices = tuple(
                         (self._sample(arg, subs) if _slice is None else _slice)
-                        for (arg, _slice) in zip(args, slices))
+                        for (arg, _slice) in zip(args, slices)
+                    )
                 sample = sample[slices]
             if axis:
                 sample = np.expand_dims(sample, axis=axis)
@@ -1004,9 +1005,9 @@ class RDDLSimulator:
         return np.argmax(U < cdf, axis=-1)
         
     def _sample_discrete(self, expr, subs, unnorm):
-        pdf = np.stack([self._sample(arg, subs) 
-                        for arg in self.traced.cached_sim_info(expr)],
-                       axis=-1)
+        sorted_args = self.traced.cached_sim_info(expr)
+        samples = [self._sample(arg, subs) for arg in sorted_args]
+        pdf = np.stack(samples, axis=-1)
         return self._sample_discrete_helper(pdf, unnorm, expr)
     
     def _sample_discrete_pvar(self, expr, subs, unnorm):
@@ -1045,7 +1046,8 @@ class RDDLSimulator:
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
         L = np.linalg.cholesky(sample_cov)
         Z = self.rng.standard_normal(
-            size=sample_mean.shape + (1,), dtype=RDDLValueInitializer.REAL)
+            size=sample_mean.shape + (1,), 
+            dtype=RDDLValueInitializer.REAL)
         sample = np.matmul(L, Z)[..., 0] + sample_mean
 
         # since the sampling is done in the last dimension we need to move it
@@ -1120,9 +1122,9 @@ class RDDLSimulator:
         sample_discrete = np.broadcast_to(sample_discrete, shape=sample_shape)
         
         # compute mask per category against samples and sum along trial axis
-        non_category_axis = tuple(range(1, len(sample_discrete.shape)))
         categories = np.arange(num_categories)
-        categories = np.expand_dims(categories, axis=non_category_axis)
+        categories = categories[
+            (...,) + (np.newaxis,) * len(sample_discrete.shape[1:])]
         masked_sample = (sample_discrete == categories)
         sample = np.sum(masked_sample, axis=1)
         
