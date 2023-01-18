@@ -58,6 +58,8 @@ class RDDLDecompiler:
             return self._decompile_control(expr, enclose, level)        
         elif etype == 'randomvar':
             return self._decompile_random(expr, enclose, level)
+        elif etype == 'randomvector':
+            return self._decompile_random_vector(expr, enclose, level)
         else:
             raise Exception(f'Internal error: type {etype} is undefined.')
     
@@ -175,3 +177,12 @@ class RDDLDecompiler:
                               for arg in expr.args)
             
         return f'{op}({value})'
+    
+    def _decompile_random_vector(self, expr, enclose, level):
+        _, op = expr.etype
+        pvars, args = expr.args
+        args = ', '.join(self._decompile(arg, False, level) for arg in args)
+        pvars = ', '.join(pvars)
+        return f'{op}[{pvars}]({args})'
+            
+        

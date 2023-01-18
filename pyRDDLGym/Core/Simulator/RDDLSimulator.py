@@ -380,7 +380,7 @@ class RDDLSimulator:
         elif etype == 'randomvar':
             return self._sample_random(expr, subs)
         elif etype == 'randomvector':
-            return self._sample_randomvector(expr, subs)
+            return self._sample_random_vector(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -1019,8 +1019,41 @@ class RDDLSimulator:
         arg, = args
         pdf = self._sample(arg, subs)
         return self._sample_discrete_helper(pdf, unnorm, expr)
-                
+               
+    # ===========================================================================
+    # random vectors
+    # ===========================================================================
+    
+    def _sample_random_vector(self, expr, subs):
+        _, name = expr.etype
+        if name == 'MultivariateNormal':
+            return self._sample_multivariate_normal(expr, subs)
+        else:
+            raise RDDLNotImplementedError(
+                f'Multivariate distribution {name} is not supported.\n' + 
+                RDDLSimulator._print_stack_trace(expr))
+    
+    def _sample_multivariate_normal(self, expr, subs):
+        _, args = expr.args
+        RDDLSimulator._check_arity(args, 2, 'MultivariateNormal', expr)
+        
+        mean, cov = args
+        sample_mean = self._sample(mean, subs)
+        sample_cov = self._sample(cov, subs)
+        
+        # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
+        L = np.linalg.cholesky(sample_cov)
+        Z = self.rng.standard_normal(
+            size=sample_mean.shape + (1,), dtype=RDDLValueInitializer.REAL)        
+        sample = np.matmul(L, Z)[..., 0] + sample_mean
+        
+        # since the sampling is done in the last dimension we need to move it
+        # to match the order of the CPF variables
+        index = self.traced.cached_sim_info(expr)[0]
+        sample = np.swapaxes(sample, axis1=-1, axis2=index)
+        return sample
 
+            
 def lngamma(x):
     xmin = np.min(x)
     if not (xmin > 0):

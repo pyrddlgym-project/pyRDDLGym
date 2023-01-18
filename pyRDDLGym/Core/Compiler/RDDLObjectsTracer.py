@@ -83,9 +83,19 @@ class RDDLObjectsTracer:
         rddl = self.rddl 
         out = RDDLTracedObjects()   
         
-        # trace CPFs; for enum-valued check type matches
+        # trace CPFs
         for (cpf, (objects, expr)) in rddl.cpfs.items():
+            
+            # check that the parameters are unique
+            pvars = [pvar for (pvar, _) in objects]
+            if len(set(pvars)) != len(pvars):
+                raise RDDLRepeatedVariableError(
+                    f'Repeated parameter(s) {pvars} in definition of CPF <{cpf}>.')
+            
+            # trace the expression
             self._trace(expr, objects, out)
+            
+            # for enum-valued check that type matches expression output
             cpf_range = rddl.variable_ranges[cpf]
             expr_range = out.cached_enum_type(expr)
             if cpf_range in rddl.enum_types and expr_range != cpf_range:
@@ -139,6 +149,8 @@ class RDDLObjectsTracer:
             self._trace_control(expr, objects, out)
         elif etype == 'randomvar':
             self._trace_random(expr, objects, out)
+        elif etype == 'randomvector':
+            self._trace_random_vector(expr, objects, out)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -239,6 +251,21 @@ class RDDLObjectsTracer:
                 f'got {len(args)}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
+        # for vector distributions, occurrences of _ are mapped to unique new 
+        # objects ?_1, ?_2, ... because we have to take care not to einsum them;
+        # they will correspond to the last axes of the resulting value array
+        # e.g., values(?p, ?q, ... ?_1, ?_2, ...);
+        # this way ?p, ?q... can be interpreted as "batch" dimensions and 
+        # ?_1, ?_2, ... as the "image" dimensions in an equivalent ML problem;
+        # this is the convention of most numpy and JAX batched subroutines anyway
+        new_objects, underscore_names = [], {}
+        for (i, arg) in enumerate(args):
+            if arg == '_':
+                new_pvar = f'?_{1 + len(new_objects)}'
+                new_objects.append((new_pvar, args_types[i]))
+                underscore_names[i] = new_pvar
+        objects = objects + new_objects
+        
         # test for nested expressions
         is_arg_expr = [isinstance(arg, Expression) for arg in args]
         nested = np.any(is_arg_expr)
@@ -292,6 +319,9 @@ class RDDLObjectsTracer:
             
             # is a free object (e.g., ?x)
             else:
+                
+                # a sampling dimension is mapped to its unique quantifier ?_i
+                arg = underscore_names.get(i, arg)
                 
                 # make sure argument is well defined
                 index_of_arg_in_objects = object_index.get(arg, None)
@@ -719,4 +749,98 @@ class RDDLObjectsTracer:
                 arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}') 
         
         out._append(expr, objects, None, None)
+        
+    # ===========================================================================
+    # random vector
+    # ===========================================================================
+    
+    def _trace_random_vector(self, expr, objects, out):
+        _, op = expr.etype
+        sample_pvars, args = expr.args
+        
+        # determine how many instances of _ should appear in each argument
+        if op == 'MultivariateNormal':
+            required_sample_pvars = 1
+            required_underscores = (1, 2)
+        else:
+            raise RDDLNotImplementedError(
+                f'Internal error: distribution {op} is not supported.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # check the number of sample parameters is correct
+        if len(sample_pvars) != required_sample_pvars:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Distribution {op} requires {required_sample_pvars} sampling '
+                f'parameter(s), got {len(sample_pvars)}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # check that all sample_pvars are defined in the outer scope
+        scope_pvars = {pvar: i for (i, (pvar, _)) in enumerate(objects)}
+        bad_pvars = {pvar for pvar in sample_pvars if pvar not in scope_pvars}
+        if bad_pvars:
+            raise RDDLInvalidObjectError(
+                f'Sampling parameter(s) {bad_pvars} of {op} are not defined in '
+                f'outer scope, must be one of {set(scope_pvars.keys())}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # check duplicates in sample_pvars
+        sample_pvar_set = set(sample_pvars)
+        if len(sample_pvar_set) != len(sample_pvars):
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Sampling parameter(s) {sample_pvars} of {op} are duplicated.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # sample_pvars are excluded when tracing arguments (e.g., mean)
+        # because they are only introduced through sampling which follows after 
+        # evaluation of the arguments in a depth-first traversal
+        batch_objects = [pobj for pobj in objects if pobj[0] not in sample_pvar_set]
+         
+        # trace all parameters
+        enum_types = set()
+        for (i, arg) in enumerate(args):
+            
+            # sample_pvars cannot be argument parameters
+            name, pvars = arg.args
+            bad_pvars = {pvar for pvar in pvars if pvar in sample_pvar_set}
+            if bad_pvars:
+                raise RDDLInvalidObjectError(
+                    f'Parameter(s) {bad_pvars} of argument <{name}> at position '
+                    f'{i + 1} of {op} can not be sampling parameter(s) '
+                    f'{sample_pvar_set}.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
+            
+            # check number of _ parameters is valid in argument
+            underscore_indices = [j for (j, pvar) in enumerate(pvars) 
+                                  if pvar == '_']            
+            if len(underscore_indices) != required_underscores[i]:
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Argument <{name}> at position {i + 1} of {op} must contain '
+                    f'{required_underscores[i]} sampling parameter(s) _, '
+                    f'got {len(underscore_indices)}.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
+            
+            # trace argument
+            self._trace(arg, batch_objects, out)
+            
+            # record types represented by _
+            ptypes = self.rddl.param_types[name]
+            new_types = {ptypes[j] for j in underscore_indices}
+            enum_types.update(new_types)
+            
+            # argument cannot be enum type
+            RDDLObjectsTracer._check_not_enum(
+                arg, expr, out, f'Argument {i + 1} of {op}') 
+        
+        # types represented by _ must be the same
+        if len(enum_types) != 1:
+            raise RDDLTypeError(
+                f'Sampling parameter(s) _ across all argument(s) of {op} must '
+                f'correspond to a single type, got multiple types {enum_types}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # figure out where sample_pvars occur in scope_pvars 
+        enum_type = next(iter(enum_types))
+        sample_pvar_indices = [scope_pvars[pvar] for pvar in sample_pvars]        
+        out._append(expr, objects, enum_type, sample_pvar_indices)
+        
         
