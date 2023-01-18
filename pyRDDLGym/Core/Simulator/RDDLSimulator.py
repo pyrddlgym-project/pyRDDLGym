@@ -1028,6 +1028,8 @@ class RDDLSimulator:
         _, name = expr.etype
         if name == 'MultivariateNormal':
             return self._sample_multivariate_normal(expr, subs)
+        elif name == 'Dirichlet':
+            return self._sample_dirichlet(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Multivariate distribution {name} is not supported.\n' + 
@@ -1052,7 +1054,30 @@ class RDDLSimulator:
         index = self.traced.cached_sim_info(expr)[0]
         sample = np.swapaxes(sample, axis1=-1, axis2=index)
         return sample
-
+    
+    def _sample_dirichlet(self, expr, subs):
+        _, args = expr.args
+        RDDLSimulator._check_arity(args, 1, 'Dirichlet', expr)
+        
+        alpha, = args
+        sample_alpha = self._sample(alpha, subs)
+        
+        # alpha must be positive
+        if not np.all(sample_alpha > 0):
+            raise RDDLValueOutOfRangeError(
+                f'Dirichlet alpha must be positive, got {sample_alpha}.\n' + 
+                RDDLSimulator._print_stack_trace(expr))  
+            
+        # sample Gamma(alpha_i, 1) and normalize across i
+        Gamma = self.rng.gamma(shape=sample_alpha, scale=1.0)
+        sample = Gamma / np.sum(Gamma, axis=-1)
+        
+        # since the sampling is done in the last dimension we need to move it
+        # to match the order of the CPF variables
+        index = self.traced.cached_sim_info(expr)[0]
+        sample = np.swapaxes(sample, axis1=-1, axis2=index)
+        return sample
+        
             
 def lngamma(x):
     xmin = np.min(x)

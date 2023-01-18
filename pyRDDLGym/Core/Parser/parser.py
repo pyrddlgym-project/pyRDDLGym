@@ -89,8 +89,6 @@ class RDDLlex(object):
             'Exponential': 'EXPONENTIAL',
             'Weibull': 'WEIBULL',
             'Gamma': 'GAMMA',
-            'Multinomial': 'MULTINOMIAL',
-            'Dirichlet': 'DIRICHLET',
             'Binomial': 'BINOMIAL',
             'NegativeBinomial': 'NEGATIVEBINOMIAL',
             'Beta': 'BETA',
@@ -101,7 +99,9 @@ class RDDLlex(object):
             'Laplace': 'LAPLACE',
             'Cauchy': 'CAUCHY',
             'Gompertz': 'GOMPERTZ',
-            'MultivariateNormal': 'MULTIVARIATENORMAL'
+            'MultivariateNormal': 'MULTIVARIATENORMAL',
+            'Dirichlet': 'DIRICHLET',
+            'Multinomial': 'MULTINOMIAL'
         }
 
         self.tokens = [
@@ -691,8 +691,12 @@ class RDDLParser(object):
     
     # CHANGED BY MIKE ON JAN 17
     def p_randomvector_expr(self, p):
-        '''randomvector_expr : MULTIVARIATENORMAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN'''
-        p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8])))))
+        '''randomvector_expr : MULTIVARIATENORMAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
+                             | DIRICHLET LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr RPAREN'''
+        if len(p) == 10:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8])))))
+        else:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6],)))))
         
     # CHANGED BY MIKE ON JAN 17
     def p_randomvector_pvar_expr(self, p):
