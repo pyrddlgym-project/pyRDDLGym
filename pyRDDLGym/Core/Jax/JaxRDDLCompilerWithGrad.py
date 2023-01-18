@@ -163,7 +163,8 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             sample = (Gumbel01 + jnp.log(clipped_prob)) / tau
             sample = jax.nn.softmax(sample, axis=-1)
             indices = jnp.arange(prob.shape[-1])
-            indices = jnp.expand_dims(indices, axis=tuple(range(len(prob.shape) - 1)))
+            axes = tuple(range(len(prob.shape[:-1])))
+            indices = jnp.expand_dims(indices, axis=axes)
             return jnp.sum(sample * indices, axis=-1)
         
         return _jax_discrete_calc_gumbel_softmax

@@ -53,11 +53,13 @@ class RDDLObjectsTracer:
     
     REQUIRED_DIST_PVARS = {
         'MultivariateNormal': 1,
+        'MultivariateStudent': 1,
         'Dirichlet': 1
     }
     
     REQUIRED_DIST_UNDERSCORES = {
         'MultivariateNormal': (1, 2),  # mean, covariance
+        'MultivariateStudent': (1, 2, 0),  # mean, covariance, df
         'Dirichlet': (1,)  # weights
     }
 

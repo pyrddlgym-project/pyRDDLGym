@@ -1023,6 +1023,8 @@ class RDDLSimulator:
         _, name = expr.etype
         if name == 'MultivariateNormal':
             return self._sample_multivariate_normal(expr, subs)
+        elif name == 'MultivariateStudent':
+            return self._sample_multivariate_student(expr, subs)
         elif name == 'Dirichlet':
             return self._sample_dirichlet(expr, subs)
         else:
@@ -1041,7 +1043,30 @@ class RDDLSimulator:
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
         L = np.linalg.cholesky(sample_cov)
         Z = self.rng.standard_normal(
-            size=sample_mean.shape + (1,), dtype=RDDLValueInitializer.REAL)        
+            size=sample_mean.shape + (1,), dtype=RDDLValueInitializer.REAL)
+        sample = np.matmul(L, Z)[..., 0] + sample_mean
+        
+        # since the sampling is done in the last dimension we need to move it
+        # to match the order of the CPF variables
+        index = self.traced.cached_sim_info(expr)[0]
+        sample = np.swapaxes(sample, axis1=-1, axis2=index)
+        return sample
+    
+    def _sample_multivariate_student(self, expr, subs):
+        _, args = expr.args
+        RDDLSimulator._check_arity(args, 3, 'MultivariateStudent', expr)
+        
+        mean, cov, df = args
+        sample_mean = self._sample(mean, subs)
+        sample_cov = self._sample(cov, subs)
+        sample_df = self._sample(df, subs)
+        RDDLSimulator._check_positive(sample_df, True, 'MultivariateStudent df', expr)
+        
+        # reparameterization trick MN(m, LL') = LZ + m, where Z ~ StudentT(0, 1)
+        sample_df = sample_df[..., np.newaxis, np.newaxis]
+        sample_df = np.broadcast_to(sample_df, shape=sample_mean.shape + (1,))
+        L = np.linalg.cholesky(sample_cov)
+        Z = self.rng.standard_t(df=sample_df)
         sample = np.matmul(L, Z)[..., 0] + sample_mean
         
         # since the sampling is done in the last dimension we need to move it

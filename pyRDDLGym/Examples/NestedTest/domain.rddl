@@ -25,6 +25,7 @@ domain nestedtest {
 		alpha(enum_level)                       :  { interm-fluent , real };
 		
 		gaussian-fluent(enum_level, enum_level)  : { state-fluent , real , default = 0 };
+		student-fluent(enum_level)               : { state-fluent , real , default = 0 };
 		dirichlet-fluent(enum_level)             : { state-fluent , real , default = 0 };
 		
 		a : { action-fluent , bool , default = false };
@@ -43,9 +44,10 @@ domain nestedtest {
 		// parameter (dis)equality
 		cov(?p, ?q, ?r) = if (?p == ?r) then 1.0 else 0.0;
 		
-		// multivariate normal
+		// multivariate normal and student
 		mean(?p, ?q) = COST(?q);
 		gaussian-fluent'(?p, ?q) = MultivariateNormal[?q]( mean(?p, _), cov(_, ?p, _) );
+		student-fluent'(?p) = MultivariateStudent[?p]( mean(@l1, _), cov(_, @l1, _), COST(@l3) );
 		
 		// other vectorized distributions
 		alpha(?p) = 10 * COST(?p);
