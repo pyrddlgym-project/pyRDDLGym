@@ -33,6 +33,8 @@ class Expression(object):
             return ('pvar', self._expr[1][0])
         elif self._expr[0] == 'randomvar':
             return ('randomvar', self._expr[1][0])
+        elif self._expr[0] == 'randomvector':
+            return ('randomvector', self._expr[1][0])
         elif self._expr[0] in ['+', '-', '*', '/']:
             return ('arithmetic', self._expr[0])
         elif self._expr[0] in ['^', '&', '|', '~', '=>', '<=>']:
@@ -75,6 +77,8 @@ class Expression(object):
             return self._expr[1]
         elif self._expr[0] == 'randomvar':
             return self._expr[1][1]
+        elif self._expr[0] == 'randomvector':
+            return self._expr[1][1]        
         elif self._expr[0] in ['+', '-', '*', '/']:
             return self._expr[1]
         elif self._expr[0] in ['^', '&', '|', '~', '=>', '<=>']:

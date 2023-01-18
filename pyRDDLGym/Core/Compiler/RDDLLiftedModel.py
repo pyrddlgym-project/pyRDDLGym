@@ -269,7 +269,7 @@ class RDDLLiftedModel(PlanningModel):
             # CPFs are stored as dictionary that associates cpf name with a pair 
             # the first element is the type argument list
             # the second element is the AST expression
-            objects = [(obj, types[i]) for (i, obj) in enumerate(objects)]
+            objects = list(zip(objects, types))
             cpfs[name] = (objects, cpf.expr)
         
         # make sure all CPFs have a valid expression in cpfs {...}

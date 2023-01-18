@@ -419,6 +419,8 @@ class JaxRDDLCompiler:
             jax_expr = self._jax_control(expr)
         elif etype == 'randomvar':
             jax_expr = self._jax_random(expr)
+        elif etype == 'randomvector':
+            jax_expr = self._jax_random_vector(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {expr} is not supported.\n' + 
@@ -1219,3 +1221,41 @@ class JaxRDDLCompiler:
             return sample, key, error
         
         return _jax_wrapped_distribution_discrete_pvar
+
+    # ===========================================================================
+    # random vectors
+    # ===========================================================================
+    
+    def _jax_random_vector(self, expr):
+        _, name = expr.etype
+        if name == 'MultivariateNormal':
+            return self._jax_multivariate_normal(expr)   
+        else:
+            raise RDDLNotImplementedError(
+                f'Distribution {name} is not supported.\n' + 
+                JaxRDDLCompiler._print_stack_trace(expr))
+    
+    def _jax_multivariate_normal(self, expr):
+        _, args = expr.args
+        
+        mean, cov = args
+        jax_mean = self._jax(mean)
+        jax_cov = self._jax(cov)
+        index = self.traced.cached_sim_info(expr)[0]
+        
+        # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
+        def _jax_wrapped_distribution_multivariate_normal(x, key):
+            sample_mean, key, err1 = jax_mean(x, key)
+            sample_cov, key, err2 = jax_cov(x, key)
+            key, subkey = random.split(key)
+            Z = random.normal(
+                key=subkey, 
+                shape=jnp.shape(sample_mean) + (1,),
+                dtype=JaxRDDLCompiler.REAL)            
+            L = jnp.linalg.cholesky(sample_cov)
+            sample = jnp.matmul(L, Z)[..., 0] + sample_mean     
+            sample = jnp.swapaxes(sample, axis1=-1, axis2=index)       
+            err = err1 | err2
+            return sample, key, err
+        
+        return _jax_wrapped_distribution_multivariate_normal
