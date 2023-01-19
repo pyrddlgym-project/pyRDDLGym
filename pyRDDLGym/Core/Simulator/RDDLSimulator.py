@@ -589,6 +589,7 @@ class RDDLSimulator:
             return np.logical_or(sample_lhs, sample_rhs)
     
     def _sample_and_or_grounded(self, args, op, expr, subs): 
+        use_and = op == '^'
         
         # go through simple expressions first
         for (i, arg) in enumerate(args):
@@ -596,9 +597,9 @@ class RDDLSimulator:
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
-                if not sample and op == '^':
+                if use_and and not sample:
                     return False
-                elif sample and op == '|':
+                elif not use_and and sample:
                     return True
         
         # go through complex expressions last
@@ -607,12 +608,12 @@ class RDDLSimulator:
                 sample = self._sample(arg, subs)
                 RDDLSimulator._check_type(sample, bool, op, expr, arg=i + 1)
                 sample = bool(sample)
-                if not sample and op == '^':
+                if use_and and not sample:
                     return False
-                elif sample and op == '|':
+                elif not use_and and sample:
                     return True
             
-        return op == '^'
+        return use_and
             
     # ===========================================================================
     # aggregation
