@@ -312,6 +312,7 @@ class JaxRDDLBackpropPlanner:
                       f'{bool_action_count} > max_nondef_actions '
                       f'{rddl.max_allowed_actions}.', stacklevel=2)
         
+        # calculates the surplus of actions above max-nondef-actions
         def _jax_wrapped_sogbofa_surplus(params):
             total, count = 0.0, 0
             for (var, param) in params.items():
@@ -320,11 +321,13 @@ class JaxRDDLBackpropPlanner:
                     count += jnp.sum(param > 0)
             surplus = (total - rddl.max_allowed_actions) / jnp.maximum(count, 1)
             return surplus, count
-            
+        
+        # returns whether the surplus is positive
         def _jax_wrapped_sogbofa_positive_surplus(values):
             _, (surplus, _) = values
             return surplus > 0
-            
+        
+        # reduces all bool action values by the surplus clipping at zero
         def _jax_wrapped_sogbofa_subtract_surplus(values):
             params, (surplus, _) = values
             new_params = {}
@@ -335,7 +338,8 @@ class JaxRDDLBackpropPlanner:
                     new_params[var] = param
             new_surplus = _jax_wrapped_sogbofa_surplus(new_params)
             return new_params, new_surplus
-            
+        
+        # continues to reduce bool action values by surplus until it becomes zero
         def _jax_wrapped_sogbofa_clip_actions(params):
             surplus = _jax_wrapped_sogbofa_surplus(params)
             params, _ = jax.lax.while_loop(
@@ -343,7 +347,7 @@ class JaxRDDLBackpropPlanner:
                 body_fun=_jax_wrapped_sogbofa_subtract_surplus,
                 init_val=(params, surplus))
             return params
-            
+        
         def _jax_wrapped_sogbofa_clip_actions_batched(params):
             return jax.vmap(_jax_wrapped_sogbofa_clip_actions, in_axes=0)(params)
         
