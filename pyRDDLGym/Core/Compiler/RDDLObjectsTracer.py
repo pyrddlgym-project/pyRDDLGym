@@ -860,7 +860,16 @@ class RDDLObjectsTracer:
                 f'correspond to a single type, got multiple types {enum_types}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
-        # figure out where sample_pvars occur in scope_pvars 
-        sample_pvar_indices = [scope_pvars[pvar] for pvar in sample_pvars]        
+        # objects of type _ must be compatible with sample dimension(s)
+        enum_type = next(iter(enum_types))
+        sample_pvar_indices = [scope_pvars[pvar] for pvar in sample_pvars]
+        for index in sample_pvar_indices:
+            pvar, ptype = objects[index]
+            if ptype != enum_type:
+                raise RDDLTypeError(
+                    f'{op} sampling is performed over type {enum_type}, '
+                    f'but destination variable <{pvar}> is of type {ptype}.\n'
+                    +RDDLObjectsTracer._print_stack_trace(expr))
+             
         out._append(expr, objects, None, sample_pvar_indices)
         
