@@ -1299,7 +1299,7 @@ class JaxRDDLCompiler:
             error |= (out_of_bounds * ERR)
             key, subkey = random.split(key)
             Gamma = random.gamma(key=subkey, a=alpha)
-            sample = Gamma / jnp.sum(Gamma, axis=-1)
+            sample = Gamma / jnp.sum(Gamma, axis=-1, keepdims=True)
             sample = jnp.moveaxis(sample, source=-1, destination=index)
             return sample, key, error
         

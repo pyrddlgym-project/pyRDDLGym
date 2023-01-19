@@ -1082,7 +1082,7 @@ class RDDLSimulator:
         # sample Gamma(alpha_i, 1) and normalize across i
         RDDLSimulator._check_positive(sample_alpha, True, 'Dirichlet alpha', expr)
         Gamma = self.rng.gamma(shape=sample_alpha, scale=1.0)
-        sample = Gamma / np.sum(Gamma, axis=-1)
+        sample = Gamma / np.sum(Gamma, axis=-1, keepdims=True)
         
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
