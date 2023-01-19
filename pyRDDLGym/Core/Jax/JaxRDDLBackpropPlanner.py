@@ -92,7 +92,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         arg = self._jax(arg)
         return arg
     
-    def _jax_bernoulli(self, expr):         
+    def _jax_bernoulli(self, expr): 
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
@@ -111,7 +111,14 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         return _jax_wrapped_distribution_bernoulli
     
     def _jax_discrete_helper(self):
-        return self.logic.discrete
+        discrete = self.logic.discrete
+
+        def _jax_discrete_calc_approx(prob, subkey):
+            sample = discrete(prob, subkey)
+            out_of_bounds = False
+            return sample, out_of_bounds
+        
+        return _jax_discrete_calc_approx
 
  
 class JaxRDDLBackpropPlanner:
@@ -394,9 +401,9 @@ class JaxRDDLBackpropPlanner:
             # periodically return a callback
             if it % step == 0:
                 callback = {'iteration': it,
-                            'train_loss': train_loss,
-                            'test_loss': test_loss,
-                            'best_loss': best_loss,
+                            'train_return': -train_loss,
+                            'test_return': -test_loss,
+                            'best_return': -best_loss,
                             'params': params,
                             'best_params': best_params,
                             **test_log}
