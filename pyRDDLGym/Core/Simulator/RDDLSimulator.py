@@ -1053,7 +1053,7 @@ class RDDLSimulator:
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
         index = self.traced.cached_sim_info(expr)[0]
-        sample = np.swapaxes(sample, axis1=-1, axis2=index)
+        sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
     def _sample_multivariate_student(self, expr, subs):
@@ -1076,7 +1076,7 @@ class RDDLSimulator:
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
         index = self.traced.cached_sim_info(expr)[0]
-        sample = np.swapaxes(sample, axis1=-1, axis2=index)
+        sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
     def _sample_dirichlet(self, expr, subs):
@@ -1094,7 +1094,7 @@ class RDDLSimulator:
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
         index = self.traced.cached_sim_info(expr)[0]
-        sample = np.swapaxes(sample, axis1=-1, axis2=index)
+        sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
     def _sample_multinomial(self, expr, subs):
@@ -1131,7 +1131,7 @@ class RDDLSimulator:
         # since the sampling is done in the first dimension we need to move it
         # to match the order of the CPF variables
         index = self.traced.cached_sim_info(expr)[0]
-        sample = np.swapaxes(sample, axis1=0, axis2=index)
+        sample = np.moveaxis(sample, source=0, destination=index)
         return sample
         
         

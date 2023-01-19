@@ -1257,7 +1257,7 @@ class JaxRDDLCompiler:
                 dtype=JaxRDDLCompiler.REAL)            
             L = jnp.linalg.cholesky(sample_cov)
             sample = jnp.matmul(L, Z)[..., 0] + sample_mean     
-            sample = jnp.swapaxes(sample, axis1=-1, axis2=index)       
+            sample = jnp.moveaxis(sample, source=-1, destination=index)
             err = err1 | err2
             return sample, key, err
         
@@ -1286,7 +1286,7 @@ class JaxRDDLCompiler:
                          dtype=JaxRDDLCompiler.REAL)            
             L = jnp.linalg.cholesky(sample_cov)
             sample = jnp.matmul(L, Z)[..., 0] + sample_mean
-            sample = jnp.swapaxes(sample, axis1=-1, axis2=index)
+            sample = jnp.moveaxis(sample, source=-1, destination=index)
             error = err1 | err2 | err3 | (out_of_bounds * ERR)
             return sample, key, error
         
@@ -1308,7 +1308,7 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             Gamma = random.gamma(key=subkey, a=alpha)
             sample = Gamma / jnp.sum(Gamma, axis=-1)
-            sample = jnp.swapaxes(sample, axis1=-1, axis2=index)
+            sample = jnp.moveaxis(sample, source=-1, destination=index)
             return sample, key, error
         
         return _jax_wrapped_distribution_dirichlet
