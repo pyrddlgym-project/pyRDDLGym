@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as jnp
+import jax.random as random
 import math
+import warnings
 
 
 class FuzzyLogic:
@@ -64,6 +66,12 @@ class FuzzyLogic:
     def argmin(self, x, axis):
         return self.argmax(-x, axis)
     
+    def bernoulli(self, prob, key):
+        raise NotImplementedError
+    
+    def discrete(self, prob, key):
+        raise NotImplementedError
+    
 
 class ProductLogic(FuzzyLogic):
     '''A class representing the Product t-norm fuzzy logic in Jax.
@@ -81,15 +89,21 @@ class ProductLogic(FuzzyLogic):
         self._normalizer = math.tanh(0.25 * self._w)
         
     def And(self, a, b):
+        warnings.warn('Using the replacement rule a ^ b --> a * b.', stacklevel=2)
         return a * b
     
     def Not(self, x):
+        warnings.warn('Using the replacement rule ~a --> 1 - a', stacklevel=2)
         return 1.0 - x
     
     def forall(self, x, axis=None):
+        warnings.warn('Using the replacement rule forall(a) --> prod(a)',
+                      stacklevel=2)
         return jnp.prod(x, axis=axis)
     
     def If(self, c, a, b):
+        warnings.warn('Using the replacement rule '
+                      'if c then a else b --> c * a + (1 - c) * b', stacklevel=2)
         return c * a + (1 - c) * b
     
     def _literal_array(self, shape):
@@ -99,6 +113,8 @@ class ProductLogic(FuzzyLogic):
         return literals
         
     def Switch(self, pred, cases):
+        warnings.warn('Using the replacement rule '
+                      'switch(pred) { cond... } --> softmax trick.', stacklevel=2)
         pred = pred[jnp.newaxis, ...]
         pred = jnp.broadcast_to(pred, shape=cases.shape)    
         literals = self._literal_array(cases.shape)
@@ -107,26 +123,59 @@ class ProductLogic(FuzzyLogic):
         return jnp.sum(cases * prob, axis=0)
     
     def equal(self, a, b):
+        warnings.warn('Using the replacement rule '
+                      'a == b --> sigmoid(a - b + 0.5) - sigmoid(a - b - 0.5)',
+                      stacklevel=2)
         expr = a - b
         p1 = jax.nn.sigmoid(self._w * (expr + 0.5))
         p2 = jax.nn.sigmoid(self._w * (expr - 0.5))
         return (p1 - p2) / self._normalizer
     
     def greaterEqual(self, a, b):
+        warnings.warn('Using the replacement rule a >= b --> sigmoid(a - b)',
+                      stacklevel=2)
         expr = a - b
         return jax.nn.sigmoid(self._w * expr)
     
     def greater(self, a, b):
+        warnings.warn('Using the replacement rule a > b --> sigmoid(a - b)',
+                      stacklevel=2)
         return self.greaterEqual(a, b)
     
     def signum(self, x):
+        warnings.warn('Using the replacement rule signum(x) --> tanh(x)',
+                      stacklevel=2)
         return jax.nn.tanh(self._w * x)
     
     def argmax(self, x, axis):
+        warnings.warn('Using the replacement rule argmax(x) --> softmax trick',
+                      stacklevel=2)
         prob = jax.nn.softmax(self._w * x, axis=axis)
         prob = jnp.moveaxis(prob, source=axis, destination=0)
         literals = self._literal_array(prob.shape)
         return jnp.sum(literals * prob, axis=0)
+    
+    def bernoulli(self, prob, key):
+        warnings.warn('Using the replacement rule '
+                      'Bernoulli(p) --> Gumbel-softmax trick', stacklevel=2)
+        dist = jnp.stack([prob, 1.0 - prob], axis=-1)
+        clipped_dist = jnp.maximum(dist, 1e-12)
+        Gumbel01 = random.gumbel(key=key, shape=dist.shape)
+        sample = self._w * (Gumbel01 + jnp.log(clipped_dist))
+        sample = jax.nn.softmax(sample, axis=-1)[..., 0]     
+        return sample
+    
+    def discrete(self, prob, key):
+        warnings.warn('Using the replacement rule '
+                      'Discrete(p) --> Gumbel-softmax trick', stacklevel=2)
+        clipped_prob = jnp.maximum(prob, 1e-12)
+        Gumbel01 = random.gumbel(key=key, shape=prob.shape)
+        sample = self._w * (Gumbel01 + jnp.log(clipped_prob))
+        sample = jax.nn.softmax(sample, axis=-1)
+        indices = jnp.arange(prob.shape[-1])
+        indices = indices[(jnp.newaxis,) * len(prob.shape[:-1]) + (...,)]
+        sample = jnp.sum(sample * indices, axis=-1)
+        return sample
         
     
 if __name__ == '__main__':
