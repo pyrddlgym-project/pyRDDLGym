@@ -278,6 +278,13 @@ class RDDLModelWXADD(PlanningModel):
         elif dist == 'binomial':
             pass
         
+        elif dist == 'krondelta':
+            # Change Boolean leaf values to 0s and 1s
+            assert len(args) == 1
+            arg, = args
+            node_id = self._context.unary_op(arg, op='int')
+            return node_id
+
         elif dist == 'exponential':
             assert len(args) == 1
             num_rv = self._num_uniform
