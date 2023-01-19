@@ -99,10 +99,10 @@ def main():
             action_bounds={'action': (0.0, 2.0)})
         
         for callback in planner.optimize(4000, 10):
-            print('step={} loss={:.6f} test_loss={:.6f}'.format(
+            print('step={} train_return={:.6f} test_return={:.6f}'.format(
                 str(callback['iteration']).rjust(4),
-                callback['train_loss'],
-                callback['test_loss']))
+                callback['train_return'],
+                callback['test_return']))
         
         plan, _ = planner.get_plan(callback['params'], key)
         rddl_simulate(plan)
