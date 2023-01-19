@@ -7,6 +7,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
+from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
 
 VALID_DEPENDENCIES = {
@@ -33,15 +34,18 @@ class RDDLLevelAnalysis:
     '''
         
     def __init__(self, rddl: PlanningModel,
-                 allow_synchronous_state: bool=True) -> None:
+                 allow_synchronous_state: bool=True,
+                 logger: Logger=None) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
         :param allow_synchronous_state: whether state variables can depend on
         one another (cyclic dependencies will still not be permitted)
+        :param logger: to log information about dependency analysis to file
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
+        self.logger = logger
                 
     # ===========================================================================
     # call graph construction
@@ -194,6 +198,19 @@ class RDDLLevelAnalysis:
                         level = max(level, levels[child] + 1)
                 result.setdefault(level, set()).add(var)
                 levels[var] = level
+        
+        # log dependency graph information to file
+        if self.logger is not None: 
+            graph_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                     for (k, v) in graph.items())
+            self.logger.log(f'computed fluent dependencies in CPFs:\n' 
+                            f'\t{graph_info}\n')
+            
+            levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                      for (k, v) in result.items())
+            self.logger.log(f'computed order of CPF evaluation:\n' 
+                            f'\t{levels_info}\n')
+        
         return result
     
     @staticmethod
