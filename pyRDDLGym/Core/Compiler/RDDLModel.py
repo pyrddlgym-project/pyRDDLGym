@@ -526,8 +526,10 @@ class PlanningModel(metaclass=ABCMeta):
                         f'must be one of {set(objects.keys())}.'
                         f'\n{msg}')
     
-    def ground_values(self, var: str, values: Iterable[Value]) -> Dict[str, Value]:
-        '''Produces a dictionary mapping grounded variables of var and values.
+    def ground_values(self, var: str, values: Iterable[Value]) -> Iterable[Tuple[str, Value]]:
+        '''Produces a sequence of pairs where the first element is the 
+        grounded variables of var and the second are the corresponding values
+        from values array.
         
         :param var: the pvariable as it appears in RDDL
         :param values: the values of var(?...) in C-based order      
@@ -538,7 +540,7 @@ class PlanningModel(metaclass=ABCMeta):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> requires {len(keys)} argument(s), '
                 f'got {values.size}.')
-        return dict(zip(keys, values))
+        return zip(keys, values)
     
     def ground_values_from_dict(self, dict_values: Dict[str, object]) -> Dict[str, Value]:
         '''Converts a dictionary of values such as nonfluents, states, observ

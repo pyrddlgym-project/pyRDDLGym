@@ -270,7 +270,7 @@ class JaxRDDLBackpropPlanner:
             actions = jax.tree_map(np.ravel, actions)
             grounded_actions = {}
             for (var, action) in actions.items():
-                grounded_action = self.rddl.ground_values(var, action)
+                grounded_action = dict(self.rddl.ground_values(var, action))
                 if self.rddl.variable_ranges[var] == 'bool':
                     grounded_action = {gvar: value 
                                        for (gvar, value) in grounded_action.items()
