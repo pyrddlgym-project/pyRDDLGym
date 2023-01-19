@@ -1,8 +1,8 @@
-import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
 import jax.nn.initializers as initializers
+import numpy as np
 import optax
 from typing import Dict, Iterable
 
@@ -135,7 +135,7 @@ class JaxRDDLBackpropPlanner:
                 param = jnp.clip(param, *self.action_bounds[var])
                 params[var] = param
             opt_state = optimizer.init(params)
-            return (params, key, opt_state)
+            return params, key, opt_state
         
         return _init
     
@@ -147,7 +147,7 @@ class JaxRDDLBackpropPlanner:
             logged['return'] = returns
             loss = -jnp.mean(returns)
             key = keys[-1]
-            return (loss, (key, logged))
+            return loss, (key, logged)
         
         return _loss
     
@@ -155,76 +155,68 @@ class JaxRDDLBackpropPlanner:
         rddl = self.rddl
         
         # find if action clipping is required for max-definite-actions < pos-inf
-        bool_action_count = 0
-        for (var, values) in rddl.actions.items():
-            if rddl.variable_ranges[var] == 'bool':
-                bool_action_count += np.size(values)
+        bool_action_count = sum(np.size(values)
+                                for (var, values) in rddl.actions.items()
+                                if rddl.variable_ranges[var] == 'bool')
         use_sogbofa_clip_trick = rddl.max_allowed_actions < bool_action_count
         
-        # clipping trick from SOGBOFA is required
-        if use_sogbofa_clip_trick:
-                
-            def _sogbofa_surplus(params):
-                total, count = 0.0, 0
-                for (var, param) in params.items():
-                    if rddl.variable_ranges[var] == 'bool':
-                        total += jnp.sum(param)
-                        count += jnp.sum(param > 0)
-                surplus = (total - rddl.max_allowed_actions) / jnp.maximum(count, 1)
-                return (surplus, count)
+        # no clipping
+        if not use_sogbofa_clip_trick:
             
-            def _sogbofa_clip_condition(values):
-                _, (surplus, count) = values
-                return jnp.logical_and(count > 0, surplus > 0)
-            
-            def _sogbofa_clip_body(values):
-                params, (surplus, _) = values
-                new_params = {}
-                for (var, param) in params.items():
-                    if rddl.variable_ranges[var] == 'bool':
-                        new_params[var] = jnp.maximum(param - surplus, 0.0)
-                    else:
-                        new_params[var] = param
-                new_surplus = _sogbofa_surplus(new_params)
-                return (new_params, new_surplus)
-            
-            def _sogbofa_clip(params):
-                surplus = _sogbofa_surplus(params)
-                init_values = (params, surplus)
-                params, _ = jax.lax.while_loop(
-                    _sogbofa_clip_condition, _sogbofa_clip_body, init_values)
+            def _sogbofa_no_clip_batched(params):
                 return params
             
-            def _sogbofa_clip_batched(params):
-                return jax.vmap(_sogbofa_clip, in_axes=0)(params)
+            return _sogbofa_no_clip_batched
         
-        # no clipping; just return original actions
-        else:
+        # clipping is required
+        def _sogbofa_surplus(params):
+            total, count = 0.0, 0
+            for (var, param) in params.items():
+                if rddl.variable_ranges[var] == 'bool':
+                    total += jnp.sum(param)
+                    count += jnp.sum(param > 0)
+            surplus = (total - rddl.max_allowed_actions) / jnp.maximum(count, 1)
+            return surplus, count
             
-            def _sogbofa_clip_batched(params):
-                return params
-
+        def _sogbofa_clip_condition(values):
+            _, (surplus, count) = values
+            return jnp.logical_and(count > 0, surplus > 0)
+            
+        def _sogbofa_clip_body(values):
+            params, (surplus, _) = values
+            new_params = {}
+            for (var, param) in params.items():
+                if rddl.variable_ranges[var] == 'bool':
+                    new_params[var] = jnp.maximum(param - surplus, 0.0)
+                else:
+                    new_params[var] = param
+            new_surplus = _sogbofa_surplus(new_params)
+            return new_params, new_surplus
+            
+        def _sogbofa_clip(params):
+            surplus = _sogbofa_surplus(params)
+            params, _ = jax.lax.while_loop(
+                cond_fun=_sogbofa_clip_condition,
+                body_fun=_sogbofa_clip_body,
+                init_val=(params, surplus))
+            return params
+            
+        def _sogbofa_clip_batched(params):
+            return jax.vmap(_sogbofa_clip, in_axes=0)(params)
+        
         return _sogbofa_clip_batched
     
     def _jax_update(self, loss, optimizer):
-        
-        # clip actions within bounds
-        def _clip(params):
-            new_params = {}
-            for (var, param) in params.items():
-                new_params[var] = jnp.clip(param, *self.action_bounds[var])
-            return new_params
-        
-        # clip actions to satisfy max concurrent actions
         _sogbofa_clip_batched = self._jax_respect_max_nondef_actions()
         
         def _update(params, key, opt_state):
             grad, (key, logged) = jax.grad(loss, has_aux=True)(params, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
-            params = _clip(params)
+            params = {var: jnp.clip(param, *self.action_bounds[var])
+                      for (var, param) in params.items()}
             params = _sogbofa_clip_batched(params)
-            return (params, key, opt_state, logged)
+            return params, key, opt_state, logged
         
         return _update
             
@@ -277,4 +269,4 @@ class JaxRDDLBackpropPlanner:
                                        if value == True}
                 grounded_actions.update(grounded_action)
             plan[step] = grounded_actions
-        return (plan, key)
+        return plan, key
