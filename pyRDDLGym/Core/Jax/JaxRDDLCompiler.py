@@ -52,16 +52,8 @@ class JaxRDDLCompiler:
         self.init_values = initializer.initialize()
         
         # compute dependency graph for CPFs and sort them by evaluation order
-        sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
+        sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state, logger=self.logger)
         self.levels = sorter.compute_levels()        
-        
-        # log dependency graph information to file
-        if self.logger is not None: 
-            levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
-                                      for (k, v) in self.levels.items())
-            message = (f'computed order of CPF evaluation:\n' 
-                       f'\t{levels_info}\n')
-            self.logger.log(message)
         
         # trace expressions to cache information to be used later
         tracer = RDDLObjectsTracer(rddl, logger=self.logger)

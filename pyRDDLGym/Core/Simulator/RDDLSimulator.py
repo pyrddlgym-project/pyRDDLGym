@@ -47,7 +47,7 @@ class RDDLSimulator:
         self.init_values = initializer.initialize()
         
         # compute dependency graph for CPFs and sort them by evaluation order
-        sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state)
+        sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state, logger=self.logger)
         levels = sorter.compute_levels()      
         self.cpfs = []  
         for cpfs in levels.values():
@@ -58,14 +58,6 @@ class RDDLSimulator:
                     prange, RDDLValueInitializer.INT)
                 self.cpfs.append((cpf, expr, dtype))
                 
-        # log dependency graph information to file
-        if self.logger is not None: 
-            levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
-                                      for (k, v) in levels.items())
-            message = (f'computed order of CPF evaluation:\n' 
-                       f'\t{levels_info}\n')
-            self.logger.log(message)
-        
         # trace expressions to cache information to be used later
         tracer = RDDLObjectsTracer(rddl, logger=self.logger)
         self.traced = tracer.trace()
