@@ -200,7 +200,7 @@ class JaxRDDLBackpropPlanner:
                     self.action_bounds[name] = (0.0, 1.0)
                 else:
                     self.action_bounds[name] = self._action_bounds.get(
-                        name, (-jnp.inf, +jnp.inf))
+                        name, (-np.inf, +np.inf))
     
     # ===========================================================================
     # compilation of back-propagation info
@@ -314,22 +314,21 @@ class JaxRDDLBackpropPlanner:
         
         # calculates the surplus of actions above max-nondef-actions
         def _jax_wrapped_sogbofa_surplus(params):
-            total, count = 0.0, 0
+            surplus, count = 0.0, 0
             for (var, param) in params.items():
                 if rddl.variable_ranges[var] == 'bool':
-                    total += jnp.sum(param)
+                    surplus += jnp.sum(param)
                     count += jnp.sum(param > 0)
-            surplus = (total - rddl.max_allowed_actions) / jnp.maximum(count, 1)
-            return surplus, count
-        
+            return (surplus - rddl.max_allowed_actions) / jnp.maximum(count, 1)
+            
         # returns whether the surplus is positive
         def _jax_wrapped_sogbofa_positive_surplus(values):
-            _, (surplus, _) = values
+            _, surplus = values
             return surplus > 0
         
         # reduces all bool action values by the surplus clipping at zero
         def _jax_wrapped_sogbofa_subtract_surplus(values):
-            params, (surplus, _) = values
+            params, surplus = values
             new_params = {}
             for (var, param) in params.items():
                 if rddl.variable_ranges[var] == 'bool':
