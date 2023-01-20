@@ -72,6 +72,13 @@ class RDDLLiftedModel(PlanningModel):
                         f'can not share the same object <{obj}>.')
                 objects_rev[obj] = name
         
+        # check that all types in instance are declared in domain
+        for (ptype, _) in self._AST.non_fluents.objects:
+            if ptype not in objects:
+                raise RDDLInvalidObjectError(
+                    f'Type <{ptype}> declared in instance is not declared in '
+                    f'types {{ ... }} domain block.')
+        
         # maps each object to its canonical order as appears in RDDL definition
         objects_index = {obj: i 
                          for objs in objects.values() 
