@@ -201,7 +201,8 @@ class RDDLLevelAnalysis:
         
         # log dependency graph information to file
         if self.logger is not None: 
-            graph_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+            graph_info = '\n\t'.join(f"{self.rddl.variable_types[k]} {k}: "
+                                     f"{{{', '.join(v)}}}"
                                      for (k, v) in graph.items())
             self.logger.log(f'computed fluent dependencies in CPFs:\n' 
                             f'\t{graph_info}\n')
