@@ -452,8 +452,8 @@ class RDDLSimulator:
                     return numpy_op(sample_lhs, sample_rhs)
                 except:
                     raise ArithmeticError(
-                        f'Cannot execute arithmetic operation {op} '
-                        f'with arguments {sample_lhs} and {sample_rhs}.\n' + 
+                        f'Cannot evaluate arithmetic operation {op} '
+                        f'at {sample_lhs} and {sample_rhs}.\n' + 
                         RDDLSimulator._print_stack_trace(expr))
         
         # for a grounded domain can short-circuit * and +
@@ -640,7 +640,12 @@ class RDDLSimulator:
             RDDLSimulator._check_arity(args, 1, name, expr)
             arg, = args
             sample = 1 * self._sample(arg, subs)
-            return unary_op(sample)
+            try:
+                return unary_op(sample)
+            except:
+                raise ArithmeticError(
+                    f'Cannot evaluate unary function {name} at {sample}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
         
         # binary function
         binary_op = self.BINARY.get(name, None)
@@ -649,7 +654,13 @@ class RDDLSimulator:
             lhs, rhs = args
             sample_lhs = 1 * self._sample(lhs, subs)
             sample_rhs = 1 * self._sample(rhs, subs)
-            return binary_op(sample_lhs, sample_rhs)
+            try:
+                return binary_op(sample_lhs, sample_rhs)
+            except:
+                raise ArithmeticError(
+                    f'Cannot evaluate binary function {name} at '
+                    f'{sample_lhs} and {sample_rhs}.\n' + 
+                    RDDLSimulator._print_stack_trace(expr))
         
         raise RDDLNotImplementedError(
             f'Function {name} is not supported.\n' + 
@@ -709,9 +720,9 @@ class RDDLSimulator:
                 arg = default
             return self._sample(arg, subs)        
         else: 
-            sample_default = None if default is None else self._sample(default, subs)
+            sample_def = None if default is None else self._sample(default, subs)
             sample_cases = np.asarray([
-                (sample_default if arg is None else self._sample(arg, subs))
+                (sample_def if arg is None else self._sample(arg, subs))
                 for arg in cases
             ])
             sample_pred = sample_pred[np.newaxis, ...]
@@ -783,7 +794,7 @@ class RDDLSimulator:
         arg, = args
         sample = self._sample(arg, subs)
         RDDLSimulator._check_types(
-            sample, {bool, RDDLValueInitializer.INT}, 'Argument of KronDelta', expr)
+            sample, (bool, RDDLValueInitializer.INT), 'Argument of KronDelta', expr)
         return sample
     
     def _sample_dirac_delta(self, expr, subs):
