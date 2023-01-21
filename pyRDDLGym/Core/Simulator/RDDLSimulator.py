@@ -1056,7 +1056,7 @@ class RDDLSimulator:
 
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
@@ -1079,7 +1079,7 @@ class RDDLSimulator:
         
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
@@ -1097,7 +1097,7 @@ class RDDLSimulator:
         
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
@@ -1131,7 +1131,7 @@ class RDDLSimulator:
         
         # since the sampling is done in the first dimension we need to move it
         # to match the order of the CPF variables
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         sample = np.moveaxis(sample, source=0, destination=index)
         return sample
         

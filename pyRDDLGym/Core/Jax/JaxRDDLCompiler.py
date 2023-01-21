@@ -1238,7 +1238,7 @@ class JaxRDDLCompiler:
         mean, cov = args
         jax_mean = self._jax(mean)
         jax_cov = self._jax(cov)
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
         def _jax_wrapped_distribution_multivariate_normal(x, key):
@@ -1265,7 +1265,7 @@ class JaxRDDLCompiler:
         jax_mean = self._jax(mean)
         jax_cov = self._jax(cov)
         jax_df = self._jax(df)
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ StudentT(0, 1)
         def _jax_wrapped_distribution_multivariate_student(x, key):
@@ -1292,7 +1292,7 @@ class JaxRDDLCompiler:
         _, args = expr.args
         alpha, = args
         jax_alpha = self._jax(alpha)
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         
         # sample Gamma(alpha_i, 1) and normalize across i
         def _jax_wrapped_distribution_dirichlet(x, key):
@@ -1315,7 +1315,7 @@ class JaxRDDLCompiler:
         jax_prob = self._jax(prob)
         jax_trials = self._jax(trials)
         jax_discrete = self._jax_discrete_helper()
-        index = self.traced.cached_sim_info(expr)[0]
+        index, = self.traced.cached_sim_info(expr)
         
         def _jax_wrapped_multinomial_trial(i, values):
             samples, errors, prob, key, categories = values
