@@ -862,7 +862,7 @@ class RDDLObjectsTracer:
         
         # objects of type _ must be compatible with sample dimension(s)
         enum_type = next(iter(enum_types))
-        sample_pvar_indices = [scope_pvars[pvar] for pvar in sample_pvars]
+        sample_pvar_indices = tuple(scope_pvars[pvar] for pvar in sample_pvars)
         for index in sample_pvar_indices:
             pvar, ptype = objects[index]
             if ptype != enum_type:
