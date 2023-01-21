@@ -9,9 +9,10 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 
@@ -36,9 +37,9 @@ class RDDLEnv(gym.Env):
         ast = self.model._AST
         logger = Logger(f'{ast.domain.name}_{ast.instance.name}.log') if debug else None
         
-        # define the model sampler     
-        self.sampler = RDDLSimulatorWConstraints(self.model, logger=logger)
-        bounds = self.sampler.bounds
+        # define the model sampler and bounds    
+        self.sampler = RDDLSimulator(self.model, logger=logger)
+        bounds = RDDLConstraints(self.sampler).bounds
 
         # set roll-out parameters
         self.horizon = self.model.horizon
