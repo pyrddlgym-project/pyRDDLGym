@@ -1,4 +1,5 @@
 import jax
+import numpy as np
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
@@ -18,7 +19,7 @@ Args = Dict[str, Value]
 class JaxRDDLSimulator(RDDLSimulator):
         
     def __init__(self, rddl: RDDLLiftedModel,
-                 key: jax.random.PRNGKey,
+                 key: jax.random.PRNGKey=None,
                  raise_error: bool=True,
                  logger: Logger=None,
                  **compiler_args) -> None:
@@ -33,6 +34,10 @@ class JaxRDDLSimulator(RDDLSimulator):
         :param logger: to log information about compilation to file
         :param **compiler_args: keyword arguments to pass to the Jax compiler
         '''
+        if key is None:
+            seed = np.random.randint(0, 2 ** 31 - 1)
+            key = jax.random.PRNGKey(seed)
+            
         self.rddl = rddl
         self.key = key
         self.raise_error = raise_error

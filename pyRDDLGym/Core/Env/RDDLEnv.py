@@ -18,8 +18,21 @@ from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
     
-    def __init__(self, domain, instance=None, enforce_action_constraints=False,
-                 debug=False):
+    def __init__(self, domain: str, 
+                 instance: str=None, 
+                 enforce_action_constraints: bool=False,
+                 debug: bool=False, 
+                 sim_class: RDDLSimulator=RDDLSimulator):
+        '''Creates a new gym environment from the given RDDL domain + instance.
+        
+        :param domain: the RDDL domain
+        :param instance: the RDDL instance
+        :param enforce_action_constraints: whether to raise an exception if the
+        action constraints are violated
+        :param debug: whether to log compilation information to a log file
+        :param sim_class: the subclass of RDDLSimulator to use as backend for
+        simulation (currently supports numpy and Jax)
+        '''
         super(RDDLEnv, self).__init__()
         self.enforce_action_constraints = enforce_action_constraints
         
@@ -38,7 +51,7 @@ class RDDLEnv(gym.Env):
         logger = Logger(f'{ast.domain.name}_{ast.instance.name}.log') if debug else None
         
         # define the model sampler and bounds    
-        self.sampler = RDDLSimulator(self.model, logger=logger)
+        self.sampler = sim_class(self.model, logger=logger)
         bounds = RDDLConstraints(self.sampler).bounds
 
         # set roll-out parameters
