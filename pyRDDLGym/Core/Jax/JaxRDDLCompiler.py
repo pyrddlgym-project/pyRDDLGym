@@ -1242,15 +1242,21 @@ class JaxRDDLCompiler:
         
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
         def _jax_wrapped_distribution_multivariate_normal(x, key):
+            
+            # sample the mean and covariance
             sample_mean, key, err1 = jax_mean(x, key)
             sample_cov, key, err2 = jax_cov(x, key)
+            
+            # sample Normal(0, 1)
             key, subkey = random.split(key)
             Z = random.normal(
                 key=subkey,
                 shape=jnp.shape(sample_mean) + (1,),
-                dtype=JaxRDDLCompiler.REAL)            
+                dtype=JaxRDDLCompiler.REAL)       
+            
+            # compute L s.t. cov = L * L' and reparameterize
             L = jnp.linalg.cholesky(sample_cov)
-            sample = jnp.matmul(L, Z)[..., 0] + sample_mean     
+            sample = jnp.matmul(L, Z)[..., 0] + sample_mean
             sample = jnp.moveaxis(sample, source=-1, destination=index)
             err = err1 | err2
             return sample, key, err
@@ -1269,15 +1275,21 @@ class JaxRDDLCompiler:
         
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ StudentT(0, 1)
         def _jax_wrapped_distribution_multivariate_student(x, key):
+            
+            # sample the mean and covariance and degrees of freedom
             sample_mean, key, err1 = jax_mean(x, key)
             sample_cov, key, err2 = jax_cov(x, key)
             sample_df, key, err3 = jax_df(x, key)
             out_of_bounds = jnp.logical_not(jnp.all(sample_df > 0))
+            
+            # sample StudentT(0, 1, df) -- broadcast df to same shape as cov
             sample_df = sample_df[..., jnp.newaxis, jnp.newaxis]
             sample_df = jnp.broadcast_to(sample_df, shape=sample_mean.shape + (1,))
             key, subkey = random.split(key)
             Z = random.t(key=subkey, df=sample_df, shape=sample_df.shape,
-                         dtype=JaxRDDLCompiler.REAL)            
+                         dtype=JaxRDDLCompiler.REAL)   
+            
+            # compute L s.t. cov = L * L' and reparameterize
             L = jnp.linalg.cholesky(sample_cov)
             sample = jnp.matmul(L, Z)[..., 0] + sample_mean
             sample = jnp.moveaxis(sample, source=-1, destination=index)
@@ -1309,6 +1321,7 @@ class JaxRDDLCompiler:
     
     def _jax_multinomial(self, expr):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_MULTINOMIAL']
         
         _, args = expr.args
         prob, trials = args
@@ -1317,33 +1330,42 @@ class JaxRDDLCompiler:
         jax_discrete = self._jax_discrete_helper()
         index, = self.traced.cached_sim_info(expr)
         
+        # samples from a discrete(prob), computes a one-hot mask w.r.t categories
         def _jax_wrapped_multinomial_trial(i, values):
-            samples, errors, prob, key, categories = values
+            samples, errors, key, prob, categories = values
             key, subkey = random.split(key)
             sample, error = jax_discrete(prob, subkey)            
             sample = sample[jnp.newaxis, ...]
             masked = (sample == categories)
             samples += masked
             errors |= error
-            return (samples, errors, prob, key, categories)            
+            return (samples, errors, key, prob, categories)            
             
         def _jax_wrapped_distribution_multinomial(x, key):
+            
+            # sample multinomial parameters
+            # note that # of trials must not be parameterized
             prob, key, err1 = jax_prob(x, key)
             trials, key, err2 = jax_trials(x, key)
+            num_trials = jnp.ravel(trials)[0]
+            out_of_bounds = jnp.logical_not(num_trials > 0)
+            error = err1 | err2 | (out_of_bounds * ERR)
+            
+            # create a categories mask that spans support of discrete(prob)
             num_categories = prob.shape[-1]
             categories = np.arange(num_categories)
-            categories = categories[
-                (...,) + (jnp.newaxis,) * len(prob.shape[:-1])]
-            num_trials = jnp.ravel(trials)[0]
-            samples = jnp.zeros(shape=(num_categories,) + prob.shape[:-1],
-                                dtype=JaxRDDLCompiler.INT)
-            sample, error, *_ = jax.lax.fori_loop(
+            categories = categories[(...,) + (jnp.newaxis,) * len(prob.shape[:-1])]
+            
+            # do a for loop over trials, accumulate category counts in samples
+            counts = jnp.zeros(shape=(num_categories,) + prob.shape[:-1],
+                               dtype=JaxRDDLCompiler.INT)
+            sample, err3, key, *_ = jax.lax.fori_loop(
                 lower=0,
                 upper=num_trials,
                 body_fun=_jax_wrapped_multinomial_trial,
-                init_val=(samples, NORMAL, prob, key, categories))
+                init_val=(counts, NORMAL, key, prob, categories))
             sample = jnp.moveaxis(sample, source=0, destination=index)
-            error = err1 | err2 | error
+            error |= err3
             return sample, key, error
         
         return _jax_wrapped_distribution_multinomial

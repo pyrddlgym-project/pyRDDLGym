@@ -359,11 +359,9 @@ class PlanningModel(metaclass=ABCMeta):
         is_primed = expr.endswith('\'')
         if is_primed:
             expr = expr[:-1]
-        tokens = expr.split('_')
-        var = tokens[0]
+        var, *objects = expr.split('_')
         if is_primed:
             var += '\''
-        objects = tokens[1:]
         return var, objects
     
     def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:

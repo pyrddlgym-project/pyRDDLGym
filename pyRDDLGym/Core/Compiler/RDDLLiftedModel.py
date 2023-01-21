@@ -178,7 +178,9 @@ class RDDLLiftedModel(PlanningModel):
         self.next_state, self.prev_state = nextstates, prevstates
         self.init_state = initstates
     
-    def _value_list_or_scalar_from_default(self, ptypes, default):
+    def _value_list_or_scalar_from_default(self, pvar):
+        ptypes = pvar.param_types
+        default = pvar.default
         if ptypes is None:
             return default
         num_variations = 1
@@ -193,8 +195,7 @@ class RDDLLiftedModel(PlanningModel):
         for pvar in self._AST.domain.pvariables:
             if pvar.is_action_fluent():
                 actionsranges[pvar.name] = pvar.range
-                actions[pvar.name] = self._value_list_or_scalar_from_default(
-                    pvar.param_types, pvar.default)
+                actions[pvar.name] = self._value_list_or_scalar_from_default(pvar)
         self.actions, self.actionsranges = actions, actionsranges
     
     def _extract_derived_and_interm(self):
@@ -203,11 +204,9 @@ class RDDLLiftedModel(PlanningModel):
         derived, interm = {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_derived_fluent():
-                derived[pvar.name] = self._value_list_or_scalar_from_default(
-                    pvar.param_types, pvar.default)
+                derived[pvar.name] = self._value_list_or_scalar_from_default(pvar)
             elif pvar.is_intermediate_fluent():
-                interm[pvar.name] = self._value_list_or_scalar_from_default(
-                    pvar.param_types, pvar.default)
+                interm[pvar.name] = self._value_list_or_scalar_from_default(pvar)
         self.derived, self.interm = derived, interm
     
     def _extract_observ(self):
@@ -217,8 +216,7 @@ class RDDLLiftedModel(PlanningModel):
         for pvar in self._AST.domain.pvariables:
             if pvar.is_observ_fluent():
                 observranges[pvar.name] = pvar.range
-                observ[pvar.name] = self._value_list_or_scalar_from_default(
-                    pvar.param_types, pvar.default)
+                observ[pvar.name] = self._value_list_or_scalar_from_default(pvar)
         self.observ, self.observranges = observ, observranges
         
     def _extract_non_fluents(self):
