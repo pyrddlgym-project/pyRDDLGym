@@ -1226,6 +1226,8 @@ class JaxRDDLCompiler:
             return self._jax_multivariate_student(expr)  
         elif name == 'Dirichlet':
             return self._jax_dirichlet(expr)
+        elif name == 'Multinomial':
+            return self._jax_multinomial(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
@@ -1304,4 +1306,45 @@ class JaxRDDLCompiler:
             return sample, key, error
         
         return _jax_wrapped_distribution_dirichlet
-          
+    
+    def _jax_multinomial(self, expr):
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        
+        _, args = expr.args
+        prob, trials = args
+        jax_prob = self._jax(prob)
+        jax_trials = self._jax(trials)
+        jax_discrete = self._jax_discrete_helper()
+        index = self.traced.cached_sim_info(expr)[0]
+        
+        def _jax_wrapped_multinomial_trial(i, values):
+            samples, errors, prob, key, categories = values
+            key, subkey = random.split(key)
+            sample, error = jax_discrete(prob, subkey)            
+            sample = sample[jnp.newaxis, ...]
+            masked = (sample == categories)
+            samples += masked
+            errors |= error
+            return (samples, errors, prob, key, categories)            
+            
+        def _jax_wrapped_distribution_multinomial(x, key):
+            prob, key, err1 = jax_prob(x, key)
+            trials, key, err2 = jax_trials(x, key)
+            num_categories = prob.shape[-1]
+            categories = np.arange(num_categories)
+            categories = categories[
+                (...,) + (jnp.newaxis,) * len(prob.shape[:-1])]
+            num_trials = jnp.ravel(trials)[0]
+            samples = jnp.zeros(shape=(num_categories,) + prob.shape[:-1],
+                                dtype=JaxRDDLCompiler.INT)
+            sample, error, *_ = jax.lax.fori_loop(
+                lower=0,
+                upper=num_trials,
+                body_fun=_jax_wrapped_multinomial_trial,
+                init_val=(samples, NORMAL, prob, key, categories))
+            sample = jnp.moveaxis(sample, source=0, destination=index)
+            error = err1 | err2 | error
+            return sample, key, error
+        
+        return _jax_wrapped_distribution_multinomial
+            
