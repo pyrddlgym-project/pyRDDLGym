@@ -29,7 +29,7 @@ domain nestedtest {
 		gaussian-fluent(enum_level, enum_level)  : { state-fluent , real , default = 0 };
 		student-fluent(enum_level)               : { state-fluent , real , default = 0 };
 		dirichlet-fluent(enum_level)             : { state-fluent , real , default = 0 };
-		multi-fluent(enum_level, enum_level)     : { state-fluent , real , default = 0 };
+		multi-fluent(enum_level, enum_level)     : { state-fluent , int , default = 0 };
 		
 		a : { action-fluent , bool , default = false };
     };
