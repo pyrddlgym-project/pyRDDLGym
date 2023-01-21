@@ -1101,36 +1101,33 @@ class RDDLSimulator:
         sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
+    def _discrete_sample_to_mask(self, sample, num_categories):
+        categories = np.arange(num_categories)
+        categories = categories[(...,) + (np.newaxis,) * len(sample.shape)]
+        sample = sample[np.newaxis, ...]
+        return (sample == categories)
+        
     def _sample_multinomial(self, expr, subs):
         _, args = expr.args
         RDDLSimulator._check_arity(args, 2, 'Multinomial', expr)
         
         prob, trials = args
         sample_prob = self._sample(prob, subs)
-        sample_trials = self._sample(trials, subs)
-        
+        sample_trials = self._sample(trials, subs)        
         RDDLSimulator._check_type(sample_trials, RDDLValueInitializer.INT, 'Multinomial trials', expr)
         RDDLSimulator._check_positive(sample_trials, False, 'Multinomial trials', expr)
         
         # prepend a trial axis to sample_prob
         num_trials = int(sample_trials.flat[0])
-        sample_prob_shape = (num_trials,) + sample_prob.shape
+        shape = (num_trials,) + sample_prob.shape
         sample_prob = sample_prob[np.newaxis, ...]
-        sample_prob = np.broadcast_to(sample_prob, shape=sample_prob_shape)
+        sample_prob = np.broadcast_to(sample_prob, shape=shape)
         
-        # sample from the discrete distribution and prepend axis for categories
+        # sample from the discrete distribution, convert to mask and sum trials
         sample_discrete = self._sample_discrete_helper(sample_prob, False, expr)
         num_categories = sample_prob.shape[-1]
-        sample_shape = (num_categories,) + sample_discrete.shape
-        sample_discrete = sample_discrete[np.newaxis, ...]
-        sample_discrete = np.broadcast_to(sample_discrete, shape=sample_shape)
-        
-        # compute mask per category against samples and sum along trial axis
-        categories = np.arange(num_categories)
-        categories = categories[
-            (...,) + (np.newaxis,) * len(sample_discrete.shape[1:])]
-        masked_sample = (sample_discrete == categories)
-        sample = np.sum(masked_sample, axis=1)
+        masked = self._discrete_sample_to_mask(sample_discrete, num_categories)
+        sample = np.sum(masked, axis=1)
         
         # since the sampling is done in the first dimension we need to move it
         # to match the order of the CPF variables
