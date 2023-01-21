@@ -129,7 +129,7 @@ class RDDLValueInitializer:
                 indices[i] = self.rddl.index_of_object[literal]
                 
         if is_scalar:
-            indices = indices[0]
+            indices, = indices
             
         return indices
     

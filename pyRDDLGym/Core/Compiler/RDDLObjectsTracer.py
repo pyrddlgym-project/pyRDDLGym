@@ -200,7 +200,7 @@ class RDDLObjectsTracer:
             
             # create an array whose shape matches objects
             # along axis equal to index of var in objects values are (0, 1, ...)
-            ptypes = tuple(ptype for (_, ptype) in objects)
+            ptypes = [ptype for (_, ptype) in objects]
             shape = self.rddl.object_counts(ptypes)            
             cached_value = np.arange(shape[index_of_var_in_objects])
             cached_value = cached_value[(...,) + (np.newaxis,) * len(ptypes[1:])]
@@ -388,7 +388,7 @@ class RDDLObjectsTracer:
         else:
             # update permutation based on objects not in args
             covered = set(permuted)
-            permuted.extend([i for i in range(len(objects)) if i not in covered])
+            permuted += [i for i in range(len(objects)) if i not in covered]
             
             # store the arguments for each operation: 
             # 0 means einsum, 1 means transpose, and others (-1, 2) are no-op
@@ -452,7 +452,7 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # can not use operator besides == and ~= to compare enum types
-        enum_type = next(iter(enum_types))
+        enum_type, = enum_types
         if enum_type is not None and op != '==' and op != '~=':
             raise RDDLTypeError(
                 f'Relational operator {op} is not valid for comparing enum types, '
@@ -584,7 +584,7 @@ class RDDLObjectsTracer:
                 f'of different enum types or mix enum and non-enum types.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))     
     
-        enum_type = next(iter(enum_types))
+        enum_type, = enum_types
         out._append(expr, objects, enum_type, None)
         
     def _trace_switch(self, expr, objects, out):
@@ -630,7 +630,7 @@ class RDDLObjectsTracer:
                 f'of different enum types or mix enum and non-enum types.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))    
                                 
-        enum_type = next(iter(enum_types))
+        enum_type, = enum_types
         out._append(expr, objects, enum_type, cached_sim_info)
         
     def _order_cases(self, enum_type, case_dict, expr): 
@@ -781,8 +781,8 @@ class RDDLObjectsTracer:
         
         # temporary: for multinomial the trials must not be parameterized for now
         if op == 'Multinomial':
-            (_, trials) = args
-            (_, trial_args) = trials.args
+            _, trials = args
+            _, trial_args = trials.args
             if trial_args:
                 raise RDDLNotImplementedError(
                     f'Multinomial distribution does not support parameterized '
@@ -861,7 +861,7 @@ class RDDLObjectsTracer:
                 RDDLObjectsTracer._print_stack_trace(expr))
         
         # objects of type _ must be compatible with sample dimension(s)
-        enum_type = next(iter(enum_types))
+        enum_type, = enum_types
         sample_pvar_indices = tuple(scope_pvars[pvar] for pvar in sample_pvars)
         for index in sample_pvar_indices:
             pvar, ptype = objects[index]
