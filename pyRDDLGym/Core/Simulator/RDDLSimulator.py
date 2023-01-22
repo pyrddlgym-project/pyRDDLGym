@@ -773,6 +773,8 @@ class RDDLSimulator:
             return self._sample_cauchy(expr, subs)
         elif name == 'Gompertz':
             return self._sample_gompertz(expr, subs)
+        elif name == 'ChiSquare':
+            return self._sample_chisquare(expr, subs)
         elif name == 'Discrete':
             return self._sample_discrete(expr, subs, unnorm=False)
         elif name == 'UnnormDiscrete':
@@ -985,6 +987,15 @@ class RDDLSimulator:
         U = self.rng.uniform(size=size)
         return np.log(1.0 - np.log1p(-U) / sample_shape) / sample_scale
     
+    def _sample_chisquare(self, expr, subs):
+        args = expr.args
+        RDDLSimulator._check_arity(args, 1, 'ChiSquare', expr)
+        
+        df, = args
+        sample_df = self._sample(df, subs)
+        RDDLSimulator._check_positive(sample_df, True, 'ChiSquare df', expr)
+        return self.rng.chisquare(df=sample_df)
+    
     # ===========================================================================
     # random variables with enum support
     # ===========================================================================
@@ -1049,7 +1060,7 @@ class RDDLSimulator:
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
         L = np.linalg.cholesky(sample_cov)
         Z = self.rng.standard_normal(
-            size=sample_mean.shape + (1,), 
+            size=sample_mean.shape + (1,),
             dtype=RDDLValueInitializer.REAL)
         sample = np.matmul(L, Z)[..., 0] + sample_mean
 
@@ -1152,5 +1163,4 @@ def lngamma(x):
                     1 + 1 / (4 * x_squared / 3) * (
                         -1 + 1 / (99 * x_squared / 140) * (
                             1 + 1 / (910 * x_squared / 3))))))
-
 

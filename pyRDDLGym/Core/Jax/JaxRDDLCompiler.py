@@ -344,11 +344,12 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_LAPLACE': 8192,
         'INVALID_PARAM_CAUCHY': 16384,
         'INVALID_PARAM_GOMPERTZ': 32768,
-        'INVALID_PARAM_DISCRETE': 65536,
-        'INVALID_PARAM_KRON_DELTA': 131072,
-        'INVALID_PARAM_DIRICHLET': 262144,
-        'INVALID_PARAM_MULTIVARIATE_STUDENT': 524288,
-        'INVALID_PARAM_MULTINOMIAL': 1048576
+        'INVALID_PARAM_CHISQUARE': 65536,        
+        'INVALID_PARAM_DISCRETE': 131072,
+        'INVALID_PARAM_KRON_DELTA': 262144,
+        'INVALID_PARAM_DIRICHLET': 524288,
+        'INVALID_PARAM_MULTIVARIATE_STUDENT': 1048576,
+        'INVALID_PARAM_MULTINOMIAL': 2097152
     }
     
     INVERSE_ERROR_CODES = {
@@ -368,11 +369,12 @@ class JaxRDDLCompiler:
         13: 'Found Laplace(m, s) distribution where s <= 0.',
         14: 'Found Cauchy(m, s) distribution where s <= 0.',
         15: 'Found Gompertz(k, l) distribution where either k <= 0 or l <= 0.',
-        16: 'Found Discrete(p) distribution where either p < 0 or p does not sum to 1.',
-        17: 'Found KronDelta(x) distribution where x is not int nor bool.',
-        18: 'Found Dirichlet(alpha) distribution where alpha < 0.',
-        19: 'Found MultivariateStudent(mean, cov, df) distribution where df <= 0.',
-        20: 'Found Multinomial(p, n) distribution where either p < 0, p does not sum to 1, or n <= 0.'
+        16: 'Found ChiSquare(df) distribution where df <= 0.',
+        17: 'Found Discrete(p) distribution where either p < 0 or p does not sum to 1.',
+        18: 'Found KronDelta(x) distribution where x is not int nor bool.',
+        19: 'Found Dirichlet(alpha) distribution where alpha < 0.',
+        20: 'Found MultivariateStudent(mean, cov, df) distribution where df <= 0.',
+        21: 'Found Multinomial(p, n) distribution where either p < 0, p does not sum to 1, or n <= 0.'
     }
     
     @staticmethod
@@ -797,6 +799,8 @@ class JaxRDDLCompiler:
             return self._jax_cauchy(expr)
         elif name == 'Gompertz':
             return self._jax_gompertz(expr)
+        elif name == 'ChiSquare':
+            return self._jax_chisquare(expr)
         elif name == 'Discrete':
             return self._jax_discrete(expr, unnorm=False)
         elif name == 'UnnormDiscrete':
@@ -1143,6 +1147,26 @@ class JaxRDDLCompiler:
             return sample, key, err
         
         return _jax_wrapped_distribution_gompertz
+    
+    def _jax_chisquare(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_CHISQUARE']
+        JaxRDDLCompiler._check_num_args(expr, 1)
+        
+        arg_df, = expr.args
+        jax_df = self._jax(arg_df)
+        
+        # use the fact that ChiSquare(df) = Gamma(df/2, 2)
+        def _jax_wrapped_distribution_chisquare(x, key):
+            df, key, err1 = jax_df(x, key)
+            key, subkey = random.split(key)
+            shape = df / 2.0
+            Gamma = random.gamma(key=subkey, a=shape, dtype=JaxRDDLCompiler.REAL)
+            sample = 2.0 * Gamma
+            out_of_bounds = jnp.logical_not(jnp.all(df > 0))
+            err = err1 | (out_of_bounds * ERR)
+            return sample, key, err
+        
+        return _jax_wrapped_distribution_chisquare
     
     # ===========================================================================
     # random variables with enum support

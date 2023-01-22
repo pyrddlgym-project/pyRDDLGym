@@ -868,8 +868,8 @@ class RDDLObjectsTracer:
             if ptype != enum_type:
                 raise RDDLTypeError(
                     f'{op} sampling is performed over type {enum_type}, '
-                    f'but destination variable <{pvar}> is of type {ptype}.\n'
-                    +RDDLObjectsTracer._print_stack_trace(expr))
+                    f'but destination variable <{pvar}> is of type {ptype}.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
              
         out._append(expr, objects, None, sample_pvar_indices)
         
