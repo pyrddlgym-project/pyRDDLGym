@@ -165,6 +165,8 @@ class RDDLObjectsTracer:
             self._trace_random(expr, objects, out)
         elif etype == 'randomvector':
             self._trace_random_vector(expr, objects, out)
+        elif etype == 'matrix':
+            self._trace_matrix(expr, objects, out)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -872,4 +874,47 @@ class RDDLObjectsTracer:
                     RDDLObjectsTracer._print_stack_trace(expr))
              
         out._append(expr, objects, None, sample_pvar_indices)
+
+    # ===========================================================================
+    # matrix algebra
+    # ===========================================================================
+    
+    def _trace_matrix(self, expr, objects, out):
+        _, op = expr.etype
+        if op == 'det':
+            self._trace_matrix_det(expr, objects, out)
+        else:
+            raise RDDLNotImplementedError(
+                f'Internal error: matrix operation {op} is not supported.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+    
+    def _trace_matrix_det(self, expr, objects, out):
+        * pvars, arg = expr.args
+        
+        # cache and read reduced axes tensor info for the aggregation
+        # axes of new free variables in aggregation are appended to value array
+        iter_objects = [ptype for (_, ptype) in pvars]
+        self._check_iteration_variables(objects, iter_objects, expr)
+        new_objects = objects + iter_objects
+        reduced_axes = tuple(range(len(objects), len(new_objects)))   
+        cached_sim_info = (new_objects, reduced_axes)
+        
+        # trace the matrix with the new objects
+        self._trace(arg, new_objects, out)
+        
+        # argument cannot be enum type
+        RDDLObjectsTracer._check_not_enum(
+            arg, expr, out, f'Argument of determinant')     
+        
+        out._append(expr, objects, None, cached_sim_info)
+        
+        # log information about aggregation operation
+        if self.logger is not None:
+            message = (f'computing object info for matrix operation:'
+                       f'\n\taggregation variables(s)      ={pvars}'
+                       f'\n\tfree object(s) in outer scope ={objects}'
+                       f'\n\tfree object(s) in inner scope ={new_objects}'
+                       f'\n\taggregation operation         =det'
+                       f'\n\taggregation axes              ={reduced_axes}\n')
+            self.logger.log(message)        
         

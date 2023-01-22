@@ -372,6 +372,8 @@ class RDDLSimulator:
             return self._sample_random(expr, subs)
         elif etype == 'randomvector':
             return self._sample_random_vector(expr, subs)
+        elif etype == 'matrix':
+            return self._sample_matrix(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -1145,7 +1147,25 @@ class RDDLSimulator:
         sample = np.moveaxis(sample, source=0, destination=index)
         return sample
         
-        
+    # ===========================================================================
+    # matrix algebra
+    # ===========================================================================
+    
+    def _sample_matrix(self, expr, subs):
+        _, op = expr.etype
+        if op == 'det':
+            return self._sample_matrix_det(expr, subs)
+        else:
+            raise RDDLNotImplementedError(
+                f'Matrix operator {op} is not supported.\n' + 
+                RDDLSimulator._print_stack_trace(expr))
+    
+    def _sample_matrix_det(self, expr, subs):
+        * _, arg = expr.args
+        sample = self._sample(arg, subs)
+        return np.linalg.det(sample)
+
+    
 def lngamma(x):
     xmin = np.min(x)
     if not (xmin > 0):

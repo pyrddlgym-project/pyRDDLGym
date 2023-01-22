@@ -103,7 +103,8 @@ class RDDLlex(object):
             'MultivariateNormal': 'MULTIVARIATENORMAL',
             'MultivariateStudent': 'MULTIVARIATESTUDENT',
             'Dirichlet': 'DIRICHLET',
-            'Multinomial': 'MULTINOMIAL'
+            'Multinomial': 'MULTINOMIAL',
+            'det': 'DET'
         }
 
         self.tokens = [
@@ -563,6 +564,7 @@ class RDDLParser(object):
                 | numerical_expr
                 | aggregation_expr
                 | argmaxmin_expr
+                | matrix_expr
                 | control_expr
                 | randomvar_expr
                 | randomvar_from_pvar_expr'''
@@ -733,7 +735,14 @@ class RDDLParser(object):
                              | ENUM_VAL
                              | UNDERSCORE'''        
         p[0] = p[1]
-
+    
+    # CHANGED BY MIKE ON JAN 22
+    def p_matrix_expr(self, p):
+        '''matrix_expr : DET UNDERSCORE LCURLY VAR COMMA VAR COLON IDENT RCURLY expr %prec AGG_OPER'''
+        typed_var_1 = ('typed_var', (p[4], p[8]))
+        typed_var_2 = ('typed_var', (p[6], p[8]))
+        p[0] = (p[1], (typed_var_1, typed_var_2, p[10]))
+        
     def p_typed_var_list(self, p):
         '''typed_var_list : typed_var_list COMMA typed_var
                           | typed_var'''
