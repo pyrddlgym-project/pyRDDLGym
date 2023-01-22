@@ -99,6 +99,7 @@ class RDDLlex(object):
             'Laplace': 'LAPLACE',
             'Cauchy': 'CAUCHY',
             'Gompertz': 'GOMPERTZ',
+            'ChiSquare': 'CHISQUARE',
             'MultivariateNormal': 'MULTIVARIATENORMAL',
             'MultivariateStudent': 'MULTIVARIATESTUDENT',
             'Dirichlet': 'DIRICHLET',
@@ -675,7 +676,8 @@ class RDDLParser(object):
                           | GUMBEL   LPAREN expr COMMA expr RPAREN
                           | LAPLACE LPAREN expr COMMA expr RPAREN
                           | CAUCHY LPAREN expr COMMA expr RPAREN
-                          | GOMPERTZ LPAREN expr COMMA expr RPAREN'''
+                          | GOMPERTZ LPAREN expr COMMA expr RPAREN
+                          | CHISQUARE LPAREN expr RPAREN'''
         if len(p) == 7:
             if isinstance(p[5], list):
                 p[0] = ('randomvar', (p[1], (('enum_type', p[3]), *p[5])))
