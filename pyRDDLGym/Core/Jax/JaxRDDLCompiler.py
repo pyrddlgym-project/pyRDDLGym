@@ -344,7 +344,7 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_LAPLACE': 8192,
         'INVALID_PARAM_CAUCHY': 16384,
         'INVALID_PARAM_GOMPERTZ': 32768,
-        'INVALID_PARAM_CHISQUARE': 65536,        
+        'INVALID_PARAM_CHISQUARE': 65536,
         'INVALID_PARAM_DISCRETE': 131072,
         'INVALID_PARAM_KRON_DELTA': 262144,
         'INVALID_PARAM_DIRICHLET': 524288,
@@ -421,6 +421,8 @@ class JaxRDDLCompiler:
             jax_expr = self._jax_random(expr)
         elif etype == 'randomvector':
             jax_expr = self._jax_random_vector(expr)
+        elif etype == 'matrix':
+            jax_expr = self._jax_matrix(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {expr} is not supported.\n' + 
@@ -1393,4 +1395,27 @@ class JaxRDDLCompiler:
             return sample, key, error
         
         return _jax_wrapped_distribution_multinomial
-            
+    
+    # ===========================================================================
+    # matrix algebra
+    # ===========================================================================
+    
+    def _jax_matrix(self, expr):
+        _, op = expr.etype
+        if op == 'det':
+            return self._jax_matrix_det(expr)   
+        else:
+            raise RDDLNotImplementedError(
+                f'Matrix operation {op} is not supported.\n' + 
+                JaxRDDLCompiler._print_stack_trace(expr))
+    
+    def _jax_matrix_det(self, expr):
+        * _, arg = expr.args
+        jax_arg = self._jax(arg)
+        
+        def _jax_wrapped_matrix_operation_det(x, key):
+            sample_arg, key, error = jax_arg(x, key)
+            sample = jnp.linalg.det(sample_arg)
+            return sample, key, error
+        
+        return _jax_wrapped_matrix_operation_det

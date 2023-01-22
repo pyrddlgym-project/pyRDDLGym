@@ -60,6 +60,8 @@ class RDDLDecompiler:
             return self._decompile_random(expr, enclose, level)
         elif etype == 'randomvector':
             return self._decompile_random_vector(expr, enclose, level)
+        elif etype == 'matrix':
+            return self._decompile_matrix(expr, enclose, level)
         else:
             raise Exception(f'Internal error: type {etype} is undefined.')
     
@@ -185,4 +187,12 @@ class RDDLDecompiler:
         pvars = ', '.join(pvars)
         return f'{op}[{pvars}]({args})'
             
-        
+    def _decompile_matrix(self, expr, enclose, level):
+        _, op = expr.etype
+        pvar1, pvar2, arg = expr.args
+        _, (param1, ptype) = pvar1
+        _, (param2, _) = pvar2
+        params = [(f'{param1},{param2}', ptype)]
+        agg = self._symbolic(op, params, aggregation=True)
+        decompiled = self._decompile(arg, False, level)        
+        return f'( {agg} [ {decompiled} ] )'

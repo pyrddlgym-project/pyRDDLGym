@@ -30,6 +30,7 @@ domain nestedtest {
 		student-fluent(enum_level)               : { state-fluent , real , default = 0 };
 		dirichlet-fluent(enum_level)             : { state-fluent , real , default = 0 };
 		multi-fluent(enum_level, enum_level)     : { state-fluent , int , default = 0 };
+		det-fluent                               : { state-fluent , real , default = 0 };
 		
 		a : { action-fluent , bool , default = false };
     };
@@ -57,6 +58,9 @@ domain nestedtest {
 		dirichlet-fluent'(?p) = Dirichlet[?p]( alpha(_) );
 		prob(?p) = alpha(?p) / ( sum_{?q2 : enum_level} [ alpha(?q2) ] );
 		multi-fluent'(?p, ?q) = Multinomial[?q]( prob(_), TRIALS );	
+		
+		// matrix algebra
+		det-fluent' = ( det_{?p, ?q : enum_level} gaussian-fluent'(?p, ?q) );
     };
 
     reward = ( sum_{?p : enum_level, ?q : enum_level} [ COST(matrix(?p, ?q)) ] );
