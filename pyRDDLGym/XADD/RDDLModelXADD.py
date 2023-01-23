@@ -7,7 +7,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import (
     RDDLNotImplementedError, RDDLTypeError, RDDLUndefinedCPFError
 )
 from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel, RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel, RDDLGroundedModel
 
 VALID_RELATIONAL_OPS = {'>=', '>', '<=', '<', '==', '~='}
 OP_TO_XADD_OP = {
@@ -22,7 +22,7 @@ EXPONENTIAL_VAR_NAME = '#_EXPONENTIAL_{num}'
 
 class RDDLModelWXADD(PlanningModel):
 
-    def __init__(self, model: RDDLModel):
+    def __init__(self, model: RDDLGroundedModel):
         super().__init__()
         self.model = model
         self._context: XADD = XADD()

@@ -40,7 +40,7 @@ class RDDLlex(object):
             'requirements': 'REQUIREMENTS',
             'state-action-constraints': 'STATE_ACTION_CONSTRAINTS',
             'action-preconditions': 'ACTION_PRECONDITIONS',
-            'termination' : 'TERMINATION',
+            'termination': 'TERMINATION',
             'state-invariants': 'STATE_INVARIANTS',
             'types': 'TYPES',
             'object': 'OBJECT',
@@ -67,6 +67,8 @@ class RDDLlex(object):
             'reward': 'REWARD',
             'forall': 'FORALL',
             'exists': 'EXISTS',
+            'argmax': 'ARGMAX',  # CHANGED BY MIKE ON JAN 15
+            'argmin': 'ARGMIN',  # CHANGED BY MIKE ON JAN 15
             # 'sum': 'SUM',
             'true': 'TRUE',
             'false': 'FALSE',
@@ -81,23 +83,31 @@ class RDDLlex(object):
             'Uniform': 'UNIFORM',
             'Bernoulli': 'BERNOULLI',
             'Discrete': 'DISCRETE',
+            'UnnormDiscrete': 'UNNORMDISCRETE',
             'Normal': 'NORMAL',
             'Poisson': 'POISSON',
             'Exponential': 'EXPONENTIAL',
             'Weibull': 'WEIBULL',
             'Gamma': 'GAMMA',
-            'Multinomial': 'MULTINOMIAL',
-            'Dirichlet': 'DIRICHLET',
             'Binomial': 'BINOMIAL',
             'NegativeBinomial': 'NEGATIVEBINOMIAL',
-            'Beta' : 'BETA',
-            'Geometric' : 'GEOMETRIC',
-            'Pareto' : 'PARETO',
-            'Student' : 'STUDENT',
-            'Gumbel' : 'GUMBEL',
+            'Beta': 'BETA',
+            'Geometric': 'GEOMETRIC',
+            'Pareto': 'PARETO',
+            'Student': 'STUDENT',
+            'Gumbel': 'GUMBEL',
             'Laplace': 'LAPLACE',
             'Cauchy': 'CAUCHY',
-            'Gompertz': 'GOMPERTZ'
+            'Gompertz': 'GOMPERTZ',
+            'ChiSquare': 'CHISQUARE',
+            'MultivariateNormal': 'MULTIVARIATENORMAL',
+            'MultivariateStudent': 'MULTIVARIATESTUDENT',
+            'Dirichlet': 'DIRICHLET',
+            'Multinomial': 'MULTINOMIAL',
+            'det': 'DET',
+            'inverse': 'INVERSE',
+            'row': 'ROW',
+            'col': 'COLUMN'
         }
 
         self.tokens = [
@@ -242,7 +252,7 @@ class RDDLParser(object):
             ('left', 'ASSIGN_EQUAL'),
             ('left', 'EXISTS'),
             ('left', 'FORALL'),
-            ('left', 'AGG_OPER'),
+            ('left', 'AGG_OPER', 'ARGMAX', 'ARGMIN'),  # CHANGED BY MIKE ON JAN 15
             ('left', 'EQUIV'),
             ('left', 'IMPLY'),
             ('left', 'OR'),
@@ -425,7 +435,8 @@ class RDDLParser(object):
             p[0] = p[1]
 
     def p_cpf_def(self, p):
-        '''cpf_def : pvar_expr ASSIGN_EQUAL expr SEMI'''
+        '''cpf_def : pvar_expr ASSIGN_EQUAL expr SEMI
+                   | pvar_expr ASSIGN_EQUAL randomvector_expr SEMI'''
         p[0] = CPF(pvar=p[1], expr=p[3])
 
     def p_reward_section(self, p):
@@ -438,6 +449,7 @@ class RDDLParser(object):
                                 |  TERMINATION LCURLY RCURLY SEMI'''
         if len(p) == 6:
             p[0] = ('terminals', p[3])
+            
         elif len(p) == 5:
             p[0] = ('terminals', [])
         self._print_verbose('termination')
@@ -534,12 +546,18 @@ class RDDLParser(object):
             p[0] = [p[1]]
 
     def p_term(self, p):
+        # CHANGED BY MIKE ON JAN 15
         '''term : VAR
                 | ENUM_VAL
-                | pvar_expr'''
-        p[0] = p[1]
+                | pvar_expr
+                | argmaxmin_expr'''        
+        if isinstance(p[1], tuple):
+            p[0] = Expression(p[1])
+        else:
+            p[0] = p[1]
 
     def p_expr(self, p):
+        # CHANGED BY MIKE ON JAN 15
         '''expr : pvar_expr
                 | group_expr
                 | function_expr
@@ -548,14 +566,19 @@ class RDDLParser(object):
                 | quantifier_expr
                 | numerical_expr
                 | aggregation_expr
+                | argmaxmin_expr
+                | matrix_expr
                 | control_expr
-                | randomvar_expr'''
+                | randomvar_expr
+                | randomvar_from_pvar_expr'''
         p[0] = Expression(p[1])
-
+    
     def p_pvar_expr(self, p):
+        # CHANGED BY MIKE ON JAN 15
         '''pvar_expr : IDENT LPAREN term_list RPAREN
                      | IDENT
-                     | ENUM_VAL'''
+                     | ENUM_VAL
+                     | VAR'''
         if len(p) == 2:
             p[0] = ('pvar_expr', (p[1], None))
         elif len(p) == 5:
@@ -618,6 +641,12 @@ class RDDLParser(object):
     def p_aggregation_expr(self, p):
         '''aggregation_expr : IDENT UNDERSCORE LCURLY typed_var_list RCURLY expr %prec AGG_OPER'''
         p[0] = (p[1], (*p[4], p[6]))
+    
+    # CHANGED BY MIKE ON JAN 15
+    def p_argmaxmin_expr(self, p):
+        '''argmaxmin_expr : ARGMAX UNDERSCORE LCURLY typed_var_list RCURLY expr %prec ARGMAX
+                          | ARGMIN UNDERSCORE LCURLY typed_var_list RCURLY expr %prec ARGMIN'''
+        p[0] = (p[1], (*p[4], p[6]))
 
     def p_control_expr(self, p):
         '''control_expr : IF LPAREN expr RPAREN THEN expr ELSE expr %prec IF
@@ -638,6 +667,7 @@ class RDDLParser(object):
                           | NORMAL LPAREN expr COMMA expr RPAREN
                           | EXPONENTIAL LPAREN expr RPAREN
                           | DISCRETE LPAREN IDENT COMMA lconst_case_list RPAREN
+                          | UNNORMDISCRETE LPAREN IDENT COMMA lconst_case_list RPAREN
                           | DIRICHLET LPAREN IDENT COMMA expr RPAREN
                           | POISSON LPAREN expr RPAREN
                           | WEIBULL LPAREN expr COMMA expr RPAREN
@@ -651,7 +681,8 @@ class RDDLParser(object):
                           | GUMBEL   LPAREN expr COMMA expr RPAREN
                           | LAPLACE LPAREN expr COMMA expr RPAREN
                           | CAUCHY LPAREN expr COMMA expr RPAREN
-                          | GOMPERTZ LPAREN expr COMMA expr RPAREN'''
+                          | GOMPERTZ LPAREN expr COMMA expr RPAREN
+                          | CHISQUARE LPAREN expr RPAREN'''
         if len(p) == 7:
             if isinstance(p[5], list):
                 p[0] = ('randomvar', (p[1], (('enum_type', p[3]), *p[5])))
@@ -659,7 +690,66 @@ class RDDLParser(object):
                 p[0] = ('randomvar', (p[1], (p[3], p[5])))
         elif len(p) == 5:
             p[0] = ('randomvar', (p[1], (p[3],)))
+    
+    # CHANGED BY MIKE ON JAN 16
+    def p_randomvar_from_pvar_expr(self, p):
+        '''randomvar_from_pvar_expr : DISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN
+                                    | UNNORMDISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN'''
+        p[0] = ('randomvar', (p[1] + '(p)', (*p[4], (p[7],))))
+    
+    # CHANGED BY MIKE ON JAN 17
+    def p_randomvector_expr(self, p):
+        '''randomvector_expr : MULTIVARIATENORMAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
+                             | MULTIVARIATESTUDENT LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
+                             | DIRICHLET LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr RPAREN
+                             | MULTINOMIAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN'''
+        if len(p) == 12:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8], p[10])))))
+        elif len(p) == 10:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8])))))
+        else:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6],)))))
+        
+    # CHANGED BY MIKE ON JAN 17
+    def p_randomvector_pvar_expr(self, p):
+        '''randomvector_pvar_expr : IDENT LPAREN randomvector_term_list RPAREN
+                                  | IDENT'''
+        if len(p) == 2:
+            p[0] = Expression(('pvar_expr', (p[1], None)))
+        elif len(p) == 5:
+            p[0] = Expression(('pvar_expr', (p[1], p[3])))
+        
+    # CHANGED BY MIKE ON JAN 17
+    def p_randomvector_term_list(self, p):
+        '''randomvector_term_list : randomvector_term_list COMMA randomvector_term
+                                  | randomvector_term
+                                  | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
 
+    # CHANGED BY MIKE ON JAN 17
+    def p_randomvector_term(self, p):
+        '''randomvector_term : VAR
+                             | ENUM_VAL
+                             | UNDERSCORE'''        
+        p[0] = p[1]
+    
+    # CHANGED BY MIKE ON JAN 22
+    def p_matrix_expr(self, p):
+        '''matrix_expr : DET UNDERSCORE LCURLY VAR COMMA VAR COLON IDENT RCURLY expr %prec AGG_OPER
+                       | INVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK'''
+        if len(p) == 11:
+            typed_var_1 = ('typed_var', (p[4], p[8]))
+            typed_var_2 = ('typed_var', (p[6], p[8]))
+            p[0] = (p[1], (typed_var_1, typed_var_2, p[10]))
+        elif len(p) == 14:
+            p[0] = (p[1], ([p[5], p[9]], p[12]))
+        
     def p_typed_var_list(self, p):
         '''typed_var_list : typed_var_list COMMA typed_var
                           | typed_var'''
@@ -731,8 +821,6 @@ class RDDLParser(object):
             p[0] = p[1]
         else:
             p[0] = [p[1]]
-
-
 
     # def p_param_list(self, p):
     #     '''param_list : LPAREN string_list RPAREN

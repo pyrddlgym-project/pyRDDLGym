@@ -8,16 +8,31 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgume
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 
 class RDDLEnv(gym.Env):
     
-    def __init__(self, domain, instance=None, enforce_action_constraints=False,
-                 debug=False):
+    def __init__(self, domain: str, 
+                 instance: str=None, 
+                 enforce_action_constraints: bool=False,
+                 debug: bool=False, 
+                 sim_class: RDDLSimulator=RDDLSimulator):
+        '''Creates a new gym environment from the given RDDL domain + instance.
+        
+        :param domain: the RDDL domain
+        :param instance: the RDDL instance
+        :param enforce_action_constraints: whether to raise an exception if the
+        action constraints are violated
+        :param debug: whether to log compilation information to a log file
+        :param sim_class: the subclass of RDDLSimulator to use as backend for
+        simulation (currently supports numpy and Jax)
+        '''
         super(RDDLEnv, self).__init__()
         self.enforce_action_constraints = enforce_action_constraints
         
@@ -29,11 +44,15 @@ class RDDLEnv(gym.Env):
         parser = RDDLParser(lexer=None, verbose=False)
         parser.build()
         rddl = parser.parse(domain)
-
-        # define the model sampler
         self.model = RDDLLiftedModel(rddl)
-        self.sampler = RDDLSimulatorWConstraints(self.model, debug=debug)
-        bounds = self.sampler.bounds
+        
+        # for logging
+        ast = self.model._AST
+        logger = Logger(f'{ast.domain.name}_{ast.instance.name}.log') if debug else None
+        
+        # define the model sampler and bounds    
+        self.sampler = sim_class(self.model, logger=logger)
+        bounds = RDDLConstraints(self.sampler).bounds
 
         # set roll-out parameters
         self.horizon = self.model.horizon
@@ -44,14 +63,17 @@ class RDDLEnv(gym.Env):
         self.done = False
 
         # set default actions
-        self.defaultAction = copy.deepcopy(self.model.actions)
+        self.defaultAction = self.model.groundactions()
 
         # define the actions bounds
+        self.actionsranges = self.model.groundactionsranges()
         action_space = Dict()
-        for act in self.model.actions:
-            act_range = self.model.actionsranges[act]
-            if act_range == 'real':
-                action_space[act] = Box(low=bounds[act][0], 
+        for act in self.defaultAction:
+            act_range = self.actionsranges[act]
+            if act_range in self.model.enum_types:
+                action_space[act] = Discrete(len(self.model.objects[act_range]))            
+            elif act_range == 'real':
+                action_space[act] = Box(low=bounds[act][0],
                                         high=bounds[act][1],
                                         dtype=np.float32)
             elif act_range == 'bool':
@@ -71,16 +93,18 @@ class RDDLEnv(gym.Env):
 
         # define the states bounds
         if self.sampler.isPOMDP:
-            search_dict = self.model.observ
-            ranges = self.model.observranges
+            search_dict = self.model.groundobserv()
+            ranges = self.model.groundobservranges()
         else:
-            search_dict = self.model.states
-            ranges = self.model.statesranges
+            search_dict = self.model.groundstates()
+            ranges = self.model.groundstatesranges()
             
         state_space = Dict()
         for state in search_dict:
             state_range = ranges[state]
-            if state_range == 'real':
+            if state_range in self.model.enum_types:
+                state_space[state] = Discrete(len(self.model.objects[state_range]))          
+            elif state_range == 'real':
                 state_space[state] = Box(low=bounds[state][0],
                                          high=bounds[state][1],
                                          dtype=np.float32)
@@ -133,7 +157,7 @@ class RDDLEnv(gym.Env):
         clipped_actions = copy.deepcopy(self.defaultAction)
         for act in actions:
             if str(self.action_space[act]) == 'Discrete(2)':
-                if self.model.actionsranges[act] == 'bool':
+                if self.actionsranges[act] == 'bool':
                     clipped_actions[act] = bool(actions[act])
             else:
                 clipped_actions[act] = actions[act]
@@ -215,4 +239,4 @@ class RDDLEnv(gym.Env):
     
     @property
     def non_fluents(self):
-        return self.model.nonfluents
+        return self.model.groundnonfluents()

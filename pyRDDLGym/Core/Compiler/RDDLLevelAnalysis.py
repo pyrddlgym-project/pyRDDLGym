@@ -6,7 +6,9 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionE
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
+from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Parser.expr import Expression
 
 VALID_DEPENDENCIES = {
     'derived-fluent': {'state-fluent', 'derived-fluent'},
@@ -31,26 +33,34 @@ class RDDLLevelAnalysis:
     according to the RDDL language specification.     
     '''
         
-    def __init__(self, rddl: RDDLModel,
-                 allow_synchronous_state: bool=True) -> None:
+    def __init__(self, rddl: PlanningModel,
+                 allow_synchronous_state: bool=True,
+                 logger: Logger=None) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
         :param allow_synchronous_state: whether state variables can depend on
         one another (cyclic dependencies will still not be permitted)
+        :param logger: to log information about dependency analysis to file
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
+        self.logger = logger
                 
     # ===========================================================================
     # call graph construction
     # ===========================================================================
     
     def build_call_graph(self) -> Dict[str, Set[str]]:
+        '''Builds a call graph for the current RDDL, where keys represent parent
+        expressions (e.g., CPFs, reward) and values are sets of variables on 
+        which each parent depends. Also handles validation of the call graph to
+        make sure it follows RDDL rules.
+        '''
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
-        for name, (_, expr) in self.rddl.cpfs.items():
+        for (name, (_, expr)) in self.rddl.cpfs.items():
             self._update_call_graph(cpf_graph, name, expr)
             if name not in cpf_graph:
                 cpf_graph[name] = set()
@@ -58,7 +68,7 @@ class RDDLLevelAnalysis:
         self._validate_cpf_definitions(cpf_graph)
         
         # check validity of reward, constraints, termination
-        for name, exprs in [
+        for (name, exprs) in [
             ('reward', [self.rddl.reward]),
             ('precondition', self.rddl.preconditions),
             ('invariant', self.rddl.invariants),
@@ -71,16 +81,43 @@ class RDDLLevelAnalysis:
         return cpf_graph
     
     def _update_call_graph(self, graph, cpf, expr):
-        if isinstance(expr, tuple):
+        if isinstance(expr, (tuple, list, set)):
+            for arg in expr:
+                self._update_call_graph(graph, cpf, arg)
+        
+        elif not isinstance(expr, Expression):
             pass
+        
         elif expr.is_pvariable_expression():
-            name, *_ = expr.args
-            var = self.rddl.parse(name)[0]
-            if var not in self.rddl.variable_types:
-                raise RDDLUndefinedVariableError(
-                    f'Variable <{name}> in CPF <{cpf}> is not defined.')
-            if self.rddl.variable_types[var] != 'non-fluent':
-                graph.setdefault(cpf, set()).add(name)
+            name, pvars = expr.args
+            
+            # free variables (e.g., ?x) are ignored
+            if self.rddl.is_free_variable(name):
+                pass
+            
+            # enum literals are ignored
+            elif not pvars and self.rddl.is_literal(name):
+                pass
+            
+            # variable defined in pvariables {..} scope
+            else:
+                
+                # check that name is valid variable
+                var_type = self.rddl.variable_types.get(name, None)
+                if var_type is None:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{name}> is not defined. '
+                        f'Please check expression for CPF <{cpf}>.')
+                
+                # if var is a fluent assign it as dependent of cpf
+                elif var_type != 'non-fluent':
+                    graph.setdefault(cpf, set()).add(name)
+                
+                # if a nested fluent
+                if pvars is not None:
+                    for arg in pvars:
+                        self._update_call_graph(graph, cpf, arg)
+                
         elif not expr.is_constant_expression():
             for arg in expr.args:
                 self._update_call_graph(graph, cpf, arg)
@@ -90,9 +127,8 @@ class RDDLLevelAnalysis:
     # ===========================================================================
     
     def _validate_dependencies(self, graph):
-        for cpf, deps in graph.items():
-            var = self.rddl.parse(cpf)[0]
-            cpf_type = self.rddl.variable_types.get(var, var)
+        for (cpf, deps) in graph.items():
+            cpf_type = self.rddl.variable_types.get(cpf, cpf)
             
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
@@ -112,33 +148,47 @@ class RDDLLevelAnalysis:
             
             # check that all dependencies are valid
             for dep in deps: 
-                var = self.rddl.parse(dep)[0]
-                dep_type = self.rddl.variable_types.get(var, var)
-                if dep_type not in VALID_DEPENDENCIES[cpf_type] or (
-                    not self.allow_synchronous_state
-                    and cpf_type == dep_type == 'next-state-fluent'):
+                dep_type = self.rddl.variable_types.get(dep, dep)
+                
+                # completely illegal dependency
+                if dep_type not in VALID_DEPENDENCIES[cpf_type]:
                     raise RDDLInvalidDependencyInCPFError(
-                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.')                
+                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.') 
+                
+                # s' cannot depend on s' if allow_synchronous_state = False
+                elif not self.allow_synchronous_state and \
+                cpf_type == dep_type == 'next-state-fluent':
+                    raise RDDLInvalidDependencyInCPFError(
+                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>. '
+                        f'Set allow_synchronous_state=True to allow this.')                
     
-    def _validate_cpf_definitions(self, graph):             
-        for cpf in self.rddl.cpfs.keys():
-            var = self.rddl.parse(cpf)[0]
-            fluent_type = self.rddl.variable_types.get(var, var)
+    def _validate_cpf_definitions(self, graph): 
+        
+        # check that all CPFs have a valid definition
+        for cpf in self.rddl.cpfs:
+            fluent_type = self.rddl.variable_types.get(cpf, cpf)
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-' + fluent_type
-                var = var + '\''
+                cpf = cpf + '\''
             if fluent_type in VALID_DEPENDENCIES and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{cpf}> is missing a definition.')
+                    f'{fluent_type} CPF <{cpf}> is not defined in cpfs block.')
                     
     # ===========================================================================
     # topological sort
     # ===========================================================================
     
     def compute_levels(self) -> Dict[int, Set[str]]:
+        '''Constructs a call graph for the current RDDL, and then runs a 
+        topological sort to determine the optimal order in which the CPFs in the 
+        RDDL should be be evaluated.
+        '''
         graph = self.build_call_graph()
         order = RDDLLevelAnalysis._topological_sort(graph)
         
+        # use the graph structure to group CPFs into levels 0, 1, 2, ...
+        # two CPFs in the same level cannot depend on each other
+        # a CPF can only depend on another CPF of a lower level than it
         levels, result = {}, {}
         for var in order:
             if var in self.rddl.cpfs:
@@ -148,6 +198,20 @@ class RDDLLevelAnalysis:
                         level = max(level, levels[child] + 1)
                 result.setdefault(level, set()).add(var)
                 levels[var] = level
+        
+        # log dependency graph information to file
+        if self.logger is not None: 
+            graph_info = '\n\t'.join(f"{self.rddl.variable_types[k]} {k}: "
+                                     f"{{{', '.join(v)}}}"
+                                     for (k, v) in graph.items())
+            self.logger.log(f'computed fluent dependencies in CPFs:\n' 
+                            f'\t{graph_info}\n')
+            
+            levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                      for (k, v) in result.items())
+            self.logger.log(f'computed order of CPF evaluation:\n' 
+                            f'\t{levels_info}\n')
+        
         return result
     
     @staticmethod
@@ -162,16 +226,23 @@ class RDDLLevelAnalysis:
     
     @staticmethod
     def _sort_variables(order, graph, var, unmarked, temp):
-        if var not in unmarked:
+        
+        # var has already been visited
+        if var not in unmarked: 
             return
+        
+        # a cycle is detected
         elif var in temp:
-            cycle = ','.join(temp)
+            cycle = ', '.join(temp)
             raise RDDLInvalidDependencyInCPFError(
-                f'Cyclic dependency detected, suspected CPFs {{{cycle}}}.')
-        else:
+                f'Cyclic dependency detected among CPFs {{{cycle}}}.')
+        
+        # recursively sort all variables on which var depends
+        else: 
             temp.add(var)
-            if var in graph:
-                for dep in graph[var]:
+            deps = graph.get(var, None)
+            if deps is not None:
+                for dep in deps:
                     RDDLLevelAnalysis._sort_variables(
                         order, graph, dep, unmarked, temp)
             temp.remove(var)

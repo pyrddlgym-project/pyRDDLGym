@@ -5,21 +5,21 @@ import numpy as np
 from PIL import Image
 import pprint
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym import Visualizer
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class TextVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel,
+    def __init__(self, model: PlanningModel,
                  figure_size=[5, 10],
                  dpi=100,
                  fontsize=10,
                  display=False) -> None:
         self._model = model
-        self._states = model.states
-        self._nonfluents = model.nonfluents
+        self._states = model.groundstates()
+        self._nonfluents = model.groundnonfluents()
         self._objects = model.objects
         self._figure_size = figure_size
         self._display = display

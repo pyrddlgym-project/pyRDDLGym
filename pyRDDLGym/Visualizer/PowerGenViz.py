@@ -2,18 +2,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym import Visualizer
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class PowerGenVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel, dpi=20, fontsize=8, display=False) -> None:
+    def __init__(self, model: PlanningModel, dpi=20, fontsize=8, display=False) -> None:
 
         self._model = model
         self._states = model.states
-        self._nonfluents = model.nonfluents
+        self._nonfluents = model.groundnonfluents()
         self._objects = model.objects
         self._figure_size = None
         self._dpi = dpi

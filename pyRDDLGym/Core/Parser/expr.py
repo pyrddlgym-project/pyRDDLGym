@@ -19,6 +19,7 @@ class Expression(object):
 
     def __init__(self, expr: Union['Expression', Tuple]) -> None:
         self._expr = expr
+        self.id = None
 
     def __getitem__(self, i):
         return self._expr[i]
@@ -32,6 +33,8 @@ class Expression(object):
             return ('pvar', self._expr[1][0])
         elif self._expr[0] == 'randomvar':
             return ('randomvar', self._expr[1][0])
+        elif self._expr[0] == 'randomvector':
+            return ('randomvector', self._expr[1][0])
         elif self._expr[0] in ['+', '-', '*', '/']:
             return ('arithmetic', self._expr[0])
         elif self._expr[0] in ['^', '&', '|', '~', '=>', '<=>']:
@@ -54,6 +57,14 @@ class Expression(object):
             return ('aggregation', 'forall')
         elif self._expr[0] == 'exists':
             return ('aggregation', 'exists')
+        elif self._expr[0] == 'argmin':
+            return ('aggregation', 'argmin')
+        elif self._expr[0] == 'argmax':
+            return ('aggregation', 'argmax')        
+        elif self._expr[0] == 'det':
+            return ('matrix', 'det')
+        elif self._expr[0] == 'inverse':
+            return ('matrix', 'inverse')
         elif self._expr[0] == 'if':
             return ('control', 'if')
         elif self._expr[0] == 'switch':
@@ -70,6 +81,8 @@ class Expression(object):
             return self._expr[1]
         elif self._expr[0] == 'randomvar':
             return self._expr[1][1]
+        elif self._expr[0] == 'randomvector':
+            return self._expr[1][1]        
         elif self._expr[0] in ['+', '-', '*', '/']:
             return self._expr[1]
         elif self._expr[0] in ['^', '&', '|', '~', '=>', '<=>']:
@@ -78,7 +91,9 @@ class Expression(object):
             return self._expr[1]
         elif self._expr[0] == 'func':
             return self._expr[1][1]
-        elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists']:
+        elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists', 'argmin', 'argmax']:
+            return self._expr[1]
+        elif self._expr[0] in ['det', 'inverse']:
             return self._expr[1]
         # elif self._expr[0] == 'if':
         elif self._expr[0] in ['if', 'switch']:
@@ -127,18 +142,25 @@ class Expression(object):
         '''Returns string representing the expression.'''
         ident = ' ' * level * 4
         
-        #if expr.name == 'NEIGHBOR':
+        # if expr.name == 'NEIGHBOR':
         #    print('my name is neighbor')
-            
-        if isinstance(expr, tuple):
-            return '{}{}'.format(ident, str(expr))
-
-        if expr.etype[0] in ['pvar', 'constant']:
-            return '{}Expression(etype={}, args={})'.format(ident, expr.etype, expr.args)
-                    
+        
+        # CHANGED BY MIKE ON JAN 10
         if not isinstance(expr, Expression):
             return '{}{}'.format(ident, str(expr))
 
+        if expr.etype[0] == 'constant':
+            return '{}Expression(etype={}, args={})'.format(ident, expr.etype, expr.args)
+        
+        if expr.etype[0] == 'pvar':
+            name, params = expr.args
+            if not isinstance(params, list):
+                return '{}Expression(etype={}, args={})'.format(ident, expr.etype, expr.args)
+            
+            args = '[' + ', '.join(cls.__expr_str(param, 0) for param in params) + ']'
+            args = '({}, {})'.format(name, args)
+            return '{}Expression(etype={}, args={})'.format(ident, expr.etype, args)
+            
         args = list(cls.__expr_str(arg, level + 1) for arg in expr.args)
         args = '\n'.join(args)
         return '{}Expression(etype={}, args=\n{})'.format(ident, expr.etype, args)
@@ -167,7 +189,7 @@ class Expression(object):
             elif type(atom) in [tuple, list]:
                 scope.update(cls.__get_scope(atom))
             elif atom == 'pvar_expr':
-                functor, params = expr[i+1]
+                functor, params = expr[i + 1]
                 arity = len(params) if params is not None else 0
                 name = '{}/{}'.format(functor, arity)
                 scope.add(name)
