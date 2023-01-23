@@ -105,7 +105,9 @@ class RDDLlex(object):
             'Dirichlet': 'DIRICHLET',
             'Multinomial': 'MULTINOMIAL',
             'det': 'DET',
-            'inverse': 'INVERSE'
+            'inverse': 'INVERSE',
+            'row': 'ROW',
+            'col': 'COLUMN'
         }
 
         self.tokens = [
@@ -740,13 +742,13 @@ class RDDLParser(object):
     # CHANGED BY MIKE ON JAN 22
     def p_matrix_expr(self, p):
         '''matrix_expr : DET UNDERSCORE LCURLY VAR COMMA VAR COLON IDENT RCURLY expr %prec AGG_OPER
-                       | INVERSE LBRACK VAR COMMA VAR RBRACK LBRACK expr RBRACK'''
+                       | INVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK'''
         if len(p) == 11:
             typed_var_1 = ('typed_var', (p[4], p[8]))
             typed_var_2 = ('typed_var', (p[6], p[8]))
             p[0] = (p[1], (typed_var_1, typed_var_2, p[10]))
-        elif len(p) == 10:
-            p[0] = (p[1], ([p[3], p[5]], p[8]))
+        elif len(p) == 14:
+            p[0] = (p[1], ([p[5], p[9]], p[12]))
         
     def p_typed_var_list(self, p):
         '''typed_var_list : typed_var_list COMMA typed_var
