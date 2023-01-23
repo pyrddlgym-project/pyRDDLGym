@@ -1,15 +1,17 @@
 import jax
+import numpy as np
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-from pyRDDLGym.Core.Parser.expr import Value
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
+
+from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Parser.expr import Value
 
 Args = Dict[str, Value]
 
@@ -17,47 +19,59 @@ Args = Dict[str, Value]
 class JaxRDDLSimulator(RDDLSimulator):
         
     def __init__(self, rddl: RDDLLiftedModel,
-                 key: jax.random.PRNGKey,
-                 raise_error: bool=False,
+                 key: jax.random.PRNGKey=None,
+                 raise_error: bool=True,
+                 logger: Logger=None,
                  **compiler_args) -> None:
+        '''Creates a new simulator for the given RDDL model with Jax as a backend.
         
-        # jax compilation will only work on lifted domains for now
-        if not isinstance(rddl, RDDLLiftedModel) or rddl.is_grounded:
-            raise RDDLNotImplementedError(
-                'Jax compilation only works on lifted domains for now.')
+        :param rddl: the RDDL model
+        :param key: the Jax PRNG key for sampling random variables
+        :param raise_error: whether errors are raised as they are encountered in
+        the Jax program: unlike the numpy sim, errors cannot be caught in the 
+        middle of evaluating a Jax expression; instead they are accumulated and
+        returned to the user upon complete evaluation of the expression
+        :param logger: to log information about compilation to file
+        :param **compiler_args: keyword arguments to pass to the Jax compiler
+        '''
+        if key is None:
+            seed = np.random.randint(0, 2 ** 31 - 1)
+            key = jax.random.PRNGKey(seed)
             
         self.rddl = rddl
         self.key = key
         self.raise_error = raise_error
+        self.logger = logger
         
-        # static analysis and compilation
-        compiled = JaxRDDLCompiler(rddl, **compiler_args)
-        compiled.compile()
-        self.compiled = compiled
-        self.static = compiled.static
+        # compilation
+        compiled = JaxRDDLCompiler(rddl, logger=logger, **compiler_args)
+        compiled.compile(log_jax_expr=True)
+        self.init_values = compiled.init_values
         self.levels = compiled.levels
-        self.tensors = compiled.tensors
+        self.traced = compiled.traced
         
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
         self.terminals = jax.tree_map(jax.jit, compiled.termination)
         self.reward = jax.jit(compiled.reward)
-        self.cpfs = jax.tree_map(jax.jit, compiled.cpfs)
+        jax_cpfs = jax.tree_map(jax.jit, compiled.cpfs)
         
-        # initialize all fluent and non-fluent values        
-        self.init_values = compiled.init_values            
+        # level analysis
+        self.cpfs = []  
+        for cpfs in self.levels.values():
+            for cpf in cpfs:
+                expr = jax_cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
+                dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, JaxRDDLCompiler.INT)
+                self.cpfs.append((cpf, expr, dtype))
+        
+        # initialize all fluent and non-fluent values    
+        self.subs = self.init_values.copy() 
+        self.state = None 
         self.noop_actions = {var: values 
-                             for var, values in self.init_values.items() 
-                             if self.rddl.variable_types[var] == 'action-fluent'}
-        self.subs = self.init_values.copy()
-        self.next_states = compiled.next_states
-        self.state = None
-        
-        # is a POMDP
-        self.observ_fluents = [var 
-                               for var, ftype in rddl.variable_types.items()
-                               if ftype == 'observ-fluent']
-        self._pomdp = bool(self.observ_fluents)
+                             for (var, values) in self.init_values.items() 
+                             if rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(self.rddl.observ)
         
     def handle_error_code(self, error, msg) -> None:
         if self.raise_error:
@@ -69,10 +83,9 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
-        for i, invariant in enumerate(self.invariants):
+        for (i, invariant) in enumerate(self.invariants):
             sample, self.key, error = invariant(self.subs, self.key)
-            self.handle_error_code(error, f'invariant {i + 1}')
-            
+            self.handle_error_code(error, f'invariant {i + 1}')            
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
                     f'Invariant {i + 1} is not satisfied.')
@@ -83,20 +96,18 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs
         subs.update(actions)
         
-        for i, precond in enumerate(self.preconds):
-            sample, self.key, error = precond(self.subs, self.key)
-            self.handle_error_code(error, f'precondition {i + 1}')
-            
+        for (i, precond) in enumerate(self.preconds):
+            sample, self.key, error = precond(subs, self.key)
+            self.handle_error_code(error, f'precondition {i + 1}')            
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
                     f'Precondition {i + 1} is not satisfied.')
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
-        for i, terminal in enumerate(self.terminals):
+        for (i, terminal) in enumerate(self.terminals):
             sample, self.key, error = terminal(self.subs, self.key)
-            self.handle_error_code(error, f'termination {i + 1}')           
-             
+            self.handle_error_code(error, f'termination {i + 1}')
             if bool(sample):
                 return True
         return False
@@ -116,23 +127,26 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs = self.subs
         subs.update(actions)
         
-        for cpfs in self.levels.values():
-            for cpf in cpfs:
-                subs[cpf], self.key, error = self.cpfs[cpf](subs, self.key)
-                self.handle_error_code(error, f'CPF <{cpf}>')            
+        # compute CPFs in topological order
+        for (cpf, expr, _) in self.cpfs:
+            subs[cpf], self.key, error = expr(subs, self.key)
+            self.handle_error_code(error, f'CPF <{cpf}>')            
+                
+        # sample reward
         reward = self.sample_reward()
         
-        for next_state, state in self.next_states.items():
-            subs[state] = subs[next_state]
-        
+        # update state
+        rddl = self.rddl
         self.state = {}
-        for var in self.next_states.values():
-            self.state.update(self.tensors.expand(var, subs[var]))
+        for (state, next_state) in rddl.next_state.items():
+            subs[state] = subs[next_state]
+            self.state.update(rddl.ground_values(state, subs[state]))
         
+        # update observation
         if self._pomdp: 
             obs = {}
-            for var in self.observ_fluents:
-                obs.update(self.tensors.expand(var, subs[var]))
+            for var in rddl.observ:
+                obs.update(rddl.ground_values(var, subs[var]))
         else:
             obs = self.state
         

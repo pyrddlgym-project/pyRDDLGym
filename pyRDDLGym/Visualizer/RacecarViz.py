@@ -4,13 +4,13 @@ from matplotlib import collections  as mc
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class RacecarVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel,
+    def __init__(self, model: PlanningModel,
                  figure_size=(4, 4),
                  car_radius=0.04,
                  vector_len=0.15,
@@ -21,7 +21,7 @@ class RacecarVisualizer(StateViz):
         self._vector_len = vector_len
         self._wait_time = wait_time
         
-        self._nonfluents = model.nonfluents
+        self._nonfluents = model.groundnonfluents()
         
         self.fig = plt.figure(figsize=self._figure_size)
         self.ax = plt.gca()

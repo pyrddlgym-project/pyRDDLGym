@@ -5,14 +5,14 @@ from PIL import Image
 import sys
 from typing import Optional
 
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLModel
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym import Visualizer
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class ReservoirVisualizer(StateViz):
 
-    def __init__(self, model: RDDLModel,
+    def __init__(self, model: PlanningModel,
                  grid_size: Optional[int]=[50, 50],
                  resolution: Optional[int]=[500, 500]) -> None:
         self._model = model
