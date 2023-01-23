@@ -189,10 +189,16 @@ class RDDLDecompiler:
             
     def _decompile_matrix(self, expr, enclose, level):
         _, op = expr.etype
-        pvar1, pvar2, arg = expr.args
-        _, (param1, ptype) = pvar1
-        _, (param2, _) = pvar2
-        params = [(f'{param1},{param2}', ptype)]
-        agg = self._symbolic(op, params, aggregation=True)
-        decompiled = self._decompile(arg, False, level)        
-        return f'( {agg} [ {decompiled} ] )'
+        if op == 'det':
+            pvar1, pvar2, arg = expr.args
+            _, (param1, ptype) = pvar1
+            _, (param2, _) = pvar2
+            params = [(f'{param1},{param2}', ptype)]
+            agg = self._symbolic(op, params, aggregation=True)
+            decompiled = self._decompile(arg, False, level)        
+            return f'{agg}[ {decompiled} ]'
+        elif op == 'inverse':
+            pvars, arg = expr.args
+            params = ','.join(pvars)
+            decompiled = self._decompile(arg, False, level)
+            return f'{op}[{params}][ {decompiled} ]'

@@ -883,6 +883,8 @@ class RDDLObjectsTracer:
         _, op = expr.etype
         if op == 'det':
             self._trace_matrix_det(expr, objects, out)
+        elif op == 'inverse':
+            self._trace_matrix_inv(expr, objects, out)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: matrix operation {op} is not supported.\n' + 
@@ -904,7 +906,7 @@ class RDDLObjectsTracer:
         
         # argument cannot be enum type
         RDDLObjectsTracer._check_not_enum(
-            arg, expr, out, f'Argument of determinant')     
+            arg, expr, out, f'Argument of matrix determinant')     
         
         out._append(expr, objects, None, cached_sim_info)
         
@@ -917,4 +919,51 @@ class RDDLObjectsTracer:
                        f'\n\taggregation operation         =det'
                        f'\n\taggregation axes              ={reduced_axes}\n')
             self.logger.log(message)        
+        
+    def _trace_matrix_inv(self, expr, objects, out):
+        _, op = expr.etype
+        pvars, arg = expr.args
+        
+        # check that all pvars are defined in the outer scope        
+        scope_pvars = {pvar: i for (i, (pvar, _)) in enumerate(objects)}
+        bad_pvars = {pvar for pvar in pvars if pvar not in scope_pvars}
+        if bad_pvars:
+            raise RDDLInvalidObjectError(
+                f'Row or column parameter(s) {bad_pvars} of {op} are not defined '
+                f'in outer scope, must be one of {set(scope_pvars.keys())}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # check duplicates in pvars
+        pvar1, pvar2 = pvars
+        if pvar1 == pvar2:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Row and column parameters of {op} must differ, '
+                f'got {pvar1} and {pvar2}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+            
+        # check that pvars belong to the same type
+        index_pvar1 = scope_pvars[pvar1]
+        index_pvar2 = scope_pvars[pvar2]
+        _, ptype1 = objects[index_pvar1]
+        _, ptype2 = objects[index_pvar2]
+        if ptype1 != ptype2:
+            raise RDDLInvalidObjectError(
+                f'Row or column parameter(s) of {op} must be the same type, '
+                f'got {pvar1} of type {ptype1} and {pvar2} of type {ptype2}.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # move the matrix parameters to end of objects
+        batch_objects = [pvar for pvar in objects if pvar[0] not in scope_pvars]
+        new_objects = batch_objects + [(pvar1, ptype1), (pvar2, ptype2)]
+        
+        # trace the matrix expression
+        self._trace(arg, new_objects, out)
+        
+        # argument cannot be enum type
+        RDDLObjectsTracer._check_not_enum(
+            arg, expr, out, f'Argument of matrix inverse')     
+        
+        # save the location of the moved indices in objects
+        pvar_indices = (index_pvar1, index_pvar2)
+        out._append(expr, objects, None, pvar_indices)
         

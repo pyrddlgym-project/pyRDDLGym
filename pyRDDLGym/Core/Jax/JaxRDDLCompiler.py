@@ -1357,7 +1357,7 @@ class JaxRDDLCompiler:
         index, = self.traced.cached_sim_info(expr)
         
         # samples from a discrete(prob), computes a one-hot mask w.r.t categories
-        def _jax_wrapped_multinomial_trial(i, values):
+        def _jax_wrapped_multinomial_trial(_, values):
             samples, errors, key, prob, categories = values
             key, subkey = random.split(key)
             sample, error = jax_discrete(prob, subkey)            
@@ -1403,7 +1403,9 @@ class JaxRDDLCompiler:
     def _jax_matrix(self, expr):
         _, op = expr.etype
         if op == 'det':
-            return self._jax_matrix_det(expr)   
+            return self._jax_matrix_det(expr)
+        elif op == 'inverse':
+            return self._jax_matrix_inv(expr)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operation {op} is not supported.\n' + 
@@ -1419,3 +1421,17 @@ class JaxRDDLCompiler:
             return sample, key, error
         
         return _jax_wrapped_matrix_operation_det
+    
+    def _jax_matrix_inv(self, expr):
+        _, arg = expr.args
+        jax_arg = self._jax(arg)
+        indices = self.traced.cached_sim_info(expr)
+        
+        def _jax_wrapped_matrix_operation_inv(x, key):
+            sample_arg, key, error = jax_arg(x, key)
+            sample = jnp.linalg.inv(sample_arg)
+            sample = jnp.moveaxis(sample, source=(-2, -1), destination=indices)
+            return sample, key, error
+        
+        return _jax_wrapped_matrix_operation_inv
+            
