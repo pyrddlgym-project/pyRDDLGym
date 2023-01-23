@@ -18,7 +18,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'RecSim'
 # ENV = 'RaceCar'
 # ENV = 'Traffic'
-ENV = 'NewLanguage'
+ENV = 'NewtonZero'
 
 
 def main():
