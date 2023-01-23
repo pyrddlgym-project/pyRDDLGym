@@ -35,7 +35,7 @@ domain newton {
 					  else if (?p == @2 ^ ?q == @1) then (-2) * sol(@1)
 					  else                               1;
 		
-		sol'(?p) = sol(?p) - lr(?p) * ( sum_{?q : dim} [inverse[?p, ?q][jac(?p, ?q)] * fun(?q)] );
+		sol'(?p) = sol(?p) - lr(?p) * ( sum_{?q : dim} [inverse[row=?p, col=?q][jac(?p, ?q)] * fun(?q)] );
     };	
 
     reward = -sqrt[(sum_{?p : dim} pow[sol'(?p) - sol(?p), 2])];

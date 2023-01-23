@@ -62,7 +62,7 @@ domain newsyntax {
 		
 		// matrix algebra
 		det-fluent' = ( det_{?p, ?q : enum_level} gaussian-fluent'(?p, ?q) );
-		inv-fluent'(?p, ?q) = inverse[?p, ?q][ gaussian-fluent'(?p, ?q) ];
+		inv-fluent'(?p, ?q) = inverse[row=?p, col=?q][ gaussian-fluent'(?p, ?q) ];
     };
 
     reward = ( sum_{?p : enum_level, ?q : enum_level} [ COST(matrix(?p, ?q)) ] );
