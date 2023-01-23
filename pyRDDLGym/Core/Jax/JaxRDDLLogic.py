@@ -155,27 +155,25 @@ class ProductLogic(FuzzyLogic):
         literals = self._literal_array(prob.shape)
         return jnp.sum(literals * prob, axis=0)
     
+    def _gumbel_softmax(self, prob, key):
+        Gumbel01 = random.gumbel(key=key, shape=prob.shape)
+        clipped_prob = jnp.maximum(prob, 1e-12)
+        sample = self._w * (Gumbel01 + jnp.log(clipped_prob))
+        return jax.nn.softmax(sample, axis=-1)
+        
     def bernoulli(self, prob, key):
         warnings.warn('Using the replacement rule '
                       'Bernoulli(p) --> Gumbel-softmax trick', stacklevel=2)
         dist = jnp.stack([prob, 1.0 - prob], axis=-1)
-        clipped_dist = jnp.maximum(dist, 1e-12)
-        Gumbel01 = random.gumbel(key=key, shape=dist.shape)
-        sample = self._w * (Gumbel01 + jnp.log(clipped_dist))
-        sample = jax.nn.softmax(sample, axis=-1)[..., 0]     
-        return sample
+        return self._gumbel_softmax(dist, key)[..., 0]
     
     def discrete(self, prob, key):
         warnings.warn('Using the replacement rule '
                       'Discrete(p) --> Gumbel-softmax trick', stacklevel=2)
-        clipped_prob = jnp.maximum(prob, 1e-12)
-        Gumbel01 = random.gumbel(key=key, shape=prob.shape)
-        sample = self._w * (Gumbel01 + jnp.log(clipped_prob))
-        sample = jax.nn.softmax(sample, axis=-1)
-        indices = jnp.arange(prob.shape[-1])
-        indices = indices[(jnp.newaxis,) * len(prob.shape[:-1]) + (...,)]
-        sample = jnp.sum(sample * indices, axis=-1)
-        return sample
+        sample = self._gumbel_softmax(prob, key)
+        sample = jnp.moveaxis(sample, source=-1, destination=0)
+        literals = self._literal_array(sample.shape)
+        return jnp.sum(sample * literals, axis=0)
         
     
 if __name__ == '__main__':
