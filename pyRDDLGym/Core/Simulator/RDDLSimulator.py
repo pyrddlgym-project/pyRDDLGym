@@ -1155,6 +1155,8 @@ class RDDLSimulator:
         _, op = expr.etype
         if op == 'det':
             return self._sample_matrix_det(expr, subs)
+        elif op == 'inverse':
+            return self._sample_matrix_inv(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operator {op} is not supported.\n' + 
@@ -1162,8 +1164,18 @@ class RDDLSimulator:
     
     def _sample_matrix_det(self, expr, subs):
         * _, arg = expr.args
-        sample = self._sample(arg, subs)
-        return np.linalg.det(sample)
+        sample_arg = self._sample(arg, subs)
+        return np.linalg.det(sample_arg)
+    
+    def _sample_matrix_inv(self, expr, subs):
+        _, arg = expr.args
+        sample_arg = self._sample(arg, subs)
+        sample = np.linalg.inv(sample_arg)
+        
+        # matrix dimensions are last two axes, move them to the correct position
+        indices = self.traced.cached_sim_info(expr)
+        sample = np.moveaxis(sample, source=(-2, -1), destination=indices)
+        return sample        
 
     
 def lngamma(x):

@@ -31,6 +31,7 @@ domain nestedtest {
 		dirichlet-fluent(enum_level)             : { state-fluent , real , default = 0 };
 		multi-fluent(enum_level, enum_level)     : { state-fluent , int , default = 0 };
 		det-fluent                               : { state-fluent , real , default = 0 };
+		inv-fluent(enum_level, enum_level)       : { state-fluent , real , default = 0 };
 		
 		a : { action-fluent , bool , default = false };
     };
@@ -61,6 +62,7 @@ domain nestedtest {
 		
 		// matrix algebra
 		det-fluent' = ( det_{?p, ?q : enum_level} gaussian-fluent'(?p, ?q) );
+		inv-fluent'(?p, ?q) = inverse[?p, ?q][ gaussian-fluent'(?p, ?q) ];
     };
 
     reward = ( sum_{?p : enum_level, ?q : enum_level} [ COST(matrix(?p, ?q)) ] );

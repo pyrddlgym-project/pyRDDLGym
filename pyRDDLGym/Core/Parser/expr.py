@@ -63,6 +63,8 @@ class Expression(object):
             return ('aggregation', 'argmax')        
         elif self._expr[0] == 'det':
             return ('matrix', 'det')
+        elif self._expr[0] == 'inverse':
+            return ('matrix', 'inverse')
         elif self._expr[0] == 'if':
             return ('control', 'if')
         elif self._expr[0] == 'switch':
@@ -89,7 +91,9 @@ class Expression(object):
             return self._expr[1]
         elif self._expr[0] == 'func':
             return self._expr[1][1]
-        elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists', 'argmin', 'argmax', 'det']:
+        elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists', 'argmin', 'argmax']:
+            return self._expr[1]
+        elif self._expr[0] in ['det', 'inverse']:
             return self._expr[1]
         # elif self._expr[0] == 'if':
         elif self._expr[0] in ['if', 'switch']:
