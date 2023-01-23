@@ -1,5 +1,5 @@
-non-fluents nestedtest_nf {
-    domain = nestedtest;
+non-fluents newsyntax_nf {
+    domain = newsyntax;
 	
 	non-fluents {
 		COST(@l1) = 1;
@@ -11,9 +11,9 @@ non-fluents nestedtest_nf {
 	};
 }
 
-instance inst_nestedtest {
-    domain = nestedtest;
-    non-fluents = nestedtest_nf;
+instance inst_newsyntax {
+    domain = newsyntax;
+    non-fluents = newsyntax_nf;
 	
     init-state { 
 		matrix(@l1, @l1) = @l1;
