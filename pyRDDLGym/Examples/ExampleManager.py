@@ -27,7 +27,7 @@ EXP_DICT = {
     'Traffic' : ('BLX/QTM traffic model.', '/Traffic/', None),
     'PropDBN' : ('Simple propositional DBN.', '/PropDBN/', None),
     'WildlifePreserve' : ('Complex domain from IPPC 2018.', '/WildlifePreserve/', None),
-    'NewLanguage' : ('Example with new language features.', '/NewLanguageExamples/', None),
+    'NewLanguage' : ('Example with new language features.', '/NewLanguageExamples/NewLanguage/', None),
 }
 
 
