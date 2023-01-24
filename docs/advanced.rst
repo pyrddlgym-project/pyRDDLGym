@@ -48,14 +48,14 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
 
 .. code-block:: python
 	
-	import jax
-	import optax  
+    import jax
+    import optax  
+    
+    from pyRDDLGym import ExampleManager
+    from pyRDDLGym import RDDLEnv
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 	
-	from pyRDDLGym import ExampleManager
-	from pyRDDLGym import RDDLEnv
-	from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
-	
-	# specify the model
+    # specify the model
     EnvInfo = ExampleManager.GetEnvInfo('MountainCar')
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
     model = myEnv.model
