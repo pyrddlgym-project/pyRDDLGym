@@ -76,7 +76,7 @@ def main():
             callback['train_return'],
             callback['test_return']))
         
-    plan, _ = planner.get_plan(callback['params'], key)
+    plan = planner.get_plan(callback['params'])
     rddl_simulate(plan)
         
 if __name__ == "__main__":

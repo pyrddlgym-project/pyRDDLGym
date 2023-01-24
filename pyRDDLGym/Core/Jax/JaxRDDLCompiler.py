@@ -187,8 +187,8 @@ class JaxRDDLCompiler:
         wrapped function takes the policy parameters and RNG key as input, and
         returns a dictionary of all logged information from the rollouts.
         
-        :param policy: a Jax compiled function that takes the subs dict, step
-        number, policy parameters and an RNG key and returns an action and the
+        :param policy: a Jax compiled function that takes the policy parameters, 
+        decision epoch, subs dict, and an RNG key and returns an action and the
         next RNG key in the sequence
         :param n_steps: the length of each rollout
         :param n_batch: how many rollouts each batch performs
@@ -198,18 +198,10 @@ class JaxRDDLCompiler:
         '''
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
             
-        # compute a batched version of the initial values
-        init_subs = {}
-        for (name, value) in self.init_values.items():
-            new_shape = (n_batch,) + np.shape(value)
-            init_subs[name] = np.broadcast_to(value, shape=new_shape)            
-        for (state, next_state) in self.rddl.next_state.items():
-            init_subs[next_state] = init_subs[state]
-        
         # this performs a single step update
         def _step(carried, step):
-            subs, params, key = carried
-            action, key = policy(subs, step, params, key)
+            params, subs, key = carried
+            action, key = policy(params, step, subs, key)
             subs.update(action)
             error = NORMAL
             
@@ -256,21 +248,21 @@ class JaxRDDLCompiler:
                 logged['invariants'] = invariants
                 logged['terminated'] = terminated
                 
-            carried = (subs, params, key)
+            carried = (params, subs, key)
             return carried, logged
         
         # this performs a single roll-out starting from subs
-        def _rollout(subs, params, key):
+        def _rollout(params, subs, key):
             steps = jnp.arange(n_steps)
-            carry = (subs, params, key)
+            carry = (params, subs, key)
             (* _, key), logged = jax.lax.scan(_step, carry, steps)
             return logged, key
         
         # this performs batched roll-outs
-        def _rollouts(params, key): 
+        def _rollouts(params, subs, key): 
             subkeys = jax.random.split(key, num=n_batch)
-            logged, keys = jax.vmap(_rollout, in_axes=(0, None, 0))(
-                init_subs, params, subkeys)
+            logged, keys = jax.vmap(_rollout, in_axes=(None, 0, 0))(
+                params, subs, subkeys)
             logged['keys'] = subkeys
             return logged, keys
         
