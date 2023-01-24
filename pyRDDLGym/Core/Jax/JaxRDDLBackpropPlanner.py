@@ -412,10 +412,10 @@ class JaxRDDLBackpropPlanner:
                             **test_log}
                 yield callback
                 
-    def get_plan(self, params, key):
+    def get_plan(self, params):
         plan = [None] * self.rddl.horizon
         for step in range(self.rddl.horizon):
-            actions, key = self.test_policy(None, step, params, key)
+            actions, self.key = self.test_policy(None, step, params, self.key)
             actions = jax.tree_map(np.ravel, actions)
             grounded_actions = {}
             for (var, action) in actions.items():
@@ -426,4 +426,4 @@ class JaxRDDLBackpropPlanner:
                                        if value == True}
                 grounded_actions.update(grounded_action)
             plan[step] = grounded_actions
-        return plan, key
+        return plan
