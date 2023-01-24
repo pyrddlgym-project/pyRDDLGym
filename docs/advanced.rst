@@ -12,9 +12,9 @@ In pyRDDLGym, this can be done easily by specifying the backend:
 	
 	from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 	
-	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
-							instance=EnvInfo.get_instance(0),
-							backend=JaxRDDLSimulator)
+	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
+                            instance=EnvInfo.get_instance(0),
+                            backend=JaxRDDLSimulator)
 	
 For the purpose of simulation, the default backend and the ``JaxRDDLSimulator`` are designed to be as interchangeable as possible, so the latter can be used in place of the former with identical outputs in most cases.
 All RDDL syntax (both new and old!) is already supported in the RDDL-to-JAX compiler.
