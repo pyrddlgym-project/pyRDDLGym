@@ -96,9 +96,9 @@ For instance, consider the following problem of classifying points (x, y) in 2D-
 
     def classify(x, y):
         if x > 0 and y > 0 or not x > 0 and not y > 0:
-		    return +1
+            return +1
         else:
-		    return -1
+            return -1
 		    
 Relational expressions such as ``x > 0`` and ``y > 0`` and logical expressions such as ``and`` and ``or`` do not have obvious derivatives. 
 To complicate matters further, the ``if`` statement depends on both ``x`` and ``y`` so it does not have partial derivatives with respect to ``x`` nor ``y``.
