@@ -234,7 +234,7 @@ class JaxRDDLBackpropPlanner:
         
         # convert actions that are not smooth to real-valued
         # TODO: use a one-hot for integer actions
-        def _jax_wrapped_soft_action(_, step, params, key):
+        def _jax_wrapped_soft_action(params, step, _, key):
             plan = {}
             for (var, param) in params.items():
                 if self.rddl.variable_ranges[var] == 'real': 
@@ -245,8 +245,8 @@ class JaxRDDLBackpropPlanner:
             return plan, key
         
         # convert smooth actions back to discrete/boolean
-        def _jax_wrapped_hard_action(subs, step, params, key):
-            soft, key = _jax_wrapped_soft_action(subs, step, params, key)
+        def _jax_wrapped_hard_action(params, step, subs, key):
+            soft, key = _jax_wrapped_soft_action(params, step, subs, key)
             hard = {}
             for (var, param) in soft.items():
                 prange = self.rddl.variable_ranges[var]
@@ -279,8 +279,8 @@ class JaxRDDLBackpropPlanner:
     def _jax_loss(self, rollouts):
         
         # the loss is the average return across all roll-outs
-        def _jax_wrapped_plan_loss(params, key):
-            logged, keys = rollouts(params, key)
+        def _jax_wrapped_plan_loss(params, subs, key):
+            logged, keys = rollouts(params, subs, key)
             returns = jnp.sum(logged['reward'], axis=-1)
             logged['return'] = returns
             loss = -jnp.mean(returns)
@@ -365,8 +365,8 @@ class JaxRDDLBackpropPlanner:
         
         # calculates the plan gradient w.r.t. return loss and updates optimizer
         # clips actions to bounds and applies concurrent action trick
-        def _jax_wrapped_plan_update(params, key, opt_state):
-            grad, (key, logged) = jax.grad(loss, has_aux=True)(params, key)
+        def _jax_wrapped_plan_update(params, subs, key, opt_state):
+            grad, (key, logged) = jax.grad(loss, has_aux=True)(params, subs, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
             params = _jax_wrapped_plan_project_gradient(params)
@@ -378,28 +378,44 @@ class JaxRDDLBackpropPlanner:
     # training
     # ===========================================================================
     
+    def _initialize_rollout_state(self, test):
+        n_batch = self.batch_size_test if test else self.batch_size_train
+        init_values = self.test_compiled.init_values if test else self.compiled.init_values
+        
+        init_subs = {}
+        for (name, value) in init_values.items():
+            new_shape = (n_batch,) + np.shape(value)
+            init_subs[name] = np.broadcast_to(value, shape=new_shape)            
+        for (state, next_state) in self.rddl.next_state.items():
+            init_subs[next_state] = init_subs[state]
+        return init_subs
+    
     def optimize(self, epochs: int, step: int=1) -> Iterable[Dict[str, object]]:
         ''' Compute an optimal straight-line plan.
         
         @param epochs: the maximum number of steps of gradient descent
         @param step: frequency the callback is provided back to the user
         '''
+        
+        # compute a batched version of the initial values
+        train_subs = self._initialize_rollout_state(test=False)
+        test_subs = self._initialize_rollout_state(test=True)
+        
+        # initialize policy parameters
         params, key, opt_state = self.initialize(self.key)        
-        best_params = params
-        best_loss = jnp.inf
+        best_params, best_loss = params, jnp.inf
         
         for it in range(epochs):
             
             # update the parameters of the plan
-            params, key, opt_state, _ = self.update(params, key, opt_state)            
-            train_loss, (key, _) = self.train_loss(params, key)            
-            test_loss, (key, test_log) = self.test_loss(params, key)
+            params, key, opt_state, _ = self.update(params, train_subs, key, opt_state)            
+            train_loss, (key, _) = self.train_loss(params, train_subs, key)            
+            test_loss, (key, test_log) = self.test_loss(params, test_subs, key)
             self.key = key
             
             # record the best plan so far
             if test_loss < best_loss:
-                best_params = params
-                best_loss = test_loss
+                best_params, best_loss = params, test_loss
             
             # periodically return a callback
             if it % step == 0:
@@ -415,7 +431,7 @@ class JaxRDDLBackpropPlanner:
     def get_plan(self, params):
         plan = [None] * self.rddl.horizon
         for step in range(self.rddl.horizon):
-            actions, self.key = self.test_policy(None, step, params, self.key)
+            actions, self.key = self.test_policy(params, step, None, self.key)
             actions = jax.tree_map(np.ravel, actions)
             grounded_actions = {}
             for (var, action) in actions.items():
