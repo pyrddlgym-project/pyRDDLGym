@@ -7,17 +7,18 @@ This toolkit is the official evaluation system of the [2023 IPC RL and planning 
 Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym.
 
 ### Status
-As we support a large subset of RDDL, we list what we do not support:
+As we support all of RDDL's functionality, we list what we do not support as it is considered:
 * state-action-constraints -- deprecated in favor of state-invariants and action-preconditions (RDDL2.0).
-* action-preconditions are not enforced by the environment, and should be incorporated into the cpfs definitions.
-* action-preconditions of structure of action <=/>= deterministic-function (can be of constants or non-fluents), 
-are supported for the purpose of gym spaces definitions.
-* enums
+* derived-fluents are considered deprecated and should not be used. interm-fluents should be used instead.
 
 We have extended the RDDL language and also support the following:
 * Automatic reasoning of levels. Levels are no longer required (and ignored by the infrastructure).
 * Terminal states can now be explicitly defined. The termination block has been added to the language.
 * New probability distributions (binomial, beta, geometric, pareto, student-t, and many more) and mathematical functions (gamma, beta).
+* action-preconditions are optional in the Gym environment. By default action-preconditions are not enforced by the environment, and should be incorporated into the cpfs definitions.
+However, if desired the environment can be informed that about the user desire to enforce them, in that case an exception will be raisd upon violation.
+* action-preconditions of structure of action <=/>= deterministic-function (can be of constants or non-fluents), 
+are supported for the purpose of gym spaces definitions.
 
 All other features of RDDL are supported according to the language definition.
 

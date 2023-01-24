@@ -16,9 +16,8 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
 # ENV = 'RecSim'
-# ENV = 'RaceCar'
+ENV = 'RaceCar'
 # ENV = 'Traffic'
-ENV = 'NewtonZero'
 
 
 def main():
