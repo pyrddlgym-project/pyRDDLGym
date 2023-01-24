@@ -84,3 +84,49 @@ The final action sequence can then be easily extracted from the final callback.
 	
 	plan = planner.get_plan(callback['params'])
 	
+
+Dealing with Non-Differentiable Expressions
+-------------------
+
+Many RDDL programs contain CPFs or reward functions that do not support derivatives.
+A common technique to deal with such problems is to map non-differentiable operations to similar differentiable ones.
+For instance, consider the following problem of classifying points (x, y) in 2D-space as +1 if they lie in the top-right or bottom-left quadrants, and -1 otherwise:
+
+.. code-block:: python
+
+    def classify(x, y):
+        if x > 0 and y > 0 or not x > 0 and not y > 0:
+		    return +1
+        else:
+		    return -1
+		    
+Relational expressions such as ``x > 0`` and ``y > 0`` and logical expressions such as ``and`` and ``or`` do not have obvious derivatives. 
+To complicate matters further, the ``if`` statement depends on both ``x`` and ``y`` so it does not have partial derivatives with respect to ``x`` nor ``y``.
+
+``JaxRDDLBackpropPlanner`` works around these limitations by replacing such operations with JAX-based expressions that support derivatives.
+Specifically, the ``classify`` function above could be written as follows:
+ 
+.. code-block:: python
+
+    from pyRDDLGym.Core.Jax.JaxRDDLLogic import ProductLogic
+
+    logic = ProductLogic()
+
+    def approximate_classify(x, y):
+        cond1 = logic.And(logic.greater(x, 0), logic.greater(y, 0))
+        cond2 = logic.And(logic.Not(logic.greater(x, 0)), logic.Not(logic.greater(y, 0)))
+        return logic.If(logic.Or(cond1, cond2), +1, -1)
+
+``ProductLogic`` replaces exact boolean (and other) expressions with fuzzy logic rules that are approximately equal to their exact counterparts.
+For illustration, calling ``approximate_classify`` with ``x=0.5`` and ``y=1.5`` returns 0.98661363, which is very close to 1.
+
+It is possible to gain fine-grained control over how pyRDDLGym should perform differentiable relaxations as illustrated above.
+The abstract class ``FuzzyLogic`` can be subclassed to specify how each mathematical operation should be approximated in JAX.
+This logic can then be passed to the planner as an optimal argument:
+
+.. code-block:: python
+
+    planner = JaxRDDLBackpropPlanner(
+        model, 
+        ...,
+        logic=ProductLogic())
