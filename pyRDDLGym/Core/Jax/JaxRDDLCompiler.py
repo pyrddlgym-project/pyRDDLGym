@@ -43,7 +43,7 @@ class JaxRDDLCompiler:
         '''
         self.rddl = rddl
         self.logger = logger
-        jax.config.update('jax_log_compiles', True)
+        # jax.config.update('jax_log_compiles', True) # for testing ONLY
         
         # compile initial values
         if self.logger is not None:
