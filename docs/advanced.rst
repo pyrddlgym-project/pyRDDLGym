@@ -116,19 +116,19 @@ This is often called "re-planning".
 
 Another problem of planning in stochastic domains is that the state transition function :math:`s_{t + 1} = f(s_t, a_t)` is no longer deterministic, and so the gradients are no longer well-defined in this formulation.
 pyRDDLGym works around this problem by using the reparameterization trick.
-To illustrate this in action, if :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)`, then after reparametization this becomes :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, and we can now back-propagate with respect to both state and action.
-The reparameterization trick can also work for other classes of probability distributions. Mathematically, we have
+To illustrate this in action, if :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)`, then after reparametization this becomes :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, and back-propagation can now be performed with respect to both state and action.
+The reparameterization trick can also work for other classes of probability distributions. Mathematically,
 
 .. math::
 
     s_{t+1} \sim f(s_t, a_t, \xi_t)
     
 where :math:`\xi_t` are i.i.d. random variables drawn from some concrete distribution. 
-For a detailed discussion of reparameterization in the context of planning by back-propagation, we refer to `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
+For a detailed discussion of reparameterization in the context of planning by back-propagation, please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
 
 pyRDDLGym will automatically perform reparameterization as needed if it is possible to do so.
 However, some probability distributions, such as the Beta distribution, do not have tractable reparameterizations.
-For a small subset of them, like the Bernoulli and Discrete distribution, we offer efficient approximations backed by the existing literature (see, e.g. the Gumbel-softmax discussion below). 
+For a small subset of them, like the Bernoulli and Discrete distribution, pyRDDLGym offers efficient approximations backed by the existing literature (see, e.g. the Gumbel-softmax discussion below). 
 For other distributions, the result of the derivative calculation can be unpredictable: either it could return an erroneous gradient (such as zero) or raise an exception.
 
 The ``JaxRDDLBackpropPlanner`` makes it relatively easy to do re-planning in stochastic domains inside the usual simulation loop.
@@ -250,7 +250,7 @@ Here, the user-specified parameter :math:`w` specifies the "sharpness" of the op
    * - Discrete(type, {cases ...} )
      - Gumbel-Softmax trick
     
-The Gumbel-softmax trick, which we use for (approximately) reparameterizing discrete distributions on the finite support, works by sampling K standard Gumbel random variables :math:`g_1, \dots g_K`.
+The Gumbel-softmax trick, which is useful for (approximately) reparameterizing discrete distributions on the finite support, works by sampling K standard Gumbel random variables :math:`g_1, \dots g_K`.
 Then, a random variable :math:`X` with probability mass function :math:`p_1, \dots p_K` can be reparameterized as
 
 .. math::
@@ -285,7 +285,7 @@ We cite several limitations of the current baseline JAX optimizer:
 * Some relaxations can accumulate a high error relative to their exact counterparts, particularly when stacking CPFs via the chain rule for long roll-out horizons
 * Some relaxations may not be mathematically consistent with one another
 	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
-	* if this is a concern, we recommend overriding some operations in ``ProductLogic`` to suit the user's needs
+	* if this is a concern, it is recommended to override some operations in ``ProductLogic`` to suit the user's needs
 * The parameter :math:`w` is fixed: support for annealing or otherwise modifying this value during optimization may be added in the future.
 * Termination conditions and state/action constraints are not considered in the optimization (but can be checked at test-time).
 
