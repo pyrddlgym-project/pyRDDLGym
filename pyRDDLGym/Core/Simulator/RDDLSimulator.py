@@ -36,38 +36,11 @@ class RDDLSimulator:
         :param logger: to log information about compilation to file
         '''
         self.rddl = rddl
+        self.allow_synchronous_state = allow_synchronous_state
         self.rng = rng
         self.logger = logger
         
-        # compile initial values
-        if self.logger is not None:
-            self.logger.clear()
-        initializer = RDDLValueInitializer(rddl, logger=self.logger)
-        self.init_values = initializer.initialize()
-        
-        # compute dependency graph for CPFs and sort them by evaluation order
-        sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state, logger=self.logger)
-        levels = sorter.compute_levels()      
-        self.cpfs = []  
-        for cpfs in levels.values():
-            for cpf in cpfs:
-                _, expr = rddl.cpfs[cpf]
-                prange = rddl.variable_ranges[cpf]
-                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
-                    prange, RDDLValueInitializer.INT)
-                self.cpfs.append((cpf, expr, dtype))
-                
-        # trace expressions to cache information to be used later
-        tracer = RDDLObjectsTracer(rddl, logger=self.logger)
-        self.traced = tracer.trace()
-        
-        # initialize all fluent and non-fluent values        
-        self.subs = self.init_values.copy()
-        self.state = None  
-        self.noop_actions = {var: values
-                             for (var, values) in self.init_values.items()
-                             if rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(rddl.observ)
+        self._compile()
         
         # basic operations
         self.ARITHMETIC_OPS = {
@@ -135,6 +108,39 @@ class RDDLSimulator:
         self.CONTROL_OPS = {'if': np.where,
                             'switch': np.select}
     
+    def _compile(self):
+        
+        # compile initial values
+        if self.logger is not None:
+            self.logger.clear()
+        initializer = RDDLValueInitializer(self.rddl, logger=self.logger)
+        self.init_values = initializer.initialize()
+        
+        # compute dependency graph for CPFs and sort them by evaluation order
+        sorter = RDDLLevelAnalysis(self.rddl, self.allow_synchronous_state, 
+                                   logger=self.logger)
+        levels = sorter.compute_levels()      
+        self.cpfs = []  
+        for cpfs in levels.values():
+            for cpf in cpfs:
+                _, expr = self.rddl.cpfs[cpf]
+                prange = self.rddl.variable_ranges[cpf]
+                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                    prange, RDDLValueInitializer.INT)
+                self.cpfs.append((cpf, expr, dtype))
+                
+        # trace expressions to cache information to be used later
+        tracer = RDDLObjectsTracer(self.rddl, logger=self.logger)
+        self.traced = tracer.trace()
+        
+        # initialize all fluent and non-fluent values        
+        self.subs = self.init_values.copy()
+        self.state = None  
+        self.noop_actions = {var: values
+                             for (var, values) in self.init_values.items()
+                             if self.rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(self.rddl.observ)
+        
     @property
     def states(self) -> Args:
         return self.state.copy()

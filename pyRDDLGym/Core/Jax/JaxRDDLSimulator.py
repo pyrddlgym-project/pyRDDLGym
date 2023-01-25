@@ -37,14 +37,20 @@ class JaxRDDLSimulator(RDDLSimulator):
         if key is None:
             seed = np.random.randint(0, 2 ** 31 - 1)
             key = jax.random.PRNGKey(seed)
-            
-        self.rddl = rddl
         self.key = key
         self.raise_error = raise_error
-        self.logger = logger
+        self.compiler_args = compiler_args
+        
+        # generate direct sampling with default numpy RNG and operations
+        super(JaxRDDLSimulator, self).__init__(rddl, logger=logger)
+    
+    def _compile(self):
         
         # compilation
-        compiled = JaxRDDLCompiler(rddl, logger=logger, **compiler_args)
+        if self.logger is not None:
+            self.logger.clear()
+        compiled = JaxRDDLCompiler(self.rddl, logger=self.logger, 
+                                   **self.compiler_args)
         compiled.compile(log_jax_expr=True)
         self.init_values = compiled.init_values
         self.levels = compiled.levels
@@ -61,7 +67,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         for cpfs in self.levels.values():
             for cpf in cpfs:
                 expr = jax_cpfs[cpf]
-                prange = rddl.variable_ranges[cpf]
+                prange = self.rddl.variable_ranges[cpf]
                 dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, JaxRDDLCompiler.INT)
                 self.cpfs.append((cpf, expr, dtype))
         
@@ -70,7 +76,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.state = None 
         self.noop_actions = {var: values 
                              for (var, values) in self.init_values.items() 
-                             if rddl.variable_types[var] == 'action-fluent'}
+                             if self.rddl.variable_types[var] == 'action-fluent'}
         self._pomdp = bool(self.rddl.observ)
         
     def handle_error_code(self, error, msg) -> None:
