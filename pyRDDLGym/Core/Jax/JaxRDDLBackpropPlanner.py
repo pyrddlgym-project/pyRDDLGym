@@ -129,6 +129,7 @@ class JaxRDDLBackpropPlanner:
                  key: jax.random.PRNGKey,
                  batch_size_train: int,
                  batch_size_test: int=None,
+                 rollout_horizon: int=None,
                  action_bounds: Dict={},
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
@@ -144,6 +145,8 @@ class JaxRDDLBackpropPlanner:
         step
         :param batch_size_test: how many rollouts to use to test the plan at each
         optimization step
+        :param rollout_horizon: how long each rollout should be: None uses the
+        horizon parameter in the RDDL instance
         :param action_bounds: dict of valid ranges (min, max) for each action
         :param initializer: a Jax Initializer for setting the initial actions
         :param optimizer: an Optax algorithm that specifies how gradient updates
@@ -157,6 +160,9 @@ class JaxRDDLBackpropPlanner:
         if batch_size_test is None:
             batch_size_test = batch_size_train
         self.batch_size_test = batch_size_test
+        if rollout_horizon is None:
+            rollout_horizon = rddl.horizon
+        self.horizon = rollout_horizon
         self._action_bounds = action_bounds
         self.initializer = initializer
         self.optimizer = optimizer
@@ -187,7 +193,7 @@ class JaxRDDLBackpropPlanner:
                 
                 # prepend the batch dimension to the action tensor shape
                 value = self.compiled.init_values[name]
-                self.action_shapes[name] = (self.rddl.horizon,) + np.shape(value)
+                self.action_shapes[name] = (self.horizon,) + np.shape(value)
                 
                 # the output type is valid for the action
                 if prange not in JaxRDDLCompiler.JAX_TYPES:
@@ -215,11 +221,11 @@ class JaxRDDLBackpropPlanner:
         # roll-outs
         self.train_rollouts = self.compiled.compile_rollouts(
             policy=train_policy,
-            n_steps=self.rddl.horizon,
+            n_steps=self.horizon,
             n_batch=self.batch_size_train)
         self.test_rollouts = self.test_compiled.compile_rollouts(
             policy=test_policy,
-            n_steps=self.rddl.horizon,
+            n_steps=self.horizon,
             n_batch=self.batch_size_test)
         
         # losses
@@ -435,8 +441,8 @@ class JaxRDDLBackpropPlanner:
                 yield callback
                 
     def get_plan(self, params):
-        plan = [None] * self.rddl.horizon
-        for step in range(self.rddl.horizon):
+        plan = [None] * self.horizon
+        for step in range(self.horizon):
             actions, self.key = self.test_policy(params, step, None, self.key)
             actions = jax.tree_map(np.ravel, actions)
             grounded_actions = {}

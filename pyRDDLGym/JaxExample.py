@@ -8,13 +8,14 @@ from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Parser import parser as parser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
+from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 
 # ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
 ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-ENV = 'MountainCar'
+ENV = 'Wildfire'
 # ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
@@ -53,31 +54,41 @@ def rddl_simulate(plan):
 def main():
     
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
-    domain = EnvInfo.get_domain()
-    instance = EnvInfo.get_instance(0)
-    
-    rddltxt = RDDLReader(domain, instance).rddltxt
-    rddlparser = parser.RDDLParser()
-    rddlparser.build()
-    ast = rddlparser.parse(rddltxt)
-    
-    model = RDDLLiftedModel(ast)
-    key = jax.random.PRNGKey(np.random.randint(0, 2 ** 31))
+    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
+                            instance=EnvInfo.get_instance(0),
+                            enforce_action_constraints=True)
+    model = myEnv.model
     
     planner = JaxRDDLBackpropPlanner(
-        model, key, 32, 32,
+        model, 
+        key=jax.random.PRNGKey(42), 
+        batch_size_train=32, 
+        batch_size_test=32,
+        rollout_horizon=5,
         optimizer=optax.rmsprop(0.01),
-        initializer=jax.nn.initializers.normal(),
         action_bounds={'action': (0.0, 2.0)})
+    
+    total_reward = 0
+    state = myEnv.reset()
+    for step in range(myEnv.horizon):
+        myEnv.render()
+        *_, callback = planner.optimize(500, 10, init_subs=myEnv.sampler.subs)
+        action = planner.get_plan(callback['params'])[0]
+        next_state, reward, done, _ = myEnv.step(action)
+        total_reward += reward 
+        print()
+        print('step       = {}'.format(step))
+        print('state      = {}'.format(state))
+        print('action     = {}'.format(action))
+        print('next state = {}'.format(next_state))
+        print('reward     = {}'.format(reward))
+        state = next_state
+        if done:
+            break
         
-    for callback in planner.optimize(4000, 10):
-        print('step={} train_return={:.6f} test_return={:.6f}'.format(
-            str(callback['iteration']).rjust(4),
-            callback['train_return'],
-            callback['test_return']))
-        
-    plan = planner.get_plan(callback['params'])
-    rddl_simulate(plan)
+    print(f'episode ended with reward {total_reward}')
+    myEnv.close()
+    # rddl_simulate(plan)
         
 if __name__ == "__main__":
     main()
