@@ -10,6 +10,7 @@ import warnings
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic, ProductLogic
 
@@ -36,11 +37,10 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         self.logic = logic
         
         # actions and CPFs must be continuous
-        warnings.warn(f'Initial values of CPFs and action-fluents '
-                      f'will be cast to real.', stacklevel=2)   
+        warnings.warn(f'Initial values of pvariables will be cast to real.',
+                      stacklevel=2)   
         for (var, values) in self.init_values.items():
-            if self.rddl.variable_types[var] != 'non-fluent':
-                self.init_values[var] = np.asarray(values, dtype=JaxRDDLCompiler.REAL) 
+            self.init_values[var] = np.asarray(values, dtype=RDDLValueInitializer.REAL) 
         
         # overwrite basic operations with fuzzy ones
         self.RELATIONAL_OPS = {
@@ -378,28 +378,34 @@ class JaxRDDLBackpropPlanner:
     # training
     # ===========================================================================
     
-    def _initialize_rollout_state(self, test):
-        n_batch = self.batch_size_test if test else self.batch_size_train
-        init_values = self.test_compiled.init_values if test else self.compiled.init_values
-        
-        init_subs = {}
-        for (name, value) in init_values.items():
-            new_shape = (n_batch,) + np.shape(value)
-            init_subs[name] = np.broadcast_to(value, shape=new_shape)            
+    def _initialize_rollout_state(self, subs): 
+        init_train, init_test = {}, {}
+        for (name, value) in subs.items():
+            train_shape = (self.batch_size_train,) + np.shape(value)
+            init_train[name] = np.broadcast_to(value, shape=train_shape)
+            init_train[name] = np.asarray(init_train[name], dtype=RDDLValueInitializer.REAL) 
+            test_shape = (self.batch_size_test,) + np.shape(value)            
+            init_test[name] = np.broadcast_to(value, shape=test_shape)
         for (state, next_state) in self.rddl.next_state.items():
-            init_subs[next_state] = init_subs[state]
-        return init_subs
+            init_train[next_state] = init_train[state]
+            init_test[next_state] = init_test[state]            
+        return init_train, init_test
     
-    def optimize(self, epochs: int, step: int=1) -> Iterable[Dict[str, object]]:
+    def optimize(self, epochs: int, 
+                 step: int=1, 
+                 init_subs: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
         ''' Compute an optimal straight-line plan.
         
         @param epochs: the maximum number of steps of gradient descent
         @param step: frequency the callback is provided back to the user
+        @param init_subs: dictionary mapping initial state and non-fluents to 
+        their values: if None initializes all variables from the RDDL instance
         '''
         
         # compute a batched version of the initial values
-        train_subs = self._initialize_rollout_state(test=False)
-        test_subs = self._initialize_rollout_state(test=True)
+        if init_subs is None:
+            init_subs = self.test_compiled.init_values
+        train_subs, test_subs = self._initialize_rollout_state(init_subs)
         
         # initialize policy parameters
         params, key, opt_state = self.initialize(self.key)        
