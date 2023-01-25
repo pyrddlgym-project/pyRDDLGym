@@ -1,21 +1,11 @@
-import jax
-import numpy as np
-import optax  
-
-from pyRDDLGym import ExampleManager
-from pyRDDLGym import RDDLEnv
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
-from pyRDDLGym.Core.Parser import parser as parser
-from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
-from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
+from pyRDDLGym.JAX import JaxConfigManager
 
 # ENV = 'PowerGeneration'
 # ENV = 'MarsRover'
 ENV = 'UAV continuous'
 # ENV = 'UAV discrete'
 # ENV = 'UAV mixed'
-ENV = 'Wildfire'
+# ENV = 'RecSim'
 # ENV = 'PowerGeneration'
 # ENV = 'CartPole discrete'
 # ENV = 'Elevators'
@@ -23,12 +13,15 @@ ENV = 'Wildfire'
 # ENV = 'RecSim'
   
 
-def rddl_simulate(plan):
-    EnvInfo = ExampleManager.GetEnvInfo(ENV)
-    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
-                            instance=EnvInfo.get_instance(0),
-                            enforce_action_constraints=True)
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
+def slp_no_replan():
+    myEnv, planner, train_args = JaxConfigManager.get(f'JAX/{ENV}.cfg')
+    
+    for callback in planner.optimize(**train_args):
+        print('step={} train_return={:.6f} test_return={:.6f}'.format(
+              str(callback['iteration']).rjust(4),
+              callback['train_return'],
+              callback['test_return']))
+    plan = planner.get_plan(callback['params'])
     
     total_reward = 0
     state = myEnv.reset()
@@ -36,7 +29,7 @@ def rddl_simulate(plan):
         myEnv.render()
         action = plan[step]
         next_state, reward, done, _ = myEnv.step(action)
-        total_reward += reward        
+        total_reward += reward 
         print()
         print('step       = {}'.format(step))
         print('state      = {}'.format(state))
@@ -45,34 +38,19 @@ def rddl_simulate(plan):
         print('reward     = {}'.format(reward))
         state = next_state
         if done:
-            break
-        
+            break        
     print(f'episode ended with reward {total_reward}')
     myEnv.close()
 
-
-def main():
     
-    EnvInfo = ExampleManager.GetEnvInfo(ENV)
-    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
-                            instance=EnvInfo.get_instance(0),
-                            enforce_action_constraints=True)
-    model = myEnv.model
-    
-    planner = JaxRDDLBackpropPlanner(
-        model, 
-        key=jax.random.PRNGKey(42), 
-        batch_size_train=32, 
-        batch_size_test=32,
-        rollout_horizon=5,
-        optimizer=optax.rmsprop(0.01),
-        action_bounds={'action': (0.0, 2.0)})
+def slp_replan():
+    myEnv, planner, train_args = JaxConfigManager.get(f'JAX/{ENV} replan.cfg')
     
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.horizon):
         myEnv.render()
-        *_, callback = planner.optimize(500, 10, init_subs=myEnv.sampler.subs)
+        * _, callback = planner.optimize(**train_args, init_subs=myEnv.sampler.subs)
         action = planner.get_plan(callback['params'])[0]
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
@@ -85,10 +63,13 @@ def main():
         state = next_state
         if done:
             break
-        
     print(f'episode ended with reward {total_reward}')
     myEnv.close()
-    # rddl_simulate(plan)
+
+    
+def main(): 
+    slp_no_replan()
+    
         
 if __name__ == "__main__":
     main()
