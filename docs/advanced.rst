@@ -120,9 +120,9 @@ Specifically, the ``classify`` function above could be written as follows:
 ``ProductLogic`` replaces exact boolean (and other) expressions with fuzzy logic rules that are approximately equal to their exact counterparts.
 For illustration, calling ``approximate_classify`` with ``x=0.5`` and ``y=1.5`` returns 0.98661363, which is very close to 1.
 
-It is possible to gain fine-grained control over how pyRDDLGym should perform differentiable relaxations as illustrated above.
-The abstract class ``FuzzyLogic`` can be subclassed to specify how each mathematical operation should be approximated in JAX.
-This logic can then be passed to the planner as an optimal argument:
+It is possible to gain fine-grained control over how pyRDDLGym should perform differentiable relaxations.
+The abstract class ``FuzzyLogic``, from which ``ProductLogic`` is derived, can be subclassed to specify how each mathematical operation should be approximated in JAX.
+This logic can be passed to the planner as an optimal argument:
 
 .. code-block:: python
 
@@ -130,3 +130,68 @@ This logic can then be passed to the planner as an optimal argument:
         model, 
         ...,
         logic=ProductLogic())
+
+Customizing the Differentiable Operations
+-------------------
+
+As of the time of this writing, pyRDDLGym only contains one implementation of differentiable logic, ``ProductLogic``.
+The mathematical operations and their substitutions are summarized in the following table.
+Here, the user-specified parameter :math:`w` specifies the "sharpness" of the operation -- higher values mean the approximation becomes closer to its exact counterpart. 
+
+.. list-table:: Differentiable Mathematical Operations in ``ProductLogic``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Exact RDDL Operation
+     - ``ProductLogic`` Operation
+   * - :math:`a \text{ ^ } b`
+     - :math:`a * b`
+   * - :math:`\sim a`
+     - :math:`1 - a`
+   * - forall_{?p : type} x(?p)
+     - :math:`\prod_{?p} x(?p)`
+   * - if (c) then a else b
+     - :math:`c * a + (1 - c) * b`
+   * - :math:`a == b`
+     - :math:`\frac{\mathrm{sigmoid}(w * (a - b + 0.5)) - \mathrm{sigmoid}(w * (a - b - 0.5))}{\tanh(0.25 * w)}`
+   * - :math:`a > b`, :math:`a >= b`
+     - :math:`\mathrm{sigmoid}(w * (a - b))`
+   * - :math:`\mathrm{signum}(a)`
+     - :math:`\tanh(w * a)`
+   * - argmax_{?p : type} x(?p)
+     - :math:`\sum_{i = 1, 2, \dots |\mathrm{type}|} i * \mathrm{softmax}(w * x)[i]`
+   * - :math:`\mathrm{Bernoulli}(p)`
+     - Gumbel-Softmax trick
+   * - :math:`\mathrm{Discrete}(\mathrm{type}, \lbrace \mathrm{cases} \dots \rbrace )`
+     - Gumbel-Softmax trick
+    
+Any operation(s) can be replaced by the user by subclassing ``FuzzyLogic`` or ``ProductLogic``.
+For example, the RDDL operation :math:`a \text{ ^ } b` can be replaced with a user-specified one by sub-classing as follows:
+
+.. code-block:: python
+ 
+    class NewLogic(ProductLogic):
+        
+        def And(self, a, b):
+            ...
+            return ...
+
+A new instance of ``NewLogic`` can then be passed to ``JaxRDDLBackpropPlanner`` as described above.
+
+Limitations
+-------------------
+
+We cite several limitations of the current baseline JAX optimizer:
+
+* Not all operations have natural differentiable relaxations. Currently, the following are not supported:
+	* integer-valued functions such as round, floor, ceil
+	* nested fluents such as fluent1(fluent2(?p))
+	* distributions that are not naturally reparameterizable such as Poisson, Gamma and Beta
+* Some relaxations can accumulate a high error relative to their exact counterparts, particularly when stacking CPFs via the chain rule for long roll-out horizons
+* Some relaxations may not be mathematically consistent with one another
+	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
+	* if this is a concern, we recommend overriding some operations in ``ProductLogic`` to suit the user's needs
+* The parameter :math:`w` is fixed: support for annealing or otherwise modifying this value during optimization may be added in the future.
+
+The goal of the JAX optimizer was not to replicate the state-of-the-art, but to provide a simple baseline that can be easily built-on.
+However, we welcome any suggestions or modifications about how to improve this algorithm on a broader subset of RDDL.
