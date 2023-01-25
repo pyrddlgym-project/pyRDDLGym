@@ -160,11 +160,21 @@ Here, the user-specified parameter :math:`w` specifies the "sharpness" of the op
      - :math:`\tanh(w * a)`
    * - argmax_{?p : type} x(?p)
      - :math:`\sum_{i = 1, 2, \dots |\mathrm{type}|} i * \mathrm{softmax}(w * x)[i]`
-   * - :math:`\mathrm{Bernoulli}(p)`
+   * - Bernoulli(p)
      - Gumbel-Softmax trick
-   * - :math:`\mathrm{Discrete}(\mathrm{type}, \lbrace \mathrm{cases} \dots \rbrace )`
+   * - Discrete(type, {cases ...} )
      - Gumbel-Softmax trick
     
+The Gumbel-softmax trick, which we use for (approximately) reparameterizing discrete distributions on the finite support, works by sampling K standard Gumbel random variables :math:`g_1, \dots g_K`.
+Then, a random variable :math:`X` with probability mass function :math:`p_1, \dots p_K` can be reparameterized as
+
+.. math::
+
+    X = \arg\!\max_{i=1\dots K} \left(g_i + \log p_i \right)
+
+where the approximation rule in the above table is used for argmax.
+Further details about Gumbel-softmax can be found `in this paper <https://arxiv.org/pdf/1611.01144.pdf>`_.
+
 Any operation(s) can be replaced by the user by subclassing ``FuzzyLogic`` or ``ProductLogic``.
 For example, the RDDL operation :math:`a \text{ ^ } b` can be replaced with a user-specified one by sub-classing as follows:
 
