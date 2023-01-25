@@ -337,7 +337,7 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_CAUCHY': 16384,
         'INVALID_PARAM_GOMPERTZ': 32768,
         'INVALID_PARAM_CHISQUARE': 65536,
-        'INVALID_PARAM_KUMARASWAMY': 131072,        
+        'INVALID_PARAM_KUMARASWAMY': 131072,
         'INVALID_PARAM_DISCRETE': 262144,
         'INVALID_PARAM_KRON_DELTA': 524288,
         'INVALID_PARAM_DIRICHLET': 1048576,
@@ -433,9 +433,10 @@ class JaxRDDLCompiler:
         def _jax_wrapped_cast(x, key):
             val, key, err = jax_expr(x, key)
             sample = jnp.asarray(val, dtype=dtype)
-            invalid = jnp.logical_and(jnp.logical_not(jnp.can_cast(val, dtype)),
-                                      jnp.any(sample != val))
-            err |= (invalid * ERR)
+            invalid_cast = jnp.logical_and(
+                jnp.logical_not(jnp.can_cast(val, dtype)),
+                jnp.any(sample != val))
+            err |= (invalid_cast * ERR)
             return sample, key, err
         
         return _jax_wrapped_cast
@@ -449,7 +450,8 @@ class JaxRDDLCompiler:
         cached_value = self.traced.cached_sim_info(expr)
         
         def _jax_wrapped_constant(_, key):
-            return cached_value, key, NORMAL
+            sample = jnp.asarray(cached_value)
+            return sample, key, NORMAL
 
         return _jax_wrapped_constant
     
@@ -463,7 +465,8 @@ class JaxRDDLCompiler:
             cached_value = cached_info
 
             def _jax_wrapped_pvar_free_variable(_, key):
-                return cached_value, key, NORMAL
+                sample = jnp.asarray(cached_value)
+                return sample, key, NORMAL
             
             return _jax_wrapped_pvar_free_variable
         
@@ -472,7 +475,8 @@ class JaxRDDLCompiler:
             cached_literal = cached_info
             
             def _jax_wrapped_pvar_literal(_, key):
-                return cached_literal, key, NORMAL
+                sample = jnp.asarray(cached_literal)
+                return sample, key, NORMAL
             
             return _jax_wrapped_pvar_literal
         
@@ -480,7 +484,7 @@ class JaxRDDLCompiler:
         elif cached_info is None:
             
             def _jax_wrapped_pvar_scalar(x, key):
-                sample = x[var]
+                sample = jnp.asarray(x[var])
                 return sample, key, NORMAL
             
             return _jax_wrapped_pvar_scalar
@@ -540,8 +544,8 @@ class JaxRDDLCompiler:
                 sample = 1 * sample
             sample = jax_op(sample)
             if check_dtype is not None:
-                invalid = jnp.logical_not(jnp.can_cast(sample, check_dtype))
-                err |= (invalid * ERR)
+                invalid_cast = jnp.logical_not(jnp.can_cast(sample, check_dtype))
+                err |= (invalid_cast * ERR)
             return sample, key, err
         
         return _jax_wrapped_unary_op
@@ -559,10 +563,10 @@ class JaxRDDLCompiler:
             sample = jax_op(sample1, sample2)
             err = err1 | err2
             if check_dtype is not None:
-                invalid = jnp.logical_not(jnp.logical_and(
+                invalid_cast = jnp.logical_not(jnp.logical_and(
                     jnp.can_cast(sample1, check_dtype),
                     jnp.can_cast(sample2, check_dtype)))
-                err |= (invalid * ERR)
+                err |= (invalid_cast * ERR)
             return sample, key, err
         
         return _jax_wrapped_binary_op
@@ -647,8 +651,8 @@ class JaxRDDLCompiler:
             if is_floating:
                 sample = 1 * sample
             else:
-                invalid = jnp.logical_not(jnp.can_cast(sample, bool))
-                err |= (invalid * ERR)
+                invalid_cast = jnp.logical_not(jnp.can_cast(sample, bool))
+                err |= (invalid_cast * ERR)
             sample = jax_op(sample, axis=axes)
             return sample, key, err
         
@@ -710,8 +714,8 @@ class JaxRDDLCompiler:
             sample3, key, err3 = jax_false(x, key)
             sample = jax_op(sample1, sample2, sample3)
             err = err1 | err2 | err3
-            invalid = jnp.logical_not(jnp.can_cast(sample1, bool))
-            err |= (invalid * ERR)
+            invalid_cast = jnp.logical_not(jnp.can_cast(sample1, bool))
+            err |= (invalid_cast * ERR)
             return sample, key, err
             
         return _jax_wrapped_if_then_else
@@ -759,6 +763,32 @@ class JaxRDDLCompiler:
     # random variables
     # ===========================================================================
     
+    # distributions with complete reparameterization support:
+    # KronDelta: complete
+    # DiracDelta: complete
+    # Uniform: complete
+    # Bernoulli: complete (subclass uses Gumbel-softmax)
+    # Normal: complete
+    # Exponential: complete
+    # Weibull: complete
+    # Pareto: complete
+    # Gumbel: complete
+    # Laplace: complete
+    # Cauchy: complete
+    # Gompertz: complete
+    # Kumaraswamy: complete
+    # Discrete: complete (subclass uses Gumbel-softmax)
+    # UnnormDiscrete: complete (subclass uses Gumbel-softmax)
+    # Discrete(p): complete (subclass uses Gumbel-softmax)
+    # UnnormDiscrete(p): complete (subclass uses Gumbel-softmax)
+    
+    # distributions with incomplete reparameterization support (TODO):
+    # Poisson: (use truncation and Gumbel-softmax)
+    # Gamma, ChiSquare: (no shape reparameterization)
+    # Beta: (no reparameterization)
+    # Geometric: (implement safe floor)
+    # Student: (no reparameterization)
+    
     def _jax_random(self, expr):
         _, name = expr.etype
         if name == 'KronDelta':
@@ -767,16 +797,16 @@ class JaxRDDLCompiler:
             return self._jax_dirac(expr)
         elif name == 'Uniform':
             return self._jax_uniform(expr)
+        elif name == 'Bernoulli':
+            return self._jax_bernoulli(expr)
         elif name == 'Normal':
-            return self._jax_normal(expr)
+            return self._jax_normal(expr)  
+        elif name == 'Poisson':
+            return self._jax_poisson(expr)
         elif name == 'Exponential':
             return self._jax_exponential(expr)
         elif name == 'Weibull':
-            return self._jax_weibull(expr)   
-        elif name == 'Bernoulli':
-            return self._jax_bernoulli(expr)
-        elif name == 'Poisson':
-            return self._jax_poisson(expr)
+            return self._jax_weibull(expr) 
         elif name == 'Gamma':
             return self._jax_gamma(expr)
         elif name == 'Beta':
@@ -821,8 +851,9 @@ class JaxRDDLCompiler:
         # just check that the sample can be cast to int
         def _jax_wrapped_distribution_kron(x, key):
             sample, key, err = arg(x, key)
-            invalid = jnp.logical_not(jnp.can_cast(sample, JaxRDDLCompiler.INT))
-            err |= (invalid * ERR)
+            invalid_cast = jnp.logical_not(
+                jnp.can_cast(sample, JaxRDDLCompiler.INT))
+            err |= (invalid_cast * ERR)
             return sample, key, err
                         
         return _jax_wrapped_distribution_kron
@@ -1181,7 +1212,7 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(a), dtype=JaxRDDLCompiler.REAL)            
-            sample = (1.0 - U ** (1.0 / b)) ** (1.0 / a)
+            sample = jnp.power(1.0 - jnp.power(U, 1.0 / b), 1.0 / a)
             out_of_bounds = jnp.logical_not(jnp.all((a > 0) & (b > 0)))
             err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err

@@ -22,7 +22,7 @@ class RDDLEnv(gym.Env):
                  instance: str=None, 
                  enforce_action_constraints: bool=False,
                  debug: bool=False, 
-                 backend: RDDLSimulator=RDDLSimulator):
+                 backend: object=RDDLSimulator):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
