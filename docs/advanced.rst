@@ -30,11 +30,11 @@ For example, the planning problem in a deterministic environment can be formulat
 	\max_{a_1, \dots a_T} \sum_{t=1}^{T} R(s_t, a_t),\\
 	s_{t + 1} = f(s_t, a_t)
 	
-In continuous action spaces, it is possible to obtain a reasonable solution using gradient descent. More concretely, given a learning rate parameter :math:`\eta > 0` and a "guess" :math:`a_\tau`, gradient descent obtains a new estimate of the optimal action :math:`a_\tau'` at time :math:`\tau` via
+In continuous action spaces, it is possible to obtain a reasonable solution using gradient ascent. More concretely, given a learning rate parameter :math:`\eta > 0` and a "guess" :math:`a_\tau`, gradient ascent obtains a new estimate of the optimal action :math:`a_\tau'` at time :math:`\tau` via
 
 .. math::
 	
-	a_{\tau}' = a_{\tau} - \eta \sum_{t=1}^{T} \nabla_{a_\tau} R(s_t, a_t),
+	a_{\tau}' = a_{\tau} + \eta \sum_{t=1}^{T} \nabla_{a_\tau} R(s_t, a_t),
 	
 where the gradient of the reward at all times :math:`t \geq \tau` can be computed following the chain rule:
 
@@ -70,7 +70,7 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
         optimizer=optax.rmsprop(0.01),
         action_bounds={'action': (0.0, 2.0)})
       
-    # train for 1000 epochs using gradient descent
+    # train for 1000 epochs using gradient ascent
     # print progress every 50 epochs
     for callback in planner.optimize(epochs=1000, step=50):
     	print('step={} train_return={:.6f} test_return={:.6f}'.format(
