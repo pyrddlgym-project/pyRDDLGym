@@ -19,7 +19,7 @@ In pyRDDLGym, this can be done easily by specifying the backend:
 For the purpose of simulation, the default backend and the ``JaxRDDLSimulator`` are designed to be as interchangeable as possible, so the latter can be used in place of the former with identical outputs in most cases.
 All RDDL syntax (both new and old!) is already supported in the RDDL-to-JAX compiler.
 
-Autodiff of RDDL using JAX
+Planning in Deterministic Domains with JAX
 -------------------
 
 In many applications, such as planning in continuous control problems, it is desirable to compute gradients of RDDL expressions using autodiff. 
@@ -92,6 +92,20 @@ Re-Planning: Planning in Stochastic Domains
 In domains that have stochastic transitions, an open loop plan can be considerably suboptimal.
 In order to take into account the actual evolution of the state trajectory into the planning problem, it is possible to re-compute the optimal plan periodically in each state.
 This is often called "re-planning".
+
+Another problem of planning in stochastic domains is that the state transition function :math:`s_{t + 1} = f(s_t, a_t)` is no longer deterministic, and so the gradients are no longer well-defined in this formulation.
+pyRDDLGym works around this problem by using the reparameterization trick.
+To illustrate this in action, if :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)`, then after reparametization this becomes :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, and we can now back-propagate with respect to both state and action.
+The reparameterization trick can also work for other classes of probability distributions. Mathematically, we have
+
+.. math::
+
+    s_{t+1} \sim f(s_t, a_t, \xi_t)
+    
+where :math:`\xi_t` are i.i.d. random variables drawn from some concrete distribution. pyRDDLGym will automatically perform reparameterization as needed and whenever they are available.
+However, some probability distributions, such as the Beta distribution, are not naturally reparameterizable.
+For a small subset of them, like the Bernoulli and Discrete distribution, we offer good approximations backed by existing literature.
+For other distributions, the result of the derivative calculation can be unpredictable: either it could return an erroneous gradient (such as zero) or raise an exception.
 
 The ``JaxRDDLBackpropPlanner`` makes it relatively easy to do re-planning within the usual simulation loop.
 To do this, we need to pass a parameter ``rollout_horizon`` that specifies how far ahead the planner will look during optimization. This quantity overrides the default horizon specified in the RDDL instance.
