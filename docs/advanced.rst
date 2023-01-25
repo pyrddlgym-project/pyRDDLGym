@@ -85,6 +85,52 @@ The final action sequence can then be easily extracted from the final callback.
 	plan = planner.get_plan(callback['params'])
 	
 
+Re-Planning: Planning in Stochastic Domains
+-------------------
+
+In domains that have stochastic transitions, an open loop plan can be considerably suboptimal.
+In order to take into account the actual evolution of the state trajectory into the planning problem, it is possible to re-compute the optimal plan periodically in each state.
+This is often called "re-planning".
+
+The ``JaxRDDLBackpropPlanner`` makes it relatively easy to do re-planning within the usual simulation loop.
+To do this, we need to pass a parameter ``rollout_horizon`` that specifies how far ahead the planner will look during optimization. This quantity overrides the default horizon specified in the RDDL instance.
+
+.. code-block:: python
+
+    # specify the model
+    EnvInfo = ExampleManager.GetEnvInfo('Wildfire')
+    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
+    model = myEnv.model
+    
+    # initialize the planner with a roll-out horizon of 5
+    planner = JaxRDDLBackpropPlanner(
+        model, 
+        key=jax.random.PRNGKey(42), 
+        batch_size_train=32, 
+        batch_size_test=32,
+        rollout_horizon=5,
+        optimizer=optax.rmsprop(0.01))
+
+
+The optimizer can then be invoked at every decision step (or periodically), as shown below:
+
+.. code-block:: python
+
+    total_reward = 0
+    state = myEnv.reset()
+    for step in range(myEnv.horizon):
+        myEnv.render()
+        *_, callback = planner.optimize(500, 10, init_subs=myEnv.sampler.subs)
+        action = planner.get_plan(callback['params'])[0]
+        next_state, reward, done, _ = myEnv.step(action)
+        total_reward += reward 
+        ...
+        
+    print(f'episode ended with reward {total_reward}')
+    myEnv.close()
+
+By executing this code, and comparing the realized return to the one obtained by the code in the previous section, it is clear that re-planning can perform much better.
+
 Dealing with Non-Differentiable Expressions
 -------------------
 
