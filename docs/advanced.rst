@@ -102,13 +102,17 @@ The reparameterization trick can also work for other classes of probability dist
 
     s_{t+1} \sim f(s_t, a_t, \xi_t)
     
-where :math:`\xi_t` are i.i.d. random variables drawn from some concrete distribution. pyRDDLGym will automatically perform reparameterization as needed and whenever they are available.
-However, some probability distributions, such as the Beta distribution, are not naturally reparameterizable.
-For a small subset of them, like the Bernoulli and Discrete distribution, we offer good approximations backed by existing literature.
+where :math:`\xi_t` are i.i.d. random variables drawn from some concrete distribution. 
+For a detailed discussion of reparameterization in the context of planning by back-propagation, we refer to `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
+
+pyRDDLGym will automatically perform reparameterization as needed if it is possible to do so.
+However, some probability distributions, such as the Beta distribution, do not have tractable reparameterizations.
+For a small subset of them, like the Bernoulli and Discrete distribution, we offer efficient approximations backed by the existing literature (see, e.g. the Gumbel-softmax discussion below). 
 For other distributions, the result of the derivative calculation can be unpredictable: either it could return an erroneous gradient (such as zero) or raise an exception.
 
-The ``JaxRDDLBackpropPlanner`` makes it relatively easy to do re-planning within the usual simulation loop.
-To do this, we need to pass a parameter ``rollout_horizon`` that specifies how far ahead the planner will look during optimization. This quantity overrides the default horizon specified in the RDDL instance.
+The ``JaxRDDLBackpropPlanner`` makes it relatively easy to do re-planning in stochastic domains inside the usual simulation loop.
+To do this, the parameter ``rollout_horizon`` specifies how far ahead the planner will look during optimization at each time step. 
+This quantity overrides the default horizon specified in the RDDL instance.
 
 .. code-block:: python
 
@@ -125,7 +129,6 @@ To do this, we need to pass a parameter ``rollout_horizon`` that specifies how f
         batch_size_test=32,
         rollout_horizon=5,
         optimizer=optax.rmsprop(0.01))
-
 
 The optimizer can then be invoked at every decision step (or periodically), as shown below:
 
