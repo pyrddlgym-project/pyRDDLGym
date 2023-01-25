@@ -19,6 +19,27 @@ In pyRDDLGym, this can be done easily by specifying the backend:
 For the purpose of simulation, the default backend and the ``JaxRDDLSimulator`` are designed to be as interchangeable as possible, so the latter can be used in place of the former with identical outputs in most cases.
 All RDDL syntax (both new and old!) is already supported in the RDDL-to-JAX compiler.
 
+Logging RDDL Compilation
+-------------------
+
+For purposes such as debugging, it is possible to log information about the RDDL compilation to a file.
+
+.. code-block:: python
+	
+	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
+                            instance=EnvInfo.get_instance(0),
+                            debug=True)
+
+Upon executing this command, a log file is created with the name <domain name>_<instance name>.log in the installation's root directory.
+Currently, the following information is written in the generated log file:
+
+* description of pvariables as they are stored in memory (e.g., parameters, data type, data shape)
+* dependency graph between CPFs
+* calculated order of evaluation of CPFs
+* information used by the simulator and JAX compiler for operating on pvariables stored as arrays
+* simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
+* for JAX compilation, also prints the JAX compiled expressions corresponding to CPFs, reward and constraint expressions.
+
 Planning in Deterministic Domains with JAX
 -------------------
 
@@ -266,6 +287,7 @@ We cite several limitations of the current baseline JAX optimizer:
 	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
 	* if this is a concern, we recommend overriding some operations in ``ProductLogic`` to suit the user's needs
 * The parameter :math:`w` is fixed: support for annealing or otherwise modifying this value during optimization may be added in the future.
+* Termination conditions and state/action constraints are not considered in the optimization (but can be checked at test-time).
 
 The goal of the JAX optimizer was not to replicate the state-of-the-art, but to provide a simple baseline that can be easily built-on.
 However, we welcome any suggestions or modifications about how to improve this algorithm on a broader subset of RDDL.
