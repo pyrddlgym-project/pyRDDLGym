@@ -777,6 +777,8 @@ class RDDLSimulator:
             return self._sample_gompertz(expr, subs)
         elif name == 'ChiSquare':
             return self._sample_chisquare(expr, subs)
+        elif name == 'Kumaraswamy':
+            return self._sample_kumaraswamy(expr, subs)
         elif name == 'Discrete':
             return self._sample_discrete(expr, subs, unnorm=False)
         elif name == 'UnnormDiscrete':
@@ -997,6 +999,19 @@ class RDDLSimulator:
         sample_df = self._sample(df, subs)
         RDDLSimulator._check_positive(sample_df, True, 'ChiSquare df', expr)
         return self.rng.chisquare(df=sample_df)
+    
+    def _sample_kumaraswamy(self, expr, subs):
+        args = expr.args
+        RDDLSimulator._check_arity(args, 2, 'Kumaraswamy', expr)
+        
+        a, b = args
+        sample_a = self._sample(a, subs)
+        sample_b = self._sample(b, subs)
+        RDDLSimulator._check_positive(sample_a, True, 'Kumaraswamy a', expr)
+        RDDLSimulator._check_positive(sample_b, True, 'Kumaraswamy b', expr)
+        size = sample_a.shape if self.traced.cached_objects_in_scope(expr) else None
+        U = self.rng.uniform(size=size)
+        return (1.0 - U ** (1.0 / sample_b)) ** (1.0 / sample_a)
     
     # ===========================================================================
     # random variables with enum support
