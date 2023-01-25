@@ -1,4 +1,5 @@
 import copy
+import numpy as np
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
@@ -308,7 +309,8 @@ class RDDLLiftedModel(PlanningModel):
     def _extract_max_actions(self):
         numactions = self._AST.instance.max_nondef_actions
         if numactions == 'pos-inf':
-            self.max_allowed_actions = len(self.actions)
+            self.max_allowed_actions = sum(np.size(action) 
+                                           for action in self.actions.values())
         else:
             self.max_allowed_actions = int(numactions)
 
