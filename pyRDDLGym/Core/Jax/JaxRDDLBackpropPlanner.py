@@ -133,7 +133,8 @@ class JaxRDDLBackpropPlanner:
                  action_bounds: Dict={},
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
-                 logic: FuzzyLogic=ProductLogic()) -> None:
+                 logic: FuzzyLogic=ProductLogic(),
+                 use_symlog_reward: bool=True) -> None:
         '''Creates a new gradient-based algorithm for optimizing action sequences
         (plan) in the given RDDL. Some operations will be converted to their
         differentiable counterparts; the specific operations can be customized
@@ -153,6 +154,8 @@ class JaxRDDLBackpropPlanner:
         are performed
         :param logic: a subclass of FuzzyLogic for mapping exact mathematical
         operations to their differentiable counterparts 
+        :param use_symlog_reward: whether to use the symlog transform on the 
+        reward as a form of normalization
         '''
         self.rddl = rddl
         self.key = key
@@ -167,6 +170,7 @@ class JaxRDDLBackpropPlanner:
         self.initializer = initializer
         self.optimizer = optimizer
         self.logic = logic
+        self.use_symlog_reward = use_symlog_reward
         
         self._compile_rddl()
         self._compile_action_info()        
@@ -229,8 +233,10 @@ class JaxRDDLBackpropPlanner:
             n_batch=self.batch_size_test)
         
         # losses
-        self.train_loss = jax.jit(self._jax_loss(self.train_rollouts))
-        self.test_loss = jax.jit(self._jax_loss(self.test_rollouts))
+        self.train_loss = jax.jit(self._jax_loss(
+            self.train_rollouts, use_symlog=self.use_symlog_reward))
+        self.test_loss = jax.jit(self._jax_loss(
+            self.test_rollouts, use_symlog=False))
         
         # optimization
         self.initialize = jax.jit(self._jax_init(self.initializer, self.optimizer))
@@ -282,12 +288,17 @@ class JaxRDDLBackpropPlanner:
         
         return _jax_wrapped_plan_init
     
-    def _jax_loss(self, rollouts):
+    def _jax_loss(self, rollouts, use_symlog=False):
         
-        # the loss is the average return across all roll-outs
+        # the loss is the average cumulative reward across all roll-outs
+        # use symlog transformation sign(x) * ln(|x| + 1) for reward
         def _jax_wrapped_plan_loss(params, subs, key):
             logged, keys = rollouts(params, subs, key)
-            returns = jnp.sum(logged['reward'], axis=-1)
+            reward = logged['reward']
+            if use_symlog:
+                sign = self.compiled.KNOWN_UNARY['sgn']
+                reward = sign(reward) * jnp.log1p(jnp.abs(reward))
+            returns = jnp.sum(reward, axis=-1)
             logged['return'] = returns
             loss = -jnp.mean(returns)
             key = keys[-1]
