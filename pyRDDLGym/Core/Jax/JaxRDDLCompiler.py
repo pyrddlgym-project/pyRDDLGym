@@ -370,7 +370,7 @@ class JaxRDDLCompiler:
         19: 'Found KronDelta(x) distribution where x is not int nor bool.',
         20: 'Found Dirichlet(alpha) distribution where alpha < 0.',
         21: 'Found MultivariateStudent(mean, cov, df) distribution where df <= 0.',
-        22: 'Found Multinomial(p, n) distribution where either p < 0, p does not sum to 1, or n <= 0.',
+        22: 'Found Multinomial(n, p) distribution where either p < 0, p does not sum to 1, or n <= 0.',
         23: 'Found Binomial(n, p) distribution where either p < 0, p > 1, or n <= 0.',
         24: 'Found NegativeBinomial(n, p) distribution where either p < 0, p > 1, or n <= 0.'        
     }
@@ -1035,7 +1035,7 @@ class JaxRDDLCompiler:
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             key, subkey = random.split(key)
-            dist = tfp.distributions.Binomial(trials, probs=prob)
+            dist = tfp.distributions.Binomial(total_count=trials, probs=prob)
             sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
             out_of_bounds = jnp.logical_not(jnp.all(
                 (prob >= 0) & (prob <= 1) & (trials > 0)))
@@ -1059,7 +1059,8 @@ class JaxRDDLCompiler:
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             key, subkey = random.split(key)
-            dist = tfp.distributions.NegativeBinomial(trials, probs=prob)
+            dist = tfp.distributions.NegativeBinomial(
+                total_count=trials, probs=prob)
             sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
             out_of_bounds = jnp.logical_not(jnp.all(
                 (prob >= 0) & (prob <= 1) & (trials > 0)))
@@ -1456,19 +1457,20 @@ class JaxRDDLCompiler:
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_MULTINOMIAL']
         
         _, args = expr.args
-        prob, trials = args
-        jax_prob = self._jax(prob)
+        trials, prob = args
         jax_trials = self._jax(trials)
+        jax_prob = self._jax(prob)
         index, = self.traced.cached_sim_info(expr)
         
         def _jax_wrapped_distribution_multinomial(x, key):
-            prob, key, err1 = jax_prob(x, key)
-            trials, key, err2 = jax_trials(x, key)
+            trials, key, err1 = jax_trials(x, key)
+            prob, key, err2 = jax_prob(x, key)
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             num_trials = jnp.ravel(trials)[0]
             key, subkey = random.split(key)
-            dist = tfp.distributions.Multinomial(num_trials, probs=prob)
+            dist = tfp.distributions.Multinomial(
+                total_count=num_trials, probs=prob)
             sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
             sample = jnp.moveaxis(sample, source=-1, destination=index)
             out_of_bounds = jnp.logical_not(jnp.all(
