@@ -273,6 +273,20 @@ For example, the RDDL operation :math:`a \text{ ^ } b` can be replaced with a us
 
 A new instance of ``NewLogic`` can then be passed to ``JaxRDDLBackpropPlanner`` as described above.
 
+Reward Normalization
+-------------------
+
+Some domains have rewards that vary significantly in magnitude between time steps, making optimization difficult without some form of normalization.
+Following the suggestion `in this paper <https://arxiv.org/pdf/2301.04104v1.pdf>`_, pyRDDLGym applies the symlog transform to the sampled rewards during back-prop.
+Mathematically, symlog is defined as
+
+.. math::
+    
+    \mathrm{symlog}(x) = \mathrm{sign}(x) * \ln(|x| + 1)
+
+which compresses the magnitudes of large positive and negative outcomes.
+Enabled by default, the use of symlog can be controlled by the ``use_symlog_reward`` argument in ``JaxBackpropPlanner``.
+
 Limitations
 -------------------
 
