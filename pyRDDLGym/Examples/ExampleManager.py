@@ -29,6 +29,7 @@ EXP_DICT = {
     'WildlifePreserve' : ('Complex domain from IPPC 2018.', '/WildlifePreserve/', None),
     'NewLanguage' : ('Example with new language features.', '/NewLanguageExamples/NewLanguage/', None),
     'NewtonZero' : ('Example with Newton root-finding method.', '/NewLanguageExamples/NewtonZero/', None),
+    'Reservoir': ('Managing the water level in interconnected reservoirs.', '/Reservoir/', None)
 }
 
 

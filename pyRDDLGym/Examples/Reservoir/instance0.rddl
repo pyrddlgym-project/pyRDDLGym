@@ -119,6 +119,6 @@ instance is1 {
 	};
 
 	max-nondef-actions = 20;
-	horizon = 60;
+	horizon = 120;
 	discount = 1.0;
 }
