@@ -219,7 +219,7 @@ This logic can be passed to the planner as an optimal argument:
 Customizing the Differentiable Operations
 -------------------
 
-As of the time of this writing, pyRDDLGym only contains one implementation of differentiable logic, ``ProductLogic``.
+As of the time of this writing, pyRDDLGym only contains one implementation of differentiable logic, ``ProductLogic``, which is based on the `product t-norm fuzzy logic <https://en.wikipedia.org/wiki/T-norm_fuzzy_logics#Motivation>`_.
 The mathematical operations and their substitutions are summarized in the following table.
 Here, the user-specified parameter :math:`w` specifies the "sharpness" of the operation -- higher values mean the approximation becomes closer to its exact counterpart. 
 
