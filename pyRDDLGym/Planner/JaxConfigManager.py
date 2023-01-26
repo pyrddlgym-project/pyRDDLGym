@@ -6,6 +6,7 @@ from typing import Dict
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
+from pyRDDLGym.Core.Jax import JaxRDDLLogic
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 
@@ -31,7 +32,9 @@ def get(path: str) -> Dict[str, object]:
     opt_args['rddl'] = myEnv.model
     opt_args['key'] = jax.random.PRNGKey(opt_args['key'])
     opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(opt_args['learning_rate'])
+    opt_args['logic'] = getattr(JaxRDDLLogic, opt_args['logic'])(**opt_args['logic_kwargs'])
     del opt_args['learning_rate']
+    del opt_args['logic_kwargs']
     optimizer = JaxRDDLBackpropPlanner(**opt_args)
     
     # read the train/test arguments

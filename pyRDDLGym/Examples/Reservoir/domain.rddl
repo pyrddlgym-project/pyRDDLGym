@@ -7,7 +7,11 @@ domain reservoir {
     requirements = {
         reward-deterministic
     };
-
+	
+	types {
+		id: object;	
+	};
+	
     pvariables {
 
     	// Constant
