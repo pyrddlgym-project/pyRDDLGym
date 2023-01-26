@@ -62,7 +62,7 @@ class RDDLObjectsTracer:
         'MultivariateNormal': (1, 2),  # mean, covariance
         'MultivariateStudent': (1, 2, 0),  # mean, covariance, df
         'Dirichlet': (1,),  # weights
-        'Multinomial': (1, 0)  # distribution, trials
+        'Multinomial': (0, 1)  # trials, probabilities
     }
 
     def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
@@ -783,7 +783,7 @@ class RDDLObjectsTracer:
         
         # temporary: for multinomial the trials must not be parameterized for now
         if op == 'Multinomial':
-            _, trials = args
+            trials, _ = args
             _, trial_args = trials.args
             if trial_args:
                 raise RDDLNotImplementedError(

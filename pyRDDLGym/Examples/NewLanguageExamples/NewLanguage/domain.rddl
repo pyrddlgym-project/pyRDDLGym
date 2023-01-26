@@ -58,7 +58,7 @@ domain newsyntax {
 		alpha(?p) = 10 * COST(?p);
 		dirichlet-fluent'(?p) = Dirichlet[?p]( alpha(_) );
 		prob(?p) = alpha(?p) / ( sum_{?q2 : enum_level} [ alpha(?q2) ] );
-		multi-fluent'(?p, ?q) = Multinomial[?q]( prob(_), TRIALS );	
+		multi-fluent'(?p, ?q) = Multinomial[?q]( TRIALS, prob(_) );	
 		
 		// matrix algebra
 		det-fluent' = ( det_{?p, ?q : enum_level} gaussian-fluent'(?p, ?q) );

@@ -1144,9 +1144,9 @@ class RDDLSimulator:
         _, args = expr.args
         RDDLSimulator._check_arity(args, 2, 'Multinomial', expr)
         
-        prob, trials = args
-        sample_prob = self._sample(prob, subs)
-        sample_trials = self._sample(trials, subs)        
+        trials, prob = args
+        sample_trials = self._sample(trials, subs) 
+        sample_prob = self._sample(prob, subs)       
         RDDLSimulator._check_type(sample_trials, RDDLValueInitializer.INT, 'Multinomial trials', expr)
         RDDLSimulator._check_positive(sample_trials, False, 'Multinomial trials', expr)
         
