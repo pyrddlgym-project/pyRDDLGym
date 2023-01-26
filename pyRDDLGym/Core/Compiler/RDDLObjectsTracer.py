@@ -781,16 +781,6 @@ class RDDLObjectsTracer:
                 f'Internal error: distribution {op} is not supported.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
         
-        # temporary: for multinomial the trials must not be parameterized for now
-        if op == 'Multinomial':
-            trials, _ = args
-            _, trial_args = trials.args
-            if trial_args:
-                raise RDDLNotImplementedError(
-                    f'Multinomial distribution does not support parameterized '
-                    f'trials count (support will be added in a future release).\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
-        
         # check the number of sample parameters is correct
         if len(sample_pvars) != required_sample_pvars:
             raise RDDLInvalidNumberOfArgumentsError(

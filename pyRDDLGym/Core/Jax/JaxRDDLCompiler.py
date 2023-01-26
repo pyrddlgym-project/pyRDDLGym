@@ -1467,14 +1467,15 @@ class JaxRDDLCompiler:
             prob, key, err2 = jax_prob(x, key)
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
-            num_trials = jnp.ravel(trials)[0]
             key, subkey = random.split(key)
             dist = tfp.distributions.Multinomial(
-                total_count=num_trials, probs=prob)
+                total_count=trials, probs=prob)
             sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
             sample = jnp.moveaxis(sample, source=-1, destination=index)
             out_of_bounds = jnp.logical_not(jnp.all(
-                (prob >= 0) & (prob <= 1) & (trials > 0)))
+                (prob >= 0) & 
+                jnp.allclose(jnp.sum(prob, axis=-1), 1.0) & 
+                (trials > 0)))
             error = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, error            
         

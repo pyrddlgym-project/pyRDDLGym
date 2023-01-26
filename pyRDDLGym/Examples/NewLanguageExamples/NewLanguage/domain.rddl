@@ -14,7 +14,7 @@ domain newsyntax {
     pvariables {
 		COST(enum_level)  : { non-fluent , real , default = 1 };
 		NEXT(enum_level)  : { non-fluent , enum_level , default = @l1 };
-		TRIALS            : { non-fluent , int , default = 20 };
+		TRIALS(enum_level) : { non-fluent , int , default = 20 };
 		
         matrix(enum_level, enum_level) : { state-fluent , enum_level , default = @l1 };	
         vector(enum_level)             : { state-fluent , enum_level , default = @l1 };	
@@ -58,7 +58,7 @@ domain newsyntax {
 		alpha(?p) = 10 * COST(?p);
 		dirichlet-fluent'(?p) = Dirichlet[?p]( alpha(_) );
 		prob(?p) = alpha(?p) / ( sum_{?q2 : enum_level} [ alpha(?q2) ] );
-		multi-fluent'(?p, ?q) = Multinomial[?q]( TRIALS, prob(_) );	
+		multi-fluent'(?p, ?q) = Multinomial[?q]( TRIALS(?p), prob(_) );	
 		
 		// matrix algebra
 		det-fluent' = ( det_{?p, ?q : enum_level} gaussian-fluent'(?p, ?q) );
