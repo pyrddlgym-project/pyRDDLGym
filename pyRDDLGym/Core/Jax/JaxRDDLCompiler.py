@@ -1,8 +1,8 @@
-import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.random as random
 import jax.scipy as scipy 
+from tensorflow_probability.substrates import jax as tfp
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -342,7 +342,9 @@ class JaxRDDLCompiler:
         'INVALID_PARAM_KRON_DELTA': 524288,
         'INVALID_PARAM_DIRICHLET': 1048576,
         'INVALID_PARAM_MULTIVARIATE_STUDENT': 2097152,
-        'INVALID_PARAM_MULTINOMIAL': 4194304
+        'INVALID_PARAM_MULTINOMIAL': 4194304,
+        'INVALID_PARAM_BINOMIAL': 8388608,
+        'INVALID_PARAM_NEGATIVE_BINOMIAL': 16777216        
     }
     
     INVERSE_ERROR_CODES = {
@@ -368,7 +370,9 @@ class JaxRDDLCompiler:
         19: 'Found KronDelta(x) distribution where x is not int nor bool.',
         20: 'Found Dirichlet(alpha) distribution where alpha < 0.',
         21: 'Found MultivariateStudent(mean, cov, df) distribution where df <= 0.',
-        22: 'Found Multinomial(p, n) distribution where either p < 0, p does not sum to 1, or n <= 0.'
+        22: 'Found Multinomial(p, n) distribution where either p < 0, p does not sum to 1, or n <= 0.',
+        23: 'Found Binomial(n, p) distribution where either p < 0, p > 1, or n <= 0.',
+        24: 'Found NegativeBinomial(n, p) distribution where either p < 0, p > 1, or n <= 0.'        
     }
     
     @staticmethod
@@ -783,6 +787,8 @@ class JaxRDDLCompiler:
     # UnnormDiscrete(p): complete (subclass uses Gumbel-softmax)
     
     # distributions with incomplete reparameterization support (TODO):
+    # Binomial: (use truncation and Gumbel-softmax)
+    # NegativeBinomial: (no reparameterization)
     # Poisson: (use truncation and Gumbel-softmax)
     # Gamma, ChiSquare: (no shape reparameterization)
     # Beta: (no reparameterization)
@@ -809,6 +815,10 @@ class JaxRDDLCompiler:
             return self._jax_weibull(expr) 
         elif name == 'Gamma':
             return self._jax_gamma(expr)
+        elif name == 'Binomial':
+            return self._jax_binomial(expr)
+        elif name == 'NegativeBinomial':
+            return self._jax_negative_binomial(expr)
         elif name == 'Beta':
             return self._jax_beta(expr)
         elif name == 'Geometric':
@@ -1010,6 +1020,54 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gamma
     
+    def _jax_binomial(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BINOMIAL']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_trials, arg_prob = expr.args
+        jax_trials = self._jax(arg_trials)
+        jax_prob = self._jax(arg_prob)
+        
+        # uses the JAX substrate of tensorflow-probability
+        def _jax_wrapped_distribution_binomial(x, key):
+            trials, key, err2 = jax_trials(x, key)       
+            prob, key, err1 = jax_prob(x, key)
+            trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
+            prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
+            key, subkey = random.split(key)
+            dist = tfp.distributions.Binomial(trials, probs=prob)
+            sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
+            out_of_bounds = jnp.logical_not(jnp.all(
+                (prob >= 0) & (prob <= 1) & (trials > 0)))
+            err = err1 | err2 | (out_of_bounds * ERR)
+            return sample, key, err
+        
+        return _jax_wrapped_distribution_binomial
+    
+    def _jax_negative_binomial(self, expr):
+        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_NEGATIVE_BINOMIAL']
+        JaxRDDLCompiler._check_num_args(expr, 2)
+        
+        arg_trials, arg_prob = expr.args
+        jax_trials = self._jax(arg_trials)
+        jax_prob = self._jax(arg_prob)
+        
+        # uses the JAX substrate of tensorflow-probability
+        def _jax_wrapped_distribution_negative_binomial(x, key):
+            trials, key, err2 = jax_trials(x, key)       
+            prob, key, err1 = jax_prob(x, key)
+            trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
+            prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
+            key, subkey = random.split(key)
+            dist = tfp.distributions.NegativeBinomial(trials, probs=prob)
+            sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
+            out_of_bounds = jnp.logical_not(jnp.all(
+                (prob >= 0) & (prob <= 1) & (trials > 0)))
+            err = err1 | err2 | (out_of_bounds * ERR)
+            return sample, key, err
+        
+        return _jax_wrapped_distribution_negative_binomial    
+        
     def _jax_beta(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BETA']
         JaxRDDLCompiler._check_num_args(expr, 2)
@@ -1395,55 +1453,69 @@ class JaxRDDLCompiler:
         return _jax_wrapped_distribution_dirichlet
     
     def _jax_multinomial(self, expr):
-        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_MULTINOMIAL']
         
         _, args = expr.args
         prob, trials = args
         jax_prob = self._jax(prob)
         jax_trials = self._jax(trials)
-        jax_discrete = self._jax_discrete_helper()
         index, = self.traced.cached_sim_info(expr)
         
-        # samples from a discrete(prob), computes a one-hot mask w.r.t categories
-        def _jax_wrapped_multinomial_trial(_, values):
-            samples, errors, key, prob, categories = values
-            key, subkey = random.split(key)
-            sample, error = jax_discrete(prob, subkey)            
-            sample = sample[jnp.newaxis, ...]
-            masked = (sample == categories)
-            samples += masked
-            errors |= error
-            return (samples, errors, key, prob, categories)            
-            
         def _jax_wrapped_distribution_multinomial(x, key):
-            
-            # sample multinomial parameters
-            # note that # of trials must not be parameterized
             prob, key, err1 = jax_prob(x, key)
             trials, key, err2 = jax_trials(x, key)
+            trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
+            prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             num_trials = jnp.ravel(trials)[0]
-            out_of_bounds = jnp.logical_not(num_trials > 0)
+            key, subkey = random.split(key)
+            dist = tfp.distributions.Multinomial(num_trials, probs=prob)
+            sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
+            sample = jnp.moveaxis(sample, source=-1, destination=index)
+            out_of_bounds = jnp.logical_not(jnp.all(
+                (prob >= 0) & (prob <= 1) & (trials > 0)))
             error = err1 | err2 | (out_of_bounds * ERR)
-            
-            # create a categories mask that spans support of discrete(prob)
-            num_categories = prob.shape[-1]
-            categories = np.arange(num_categories)
-            categories = categories[(...,) + (jnp.newaxis,) * len(prob.shape[:-1])]
-            
-            # do a for loop over trials, accumulate category counts in samples
-            counts = jnp.zeros(shape=(num_categories,) + prob.shape[:-1],
-                               dtype=JaxRDDLCompiler.INT)
-            sample, err3, key, *_ = jax.lax.fori_loop(
-                lower=0,
-                upper=num_trials,
-                body_fun=_jax_wrapped_multinomial_trial,
-                init_val=(counts, NORMAL, key, prob, categories))
-            sample = jnp.moveaxis(sample, source=0, destination=index)
-            error |= err3
-            return sample, key, error
+            return sample, key, error            
         
         return _jax_wrapped_distribution_multinomial
+    
+        # jax_discrete = self._jax_discrete_helper()
+        # # samples from a discrete(prob), computes a one-hot mask w.r.t categories
+        # def _jax_wrapped_multinomial_trial(_, values):
+        #     samples, errors, key, prob, categories = values
+        #     key, subkey = random.split(key)
+        #     sample, error = jax_discrete(prob, subkey)            
+        #     sample = sample[jnp.newaxis, ...]
+        #     masked = (sample == categories)
+        #     samples += masked
+        #     errors |= error
+        #     return (samples, errors, key, prob, categories)            
+        #
+        # def _jax_wrapped_distribution_multinomial(x, key):
+        #
+        #     # sample multinomial parameters
+        #     # note that # of trials must not be parameterized
+        #     prob, key, err1 = jax_prob(x, key)
+        #     trials, key, err2 = jax_trials(x, key)
+        #     num_trials = jnp.ravel(trials)[0]
+        #     out_of_bounds = jnp.logical_not(num_trials > 0)
+        #     error = err1 | err2 | (out_of_bounds * ERR)
+        #
+        #     # create a categories mask that spans support of discrete(prob)
+        #     num_categories = prob.shape[-1]
+        #     categories = np.arange(num_categories)
+        #     categories = categories[(...,) + (jnp.newaxis,) * len(prob.shape[:-1])]
+        #
+        #     # do a for loop over trials, accumulate category counts in samples
+        #     counts = jnp.zeros(shape=(num_categories,) + prob.shape[:-1],
+        #                        dtype=JaxRDDLCompiler.INT)
+        #     sample, err3, key, *_ = jax.lax.fori_loop(
+        #         lower=0,
+        #         upper=num_trials,
+        #         body_fun=_jax_wrapped_multinomial_trial,
+        #         init_val=(counts, NORMAL, key, prob, categories))
+        #     sample = jnp.moveaxis(sample, source=0, destination=index)
+        #     error |= err3
+        #     return sample, key, error
     
     # ===========================================================================
     # matrix algebra
