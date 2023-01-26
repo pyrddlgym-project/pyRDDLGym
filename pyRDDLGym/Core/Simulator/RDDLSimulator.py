@@ -1149,23 +1149,23 @@ class RDDLSimulator:
         sample_prob = self._sample(prob, subs)       
         RDDLSimulator._check_type(sample_trials, RDDLValueInitializer.INT, 'Multinomial trials', expr)
         RDDLSimulator._check_positive(sample_trials, False, 'Multinomial trials', expr)
+        RDDLSimulator._check_positive(sample_prob, False, 'Discrete probabilities', expr)
         
-        # prepend a trial axis to sample_prob
+        # check valid PMF
+        cum_prob = np.sum(sample_prob, axis=-1)
+        if not np.allclose(cum_prob, 1.0):
+            raise RDDLValueOutOfRangeError(
+                f'Multinomial probabilities must sum to 1, got {cum_prob}.\n' + 
+                RDDLSimulator._print_stack_trace(expr))    
+            
+        # sample from the multinomial
         num_trials = int(sample_trials.flat[0])
-        shape = (num_trials,) + sample_prob.shape
-        sample_prob = sample_prob[np.newaxis, ...]
-        sample_prob = np.broadcast_to(sample_prob, shape=shape)
+        sample = self.rng.multinomial(n=num_trials, pvals=sample_prob)
         
-        # sample from the discrete distribution, convert to mask and sum trials
-        sample_discrete = self._sample_discrete_helper(sample_prob, False, expr)
-        num_categories = sample_prob.shape[-1]
-        masked = self._discrete_sample_to_mask(sample_discrete, num_categories)
-        sample = np.sum(masked, axis=1)
-        
-        # since the sampling is done in the first dimension we need to move it
+        # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
         index, = self.traced.cached_sim_info(expr)
-        sample = np.moveaxis(sample, source=0, destination=index)
+        sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
         
     # ===========================================================================
