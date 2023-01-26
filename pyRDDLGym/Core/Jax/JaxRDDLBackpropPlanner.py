@@ -296,8 +296,7 @@ class JaxRDDLBackpropPlanner:
             logged, keys = rollouts(params, subs, key)
             reward = logged['reward']
             if use_symlog:
-                sign = self.compiled.KNOWN_UNARY['sgn']
-                reward = sign(reward) * jnp.log1p(jnp.abs(reward))
+                reward = jnp.sign(reward) * jnp.log1p(jnp.abs(reward))
             returns = jnp.sum(reward, axis=-1)
             logged['return'] = returns
             loss = -jnp.mean(returns)
