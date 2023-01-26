@@ -8,6 +8,9 @@ non-fluents newsyntax_nf {
 		NEXT(@l1) = @l2;
 		NEXT(@l2) = @l3;
 		NEXT(@l3) = @l1;
+		TRIALS(@l1) = 10;
+		TRIALS(@l2) = 100;
+		TRIALS(@l3) = 1000;
 	};
 }
 

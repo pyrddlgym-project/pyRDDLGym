@@ -1134,12 +1134,6 @@ class RDDLSimulator:
         sample = np.moveaxis(sample, source=-1, destination=index)
         return sample
     
-    def _discrete_sample_to_mask(self, sample, num_categories):
-        categories = np.arange(num_categories)
-        categories = categories[(...,) + (np.newaxis,) * len(sample.shape)]
-        sample = sample[np.newaxis, ...]
-        return (sample == categories)
-        
     def _sample_multinomial(self, expr, subs):
         _, args = expr.args
         RDDLSimulator._check_arity(args, 2, 'Multinomial', expr)
@@ -1159,8 +1153,7 @@ class RDDLSimulator:
                 RDDLSimulator._print_stack_trace(expr))    
             
         # sample from the multinomial
-        num_trials = int(sample_trials.flat[0])
-        sample = self.rng.multinomial(n=num_trials, pvals=sample_prob)
+        sample = self.rng.multinomial(n=sample_trials, pvals=sample_prob)
         
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
