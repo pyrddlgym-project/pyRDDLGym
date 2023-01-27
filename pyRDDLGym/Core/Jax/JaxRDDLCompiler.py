@@ -121,7 +121,8 @@ class JaxRDDLCompiler:
             'min': jnp.minimum,
             'max': jnp.maximum,
             'pow': jnp.power,
-            'log': lambda x, y: jnp.log(x) / jnp.log(y)
+            'log': lambda x, y: jnp.log(x) / jnp.log(y),
+            'hypot': jnp.hypot
         }        
         self.CONTROL_OPS = {
             'if': jnp.where,

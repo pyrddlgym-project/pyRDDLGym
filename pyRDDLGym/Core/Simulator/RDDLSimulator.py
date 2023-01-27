@@ -103,7 +103,8 @@ class RDDLSimulator:
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
-            'log': lambda x, y: np.log(x) / np.log(y)
+            'log': lambda x, y: np.log(x) / np.log(y),
+            'hypot': np.hypot
         }
         self.CONTROL_OPS = {'if': np.where,
                             'switch': np.select}
