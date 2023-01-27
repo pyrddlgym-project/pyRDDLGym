@@ -421,7 +421,7 @@ As of the time of this writing, RDDL syntax supports the following mathematical
 operations:
 
 .. list-table:: Basic Math Functions
-   :widths: 60 60
+   :widths: 50 60
    :header-rows: 1
 
    * - RDDL syntax
@@ -444,7 +444,7 @@ operations:
      - the smallest integer greater than ``x``
 
 .. list-table:: Exponential and Logarithmic Functions
-   :widths: 60 60
+   :widths: 50 60
    :header-rows: 1
    
    * - RDDL syntax
@@ -630,7 +630,7 @@ Discrete Distributions
 RDDL currently supports the following discrete (int, bool or enumerated values) probability distributions:
 
 .. list-table:: Discrete Probability Distributions
-   :widths: 60 60
+   :widths: 100 60
    :header-rows: 1
    
    * - RDDL syntax
@@ -680,7 +680,7 @@ Continuous Distributions
 RDDL also currently supports the following continuous (real values) probability distributions:
 
 .. list-table:: Continuous Probability Distributions
-   :widths: 60 60
+   :widths: 100 60
    :header-rows: 1
    
    * - RDDL syntax
