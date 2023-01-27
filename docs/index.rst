@@ -13,3 +13,4 @@ Welcome to pyRDDLGym's documentation!
     install
     start
     advanced
+    rddl
