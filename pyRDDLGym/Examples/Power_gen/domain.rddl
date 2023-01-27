@@ -34,7 +34,7 @@ domain power_gen {
 	pvariables { 
     	
 		// Constants
-		PROD-UNITS-MIN(plant)      : { non-fluent, int,  default = 3   };
+		PROD-UNITS-MIN(plant)      : { non-fluent, int,  default = 0   };
 		PROD-UNITS-MAX(plant)      : { non-fluent, int,  default = 10  };
 		PROD-CHANGE-PENALTY(plant) : { non-fluent, real, default = 1.0 };
 		COST-PER-UNIT(plant)       : { non-fluent, real, default = 5.0 };
@@ -49,11 +49,10 @@ domain power_gen {
 		curProd(plant) : { action-fluent, int, default = 0 };
 
 		// State - int and real
-		prevProd(plant) : { state-fluent, int, default = 5 };
+		prevProd(plant) : { state-fluent, int, default = 0 };
 		temperature     : { state-fluent, real, default = 20 };
 		
 		// Derived and intermediate
-		prod(plant)      : { interm-fluent, real };
 		demand          : { interm-fluent, real };
 		fulfilledDemand : { interm-fluent,  real };
 
@@ -62,23 +61,22 @@ domain power_gen {
 	cpfs {
 
 		// State
-		prod(?p) = max[min[curProd(?p), PROD-UNITS-MAX(?p)], PROD-UNITS-MIN(?p)];
-		prevProd'(?p) = prod(?p);
+		prevProd'(?p) = curProd(?p);
 		temperature'  = Normal(temperature, TEMP-VARIANCE);
 		
 		// Demand -- a function of the current temperature,
 		//           empirically a U-shaped function with a minimum
 		//           at 11.7 C, here we use a simple quadratic model.
 		demand = MIN-CONSUMPTION + DEMAND-EXP-COEF * pow[ temperature - MIN-DEMAND-TEMP , 2 ];
-		fulfilledDemand = min[ demand, (sum_{?p : plant} prod(?p)) ];
+		fulfilledDemand = min[ demand, (sum_{?p : plant} curProd(?p)) ];
 
 	};
   
 	// cost of supply per plant, demand income, demand exceeds supply penalty, steady-state penalties
-	reward = [-(sum_{?p : plant} prod(?p) * COST-PER-UNIT(?p))]
+	reward = [-(sum_{?p : plant} curProd(?p) * COST-PER-UNIT(?p))]
 		     + (fulfilledDemand * INCOME-PER-UNIT)
 		     - (if (demand > fulfilledDemand) then UNFULFILLED-DEMAND-PENALTY else 0.0 )
-		     + (sum_{?p : plant} abs[ prod(?p) - prevProd(?p) ] * PROD-CHANGE-PENALTY(?p) );
+		     + (sum_{?p : plant} abs[ curProd(?p) - prevProd(?p) ] * PROD-CHANGE-PENALTY(?p) );
 	
 	action-preconditions {
 
