@@ -804,3 +804,35 @@ in the code above, i.e. ``?<value1>`` runs over the rows and
 ``?<value2>`` runs over the columns of the "matrix" produced by ``<expression>``. As with determinant,
 this calculation can be "batched" if ``<expression>`` is appropriately parameterized by other variables
 from the outer scope.
+
+Nested pVariables
+-------------------
+
+Another new language feature of RDDL is the ability to nest pVariable calculations. This offers
+much greater expressiveness of the RDDL language and allows much more complex reasoning
+to be carried out using enumerated values. The following is valid syntax
+
+.. code-block:: shell
+
+    <pvar_1>(..., <pvar_2>(?<value_1>, ?<value_2>, ...), 
+             <pvar_3>(?<value_1>, ?<value_2>, ...), ..., ?<value1>, ?<value_2>, ...)
+
+provided the types of ``?<value_#>`` match the definition of ``?<pvar_#>`` in the ``pvariables`` block.
+
+Nesting can also be performed to arbitrary depth, i.e.
+
+.. code-block:: shell
+
+    <pvar_1>(<pvar_2>(... <pvar_n>(<?value_1>, ...) ...))
+    
+provided the types of the variables are correct.
+
+Finally, it is possible to use a combination of enumerated values, objects and other pVariables as parameters
+when evaluating a pVariable
+
+.. code-block:: shell
+
+    <pvar>(<pvar_as_parameter>([?<object1>, ...]), @<enum_value>, ?<object>)
+    
+but care must be taken to ensure the ``@<enum_value>``, ``?<object>`` and ``<pvar_as_parameter>`` types match
+what is required by the outer ``<pvar>``.
