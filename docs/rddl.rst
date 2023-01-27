@@ -39,8 +39,8 @@ The block should be written in a .rddl file as the following:
         cpfs { <code> };
         reward = <code>;
         state-invariants { <code> }; // optional
-		action-preconditions { <code> }; // optional
-		termination { <code> }; // optional
+        action-preconditions { <code> }; // optional
+        termination { <code> }; // optional
     }
     
 Note that there should not be a semicolon at the end of the domain block.
@@ -579,7 +579,7 @@ such as sum and product are also supported:
 .. code-block:: shell
 
     sum_{?<obj1>: <object1_name>, [?<obj2>: <object2_name>, ...]} [<expression>]
-	prod_{?<obj1>: <object1_name>, [?<obj2>: <object2_name>, ...]} [<expression>]
+    prod_{?<obj1>: <object1_name>, [?<obj2>: <object2_name>, ...]} [<expression>]
 	
 Unlike the old RDDL specification, it is now possible to aggregate over enumerated values
 in addition to objects.
@@ -609,7 +609,7 @@ syntax:
 .. code-block:: shell
 
     argmin_{?<obj>: <object_name>} [<expression>]
-	argmax_{?<obj>: <object_name>} [<expression>]
+    argmax_{?<obj>: <object_name>} [<expression>]
 
 The first (second) expression returns the index of the object ``<obj>`` that minimizes 
 (maximizes) ``<expression>`` over all objects in ``<object_name>``. 
@@ -670,8 +670,8 @@ which is similar to aggregation:
 
 .. code-block:: shell
 
-    Discrete_{?<value> : <variable_name>}(<expression>(?<value>))
-    UnnormDiscrete_{?<value> : <variable_name>}(<expression>(?<value>))
+    Discrete_{?<value> : <variable_name>}( <expression>(?<value>) )
+    UnnormDiscrete_{?<value> : <variable_name>}( <expression>(?<value>) )
 
 where ``<expression>`` must be a real-valued expression or pVariable.
 
@@ -815,7 +815,7 @@ an expression ``<expression>`` parameterized by (at least) two values can be wri
 
 .. code-block:: shell
 
-    det_{?<value1>, ?<value2> : <variable_name>} <expression>(?<value1>, ?<value2>)
+    det_{?<value1>, ?<value2> : <variable_name>} <expression>( ?<value1>, ?<value2> )
     
 which can be viewed roughly as an aggregation over two variables of the same type.
 As with vectorized sampling, it is also possible to incorporate variables from 
@@ -823,13 +823,13 @@ the outer scope to serve as "batch" dimensions, i.e.
 
 .. code-block:: shell
 
-    det_{?<value1>, ?<value2> : <variable_name>} <expression>(?<value1>, ?<value2>, ?<value3>, ...)
+    det_{?<value1>, ?<value2> : <variable_name>} <expression>( ?<value1>, ?<value2>, ?<value3>, ... )
 
 The syntax for computing the matrix inverse of ``<expression>`` is
 
 .. code-block:: shell
 
-    inverse[row=?<value1>, col=?<value2>] <expression>(?<value1>, ?<value2>)
+    inverse[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
 
 Similar to vectorized sampling, the inverse operation produces a matrix rather than a scalar,
 so ``?<value1>`` and ``?<value2>`` must be variables defined in the outer scope 
