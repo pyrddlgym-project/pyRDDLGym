@@ -414,9 +414,6 @@ factor of 1 means the reward should have no difference with respect to time.
 Functions and Expressions
 -------------------
 
-Math Functions
-^^^^^^^^^^^^^^^^^^^
-
 As of the time of this writing, RDDL syntax supports the following mathematical
 operations:
 
@@ -443,6 +440,8 @@ operations:
    * - ``ceil[x]``
      - the smallest integer greater than ``x``
 
+the following exponential and logarithmic functions:
+
 .. list-table:: Exponential and Logarithmic Functions
    :widths: 50 60
    :header-rows: 1
@@ -460,6 +459,8 @@ operations:
    * - ``sqrt[x]``
      - the square root of ``x``
 
+and the following trigonometric functions:
+
 .. list-table:: Trigonometric Functions
    :widths: 60 60
    :header-rows: 1
@@ -473,7 +474,7 @@ operations:
    * - ``cosh[theta]``, ``sinh[theta]``, ``tanh[theta]``
      - the hyperbolic cosine, sine and tangent, respectively, of ``theta``
 
-The new language specification also adds the following:
+The new language specification also adds the following functions:
 
 .. list-table:: New Functions
    :widths: 60 60
@@ -715,7 +716,42 @@ RDDL also currently supports the following continuous (real values) probability 
      - Samples a real value from a Chi-Square distribution with degrees of freedom ``df``
    * - ``Kumaraswamy(a, b)``
      - Samples a real value from a Kumaraswamy distribution with parameters ``a`` and ``b``; this is a reparameterizable analogue of the Beta distribution
-     
+
+New Language Features
+-------------------
+
+Nested pVariables
+^^^^^^^^^^^^^^^^^^^
+
+Another new language feature of RDDL is the ability to nest pVariable calculations. This offers
+much greater expressiveness of the RDDL language and allows much more complex reasoning
+to be carried out using enumerated values. The following is valid syntax
+
+.. code-block:: shell
+
+    <pvar_1>(..., <pvar_2>(?<value_1>, ?<value_2>, ...), 
+             <pvar_3>(?<value_1>, ?<value_2>, ...), ..., ?<value1>, ?<value_2>, ...)
+
+provided the types of ``?<value_#>`` match the definition of ``?<pvar_#>`` in the ``pvariables`` block.
+
+Nesting can also be performed to arbitrary depth, i.e.
+
+.. code-block:: shell
+
+    <pvar_1>(<pvar_2>(... <pvar_n>(<?value_1>, ...) ...))
+    
+provided the types of the variables are correct.
+
+Finally, it is possible to use a combination of enumerated values, objects and other pVariables as parameters
+when evaluating a pVariable
+
+.. code-block:: shell
+
+    <pvar>(<pvar_as_parameter>([?<object1>, ...]), @<enum_value>, ?<object>)
+    
+but care must be taken to ensure the ``@<enum_value>``, ``?<object>`` and ``<pvar_as_parameter>`` types match
+what is required by the outer ``<pvar>``.
+
 Multivariable Distributions
 ^^^^^^^^^^^^^^^^^^^
 
@@ -769,9 +805,9 @@ degrees of freedom ``df``
 
     <cpf>(?<value>) = MultivariateStudent[?<value>]( mean(_), sigma(_, _), df );
 
-    
-Linear Algebra Operations
--------------------
+
+Matrix Operations on pVariables
+^^^^^^^^^^^^^^^^^^^
 
 The new RDDL language allows for matrix linear algebra to be performed over pVariables,
 as if they were matrices. For example, the determinant of the matrix described by 
@@ -804,35 +840,3 @@ in the code above, i.e. ``?<value1>`` runs over the rows and
 ``?<value2>`` runs over the columns of the "matrix" produced by ``<expression>``. As with determinant,
 this calculation can be "batched" if ``<expression>`` is appropriately parameterized by other variables
 from the outer scope.
-
-Nested pVariables
--------------------
-
-Another new language feature of RDDL is the ability to nest pVariable calculations. This offers
-much greater expressiveness of the RDDL language and allows much more complex reasoning
-to be carried out using enumerated values. The following is valid syntax
-
-.. code-block:: shell
-
-    <pvar_1>(..., <pvar_2>(?<value_1>, ?<value_2>, ...), 
-             <pvar_3>(?<value_1>, ?<value_2>, ...), ..., ?<value1>, ?<value_2>, ...)
-
-provided the types of ``?<value_#>`` match the definition of ``?<pvar_#>`` in the ``pvariables`` block.
-
-Nesting can also be performed to arbitrary depth, i.e.
-
-.. code-block:: shell
-
-    <pvar_1>(<pvar_2>(... <pvar_n>(<?value_1>, ...) ...))
-    
-provided the types of the variables are correct.
-
-Finally, it is possible to use a combination of enumerated values, objects and other pVariables as parameters
-when evaluating a pVariable
-
-.. code-block:: shell
-
-    <pvar>(<pvar_as_parameter>([?<object1>, ...]), @<enum_value>, ?<object>)
-    
-but care must be taken to ensure the ``@<enum_value>``, ``?<object>`` and ``<pvar_as_parameter>`` types match
-what is required by the outer ``<pvar>``.
