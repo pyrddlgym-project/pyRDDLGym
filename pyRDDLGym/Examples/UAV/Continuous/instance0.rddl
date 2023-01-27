@@ -51,7 +51,7 @@ instance simple_UAV_p0 {
  	};
 
 	max-nondef-actions = pos-inf;
-	horizon  = 20;
+	horizon  = 300;
 	discount = 1.0;
 
 }

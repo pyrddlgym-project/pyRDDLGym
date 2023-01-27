@@ -31,9 +31,9 @@ def get(path: str) -> Dict[str, object]:
     opt_args = {k: args[k] for (k, v) in config.items('Optimizer')}
     opt_args['rddl'] = myEnv.model
     opt_args['key'] = jax.random.PRNGKey(opt_args['key'])
-    opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(opt_args['learning_rate'])
+    opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(**opt_args['optimizer_kwargs'])
     opt_args['logic'] = getattr(JaxRDDLLogic, opt_args['logic'])(**opt_args['logic_kwargs'])
-    del opt_args['learning_rate']
+    del opt_args['optimizer_kwargs']
     del opt_args['logic_kwargs']
     optimizer = JaxRDDLBackpropPlanner(**opt_args)
     
