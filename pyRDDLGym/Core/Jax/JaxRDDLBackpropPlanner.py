@@ -289,6 +289,7 @@ class JaxRDDLBackpropPlanner:
         return _jax_wrapped_plan_init
     
     def _jax_loss(self, rollouts, use_symlog=False):
+        gamma = self.rddl.discount
         
         # the loss is the average cumulative reward across all roll-outs
         # use symlog transformation sign(x) * ln(|x| + 1) for reward
@@ -297,6 +298,10 @@ class JaxRDDLBackpropPlanner:
             reward = logged['reward']
             if use_symlog:
                 reward = jnp.sign(reward) * jnp.log1p(jnp.abs(reward))
+            if gamma < 1:
+                discount = jnp.power(gamma, jnp.arange(reward.shape[-1]))
+                discount = discount[jnp.newaxis, ...]
+                reward = reward * discount
             returns = jnp.sum(reward, axis=-1)
             logged['return'] = returns
             loss = -jnp.mean(returns)

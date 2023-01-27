@@ -62,7 +62,8 @@ domain cart_pole_continuous {
     };
 
     // R = 1 as long as the pole is upright and the cart is not out of bounds
-    reward = 1.0;
+    reward = if (pos < -POS-LIMIT | pos > POS-LIMIT | ang-pos < -ANG-LIMIT | ang-pos > ANG-LIMIT) 
+				then 0 else 1;
 
     termination {
 		pos < -POS-LIMIT | pos > POS-LIMIT;
