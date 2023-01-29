@@ -61,7 +61,7 @@ domain newsyntax {
 		multi-fluent'(?p, ?q) = Multinomial[?q]( TRIALS(?p), prob(_) );	
 		
 		// matrix algebra
-		det-fluent' = ( det_{?p, ?q : enum_level} gaussian-fluent'(?p, ?q) );
+		det-fluent' = ( det_{?p : enum_level, ?q : enum_level} gaussian-fluent'(?p, ?q) );
 		inv-fluent'(?p, ?q) = inverse[row=?p, col=?q][ gaussian-fluent'(?p, ?q) ];
     };
 

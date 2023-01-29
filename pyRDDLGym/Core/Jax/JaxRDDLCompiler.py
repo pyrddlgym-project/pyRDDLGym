@@ -1530,7 +1530,9 @@ class JaxRDDLCompiler:
         if op == 'det':
             return self._jax_matrix_det(expr)
         elif op == 'inverse':
-            return self._jax_matrix_inv(expr)
+            return self._jax_matrix_inv(expr, pseudo=False)
+        elif op == 'pinverse':
+            return self._jax_matrix_inv(expr, pseudo=True)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operation {op} is not supported.\n' + 
@@ -1547,14 +1549,15 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_matrix_operation_det
     
-    def _jax_matrix_inv(self, expr):
+    def _jax_matrix_inv(self, expr, pseudo):
         _, arg = expr.args
         jax_arg = self._jax(arg)
         indices = self.traced.cached_sim_info(expr)
+        op = jnp.linalg.pinv if pseudo else jnp.linalg.inv
         
         def _jax_wrapped_matrix_operation_inv(x, key):
             sample_arg, key, error = jax_arg(x, key)
-            sample = jnp.linalg.inv(sample_arg)
+            sample = op(sample_arg)
             sample = jnp.moveaxis(sample, source=(-2, -1), destination=indices)
             return sample, key, error
         
