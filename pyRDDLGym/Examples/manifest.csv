@@ -1,20 +1,20 @@
 name,description,location
-'CartPole continuous',"'A simple continuous state-action MDP for the classical cart-pole system by Rich Sutton, with actions that describe the continuous force applied to the cart.'",/CartPole/Continuous/
-'CartPole discrete',"'A simple continuous state MDP for the classical cart-pole system by Rich Sutton, with discrete actions that apply a constant force on either the left or right side of the cart.'",/CartPole/Discrete/
-'Elevators','The Elevator domain models evening rush hours when people from different floors in a building want to go down to the bottom floor using elevators.',/Elevator/
-'MarsRover',"'Multi Rover Navigation, where a group of agent needs to harvest mineral.'",/Mars_rover/
-'MountainCar','A simple continuous MDP for the classical mountain car control problem.',/MountainCar/
-'NewLanguage','Example with new language features.',/NewLanguageExamples/NewLanguage/
-'NewtonZero','Example with Newton root-finding method.',/NewLanguageExamples/NewtonZero/
-'PowerGeneration','A simple power generation problem loosely modeled on the problem of unit commitment.',/Power_gen/
-'PropDBN','Simple propositional DBN.',/PropDBN/
-'RaceCar','A simple continuous MDP for the racecar problem.',/Racecar/
-'RecSim',"'A problem of recommendation systems, with consumers and providers.'",/Recsim/
-'Reservoir','Management of the water level in interconnected reservoirs.',/Reservoir/
-'SupplyChain','A supply chain with factory and multiple warehouses.',/Supply_Chain/
-'Traffic','BLX/QTM traffic model.',/Traffic/
-'UAV continuous','Continuous action space version of multi-UAV problem where a group of UAVs have to reach goal positions in  in the 3d Space.',/UAV/Continuous/
-'UAV discrete','Discrete action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.',/UAV/Discrete/
-'UAV mixed','Mixed action space version of multi-UAV problem where a group of UAVs have to reach goal positions in  in the 3d Space.',/UAV/Mixed/
-'Wildfire','A boolean version of the wildfire fighting domain.',/Wildfire/
-'WildlifePreserve','Complex domain from IPPC 2018.',/WildlifePreserve/
+CartPole continuous,"A simple continuous state-action MDP for the classical cart-pole system by Rich Sutton, with actions that describe the continuous force applied to the cart.",/CartPole/Continuous/
+CartPole discrete,"A simple continuous state MDP for the classical cart-pole system by Rich Sutton, with discrete actions that apply a constant force on either the left or right side of the cart.",/CartPole/Discrete/
+Elevators,The Elevator domain models evening rush hours when people from different floors in a building want to go down to the bottom floor using elevators.,/Elevator/
+MarsRover,"Multi Rover Navigation, where a group of agent needs to harvest mineral.",/Mars_rover/
+MountainCar,A simple continuous MDP for the classical mountain car control problem.,/MountainCar/
+NewLanguage,Example with new language features.,/NewLanguageExamples/NewLanguage/
+NewtonZero,Example with Newton root-finding method.,/NewLanguageExamples/NewtonZero/
+PowerGeneration,A simple power generation problem loosely modeled on the problem of unit commitment.,/Power_gen/
+PropDBN,Simple propositional DBN.,/PropDBN/
+RaceCar,A simple continuous MDP for the racecar problem.,/Racecar/
+RecSim,"A problem of recommendation systems, with consumers and providers.",/Recsim/
+Reservoir,Management of the water level in interconnected reservoirs.,/Reservoir/
+SupplyChain,A supply chain with factory and multiple warehouses.,/Supply_Chain/
+Traffic,BLX/QTM traffic model.,/Traffic/
+UAV continuous,Continuous action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Continuous/
+UAV discrete,Discrete action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Discrete/
+UAV mixed,Mixed action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Mixed/
+Wildfire,A boolean version of the wildfire fighting domain.,/Wildfire/
+WildlifePreserve,Complex domain from IPPC 2018.,/WildlifePreserve/
