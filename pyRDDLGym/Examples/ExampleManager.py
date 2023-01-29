@@ -1,7 +1,8 @@
+import configparser
+import csv
 import os
 import re
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, RDDLInstanceNotExist
-from pyRDDLGym.Examples import Manifest
 
 # EXP_DICT = {
 #     'CartPole discrete' : ('A simple continuous state MDP for the classical cart-pole system by Rich Sutton, '
@@ -33,25 +34,56 @@ from pyRDDLGym.Examples import Manifest
 #     'Reservoir': ('Managing the water level in interconnected reservoirs.', '/Reservoir/', None)
 # }
 
-EXP_DICT = Manifest.load()
 
-# class RDDLEnvironmentNotExist(ValueError):
-#     pass
+def rebuild():
+    path = os.path.dirname(os.path.abspath(__file__))    
+    path_to_manifest = os.path.join(path, 'manifest.csv')
+    with open(path_to_manifest, 'w', newline='') as file:
+        
+        # write the header for the manifest
+        writer = csv.writer(file, delimiter=',')
+        writer.writerow(['name', 'description', 'location'])
+        
+        # walk through current folder to find valid domains
+        for dirpath, _, filenames in os.walk(path):
+            if 'domain.info' in filenames:
+                infopath = os.path.join(dirpath, 'domain.info')
+                config = configparser.RawConfigParser()
+                config.optionxform = str 
+                config.read(infopath)
+                general = dict(config.items('General'))
+                name = general.get('name', None)
+                desc = general.get('description', None)
+                loc = dirpath[len(path):]
+                loc = loc.replace('\\', '/') + '/'
+                writer.writerow([name, desc, loc])
 
 
-class RDDLInstanceNotExist(ValueError):
-    pass
+def load():
+    EXP_DICT = {}
+    path = os.path.dirname(os.path.abspath(__file__))
+    path_to_manifest = os.path.join(path, 'manifest.csv')
+    if os.path.isfile(path_to_manifest):
+        with open(path_to_manifest) as file:
+            reader = csv.reader(file, delimiter=',')
+            for i, row in enumerate(reader):
+                if i > 0:
+                    key, *entries = row
+                    EXP_DICT[key] = tuple(entries) + (None,)
+    return EXP_DICT
 
 
 class ExampleManager:
-
+    
+    EXP_DICT = load()
+    
     def __init__(self, env: str):
         self.env = env
-        if env not in EXP_DICT:
-            raise RDDLEnvironmentNotExist("Environment {} does not exist".format(env) +
+        if env not in ExampleManager.EXP_DICT:
+            raise RDDLEnvironmentNotExist("Environment {} does not exist".format(env) + 
                                           ExampleManager._print_stack_trace(env))
 
-        self.path_to_env = os.path.dirname(os.path.abspath(__file__)) + EXP_DICT[env][1]
+        self.path_to_env = os.path.dirname(os.path.abspath(__file__)) + ExampleManager.EXP_DICT[env][1]
 
     def get_domain(self):
         domain = self.path_to_env + 'domain.rddl'
@@ -70,15 +102,15 @@ class ExampleManager:
         instance = 'instance' + str(num) + '.rddl'
         if not os.path.exists(self.path_to_env + instance):
             raise RDDLInstanceNotExist(
-                "instance {} does not exist for example environment {}".format(instance, self.env) +
+                "instance {} does not exist for example environment {}".format(instance, self.env) + 
                 ExampleManager._print_stack_trace(instance))
         return self.path_to_env + instance
 
     def get_visualizer(self):
         viz = None
-        if EXP_DICT[self.env][2]:
-            viz_package_name = 'pyRDDLGym.Visualizer.' + EXP_DICT[self.env][2] + 'Viz'
-            viz_class_name = EXP_DICT[self.env][2] + 'Visualizer'
+        if ExampleManager.EXP_DICT[self.env][2]:
+            viz_package_name = 'pyRDDLGym.Visualizer.' + ExampleManager.EXP_DICT[self.env][2] + 'Viz'
+            viz_class_name = ExampleManager.EXP_DICT[self.env][2] + 'Visualizer'
             viz_package = __import__(viz_package_name, {}, {}, viz_class_name)
             viz = getattr(viz_package, viz_class_name)
         return viz
@@ -86,9 +118,16 @@ class ExampleManager:
     @staticmethod
     def ListExamples():
         print("Available example environment:")
-        for key in EXP_DICT:
-            print(key + " -> " + EXP_DICT[key][0])
-
+        for key in ExampleManager.EXP_DICT:
+            print(key + " -> " + ExampleManager.EXP_DICT[key][0])
+    
+    @staticmethod
+    def RebuildExamples():
+        print("Building examples from directory:")
+        rebuild()
+        ExampleManager.EXP_DICT = load()
+        ExampleManager.ListExamples()
+        
     @staticmethod
     def GetEnvInfo(env):
         return ExampleManager(env)
