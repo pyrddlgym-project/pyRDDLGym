@@ -38,6 +38,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, 
 def rebuild():
     path = os.path.dirname(os.path.abspath(__file__))    
     path_to_manifest = os.path.join(path, 'manifest.csv')
+    
+    print("Building examples manifest from Examples directory:")
     with open(path_to_manifest, 'w', newline='') as file:
         
         # write the header for the manifest
@@ -60,16 +62,18 @@ def rebuild():
 
 
 def load():
-    EXP_DICT = {}
     path = os.path.dirname(os.path.abspath(__file__))
     path_to_manifest = os.path.join(path, 'manifest.csv')
-    if os.path.isfile(path_to_manifest):
-        with open(path_to_manifest) as file:
-            reader = csv.reader(file, delimiter=',')
-            for i, row in enumerate(reader):
-                if i > 0:
-                    key, *entries = row
-                    EXP_DICT[key] = tuple(entries) + (None,)
+    if not os.path.isfile(path_to_manifest):
+        return {}
+        
+    EXP_DICT = {}
+    with open(path_to_manifest) as file:
+        reader = csv.reader(file, delimiter=',')
+        for i, row in enumerate(reader):
+            if i > 0:
+                key, *entries = row
+                EXP_DICT[key] = tuple(entries) + (None,)
     return EXP_DICT
 
 
@@ -79,6 +83,10 @@ class ExampleManager:
     
     def __init__(self, env: str):
         self.env = env
+        
+        if not ExampleManager.EXP_DICT:
+            ExampleManager.RebuildExamples()
+            
         if env not in ExampleManager.EXP_DICT:
             raise RDDLEnvironmentNotExist("Environment {} does not exist".format(env) + 
                                           ExampleManager._print_stack_trace(env))
@@ -123,7 +131,6 @@ class ExampleManager:
     
     @staticmethod
     def RebuildExamples():
-        print("Building examples from directory:")
         rebuild()
         ExampleManager.EXP_DICT = load()
         ExampleManager.ListExamples()
