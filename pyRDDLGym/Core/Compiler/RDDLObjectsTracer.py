@@ -874,7 +874,9 @@ class RDDLObjectsTracer:
         if op == 'det':
             self._trace_matrix_det(expr, objects, out)
         elif op == 'inverse':
-            self._trace_matrix_inv(expr, objects, out)
+            self._trace_matrix_inv(expr, objects, out, pseudo=False)
+        elif op == 'pinverse':
+            self._trace_matrix_inv(expr, objects, out, pseudo=True)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: matrix operation {op} is not supported.\n' + 
@@ -883,10 +885,23 @@ class RDDLObjectsTracer:
     def _trace_matrix_det(self, expr, objects, out):
         * pvars, arg = expr.args
         
-        # cache and read reduced axes tensor info for the aggregation
-        # axes of new free variables in aggregation are appended to value array
+        # validate types according to aggregation rule
         iter_objects = [ptype for (_, ptype) in pvars]
         self._check_iteration_variables(objects, iter_objects, expr)
+        
+        # check that matrix is square
+        pvar1, pvar2 = iter_objects
+        _, ptype1 = pvar1
+        _, ptype2 = pvar2
+        n1, n2 = self.rddl.object_counts((ptype1, ptype2))      
+        if n1 != n2:
+            raise RDDLInvalidObjectError(
+                f'Matrix in det operation must be square, '
+                f'got {n1} objects of type <{ptype1}> '
+                f'and {n2} objects of type <{ptype2}>.\n' + 
+                RDDLObjectsTracer._print_stack_trace(expr))
+        
+        # axes of new free variables in aggregation are appended to value array
         new_objects = objects + iter_objects
         reduced_axes = tuple(range(len(objects), len(new_objects)))   
         cached_sim_info = (new_objects, reduced_axes)
@@ -896,21 +911,21 @@ class RDDLObjectsTracer:
         
         # argument cannot be enum type
         RDDLObjectsTracer._check_not_enum(
-            arg, expr, out, f'Argument of matrix determinant')     
+            arg, expr, out, f'Argument of matrix det')     
         
         out._append(expr, objects, None, cached_sim_info)
         
-        # log information about aggregation operation
+        # log information about matrix operation
         if self.logger is not None:
             message = (f'computing object info for matrix operation:'
-                       f'\n\taggregation variables(s)      ={pvars}'
+                       f'\n\tmatrix operation              =det'
+                       f'\n\tdimension variables(s)        ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'
                        f'\n\tfree object(s) in inner scope ={new_objects}'
-                       f'\n\taggregation operation         =det'
-                       f'\n\taggregation axes              ={reduced_axes}\n')
+                       f'\n\treduction axes                ={reduced_axes}\n')
             self.logger.log(message)        
         
-    def _trace_matrix_inv(self, expr, objects, out):
+    def _trace_matrix_inv(self, expr, objects, out, pseudo):
         _, op = expr.etype
         pvars, arg = expr.args
         
@@ -928,19 +943,22 @@ class RDDLObjectsTracer:
         if pvar1 == pvar2:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Row and column parameters of {op} must differ, '
-                f'got {pvar1} and {pvar2}.\n' + 
+                f'got <{pvar1}> and <{pvar2}>.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
             
-        # check that pvars belong to the same type
+        # for regular inverse, check that matrix is square
         index_pvar1 = scope_pvars[pvar1]
         index_pvar2 = scope_pvars[pvar2]
         _, ptype1 = objects[index_pvar1]
         _, ptype2 = objects[index_pvar2]
-        if ptype1 != ptype2:
-            raise RDDLInvalidObjectError(
-                f'Row or column parameter(s) of {op} must be the same type, '
-                f'got {pvar1} of type {ptype1} and {pvar2} of type {ptype2}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+        if not pseudo:
+            n1, n2 = self.rddl.object_counts((ptype1, ptype2))        
+            if n1 != n2:
+                raise RDDLInvalidObjectError(
+                    f'Matrix in {op} operation must be square, '
+                    f'got {n1} objects of type <{ptype1}> '
+                    f'and {n2} objects of type <{ptype2}>.\n' + 
+                    RDDLObjectsTracer._print_stack_trace(expr))
         
         # move the matrix parameters to end of objects
         batch_objects = [pvar for pvar in objects if pvar[0] not in scope_pvars]
@@ -951,9 +969,18 @@ class RDDLObjectsTracer:
         
         # argument cannot be enum type
         RDDLObjectsTracer._check_not_enum(
-            arg, expr, out, f'Argument of matrix inverse')     
+            arg, expr, out, f'Argument of matrix {op}')     
         
         # save the location of the moved indices in objects
         pvar_indices = (index_pvar1, index_pvar2)
         out._append(expr, objects, None, pvar_indices)
         
+        # log information about matrix operation
+        if self.logger is not None:
+            message = (f'computing object info for matrix operation:'
+                       f'\n\tmatrix operation              ={op}'
+                       f'\n\tdimension variables(s)        ={pvars}'
+                       f'\n\tfree object(s) in outer scope ={objects}'
+                       f'\n\tfree object(s) in inner scope ={new_objects}'
+                       f'\n\tindices in outer scope        ={pvar_indices}\n')
+            self.logger.log(message)        
