@@ -34,7 +34,6 @@ def load():
         reader = csv.reader(file, delimiter=',')
         for i, row in enumerate(reader):
             if i > 0:
-                row = [cell.replace('\'', '') for cell in row]
                 key, *entries = row
                 EXP_DICT[key] = tuple(entries) + (None,)
     return EXP_DICT
