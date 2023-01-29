@@ -827,7 +827,7 @@ class RDDLSimulator:
         sample_lb = self._sample(lb, subs)
         sample_ub = self._sample(ub, subs)
         RDDLSimulator._check_bounds(sample_lb, sample_ub, 'Uniform', expr)
-        return self.rng.uniform(sample_lb, sample_ub)      
+        return self.rng.uniform(low=sample_lb, high=sample_ub)      
     
     def _sample_bernoulli(self, expr, subs):
         args = expr.args
@@ -848,7 +848,7 @@ class RDDLSimulator:
         sample_var = self._sample(var, subs)
         RDDLSimulator._check_positive(sample_var, False, 'Normal variance', expr)  
         sample_std = np.sqrt(sample_var)
-        return self.rng.normal(sample_mean, sample_std)
+        return self.rng.normal(loc=sample_mean, scale=sample_std)
     
     def _sample_poisson(self, expr, subs):
         args = expr.args
@@ -857,7 +857,7 @@ class RDDLSimulator:
         rate, = args
         sample_rate = self._sample(rate, subs)
         RDDLSimulator._check_positive(sample_rate, False, 'Poisson rate', expr)        
-        return self.rng.poisson(sample_rate)
+        return self.rng.poisson(lam=sample_rate)
     
     def _sample_exponential(self, expr, subs):
         args = expr.args
@@ -866,7 +866,7 @@ class RDDLSimulator:
         scale, = expr.args
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_scale, True, 'Exponential rate', expr)
-        return self.rng.exponential(sample_scale)
+        return self.rng.exponential(scale=sample_scale)
     
     def _sample_weibull(self, expr, subs):
         args = expr.args
@@ -877,7 +877,7 @@ class RDDLSimulator:
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Weibull shape', expr)
         RDDLSimulator._check_positive(sample_scale, True, 'Weibull scale', expr)
-        return sample_scale * self.rng.weibull(sample_shape)
+        return sample_scale * self.rng.weibull(a=sample_shape)
     
     def _sample_gamma(self, expr, subs):
         args = expr.args
@@ -888,7 +888,7 @@ class RDDLSimulator:
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Gamma shape', expr)            
         RDDLSimulator._check_positive(sample_scale, True, 'Gamma scale', expr)        
-        return self.rng.gamma(sample_shape, sample_scale)
+        return self.rng.gamma(shape=sample_shape, scale=sample_scale)
     
     def _sample_binomial(self, expr, subs):
         args = expr.args
@@ -900,7 +900,7 @@ class RDDLSimulator:
         RDDLSimulator._check_type(sample_count, RDDLValueInitializer.INT, 'Binomial count', expr)
         RDDLSimulator._check_positive(sample_count, False, 'Binomial count', expr)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'Binomial p', expr)
-        return self.rng.binomial(sample_count, sample_pr)
+        return self.rng.binomial(n=sample_count, p=sample_pr)
     
     def _sample_negative_binomial(self, expr, subs):
         args = expr.args
@@ -911,7 +911,7 @@ class RDDLSimulator:
         sample_pr = self._sample(pr, subs)
         RDDLSimulator._check_positive(sample_count, True, 'NegativeBinomial r', expr)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'NegativeBinomial p', expr)        
-        return self.rng.negative_binomial(sample_count, sample_pr)
+        return self.rng.negative_binomial(n=sample_count, p=sample_pr)
     
     def _sample_beta(self, expr, subs):
         args = expr.args
@@ -922,7 +922,7 @@ class RDDLSimulator:
         sample_rate = self._sample(rate, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Beta shape', expr)
         RDDLSimulator._check_positive(sample_rate, True, 'Beta rate', expr)        
-        return self.rng.beta(sample_shape, sample_rate)
+        return self.rng.beta(a=sample_shape, b=sample_rate)
 
     def _sample_geometric(self, expr, subs):
         args = expr.args
@@ -931,7 +931,7 @@ class RDDLSimulator:
         pr, = args
         sample_pr = self._sample(pr, subs)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'Geometric p', expr)        
-        return self.rng.geometric(sample_pr)
+        return self.rng.geometric(p=sample_pr)
     
     def _sample_pareto(self, expr, subs):
         args = expr.args
@@ -942,7 +942,7 @@ class RDDLSimulator:
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Pareto shape', expr)        
         RDDLSimulator._check_positive(sample_scale, True, 'Pareto scale', expr)        
-        return sample_scale * self.rng.pareto(sample_shape)
+        return sample_scale * self.rng.pareto(a=sample_shape)
     
     def _sample_student(self, expr, subs):
         args = expr.args
@@ -951,7 +951,7 @@ class RDDLSimulator:
         df, = args
         sample_df = self._sample(df, subs)
         RDDLSimulator._check_positive(sample_df, True, 'Student df', expr)            
-        return self.rng.standard_t(sample_df)
+        return self.rng.standard_t(df=sample_df)
 
     def _sample_gumbel(self, expr, subs):
         args = expr.args
@@ -961,7 +961,7 @@ class RDDLSimulator:
         sample_mean = self._sample(mean, subs)
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_scale, True, 'Gumbel scale', expr)
-        return self.rng.gumbel(sample_mean, sample_scale)
+        return self.rng.gumbel(loc=sample_mean, scale=sample_scale)
     
     def _sample_laplace(self, expr, subs):
         args = expr.args
@@ -971,7 +971,7 @@ class RDDLSimulator:
         sample_mean = self._sample(mean, subs)
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_scale, True, 'Laplace scale', expr)
-        return self.rng.laplace(sample_mean, sample_scale)
+        return self.rng.laplace(loc=sample_mean, scale=sample_scale)
     
     def _sample_cauchy(self, expr, subs):
         args = expr.args
