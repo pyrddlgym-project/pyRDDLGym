@@ -1039,7 +1039,7 @@ class JaxRDDLCompiler:
             dist = tfp.distributions.Binomial(total_count=trials, probs=prob)
             sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
             out_of_bounds = jnp.logical_not(jnp.all(
-                (prob >= 0) & (prob <= 1) & (trials > 0)))
+                (prob >= 0) & (prob <= 1) & (trials >= 0)))
             err = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, err
         
@@ -1476,7 +1476,7 @@ class JaxRDDLCompiler:
             out_of_bounds = jnp.logical_not(jnp.all(
                 (prob >= 0) & 
                 jnp.allclose(jnp.sum(prob, axis=-1), 1.0) & 
-                (trials > 0)))
+                (trials >= 0)))
             error = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, error            
         
