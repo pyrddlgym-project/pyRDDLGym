@@ -1,20 +1,10 @@
-from pyRDDLGym.Planner import JaxConfigManager
+import sys
 
-# ENV = 'PowerGeneration'
-# ENV = 'MarsRover'
-ENV = 'UAV continuous'
-# ENV = 'UAV discrete'
-# ENV = 'UAV mixed'
-# ENV = 'RecSim'
-# ENV = 'PowerGeneration'
-# ENV = 'CartPole discrete'
-# ENV = 'Elevators'
-# ENV = 'Reservoir'
-# ENV = 'RecSim'
+from pyRDDLGym.Planner import JaxConfigManager
   
 
-def slp_no_replan():
-    myEnv, planner, train_args = JaxConfigManager.get(f'{ENV}.cfg')
+def slp_no_replan(env):
+    myEnv, planner, train_args = JaxConfigManager.get(f'{env}.cfg')
     
     for callback in planner.optimize(**train_args):
         print('step={} train_return={:.6f} test_return={:.6f}'.format(
@@ -26,7 +16,7 @@ def slp_no_replan():
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.horizon):
-        myEnv.render()
+        # myEnv.render()
         action = plan[step]
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
@@ -43,13 +33,13 @@ def slp_no_replan():
     myEnv.close()
 
     
-def slp_replan():
-    myEnv, planner, train_args = JaxConfigManager.get(f'{ENV} replan.cfg')
+def slp_replan(env):
+    myEnv, planner, train_args = JaxConfigManager.get(f'{env}.cfg')
     
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.horizon):
-        myEnv.render()
+        # myEnv.render()
         * _, callback = planner.optimize(**train_args, init_subs=myEnv.sampler.subs)
         action = planner.get_plan(callback['params'])[0]
         next_state, reward, done, _ = myEnv.step(action)
@@ -67,9 +57,18 @@ def slp_replan():
     myEnv.close()
 
     
-def main(): 
-    slp_no_replan()
+def main(env, replan):
+    if replan:
+        slp_replan(env)
+    else: 
+        slp_no_replan(env)
     
         
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        args = [sys.argv[0]] + ['UAV continuous']
+    else:
+        args = sys.argv
+    env = args[1]
+    replan = env.endswith('replan')
+    main(env, replan)
