@@ -815,23 +815,24 @@ an expression ``<expression>`` parameterized by (at least) two values can be wri
 
 .. code-block:: shell
 
-    det_{?<value1>, ?<value2> : <variable_name>} <expression>( ?<value1>, ?<value2> )
+    det_{?<value1> : <variable_name1>, ?<value2> : <variable_name2>} <expression>( ?<value1>, ?<value2> )
     
-which can be viewed roughly as an aggregation over two variables of the same type.
+which can be viewed roughly as an aggregation over two variables, corresponding to row and column.
 As with vectorized sampling, it is also possible to incorporate variables from 
 the outer scope to serve as "batch" dimensions, i.e.
 
 .. code-block:: shell
 
-    det_{?<value1>, ?<value2> : <variable_name>} <expression>( ?<value1>, ?<value2>, ?<value3>, ... )
+    det_{?<value1> : <variable_name1>, ?<value2> : <variable_name2>} <expression>( ?<value1>, ?<value2>, ?<value3>, ... )
 
-The syntax for computing the matrix inverse of ``<expression>`` is
+The syntax for computing the matrix inverse and pseudo-inverse of ``<expression>`` is
 
 .. code-block:: shell
 
     inverse[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
+    pinverse[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
 
-Similar to vectorized sampling, the inverse operation produces a matrix rather than a scalar,
+Similar to vectorized sampling, these operations produce a matrix rather than a scalar,
 so ``?<value1>`` and ``?<value2>`` must be variables defined in the outer scope 
 into which the inverse matrix will be assigned. Also, to break ambiguity between
 which of ``?<value1>`` and ``?<value2>`` corresponds to the row and column dimensions
