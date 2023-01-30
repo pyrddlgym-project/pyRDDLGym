@@ -2,6 +2,7 @@ from ast import literal_eval
 import configparser
 import jax
 import optax
+import os
 from typing import Dict
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
@@ -13,6 +14,7 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 def get(path: str) -> Dict[str, object]:
     
     # read the config file
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
     config = configparser.RawConfigParser()
     config.optionxform = str 
     config.read(path)

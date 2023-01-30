@@ -14,7 +14,7 @@ ENV = 'UAV continuous'
   
 
 def slp_no_replan():
-    myEnv, planner, train_args = JaxConfigManager.get(f'Planner/{ENV}.cfg')
+    myEnv, planner, train_args = JaxConfigManager.get(f'{ENV}.cfg')
     
     for callback in planner.optimize(**train_args):
         print('step={} train_return={:.6f} test_return={:.6f}'.format(
@@ -44,7 +44,7 @@ def slp_no_replan():
 
     
 def slp_replan():
-    myEnv, planner, train_args = JaxConfigManager.get(f'Planner/{ENV} replan.cfg')
+    myEnv, planner, train_args = JaxConfigManager.get(f'{ENV} replan.cfg')
     
     total_reward = 0
     state = myEnv.reset()
