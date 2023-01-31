@@ -91,14 +91,15 @@ class ExampleManager:
             ExampleManager.RebuildExamples()
             
         if env not in ExampleManager.EXP_DICT:
-            raise RDDLEnvironmentNotExist("Environment {} does not exist".format(env) + 
-                                          ExampleManager._print_stack_trace(env))
+            raise RDDLEnvironmentNotExist(
+                f'Environment {env} does not exist, '
+                f'must be one of set(ExampleManager.EXP_DICT.keys()).')
 
-        self.path_to_env = os.path.dirname(os.path.abspath(__file__)) + ExampleManager.EXP_DICT[env]['location']
+        self.path_to_env = os.path.dirname(os.path.abspath(__file__)) + \
+                            ExampleManager.EXP_DICT[env]['location']
 
     def get_domain(self):
-        domain = self.path_to_env + 'domain.rddl'
-        return domain
+        return self.path_to_env + 'domain.rddl'
 
     def list_instances(self):
         files = os.listdir(self.path_to_env)
@@ -110,11 +111,11 @@ class ExampleManager:
         return instances
 
     def get_instance(self, num: int):
-        instance = 'instance' + str(num) + '.rddl'
+        instance = f'instance{num}.rddl'
         if not os.path.exists(self.path_to_env + instance):
             raise RDDLInstanceNotExist(
-                "instance {} does not exist for example environment {}".format(instance, self.env) + 
-                ExampleManager._print_stack_trace(instance))
+                f'instance {instance} does not exist for '
+                f'example environment {self.env}.')
         return self.path_to_env + instance
 
     def get_visualizer(self):
@@ -129,9 +130,9 @@ class ExampleManager:
 
     @staticmethod
     def ListExamples():
-        print("Available example environment:")
-        for key in ExampleManager.EXP_DICT:
-            print(key + " -> " + ExampleManager.EXP_DICT[key]['description'])
+        print('Available example environments:')
+        for key, values in ExampleManager.EXP_DICT.items():
+            print(key + ' -> ' + values['description'])
     
     @staticmethod
     def RebuildExamples():
@@ -142,8 +143,4 @@ class ExampleManager:
     @staticmethod
     def GetEnvInfo(env):
         return ExampleManager(env)
-        pass
-
-    @staticmethod
-    def _print_stack_trace(expr):
-        return '...\n' + str(expr) + '\n...'
+    
