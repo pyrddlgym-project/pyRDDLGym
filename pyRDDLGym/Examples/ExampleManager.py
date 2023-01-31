@@ -2,6 +2,7 @@ import configparser
 import csv
 import os
 import re
+
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, RDDLInstanceNotExist
 
 # EXP_DICT = {
@@ -34,17 +35,18 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, 
 #     'Reservoir': ('Managing the water level in interconnected reservoirs.', '/Reservoir/', None)
 # }
 
+HEADER = ['name', 'description', 'location', 'viz']
+
 
 def rebuild():
     path = os.path.dirname(os.path.abspath(__file__))    
     path_to_manifest = os.path.join(path, 'manifest.csv')
     
-    print("Building examples manifest from Examples directory:")
     with open(path_to_manifest, 'w', newline='') as file:
         
         # write the header for the manifest
         writer = csv.writer(file, delimiter=',')
-        writer.writerow(['name', 'description', 'location'])
+        writer.writerow(HEADER)
         
         # walk through current folder to find valid domains
         for dirpath, _, filenames in os.walk(path):
@@ -56,9 +58,10 @@ def rebuild():
                 general = dict(config.items('General'))
                 name = general.get('name', None)
                 desc = general.get('description', None)
+                viz = general.get('viz', None)
                 loc = dirpath[len(path):]
                 loc = loc.replace('\\', '/') + '/'
-                writer.writerow([name, desc, loc])
+                writer.writerow([name, desc, loc, viz])
 
 
 def load():
@@ -72,8 +75,8 @@ def load():
         reader = csv.reader(file, delimiter=',')
         for i, row in enumerate(reader):
             if i > 0:
-                key, *entries = row
-                EXP_DICT[key] = tuple(entries) + (None,)
+                name, *entries = row
+                EXP_DICT[name] = dict(zip(HEADER[1:], entries))
     return EXP_DICT
 
 
@@ -91,7 +94,7 @@ class ExampleManager:
             raise RDDLEnvironmentNotExist("Environment {} does not exist".format(env) + 
                                           ExampleManager._print_stack_trace(env))
 
-        self.path_to_env = os.path.dirname(os.path.abspath(__file__)) + ExampleManager.EXP_DICT[env][1]
+        self.path_to_env = os.path.dirname(os.path.abspath(__file__)) + ExampleManager.EXP_DICT[env]['location']
 
     def get_domain(self):
         domain = self.path_to_env + 'domain.rddl'
@@ -116,9 +119,10 @@ class ExampleManager:
 
     def get_visualizer(self):
         viz = None
-        if ExampleManager.EXP_DICT[self.env][2]:
-            viz_package_name = 'pyRDDLGym.Visualizer.' + ExampleManager.EXP_DICT[self.env][2] + 'Viz'
-            viz_class_name = ExampleManager.EXP_DICT[self.env][2] + 'Visualizer'
+        viz_info = ExampleManager.EXP_DICT[self.env]['viz']
+        if viz_info:
+            module, viz_class_name = viz_info.strip().split('.')
+            viz_package_name = 'pyRDDLGym.Visualizer.' + module
             viz_package = __import__(viz_package_name, {}, {}, viz_class_name)
             viz = getattr(viz_package, viz_class_name)
         return viz
@@ -127,7 +131,7 @@ class ExampleManager:
     def ListExamples():
         print("Available example environment:")
         for key in ExampleManager.EXP_DICT:
-            print(key + " -> " + ExampleManager.EXP_DICT[key][0])
+            print(key + " -> " + ExampleManager.EXP_DICT[key]['name'])
     
     @staticmethod
     def RebuildExamples():
