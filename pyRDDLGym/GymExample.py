@@ -31,7 +31,7 @@ def main():
     
     # set up the environment visualizer
     # frames_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Visualizer', 'Frames')
-    # myEnv.set_visualizer(EnvInfo.get_visualizer())
+    myEnv.set_visualizer(EnvInfo.get_visualizer())
                         # movie_gen=MovieGenerator(frames_path, ENV, 200), movie_per_episode=True)
     
     # set up an example aget
