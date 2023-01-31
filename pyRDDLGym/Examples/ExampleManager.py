@@ -92,8 +92,8 @@ class ExampleManager:
             
         if env not in ExampleManager.EXP_DICT:
             raise RDDLEnvironmentNotExist(
-                f'Environment {env} does not exist, '
-                f'must be one of set(ExampleManager.EXP_DICT.keys()).')
+                f'Environment <{env}> does not exist, '
+                f'must be one of {set(ExampleManager.EXP_DICT.keys())}.')
 
         self.path_to_env = os.path.dirname(os.path.abspath(__file__)) + \
                             ExampleManager.EXP_DICT[env]['location']
@@ -115,7 +115,7 @@ class ExampleManager:
         if not os.path.exists(self.path_to_env + instance):
             raise RDDLInstanceNotExist(
                 f'instance {instance} does not exist for '
-                f'example environment {self.env}.')
+                f'example environment <{self.env}>.')
         return self.path_to_env + instance
 
     def get_visualizer(self):
@@ -130,7 +130,7 @@ class ExampleManager:
 
     @staticmethod
     def ListExamples():
-        print('Available example environments:')
+        print('Available example environment(s):')
         for key, values in ExampleManager.EXP_DICT.items():
             print(key + ' -> ' + values['description'])
     
