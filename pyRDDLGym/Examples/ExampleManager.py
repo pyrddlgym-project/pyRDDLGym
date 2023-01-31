@@ -131,7 +131,7 @@ class ExampleManager:
     def ListExamples():
         print("Available example environment:")
         for key in ExampleManager.EXP_DICT:
-            print(key + " -> " + ExampleManager.EXP_DICT[key]['name'])
+            print(key + " -> " + ExampleManager.EXP_DICT[key]['description'])
     
     @staticmethod
     def RebuildExamples():
