@@ -28,6 +28,7 @@ def get(path: str) -> Dict[str, object]:
     env_args['domain'] = EnvInfo.get_domain()
     env_args['instance'] = EnvInfo.get_instance(env_args['instance'])
     myEnv = RDDLEnv(**env_args)
+    myEnv.set_visualizer(EnvInfo.get_visualizer())
     
     # read the optimizer settings
     opt_args = {k: args[k] for (k, v) in config.items('Optimizer')}
