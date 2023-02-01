@@ -14,11 +14,14 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'MountainCar'
 # ENV = 'CartPole continuous'
 # ENV = 'CartPole discrete'
-# ENV = 'Elevators'
+ENV = 'Elevators'
 # ENV = 'RecSim'
-ENV = 'RaceCar'
+# ENV = 'RaceCar'
 # ENV = 'Traffic'
 
+# ENV = 'PropDBN'
+# ENV = 'SupplyChain'
+# ENV = 'WildlifePreserve'
 
 def main():
     # get the environment info
