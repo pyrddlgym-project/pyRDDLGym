@@ -1,0 +1,4 @@
+[General]
+name=Reservoir
+description=Management of the water level in interconnected reservoirs.
+viz=ReservoirViz.ReservoirVisualizer
