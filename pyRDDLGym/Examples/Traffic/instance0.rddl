@@ -7,6 +7,13 @@ non-fluents isolated_intersection {
 	};
 
 	non-fluents {
+        // cartesian coordinates
+        X(i1) = 0;    Y(i1) = 0;
+        X(s1) = 100;  Y(s1) = 0;
+        X(s2) = 0;    Y(s2) = 100;
+        X(s3) = -100; Y(s3) = 0;
+        X(s4) = 0;    Y(s4) = -100;
+
 	    // sink intersections
 	    SINK(s1)                = true;
 	    SINK(s2)                = true;
@@ -57,13 +64,6 @@ non-fluents isolated_intersection {
         NEXT(t6,t7)             = true;
         NEXT(t7,t8)             = true;
         NEXT(t8,t9)             = true;
-
-        // Cartesian coordinates (for render)
-        X-COORD(i1) = 0;    Y-COORD(i1) = 0;
-        X-COORD(s1) = 100;  Y-COORD(s1) = 0;
-        X-COORD(s2) = 0;    Y-COORD(s2) = 100;
-        X-COORD(s3) = -100; Y-COORD(s3) = 0;
-        X-COORD(s4) = 0;    Y-COORD(s4) = -100;
     };
 }
 
