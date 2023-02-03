@@ -24,13 +24,14 @@ domain BLX_model {
     };
 
     pvariables {
-        //////////////////////////////
-        // non-fluents == topology
-        //////////////////////////////
+        ////////////////////////////////////////
+        // non-fluents == topology and geometry
+        ////////////////////////////////////////
+
         // link between (uplink intersection, downlink intersection)
         LINK(intersection, intersection)     :  { non-fluent, bool, default = false };
         // number of lanes in link
-        Nl(intersection, intersection)        : { non-fluent, int, default = 1 };
+        Nl(intersection, intersection)       : { non-fluent, int, default = 1 };
         // free-flow velocity of traffic in link in m/s
         V(intersection, intersection)        :  { non-fluent, real, default = 13.8 };
         // simulation time step in seconds
@@ -43,9 +44,9 @@ domain BLX_model {
         MU(intersection, intersection)       :  { non-fluent, real, default = 1 };
         // fraction of the traffic turning to link (d,o) from link (u,d)
         BETA(intersection, intersection, intersection)     :  { non-fluent, real, default = 0.33 };
-        // is intersection a source
+        // is intersection a source?
         SOURCE(intersection)                 :  { non-fluent, bool, default = false };
-        // is intersection a sink
+        // is intersection a sink?
         SINK(intersection)                   :  { non-fluent, bool, default = false };
         // arrival rate at sources - the variance for a uniform distribution
         ARRIVAL(intersection)                :  { non-fluent, int, default = 1 };
@@ -58,6 +59,10 @@ domain BLX_model {
         // time object to actual time delay index
         TIME-VAL(time)                       :  { non-fluent, int, default = 1 };
 
+        // Cartesian coordinates (for render)
+        X-COORD(intersection)                :  { non-fluent, real };
+        Y-COORD(intersection)                :  { non-fluent, real };
+
 
         //////////////////////////////
         // interm fluents
@@ -65,7 +70,7 @@ domain BLX_model {
         // link capacity
         Cl(intersection, intersection)                  :  { interm-fluent, real };
 
-        // time delay constants
+        // time delay variables
         tau(intersection, intersection)                 :  { interm-fluent, int };
         gamma(intersection, intersection)               :  { interm-fluent, int };
 
@@ -84,13 +89,13 @@ domain BLX_model {
         //////////////////////////////
         // states fluents
         //////////////////////////////
-        // number of cars leaving link (u,d) and turning towards link Om - state because of the time delay "memory"
+        // number of cars leaving link (u,d) and turning towards link (d,o) - state because of the time delay "memory"
         Ml(intersection, intersection, intersection, time) :  { state-fluent, real, default = 0 };
 
         // available storage space of link (u,d) in number of cars
         S(intersection, intersection)                :  { state-fluent, real, default = 100 };
 
-        // queue length at step in link (u,d) turning in direction Om
+        // queue length at step in link (u,d) turning in direction (d,o)
         q(intersection, intersection, intersection)  :  { state-fluent, real, default = 0 };
 
         // total queue length at step in link (u,d) (all directions)
@@ -119,11 +124,12 @@ domain BLX_model {
         ////////////////////////////////////
         // interm fluents
         ////////////////////////////////////
+
         // derived fluent for the actual capacity
         Cl(?u,?d) = Dl(?u,?d) * Nl(?u,?d) / Lv;
 
-        // time delay constants
-        tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ] ;
+        // time delay variable update
+        tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ];
         gamma(?u,?d) = LINK(?u,?d) * mod[ (Cl(?u,?d) - qd(?u,?d))*Lv , (Nl(?u,?d)*V(?u,?d)*Ts) ];
 
         // time delay queue of k-tau(k)
@@ -138,7 +144,7 @@ domain BLX_model {
         // arriving queue at link (u,d)
         Ma(?u,?d) =
             SOURCE(?u)*arrivals(?u)
-            + LINK(?u,?d) * (1 - gamma(?u,?d)) * (sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)])
+            + LINK(?u,?d) * (1-gamma(?u,?d)) * (sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)])
             + LINK(?u,?d) * gamma(?u,?d) * (sum_{?i : intersection}[Mltau1(?i,?u,?d)*LINK(?i,?u)]);
 
 
@@ -174,7 +180,6 @@ domain BLX_model {
         forall_{?u : intersection} [(sum_{?d : intersection} [LINK(?u,?d)]) <= 4];
         // no more than 4 neighbours ingoing
         forall_{?d : intersection} [(sum_{?u : intersection} [LINK(?u,?d)]) <= 4];
-        //
     };
 
     action-preconditions {
