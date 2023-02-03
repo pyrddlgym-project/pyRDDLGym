@@ -36,84 +36,63 @@ class ReservoirVisualizer(StateViz):
         self.render()
     
     def build_object_layout(self) -> dict:
-        
-        max_res_cap = {o: None for o in self._objects['res']}
-        upper_bound = {o: None for o in self._objects['res']}
-        lower_bound = {o: None for o in self._objects['res']}
-        rain_shape = {o: None for o in self._objects['res']}
-        rain_scale = {o: None for o in self._objects['res']}
-        downstream = {o: [] for o in self._objects['res']}
-        sink_res = {o: None for o in self._objects['res']}
-        rlevel = {o: None for o in self._objects['res']}
 
-        # add none-fluents
+        reservoirs = self._objects['reservoir']
+        reservoir_top = {o: None for o in self._objects['reservoir']}
+        max_level = {o: None for o in self._objects['reservoir']}
+        min_level = {o: None for o in self._objects['reservoir']}
+        rain_var = {o: None for o in self._objects['reservoir']}
+        connected_to_sea = {o: None for o in self._objects['reservoir']}
+        res_connected = {o: [] for o in self._objects['reservoir']}
+        rlevel = {o: None for o in self._objects['reservoir']}
+
+
+        # add non-fluents
         for k, v in self._nonfluents.items():
-            if 'RAIN_SHAPE_' in k:
-                point = k.split('_')[2]
-                rain_shape[point] = v
-            elif 'MAX_RES_CAP_' in k:
-                point = k.split('_')[3]
-                max_res_cap[point] = v
-            elif 'UPPER_BOUND_' in k:
-                point = k.split('_')[2]
-                upper_bound[point] = v
-            elif 'LOWER_BOUND_' in k:
-                point = k.split('_')[2]
-                lower_bound[point] = v
-            elif 'RAIN_SHAPE_' in k:
-                point = k.split('_')[2]
-                rain_shape[point] = v
-            elif 'RAIN_SCALE_' in k:
-                point = k.split('_')[2]
-                rain_scale[point] = v
-            elif 'DOWNSTREAM_' in k:
-                point = k.split('_')[1]
-                v = k.split('_')[2]
-                downstream[point].append(v)
-            elif 'SINK_RES_' in k:
-                point = k.split('_')[2]
-                sink_res[point] = v
+            if 'TOP_RES' in k:
+                for i in range(len(reservoirs)):
+                    reservoir_top[reservoirs[i]] = v[i]
+            elif 'MAX_LEVEL' in k:
+                for i in range(len(reservoirs)):
+                    max_level[reservoirs[i]] = v[i]
+            elif 'MIN_LEVEL' in k:
+                for i in range(len(reservoirs)):
+                    min_level[reservoirs[i]] = v[i]
+            elif 'RAIN_VAR' in k:
+                for i in range(len(reservoirs)):
+                    rain_var[reservoirs[i]] = v[i]
+            elif 'RES_CONNECT' in k:
+                for r1 in range(len(reservoirs)):
+                    for r2 in range(len(reservoirs)):
+                        if v[r2 + r1*len(reservoirs)]:
+                            res_connected[reservoirs[r1]].append( reservoirs[r2] )
+            elif 'CONNECTED_TO_SEA' in k:
+                for i in range(len(reservoirs)):
+                    connected_to_sea[reservoirs[i]] = v[i]
 
         # add states
         for k, v in self._states.items():
             if 'rlevel' in k:
-                rlevel['t1'] = 75
+                for i in range(len(reservoirs)):
+                    rlevel[reservoirs[i]] = v[i]
 
-        # adding defaults
-        for o in self._objects['res']:
-            if rain_shape[o] == None:
-                rain_shape[o] = self._nonfluents['RAIN_SHAPE']
-            if max_res_cap[o] == None:
-                max_res_cap[o] = self._nonfluents['MAX_RES_CAP']
-            if upper_bound[o] == None:
-                upper_bound[o] = self._nonfluents['UPPER_BOUND']
-            if lower_bound[o] == None:
-                lower_bound[o] = self._nonfluents['LOWER_BOUND']
-            if rain_shape[o] == None:
-                rain_shape[o] = self._nonfluents['RAIN_SHAPE']
-            if rain_scale[o] == None:
-                rain_scale[o] = self._nonfluents['RAIN_SCALE']
-            if rlevel[o] == None:
-                rlevel[o] = self._states['rlevel']
-            if sink_res[o] == None:
-                sink_res[o] = False
-
-        object_layout = {'rain_shape': rain_shape, 'rain_scale': rain_scale,
-                         'max_res_cap': max_res_cap, 'rlevel': rlevel,
-                         'upper_bound': upper_bound, 'lower_bound': lower_bound,
-                         'downstream': downstream, 'sink_res': sink_res
+        object_layout = {'rain_var': rain_var, 'reservoir_top': reservoir_top,
+                         'max_level': max_level, 'min_level': min_level,
+                         'connected_to_sea':connected_to_sea, 'rlevel': rlevel,
+                         'res_connected': res_connected
                          }
+
         return object_layout
 
     def init_canvas_info(self):
         interval = self._interval
-        objects_set = set(self._objects['res'])
+        objects_set = set(self._objects['reservoir'])
         sink_res_set = set([k 
-                            for k, v in self._object_layout['sink_res'].items() 
+                            for k, v in self._object_layout['connected_to_sea'].items()
                             if v == True])
 
         all_child_set = []
-        for i in self._object_layout['downstream'].values():
+        for i in self._object_layout['res_connected'].values():
             all_child_set += i
         all_child_set = set(all_child_set) - sink_res_set
 
@@ -126,7 +105,7 @@ class ReservoirVisualizer(StateViz):
         bot_set = set()
         while len(visited_nodes) < len(objects_set):
             for i in top_set:
-                for j in self._object_layout['downstream'][i]:
+                for j in self._object_layout['res_connected'][i]:
                     bot_set.add(j)
                     visited_nodes.add(j)
             level_list.append(list(bot_set))
@@ -147,39 +126,17 @@ class ReservoirVisualizer(StateViz):
                 init_points[level_list[i][j]] = (init_x, init_y)
         conn_points = {}
         
-        canvas_info = {'canvas_size':canvas_size, 'init_points':init_points}
+        canvas_info = {'canvas_size': canvas_size, 'init_points': init_points}
 
         return canvas_info
 
-        # print(level_list)
-        # print(self._object_layout['downstream'])
-        # print(sink_res_set)
-        # print(all_child_set)
-        # print(all_root_set)
-
-        # node_links = {}
-        # for o in self._objects['res']:
-        #     for k,v in self._object_layout['downstream'].items():
-
-        # plt.rcParams['axes.facecolor']='white'
-        # fig_size = (num_row * 12, num_col*12)
-        # fig = plt.figure(fig_size)
-        # ax = plt.gca()
-        # plt.xlim([-0.1, fig_size[1]])
-        # plt.ylim([-0.1, fig_size[1]])
-        # plt.axis('scaled')
-        # plt.axis('off')
-        # return fig, ax
 
     def render_conn(self):
         fig = self._fig
         ax = self._ax
-        downstream = self._object_layout['downstream']
+        downstream = self._object_layout['res_connected']
         init_points = self._canvas_info['init_points']
         interval = self._interval * 2 / 3
-
-        print(downstream)
-        print(init_points)
 
         for k, v in downstream.items():
             top_point = (init_points[k][0] + interval / 2, init_points[k][1])
@@ -204,35 +161,20 @@ class ReservoirVisualizer(StateViz):
         curr_t = res
         init_x, init_y = self._canvas_info['init_points'][curr_t]
 
-        # print(curr_t, init_x, init_y)
-        # sys.exit()
-
-        # plt.rcParams['axes.facecolor']='white'
-        # fig = plt.figure(figsize = (12,12))
-        # ax = plt.gca()
-        # plt.text(11, 11, "%s" % curr_t, color='black', fontsize = 35)
-        # plt.xlim([-0.1,12])
-        # plt.ylim([-0.1,12])
-        # plt.axis('scaled')
-        # plt.axis('off')
-
         rlevel = self._object_layout['rlevel'][curr_t]
-        rain_scale = self._object_layout['rain_scale'][curr_t]
-        rain_shape = self._object_layout['rain_shape'][curr_t]
+        rain_var = self._object_layout['rain_var'][curr_t]
 
-        max_res_cap = self._object_layout['max_res_cap'][curr_t]
-        upper_bound = self._object_layout['upper_bound'][curr_t]
-        lower_bound = self._object_layout['lower_bound'][curr_t]
+        reservoir_top = self._object_layout['reservoir_top'][curr_t]
+        max_level = self._object_layout['max_level'][curr_t]
+        min_level = self._object_layout['min_level'][curr_t]
+        connected_to_sea = self._object_layout['connected_to_sea'][curr_t]
 
-        sink_res = self._object_layout['sink_res'][curr_t]
-        # downstream = self._object_layout['downstream'][curr_t]
-
-        maxL = [init_x, max_res_cap / 100 + init_y]
-        maxR = [init_x + interval, max_res_cap / 100 + init_y]
-        upL = [init_x, upper_bound / 100 + init_y]
-        upR = [init_x + interval, upper_bound / 100 + init_y]
-        lowL = [init_x, lower_bound / 100 + init_y]
-        lowR = [init_x + interval, lower_bound / 100 + init_y]
+        maxL = [init_x, reservoir_top / 100 + init_y]
+        maxR = [init_x + interval, reservoir_top / 100 + init_y]
+        upL = [init_x, max_level / 100 + init_y]
+        upR = [init_x + interval, max_level / 100 + init_y]
+        lowL = [init_x, min_level / 100 + init_y]
+        lowR = [init_x + interval, min_level / 100 + init_y]
 
         line_max = plt.Line2D((maxL[0], maxR[0]),
                               (maxL[1], maxR[1]),
@@ -264,11 +206,11 @@ class ReservoirVisualizer(StateViz):
         scale_rect = plt.Rectangle((init_x, init_y + interval),
                                    interval / 2,
                                    interval / 4,
-                                   fc='deepskyblue', alpha=rain_scale / 100)
+                                   fc='deepskyblue', alpha=rain_var / 100)
         shape_rect = plt.Rectangle((init_x + interval / 2, init_y + interval),
                                    interval / 2,
                                    interval / 4,
-                                   fc='darkcyan', alpha=rain_shape / 100)
+                                   fc='darkcyan', alpha=rain_var / 100)
 
         ax.add_line(line_max)
         ax.add_line(line_up)
@@ -289,7 +231,7 @@ class ReservoirVisualizer(StateViz):
                            (init_y, init_y),
                            color='black', lw=1)
         # conn_shape = plt.Rectangle((init_x + interval, init_y), interval/4, interval, fc='royalblue')
-        if sink_res:
+        if connected_to_sea:
             land_shape = plt.Rectangle((init_x + interval, init_y),
                                        interval / 4,
                                        interval,
@@ -365,14 +307,14 @@ class ReservoirVisualizer(StateViz):
         # sys.exit()
 
         # layout_data = []
-        for res in self._objects['res']:
+        for res in self._objects['reservoir']:
             curr_t = res
             fig, ax = self.render_res(curr_t)
             # layout_data.append(self.fig2npa(fig))
         self.render_conn()
             
         plt.show()
-        sys.exit()
+        # sys.exit()
         
         # print(layout_data[0].shape)
         
