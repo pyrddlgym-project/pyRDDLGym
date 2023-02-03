@@ -28,18 +28,21 @@ domain BLX_model {
         // non-fluents == topology and geometry
         ////////////////////////////////////////
 
+        // simulation time step in seconds
+        Ts                                   :  { non-fluent, int, default = 1 };
+        // average vehicle length in meters
+        Lv                                   :  { non-fluent, real, default = 5 };
+
+        // cartesian coordinates of the intersection
+        X(intersection)                      :  { non-fluent, real, default = 0 };
+        Y(intersection)                      :  { non-fluent, real, default = 0 };
+
         // link between (uplink intersection, downlink intersection)
         LINK(intersection, intersection)     :  { non-fluent, bool, default = false };
         // number of lanes in link
         Nl(intersection, intersection)       : { non-fluent, int, default = 1 };
         // free-flow velocity of traffic in link in m/s
         V(intersection, intersection)        :  { non-fluent, real, default = 13.8 };
-        // simulation time step in seconds
-        Ts                                   :  { non-fluent, int, default = 1 };
-        // average vehicle length in meters
-        Lv                                   :  { non-fluent, real, default = 5 };
-        // distance between intersections
-        Dl(intersection, intersection)       :  { non-fluent, real, default = 100 };
         // saturated flow rate leaving link (u,d)
         MU(intersection, intersection)       :  { non-fluent, real, default = 1 };
         // fraction of the traffic turning to link (d,o) from link (u,d)
@@ -59,14 +62,15 @@ domain BLX_model {
         // time object to actual time delay index
         TIME-VAL(time)                       :  { non-fluent, int, default = 1 };
 
-        // Cartesian coordinates (for render)
-        X-COORD(intersection)                :  { non-fluent, real };
-        Y-COORD(intersection)                :  { non-fluent, real };
 
 
         //////////////////////////////
         // interm fluents
         //////////////////////////////
+
+        // distance between intersections
+        Dl(intersection, intersection)                  :  { interm-fluent, real };
+
         // link capacity
         Cl(intersection, intersection)                  :  { interm-fluent, real };
 
@@ -124,6 +128,9 @@ domain BLX_model {
         ////////////////////////////////////
         // interm fluents
         ////////////////////////////////////
+
+        // distance between intersections
+        Dl(?u,?d) = sqrt[ (X(?u)-X(?d))*(X(?u)-X(?d)) + (Y(?u)-Y(?d))*(Y(?u)-Y(?d)) ];
 
         // derived fluent for the actual capacity
         Cl(?u,?d) = Dl(?u,?d) * Nl(?u,?d) / Lv;
