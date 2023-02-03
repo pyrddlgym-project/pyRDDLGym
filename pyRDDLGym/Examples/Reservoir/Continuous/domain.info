@@ -1,0 +1,4 @@
+[General]
+name=Reservoir continuous
+description=Continuous action version of management of the water level in interconnected reservoirs.
+viz=ReservoirViz.ReservoirVisualizer
