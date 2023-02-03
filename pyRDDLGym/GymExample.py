@@ -19,7 +19,8 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'RaceCar'
 # ENV = 'Traffic'
 # ENV = 'Reservoir discrete'
-ENV = 'Reservoir continuous'
+# ENV = 'Reservoir continuous'
+ENV = 'HVAC'
 # ENV = 'PropDBN'
 # ENV = 'SupplyChain'
 # ENV = 'WildlifePreserve'
@@ -29,7 +30,7 @@ def main():
     EnvInfo = ExampleManager.GetEnvInfo(ENV)
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
-                            instance=EnvInfo.get_instance(0),
+                            instance=EnvInfo.get_instance(2),
                             enforce_action_constraints=False,
                             debug=False)
     

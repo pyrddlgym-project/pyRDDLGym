@@ -1,10 +1,10 @@
 name,description,location,viz
 Traffic,BLX/QTM traffic model.,/Traffic/,TextViz.TextVisualizer
-Reservoir,Management of the water level in interconnected reservoirs.,/Reservoir/,ReservoirViz.ReservoirVisualizer
 Reservoir discrete,Discrete version of management of the water level in interconnected reservoirs.,/Reservoir/Discrete/,ReservoirViz.ReservoirVisualizer
 Reservoir continuous,Continuous action version of management of the water level in interconnected reservoirs.,/Reservoir/Continuous/,ReservoirViz.ReservoirVisualizer
 RaceCar,A simple continuous MDP for the racecar problem.,/Racecar/,RacecarViz.RacecarVisualizer
 RecSim,"A problem of recommendation systems, with consumers and providers.",/Recsim/,RecSimViz.RecSimVisualizer
+HVAC,Multi-zone and multi-heater HVAC control problem,/HVAC/,TextViz.TextVisualizer
 PropDBN,Simple propositional DBN.,/PropDBN/,TextViz.TextVisualizer
 Wildfire,A boolean version of the wildfire fighting domain.,/Wildfire/,WildfireViz.WildfireVisualizer
 CartPole discrete,"A simple continuous state MDP for the classical cart-pole system by Rich Sutton, with discrete actions that apply a constant force on either the left or right side of the cart.",/CartPole/Discrete/,CartPoleViz.CartPoleVisualizer
