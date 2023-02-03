@@ -12,7 +12,7 @@ RaceCar,A simple continuous MDP for the racecar problem.,/Racecar/,RacecarViz.Ra
 RecSim,"A problem of recommendation systems, with consumers and providers.",/Recsim/,RecSimViz.RecSimVisualizer
 Reservoir,Management of the water level in interconnected reservoirs.,/Reservoir/,ReservoirViz.ReservoirVisualizer
 SupplyChain,A supply chain with factory and multiple warehouses.,/Supply_Chain/,TextViz.TextVisualizer
-Traffic,BLX/QTM traffic model.,/Traffic/,TextViz.TextVisualizer
+Traffic,BLX/QTM traffic model.,/Traffic/,TrafficViz.TrafficVisualizer
 UAV continuous,Continuous action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Continuous/,UAVsViz.UAVsVisualizer
 UAV discrete,Discrete action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Discrete/,UAVsViz.UAVsVisualizer
 UAV mixed,Mixed action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Mixed/,UAVsViz.UAVsVisualizer
