@@ -45,7 +45,7 @@ domain BLX_model {
         // free-flow velocity of traffic in link in m/s
         V(intersection, intersection)                      :  { non-fluent, real, default = 13.8 };
         // saturation flow rate leaving turn (u,d,o)
-        MU(intersection, intersection, intersection)       :  { non-fluent, real, default = 0.333 };
+        MU(intersection, intersection, intersection)       :  { non-fluent, real, default = 0.6 };
         // fraction of the traffic turning to link (d,o) from link (u,d)
         BETA(intersection, intersection, intersection)     :  { non-fluent, real, default = 0.33 };
         // is intersection a source?
@@ -72,7 +72,7 @@ domain BLX_model {
         // distance between intersections
         Dl(intersection, intersection)                         :  { interm-fluent, real };
 
-        // link capacity
+        // link capacity / maximal storage
         Cl(intersection, intersection)                         :  { interm-fluent, real };
 
         // time delay variables
@@ -97,9 +97,6 @@ domain BLX_model {
 
         // number of cars leaving source u toward intersection d - state because of the time delay "memory"
         Mlsrc(intersection, intersection, time)            :  { state-fluent, real, default = 0 };
-
-        // available storage space of link (u,d) in number of cars
-        S(intersection, intersection)                      :  { state-fluent, real, default = 100 };
 
         // queue length at step in link (u,d) turning in direction (d,o)
         q(intersection, intersection, intersection)        :  { state-fluent, real, default = 0 };
@@ -156,7 +153,7 @@ domain BLX_model {
         turn-outflow(?u,?d,?o) = LINK(?u,?d)*LINK(?d,?o) * b(?u,?d,?o)
                                  * max[0, min[ q(?u,?d,?o) + Ma(?u,?d)*BETA(?u,?d,?o), // Undersaturated flow
                                           min[ BETA(?u,?d,?o)*MU(?u,?d,?o)*Ts,         // Saturated flow
-                                               S(?d,?o) ]]];                           // Oversaturated flow
+                                               Cl(?d,?o)-Nc(?d,?o) ]]];                // Oversaturated flow (Capacity-Count=Storage)
              
 
         ////////////////////////////////////
@@ -175,19 +172,11 @@ domain BLX_model {
             + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * turn-outflow(?u,?d,?o)
             + sum_{?t2 : time}[ NEXT(?t,?t2) * Ml(?u,?d,?o,?t2) ];
             
-        q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])] * LINK(?d,?o)*LINK(?u,?d);
+        q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - turn-outflow(?u,?d,?o)] * LINK(?d,?o)*LINK(?u,?d);
 
         qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o)* LINK(?d,?o)]) * LINK(?u,?d);
 
-        S'(?u,?d) = round[ [S(?u,?d)
-                    - (sum_{?i : intersection}[ (sum_{?t : time}[Ml(?i,?u,?d,?t)*TIME-HEAD(?t)]) * LINK(?i,?d) ])
-                    + (sum_{?o : intersection}[ (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)]) * LINK(?d,?o) ])] * LINK(?u,?d) ] ;
-
-        // n_{u,d}(k+1) = n_{u,d}(k) - m^l_{u,d}(k) + \sum_{entering turns (u',d')} m^l_{u',d'}(k)
-        Nc'(?u,?d) = max[0, [Nc(?u,?d) + SOURCE(?u)*arrivals(?u)
-                     - (sum_{?o : intersection}[(sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])*LINK(?d,?o)])  //Leaving
-                     + (sum_{?i : intersection}[(sum_{?t : time}[Ml(?i,?u,?d,?t)*TIME-HEAD(?t)])*LINK(?i,?u)])] * LINK(?u,?d) * (1-SINK(?d))] ;
-
+        Nc'(?u,?d) = max[0, Nc(?u,?d) + sum_{?i : intersection}[turn-outflow(?i,?u,?d)] - sum_{?o : intersection}[turn-outflow(?u,?d,?o)]];
     };
 
     // minus number of cars in the network
