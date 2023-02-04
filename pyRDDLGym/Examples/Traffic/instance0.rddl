@@ -10,8 +10,8 @@ non-fluents isolated_intersection {
         // cartesian coordinates
         X(i1) = 0;    Y(i1) = 0;
         X(s1) = 100;  Y(s1) = 0;
-        X(s2) = 0;    Y(s2) = 100;
-        X(s3) = -100; Y(s3) = 0;
+        X(s2) = 70;    Y(s2) = 100;
+        X(s3) = -100; Y(s3) = -100;
         X(s4) = 0;    Y(s4) = -100;
 
 	    // sink intersections
