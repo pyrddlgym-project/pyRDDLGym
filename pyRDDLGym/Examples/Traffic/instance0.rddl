@@ -27,10 +27,10 @@ non-fluents isolated_intersection {
 	    SOURCE(s4)              = true;
 
 	    // arrival rate from each source
-	    ARRIVAL-RATE(s1)        = 1;
-	    ARRIVAL-RATE(s2)        = 1;
-	    ARRIVAL-RATE(s3)        = 1;
-	    ARRIVAL-RATE(s4)        = 1;
+	    ARRIVAL-RATE(s1)        = 0.7;
+	    ARRIVAL-RATE(s2)        = 0.7;
+	    ARRIVAL-RATE(s3)        = 0.7;
+	    ARRIVAL-RATE(s4)        = 0.7;
 
         // roads between intersections
 		LINK(s1,i1)             = true;

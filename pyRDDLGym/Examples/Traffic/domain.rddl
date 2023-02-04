@@ -72,7 +72,7 @@ domain BLX_model {
         // distance between intersections
         Dl(intersection, intersection)                         :  { interm-fluent, real };
 
-        // link capacity / maximal storage
+        // link capacity (maximal storage)
         Cl(intersection, intersection)                         :  { interm-fluent, real };
 
         // time delay variables
@@ -82,8 +82,14 @@ domain BLX_model {
         // number of cars arriving at the end of the queue (u,d)
         Ma(intersection, intersection)                         :  { interm-fluent, real };
 
-        //arrivals at time step k in link (u,d) is u is a source
+        // arrivals at time step k in link (u,d) is u is a source
         arrivals(intersection)                                 : { interm-fluent, real };
+
+        // inflow from source u
+        src-inflow(intersection)                               : { interm-fluent, real };
+
+        // overflow from source u
+        src-overflow(intersection)                             : { interm-fluent, real };
 
         //outflow at turn (u,d,o)
         turn-outflow(intersection, intersection, intersection) : { interm-fluent, real };
@@ -103,6 +109,9 @@ domain BLX_model {
 
         // total queue length at step in link (u,d) (all directions)
         qd(intersection, intersection)                     :  { state-fluent, real, default = 0 };
+
+        //virtual queue at source (u) (i.e. vehicles held outside of the network)
+        virtual-q(intersection)                            :  { state-fluent, real, default = 0 };
 
         // number of vehicles in link
         Nc(intersection, intersection)                     :  { state-fluent, real, default = 0 };
@@ -136,11 +145,14 @@ domain BLX_model {
 
         // time-delay variables update
         tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ];
-        gamma(?u,?d) = LINK(?u,?d) * ((Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) - tau(?u,?d));
+        gamma(?u,?d) = 0; //LINK(?u,?d) * ((Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) - tau(?u,?d));
 
         // how many cars should arrive for the direction of u on the link (u,d) if u is a source
-        // TODO: Check for saturation of (u,d)!!
         arrivals(?u) =  SOURCE(?u) * Uniform(0,2*ARRIVAL-RATE(?u)*Ts);
+
+        // flows from source u
+        src-inflow(?u) = SOURCE(?u) * max[0, min[arrivals(?u), sum_{?d : intersection}[ LINK(?u,?d) * (Cl(?u,?d)-Nc(?u,?d)) ]]];
+        src-overflow(?u) = SOURCE(?u) * max[0, arrivals(?u) - src-inflow(?u)];
 
         // number of vehicles arriving to tail of queue at link (u,d)
         // add time-delayed outflows from the sources and
@@ -150,7 +162,7 @@ domain BLX_model {
 
         // outflow at turn (u,d,o)
         // min(undersaturated, saturated, oversaturated)
-        turn-outflow(?u,?d,?o) = LINK(?u,?d)*LINK(?d,?o) * b(?u,?d,?o)
+        turn-outflow(?u,?d,?o) = LINK(?u,?d)*LINK(?d,?o) * b(?u,?d,?o) 
                                  * max[0, min[ q(?u,?d,?o) + Ma(?u,?d)*BETA(?u,?d,?o), // Undersaturated flow
                                           min[ BETA(?u,?d,?o)*MU(?u,?d,?o)*Ts,         // Saturated flow
                                                Cl(?d,?o)-Nc(?d,?o) ]]];                // Oversaturated flow (Capacity-Count=Storage)
@@ -160,11 +172,13 @@ domain BLX_model {
         // State space evolution
         ////////////////////////////////////
 
-        // Source outflows
+        // Source outflows and virtual queues
         Mlsrc'(?u,?d,?t) = LINK(?u,?d) * (
-              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * arrivals(?u)
-            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * arrivals(?u)
+              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * src-inflow(?u)
+            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * src-inflow(?u)
             + sum_{?t2 : time}[ NEXT(?t,?t2) * Mlsrc(?u,?d,?t2) ]);
+
+        virtual-q'(?u) = max[0, virtual-q(?u) + src-overflow(?u) - src-inflow(?u)];
 
         // Turning outflows
         Ml'(?u,?d,?o,?t) =
@@ -176,12 +190,17 @@ domain BLX_model {
 
         qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o)* LINK(?d,?o)]) * LINK(?u,?d);
 
-        Nc'(?u,?d) = max[0, Nc(?u,?d) + sum_{?i : intersection}[turn-outflow(?i,?u,?d)] - sum_{?o : intersection}[turn-outflow(?u,?d,?o)]];
+        Nc'(?u,?d) = 
+            Nc(?u,?d)
+          + sum_{?i : intersection}[turn-outflow(?i,?u,?d)]
+          + src-inflow(?u)
+          - sum_{?o : intersection}[turn-outflow(?u,?d,?o)];
     };
 
     // minus number of cars in the network
-    // minus all virtual queues at source nodes (TODO)
-    reward = -sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)];
+    // minus all virtual queues at source nodes
+    reward = -(  sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)]
+               + sum_{?u2 : intersection}[virtual-q(?u2)*SOURCE(?u2)]);
 
     state-invariants {
         // no more than 4 neighbours outgoing
