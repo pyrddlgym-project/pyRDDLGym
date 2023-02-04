@@ -48,12 +48,16 @@ domain BLX_model {
         MU(intersection, intersection, intersection)       :  { non-fluent, real, default = 0.6 };
         // fraction of the traffic turning to link (d,o) from link (u,d)
         BETA(intersection, intersection, intersection)     :  { non-fluent, real, default = 0.33 };
+
         // is intersection a source?
         SOURCE(intersection)                               :  { non-fluent, bool, default = false };
         // is intersection a sink?
         SINK(intersection)                                 :  { non-fluent, bool, default = false };
         // arrival rate at sources - the variance for a uniform distribution
         ARRIVAL-RATE(intersection)                         :  { non-fluent, real, default = 0.67 };
+        // max. flow per lane - cap when releasing virtual queue and vehicles at sinks
+        MAX-FLOWRATE(intersection)                         :  { non-fluent, real, default = 0.67 };
+
         // time ordering for time-delayed queues
         NEXT(time, time)                                   :  { non-fluent, bool, default = false };
         // is the time index first in the queue, i,e., no delay
@@ -85,8 +89,8 @@ domain BLX_model {
         // arrivals at time step k in link (u,d) is u is a source
         arrivals(intersection)                                 : { interm-fluent, real };
 
-        // inflow from source u
-        src-inflow(intersection)                               : { interm-fluent, real };
+        // flow from source u into the network
+        src-flow(intersection)                               : { interm-fluent, real };
 
         // overflow from source u
         src-overflow(intersection)                             : { interm-fluent, real };
@@ -145,14 +149,14 @@ domain BLX_model {
 
         // time-delay variables update
         tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ];
-        gamma(?u,?d) = 0; //LINK(?u,?d) * ((Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) - tau(?u,?d));
+        gamma(?u,?d) = LINK(?u,?d) * ((Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) - tau(?u,?d));
 
         // how many cars should arrive for the direction of u on the link (u,d) if u is a source
         arrivals(?u) =  SOURCE(?u) * Uniform(0,2*ARRIVAL-RATE(?u)*Ts);
 
         // flows from source u
-        src-inflow(?u) = SOURCE(?u) * max[0, min[arrivals(?u), sum_{?d : intersection}[ LINK(?u,?d) * (Cl(?u,?d)-Nc(?u,?d)) ]]];
-        src-overflow(?u) = SOURCE(?u) * max[0, arrivals(?u) - src-inflow(?u)];
+        src-flow(?u) = SOURCE(?u) * max[0, min[ arrivals(?u), sum_{?d : intersection}[ LINK(?u,?d) * (Cl(?u,?d)-Nc(?u,?d)) ]]];
+        src-overflow(?u) = SOURCE(?u) * max[0, arrivals(?u) - src-flow(?u)];
 
         // number of vehicles arriving to tail of queue at link (u,d)
         // add time-delayed outflows from the sources and
@@ -174,11 +178,11 @@ domain BLX_model {
 
         // Source outflows and virtual queues
         Mlsrc'(?u,?d,?t) = LINK(?u,?d) * (
-              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * src-inflow(?u)
-            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * src-inflow(?u)
+              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * src-flow(?u)
+            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * src-flow(?u)
             + sum_{?t2 : time}[ NEXT(?t,?t2) * Mlsrc(?u,?d,?t2) ]);
 
-        virtual-q'(?u) = max[0, virtual-q(?u) + src-overflow(?u) - src-inflow(?u)];
+        virtual-q'(?u) = max[0, virtual-q(?u) + src-overflow(?u) - src-flow(?u)];
 
         // Turning outflows
         Ml'(?u,?d,?o,?t) =
@@ -188,13 +192,14 @@ domain BLX_model {
             
         q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - turn-outflow(?u,?d,?o)] * LINK(?d,?o)*LINK(?u,?d);
 
-        qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o)* LINK(?d,?o)]) * LINK(?u,?d);
+        qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o) * LINK(?d,?o)]) * LINK(?u,?d);
 
         Nc'(?u,?d) = 
             Nc(?u,?d)
           + sum_{?i : intersection}[turn-outflow(?i,?u,?d)]
-          + src-inflow(?u)
-          - sum_{?o : intersection}[turn-outflow(?u,?d,?o)];
+          + src-flow(?u)
+          - (sum_{?o : intersection}[turn-outflow(?u,?d,?o)]
+             + SINK(?d)*Ma(?u,?d));
     };
 
     // minus number of cars in the network
