@@ -77,7 +77,7 @@ domain BLX_model {
 
         // time delay variables
         tau(intersection, intersection)                 :  { interm-fluent, int };
-        gamma(intersection, intersection)               :  { interm-fluent, int };
+        gamma(intersection, intersection)               :  { interm-fluent, real };
 
         // time delayed queue of the the leaving traffic for k-tau
         Mltau(intersection, intersection, intersection) :  { interm-fluent, real };
@@ -138,7 +138,7 @@ domain BLX_model {
 
         // time delay variable update
         tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ];
-        gamma(?u,?d) = LINK(?u,?d) * mod[ (Cl(?u,?d) - qd(?u,?d))*Lv , (Nl(?u,?d)*V(?u,?d)*Ts) ];
+        gamma(?u,?d) = LINK(?u,?d) * ((Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) - tau(?u,?d));
 
         // time delay queue of k-tau(k)
         Mltau(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*(TIME-VAL(?t) == tau(?u,?d))]);
@@ -147,7 +147,7 @@ domain BLX_model {
         Mltau1(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*((TIME-VAL(?t)-1) == tau(?u,?d))]);
 
         // how many cars should arrive for the direction of u on the link (u,d) if u is a source
-        arrivals(?u) =  Uniform(0,ARRIVAL(?u)) * 10;
+        arrivals(?u) =  Uniform(0,ARRIVAL(?u));
 
         // arriving queue at link (u,d)
         Ma(?u,?d) =
@@ -163,7 +163,7 @@ domain BLX_model {
         Ml'(?u,?d,?o,?t) =
                     TIME-TAIL(?t) * b(?u,?d,?o) * max[ 0, min[ q(?u,?d,?o)+Ma(?u,?d)*BETA(?u,?d,?o), min[S(?d,?o),
                                                         BETA(?u,?d,?o)*MU(?u,?d)*Ts] ] ] * LINK(?u,?d)*LINK(?d,?o)
-                    + (1 - TIME-TAIL(?t)) * (sum_{?t1 : time}[ Ml(?u,?d,?o,?t1) * NEXT(?t1,?t) ]);
+                    + (1-TIME-TAIL(?t)) * (sum_{?t1 : time}[ Ml(?u,?d,?o,?t1) * NEXT(?t1,?t) ]);
 
         q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])] * LINK(?d,?o)*LINK(?u,?d);
 
@@ -188,6 +188,9 @@ domain BLX_model {
         forall_{?u : intersection} [(sum_{?d : intersection} [LINK(?u,?d)]) <= 4];
         // no more than 4 neighbours ingoing
         forall_{?d : intersection} [(sum_{?u : intersection} [LINK(?u,?d)]) <= 4];
+
+        // 0 <= gamma < 1
+        // forall_{?u : intersection, ?d : intersection} [ 0 <= gamma(?u,?d) ^ gamma(?u,?d) < 1 ];
     };
 
     action-preconditions {
