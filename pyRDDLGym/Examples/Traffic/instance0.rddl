@@ -27,10 +27,10 @@ non-fluents isolated_intersection {
 	    SOURCE(s4)              = true;
 
 	    // arrival rate from each source
-	    ARRIVAL(s1)             = 1;
-	    ARRIVAL(s2)             = 2;
-	    ARRIVAL(s3)             = 3;
-	    ARRIVAL(s4)             = 4;
+	    ARRIVAL-RATE(s1)        = 1;
+	    ARRIVAL-RATE(s2)        = 1;
+	    ARRIVAL-RATE(s3)        = 1;
+	    ARRIVAL-RATE(s4)        = 1;
 
         // roads between intersections
 		LINK(s1,i1)             = true;
@@ -71,6 +71,6 @@ instance isolated_intersection_inst {
     domain = BLX_model;
     non-fluents = isolated_intersection;
 	max-nondef-actions = pos-inf;
-	horizon = 10;
+	horizon = 100;
 	discount = 1.0;
 }
