@@ -30,38 +30,38 @@ domain BLX_model {
         ////////////////////////////////////////
 
         // simulation time step in seconds
-        Ts                                   :  { non-fluent, int, default = 1 };
+        Ts                                                 :  { non-fluent, int, default = 1 };
         // average vehicle length in meters
-        Lv                                   :  { non-fluent, real, default = 5 };
+        Lv                                                 :  { non-fluent, real, default = 5 };
 
         // cartesian coordinates of the intersection
-        X(intersection)                      :  { non-fluent, real, default = 0 };
-        Y(intersection)                      :  { non-fluent, real, default = 0 };
+        X(intersection)                                    :  { non-fluent, real, default = 0 };
+        Y(intersection)                                    :  { non-fluent, real, default = 0 };
 
         // link between (uplink intersection, downlink intersection)
-        LINK(intersection, intersection)     :  { non-fluent, bool, default = false };
+        LINK(intersection, intersection)                   :  { non-fluent, bool, default = false };
         // number of lanes in link
-        Nl(intersection, intersection)       : { non-fluent, int, default = 1 };
+        Nl(intersection, intersection)                     : { non-fluent, int, default = 1 };
         // free-flow velocity of traffic in link in m/s
-        V(intersection, intersection)        :  { non-fluent, real, default = 13.8 };
-        // saturated flow rate leaving link (u,d)
-        MU(intersection, intersection)       :  { non-fluent, real, default = 1 };
+        V(intersection, intersection)                      :  { non-fluent, real, default = 13.8 };
+        // saturation flow rate leaving turn (u,d,o)
+        MU(intersection, intersection, intersection)       :  { non-fluent, real, default = 0.333 };
         // fraction of the traffic turning to link (d,o) from link (u,d)
         BETA(intersection, intersection, intersection)     :  { non-fluent, real, default = 0.33 };
         // is intersection a source?
-        SOURCE(intersection)                 :  { non-fluent, bool, default = false };
+        SOURCE(intersection)                               :  { non-fluent, bool, default = false };
         // is intersection a sink?
-        SINK(intersection)                   :  { non-fluent, bool, default = false };
+        SINK(intersection)                                 :  { non-fluent, bool, default = false };
         // arrival rate at sources - the variance for a uniform distribution
-        ARRIVAL(intersection)                :  { non-fluent, int, default = 1 };
+        ARRIVAL-RATE(intersection)                         :  { non-fluent, real, default = 0.67 };
         // time ordering for time-delayed queues
-        NEXT(time, time)                     :  { non-fluent, bool, default = false };
+        NEXT(time, time)                                   :  { non-fluent, bool, default = false };
         // is the time index first in the queue, i,e., no delay
-        TIME-HEAD(time)                      :  {non-fluent, bool, default = false };
+        TIME-HEAD(time)                                    :  {non-fluent, bool, default = false };
         // is the time index last in the queue, i,e., maximum delay memory depth
-        TIME-TAIL(time)                      :  {non-fluent, bool, default = false };
+        TIME-TAIL(time)                                    :  {non-fluent, bool, default = false };
         // time object to actual time delay index
-        TIME-VAL(time)                       :  { non-fluent, int, default = 1 };
+        TIME-VAL(time)                                     :  { non-fluent, int, default = 1 };
 
 
 
@@ -70,25 +70,23 @@ domain BLX_model {
         //////////////////////////////
 
         // distance between intersections
-        Dl(intersection, intersection)                  :  { interm-fluent, real };
+        Dl(intersection, intersection)                         :  { interm-fluent, real };
 
         // link capacity
-        Cl(intersection, intersection)                  :  { interm-fluent, real };
+        Cl(intersection, intersection)                         :  { interm-fluent, real };
 
         // time delay variables
-        tau(intersection, intersection)                 :  { interm-fluent, int };
-        gamma(intersection, intersection)               :  { interm-fluent, real };
-
-        // time delayed queue of the the leaving traffic for k-tau
-        Mltau(intersection, intersection, intersection) :  { interm-fluent, real };
-        // time delayed queue of the the leaving traffic for k-tau-1
-        Mltau1(intersection, intersection, intersection):  { interm-fluent, real };
+        tau(intersection, intersection)                        :  { interm-fluent, int };
+        gamma(intersection, intersection)                      :  { interm-fluent, real };
 
         // number of cars arriving at the end of the queue (u,d)
-        Ma(intersection, intersection)                  :  { interm-fluent, real };
+        Ma(intersection, intersection)                         :  { interm-fluent, real };
 
         //arrivals at time step k in link (u,d) is u is a source
-        arrivals(intersection)                          : { interm-fluent, real };
+        arrivals(intersection)                                 : { interm-fluent, real };
+
+        //outflow at turn (u,d,o)
+        turn-outflow(intersection, intersection, intersection) : { interm-fluent, real };
 
 
         //////////////////////////////
@@ -97,17 +95,20 @@ domain BLX_model {
         // number of cars leaving link (u,d) and turning towards link (d,o) - state because of the time delay "memory"
         Ml(intersection, intersection, intersection, time) :  { state-fluent, real, default = 0 };
 
+        // number of cars leaving source u toward intersection d - state because of the time delay "memory"
+        Mlsrc(intersection, intersection, time)            :  { state-fluent, real, default = 0 };
+
         // available storage space of link (u,d) in number of cars
-        S(intersection, intersection)                :  { state-fluent, real, default = 100 };
+        S(intersection, intersection)                      :  { state-fluent, real, default = 100 };
 
         // queue length at step in link (u,d) turning in direction (d,o)
-        q(intersection, intersection, intersection)  :  { state-fluent, real, default = 0 };
+        q(intersection, intersection, intersection)        :  { state-fluent, real, default = 0 };
 
         // total queue length at step in link (u,d) (all directions)
-        qd(intersection, intersection)               :  { state-fluent, real, default = 0 };
+        qd(intersection, intersection)                     :  { state-fluent, real, default = 0 };
 
         // number of vehicles in link
-        Nc(intersection, intersection)               :  { state-fluent, real, default = 0 };
+        Nc(intersection, intersection)                     :  { state-fluent, real, default = 0 };
 
 
         //////////////////////////////
@@ -136,35 +137,44 @@ domain BLX_model {
         // derived fluent for the actual capacity
         Cl(?u,?d) = Dl(?u,?d) * Nl(?u,?d) / Lv;
 
-        // time delay variable update
+        // time-delay variables update
         tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ];
         gamma(?u,?d) = LINK(?u,?d) * ((Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) - tau(?u,?d));
 
-        // time delay queue of k-tau(k)
-        Mltau(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*(TIME-VAL(?t) == tau(?u,?d))]);
-
-        // time delay queue of time k-tau(k)-1
-        Mltau1(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*((TIME-VAL(?t)-1) == tau(?u,?d))]);
-
         // how many cars should arrive for the direction of u on the link (u,d) if u is a source
-        arrivals(?u) =  Uniform(0,ARRIVAL(?u));
+        // TODO: Check for saturation of (u,d)!!
+        arrivals(?u) =  SOURCE(?u) * Uniform(0,2*ARRIVAL-RATE(?u)*Ts);
 
-        // arriving queue at link (u,d)
-        Ma(?u,?d) =
-            SOURCE(?u)*arrivals(?u)
-            + LINK(?u,?d) * (1-gamma(?u,?d)) * (sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)])
-            + LINK(?u,?d) * gamma(?u,?d) * (sum_{?i : intersection}[Mltau1(?i,?u,?d)*LINK(?i,?u)]);
+        // number of vehicles arriving to tail of queue at link (u,d)
+        // add time-delayed outflows from the sources and
+        // time-delayed outflows over all incoming turns
+        Ma(?u,?d) = LINK(?u,?d) * (     SOURCE(?u)  * sum_{?t1 : time}[TIME-HEAD(?t1) * Mlsrc(?u,?d,?t1)]
+                                   + (1-SOURCE(?u)) * sum_{?t2 : time}[TIME-HEAD(?t2) * sum_{?i : intersection}[Ml(?i,?u,?d,?t2)]]);
 
+        // outflow at turn (u,d,o)
+        // min(undersaturated, saturated, oversaturated)
+        turn-outflow(?u,?d,?o) = LINK(?u,?d)*LINK(?d,?o) * b(?u,?d,?o)
+                                 * max[0, min[ q(?u,?d,?o) + Ma(?u,?d)*BETA(?u,?d,?o), // Undersaturated flow
+                                          min[ BETA(?u,?d,?o)*MU(?u,?d,?o)*Ts,         // Saturated flow
+                                               S(?d,?o) ]]];                           // Oversaturated flow
+             
 
         ////////////////////////////////////
         // State space evolution
         ////////////////////////////////////
 
-        Ml'(?u,?d,?o,?t) =
-                    TIME-TAIL(?t) * b(?u,?d,?o) * max[ 0, min[ q(?u,?d,?o)+Ma(?u,?d)*BETA(?u,?d,?o), min[S(?d,?o),
-                                                        BETA(?u,?d,?o)*MU(?u,?d)*Ts] ] ] * LINK(?u,?d)*LINK(?d,?o)
-                    + (1-TIME-TAIL(?t)) * (sum_{?t1 : time}[ Ml(?u,?d,?o,?t1) * NEXT(?t1,?t) ]);
+        // Source outflows
+        Mlsrc'(?u,?d,?t) = LINK(?u,?d) * (
+              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * arrivals(?u)
+            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * arrivals(?u)
+            + sum_{?t2 : time}[ NEXT(?t,?t2) * Mlsrc(?u,?d,?t2) ]);
 
+        // Turning outflows
+        Ml'(?u,?d,?o,?t) =
+              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * turn-outflow(?u,?d,?o)
+            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * turn-outflow(?u,?d,?o)
+            + sum_{?t2 : time}[ NEXT(?t,?t2) * Ml(?u,?d,?o,?t2) ];
+            
         q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])] * LINK(?d,?o)*LINK(?u,?d);
 
         qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o)* LINK(?d,?o)]) * LINK(?u,?d);
@@ -181,6 +191,7 @@ domain BLX_model {
     };
 
     // minus number of cars in the network
+    // minus all virtual queues at source nodes (TODO)
     reward = -sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)];
 
     state-invariants {
