@@ -2,13 +2,13 @@ non-fluents isolated_intersection {
     domain = BLX_model;
 
     objects {
-		intersection  : {i1, s1, s2, s3, s4};
+        intersection  : {i1, s1, s2, s3, s4};
         traffic-light : {tl1};
         phase         : {p0, p1, p2, p3, p4, p5, p6, p7, p8};
-		time          : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20};
-	};
+        time          : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20};
+    };
 
-	non-fluents {
+    non-fluents {
         // cartesian coordinates
         X(i1) = 0;    Y(i1) = 0;
         X(s1) = 100;  Y(s1) = 0;
@@ -25,36 +25,36 @@ non-fluents isolated_intersection {
         INTERSECTION-INDEX(s3)  = 3;
         INTERSECTION-INDEX(s4)  = 4;
 
-	    // sink intersections
-	    SINK(s1)                = true;
-	    SINK(s2)                = true;
-	    SINK(s3)                = true;
-	    SINK(s4)                = true;
+        // sink intersections
+        SINK(s1)                = true;
+        SINK(s2)                = true;
+        SINK(s3)                = true;
+        SINK(s4)                = true;
 
         // source intersections
-	    SOURCE(s1)              = true;
-	    SOURCE(s2)              = true;
-	    SOURCE(s3)              = true;
-	    SOURCE(s4)              = true;
+        SOURCE(s1)              = true;
+        SOURCE(s2)              = true;
+        SOURCE(s3)              = true;
+        SOURCE(s4)              = true;
 
-	    // arrival rate from each source
-	    ARRIVAL-RATE(s1)        = 0.5;
-	    ARRIVAL-RATE(s2)        = 0.5;
-	    ARRIVAL-RATE(s3)        = 0.5;
-	    ARRIVAL-RATE(s4)        = 0.5;
+        // arrival rate from each source
+        ARRIVAL-RATE(s1)        = 0.5;
+        ARRIVAL-RATE(s2)        = 0.5;
+        ARRIVAL-RATE(s3)        = 0.5;
+        ARRIVAL-RATE(s4)        = 0.5;
 
         // roads between intersections
-		LINK(s1,i1)             = true;
-		LINK(s2,i1)             = true;
-		LINK(s3,i1)             = true;
-		LINK(s4,i1)             = true;
-		LINK(i1,s1)             = true;
-		LINK(i1,s2)             = true;
-		LINK(i1,s3)             = true;
-		LINK(i1,s4)             = true;
+        LINK(s1,i1)             = true;
+        LINK(s2,i1)             = true;
+        LINK(s3,i1)             = true;
+        LINK(s4,i1)             = true;
+        LINK(i1,s1)             = true;
+        LINK(i1,s2)             = true;
+        LINK(i1,s3)             = true;
+        LINK(i1,s4)             = true;
 
-		// time delay properties
-		TIME-HEAD(t0)           = true;
+        // time delay properties
+        TIME-HEAD(t0)           = true;
         TIME-TAIL(t20)          = true;
         TIME-VAL(t0)            = 0;
         TIME-VAL(t1)            = 1;
@@ -103,7 +103,7 @@ non-fluents isolated_intersection {
 instance isolated_intersection_inst {
     domain = BLX_model;
     non-fluents = isolated_intersection;
-	max-nondef-actions = pos-inf;
-	horizon = 200;
-	discount = 1.0;
+    max-nondef-actions = pos-inf;
+    horizon = 200;
+    discount = 1.0;
 }
