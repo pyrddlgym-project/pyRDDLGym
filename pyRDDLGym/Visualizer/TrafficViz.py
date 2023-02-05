@@ -8,10 +8,10 @@ from PIL import Image
 import pprint
 from itertools import product
 from collections import defaultdict
+from time import sleep
 from copy import copy
 from math import ceil
 from math import inf
-from time import sleep
 
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym import Visualizer
@@ -21,13 +21,23 @@ from pyRDDLGym.Visualizer.StateViz import StateViz
 ROAD_PAVED_WIDTH = 12
 ROAD_HALF_MEDIAN_WIDTH = 1
 ROAD_WIDTH = ROAD_PAVED_WIDTH + ROAD_HALF_MEDIAN_WIDTH
-ROAD_LANE_DELTA = ROAD_PAVED_WIDTH/6
-ROAD_QUEUE_DELTA = 2*ROAD_LANE_DELTA
+ROAD_DELTA = ROAD_PAVED_WIDTH/12
 TURN_RADIUS_DELTA = 5
+ARRIVING_RATE_SAT = 0.67
 
 RGBA_PAVEMENT_COLOR = (0.6, 0.6, 0.6, 1)
 RGBA_INTERSECTION_COLOR = (0.3, 0.3, 0.3, 1)
 RGBA_GREEN_TURNING_COLOR = (0.2, 1, 0.2, 1)
+RGBA_Q_LINE_COLOR = (1, 0.2, 0.2, 1)
+RGBA_Q_BARS_COLOR = (1, 0.2, 0.2, 1)
+RGBA_Q_PATCH_COLOR = (1, 0.2, 0.2, 0.4)
+RGBA_ARRIVING_CELL_BORDER_COLOR = RGBA_PAVEMENT_COLOR
+RGBA_ARRIVING_CELL_SAT_COLOR = (1, 0.2, 1, 0.4)
+
+def get_fillcolor_by_density(N, capacity):
+    p = min(1, N/capacity)
+    return tuple(p*c for c in RGBA_ARRIVING_CELL_SAT_COLOR)
+
 
 class TrafficVisualizer(StateViz):
 
@@ -109,6 +119,7 @@ class TrafficVisualizer(StateViz):
             num_lanes = self._nonfluents[f'Nl_{u}_{d}']
             v = self._nonfluents[f'V_{u}_{d}']
             num_cells = ceil(link_len / (v * self.sim_step))
+            cell_capacity = (link_len * num_lanes) / (num_cells * self.veh_len)
 
             dir = dir/link_len
 
@@ -125,6 +136,8 @@ class TrafficVisualizer(StateViz):
                 'num_lanes': num_lanes,
                 # Number of incoming cells
                 'num_cells': num_cells,
+                # Cell capacity (for shading)
+                'cell_capacity': cell_capacity
             }
 
         # Order turns from each link left-to-right
@@ -160,10 +173,10 @@ class TrafficVisualizer(StateViz):
         def quad_bezier_middle_ctrl_pt(ctrl0, ctrl2, dir0, dir2):
             # Find the middle control point of a quadratic Bezier curve,
             # given the first and third control points ctrl0 and ctrl2,
-            # and the tangent vectors d0, d2 at ctrl0, ctrl2
+            # and the tangent vectors d0 at ctrl0 and d2 at ctrl2
             c = np.cross(dir0,dir2)
             if c == 0:
-                # Exceptional linear case
+                # Exceptional case when the tangent vectors are colinear
                 ctrl1 = (ctrl0 + ctrl2)/2
             else:
                 ctrl1 = ctrl2 + (np.cross(dir0,ctrl0-ctrl2)/c)*dir2
@@ -265,10 +278,15 @@ class TrafficVisualizer(StateViz):
         self.incoming_grid_patches = {}
         self.turn_patches = {}
         for (u,d) in self.link_ids:
-            v0 = self.intersections[u]['coords']
+            vu, vd = self.intersections[u]['coords'], self.intersections[d]['coords']
             d0, n0 = self.linkdata[(u,d)]['dir'], self.linkdata[(u,d)]['nrm']
             road = np.zeros(shape=(4,2))
             L = self.linkdata[(u,d)]['len']
+
+            # Record the visual shrinking factor for visualizing queues
+            self.linkdata[(u,d)]['shrink'] = L/np.linalg.norm(vd-vu)
+
+            # Create the link patch
             road[0] = self.linkdata[(u,d)]['from'] - ROAD_HALF_MEDIAN_WIDTH*n0
             road[1] = road[0] + L*d0
             road[2] = road[1] - ROAD_PAVED_WIDTH*n0
@@ -283,7 +301,7 @@ class TrafficVisualizer(StateViz):
                 d1, n1 = self.linkdata[(d,o)]['dir'], self.linkdata[(d,o)]['nrm']
 
                 # Turning curve patch
-                delta = (1+2*idx)*ROAD_LANE_DELTA
+                delta = (2+4*idx)*ROAD_DELTA
                 from_ = road[1] - delta*n0
                 to_ = self.linkdata[(d,o)]['from'] - (ROAD_HALF_MEDIAN_WIDTH+delta)*n1
                 ctrl1 = quad_bezier_middle_ctrl_pt(from_, to_, d0, d1)
@@ -320,7 +338,7 @@ class TrafficVisualizer(StateViz):
 
     def build_nonfluents_layout(self, fig, ax):
         # Seems copy is the only way to re-use patches
-        # on different axes :(
+        # when using more than one axes object :(
         for link_patch in self.link_patches.values():
             ax.add_patch(copy(link_patch))
 
@@ -328,11 +346,76 @@ class TrafficVisualizer(StateViz):
             intersection_patch = self.intersections[d]['patch']
             ax.add_patch(copy(intersection_patch))
 
+    def build_states_layout(self, states, fig, ax):
+
         for turn_patch in self.turn_patches.values():
+            # TODO: only display if green
             ax.add_patch(copy(turn_patch))
 
-    def build_states_layout(self, states, fig, ax):
-        return states
+        for d in self.TLs.union(self.sinks):
+            for (u,d) in self.intersections[d]['inc_links']:
+                ld = self.linkdata[(u,d)]
+
+                # If downstream intersection is not a sink, draw the queue data
+                # (for a downstream sink, the queues are zero, so no need)
+                if not self._nonfluents[f'SINK_{d}']:
+                    Q = states[f'qd_{u}_{d}']
+                    Q_line = (Q*self.veh_len/ld['num_lanes']) * ld['shrink']
+                    Q_line_L = ld['queues_top_left'] - Q_line*ld['dir']
+                    Q_line_R = Q_line_L - ROAD_PAVED_WIDTH*ld['nrm']
+
+                    # Draw queue background patch
+                    Q_bg_patch = np.zeros(shape=(4,2))
+                    Q_bg_patch[0] = ld['queues_top_left']
+                    Q_bg_patch[1] = Q_bg_patch[0] - ROAD_PAVED_WIDTH*ld['nrm']
+                    Q_bg_patch[2] = Q_line_R
+                    Q_bg_patch[3] = Q_line_L
+                    patch = plt.Polygon(Q_bg_patch, facecolor=RGBA_Q_PATCH_COLOR, edgecolor=RGBA_Q_LINE_COLOR, linewidth=2)
+                    ax.add_patch(patch)
+
+                    # Draw queue bars
+                    for idx, o in enumerate(ld['turns_from']):
+                        Q_turn = states[f'q_{u}_{d}_{o}']
+                        Q_turn_height = (Q_turn/(Q+1e-6)) * Q_line
+                        Q_turn_bar = np.zeros(shape=(4,2))
+                        Q_turn_bar[0] = ld['queues_top_left'] - (1+4*idx)*ROAD_DELTA*ld['nrm']
+                        Q_turn_bar[1] = Q_turn_bar[0] - 2*ROAD_DELTA*ld['nrm']
+                        Q_turn_bar[2] = Q_turn_bar[1] - Q_turn_height*ld['dir']
+                        Q_turn_bar[3] = Q_turn_bar[2] + 2*ROAD_DELTA*ld['nrm']
+                        patch = plt.Polygon(Q_turn_bar, color=RGBA_Q_LINE_COLOR)
+                        ax.add_patch(patch)
+                else:
+                    Q_line, Q_line_L, Q_line_R = 0, ld['queues_top_left'], ld['queues_top_left']-ROAD_PAVED_WIDTH*ld['nrm']
+
+                # Aggregate the incoming flows, depending on the type of u
+                num_cells_to_Q_line = ceil((ld['len'] - Q_line)/ld['cell_len'])
+                if self._nonfluents[f'SOURCE_{u}']:
+                    flows = tuple( states[f'Mlsrc_{u}_{d}_t{t}'] for t in range(1, num_cells_to_Q_line+1))
+                else:
+                    flows = np.zeros(num_cells_to_Q_line+1)
+                    for t in range(1,num_cells_to_Q_line+1):
+                        for (i,u) in self.intersections[u]['inc_links']:
+                            if i != d:
+                                flows[t] += states[f'Ml_{i}_{u}_{d}_t{t}']
+
+                line_L, line_R = Q_line_L, Q_line_R
+                for t in range(1,num_cells_to_Q_line):
+                    flow = flows[t]
+                    next_line_L, next_line_R = line_L-ld['cell_len']*ld['dir'], line_R-ld['cell_len']*ld['dir']
+                    cell = np.array([line_L, line_R, next_line_R, next_line_L])
+                    color = get_fillcolor_by_density(flow, ARRIVING_RATE_SAT*ld['num_lanes'])
+                    patch = plt.Polygon(cell, linewidth=1, facecolor=color, edgecolor=RGBA_ARRIVING_CELL_BORDER_COLOR)
+                    ax.add_patch(patch)
+                    line_L, line_R = next_line_L, next_line_R
+                # Draw the last cell
+                flow = flows[-1]
+                remainder = ld['len'] - (ld['cell_len']*(num_cells_to_Q_line-1) + Q_line)
+                next_line_L, next_line_R = line_L-remainder*ld['dir'], line_R-remainder*ld['dir']
+                cell = np.array([line_L, line_R, next_line_R, next_line_L])
+                color = get_fillcolor_by_density(flow, ARRIVING_RATE_SAT*ld['num_lanes'])
+                patch = plt.Polygon(cell, linewidth=1, facecolor=color, edgecolor=RGBA_ARRIVING_CELL_BORDER_COLOR)
+                ax.add_patch(patch)
+
 
     def render(self, state):
         self.states = state
@@ -341,10 +424,10 @@ class TrafficVisualizer(StateViz):
         self.build_nonfluents_layout(self._fig, self._ax)
         self.build_states_layout(state, self._fig, self._ax)
 
-
         img = self.convert2img(self._fig, self._ax)
         self._ax.cla()
         plt.close()
+#        sleep(1)
 #        img.show()
  #       exit()
 

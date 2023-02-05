@@ -3,15 +3,17 @@ non-fluents isolated_intersection {
 
     objects {
 		intersection : {i1, s1, s2, s3, s4};
-		time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9};
+		time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20};
 	};
 
 	non-fluents {
         // cartesian coordinates
         X(i1) = 0;    Y(i1) = 0;
         X(s1) = 100;  Y(s1) = 0;
-        X(s2) = 70;    Y(s2) = 100;
-        X(s3) = -100; Y(s3) = -100;
+//        X(s2) = 70;   Y(s2) = 100;
+//        X(s3) = -100; Y(s3) = -100;
+        X(s2) = 0;    Y(s2) = 100;
+        X(s3) = -100; Y(s3) = 0;
         X(s4) = 0;    Y(s4) = -100;
 
 	    // sink intersections
@@ -27,10 +29,10 @@ non-fluents isolated_intersection {
 	    SOURCE(s4)              = true;
 
 	    // arrival rate from each source
-	    ARRIVAL-RATE(s1)        = 0.7;
-	    ARRIVAL-RATE(s2)        = 0.7;
-	    ARRIVAL-RATE(s3)        = 0.7;
-	    ARRIVAL-RATE(s4)        = 0.7;
+	    ARRIVAL-RATE(s1)        = 0.5;
+	    ARRIVAL-RATE(s2)        = 0.5;
+	    ARRIVAL-RATE(s3)        = 0.5;
+	    ARRIVAL-RATE(s4)        = 0.5;
 
         // roads between intersections
 		LINK(s1,i1)             = true;
@@ -44,7 +46,7 @@ non-fluents isolated_intersection {
 
 		// time delay properties
 		TIME-HEAD(t0)           = true;
-        TIME-TAIL(t9)           = true;
+        TIME-TAIL(t20)          = true;
         TIME-VAL(t0)            = 0;
         TIME-VAL(t1)            = 1;
         TIME-VAL(t2)            = 2;
@@ -55,6 +57,17 @@ non-fluents isolated_intersection {
         TIME-VAL(t7)            = 7;
         TIME-VAL(t8)            = 8;
         TIME-VAL(t9)            = 9;
+        TIME-VAL(t10)           = 10;
+        TIME-VAL(t11)           = 11;
+        TIME-VAL(t12)           = 12;
+        TIME-VAL(t13)           = 13;
+        TIME-VAL(t14)           = 14;
+        TIME-VAL(t15)           = 15;
+        TIME-VAL(t16)           = 16;
+        TIME-VAL(t17)           = 17;
+        TIME-VAL(t18)           = 18;
+        TIME-VAL(t19)           = 19;
+        TIME-VAL(t20)           = 20;
         NEXT(t0,t1)             = true;
         NEXT(t1,t2)             = true;
         NEXT(t2,t3)             = true;
@@ -64,6 +77,17 @@ non-fluents isolated_intersection {
         NEXT(t6,t7)             = true;
         NEXT(t7,t8)             = true;
         NEXT(t8,t9)             = true;
+        NEXT(t9,t10)            = true;
+        NEXT(t10,t11)           = true;
+        NEXT(t11,t12)           = true;
+        NEXT(t12,t13)           = true;
+        NEXT(t13,t14)           = true;
+        NEXT(t14,t15)           = true;
+        NEXT(t15,t16)           = true;
+        NEXT(t16,t17)           = true;
+        NEXT(t17,t18)           = true;
+        NEXT(t18,t19)           = true;
+        NEXT(t19,t20)           = true;
     };
 }
 
@@ -71,6 +95,6 @@ instance isolated_intersection_inst {
     domain = BLX_model;
     non-fluents = isolated_intersection;
 	max-nondef-actions = pos-inf;
-	horizon = 100;
+	horizon = 200;
 	discount = 1.0;
 }

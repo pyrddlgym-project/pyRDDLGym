@@ -198,8 +198,7 @@ domain BLX_model {
             Nc(?u,?d)
           + sum_{?i : intersection}[turn-outflow(?i,?u,?d)]
           + src-flow(?u)
-          - (sum_{?o : intersection}[turn-outflow(?u,?d,?o)]
-             + SINK(?d)*Ma(?u,?d));
+          - (sum_{?o : intersection}[turn-outflow(?u,?d,?o)] + SINK(?d)*Ma(?u,?d));
     };
 
     // minus number of cars in the network
