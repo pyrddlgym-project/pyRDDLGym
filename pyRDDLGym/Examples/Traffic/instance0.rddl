@@ -10,11 +10,18 @@ non-fluents isolated_intersection {
         // cartesian coordinates
         X(i1) = 0;    Y(i1) = 0;
         X(s1) = 100;  Y(s1) = 0;
-//        X(s2) = 70;   Y(s2) = 100;
-//        X(s3) = -100; Y(s3) = -100;
-        X(s2) = 0;    Y(s2) = 100;
-        X(s3) = -100; Y(s3) = 0;
+        X(s2) = 70;   Y(s2) = 100;
+        X(s3) = -100; Y(s3) = -100;
+//        X(s2) = 0;    Y(s2) = 100;
+//        X(s3) = -100; Y(s3) = 0;
         X(s4) = 0;    Y(s4) = -100;
+
+        // indices for comparison
+        INDEX(i1)               = 0;
+        INDEX(s1)               = 1;
+        INDEX(s2)               = 2;
+        INDEX(s3)               = 3;
+        INDEX(s4)               = 4;
 
 	    // sink intersections
 	    SINK(s1)                = true;
