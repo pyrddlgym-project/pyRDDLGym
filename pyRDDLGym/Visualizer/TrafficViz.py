@@ -8,7 +8,6 @@ from PIL import Image
 import pprint
 from itertools import product
 from collections import defaultdict
-from time import sleep
 from copy import copy
 from math import ceil
 from math import inf
@@ -75,25 +74,22 @@ class TrafficVisualizer(StateViz):
         self.veh_len = self._nonfluents['Lv']
         self.sim_step = self._nonfluents['Ts']
 
-        self.intersection_ids = self._objects['intersection']
-
         # Register the intersection coordinates, sinks, and sources
         self.intersections = {}
-        self.sources = set()
-        self.sinks = set()
-        for d in self.intersection_ids:
+        self.sources, self.sinks, self.TLs = set(), set(), set()
+        for d in self._objects['intersection']:
             self.intersections[d] = {
                 'coords': np.array([self._nonfluents[f'X_{d}'], self._nonfluents[f'Y_{d}']]),
                 'inc_links': [],
                 'out_links': []}
             if self._nonfluents[f'SINK_{d}']: self.sinks.add(d)
             if self._nonfluents[f'SOURCE_{d}']: self.sources.add(d)
-        self.TLs = set(self.intersection_ids) - self.sources - self.sinks
+            if self._nonfluents[f'TL_{d}']: self.TLs.add(d)
 
         # Register the links.
         # Links are indexed by the upstream and downstream intersection pairs
         self.link_ids = []
-        for u, d in product(self.intersection_ids, self.intersection_ids):
+        for u, d in product(self.intersections.keys(), self.intersections.keys()):
             if self._nonfluents[f'LINK_{u}_{d}']:
                 self.link_ids.append((u,d))
                 self.intersections[u]['out_links'].append((u,d))
@@ -102,7 +98,7 @@ class TrafficVisualizer(StateViz):
         # Register the turning movements.
         # Turns are indexed by upstream, downstream, and outgoing intersection triples
         self.turn_ids = []
-        for u, d, o in product(self.intersection_ids, self.intersection_ids, self.intersection_ids):
+        for u, d, o in product(self.intersections.keys(), self.intersections.keys(), self.intersections.keys()):
             if u == d or d == o or u == o:
                 continue
             if self._nonfluents[f'LINK_{u}_{d}'] and self._nonfluents[f'LINK_{d}_{o}']:
@@ -145,7 +141,7 @@ class TrafficVisualizer(StateViz):
 
         for (u, d) in self.link_ids:
             turns_from_u_d = []
-            for o in self.intersection_ids:
+            for o in self.intersections.keys():
                 if u == o:
                     continue
                 if self._nonfluents[f'LINK_{d}_{o}']:
@@ -154,6 +150,22 @@ class TrafficVisualizer(StateViz):
                                     -signed_angle(self.linkdata[(u,d)]['dir'], self.linkdata[(d,o)]['dir'])
                                )
             self.linkdata[(u,d)]['turns_from'] = turns_from_u_d
+
+        # Register the green turns for each phase
+        self.phase_ids = self._objects['phase']
+        self.green_turns_by_phase = defaultdict(list)
+        for (u,d,o) in self.turn_ids:
+            for p in self.phase_ids:
+                if self._nonfluents[f'GREEN_{u}_{d}_{o}_{p}']:
+                    self.green_turns_by_phase[p].append((u,d,o))
+
+        # Register inverse map from phase index to phase object
+        self.phase_by_index_in_intersection = {}
+        for d in self.intersections.keys():
+             self.phase_by_index_in_intersection[d] = {}
+             for p in self.phase_ids:
+                 if self._nonfluents[f'PHASE-OF_{p}_{d}']:
+                     self.phase_by_index_in_intersection[d][self._nonfluents[f'PHASE-INDEX_{p}']] = p
 
 
     def build_nonfluents_patches(self):
@@ -348,9 +360,12 @@ class TrafficVisualizer(StateViz):
 
     def build_states_layout(self, states, fig, ax):
 
-        for turn_patch in self.turn_patches.values():
-            # TODO: only display if green
-            ax.add_patch(copy(turn_patch))
+        for d in self.TLs:
+            #TODO: Why is cur_ph_idx sometimes -1?
+            cur_ph_idx = max(0,states[f'cur-ph-idx_{d}'])
+            cur_ph = self.phase_by_index_in_intersection[d][cur_ph_idx]
+            for t in self.green_turns_by_phase[cur_ph]:
+                ax.add_patch(copy(self.turn_patches[t]))
 
         for d in self.TLs.union(self.sinks):
             for (u,d) in self.intersections[d]['inc_links']:
@@ -388,7 +403,7 @@ class TrafficVisualizer(StateViz):
                     Q_line, Q_line_L, Q_line_R = 0, ld['queues_top_left'], ld['queues_top_left']-ROAD_PAVED_WIDTH*ld['nrm']
 
                 # Aggregate the incoming flows, depending on the type of u
-                num_cells_to_Q_line = ceil((ld['len'] - Q_line)/ld['cell_len'])
+                num_cells_to_Q_line = max(ceil((ld['len'] - Q_line)/ld['cell_len']), 1)
                 if self._nonfluents[f'SOURCE_{u}']:
                     flows = tuple( states[f'Mlsrc_{u}_{d}_t{t}'] for t in range(1, num_cells_to_Q_line+1))
                 else:
@@ -427,8 +442,5 @@ class TrafficVisualizer(StateViz):
         img = self.convert2img(self._fig, self._ax)
         self._ax.cla()
         plt.close()
-#        sleep(1)
-#        img.show()
- #       exit()
 
         return img

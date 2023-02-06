@@ -92,7 +92,7 @@ domain BLX_model {
         PHASE-INDEX(phase)                                     :  { non-fluent, int, default = 0 };
 
         // phase constraints and properties
-        PHASE-MIN(phase)                                       :  { non-fluent, int, default = 6 };
+        PHASE-MIN(phase)                                       :  { non-fluent, int, default = 20 };
         PHASE-MAX(phase)                                       :  { non-fluent, int, default = 60 };
         PHASE-ALL-RED-DUR(phase)                               :  { non-fluent, int, default = 3 };
 
