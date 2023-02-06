@@ -1,0 +1,88 @@
+non-fluents nf_navigation_inst_mdp__8 {
+	domain = navigation_mdp;
+	objects {
+		xpos : {x261,x149,x21,x69,x9,x174,x41,x86,x105,x329,x14,x366,x30,x405,x201,x294,x126,x6,x230,x54};
+		ypos : {y12,y20,y15};
+	};
+	non-fluents {
+		WEST(x14,x9);
+		P(x30,y15) = 0.2347686960312881;
+		EAST(x30,x41);
+		WEST(x149,x126);
+		WEST(x41,x30);
+		EAST(x69,x86);
+		GOAL(x405,y20);
+		EAST(x14,x21);
+		SOUTH(y15,y12);
+		MAX-YPOS(y20);
+		P(x126,y15) = 0.522427676441638;
+		MIN-XPOS(x6);
+		EAST(x9,x14);
+		EAST(x21,x30);
+		WEST(x366,x329);
+		EAST(x329,x366);
+		P(x69,y15) = 0.3703241362971695;
+		EAST(x261,x294);
+		P(x86,y15) = 0.4001688238135294;
+		WEST(x230,x201);
+		P(x329,y15) = 0.8186304341928151;
+		WEST(x30,x21);
+		NORTH(y15,y20);
+		P(x201,y15) = 0.6305554033208051;
+		P(x149,y15) = 0.5512959579692075;
+		P(x105,y15) = 0.47063784213050414;
+		P(x14,y15) = 0.12598508870915365;
+		WEST(x54,x41);
+		EAST(x174,x201);
+		P(x21,y15) = 0.18618261039649187;
+		EAST(x201,x230);
+		MAX-XPOS(x405);
+		WEST(x174,x149);
+		EAST(x294,x329);
+		P(x6,y15) = 0.020123825408518314;
+		P(x41,y15) = 0.2575469744440756;
+		P(x261,y15) = 0.7651083509584791;
+		EAST(x6,x9);
+		WEST(x126,x105);
+		EAST(x230,x261);
+		P(x294,y15) = 0.7724588914578291;
+		EAST(x86,x105);
+		WEST(x294,x261);
+		WEST(x69,x54);
+		P(x366,y15) = 0.8710702612113795;
+		EAST(x41,x54);
+		EAST(x149,x174);
+		EAST(x126,x149);
+		EAST(x54,x69);
+		WEST(x201,x174);
+		P(x9,y15) = 0.08958914081909156;
+		WEST(x21,x14);
+		WEST(x105,x86);
+		WEST(x329,x294);
+		SOUTH(y20,y15);
+		WEST(x261,x230);
+		P(x230,y15) = 0.6802079464848104;
+		P(x54,y15) = 0.3001739060212123;
+		P(x174,y15) = 0.5920608441688513;
+		WEST(x86,x69);
+		NORTH(y12,y15);
+		EAST(x366,x405);
+		WEST(x9,x6);
+		WEST(x405,x366);
+		P(x405,y15) = 0.94463482979489;
+		MIN-YPOS(y12);
+		EAST(x105,x126);
+	};
+}
+
+instance navigation_inst_mdp__8 {
+	domain = navigation_mdp;
+	non-fluents = nf_navigation_inst_mdp__8;
+	init-state {
+		robot-at(x405,y12);
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+}
+

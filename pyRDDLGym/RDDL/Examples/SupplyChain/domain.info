@@ -1,0 +1,4 @@
+[General]
+name=supplychain
+description=A supply chain with factory and multiple warehouses.
+viz=TextViz.TextVisualizer

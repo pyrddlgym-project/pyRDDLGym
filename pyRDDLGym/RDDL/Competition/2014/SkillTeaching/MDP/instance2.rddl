@@ -1,0 +1,27 @@
+non-fluents nf_skill_teaching_inst_mdp__2 {
+	domain = skill_teaching_mdp; 
+	objects { 
+		skill : {s0,s1};
+
+	}; 
+	non-fluents {
+		PROB_ALL_PRE(s0) = 0.6266419;
+		PROB_ALL_PRE_MED(s0) = 0.78803456;
+		PROB_HIGH(s0) = 0.8867099;
+		SKILL_WEIGHT(s0) = 1.4431845;
+		LOSE_PROB(s0) = 0.034901031851768495;
+		PROB_ALL_PRE(s1) = 0.692982;
+		PROB_ALL_PRE_MED(s1) = 0.6979286;
+		PROB_HIGH(s1) = 0.882593;
+		SKILL_WEIGHT(s1) = 1.4221066;
+		LOSE_PROB(s1) = 0.028824603557586672;
+	};
+}
+instance skill_teaching_inst_mdp__2 { 
+	domain = skill_teaching_mdp; 
+ 	non-fluents = nf_skill_teaching_inst_mdp__2;
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

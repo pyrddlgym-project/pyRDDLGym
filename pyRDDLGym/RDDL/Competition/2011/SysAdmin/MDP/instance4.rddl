@@ -1,0 +1,97 @@
+non-fluents nf_sysadmin_inst_mdp__4 {
+	domain = sysadmin_mdp;
+	objects {
+		computer : {c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20};
+	};
+	non-fluents {
+		REBOOT-PROB = 0.04;
+		CONNECTED(c1,c16);
+		CONNECTED(c1,c8);
+		CONNECTED(c1,c11);
+		CONNECTED(c2,c16);
+		CONNECTED(c2,c18);
+		CONNECTED(c2,c6);
+		CONNECTED(c3,c17);
+		CONNECTED(c4,c17);
+		CONNECTED(c4,c2);
+		CONNECTED(c5,c17);
+		CONNECTED(c5,c3);
+		CONNECTED(c5,c12);
+		CONNECTED(c6,c16);
+		CONNECTED(c6,c5);
+		CONNECTED(c6,c11);
+		CONNECTED(c7,c16);
+		CONNECTED(c7,c12);
+		CONNECTED(c7,c13);
+		CONNECTED(c8,c1);
+		CONNECTED(c8,c18);
+		CONNECTED(c8,c3);
+		CONNECTED(c9,c3);
+		CONNECTED(c9,c8);
+		CONNECTED(c9,c11);
+		CONNECTED(c10,c8);
+		CONNECTED(c10,c11);
+		CONNECTED(c10,c13);
+		CONNECTED(c11,c2);
+		CONNECTED(c11,c6);
+		CONNECTED(c11,c7);
+		CONNECTED(c12,c17);
+		CONNECTED(c12,c6);
+		CONNECTED(c12,c9);
+		CONNECTED(c13,c1);
+		CONNECTED(c13,c6);
+		CONNECTED(c13,c11);
+		CONNECTED(c14,c5);
+		CONNECTED(c14,c6);
+		CONNECTED(c14,c10);
+		CONNECTED(c15,c1);
+		CONNECTED(c15,c8);
+		CONNECTED(c15,c12);
+		CONNECTED(c16,c3);
+		CONNECTED(c16,c11);
+		CONNECTED(c16,c13);
+		CONNECTED(c17,c20);
+		CONNECTED(c17,c6);
+		CONNECTED(c17,c11);
+		CONNECTED(c18,c16);
+		CONNECTED(c18,c3);
+		CONNECTED(c18,c4);
+		CONNECTED(c19,c2);
+		CONNECTED(c19,c7);
+		CONNECTED(c19,c12);
+		CONNECTED(c20,c17);
+		CONNECTED(c20,c16);
+		CONNECTED(c20,c19);
+	};
+}
+
+instance sysadmin_inst_mdp__4 {
+	domain = sysadmin_mdp;
+	non-fluents = nf_sysadmin_inst_mdp__4;
+	init-state {
+		running(c1);
+		running(c2);
+		running(c3);
+		running(c4);
+		running(c5);
+		running(c6);
+		running(c7);
+		running(c8);
+		running(c9);
+		running(c10);
+		running(c11);
+		running(c12);
+		running(c13);
+		running(c14);
+		running(c15);
+		running(c16);
+		running(c17);
+		running(c18);
+		running(c19);
+		running(c20);
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 40;
+	discount = 1.0;
+}

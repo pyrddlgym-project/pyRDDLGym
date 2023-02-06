@@ -1,0 +1,96 @@
+///////////////////////////////////////////////////////////////
+//
+// Academic Advising Domain
+//
+// Author:  Libby Ferland (libby.knouse@uky.edu)
+//
+// In this domain, a student may take courses at a given cost
+// and passes the course with a probability determined by how
+// many of the prerequisites they have successfully passed.
+// A student also receives a penalty at each time step if they
+// have not yet graduated from their program (i.e., completed
+// all required courses).  We allow multiple courses to be
+// taken in a semester in some instances.
+//
+// Modified for competition and translation purposes by Scott Sanner.
+//
+///////////////////////////////////////////////////////////////
+
+domain academic_advising_pomdp {
+
+  requirements = {  
+    partially-observed
+  };
+
+  types {
+    course : object;
+  };
+
+  pvariables {
+	
+    // Nonfluents: course prerequisites
+    PREREQ(course, course) : { non-fluent, bool, default = false }; // First argument is a prereq of second argument
+
+    // Nonfluents: course passing probabilities
+    PRIOR_PROB_PASS_NO_PREREQ(course) : { non-fluent, real, default = 0.8 }; // Probability of passing a course with no prereqs
+    PRIOR_PROB_PASS(course)           : { non-fluent, real, default = 0.2 }; // Probability of passing a course regardless of prereq status
+    
+    // Nonfluents: program requirements for graduation
+    PROGRAM_REQUIREMENT(course) : { non-fluent, bool, default = false }; // Specifies whether course is program requirement 
+    
+    // Nonfluents: costs/penalties
+    COURSE_COST(course)        : { non-fluent, real, default = -1 }; // Cost for taking a course
+    COURSE_RETAKE_COST(course) : { non-fluent, real, default = -2 }; // Cost for re-taking a course (heavily discouraged)
+    PROGRAM_INCOMPLETE_PENALTY : { non-fluent, real, default = -5 }; // Penalty at each time step for having an incomplete program
+
+	// State
+    passed(course) : { state-fluent, bool, default = false };
+    taken(course)  : { state-fluent, bool, default = false };
+    passed-prev(course) : { state-fluent, bool, default = false }; // New for POMDP, holds delayed passed values
+
+	// Observations -- in this POMDP, we introduce a 1-step delay in reporting of passing grades as observations so a 
+	//                 student may have to enroll in the next course before knowing the outcome of the current semester. 
+	passed-obs(course) : { observ-fluent, bool }; 
+
+	// Action
+    takeCourse(course)   : { action-fluent, bool, default = false };
+  };
+
+  cpfs {
+
+	// Determine whether each course was passed
+	// Modification: differentiate courses with no prereqs since should be easier to pass such introductory courses
+	// For courses with prereqs:
+	//   if PRIOR_PROB_PASS=.2 and 0 out of 3 prereqs were taken, the distribution is Bernoulli(.2 + .8 * (0/4)) = Bernoulli(.2)
+	//                             1 out of 3 prereqs were taken, the distribution is Bernoulli(.2 + .8 * (1/4)) = Bernoulli(.4)
+	//                             3 out of 3 prereqs were taken, the distribution is Bernoulli(.2 + .8 * (3/4)) = Bernoulli(.8)
+    passed'(?c) = 
+    	if (takeCourse(?c) ^ ~passed(?c)) // If take a course and not already passed 
+			then [ if (~exists_{?c2 : course} PREREQ(?c2,?c))
+			       then Bernoulli( PRIOR_PROB_PASS_NO_PREREQ(?c) )  
+			       else Bernoulli((PRIOR_PROB_PASS(?c)) + 
+			                      (1 - PRIOR_PROB_PASS(?c))*[[sum_{?c2 : course} (PREREQ(?c2,?c) ^ passed(?c2))] 
+								                             / [1 + sum_{?c2 : course} PREREQ(?c2,?c)]]) ]
+			else
+				passed(?c); // Value persists if course not taken or already passed
+	
+	taken'(?c) = taken(?c) | takeCourse(?c);
+		
+	passed-prev'(?c) = passed(?c); // Fluent passed-prev gets a 1-step delay view of passed
+				
+	passed-obs(?c) = passed-prev'(?c); // Ensures observations always condition on next state, required by some POMDP competitors
+	
+  };
+
+  // A student is assessed a cost for taking each course and a penalty for not completing their program   
+  reward = 
+ 	  [sum_{?c : course} [COURSE_COST(?c) * (takeCourse(?c) ^ ~taken(?c))]]
+ 	+ [sum_{?c : course} [COURSE_RETAKE_COST(?c) * (takeCourse(?c) ^ taken(?c))]]
+ 	+ [PROGRAM_INCOMPLETE_PENALTY * ~[forall_{?c : course} (PROGRAM_REQUIREMENT(?c) => passed(?c))]];
+
+}     
+ 
+    
+
+
+  

@@ -1,0 +1,68 @@
+non-fluents nf_traffic_inst_mdp__1 {
+	domain = traffic_mdp;
+	objects {
+		intersection : {ia3a3,ia3a6,ia6a3,ia6a6};
+		cell : {ca3a1,ca1a3,ca3a2,ca2a3,ca3a4,ca4a3,ca3a5,ca5a3,ca3a7,ca7a3,ca3a8,ca8a3,ca6a1,ca1a6,ca6a2,ca2a6,ca6a4,ca4a6,ca6a5,ca5a6,ca6a7,ca7a6,ca6a8,ca8a6};
+	};
+	non-fluents {
+
+		PERIMETER-INPUT-CELL(ca3a1);
+		PERIMETER-INPUT-CELL(ca6a1);
+		PERIMETER-INPUT-CELL(ca1a3);
+		PERIMETER-INPUT-CELL(ca1a6);
+
+		PERIMETER-INPUT-RATE(ca3a1) = 0.12959473;
+		PERIMETER-INPUT-RATE(ca6a1) = 0.17356908;
+		PERIMETER-INPUT-RATE(ca1a3) = 0.16023976;
+		PERIMETER-INPUT-RATE(ca1a6) = 0.1621306;
+
+		PERIMETER-EXIT-CELL(ca3a8);
+		PERIMETER-EXIT-CELL(ca6a8);
+		PERIMETER-EXIT-CELL(ca8a3);
+		PERIMETER-EXIT-CELL(ca8a6);
+
+		FLOWS-INTO-INTERSECTION-EW(ca3a2,ia3a3);
+		FLOWS-INTO-INTERSECTION-EW(ca3a5,ia3a6);
+		FLOWS-INTO-INTERSECTION-EW(ca6a2,ia6a3);
+		FLOWS-INTO-INTERSECTION-EW(ca6a5,ia6a6);
+		FLOWS-INTO-INTERSECTION-NS(ca2a3,ia3a3);
+		FLOWS-INTO-INTERSECTION-NS(ca5a3,ia6a3);
+		FLOWS-INTO-INTERSECTION-NS(ca2a6,ia3a6);
+		FLOWS-INTO-INTERSECTION-NS(ca5a6,ia6a6);
+
+		FLOWS-INTO-CELL(ca3a1,ca3a2);
+		FLOWS-INTO-CELL(ca1a3,ca2a3);
+		FLOWS-INTO-CELL(ca3a2,ca3a4);
+		FLOWS-INTO-CELL(ca2a3,ca4a3);
+		FLOWS-INTO-CELL(ca3a4,ca3a5);
+		FLOWS-INTO-CELL(ca4a3,ca5a3);
+		FLOWS-INTO-CELL(ca3a5,ca3a7);
+		FLOWS-INTO-CELL(ca5a3,ca7a3);
+		FLOWS-INTO-CELL(ca3a7,ca3a8);
+		FLOWS-INTO-CELL(ca7a3,ca8a3);
+		FLOWS-INTO-CELL(ca6a1,ca6a2);
+		FLOWS-INTO-CELL(ca1a6,ca2a6);
+		FLOWS-INTO-CELL(ca6a2,ca6a4);
+		FLOWS-INTO-CELL(ca2a6,ca4a6);
+		FLOWS-INTO-CELL(ca6a4,ca6a5);
+		FLOWS-INTO-CELL(ca4a6,ca5a6);
+		FLOWS-INTO-CELL(ca6a5,ca6a7);
+		FLOWS-INTO-CELL(ca5a6,ca7a6);
+		FLOWS-INTO-CELL(ca6a7,ca6a8);
+		FLOWS-INTO-CELL(ca7a6,ca8a6);
+	};
+}
+
+instance traffic_inst_mdp__1 {
+	domain = traffic_mdp;
+	non-fluents = nf_traffic_inst_mdp__1;
+	init-state {
+		occupied(ca3a7);
+		occupied(ca6a7);
+		occupied(ca8a6);
+	};
+
+	max-nondef-actions = 4;
+	horizon  = 40;
+	discount = 1.0;
+}

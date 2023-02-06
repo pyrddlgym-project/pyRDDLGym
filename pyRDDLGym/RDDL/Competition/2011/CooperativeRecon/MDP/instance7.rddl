@@ -1,0 +1,55 @@
+non-fluents nf_recon_inst_mdp__7 {
+	domain = recon_mdp; 
+	objects { 
+		x_pos : {x0,x1,x2,x3};
+		y_pos : {y0,y1,y2,y3};
+		obj : {o0,o1,o2,o3,o4,o5};
+		agent : {a1};
+		tool : {l1,w1,p1};
+
+	}; 
+	non-fluents {
+		ADJACENT-LEFT(x0, x0);
+		ADJACENT-DOWN(y0, y0);
+		ADJACENT-RIGHT(x0, x1);
+		ADJACENT-UP(y0, y1);
+		ADJACENT-LEFT(x1, x0);
+		ADJACENT-DOWN(y1, y0);
+		ADJACENT-RIGHT(x1, x2);
+		ADJACENT-UP(y1, y2);
+		ADJACENT-LEFT(x2, x1);
+		ADJACENT-DOWN(y2, y1);
+		ADJACENT-RIGHT(x2, x3);
+		ADJACENT-UP(y2, y3);
+		ADJACENT-LEFT(x3, x2);
+		ADJACENT-DOWN(y3, y2);
+		ADJACENT-RIGHT(x3, x3);
+		ADJACENT-UP(y3, y3);
+		WATER_TOOL(w1);
+		LIFE_TOOL(l1);
+		CAMERA_TOOL(p1);
+		BASE(x0,y1);
+		objAt(o0,x3,y1);
+		objAt(o1,x2,y1);
+		objAt(o2,x1,y1);
+		objAt(o3,x0,y0);
+		objAt(o4,x2,y3);
+		objAt(o5,x2,y2);
+		HAZARD(x1,y3);
+		DAMAGE_PROB(w1) = 0.5287535;
+		DAMAGE_PROB(l1) = 0.37929258;
+		GOOD_PIC_WEIGHT = 0.2864477;
+		BAD_PIC_WEIGHT = 0.9880673;
+	};
+}
+instance recon_inst_mdp__7 { 
+	domain = recon_mdp; 
+ 	non-fluents = nf_recon_inst_mdp__7;
+	init-state { 
+		agentAt(a1,x0,y1);
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

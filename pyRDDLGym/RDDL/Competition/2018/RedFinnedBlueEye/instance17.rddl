@@ -1,0 +1,213 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Red-finned Blue-eye instance #17 for IPC 2018 by Iadine //
+// Chades (iadine.chades [at] csiro.au) and Thomas Keller (tho.keller [at]     //
+// unibas.ch), based on the paper "Finding the best management policy to       //
+// eradicate invasive species from spatial ecological networks with            //
+// simultaneous actions" by Sam Nicol, Regis Sabbadin, Nathalie Peyrard and    //
+// Iadine Chades (Journal of Applied Ecology, 2017).                           //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance red-finned-blue-eye_inst_mdp__17 {
+    domain = red-finned-blue-eye_mdp;
+
+    objects {
+        spring: {s00, s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, s21, s22, s23, s24, s25, s26, s27, s28, s29};
+    };
+
+    non-fluents {
+        POISON_SUCCESS_PROB = 0.9;
+        TRANSLOCATION_SUCCESS_PROB = 0.42;
+        ACTION_POINTS = 4;
+        REMOVE_MANUALLY_SUCCESS_PROB = 0.15;
+
+        HIGH_WATER_PROB(@exceptionally-low) = 0.025;
+        HIGH_WATER_PROB(@very-low) = 0.1;
+        HIGH_WATER_PROB(@low) = 0.2;
+        HIGH_WATER_PROB(@average) = 0.35;
+        HIGH_WATER_PROB(@high) = 0.2;
+        HIGH_WATER_PROB(@very-high) = 0.1;
+        HIGH_WATER_PROB(@exceptionally-high) = 0.025;
+
+        // Colonization probabilities
+        GAMBUSIA_COLONIZE_PROB(s00, s01) = 0.05;
+        GAMBUSIA_COLONIZE_PROB(s01, s02) = 0.15;
+        GAMBUSIA_COLONIZE_PROB(s02, s03) = 0.18;
+        GAMBUSIA_COLONIZE_PROB(s03, s04) = 0.5;
+        GAMBUSIA_COLONIZE_PROB(s04, s05) = 0.21;
+        GAMBUSIA_COLONIZE_PROB(s05, s09) = 0.07;
+        GAMBUSIA_COLONIZE_PROB(s06, s15) = 0.05;
+        GAMBUSIA_COLONIZE_PROB(s06, s11) = 0.09;
+        GAMBUSIA_COLONIZE_PROB(s06, s07) = 0.07;
+        GAMBUSIA_COLONIZE_PROB(s07, s08) = 0.33;
+        GAMBUSIA_COLONIZE_PROB(s08, s24) = 0.39;
+        GAMBUSIA_COLONIZE_PROB(s08, s09) = 0.33;
+        GAMBUSIA_COLONIZE_PROB(s09, s10) = 0.19;
+        GAMBUSIA_COLONIZE_PROB(s09, s22) = 0.06;
+        GAMBUSIA_COLONIZE_PROB(s10, s11) = 0.07;
+        GAMBUSIA_COLONIZE_PROB(s12, s17) = 0.03;
+        GAMBUSIA_COLONIZE_PROB(s12, s13) = 0.26;
+        GAMBUSIA_COLONIZE_PROB(s12, s14) = 0.13;
+        GAMBUSIA_COLONIZE_PROB(s13, s14) = 0.2;
+        GAMBUSIA_COLONIZE_PROB(s14, s15) = 0.02;
+        GAMBUSIA_COLONIZE_PROB(s15, s16) = 0.05;
+        GAMBUSIA_COLONIZE_PROB(s15, s17) = 0.07;
+        GAMBUSIA_COLONIZE_PROB(s16, s17) = 0.08;
+        GAMBUSIA_COLONIZE_PROB(s18, s19) = 0.02;
+        GAMBUSIA_COLONIZE_PROB(s19, s20) = 0.09;
+        GAMBUSIA_COLONIZE_PROB(s20, s21) = 0.08;
+        GAMBUSIA_COLONIZE_PROB(s21, s22) = 0.13;
+        GAMBUSIA_COLONIZE_PROB(s22, s23) = 0.12;
+        GAMBUSIA_COLONIZE_PROB(s24, s25) = 0.05;
+        GAMBUSIA_COLONIZE_PROB(s25, s26) = 0.34;
+        GAMBUSIA_COLONIZE_PROB(s26, s27) = 0.23;
+        GAMBUSIA_COLONIZE_PROB(s27, s28) = 0.04;
+        GAMBUSIA_COLONIZE_PROB(s28, s29) = 0.13;
+
+
+        NATURAL_MORTALITY_PROB(s00) = 0.07;
+        NATURAL_MORTALITY_PROB(s01) = 0.1;
+        NATURAL_MORTALITY_PROB(s02) = 0.07;
+        NATURAL_MORTALITY_PROB(s03) = 0.08;
+        NATURAL_MORTALITY_PROB(s04) = 0.11;
+        NATURAL_MORTALITY_PROB(s05) = 0.11;
+        NATURAL_MORTALITY_PROB(s06) = 0.03;
+        NATURAL_MORTALITY_PROB(s07) = 0.07;
+        NATURAL_MORTALITY_PROB(s08) = 0.06;
+        NATURAL_MORTALITY_PROB(s09) = 0.1;
+        NATURAL_MORTALITY_PROB(s10) = 0.11;
+        NATURAL_MORTALITY_PROB(s11) = 0.08;
+        NATURAL_MORTALITY_PROB(s12) = 0.09;
+        NATURAL_MORTALITY_PROB(s13) = 0.1;
+        NATURAL_MORTALITY_PROB(s14) = 0.07;
+        NATURAL_MORTALITY_PROB(s15) = 0.07;
+        NATURAL_MORTALITY_PROB(s16) = 0.07;
+        NATURAL_MORTALITY_PROB(s17) = 0.07;
+        NATURAL_MORTALITY_PROB(s18) = 0.04;
+        NATURAL_MORTALITY_PROB(s19) = 0.08;
+        NATURAL_MORTALITY_PROB(s20) = 0.08;
+        NATURAL_MORTALITY_PROB(s21) = 0.08;
+        NATURAL_MORTALITY_PROB(s22) = 0.08;
+        NATURAL_MORTALITY_PROB(s23) = 0.08;
+        NATURAL_MORTALITY_PROB(s24) = 0.02;
+        NATURAL_MORTALITY_PROB(s25) = 0.04;
+        NATURAL_MORTALITY_PROB(s26) = 0.08;
+        NATURAL_MORTALITY_PROB(s27) = 0.11;
+        NATURAL_MORTALITY_PROB(s28) = 0.09;
+        NATURAL_MORTALITY_PROB(s29) = 0.07;
+
+
+        SPRINGS_CONNECTED(s06, s11, @exceptionally-high);
+        SPRINGS_CONNECTED(s06, s07, @exceptionally-high);
+        SPRINGS_CONNECTED(s20, s21, @exceptionally-high);
+        SPRINGS_CONNECTED(s12, s14, @exceptionally-high);
+        SPRINGS_CONNECTED(s12, s14, @very-high);
+        SPRINGS_CONNECTED(s13, s14, @exceptionally-high);
+        SPRINGS_CONNECTED(s13, s14, @very-high);
+        SPRINGS_CONNECTED(s19, s20, @exceptionally-high);
+        SPRINGS_CONNECTED(s19, s20, @very-high);
+        SPRINGS_CONNECTED(s21, s22, @exceptionally-high);
+        SPRINGS_CONNECTED(s21, s22, @very-high);
+        SPRINGS_CONNECTED(s15, s17, @exceptionally-high);
+        SPRINGS_CONNECTED(s15, s17, @very-high);
+        SPRINGS_CONNECTED(s15, s17, @high);
+        SPRINGS_CONNECTED(s16, s17, @exceptionally-high);
+        SPRINGS_CONNECTED(s16, s17, @very-high);
+        SPRINGS_CONNECTED(s16, s17, @high);
+        SPRINGS_CONNECTED(s22, s23, @exceptionally-high);
+        SPRINGS_CONNECTED(s22, s23, @very-high);
+        SPRINGS_CONNECTED(s22, s23, @high);
+        SPRINGS_CONNECTED(s26, s27, @exceptionally-high);
+        SPRINGS_CONNECTED(s26, s27, @very-high);
+        SPRINGS_CONNECTED(s26, s27, @high);
+        SPRINGS_CONNECTED(s28, s29, @exceptionally-high);
+        SPRINGS_CONNECTED(s28, s29, @very-high);
+        SPRINGS_CONNECTED(s28, s29, @high);
+        SPRINGS_CONNECTED(s01, s02, @exceptionally-high);
+        SPRINGS_CONNECTED(s01, s02, @very-high);
+        SPRINGS_CONNECTED(s01, s02, @high);
+        SPRINGS_CONNECTED(s01, s02, @average);
+        SPRINGS_CONNECTED(s02, s03, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s03, @very-high);
+        SPRINGS_CONNECTED(s02, s03, @high);
+        SPRINGS_CONNECTED(s02, s03, @average);
+        SPRINGS_CONNECTED(s04, s05, @exceptionally-high);
+        SPRINGS_CONNECTED(s04, s05, @very-high);
+        SPRINGS_CONNECTED(s04, s05, @high);
+        SPRINGS_CONNECTED(s04, s05, @average);
+        SPRINGS_CONNECTED(s09, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s09, s10, @very-high);
+        SPRINGS_CONNECTED(s09, s10, @high);
+        SPRINGS_CONNECTED(s09, s10, @average);
+        SPRINGS_CONNECTED(s12, s13, @exceptionally-high);
+        SPRINGS_CONNECTED(s12, s13, @very-high);
+        SPRINGS_CONNECTED(s12, s13, @high);
+        SPRINGS_CONNECTED(s12, s13, @average);
+        SPRINGS_CONNECTED(s03, s04, @exceptionally-high);
+        SPRINGS_CONNECTED(s03, s04, @very-high);
+        SPRINGS_CONNECTED(s03, s04, @high);
+        SPRINGS_CONNECTED(s03, s04, @average);
+        SPRINGS_CONNECTED(s03, s04, @low);
+        SPRINGS_CONNECTED(s08, s09, @exceptionally-high);
+        SPRINGS_CONNECTED(s08, s09, @very-high);
+        SPRINGS_CONNECTED(s08, s09, @high);
+        SPRINGS_CONNECTED(s08, s09, @average);
+        SPRINGS_CONNECTED(s08, s09, @low);
+        SPRINGS_CONNECTED(s10, s11, @exceptionally-high);
+        SPRINGS_CONNECTED(s10, s11, @very-high);
+        SPRINGS_CONNECTED(s10, s11, @high);
+        SPRINGS_CONNECTED(s10, s11, @average);
+        SPRINGS_CONNECTED(s10, s11, @low);
+        SPRINGS_CONNECTED(s25, s26, @exceptionally-high);
+        SPRINGS_CONNECTED(s25, s26, @very-high);
+        SPRINGS_CONNECTED(s25, s26, @high);
+        SPRINGS_CONNECTED(s25, s26, @average);
+        SPRINGS_CONNECTED(s25, s26, @low);
+        SPRINGS_CONNECTED(s07, s08, @exceptionally-high);
+        SPRINGS_CONNECTED(s07, s08, @very-high);
+        SPRINGS_CONNECTED(s07, s08, @high);
+        SPRINGS_CONNECTED(s07, s08, @average);
+        SPRINGS_CONNECTED(s07, s08, @low);
+        SPRINGS_CONNECTED(s07, s08, @very-low);
+        SPRINGS_CONNECTED(s08, s24, @exceptionally-high);
+        SPRINGS_CONNECTED(s08, s24, @very-high);
+        SPRINGS_CONNECTED(s08, s24, @high);
+        SPRINGS_CONNECTED(s08, s24, @average);
+        SPRINGS_CONNECTED(s08, s24, @low);
+        SPRINGS_CONNECTED(s08, s24, @very-low);
+    };
+
+    init-state {
+        population(s00) = @gambusia;
+        population(s01) = @red-finned-blue-eye;
+        population(s02) = @red-finned-blue-eye;
+        population(s03) = @gambusia;
+        population(s04) = @gambusia;
+        population(s05) = @gambusia;
+        population(s06) = @gambusia;
+        population(s07) = @gambusia;
+        population(s08) = @gambusia;
+        population(s09) = @gambusia;
+        population(s10) = @gambusia;
+        population(s11) = @gambusia;
+        population(s13) = @gambusia;
+        population(s14) = @red-finned-blue-eye;
+        population(s15) = @red-finned-blue-eye;
+        population(s16) = @red-finned-blue-eye;
+        population(s17) = @gambusia;
+        population(s18) = @gambusia;
+        population(s19) = @gambusia;
+        population(s20) = @red-finned-blue-eye;
+        population(s21) = @gambusia;
+        population(s23) = @red-finned-blue-eye;
+        population(s26) = @red-finned-blue-eye;
+        population(s28) = @red-finned-blue-eye;
+    };
+
+    horizon = 60;
+
+    discount = 1.0;
+}

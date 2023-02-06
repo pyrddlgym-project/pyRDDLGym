@@ -1,0 +1,88 @@
+non-fluents nf_navigation_inst_pomdp__8 {
+	domain = navigation_pomdp;
+	objects {
+		xpos : {x86,x329,x366,x230,x149,x54,x21,x201,x105,x6,x69,x41,x9,x30,x294,x405,x14,x261,x174,x126};
+		ypos : {y15,y12,y20};
+	};
+	non-fluents {
+		WEST(x329,x294);
+		P(x126,y15) = 0.5250563418590708;
+		WEST(x405,x366);
+		P(x54,y15) = 0.3379682389725196;
+		EAST(x261,x294);
+		WEST(x21,x14);
+		WEST(x41,x30);
+		EAST(x86,x105);
+		EAST(x230,x261);
+		WEST(x105,x86);
+		SOUTH(y20,y15);
+		P(x9,y15) = 0.09510153483011222;
+		P(x69,y15) = 0.3563231570450099;
+		P(x261,y15) = 0.755062237676037;
+		P(x294,y15) = 0.7882628958476218;
+		P(x149,y15) = 0.5700694764719197;
+		GOAL(x405,y20);
+		WEST(x14,x9);
+		WEST(x126,x105);
+		P(x105,y15) = 0.4436538508652072;
+		MIN-YPOS(y12);
+		EAST(x41,x54);
+		EAST(x6,x9);
+		P(x21,y15) = 0.1766628824958676;
+		P(x14,y15) = 0.1265905731798787;
+		EAST(x174,x201);
+		MAX-YPOS(y20);
+		MIN-XPOS(x6);
+		EAST(x21,x30);
+		EAST(x294,x329);
+		WEST(x30,x21);
+		WEST(x230,x201);
+		EAST(x30,x41);
+		WEST(x366,x329);
+		EAST(x69,x86);
+		P(x174,y15) = 0.6192227720626091;
+		WEST(x54,x41);
+		WEST(x149,x126);
+		EAST(x201,x230);
+		WEST(x201,x174);
+		EAST(x329,x366);
+		P(x366,y15) = 0.9118440077689133;
+		P(x6,y15) = 0.014299402013421059;
+		EAST(x14,x21);
+		NORTH(y15,y20);
+		WEST(x69,x54);
+		WEST(x261,x230);
+		EAST(x9,x14);
+		MAX-XPOS(x405);
+		P(x86,y15) = 0.4132344236499385;
+		EAST(x149,x174);
+		NORTH(y12,y15);
+		P(x230,y15) = 0.7173179622347418;
+		WEST(x294,x261);
+		P(x201,y15) = 0.6261195271401544;
+		EAST(x54,x69);
+		WEST(x174,x149);
+		EAST(x366,x405);
+		SOUTH(y15,y12);
+		WEST(x9,x6);
+		P(x30,y15) = 0.2090947329017677;
+		EAST(x126,x149);
+		P(x405,y15) = 0.941660021578795;
+		EAST(x105,x126);
+		WEST(x86,x69);
+		P(x329,y15) = 0.8447065957282719;
+		P(x41,y15) = 0.28106486434607125;
+	};
+}
+
+instance navigation_inst_pomdp__8 {
+	domain = navigation_pomdp;
+	non-fluents = nf_navigation_inst_pomdp__8;
+	init-state {
+		min-x;
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+}
+

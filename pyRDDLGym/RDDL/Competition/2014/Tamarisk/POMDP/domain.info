@@ -1,0 +1,4 @@
+[General]
+name=tamarisk2014pomdp
+description=The agent manages the spread of an invasive plant species, by manually intervening to eridaticate them or restore the native species. This is the pomdp version.
+viz=TextViz.TextVisualizer

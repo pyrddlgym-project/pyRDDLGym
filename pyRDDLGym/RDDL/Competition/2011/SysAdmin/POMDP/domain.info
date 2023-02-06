@@ -1,0 +1,4 @@
+[General]
+name=sysadmin2011pomdp
+description=An example RDDL description for the well-known SysAdmin problem. This is the pomdp version.
+viz=TextViz.TextVisualizer

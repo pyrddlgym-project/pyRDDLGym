@@ -1,0 +1,82 @@
+non-fluents nf_traffic_inst_mdp__4 {
+	domain = traffic_mdp;
+	objects {
+		intersection : {ia4a4,ia4a8,ia8a4,ia8a8};
+		cell : {ca4a1,ca1a4,ca4a2,ca2a4,ca4a3,ca3a4,ca4a5,ca5a4,ca4a6,ca6a4,ca4a7,ca7a4,ca4a9,ca9a4,ca4a10,ca10a4,ca4a11,ca11a4,ca8a1,ca1a8,ca8a2,ca2a8,ca8a3,ca3a8,ca8a5,ca5a8,ca8a6,ca6a8,ca8a7,ca7a8,ca8a9,ca9a8,ca8a10,ca10a8,ca8a11,ca11a8};
+	};
+	non-fluents {
+
+		PERIMETER-INPUT-CELL(ca4a1);
+		PERIMETER-INPUT-CELL(ca8a1);
+		PERIMETER-INPUT-CELL(ca1a4);
+		PERIMETER-INPUT-CELL(ca1a8);
+
+		PERIMETER-INPUT-RATE(ca4a1) = 0.35959944;
+		PERIMETER-INPUT-RATE(ca8a1) = 0.2662118;
+		PERIMETER-INPUT-RATE(ca1a4) = 0.44496357;
+		PERIMETER-INPUT-RATE(ca1a8) = 0.47477323;
+
+		PERIMETER-EXIT-CELL(ca4a11);
+		PERIMETER-EXIT-CELL(ca8a11);
+		PERIMETER-EXIT-CELL(ca11a4);
+		PERIMETER-EXIT-CELL(ca11a8);
+
+		FLOWS-INTO-INTERSECTION-EW(ca4a3,ia4a4);
+		FLOWS-INTO-INTERSECTION-EW(ca4a7,ia4a8);
+		FLOWS-INTO-INTERSECTION-EW(ca8a3,ia8a4);
+		FLOWS-INTO-INTERSECTION-EW(ca8a7,ia8a8);
+		FLOWS-INTO-INTERSECTION-NS(ca3a4,ia4a4);
+		FLOWS-INTO-INTERSECTION-NS(ca7a4,ia8a4);
+		FLOWS-INTO-INTERSECTION-NS(ca3a8,ia4a8);
+		FLOWS-INTO-INTERSECTION-NS(ca7a8,ia8a8);
+
+		FLOWS-INTO-CELL(ca4a1,ca4a2);
+		FLOWS-INTO-CELL(ca1a4,ca2a4);
+		FLOWS-INTO-CELL(ca4a2,ca4a3);
+		FLOWS-INTO-CELL(ca2a4,ca3a4);
+		FLOWS-INTO-CELL(ca4a3,ca4a5);
+		FLOWS-INTO-CELL(ca3a4,ca5a4);
+		FLOWS-INTO-CELL(ca4a5,ca4a6);
+		FLOWS-INTO-CELL(ca5a4,ca6a4);
+		FLOWS-INTO-CELL(ca4a6,ca4a7);
+		FLOWS-INTO-CELL(ca6a4,ca7a4);
+		FLOWS-INTO-CELL(ca4a7,ca4a9);
+		FLOWS-INTO-CELL(ca7a4,ca9a4);
+		FLOWS-INTO-CELL(ca4a9,ca4a10);
+		FLOWS-INTO-CELL(ca9a4,ca10a4);
+		FLOWS-INTO-CELL(ca4a10,ca4a11);
+		FLOWS-INTO-CELL(ca10a4,ca11a4);
+		FLOWS-INTO-CELL(ca8a1,ca8a2);
+		FLOWS-INTO-CELL(ca1a8,ca2a8);
+		FLOWS-INTO-CELL(ca8a2,ca8a3);
+		FLOWS-INTO-CELL(ca2a8,ca3a8);
+		FLOWS-INTO-CELL(ca8a3,ca8a5);
+		FLOWS-INTO-CELL(ca3a8,ca5a8);
+		FLOWS-INTO-CELL(ca8a5,ca8a6);
+		FLOWS-INTO-CELL(ca5a8,ca6a8);
+		FLOWS-INTO-CELL(ca8a6,ca8a7);
+		FLOWS-INTO-CELL(ca6a8,ca7a8);
+		FLOWS-INTO-CELL(ca8a7,ca8a9);
+		FLOWS-INTO-CELL(ca7a8,ca9a8);
+		FLOWS-INTO-CELL(ca8a9,ca8a10);
+		FLOWS-INTO-CELL(ca9a8,ca10a8);
+		FLOWS-INTO-CELL(ca8a10,ca8a11);
+		FLOWS-INTO-CELL(ca10a8,ca11a8);
+	};
+}
+
+instance traffic_inst_mdp__4 {
+	domain = traffic_mdp;
+	non-fluents = nf_traffic_inst_mdp__4;
+	init-state {
+		occupied(ca4a6);
+		occupied(ca9a4);
+		occupied(ca3a8);
+		occupied(ca8a9);
+		occupied(ca9a8);
+	};
+
+	max-nondef-actions = 4;
+	horizon  = 40;
+	discount = 1.0;
+}

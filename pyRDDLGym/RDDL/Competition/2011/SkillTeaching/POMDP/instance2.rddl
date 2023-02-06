@@ -1,0 +1,30 @@
+non-fluents nf_skill_teaching_inst_pomdp__2 {
+	domain = skill_teaching_pomdp; 
+	objects { 
+		skill : {s0,s1};
+
+	}; 
+	non-fluents {
+		FALSE_POS(s0) = 0.1160963;
+		FALSE_POS(s1) = 0.01;
+
+		PROB_ALL_PRE(s0) = 0.67660254;
+		PROB_ALL_PRE_MED(s0) = 0.7550123;
+		PROB_HIGH(s0) = 0.9512794;
+		SKILL_WEIGHT(s0) = 1.0921998;
+		
+		PROB_ALL_PRE(s1) = 0.6288554;
+		PROB_ALL_PRE_MED(s1) = 0.6750102;
+		PROB_HIGH(s1) = 0.8873014;
+		SKILL_WEIGHT(s1) = 1.2478412;
+		
+	};
+}
+instance skill_teaching_inst_pomdp__2 { 
+	domain = skill_teaching_pomdp; 
+ 	non-fluents = nf_skill_teaching_inst_pomdp__2;
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

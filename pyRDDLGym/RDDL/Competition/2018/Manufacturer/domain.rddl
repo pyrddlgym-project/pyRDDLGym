@@ -1,0 +1,402 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Manufacturer domain.                       //
+//                                                                             //
+//                                                                             //
+// Created for the probabilistic tracks of IPC 2018 by                         //
+//        Thomas Keller (tho.keller [at] unibas.ch).                           //
+//                                                                             //
+//                                                                             //
+// In this domain, the agent manages a manufacturing company that buys goods   //
+// to use them in the production of other goods. The relationship between the  //
+// various goods (i.e., which good is required in the production of which      //
+// other good) takes the form of a directed acyclic graph.                     //
+//                                                                             //
+// Prizes of goods are determined stochastically by being drawn towards a      //
+// long-term trend price level with higher probability than moving away from   //
+// it. The accumulated reward encodes the bank account of the company, i.e.,   //
+// all monetary costs in the domain incur a negative reward while selling      //
+// goods yields a positive reward.                                             //
+//                                                                             //
+// This domain is modular in the sense that additional options are available   //
+// in more challenging instances, all of which have in common that the agent   //
+// has to take an immediate cost for an increased long-term reward. This is    //
+// already true for the basic concept of buying goods (cost) to produce        //
+// another good that can be sold for more than the sum of the costs. The       //
+// following modules (that can be mixed) are available:                        //
+//                                                                             //
+// M1 Construction of factories: in addition to having an initial factory, it  //
+//    is possible to build new factories (at a cost) and produce different     //
+//    goods with higher expected profit.                                       //
+//                                                                             //
+// M2 Marketing managers and lobbyists: it is possible to hire marketing       //
+//    managers that allow to sell produced goods for a higher prize, and       //
+//    lobbyists that allow to buy products for a lower prize, but the company  //
+//    has to pay a salary.                                                     //
+//                                                                             //
+// M3 Production managers: production managers can be hired to enable the use  //
+//    of actions that purchase, produce (and sell) in a single step rather     //
+//    than in  two (or three) steps. This speeds up the positive reward from   //
+//    producing goods, but also comes with the cost of paying the production   //
+//    manager's salary.                                                        //
+//                                                                             //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain manufacturer_mdp {
+    requirements { 
+        reward-deterministic,
+        preconditions
+    };
+
+
+    types {
+        good                  : object;
+        price-level           : { @level1, @level2, @level3, @level4, @level5, @level6, @level7 };
+        price-trend           : { @down, @stable, @up };
+        construction-progress : { @not-building, @starting, @constructing1, @constructing2, @finishing };
+    };
+
+
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+
+        // encodes the production chain
+        PROCESSED_TO(good, good)                                : { non-fluent, bool, default = false };
+
+        // the base price of a good
+        PRICE(good)                                             : { non-fluent, int, default = 0 };
+
+        // the probability that the price of a good changes from one
+        // level to another for a given long-term price trend
+        PRICE_LEVEL_PROB(price-level, price-level, price-trend) : { non-fluent, real, default = 0.0 };
+
+        // the factor that is used to determine the current price
+        // of a good (by multiplication with the base price)
+        PRICE_LEVEL_FACTOR(price-level)                         : { non-fluent, real, default = 1.0 };
+
+        // the probability that the long-term price trend changes
+        PRICE_TREND_CHANGE_PROB(good)                           : { non-fluent, real, default = 0.05 };
+
+        // the maximal number of factories (if this is 1, module
+        // M1 is not available)
+        MAX_NUM_FACTORIES                                       : { non-fluent, int, default = 1 };
+
+        // the cost to build a factory for each construction step (this makes
+        // the cost stochastic, as there is a chance the construction is delayed)
+        BUILD_FACTORY_COST(good)                                : { non-fluent, int, default = 0 };
+
+        // the probability the construction is delayed in each step
+        PROB_CONSTRUCTION_DELAY_FACTORY(good)                   : { non-fluent, real, default = 0.0 };
+
+        // salary of each production manager
+        SALARY_PRODUCTION_MANAGER                               : { non-fluent, int, default = 0 };
+
+        // salary of the marketing manager
+        SALARY_MARKETING_MANAGER                                : { non-fluent, int, default = 0 };
+
+        // salary of the lobbyist
+        SALARY_LOBBYIST                                         : { non-fluent, int, default = 0 };
+
+        // the probability a production manager applies in each step
+        // (if this is 0, module M3 is not available)
+        PROB_PRODUCTION_MANAGER_APPLIES                         : { non-fluent, real, default = 0.0 };
+
+        // the probability a marketing manager applies in each step
+        // (if this is 0, module M2 is not available)
+        PROB_MARKETING_MANAGER_APPLIES                          : { non-fluent, real, default = 0.0 };
+
+         // the probability a lobbyist applies in each step
+        // (if this is 0, module M2 is not available)
+        PROB_LOBBYIST_APPLIES                                   : { non-fluent, real, default = 0.0 };
+
+        // 1 plus this is an additional factor for the base price
+        // of each sold good
+        MARKETING_MANAGER_BONUS                                 : { non-fluent, real, default = 0.5 };
+
+        // 1 minus this is an additional factor for the base price
+        // of each bought good
+        LOBBYIST_BONUS                                          : { non-fluent, real, default = 0.5 };
+        
+
+        //////////////////// state-fluents ////////////////////
+
+        // the first good is in stock to produce the second
+        good-in-stock(good, good)                               : { state-fluent, bool, default = false };
+
+        // the good is in stock for sale
+        good-in-stock-for-sale(good)                            : { state-fluent, bool, default = false };
+
+        // the current price level of the good
+        current-price-level(good)                               : { state-fluent, price-level, default = @level4 };
+
+        // the current long-term trend for the good
+        price-trend(good)                                       : { state-fluent, price-trend, default = @stable };
+
+        // a factory for this good is available
+        have-factory(good)                                      : { state-fluent, bool, default = false };
+
+        // the construction progress of the factory for this good
+        construction-progress-factory(good)                     : { state-fluent, construction-progress, default = @not-building };
+
+        // a production manager for this good is employed
+        have-production-manager(good)                           : { state-fluent, bool, default = false };
+
+        // a lobbyist is employed
+        have-lobbyist                                           : { state-fluent, bool, default = false };
+
+        // a marketing manager is employed
+        have-marketing-manager                                  : { state-fluent, bool, default = false };
+
+        // a production manager applies for a job this step
+        production-manager-applies                              : {state-fluent, bool, default = false};
+
+        // a lobbyist applies for a job this step
+        lobbyist-applies                                        : { state-fluent, bool, default = false };
+
+        // a marketing manager applies for a job this step
+        marketing-manager-applies                               : { state-fluent, bool, default = false };
+
+
+        //////////////////// action-fluents ////////////////////
+
+        // purchase the first good to produce the second
+        purchase(good, good)                                    : { action-fluent, bool, default = false };
+
+        // produce the first good to produce the second
+        produce(good, good)                                     : { action-fluent, bool, default = false };
+
+        // produce this good for sale
+        produce-for-sale(good)                                  : { action-fluent, bool, default = false };
+
+        // sell this good
+        sell(good)                                              : { action-fluent, bool, default = false };
+
+        // purchase all goods that are needed to produce the first and are
+        // not in stock, then produce the first good to produce the second
+        purchase-produce(good, good)                            : { action-fluent, bool, default = false };
+
+        // purchase all goods that are needed to produce this good and are
+        // not in stock, then produce it for sale
+        purchase-produce-sell(good)                             : { action-fluent, bool, default = false };
+
+        // start construction of a factory for this good
+        build-factory(good)                                     : { action-fluent, bool, default = false };
+
+        // hire a production manager for this good
+        hire-production-manager(good)                           : { action-fluent, bool, default = false };
+
+        // hire a lobbyist
+        hire-lobbyist                                           : { action-fluent, bool, default = false };
+
+        // hire a marketing manager
+        hire-marketing-manager                                  : { action-fluent, bool, default = false };
+    };
+
+
+    cpfs {
+        // ?g1 is in stock and available for production of ?g2 if
+        good-in-stock'(?g1, ?g2) =
+            // it is purchased, produced or all preliminaries for ?g1 are purchased and then it is produced
+            purchase(?g1, ?g2) | produce(?g1, ?g2) | purchase-produce(?g1, ?g2) |
+
+            // or if it is in stock and not sold or used to produce something else
+            ( good-in-stock(?g1, ?g2) & ~produce-for-sale(?g2) & ~purchase-produce-sell(?g2) & ~( exists_{?g3 : good} [ produce(?g2, ?g3) ] ) );
+
+
+        // ?g is in stock for sale if it is produced or has been in stock and is not sold
+        good-in-stock-for-sale'(?g) =
+            produce-for-sale(?g) | ( good-in-stock-for-sale(?g) & ~sell(?g) );
+
+
+        // the long-term price trend can only change by one level (not from
+        // @up to @down) 
+        price-trend'(?g) =
+            Discrete(price-trend,
+                @up     : if (price-trend(?g) == @up) then (1.0 - PRICE_TREND_CHANGE_PROB(?g)) else if (price-trend(?g) == @stable) then (PRICE_TREND_CHANGE_PROB(?g) / 2) else 0,
+                @stable : if (price-trend(?g) == @stable) then (1.0 - PRICE_TREND_CHANGE_PROB(?g)) else PRICE_TREND_CHANGE_PROB(?g),
+                @down   : if (price-trend(?g) == @down) then (1.0 - PRICE_TREND_CHANGE_PROB(?g)) else if (price-trend(?g) == @stable) then (PRICE_TREND_CHANGE_PROB(?g) / 2) else 0);
+
+
+        // the current price level changes in dependency from the current
+        // long-term price trend and the current price level
+        current-price-level'(?g) =
+            Discrete(price-level,
+                @level1  : sum_{ ?l : price-level, ?t : price-trend } [ (current-price-level(?g) == ?l) * (price-trend(?g) == ?t) * PRICE_LEVEL_PROB(@level1, ?l, ?t) ],
+                @level2  : sum_{ ?l : price-level, ?t : price-trend } [ (current-price-level(?g) == ?l) * (price-trend(?g) == ?t) * PRICE_LEVEL_PROB(@level2, ?l, ?t) ],
+                @level3  : sum_{ ?l : price-level, ?t : price-trend } [ (current-price-level(?g) == ?l) * (price-trend(?g) == ?t) * PRICE_LEVEL_PROB(@level3, ?l, ?t) ],
+                @level4  : sum_{ ?l : price-level, ?t : price-trend } [ (current-price-level(?g) == ?l) * (price-trend(?g) == ?t) * PRICE_LEVEL_PROB(@level4, ?l, ?t) ],
+                @level5  : sum_{ ?l : price-level, ?t : price-trend } [ (current-price-level(?g) == ?l) * (price-trend(?g) == ?t) * PRICE_LEVEL_PROB(@level5, ?l, ?t) ],
+                @level6  : sum_{ ?l : price-level, ?t : price-trend } [ (current-price-level(?g) == ?l) * (price-trend(?g) == ?t) * PRICE_LEVEL_PROB(@level6, ?l, ?t) ],
+                @level7  : sum_{ ?l : price-level, ?t : price-trend } [ (current-price-level(?g) == ?l) * (price-trend(?g) == ?t) * PRICE_LEVEL_PROB(@level7, ?l, ?t) ]);
+
+
+        // there is a factory for ?g if there was already on or
+        // if construction has finished in the last step
+        have-factory'(?g) =
+            have-factory(?g) | (construction-progress-factory(?g) == @finishing);
+
+
+        // the construction progress of a factory goes through several construction levels
+        construction-progress-factory'(?g) =
+            // if build-factory is executed, the first construction level is reached
+            if (build-factory(?g))
+                then @starting
+
+            // otherwise, if this factory has not been constructed, it still isn't
+            else if (construction-progress-factory(?g) == @not-building)
+                then @not-building
+
+            // construction is finished
+            else if (construction-progress-factory(?g) == @finishing)
+                then @not-building
+
+            // in the "middle" construction levels, there is a chance construction
+            // gets delayed (i.e., the level does not progress)
+            else if (Bernoulli(PROB_CONSTRUCTION_DELAY_FACTORY(?g)))
+                then construction-progress-factory(?g)
+
+            // no delay, so proceed from @starting to @constructing1
+            else if (construction-progress-factory(?g) == @starting)
+                then @constructing1
+
+            // no delay, so proceed from @constructing1 to @constructing2
+            else if (construction-progress-factory(?g) == @constructing1)
+                then @constructing2
+
+            // no delay, so proceed from @constructing2 to @finishing
+            else @finishing;
+
+
+        // a production manager is employed if one has been employed before
+        // or if one is hired
+        have-production-manager'(?g) =
+            have-production-manager(?g) | hire-production-manager(?g);
+
+        // a lobbyist is employed if one has been employed before
+        // or if one is hired
+        have-lobbyist' =
+            have-lobbyist | hire-lobbyist;
+
+        // a marketing manager is employed if one has been employed before
+        // or if one is hired
+        have-marketing-manager' =
+            have-marketing-manager | hire-marketing-manager;
+
+        // a production manager applies with a given probability
+        production-manager-applies' =
+            Bernoulli(PROB_PRODUCTION_MANAGER_APPLIES);
+
+        // a marketing manager applies with a given probability
+        marketing-manager-applies' =
+            Bernoulli(PROB_MARKETING_MANAGER_APPLIES);
+
+        // a lobbyist applies with a given probability
+        lobbyist-applies' =
+            Bernoulli(PROB_LOBBYIST_APPLIES);
+    };
+
+
+    reward =
+        // selling goods incurs their price as a positive reward (the price is determined
+        // by multiplying a base price with factors for the current price level and a
+        // factor for having a marketing manager)
+        ( sum_{?g : good} [ sell(?g) * PRICE(?g) *
+                            (sum_{?l : price-level} [ (current-price-level(?g) == ?l) * PRICE_LEVEL_FACTOR(?l) ] ) *
+                            (1 + (have-marketing-manager * MARKETING_MANAGER_BONUS) ) ] )
+
+        + ( sum_{?g : good} [ purchase-produce-sell(?g) * PRICE(?g) *
+                              (sum_{?l : price-level} [ (current-price-level(?g) == ?l) * PRICE_LEVEL_FACTOR(?l) ] ) *
+                              (1 + (have-marketing-manager * MARKETING_MANAGER_BONUS) ) ] )
+        
+        // purchasing goods incurs their price as a negative reward (the price is determined
+        // by multiplying a base price with factors for the current price level and a
+        // factor for having a lobbyist)
+        - ( sum_{?g1 : good, ?g2 : good} [ purchase(?g1, ?g2) * PRICE(?g1) * 
+                                           (sum_{?l : price-level} [ (current-price-level(?g1) == ?l) * PRICE_LEVEL_FACTOR(?l) ] ) *
+                                           (1 - (have-lobbyist * LOBBYIST_BONUS) ) ] )
+
+        - ( sum_{?g1 : good, ?g2 : good} [ purchase-produce-sell(?g2) * PROCESSED_TO(?g1, ?g2) * ~good-in-stock(?g1, ?g2) * 
+                                           (sum_{?l : price-level} [ (current-price-level(?g1) == ?l) * PRICE_LEVEL_FACTOR(?l) ] ) *
+                                           PRICE(?g1) * (1 - (have-lobbyist * LOBBYIST_BONUS) ) ] )
+
+        - ( sum_{?g1 : good, ?g2 : good} [ purchase-produce(?g1, ?g2) *
+                                             ( sum_{ ?g3 : good } [ PROCESSED_TO(?g3, ?g1) * ~good-in-stock(?g3, ?g1) * 
+                                                 ( sum_{?l : price-level} [ (current-price-level(?g3) == ?l) * PRICE_LEVEL_FACTOR(?l) *
+                                                                            PRICE(?g3) * (1 - (have-lobbyist * LOBBYIST_BONUS) ) ] ) ] ) ] )
+        
+        // building a factory incurs a negative reward as long as construction lasts
+        - ( sum_{ ?g : good } [ (construction-progress-factory(?g) ~= @not-building) * BUILD_FACTORY_COST(?g) ] )
+                            
+        // salaries incur a negative reward
+        - ( sum_{ ?g : good } [ have-production-manager(?g) * SALARY_PRODUCTION_MANAGER ] )
+        - (have-marketing-manager * SALARY_MARKETING_MANAGER)
+        - (have-lobbyist * SALARY_LOBBYIST);
+
+
+    action-preconditions {
+        // there is one action for each factory
+        ( forall_{?g : good}
+            [ ( ( sum_{ ?g2 : good } [ purchase(?g2, ?g) ] ) +
+                ( sum_{ ?g2 : good } [ produce(?g, ?g2) ] ) +
+                ( sum_{ ?g2 : good } [ purchase-produce(?g, ?g2) ] ) +
+                produce-for-sale(?g) + sell(?g) + purchase-produce-sell(?g) ) <= 1 ] );
+
+        // and one "general management" action
+        ( ( sum_{ ?g : good } [ build-factory(?g) ] ) +
+          ( sum_{ ?g : good } [ hire-production-manager(?g) ] ) +
+          hire-lobbyist + hire-marketing-manager ) <= 1;
+
+        // total number of actions must be less than or equal to the number of factories
+        // (i.e., if a "general management" action is executed, one factory cannot be used)
+        ( ( sum_{ ?g1 : good, ?g2 : good } [
+            purchase(?g2, ?g1) + produce(?g1, ?g2) + purchase-produce(?g1, ?g2) ] ) +
+          ( sum_{ ?g : good } [
+            produce-for-sale(?g) + sell(?g) + purchase-produce-sell(?g) +
+            build-factory(?g) + hire-production-manager(?g) ] ) +
+          hire-lobbyist + hire-marketing-manager )
+        <= ( sum_{ ?g : good } [ have-factory(?g) ] );
+
+        // to produce a good, a factory is required
+        ( forall_{ ?g1 : good, ?g2 : good } [ produce(?g1, ?g2) => have-factory(?g1) ] );
+        ( forall_{ ?g1 : good } [ produce-for-sale(?g1) => have-factory(?g1) ] );
+        ( forall_{ ?g1 : good } [ purchase-produce-sell(?g1) => have-factory(?g1) ] );
+        ( forall_{ ?g1 : good, ?g2 : good } [ purchase-produce(?g1, ?g2) => have-factory(?g1) ] );
+
+        // to produce a good, all required goods have to be in stock
+        ( forall_{ ?g1 : good, ?g2 : good } [ produce(?g1, ?g2) => ( forall_{?g3 : good} [ PROCESSED_TO(?g3, ?g1) => good-in-stock(?g3, ?g1) ] ) ] );
+        ( forall_{ ?g1 : good } [ produce-for-sale(?g1) => ( forall_{?g2 : good} [PROCESSED_TO(?g2, ?g1) => good-in-stock(?g2, ?g1) ] ) ] );
+
+        // only sell goods in stock
+        ( forall_{ ?g : good } [ sell(?g) => good-in-stock-for-sale(?g) ] );
+
+        // purchase-produce(-sell) only with production manager
+        ( forall_{ ?g : good } [ purchase-produce-sell(?g) => have-production-manager(?g) ] );
+        ( forall_{ ?g1 : good, ?g2 : good } [ purchase-produce(?g1, ?g2) => have-production-manager(?g1) ] );
+
+        // only purchase or produce goods that are required for another good 
+        ( forall_{ ?g1 : good, ?g2 : good } [ purchase(?g1, ?g2) => PROCESSED_TO(?g1, ?g2) ] );
+        ( forall_{ ?g1 : good, ?g2 : good } [ produce(?g1, ?g2) => PROCESSED_TO(?g1, ?g2) ] );
+        ( forall_{ ?g1 : good, ?g2 : good } [ purchase-produce(?g1, ?g2) => PROCESSED_TO(?g1, ?g2) ] );
+
+        // only build a factory if there isn't one already
+        ( forall_{ ?g : good } [ build-factory(?g) => ~have-factory(?g) ] );
+        ( forall_{ ?g : good } [ build-factory(?g) => (construction-progress-factory(?g) == @not-building) ] );
+
+        // build no more factories if there are already MAX_NUM_FACTORIES many factories
+        ( forall_{ ?g : good } [ build-factory(?g) => ( ( sum_{ ?g2 : good } [ have-factory(?g2) ] ) <= MAX_NUM_FACTORIES ) ] );
+
+        // no factories for prime goods
+        ( forall_{ ?g : good } [ build-factory(?g) => ( exists_{ ?g2 : good } [ PROCESSED_TO(?g2, ?g) ] ) ] );
+
+        // only hire staff that applies
+        ( forall_{ ?g : good } [ hire-production-manager(?g) => production-manager-applies ] );
+        hire-marketing-manager => marketing-manager-applies;
+        hire-lobbyist => lobbyist-applies;
+
+        // only hire a production manager for an existing factory
+        ( forall_{ ?g : good } [ hire-production-manager(?g) => have-factory(?g) ] );
+    };
+}

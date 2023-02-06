@@ -1,4 +1,0 @@
-[General]
-name=Traffic
-description=BLX/QTM traffic model.
-viz=TextViz.TextVisualizer

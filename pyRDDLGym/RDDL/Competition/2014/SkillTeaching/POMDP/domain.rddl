@@ -1,0 +1,174 @@
+////////////////////////////////////////////////////////////////////
+// Skill Teaching Domain 
+//
+// Author: Tom Walsh (thomasjwalsh [at] gmail.com)
+// Special thanks to Derek Green and Paul Cohen at 
+// University of Arizona for help with the design.
+//
+// In the SkillTeaching POMDP domain, the agent is trying to teach a series 
+// of skills to a student through the use of hints and multiple choice
+// questions.  The student has a proficiency level for each skill, which 
+// indicates his ability to answer questions of that skill and positive
+// reward is given for high proficiency on skills while negative reward 
+// is given for low proficiency.  Each skill also has a weight on 
+// how much it is worth. 
+//
+// Unlike the MDP version, the proficiencies here are only observed
+// through noisy observations.  
+//
+//  Many of the skills are connected in that some are
+// ``pre-conditions'' of others.  If all of a skill's 
+// pre-conditions are learned, the student has some probability 
+// of answering questions about it right, and each precondition
+// that is at high proficiency adds to the probability though 
+// knowing all of them can lead to a probability higher than the sum
+// of the components.  Hints only work if all the preconditions 
+// are known and can only get you to medium proficiency.
+//
+// student proficiency increases with questions answered right and 
+// decreases with questions about a skill answered wrong.  Unlike 
+// the MDP version, skill proficiencies don't 
+// come down simply at random.
+//
+// To model the teacher-student interaction, every other step in the
+// domain is the student's turn, where they answer a question.  
+//
+// The planning problems here are:
+// 1) Whether or not to teach all the prerequisites of a skill before
+//    teaching it.
+// 2) What skill to focus on next
+// 3) When to give hints and when to use multiple choice problems
+//
+////////////////////////////////////////////////////////////////////
+
+domain skill_teaching_pomdp {
+  	
+	requirements = { 
+		reward-deterministic, 
+		partially-observed
+	};
+
+	types { 
+		skill : object;	
+	};
+      	
+	pvariables { 
+	
+		//how valuable is this skill?	
+		SKILL_WEIGHT(skill) : { non-fluent, real, default = 1.0 };
+
+		//some skills are pre-reqs for others.  Your ability to achieve a higher level skill 
+		//is dependent on how many of the pre-reqs you have mastered
+		PRE_REQ(skill, skill) : { non-fluent, bool, default = false };
+
+		//probability of getting a question right if you have all the pre-cons
+		PROB_ALL_PRE(skill) : { non-fluent, real, default = 1.0 };
+		PROB_PER_PRE(skill) : { non-fluent, real, default = 0.1 };
+
+		PROB_ALL_PRE_MED(skill) : { non-fluent, real, default = 1.0 };
+		//if you don't have all the pre-cons, probaility mass is summed using these individual pieces
+		PROB_PER_PRE_MED(skill) : { non-fluent, real, default = 0.3 };
+		
+		PROB_HIGH(skill) : { non-fluent, real, default = 0.9 };
+
+		//observation noise
+		//REPORT_PROB(skill) : { non-fluent, real, default = 1.0 };
+		FALSE_POS(skill) : { non-fluent, real, default = 0.1 };
+
+		//proficiency levels
+		proficiencyMed(skill) : { state-fluent, bool, default = false };
+		proficiencyHigh(skill) : { state-fluent, bool, default = false };
+
+		//proficiency observations
+		answeredRightObs(skill) : {observ-fluent, bool};
+		updateTurnObs(skill) : {observ-fluent, bool};	
+		updateTurn(skill) : {state-fluent, bool, default = false};
+
+		fpos(skill) : {state-fluent, bool, default = false};
+		answeredRight(skill): {state-fluent, bool, default = false};
+		hintedRight(skill): {state-fluent, bool, default = false};
+		hintDelayVar(skill) : {state-fluent, bool, default = false};
+
+		//actions
+		askProb(skill) : {action-fluent, bool, default = false};
+		giveHint(skill) :  {action-fluent, bool, default = false};
+	};
+  
+	cpfs {
+
+		updateTurnObs(?s) = 
+			KronDelta( updateTurn'(?s) );
+
+		updateTurn'(?s) = 
+			KronDelta( [forall_{?s2: skill} ~updateTurn(?s2)] ^ (askProb(?s) | giveHint(?s)) );  //student does not get a turn on a hint
+
+		//false positives
+		fpos'(?s) = 
+			if ([forall_{?s2: skill} ~updateTurn(?s2)] ^ askProb(?s)) 
+				then Bernoulli(FALSE_POS(?s)) 
+			else KronDelta( false );
+
+		answeredRight'(?s) = 
+			if ([forall_{?s2: skill} ~updateTurn(?s2)] ^ askProb(?s) ^ proficiencyHigh(?s)) 
+				then Bernoulli(PROB_HIGH(?s))
+			else if ([forall_{?s3: skill} ~updateTurn(?s3)] ^ askProb(?s) ^ proficiencyMed(?s) ^forall_{?s2: skill}[PRE_REQ(?s2, ?s) => proficiencyHigh(?s2)]) 
+				then Bernoulli(PROB_ALL_PRE_MED(?s))
+			else if ([forall_{?s2: skill} ~updateTurn(?s2)] ^ askProb(?s) ^proficiencyMed(?s) ^ askProb(?s)) 
+				then Bernoulli(sum_{?s2: skill}[PRE_REQ(?s2, ?s) * PROB_PER_PRE_MED(?s)])
+			else if ([forall_{?s3: skill} ~updateTurn(?s3)] ^ askProb(?s) ^forall_{?s2: skill}[PRE_REQ(?s2, ?s) => proficiencyHigh(?s2)]) 
+				then Bernoulli(PROB_ALL_PRE(?s))
+			else if ([forall_{?s2: skill} ~updateTurn(?s2)] ^ askProb(?s)  ^ askProb(?s)) 
+				then Bernoulli(sum_{?s2: skill}[PRE_REQ(?s2, ?s) * PROB_PER_PRE(?s)])
+			else
+				KronDelta( false );
+		
+		answeredRightObs(?s) = 
+			KronDelta( answeredRight'(?s) );
+
+		hintedRight'(?s) = 
+			KronDelta( [forall_{?s3: skill} ~updateTurn(?s3)] ^ giveHint(?s) ^ forall_{?s2: skill}[PRE_REQ(?s2, ?s) => proficiencyHigh(?s2)] );
+
+		hintDelayVar'(?s) = 
+			KronDelta( [forall_{?s2: skill} ~updateTurn(?s2)] ^ giveHint(?s) );
+
+		//without intermediate nodes, we need to keep ``on'' all proficiency levels that have been attained		
+		//can't go down from proficiencyMed without intermediate nodes or a time delay I think
+		//proficiencyMed can be reached through a hint if all preconditions are known or by a problem answered correctly
+		proficiencyMed'(?s) =
+		    if (~updateTurn(?s) ^ proficiencyMed(?s)) 
+		    	then KronDelta( true )
+		    else if (updateTurn(?s) ^ hintedRight(?s)) 
+		    	then KronDelta( true )
+		    else if (updateTurn(?s) ^ answeredRight(?s) ^ ~proficiencyHigh(?s) ^ ~fpos(?s))  
+		    	then KronDelta( true )
+		    else if (proficiencyMed(?s) ^ updateTurn(?s) ^ answeredRight(?s)) 
+		    	then KronDelta( true )
+		    else if (proficiencyHigh(?s)) 
+		    	then KronDelta( true ) //may come down
+		    else if (proficiencyMed(?s) ^ updateTurn(?s) ^ hintDelayVar(?s)) 
+		    	then KronDelta( true ) //can't lose it on a hint
+	        else 
+	        	KronDelta( false );
+
+		//high proficiency is reached by getting a question and having proficiencyMed
+		proficiencyHigh'(?s) =
+		    if (~updateTurn(?s) ^ proficiencyHigh(?s)) 
+		    	then KronDelta( true )
+		    else if (proficiencyMed(?s) ^ updateTurn(?s) ^ answeredRight(?s) ^ ~fpos(?s))  
+		    	then KronDelta( true )
+		    else if (proficiencyHigh(?s) ^ updateTurn(?s) ^ answeredRight(?s)) 
+		    	then KronDelta( true )
+		    else if (proficiencyHigh(?s) ^ updateTurn(?s) ^ (hintDelayVar(?s) | answeredRight(?s))) 
+		    	then KronDelta( true ) //can't lose it on a hint
+	        else 
+	        	KronDelta( false );
+
+		//hints only work if all the preconditions are known
+	};
+    	
+	 reward = [sum_{?s : skill} [SKILL_WEIGHT(?s) * proficiencyHigh(?s)]] + [sum_{?s : skill} -[SKILL_WEIGHT(?s) * ~proficiencyMed(?s)]];
+
+}
+
+
+

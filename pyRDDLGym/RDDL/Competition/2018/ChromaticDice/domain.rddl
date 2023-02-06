@@ -1,0 +1,712 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Chromatic Dice domain.                     //
+//                                                                             //
+//                                                                             //
+// Created for the probabilistic tracks of IPC 2018 by                         //
+//                                                                             //
+//        Thomas Keller (tho.keller [at] unibas.ch).                           //
+//                                                                             //
+//                                                                             //
+// Chromatic Dice is a variant of the popular dice game Yahtzee (also known as //
+// Kniffel). The most important difference is that dice show colored values    //
+// upon rolling, where the color is independent from the value (e.g., the same //
+// die can come up with a blue 6 and a red 6 in two consecutive steps).        //
+//                                                                             //
+// The colors allow for some additional categories in a new middle section     //
+// (one for each color where the sum of all values with a certain color count) //
+// and five new categories in the lower section (color versions of three and   //
+// four of a kind, full house, flush and rainbow).                             //
+//                                                                             //
+// Like the "upper" section (with categories ones, twos, etc), the new middle  //
+// section allows for a bonus if the assigned dice meet certain criteria.      //
+// Since this domain is modelled without integer-valued variables, we cannot   //
+// encode a condition for the bonus that relies on the sum of all entries in   //
+// the section (each entry is directly converted into immediate reward which   //
+// cannot be accessed later). Instead, we take a probabilistic approach, where //
+// we keep track of levels that define a probability that the bonus is         //
+// received. If four or five dice count towards one of the categories, the     //
+// level increases, and if one or two dice count it is decreased. There is     //
+// such a level both for the upper and middle section, and both boni are       //
+// granted (or not) at the end of a run.                                       //
+//                                                                             //
+// Even though the optimal policy in the MDP version of Chromatic Dice that is //
+// considered here is not optimal in a version of the original problem (i.e.,  //
+// a game with one or more adversaries), it is close enough to make for a      //
+// challenging player that is non-trivial to defeat.                           //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain chromatic-dice_mdp {
+    requirements { 
+        reward-deterministic,
+        preconditions
+    };
+
+
+    types {
+        die        : object;
+
+        number     : { @1, @2, @3, @4, @5, @6 };
+
+        color      : { @red, @green, @blue, @yellow, @purple };
+
+        game-phase : { @roll1, @roll2, @roll3, @assign, @receive-boni, @finish };
+
+        category   : { // upper section (value matters) categories
+                       @ones, @twos, @threes, @fours, @fives, @sixes,
+
+                       // middle section (color matters) categories
+                       @reds, @greens, @yellows, @blues, @purples,
+
+                        // lower section (value matters) categories
+                       @two-pairs, @three-of-a-kind, @four-of-a-kind,
+                       @full-house, @small-straight, @large-straight, @chance,
+                       @five-of-a-kind,
+
+                       // lower section (color matters) categories
+                       @three-of-a-color, @four-of-a-color, @color-full-house,
+                       @flush, @rainbow };
+    };
+
+
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+
+        // score for five dice of same value
+        SCORE_FIVE_OF_A_KIND          : {non-fluent, int, default = 50};
+
+        // score for five dice of consecutive values
+        SCORE_LARGE_STRAIGHT          : {non-fluent, int, default = 40};
+
+        // score for four dice of consecutive values
+        SCORE_SMALL_STRAIGHT          : {non-fluent, int, default = 30};
+
+        // score for three dice of one value and two of another
+        SCORE_FULL_HOUSE              : {non-fluent, int, default = 25};
+
+        // score for three dice of one color and two of another
+        SCORE_COLOR_FULL_HOUSE        : {non-fluent, int, default = 20};
+
+        // score for five dice of five different colors
+        SCORE_RAINBOW                 : {non-fluent, int, default = 35};
+
+        // bonus if entries in upper section are of a given quality
+        BONUS_VALUE_PART(number)      : {non-fluent, int, default = 45};
+
+        // bonus if entries in middle section are of a given quality
+        BONUS_COLOR_PART(number)      : {non-fluent, int, default = 40};
+
+        // probability that bonus for upper section is granted
+        BONUS_PROB_VALUE_PART(number) : {non-fluent, real, default = 0.0};
+
+        // probability that bonus for middle section is granted
+        BONUS_PROB_COLOR_PART(number) : {non-fluent, real, default = 0.0};
+
+        // probability that a value comes up when dice is rolled
+        VALUE_PROB(number)            : {non-fluent, real, default = 0.166666667};
+
+        // probability that a color comes up when a dice is rolled
+        COLOR_PROB(color)             : {non-fluent, real, default = 0.0};
+
+
+        //////////////////// state-fluents ////////////////////
+
+        // value shown on this die
+        die-value(die)                : {state-fluent, number, default = @1};
+
+        // color shown on this die
+        die-color(die)                : {state-fluent, color, default = @blue};
+
+        // current game phase
+        current-phase                 : {state-fluent, game-phase, default = @roll1};
+
+        // mark if a category has been taken
+        taken(category)               : {state-fluent, bool, default = false};
+
+        // current bonus level for upper section
+        bonus-level-value-part        : {state-fluent, number, default = @4};
+
+        // current bonus level for middle section
+        bonus-level-color-part        : {state-fluent, number, default = @4};
+
+        // true if bonus for upper section is granted (determined in next to
+        // last step)
+        receive-value-bonus           : {state-fluent, bool, default = false};
+
+        // true if bonus for middle section is granted (determined in next to
+        // last step)
+        receive-color-bonus           : {state-fluent, bool, default = false};
+
+
+        //////////////////// action-fluents ////////////////////
+
+        // roll this die
+        roll(die)                     : {action-fluent, bool, default = false};
+
+        // assign values and colors of current dice to this category
+        assign-to(category)           : {action-fluent, bool, default = false};
+    };
+
+
+    cpfs {
+        die-value'(?d) =
+            // if ?d is rolled, the value that comes up is determined
+            if ( roll(?d) ) then Discrete(number,
+                                          @1 : VALUE_PROB(@1),
+                                          @2 : VALUE_PROB(@2),
+                                          @3 : VALUE_PROB(@3),
+                                          @4 : VALUE_PROB(@4),
+                                          @5 : VALUE_PROB(@5),
+                                          @6 : VALUE_PROB(@6))
+
+            // otherwise, the value persists
+            else die-value(?d);
+
+
+        die-color'(?d) =
+            // if ?d is rolled, the color that comes up is determined
+            if ( roll(?d) ) then Discrete(color,
+                                          @red    : COLOR_PROB(@red),
+                                          @green  : COLOR_PROB(@green),
+                                          @blue   : COLOR_PROB(@blue),
+                                          @yellow : COLOR_PROB(@yellow),
+                                          @purple : COLOR_PROB(@purple))
+
+            // otherwise, the color persists
+            else die-color(?d);
+
+
+        // the current phase cycles through @roll1, @roll2, @roll3 and @assign
+        // until all categories are assigned, then there is a single @receive-boni
+        // and @finish phase
+        current-phase' =
+            if ( ( forall_{?c : category} [ taken(?c) | assign-to(?c) ] ) & (current-phase ~= @receive-boni))
+               then @receive-boni
+            else if ( forall_{?c : category} [ taken(?c) ] )
+               then @finish
+            else if (current-phase == @roll1) then @roll2
+            else if (current-phase == @roll2) then @roll3
+            else if (current-phase == @roll3) then @assign
+            else @roll1;
+
+
+        // ?c is taken if it has been taken earlier or is taken now
+        taken'(?c) = taken(?c) | assign-to(?c);
+
+
+        // Without numeric state fluents, it is impossible to track the 
+        // accumulated score in the upper section. We therefore use an
+        // approximation with six levels, each of which is assigned a probability
+        // that the bonus is granted (the higher the level the more likely).
+        // Assignments with more than 3 matching values increase the level, and
+        // assignments with less decrease the level.
+        bonus-level-value-part' =
+            // no value matches, so the bonus level decreases by three
+            if (( assign-to(@ones)   & (sum_{?d : die} [ die-value(?d) == @1 ] ) == 0 ) |
+                ( assign-to(@twos)   & (sum_{?d : die} [ die-value(?d) == @2 ] ) == 0 ) |
+                ( assign-to(@threes) & (sum_{?d : die} [ die-value(?d) == @3 ] ) == 0 ) |
+                ( assign-to(@fours)  & (sum_{?d : die} [ die-value(?d) == @4 ] ) == 0 ) |
+                ( assign-to(@fives)  & (sum_{?d : die} [ die-value(?d) == @5 ] ) == 0 ) |
+                ( assign-to(@sixes)  & (sum_{?d : die} [ die-value(?d) == @6 ] ) == 0 ) )
+                // then switch (bonus-level-value-part) {
+                //     case @1 : @1,
+                //     case @2 : @1,
+                //     case @3 : @1,
+                //     case @4 : @1,
+                //     case @5 : @2,
+                //     case @6 : @3
+                // }
+                then ( if (bonus-level-value-part == @1) then @1
+                       else if (bonus-level-value-part == @2) then @1
+                       else if (bonus-level-value-part == @3) then @1
+                       else if (bonus-level-value-part == @4) then @1
+                       else if (bonus-level-value-part == @5) then @2
+                       else @3 )
+            // only one value matches, so the bonus level decreases by two
+            else if (( assign-to(@ones)   & (sum_{?d : die} [ die-value(?d) == @1 ] ) == 1 ) |
+                     ( assign-to(@twos)   & (sum_{?d : die} [ die-value(?d) == @2 ] ) == 1 ) |
+                     ( assign-to(@threes) & (sum_{?d : die} [ die-value(?d) == @3 ] ) == 1 ) |
+                     ( assign-to(@fours)  & (sum_{?d : die} [ die-value(?d) == @4 ] ) == 1 ) |
+                     ( assign-to(@fives)  & (sum_{?d : die} [ die-value(?d) == @5 ] ) == 1 ) |
+                     ( assign-to(@sixes)  & (sum_{?d : die} [ die-value(?d) == @6 ] ) == 1 ) )
+                // then switch (bonus-level-value-part) {
+                //     case @1 : @1,
+                //     case @2 : @1,
+                //     case @3 : @1,
+                //     case @4 : @2,
+                //     case @5 : @3,
+                //     case @6 : @4
+                // }
+                then ( if (bonus-level-value-part == @1) then @1
+                       else if (bonus-level-value-part == @2) then @1
+                       else if (bonus-level-value-part == @3) then @1
+                       else if (bonus-level-value-part == @4) then @2
+                       else if (bonus-level-value-part == @5) then @3
+                       else @4 )
+            // only two values match, so the bonus level decreases by one
+            else if (( assign-to(@ones)   & (sum_{?d : die} [ die-value(?d) == @1 ] ) == 2 ) |
+                     ( assign-to(@twos)   & (sum_{?d : die} [ die-value(?d) == @2 ] ) == 2 ) |
+                     ( assign-to(@threes) & (sum_{?d : die} [ die-value(?d) == @3 ] ) == 2 ) |
+                     ( assign-to(@fours)  & (sum_{?d : die} [ die-value(?d) == @4 ] ) == 2 ) |
+                     ( assign-to(@fives)  & (sum_{?d : die} [ die-value(?d) == @5 ] ) == 2 ) |
+                     ( assign-to(@sixes)  & (sum_{?d : die} [ die-value(?d) == @6 ] ) == 2 ) )
+                     // then switch (bonus-level-value-part) {
+                     //     case @1 : @1,
+                     //     case @2 : @1,
+                     //     case @3 : @2,
+                     //     case @4 : @3,
+                     //     case @5 : @4,
+                     //     case @6 : @5
+                     // }
+                     then ( if (bonus-level-value-part == @1) then @1
+                            else if (bonus-level-value-part == @2) then @1
+                            else if (bonus-level-value-part == @3) then @2
+                            else if (bonus-level-value-part == @4) then @3
+                            else if (bonus-level-value-part == @5) then @4
+                            else @5 )
+            // four values match, so the bonus level increases by one
+            else if (( assign-to(@ones)   & (sum_{?d : die} [ die-value(?d) == @1 ] ) == 4 ) |
+                     ( assign-to(@twos)   & (sum_{?d : die} [ die-value(?d) == @2 ] ) == 4 ) |
+                     ( assign-to(@threes) & (sum_{?d : die} [ die-value(?d) == @3 ] ) == 4 ) |
+                     ( assign-to(@fours)  & (sum_{?d : die} [ die-value(?d) == @4 ] ) == 4 ) |
+                     ( assign-to(@fives)  & (sum_{?d : die} [ die-value(?d) == @5 ] ) == 4 ) |
+                     ( assign-to(@sixes)  & (sum_{?d : die} [ die-value(?d) == @6 ] ) == 4 ) )
+                     // then switch (bonus-level-value-part) {
+                     //     case @1 : @2,
+                     //     case @2 : @3,
+                     //     case @3 : @4,
+                     //     case @4 : @5,
+                     //     case @5 : @6,
+                     //     case @6 : @6
+                     // }
+                     then ( if (bonus-level-value-part == @1) then @2
+                            else if (bonus-level-value-part == @2) then @3
+                            else if (bonus-level-value-part == @3) then @4
+                            else if (bonus-level-value-part == @4) then @5
+                            else @6 )
+            // all values match, so the bonus level increases by two
+            else if (( assign-to(@ones)   & (sum_{?d : die} [ die-value(?d) == @1 ] ) == 5 ) |
+                     ( assign-to(@twos)   & (sum_{?d : die} [ die-value(?d) == @2 ] ) == 5 ) |
+                     ( assign-to(@threes) & (sum_{?d : die} [ die-value(?d) == @3 ] ) == 5 ) |
+                     ( assign-to(@fours)  & (sum_{?d : die} [ die-value(?d) == @4 ] ) == 5 ) |
+                     ( assign-to(@fives)  & (sum_{?d : die} [ die-value(?d) == @5 ] ) == 5 ) |
+                     ( assign-to(@sixes)  & (sum_{?d : die} [ die-value(?d) == @6 ] ) == 5 ) )
+                     // then switch (bonus-level-value-part) {
+                     //     case @1 : @3,
+                     //     case @2 : @4,
+                     //     case @3 : @5,
+                     //     case @4 : @6,
+                     //     case @5 : @6,
+                     //     case @6 : @6
+                     // }
+                     then ( if (bonus-level-value-part == @1) then @3
+                            else if (bonus-level-value-part == @2) then @4
+                            else if (bonus-level-value-part == @3) then @5
+                            else @6 )
+            // three values match, so the bonus level persists
+            else bonus-level-value-part;
+             
+        // Without numeric state fluents, it is impossible to track the 
+        // accumulated score in the middle section. We therefore use an
+        // approximation with six levels, each of which is assigned a probability
+        // that the bonus is granted (the higher the level the more likely).
+        // Assignments with more than 3 matching colors increase the level, and
+        // assignments with less decrease the level.
+        bonus-level-color-part' =
+            // no color matches, so the color level decreases by three
+            if (( assign-to(@reds)    & (sum_{?d : die} [ die-color(?d) == @red    ] ) == 0 ) |
+                ( assign-to(@greens)  & (sum_{?d : die} [ die-color(?d) == @green  ] ) == 0 ) |
+                ( assign-to(@blues)   & (sum_{?d : die} [ die-color(?d) == @blue   ] ) == 0 ) |
+                ( assign-to(@yellows) & (sum_{?d : die} [ die-color(?d) == @yellow ] ) == 0 ) |
+                ( assign-to(@purples) & (sum_{?d : die} [ die-color(?d) == @purple ] ) == 0 ) )
+                // then switch (bonus-level-color-part) {
+                //     case @1 : @1,
+                //     case @2 : @1,
+                //     case @3 : @1,
+                //     case @4 : @1,
+                //     case @5 : @2,
+                //     case @6 : @3
+                // }
+                then ( if (bonus-level-color-part == @1) then @1
+                       else if (bonus-level-color-part == @2) then @1
+                       else if (bonus-level-color-part == @3) then @1
+                       else if (bonus-level-color-part == @4) then @1
+                       else if (bonus-level-color-part == @5) then @2
+                       else @3 )
+            // only one color matches, so the color level decreases by two
+            else if (( assign-to(@reds)    & (sum_{?d : die} [ die-color(?d) == @red    ] ) == 1 ) |
+                     ( assign-to(@greens)  & (sum_{?d : die} [ die-color(?d) == @green  ] ) == 1 ) |
+                     ( assign-to(@blues)   & (sum_{?d : die} [ die-color(?d) == @blue   ] ) == 1 ) |
+                     ( assign-to(@yellows) & (sum_{?d : die} [ die-color(?d) == @yellow ] ) == 1 ) |
+                     ( assign-to(@purples) & (sum_{?d : die} [ die-color(?d) == @purple ] ) == 1 ) )
+                // then switch (bonus-level-color-part) {
+                //     case @1 : @1,
+                //     case @2 : @1,
+                //     case @3 : @1,
+                //     case @4 : @2,
+                //     case @5 : @3,
+                //     case @6 : @4
+                // }
+                then ( if (bonus-level-color-part == @1) then @1
+                       else if (bonus-level-color-part == @2) then @1
+                       else if (bonus-level-color-part == @3) then @1
+                       else if (bonus-level-color-part == @4) then @2
+                       else if (bonus-level-color-part == @5) then @3
+                       else @4 )
+            // only two colors match, so the bonus level decreases by one
+            else if (( assign-to(@reds)    & (sum_{?d : die} [ die-color(?d) == @red    ] ) == 2 ) |
+                     ( assign-to(@greens)  & (sum_{?d : die} [ die-color(?d) == @green  ] ) == 2 ) |
+                     ( assign-to(@blues)   & (sum_{?d : die} [ die-color(?d) == @blue   ] ) == 2 ) |
+                     ( assign-to(@yellows) & (sum_{?d : die} [ die-color(?d) == @yellow ] ) == 2 ) |
+                     ( assign-to(@purples) & (sum_{?d : die} [ die-color(?d) == @purple ] ) == 2 ) )
+                // then switch (bonus-level-color-part) {
+                //     case @1 : @1,
+                //     case @2 : @1,
+                //     case @3 : @2,
+                //     case @4 : @3,
+                //     case @5 : @4,
+                //     case @6 : @5
+                // }
+                then ( if (bonus-level-color-part == @1) then @1
+                       else if (bonus-level-color-part == @2) then @1
+                       else if (bonus-level-color-part == @3) then @2
+                       else if (bonus-level-color-part == @4) then @3
+                       else if (bonus-level-color-part == @5) then @4
+                       else @5 )
+            // four colors match, so the bonus level increases by one
+            else if (( assign-to(@reds)    & (sum_{?d : die} [ die-color(?d) == @red    ] ) == 4 ) |
+                     ( assign-to(@greens)  & (sum_{?d : die} [ die-color(?d) == @green  ] ) == 4 ) |
+                     ( assign-to(@blues)   & (sum_{?d : die} [ die-color(?d) == @blue   ] ) == 4 ) |
+                     ( assign-to(@yellows) & (sum_{?d : die} [ die-color(?d) == @yellow ] ) == 4 ) |
+                     ( assign-to(@purples) & (sum_{?d : die} [ die-color(?d) == @purple ] ) == 4 ) )
+                // then switch (bonus-level-color-part) {
+                //     case @1 : @2,
+                //     case @2 : @3,
+                //     case @3 : @4,
+                //     case @4 : @5,
+                //     case @5 : @6,
+                //     case @6 : @6
+                // }
+                then ( if (bonus-level-color-part == @1) then @2
+                       else if (bonus-level-color-part == @2) then @3
+                       else if (bonus-level-color-part == @3) then @4
+                       else if (bonus-level-color-part == @4) then @5
+                       else @6 )
+            // all colors match, so the bonus level increases by two
+            else if (( assign-to(@reds)    & (sum_{?d : die} [ die-color(?d) == @red    ] ) == 5 ) |
+                     ( assign-to(@greens)  & (sum_{?d : die} [ die-color(?d) == @green  ] ) == 5 ) |
+                     ( assign-to(@blues)   & (sum_{?d : die} [ die-color(?d) == @blue   ] ) == 5 ) |
+                     ( assign-to(@yellows) & (sum_{?d : die} [ die-color(?d) == @yellow ] ) == 5 ) |
+                     ( assign-to(@purples) & (sum_{?d : die} [ die-color(?d) == @purple ] ) == 5 ) )
+                // then switch (bonus-level-color-part) {
+                //     case @1 : @3,
+                //     case @2 : @4,
+                //     case @3 : @5,
+                //     case @4 : @6,
+                //     case @5 : @6,
+                //     case @6 : @6
+                // }
+                then ( if (bonus-level-color-part == @1) then @3
+                       else if (bonus-level-color-part == @2) then @4
+                       else if (bonus-level-color-part == @3) then @5
+                       else @6 )
+            // three colors match, so the bonus level persists
+            else bonus-level-color-part;
+             
+
+        // in the @receive-boni phase, the bonus for the upper section is
+        // determined based on the current bonus-level
+        receive-value-bonus' =
+            if ( (current-phase == @receive-boni) & (bonus-level-value-part == @1) )
+                then Bernoulli(BONUS_PROB_VALUE_PART(@1))
+            else if ( (current-phase == @receive-boni) & (bonus-level-value-part == @2) )
+                then Bernoulli(BONUS_PROB_VALUE_PART(@2))
+            else if ( (current-phase == @receive-boni) & (bonus-level-value-part == @3) )
+                then Bernoulli(BONUS_PROB_VALUE_PART(@3))
+            else if ( (current-phase == @receive-boni) & (bonus-level-value-part == @4) )
+                then Bernoulli(BONUS_PROB_VALUE_PART(@4))
+            else if ( (current-phase == @receive-boni) & (bonus-level-value-part == @5) )
+                then Bernoulli(BONUS_PROB_VALUE_PART(@5))
+            else if ( (current-phase == @receive-boni) & (bonus-level-value-part == @6) )
+                then Bernoulli(BONUS_PROB_VALUE_PART(@6))
+            else false;
+             
+        // in the @receive-boni phase, the bonus for the middle section is
+        // determined based on the current bonus-level
+        receive-color-bonus' =
+            if ( (current-phase == @receive-boni) & (bonus-level-color-part == @1) )
+                then Bernoulli(BONUS_PROB_COLOR_PART(@1))
+            else if ( (current-phase == @receive-boni) & (bonus-level-color-part == @2) )
+                then Bernoulli(BONUS_PROB_COLOR_PART(@2))
+            else if ( (current-phase == @receive-boni) & (bonus-level-color-part == @3) )
+                then Bernoulli(BONUS_PROB_COLOR_PART(@3))
+            else if ( (current-phase == @receive-boni) & (bonus-level-color-part == @4) )
+                then Bernoulli(BONUS_PROB_COLOR_PART(@4))
+            else if ( (current-phase == @receive-boni) & (bonus-level-color-part == @5) )
+                then Bernoulli(BONUS_PROB_COLOR_PART(@5))
+            else if ( (current-phase == @receive-boni) & (bonus-level-color-part == @6) )
+                then Bernoulli(BONUS_PROB_COLOR_PART(@6))
+            else false;
+    };
+    
+    reward =
+        //////////////////// assignments in upper section ////////////////////
+
+        // score in @ones category: all dice that show a @1 count
+        ( if ( assign-to(@ones) )
+            then ( sum_{?d : die} [ die-value(?d) == @1 ] )
+            
+        // score in @twos category: the value of all dice that show a @2 count
+        else if ( assign-to(@twos) )
+            then ( 2  * ( sum_{?d : die} [ die-value(?d) == @2 ] ) )
+
+        // score in @threes category: the value of all dice that show a @3 count
+        else if ( assign-to(@threes) )
+            then ( 3  * ( sum_{?d : die} [ die-value(?d) == @3 ] ) )
+
+        // score in @fours category: the value of all dice that show a @4 count
+        else if ( assign-to(@fours) )
+            then ( 4  * ( sum_{?d : die} [ die-value(?d) == @4 ] ) )
+
+        // score in @fives category: the value of all dice that show a @5 count
+        else if ( assign-to(@fives) )
+            then ( 5  * ( sum_{?d : die} [ die-value(?d) == @5 ] ) )
+
+        // score in @sixes category: the value of all dice that show a @6 count
+        else if ( assign-to(@sixes) )
+            then ( 6  * ( sum_{?d : die} [ die-value(?d) == @6 ] ) )
+
+
+        //////////////////// assignments in middle section ////////////////////
+        
+        // score in @reds category: the values of all @red dice count
+        else if ( assign-to(@reds) )
+            then ( sum_{?d : die} [ (die-color(?d) == @red) *
+                                    ( (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                      (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) )] )
+
+        // score in @greens category: the values of all @green dice count
+        else if  ( assign-to(@greens) )
+            then ( sum_{?d : die} [ (die-color(?d) == @green) *
+                                    ( (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                      (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) )] )
+
+        // score in @blues category: the values of all @blue dice count
+        else if  ( assign-to(@blues) )
+            then ( sum_{?d : die} [ (die-color(?d) == @blue) *
+                                    ( (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                      (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) )] )
+
+       // score in @yellows category: the values of all @yellow dice count
+        else if  ( assign-to(@yellows) )
+            then ( sum_{?d : die} [ (die-color(?d) == @yellow) *
+                                    ( (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                      (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) )] )
+
+        // score in @purples category: the values of all @purple dice count
+        else if  ( assign-to(@purples) )
+            then ( sum_{?d : die} [ (die-color(?d) == @purple) *
+                                    ( (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                      (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) )] )
+
+
+        //////////////////// assignments in lower section (value matters part) ////////////////////
+
+        // score in @two-pairs category: count the value of all dice if there are
+        // two value pairs among the dice
+        else if ( assign-to(@two-pairs) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d2 ~= ?d3) & (?d2 ~= ?d4) & (?d3 ~= ?d4) &
+                          (die-value(?d1) == die-value(?d2)) & (die-value(?d3) == die-value(?d4)) ] ) )
+            then ( sum_{?d : die} [ (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                    (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ] )
+
+        // score in @three-of-a-kind category: count the value of all dice if
+        // there are three of the same value among the dice
+        else if ( assign-to(@three-of-a-kind) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d2 ~= ?d3) &
+                          (die-value(?d1) == die-value(?d2)) & (die-value(?d1) == die-value(?d3)) ] ) )
+            then ( sum_{?d : die} [ (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                    (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ] )
+
+        // score in @four-of-a-kind category: count the value of all dice if
+        // there are four of the same value among the dice
+        else if ( assign-to(@four-of-a-kind) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d2 ~= ?d3) & (?d2 ~= ?d4) & (?d3 ~= ?d4) &
+                          (die-value(?d1) == die-value(?d2)) & (die-value(?d1) == die-value(?d3)) & (die-value(?d1) == die-value(?d4)) ] ) )
+            then ( sum_{?d : die} [ (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                    (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ] )
+
+        // score in @full-house category: if there is a full house (three dice of
+        // the same value an the other two of the same value, five of a kind also
+        // counts), yield SCORE_FULL_HOUSE        
+        else if ( assign-to(@full-house) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die, ?d5 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d1 ~= ?d5) & (?d2 ~= ?d3) &
+                          (?d2 ~= ?d4) & (?d2 ~= ?d5) & (?d3 ~= ?d4) & (?d3 ~= ?d5) & (?d4 ~= ?d5) &
+                          (die-value(?d1) == die-value(?d2)) & (die-value(?d1) == die-value(?d3)) & (die-value(?d4) == die-value(?d5)) ] ) )
+            then SCORE_FULL_HOUSE
+
+        // score in @small-straight category: if there is a small straight (i.e.,
+        // four dice with consecutive values), yield SCORE_SMALL_STRAIGHT
+        else if ( assign-to(@small-straight) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d2 ~= ?d3) & (?d2 ~= ?d4) & (?d3 ~= ?d4) &
+                          ( ( (die-value(?d1) == @1) & (die-value(?d2) == @2) & (die-value(?d3) == @3) & (die-value(?d4) == @4) ) |
+                            ( (die-value(?d1) == @2) & (die-value(?d2) == @3) & (die-value(?d3) == @4) & (die-value(?d4) == @5) ) |
+                            ( (die-value(?d1) == @3) & (die-value(?d2) == @4) & (die-value(?d3) == @5) & (die-value(?d4) == @6) ) ) ] ) )
+            then SCORE_SMALL_STRAIGHT
+
+        // score in @large-straight category: if there is a large straight (i.e.,
+        // five dice with consecutive values), yield SCORE_LARGE_STRAIGHT
+        else if ( assign-to(@large-straight) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die, ?d5 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d1 ~= ?d5) & (?d2 ~= ?d3) &
+                          (?d2 ~= ?d4) & (?d2 ~= ?d5) & (?d3 ~= ?d4) & (?d3 ~= ?d5) & (?d4 ~= ?d5) &
+                          ( ( (die-value(?d1) == @1) & (die-value(?d2) == @2) & (die-value(?d3) == @3) & (die-value(?d4) == @4) & (die-value(?d5) == @5) ) |
+                            ( (die-value(?d1) == @2) & (die-value(?d2) == @3) & (die-value(?d3) == @4) & (die-value(?d4) == @5) & (die-value(?d5) == @6) ) ) ] ) )
+            then SCORE_LARGE_STRAIGHT
+
+        // score in @chance category: the values of all dice count
+        else if ( assign-to(@chance) )
+        then ( sum_{?d : die} [ (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ] )
+
+        // score in @five-of-a-kind category: if all dice come up the same value,
+        // yield SCORE_FIVE_OF_A_KIND
+        else if ( assign-to(@five-of-a-kind) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die, ?d5 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d1 ~= ?d5) & (?d2 ~= ?d3) &
+                          (?d2 ~= ?d4) & (?d2 ~= ?d5) & (?d3 ~= ?d4) & (?d3 ~= ?d5) & (?d4 ~= ?d5) &
+                          (die-value(?d1) == die-value(?d2)) & (die-value(?d1) == die-value(?d3)) &
+                          (die-value(?d1) == die-value(?d4)) & (die-value(?d1) == die-value(?d5)) ] ) )
+            then SCORE_FIVE_OF_A_KIND
+
+
+        //////////////////// assignments in lower section (color matters part) ////////////////////
+
+        // score in @three-of-a-color category: if there are three dice of one
+        // color, all dice of that color count
+        else if ( assign-to(@three-of-a-color) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d2 ~= ?d3) &
+                          (die-color(?d1) == die-color(?d2)) & (die-color(?d1) == die-color(?d3)) ] ) )
+            then ( sum_{?d : die} [ ( (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                      (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ) *
+                                    ( exists_{?d2 : die, ?d3 : die} [ (?d ~= ?d2) & (?d ~= ?d3) & (?d2 ~= ?d3) &
+                                                                      (die-color(?d) == die-color(?d2)) & (die-color(?d) == die-color(?d3)) ] ) ] )
+
+        // score in @four-of-a-color category: if there are four dice of one
+        // color, all dice of that color count
+        else if ( assign-to(@four-of-a-color) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d2 ~= ?d3) & (?d2 ~= ?d4) & (?d3 ~= ?d4) &
+                          (die-color(?d1) == die-color(?d2)) & (die-color(?d1) == die-color(?d3)) & (die-color(?d1) == die-color(?d4)) ] ) )
+            then ( sum_{?d : die} [ ( (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                      (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ) *
+                                    ( exists_{?d2 : die} [ (?d ~= ?d2) & (die-color(?d) == die-color(?d2)) ] ) ] )
+
+        // score in @color-full-house category: if there is a color full house
+        // (three dice of the same color, and the remaining two dice also of the
+        // same color), yield SCORE_COLOR_FULL_HOUSE
+        else if ( assign-to(@color-full-house) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die, ?d5 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d1 ~= ?d5) & (?d2 ~= ?d3) &
+                          (?d2 ~= ?d4) & (?d2 ~= ?d5) & (?d3 ~= ?d4) & (?d3 ~= ?d5) & (?d4 ~= ?d5) &
+                          (die-color(?d1) == die-color(?d2)) & (die-color(?d1) == die-color(?d3)) & (die-color(?d4) == die-color(?d5)) ] ) )
+            then SCORE_COLOR_FULL_HOUSE
+
+        // score in @flush category: if there is a flush (five of one color),
+        // all dice count
+        else if ( assign-to(@flush) &
+                    ( exists_{?d1 : die, ?d2 : die, ?d3 : die, ?d4 : die, ?d5 : die}
+                        [ (?d1 ~= ?d2) & (?d1 ~= ?d3) & (?d1 ~= ?d4) & (?d1 ~= ?d5) & (?d2 ~= ?d3) &
+                          (?d2 ~= ?d4) & (?d2 ~= ?d5) & (?d3 ~= ?d4) & (?d3 ~= ?d5) & (?d4 ~= ?d5) &
+                          (die-color(?d1) == die-color(?d2)) & (die-color(?d1) == die-color(?d3)) &
+                          (die-color(?d1) == die-color(?d4)) & (die-color(?d1) == die-color(?d5)) ] ) )
+            then  ( sum_{?d : die} [ (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) + (3 * (die-value(?d) == @3)) +
+                                     (4 * (die-value(?d) == @4)) + (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ] )
+
+        // score in @rainbow category: if there is a rainbow (all dice of
+        // different colors), yield SCORE_RAINBOW
+        else if ( assign-to(@rainbow) &
+                    ( ~( exists_{?d1 : die, ?d2 : die}
+                        [ (die-color(?d1) == die-color(?d2)) ] ) ) )
+            then SCORE_RAINBOW
+
+
+        // otherwise, there is no reward
+        else 0 )
+
+
+        //////////////////// boni ////////////////////
+
+        // if the bonus for the upper section has been granted, yield a bonus
+        // according to the bonus level
+        + ( if ( (current-phase == @finish) & (bonus-level-value-part == @1) & receive-value-bonus )
+            then BONUS_VALUE_PART(@1)
+
+        else if ( (current-phase == @finish) & (bonus-level-value-part == @2) & receive-value-bonus )
+            then BONUS_VALUE_PART(@2)
+
+        else if ( (current-phase == @finish) & (bonus-level-value-part == @3) & receive-value-bonus )
+            then BONUS_VALUE_PART(@3)
+
+        else if ( (current-phase == @finish) & (bonus-level-value-part == @4) & receive-value-bonus )
+            then BONUS_VALUE_PART(@4)
+
+        else if ( (current-phase == @finish) & (bonus-level-value-part == @5) & receive-value-bonus )
+            then BONUS_VALUE_PART(@5)
+
+        else if ( (current-phase == @finish) & (bonus-level-value-part == @6) & receive-value-bonus )
+            then BONUS_VALUE_PART(@6)
+
+        else 0 )
+
+        // if the bonus for the middle section has been granted, yield a bonus
+        // according to the bonus level
+        + ( if ( (current-phase == @finish) & (bonus-level-color-part == @1) & receive-color-bonus )
+            then BONUS_COLOR_PART(@1)
+
+        else if ( (current-phase == @finish) & (bonus-level-color-part == @2) & receive-color-bonus )
+            then BONUS_COLOR_PART(@2)
+
+        else if ( (current-phase == @finish) & (bonus-level-color-part == @3) & receive-color-bonus )
+            then BONUS_COLOR_PART(@3)
+
+        else if ( (current-phase == @finish) & (bonus-level-color-part == @4) & receive-color-bonus )
+            then BONUS_COLOR_PART(@4)
+
+        else if ( (current-phase == @finish) & (bonus-level-color-part == @5) & receive-color-bonus )
+            then BONUS_COLOR_PART(@5)
+
+        else if ( (current-phase == @finish) & (bonus-level-color-part == @6) & receive-color-bonus )
+            then BONUS_COLOR_PART(@6)
+
+        else 0 );
+
+
+    action-preconditions {
+        // assign only to categories that are not taken
+        forall_{ ?c : category } [ assign-to(?c) => ~taken(?c) ];
+
+        // assign to exactly one entry on the scoreboard in the @assign phase,
+        // and to none in other phases
+        ( sum_{ ?c : category } [ assign-to(?c) ] ) <= 1;
+        (current-phase == @assign) => ( exists_{ ?c :category } [ assign-to(?c) ] );
+        forall_{ ?c : category } [ assign-to(?c) => (current-phase == @assign) ];
+
+        // don't role dice in the @assign, @receive-boni and @finish phases
+        forall_{?d : die} [ roll(?d) => ( (current-phase ~= @assign) &
+                                          (current-phase ~= @receive-boni) &
+                                          (current-phase ~= @finish) ) ];
+
+        // roll all dice in the @roll1 phase
+        (current-phase == @roll1) => (forall_{?d : die} [ roll(?d) ] );
+    };
+}

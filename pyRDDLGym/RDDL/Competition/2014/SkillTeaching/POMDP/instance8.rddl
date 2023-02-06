@@ -1,0 +1,80 @@
+non-fluents nf_skill_teaching_inst_pomdp__8 {
+	domain = skill_teaching_pomdp; 
+	objects { 
+		skill : {s0,s1,s2,s3,s4,s5,s6};
+
+	}; 
+	non-fluents {
+		FALSE_POS(s0) = 0.121486925;
+		FALSE_POS(s1) = 0.02479638;
+		FALSE_POS(s2) = 0.06786536;
+		FALSE_POS(s3) = 0.14376506;
+		FALSE_POS(s4) = 0.03503161;
+		FALSE_POS(s5) = 0.10434497;
+		FALSE_POS(s6) = 0.022947265;
+
+		PROB_ALL_PRE(s0) = 0.51235014;
+		PROB_ALL_PRE_MED(s0) = 0.7761852;
+		PROB_HIGH(s0) = 0.92812896;
+		SKILL_WEIGHT(s0) = 1.3985214;
+		
+		PROB_ALL_PRE(s1) = 0.6746227;
+		PROB_ALL_PRE_MED(s1) = 0.7865408;
+		PROB_HIGH(s1) = 0.9180106;
+		SKILL_WEIGHT(s1) = 1.4567428;
+		
+		PRE_REQ(s1, s2);
+		PROB_ALL_PRE(s2) = 0.63436484;
+		PROB_PER_PRE(s2) = 0.6105139672756195;
+		PROB_ALL_PRE_MED(s2) = 0.7740256;
+		PROB_PER_PRE_MED(s2) = 0.7029395878314972;
+		PROB_HIGH(s2) = 0.8956466;
+		SKILL_WEIGHT(s2) = 2.128285;
+		
+		PRE_REQ(s0, s3);
+		PRE_REQ(s2, s3);
+		PROB_ALL_PRE(s3) = 0.540604;
+		PROB_PER_PRE(s3) = 0.19008575677871703;
+		PROB_ALL_PRE_MED(s3) = 0.723568;
+		PROB_PER_PRE_MED(s3) = 0.2761417508125305;
+		PROB_HIGH(s3) = 0.93476313;
+		SKILL_WEIGHT(s3) = 3.0960183;
+		
+		PRE_REQ(s0, s4);
+		PRE_REQ(s3, s4);
+		PRE_REQ(s2, s4);
+		PROB_ALL_PRE(s4) = 0.61266816;
+		PROB_PER_PRE(s4) = 0.1970057636499405;
+		PROB_ALL_PRE_MED(s4) = 0.67568094;
+		PROB_PER_PRE_MED(s4) = 0.21178992688655854;
+		PROB_HIGH(s4) = 0.9204589;
+		SKILL_WEIGHT(s4) = 4.033813;
+		
+		PRE_REQ(s1, s5);
+		PRE_REQ(s2, s5);
+		PROB_ALL_PRE(s5) = 0.5641215;
+		PROB_PER_PRE(s5) = 0.22979082465171813;
+		PROB_ALL_PRE_MED(s5) = 0.7222983;
+		PROB_PER_PRE_MED(s5) = 0.29605608582496645;
+		PROB_HIGH(s5) = 0.9934082;
+		SKILL_WEIGHT(s5) = 3.0136428;
+		
+		PRE_REQ(s5, s6);
+		PRE_REQ(s4, s6);
+		PROB_ALL_PRE(s6) = 0.6471298;
+		PROB_PER_PRE(s6) = 0.22971029281616212;
+		PROB_ALL_PRE_MED(s6) = 0.7733728;
+		PROB_PER_PRE_MED(s6) = 0.3411060392856598;
+		PROB_HIGH(s6) = 0.8581156;
+		SKILL_WEIGHT(s6) = 5.179576;
+		
+	};
+}
+instance skill_teaching_inst_pomdp__8 { 
+	domain = skill_teaching_pomdp; 
+ 	non-fluents = nf_skill_teaching_inst_pomdp__8;
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

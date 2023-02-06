@@ -1,0 +1,172 @@
+///////////////////////////////////////////////////////////////
+//
+// Triangle Tireworld Domain from IPPC 2008
+//
+// This domain is taken from 
+//
+//   I. Little and S. Thiébaux. 
+//   Probabilistic Planning vs Replanning.
+//   ICAPS Workshop International Planning Competition: Past, Present and Future, 2007.
+//   http://users.cecs.anu.edu.au/~thiebaux/papers/icaps07wksp.pdf
+//
+// who defined this as a "probabilistically interesting" problem
+// (see Definition 1 in the above citation).  In short, this problem 
+// was intended to be difficult for determinization/replanning approaches
+// since the highest probability path to the goal is longer than other 
+// lower probability (but still possible) paths to the goal.
+// 
+// This version is a direct translation of the version from the IPPC 2008
+//
+//   http://ippc-2008.loria.fr/wiki/index.html
+//
+// run by Daniel Bryce and Olivier Buffet.  See the results of IPPC 2008
+// planners on this problem in Figure 1 here
+//
+//   http://ippc-2008.loria.fr/wiki/images/0/03/Results.pdf
+//
+// taken from
+//
+//   http://ippc-2008.loria.fr/wiki/index.php/Results.html
+//
+// RDDL translation by Scott Sanner (ssanner@gmail.com).  The 
+// original PPDDL domain is included in comments at the end, which
+// also provides a nice point of comparison between RDDL and PPDDL
+// domain specification styles.
+//
+///////////////////////////////////////////////////////////////
+
+domain triangle_tireworld_mdp {
+
+  types {
+    location : object;
+  };
+
+  pvariables {
+
+	// Nonfluents: probability constants
+	FLAT-PROB  : { non-fluent, real, default = 0.49 };
+
+    // Nonfluents: topology
+    road(location,location) : { non-fluent, bool, default = false }; // Road topology
+    goal-location(location) : { non-fluent, bool, default = false }; // Additional nonfluent to specify a goal location
+
+	// State
+    vehicle-at(location) : { state-fluent, bool, default = false };
+    spare-in(location)   : { state-fluent, bool, default = false };
+    not-flattire         : { state-fluent, bool, default = false }; // Not clear why negated
+    hasspare             : { state-fluent, bool, default = false };
+    goal-reward-received : { state-fluent, bool, default = false }; // An additional fluent to enforce a goal reward is only received once
+
+	// Actions 
+    move-car(location,location) : { action-fluent, bool, default = false }; // Not clear why we need from location parameter
+    loadtire(location)          : { action-fluent, bool, default = false }; // Not clear to me why this requires location parameter
+    changetire                  : { action-fluent, bool, default = false };
+  };
+
+  cpfs {
+
+	// Some observations on PPDDL vs. RDDL:
+	//
+	// A domain like this is where PPDDL action-centric effects are more intuitive... in RDDL,  
+	// transition specifications are fluent-centric and we have to explicitly define fluent
+	// values in the next state as a function of the previous state.  These are essentially
+	// successor state axioms and can be compiled from effects using Ray Reiters default solution
+	// to the situation calculus... so it could be possible to automate translation from PPDDL to
+	// RDDL.  Compiling successor state axioms back into effects (RDDL->PPDDL) would be harder.
+	//
+	// So why not use PPDDL style action-centric effects in RDDL if they are more clear?  PPDDL is
+	// more clear for domains like this, but when multiple independent probabilistic exogenous 
+	// events act on a fluent, the action-centric PPDDL approach is not guaranteed to provide a 
+	// consistent state update or probability distribution and hence simply cannot be used, hence
+	// my motivation for RDDL.   
+	
+	vehicle-at'(?l) =
+		// Did it move to ?l and become true?
+		if (exists_{?from : location} (move-car(?from,?l) ^ vehicle-at(?from) ^ road(?from,?l) ^ not-flattire))
+			then true
+		
+		// Did it leave ?l and become false?
+		else if (exists_{?to : location} (move-car(?l,?to) ^ vehicle-at(?l) ^ road(?l,?to) ^ not-flattire))
+			then false
+			
+		// It didn't move, so it's current value persists (frame axiom)
+		else 
+			vehicle-at(?l);
+	
+	spare-in'(?l) = 
+		// Was the spare used?
+		if (loadtire(?l) ^ vehicle-at(?l) ^ spare-in(?l))
+			then false
+			
+		// It was not used, so it's current value persists (frame axiom)
+		else
+			spare-in(?l);
+	 
+	not-flattire' =
+		// If the car moved there is a FLAT-PROB probability of getting a flat
+		if (exists_{?from : location, ?to : location} (move-car(?from,?to) ^ vehicle-at(?from) ^ road(?from,?to) ^ not-flattire))
+			then Bernoulli(FLAT-PROB)
+			
+		// If the tire was changed, then the flat is fixed
+		else if (changetire ^ hasspare)
+			then true
+			
+		// The car didn't move and the tire was not changed, so it's current value persists (frame axiom)
+		else
+			not-flattire;
+	
+	hasspare' = 
+		// If the tire was changed, then the spare is used
+		if (changetire ^ hasspare)
+			then false
+
+		// If the tire was loaded, then the spare is available
+		else if (exists_{?l : location} (loadtire(?l) ^ vehicle-at(?l) ^ spare-in(?l)))
+			then true
+			
+		// The spare was not used or replaced, so it's current value persists (frame axiom)
+		else
+			hasspare;
+			
+	goal-reward-received' = goal-reward-received | exists_{?l : location} (vehicle-at(?l) ^ goal-location(?l));
+				
+  };
+
+  // We get a reward of 100 for reaching the goal and lose -1 on every iteration goal not reached
+  reward = if (~goal-reward-received ^ exists_{?l : location} (vehicle-at(?l) ^ goal-location(?l)))
+                then 100
+           else if (goal-reward-received) then 0
+           else -1; // Modified from IPPC 2008 to encourage shorter paths since we don't separately evaluate plan length
+
+}     
+ 
+// Original PPDDL version of "Triangle Tireworld" domain from IPPC 2008: 
+//
+//   http://ippc-2008.loria.fr/wiki/images/6/68/Benchmarks-FOP.tgz
+//
+// DOMAIN:
+//
+// (define (domain triangle-tire)
+//   (:requirements :typing :strips :equality :probabilistic-effects :rewards)
+//   (:types location)
+//   (:predicates (vehicle-at ?loc - location)
+//                (spare-in ?loc - location)
+//                (road ?from - location ?to - location)
+//                (not-flattire) (hasspare))
+//   (:action move-car
+//     :parameters (?from - location ?to - location)
+//     :precondition (and (vehicle-at ?from) (road ?from ?to) (not-flattire))
+//     :effect (and (vehicle-at ?to) (not (vehicle-at ?from))
+//                  (probabilistic 0.5 (not (not-flattire)))))
+//   (:action loadtire
+//     :parameters (?loc - location)
+//     :precondition (and (vehicle-at ?loc) (spare-in ?loc))
+//     :effect (and (hasspare) (not (spare-in ?loc))))
+//   (:action changetire
+//     :precondition (hasspare)
+//     :effect (and (not (hasspare)) (not-flattire)))
+//)
+//
+// INSTANCE OBJECTIVE EXAMPLE:
+//
+// (:goal (vehicle-at l-1-3)) (:goal-reward 100) (:metric maximize (reward)))

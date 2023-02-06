@@ -1,0 +1,223 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Red-finned Blue-eye domain.                //
+//                                                                             //
+//                                                                             //
+// Created for the probabilistic tracks of IPC 2018 by                         //
+//                                                                             //
+//        Iadine Chades (iadine.chades [at] csiro.au) and                      //
+//        Thomas Keller (tho.keller [at] unibas.ch).                           //
+//                                                                             //
+//                                                                             //
+// Red-finned blue-eye (Scaturiginichthys vermeilipinnis) are a species of     //
+// fish that are endemic to seven artesian springs in the Edgbaston Reserve in //
+// Central Queensland, Australia. The species is critically endangered due to  //
+// competition by the invasive eastern mosquitofish (Gambusia holbrooki).      //
+//                                                                             //
+// The Red-finned Blue-eye domain tackles the problem of eradicating the       //
+// invasive Gambusia from the habitat of the red-finned blue-eye. The springs  //
+// are disconnected during the dry season, but get connected in the rain       //
+// season which allows the Gambusia population to spread from spring to spring //
+// and replace the red-finned blue-eyes.                                       //
+//                                                                             //
+// To prevent the extinction of the red-finned blue-eye species, springs with  //
+// Gambusia population can be poisened (with a high success probability but a  //
+// penalty for using poison), the Gambusia population can be removed manually  //
+// (with a lower probability of success and more required effort, but without  //
+// incurring a penalty) or red-finned blue-eyes can be translocated to a       //
+// spring without any fish population (which takes so much effort that it can  //
+// only be done once every few years).                                         //
+//                                                                             //
+//                                                                             //
+// The Red-finned Blue-eye domain is based on the following paper:             //
+//                                                                             //
+//        Sam Nicol, Regis Sabbadin, Nathalie Peyrard and Iadine Chades:       //
+//        "Finding the best management policy to eradicate invasive species    //
+//        from spatial ecological networks with simultaneous actions". Journal //
+//        of Applied Ecology, 2017.                                            //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain red-finned-blue-eye_mdp {
+    requirements { 
+        reward-deterministic,
+        preconditions
+    };
+
+
+    types {
+        spring           : object;
+        population-type  : { @red-finned-blue-eye, @gambusia, @none };
+        high-water-level : { @exceptionally-high, @very-high, @high, @average, @low, @very-low, @exceptionally-low };
+        number           : { @0, @1, @2, @3, @4, @5, @6, @7, @8 };
+    };
+
+
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+
+        // encodes the available man-power per step
+        ACTION_POINTS                                       : { non-fluent, int, default = 3 };
+
+        // reward for spring with red-finned blue-eye
+        REWARD_RED_FINNED_BLUE_EYE_POPULATION               : {non-fluent, int, default = 50 };
+
+        // penalty if the red-finned blue-eye is extinct
+        PENALTY_RED_FINNED_BLUE_EYE_EXTINCT                 : {non-fluent, int, default = 200 };
+
+        // penalty for using poison
+        PENALTY_POISON_USAGE                                : {non-fluent, int, default = 30 };
+
+        // probabilities of the high-water levels
+        HIGH_WATER_PROB(high-water-level)                   : { non-fluent, real, default = 0.0 };
+
+        // connections between springs in dependence of the high-water level        
+        SPRINGS_CONNECTED(spring, spring, high-water-level) : { non-fluent, bool, default = false };
+
+        // probability that a Gambusia population colonizes a neighboring spring        
+        GAMBUSIA_COLONIZE_PROB(spring, spring)              : { non-fluent, real, default = 0.0 };
+        
+        // since springs may dry out almost entirely (which Gambusia has not adapted to yet),
+        // there is a probability the Gambusia population dies out in a spring naturally        
+        NATURAL_MORTALITY_PROB(spring)                      : { non-fluent, real, default = 0.0 };
+
+        // probability that poisoning a spring is successful
+        POISON_SUCCESS_PROB                                 : { non-fluent, real, default = 0.0 };
+
+        //probability that removing Gambusia manually is successful        
+        REMOVE_MANUALLY_SUCCESS_PROB                        : { non-fluent, real, default = 0.0 };
+
+        // probability that translocating red-finned blue-eyes to a spring is successful        
+        TRANSLOCATION_SUCCESS_PROB                          : { non-fluent, real, default = 0.0 };
+
+        // number of years that need to pass between consecutive transloactions
+        TRANSLOCATION_INTERVAL                              : { non-fluent, number, default = @4 };
+
+
+        //////////////////// interm-fluents ////////////////////
+
+        // current high-water mark
+        high-water-mark                                     : { interm-fluent, high-water-level, level = 1 };
+
+
+        //////////////////// state-fluents ////////////////////
+
+        // population in this spring
+        population(spring)                                  : { state-fluent, population-type, default = @none };
+
+        // every few years, the budget allows translocation
+        translocate-possible-in                             : { state-fluent, number, default = @0 };
+
+
+        //////////////////// action-fluents ////////////////////
+
+        // poison the Gambusia population of this spring
+        poison(spring)                                      : { action-fluent, bool, default = false };
+
+        // remove the Gambusia population of this spring by hand
+        remove-manually(spring)                             : { action-fluent, bool, default = false };
+
+        // translocate red-finned blue-eyes to this spring
+        translocate-to(spring)                              : { action-fluent, bool, default = false };
+    };
+
+
+    cpfs {
+        // the high-water mark level only depends on a given probability
+        high-water-mark =
+            Discrete(high-water-level,
+                @exceptionally-high : HIGH_WATER_PROB(@exceptionally-high),
+                @very-high          : HIGH_WATER_PROB(@very-high),
+                @high               : HIGH_WATER_PROB(@high),
+                @average            : HIGH_WATER_PROB(@average),
+                @low                : HIGH_WATER_PROB(@low),
+                @very-low           : HIGH_WATER_PROB(@very-low),
+                @exceptionally-low  : HIGH_WATER_PROB(@exceptionally-low));
+
+        population'(?s) =
+            // this spring is poisened successfully
+            if ( poison(?s) & Bernoulli(POISON_SUCCESS_PROB) )
+                then @none
+
+            // Gambusia are successfully removed manually
+            else if ( remove-manually(?s) & Bernoulli(REMOVE_MANUALLY_SUCCESS_PROB) )
+                then @none
+
+            // red-finned blue-eyes are translocated successfully
+            else if ( translocate-to(?s) & Bernoulli(TRANSLOCATION_SUCCESS_PROB) )
+                then @red-finned-blue-eye
+
+            // Gambusia die out naturally
+            else if ( (population(?s) ~= @red-finned-blue-eye) & Bernoulli(NATURAL_MORTALITY_PROB(?s)) )
+                then @none
+
+            // Gambusia spread here from an adjacent spring
+            else if ( Bernoulli( 1.0 - ( prod_{ ?s2 : spring } [ 1.0 -
+                          ( sum_{ ?hw : high-water-level } [ ( population(?s2) == @gambusia ) * ( high-water-mark == ?hw ) *
+                              ( SPRINGS_CONNECTED(?s,?s2,?hw) + SPRINGS_CONNECTED(?s2,?s,?hw) ) ] ) ] ) ) )
+                then @gambusia
+
+            // nothing changes
+            else population(?s);
+
+        // counts down from TRANSLOCATION_INTERVAL to 0
+        translocate-possible-in' =
+            if ( exists_{ ?s : spring } [ translocate-to(?s) ] )
+                then TRANSLOCATION_INTERVAL
+            else if ( translocate-possible-in == @8)
+                then @7
+            else if ( translocate-possible-in == @7)
+                then @6
+            else if ( translocate-possible-in == @6)
+                then @5
+            else if ( translocate-possible-in == @5)
+                then @4
+            else if ( translocate-possible-in == @4)
+                then @3
+            else if ( translocate-possible-in == @3)
+                then @2
+            else if ( translocate-possible-in == @2)
+                then @1
+            else @0;
+             
+    };
+
+
+    reward =
+        // each red-finned blue-eye population incurs a reward
+        ( ( sum_{ ?s : spring } [ (population(?s) == @red-finned-blue-eye) * REWARD_RED_FINNED_BLUE_EYE_POPULATION ] ) -
+
+        // using poison is penalized
+          ( sum_{ ?s : spring } [ poison(?s) * PENALTY_POISON_USAGE ] ) ) -
+
+        // a high penalty if red-finned blue-eye is extinct
+          ( (forall_{ ?s : spring } [population(?s) ~= @red-finned-blue-eye]) * PENALTY_RED_FINNED_BLUE_EYE_EXTINCT);
+
+
+    action-preconditions {
+        // poisoning consumes 1, removing manually 2, and translocating 3 action points        
+        ( ( sum_{ ?s : spring } [ poison(?s) ] ) +
+          ( sum_{ ?s : spring } [ 2 * remove-manually(?s) ] ) +
+          ( sum_{ ?s : spring } [ 3 * translocate-to(?s) ] ) ) <= ACTION_POINTS;
+
+        // only translocate to an empty spring
+        forall_{ ?s : spring } [ translocate-to(?s) => (population(?s) == @none) ];
+
+        // only translocate every TRANSLOCATION_INTERVAL steps
+        forall_{ ?s : spring } [ translocate-to(?s) => (translocate-possible-in == @0) ];
+
+        // only translocate if not extinct
+        forall_{ ?s : spring } [ translocate-to(?s) => ( exists_{?s2 : spring } [ population(?s2) == @red-finned-blue-eye ] ) ];
+
+        // only poison if there is gambusia
+        forall_{ ?s : spring } [ poison(?s) => (population(?s) == @gambusia) ];
+
+        // only remove-manually if there is gambusia
+        forall_{ ?s : spring } [ remove-manually(?s) => (population(?s) == @gambusia) ];
+
+        // don't poison, remove-manually and translocate to the same spring
+        forall_{ ?s : spring } [ ( poison(?s) + remove-manually(?s) + translocate-to(?s) ) <= 1 ];
+    };
+}
