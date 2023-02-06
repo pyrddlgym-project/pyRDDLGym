@@ -1,0 +1,4 @@
+[General]
+name=newtonzero
+description=Example with Newton root-finding method.
+viz=TextViz.TextVisualizer

@@ -1,0 +1,4 @@
+[General]
+name=mountaincar
+description=A simple continuous MDP for the classical mountain car control problem.
+viz=MountainCarViz.MountainCarVisualizer

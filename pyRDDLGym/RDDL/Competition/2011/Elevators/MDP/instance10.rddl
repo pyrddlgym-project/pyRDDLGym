@@ -1,0 +1,33 @@
+non-fluents nf_elevators_inst_mdp__10 {
+	domain = elevators_mdp; 
+	objects { 
+		elevator : {e0};
+		floor : {f0,f1,f2,f3,f4,f5 }; 
+	}; 
+	non-fluents {
+		ELEVATOR-PENALTY-RIGHT-DIR = 0.75;
+		ELEVATOR-PENALTY-WRONG-DIR = 3.0;
+		ADJACENT-UP(f0,f1) = true;
+		ARRIVE-PARAM(f1) = 0.019988691;
+		ADJACENT-UP(f1,f2) = true;
+		ARRIVE-PARAM(f2) = 0.03846489;
+		ADJACENT-UP(f2,f3) = true;
+		ARRIVE-PARAM(f3) = 0.024069317;
+		ADJACENT-UP(f3,f4) = true;
+		ARRIVE-PARAM(f4) = 0.025387743;
+		ADJACENT-UP(f4,f5) = true;
+		TOP-FLOOR(f5) = true;
+		BOTTOM-FLOOR(f0) = true;
+ 	}; 
+ }
+instance elevators_inst_mdp__10 { 
+	domain = elevators_mdp; 
+ 	non-fluents = nf_elevators_inst_mdp__10;
+	init-state { 
+		elevator-at-floor(e0,f0);
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

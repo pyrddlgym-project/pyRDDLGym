@@ -1,0 +1,94 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Red-finned Blue-eye instance #05 for IPC 2018 by Iadine //
+// Chades (iadine.chades [at] csiro.au) and Thomas Keller (tho.keller [at]     //
+// unibas.ch), based on the paper "Finding the best management policy to       //
+// eradicate invasive species from spatial ecological networks with            //
+// simultaneous actions" by Sam Nicol, Regis Sabbadin, Nathalie Peyrard and    //
+// Iadine Chades (Journal of Applied Ecology, 2017).                           //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance red-finned-blue-eye_inst_mdp__05 {
+    domain = red-finned-blue-eye_mdp;
+
+    objects {
+        spring: {s00, s01, s02, s03, s04, s05, s06, s07, s08};
+    };
+
+    non-fluents {
+        POISON_SUCCESS_PROB = 0.9;
+        TRANSLOCATION_SUCCESS_PROB = 0.42;
+        ACTION_POINTS = 4;
+        REMOVE_MANUALLY_SUCCESS_PROB = 0.4;
+
+        HIGH_WATER_PROB(@exceptionally-high) = 0.2;
+        HIGH_WATER_PROB(@very-high) = 0.45;
+        HIGH_WATER_PROB(@high) = 0.2;
+        HIGH_WATER_PROB(@average) = 0.1;
+        HIGH_WATER_PROB(@low) = 0.05;
+        HIGH_WATER_PROB(@very-low) = 0;
+        HIGH_WATER_PROB(@exceptionally-low) = 0;
+
+        // Colonization probabilities
+        GAMBUSIA_COLONIZE_PROB(s00, s08) = 0.07;
+        GAMBUSIA_COLONIZE_PROB(s00, s01) = 0.02;
+        GAMBUSIA_COLONIZE_PROB(s02, s08) = 0.04;
+        GAMBUSIA_COLONIZE_PROB(s02, s03) = 0.23;
+        GAMBUSIA_COLONIZE_PROB(s02, s04) = 0.11;
+        GAMBUSIA_COLONIZE_PROB(s03, s04) = 0.08;
+        GAMBUSIA_COLONIZE_PROB(s05, s06) = 0.03;
+        GAMBUSIA_COLONIZE_PROB(s06, s07) = 0.31;
+        GAMBUSIA_COLONIZE_PROB(s07, s08) = 0.36;
+
+
+        NATURAL_MORTALITY_PROB(s00) = 0.08;
+        NATURAL_MORTALITY_PROB(s01) = 0.08;
+        NATURAL_MORTALITY_PROB(s02) = 0.07;
+        NATURAL_MORTALITY_PROB(s03) = 0.08;
+        NATURAL_MORTALITY_PROB(s04) = 0.09;
+        NATURAL_MORTALITY_PROB(s05) = 0.09;
+        NATURAL_MORTALITY_PROB(s06) = 0.01;
+        NATURAL_MORTALITY_PROB(s07) = 0.06;
+        NATURAL_MORTALITY_PROB(s08) = 0.09;
+
+
+        SPRINGS_CONNECTED(s00, s08, @exceptionally-high);
+        SPRINGS_CONNECTED(s00, s01, @exceptionally-high);
+        SPRINGS_CONNECTED(s03, s04, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s04, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s04, @very-high);
+        SPRINGS_CONNECTED(s06, s07, @exceptionally-high);
+        SPRINGS_CONNECTED(s06, s07, @very-high);
+        SPRINGS_CONNECTED(s06, s07, @high);
+        SPRINGS_CONNECTED(s06, s07, @average);
+        SPRINGS_CONNECTED(s07, s08, @exceptionally-high);
+        SPRINGS_CONNECTED(s07, s08, @very-high);
+        SPRINGS_CONNECTED(s07, s08, @high);
+        SPRINGS_CONNECTED(s07, s08, @average);
+        SPRINGS_CONNECTED(s07, s08, @low);
+        SPRINGS_CONNECTED(s02, s03, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s03, @very-high);
+        SPRINGS_CONNECTED(s02, s03, @high);
+        SPRINGS_CONNECTED(s02, s03, @average);
+        SPRINGS_CONNECTED(s02, s03, @low);
+        SPRINGS_CONNECTED(s02, s03, @very-low);
+    };
+
+    init-state {
+        population(s00) = @red-finned-blue-eye;
+        population(s02) = @gambusia;
+        population(s03) = @gambusia;
+        population(s04) = @red-finned-blue-eye;
+        population(s05) = @gambusia;
+        population(s06) = @gambusia;
+        population(s07) = @gambusia;
+        population(s08) = @red-finned-blue-eye;
+    };
+
+    horizon = 30;
+
+    discount = 1.0;
+}

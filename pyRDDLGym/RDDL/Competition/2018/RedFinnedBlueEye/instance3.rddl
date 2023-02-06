@@ -1,0 +1,99 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Red-finned Blue-eye instance #03 for IPC 2018 by Iadine //
+// Chades (iadine.chades [at] csiro.au) and Thomas Keller (tho.keller [at]     //
+// unibas.ch), based on the paper "Finding the best management policy to       //
+// eradicate invasive species from spatial ecological networks with            //
+// simultaneous actions" by Sam Nicol, Regis Sabbadin, Nathalie Peyrard and    //
+// Iadine Chades (Journal of Applied Ecology, 2017).                           //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance red-finned-blue-eye_inst_mdp__03 {
+    domain = red-finned-blue-eye_mdp;
+
+    objects {
+        spring: {s00, s01, s02, s03, s04, s05, s06, s07, s08, s09, s10};
+    };
+
+    non-fluents {
+        POISON_SUCCESS_PROB = 0.9;
+        TRANSLOCATION_SUCCESS_PROB = 0.42;
+        ACTION_POINTS = 3;
+        REMOVE_MANUALLY_SUCCESS_PROB = 0.3;
+
+        HIGH_WATER_PROB(@exceptionally-high) = 0.2;
+        HIGH_WATER_PROB(@very-high) = 0.45;
+        HIGH_WATER_PROB(@high) = 0.2;
+        HIGH_WATER_PROB(@average) = 0.1;
+        HIGH_WATER_PROB(@low) = 0.05;
+        HIGH_WATER_PROB(@very-low) = 0;
+        HIGH_WATER_PROB(@exceptionally-low) = 0;
+
+        // Colonization probabilities
+        GAMBUSIA_COLONIZE_PROB(s00, s01) = 0.22;
+        GAMBUSIA_COLONIZE_PROB(s01, s02) = 0.13;
+        GAMBUSIA_COLONIZE_PROB(s02, s10) = 0.16;
+        GAMBUSIA_COLONIZE_PROB(s02, s03) = 0.35;
+        GAMBUSIA_COLONIZE_PROB(s03, s04) = 0.14;
+        GAMBUSIA_COLONIZE_PROB(s05, s06) = 0.09;
+        GAMBUSIA_COLONIZE_PROB(s06, s07) = 0.09;
+        GAMBUSIA_COLONIZE_PROB(s07, s08) = 0.04;
+        GAMBUSIA_COLONIZE_PROB(s08, s09) = 0.04;
+        GAMBUSIA_COLONIZE_PROB(s09, s10) = 0.33;
+
+
+        NATURAL_MORTALITY_PROB(s00) = 0.09;
+        NATURAL_MORTALITY_PROB(s01) = 0.1;
+        NATURAL_MORTALITY_PROB(s02) = 0.08;
+        NATURAL_MORTALITY_PROB(s03) = 0.07;
+        NATURAL_MORTALITY_PROB(s04) = 0.01;
+        NATURAL_MORTALITY_PROB(s05) = 0.06;
+        NATURAL_MORTALITY_PROB(s06) = 0.14;
+        NATURAL_MORTALITY_PROB(s07) = 0.01;
+        NATURAL_MORTALITY_PROB(s08) = 0.06;
+        NATURAL_MORTALITY_PROB(s09) = 0.03;
+        NATURAL_MORTALITY_PROB(s10) = 0.08;
+
+
+        SPRINGS_CONNECTED(s01, s02, @exceptionally-high);
+        SPRINGS_CONNECTED(s03, s04, @exceptionally-high);
+        SPRINGS_CONNECTED(s05, s06, @exceptionally-high);
+        SPRINGS_CONNECTED(s06, s07, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s10, @very-high);
+        SPRINGS_CONNECTED(s00, s01, @exceptionally-high);
+        SPRINGS_CONNECTED(s00, s01, @very-high);
+        SPRINGS_CONNECTED(s00, s01, @high);
+        SPRINGS_CONNECTED(s02, s03, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s03, @very-high);
+        SPRINGS_CONNECTED(s02, s03, @high);
+        SPRINGS_CONNECTED(s02, s03, @average);
+        SPRINGS_CONNECTED(s02, s03, @low);
+        SPRINGS_CONNECTED(s02, s03, @very-low);
+        SPRINGS_CONNECTED(s09, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s09, s10, @very-high);
+        SPRINGS_CONNECTED(s09, s10, @high);
+        SPRINGS_CONNECTED(s09, s10, @average);
+        SPRINGS_CONNECTED(s09, s10, @low);
+        SPRINGS_CONNECTED(s09, s10, @very-low);
+    };
+
+    init-state {
+        population(s00) = @red-finned-blue-eye;
+        population(s01) = @gambusia;
+        population(s03) = @red-finned-blue-eye;
+        population(s05) = @gambusia;
+        population(s06) = @gambusia;
+        population(s07) = @gambusia;
+        population(s08) = @gambusia;
+        population(s09) = @gambusia;
+        population(s10) = @gambusia;
+    };
+
+    horizon = 30;
+
+    discount = 1.0;
+}

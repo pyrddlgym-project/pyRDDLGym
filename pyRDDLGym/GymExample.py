@@ -1,27 +1,24 @@
-# import os
-
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
 from pyRDDLGym.Policies.Agents import RandomAgent
 # from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
 
-# ENV = 'PowerGeneration'
-# ENV = 'MarsRover'
-# ENV = 'UAV continuous'
-# ENV = 'UAV discrete'
-# ENV = 'UAV mixed'
-# ENV = 'Wildfire'
-# ENV = 'MountainCar'
-# ENV = 'CartPole continuous'
-# ENV = 'CartPole discrete'
-ENV = 'Elevators'
-# ENV = 'RecSim'
-# ENV = 'RaceCar'
-# ENV = 'Traffic'
+# ENV = 'powergen'
+# ENV = 'marsrover'
+# ENV = 'uavcontinuous'
+# ENV = 'uavdiscrete'
+# ENV = 'uavmixed'
+# ENV = 'wildfire'
+# ENV = 'mountaincar'
+# ENV = 'cartpolecontinuous'
+# ENV = 'cartpolediscrete'
+ENV = 'elevators1'
+# ENV = 'recsim'
+# ENV = 'racecar'
+# ENV = 'traffic'
 
-# ENV = 'PropDBN'
-# ENV = 'SupplyChain'
-# ENV = 'WildlifePreserve'
+# ENV = 'propdbn'
+# ENV = 'supplychain'
 
 def main():
     # get the environment info

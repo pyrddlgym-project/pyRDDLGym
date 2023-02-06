@@ -1,0 +1,80 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Academic Advising instance #01 for IPC 2018 by Thomas   //
+// Keller (tho.keller [at] unibas.ch), based on the IPC 2014 domain by Libby   //
+// Ferland (libby.knouse [at] uky.edu).                                        //
+//                                                                             //
+//                                                                             //
+// The naive policy that ignores all preconditions and takes courses that are  //
+// program requirements until it succeeds is expected to complete the program  //
+// after 15.00 steps with an expected reward of -75.00.                        //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance academic-advising_inst_mdp__01 {
+    domain = academic-advising_mdp;
+    objects {
+       course : { c0000, c0001, c0002, c0003, c0004, c0100, c0101, c0102, c0103, c0200, c0201, c0202, c0300, c0301, c0302 };
+    };
+
+    non-fluents {
+        COURSES_PER_SEMESTER = 1;
+
+        // PRIOR PROBS
+        PRIOR_PROB_PASS_NO_PREREQ(c0000) = 0.80;
+        PRIOR_PROB_PASS_NO_PREREQ(c0001) = 0.55;
+        PRIOR_PROB_PASS_NO_PREREQ(c0002) = 0.67;
+        PRIOR_PROB_PASS_NO_PREREQ(c0003) = 0.78;
+        PRIOR_PROB_PASS_NO_PREREQ(c0004) = 0.75;
+        PRIOR_PROB_PASS(c0100) = 0.22;
+        PRIOR_PROB_PASS(c0101) = 0.45;
+        PRIOR_PROB_PASS(c0102) = 0.41;
+        PRIOR_PROB_PASS(c0103) = 0.44;
+        PRIOR_PROB_PASS(c0200) = 0.14;
+        PRIOR_PROB_PASS(c0201) = 0.07;
+        PRIOR_PROB_PASS(c0202) = 0.24;
+        PRIOR_PROB_PASS(c0300) = 0.23;
+        PRIOR_PROB_PASS(c0301) = 0.08;
+        PRIOR_PROB_PASS(c0302) = 0.16;
+
+        // PREREQ
+        PREREQ(c0003, c0100);
+        PREREQ(c0000, c0100);
+        PREREQ(c0004, c0100);
+        PREREQ(c0001, c0101);
+        PREREQ(c0002, c0101);
+        PREREQ(c0000, c0102);
+        PREREQ(c0004, c0102);
+        PREREQ(c0001, c0103);
+        PREREQ(c0001, c0200);
+        PREREQ(c0101, c0200);
+        PREREQ(c0103, c0201);
+        PREREQ(c0002, c0202);
+        PREREQ(c0200, c0300);
+        PREREQ(c0201, c0301);
+        PREREQ(c0201, c0301);
+        PREREQ(c0200, c0302);
+
+        // PROGRAM REQUIREMENT
+        PROGRAM_REQUIREMENT(c0300);
+        PROGRAM_REQUIREMENT(c0202);
+        PROGRAM_REQUIREMENT(c0101);
+        PROGRAM_REQUIREMENT(c0002);
+        PROGRAM_REQUIREMENT(c0001);
+
+        // COURSE COSTS
+        COURSE_COST = 0;
+        COURSE_RETAKE_COST = 0;
+
+    };
+
+    init-state {
+        ~passed(c0000);
+    };
+
+    horizon  = 20;
+
+    discount = 1.0;
+}

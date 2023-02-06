@@ -1,0 +1,4 @@
+[General]
+name=academicadvising2018
+description=In this domain, a student may take courses at a given cost and passes the course with a probability determined by how many of the prerequisites they have successfully passed.
+viz=TextViz.TextVisualizer

@@ -1,0 +1,168 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Wildlife Preserve instance #13 for IPC 2018 by Fei Fang //
+// (feifang [at] cmu.edu), Thanh Hong Nguyen (thanhhng [at] umich.edu) and     //
+// Thomas Keller (tho.keller [at] unibas.ch), based on the papers "When        //
+// Security Games Go Green: Designing Defender Strategies to Prevent Poaching  //
+// and Illegal Fishing" by Fei Fang, Peter Stone and Milind Tambe (IJCAI 2015) //
+// and "Analyzing the Effectiveness of Adversary Modeling in Security Games"   //
+// by Thanh H. Nguyen, Rong Yang, Amos Azaria, Sarit Kraus and Milind Tambe    //
+// (AAAI 2013).                                                                //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance wildlife-preserve_inst_mdp__13 {
+    domain = wildlife-preserve_13_mdp;
+
+    objects {
+        ranger  : { r1, r2 };
+        poacher : { p1, p2 };
+    };
+
+    non-fluents {
+        DEFENDER-REWARD(@a1) = 5.42;
+        DEFENDER-PENALTY(@a1) = -7.73;
+        DEFENDER-REWARD(@a2) = 7.43;
+        DEFENDER-PENALTY(@a2) = -1.73;
+        DEFENDER-REWARD(@a3) = 1.82;
+        DEFENDER-PENALTY(@a3) = -4.12;
+        DEFENDER-REWARD(@a4) = 1.56;
+        DEFENDER-PENALTY(@a4) = -1.67;
+        DEFENDER-REWARD(@a5) = 0.70;
+        DEFENDER-PENALTY(@a5) = -7.87;
+        DEFENDER-REWARD(@a6) = 3.32;
+        DEFENDER-PENALTY(@a6) = -5.27;
+        DEFENDER-REWARD(@a7) = 3.72;
+        DEFENDER-PENALTY(@a7) = -1.58;
+        DEFENDER-REWARD(@a8) = 5.87;
+        DEFENDER-PENALTY(@a8) = -1.21;
+        DEFENDER-REWARD(@a9) = 0.71;
+        DEFENDER-PENALTY(@a9) = -6.61;
+        DEFENDER-REWARD(@a10) = 3.33;
+        DEFENDER-PENALTY(@a10) = -3.60;
+
+        // correlation between attacker reward and defender penalty as well as
+        // attacker penalty and defender reward is 1.00 for all poachers and all areas
+
+        // weights for poacher p1 are: w1 = -15.02, w2 = 0.64, w3 = 0.45
+        // reward for poacher p1 in area @a1 is: 7.73
+        // penalty for poacher p1 in area @a1 is: -5.42
+        // reward for poacher p1 in area @a2 is: 1.73
+        // penalty for poacher p1 in area @a2 is: -7.43
+        // reward for poacher p1 in area @a3 is: 4.12
+        // penalty for poacher p1 in area @a3 is: -1.82
+        // reward for poacher p1 in area @a4 is: 1.67
+        // penalty for poacher p1 in area @a4 is: -1.56
+        // reward for poacher p1 in area @a5 is: 7.87
+        // penalty for poacher p1 in area @a5 is: -0.70
+        // reward for poacher p1 in area @a6 is: 5.27
+        // penalty for poacher p1 in area @a6 is: -3.32
+        // reward for poacher p1 in area @a7 is: 1.58
+        // penalty for poacher p1 in area @a7 is: -3.72
+        // reward for poacher p1 in area @a8 is: 1.21
+        // penalty for poacher p1 in area @a8 is: -5.87
+        // reward for poacher p1 in area @a9 is: 6.61
+        // penalty for poacher p1 in area @a9 is: -0.71
+        // reward for poacher p1 in area @a10 is: 3.60
+        // penalty for poacher p1 in area @a10 is: -3.33
+
+        // weights for poacher p2 are: w1 = -10.99, w2 = 0.86, w3 = 0.44
+        // reward for poacher p2 in area @a1 is: 7.73
+        // penalty for poacher p2 in area @a1 is: -5.42
+        // reward for poacher p2 in area @a2 is: 1.73
+        // penalty for poacher p2 in area @a2 is: -7.43
+        // reward for poacher p2 in area @a3 is: 4.12
+        // penalty for poacher p2 in area @a3 is: -1.82
+        // reward for poacher p2 in area @a4 is: 1.67
+        // penalty for poacher p2 in area @a4 is: -1.56
+        // reward for poacher p2 in area @a5 is: 7.87
+        // penalty for poacher p2 in area @a5 is: -0.70
+        // reward for poacher p2 in area @a6 is: 5.27
+        // penalty for poacher p2 in area @a6 is: -3.32
+        // reward for poacher p2 in area @a7 is: 1.58
+        // penalty for poacher p2 in area @a7 is: -3.72
+        // reward for poacher p2 in area @a8 is: 1.21
+        // penalty for poacher p2 in area @a8 is: -5.87
+        // reward for poacher p2 in area @a9 is: 6.61
+        // penalty for poacher p2 in area @a9 is: -0.71
+        // reward for poacher p2 in area @a10 is: 3.60
+        // penalty for poacher p2 in area @a10 is: -3.33
+
+        ATTACK-WEIGHT_0(p1, @a1) = 12.93501;
+        ATTACK-WEIGHT_1(p1, @a1) = 0.00709;
+        ATTACK-WEIGHT_2(p1, @a1) = 0.00000;
+        ATTACK-WEIGHT_0(p1, @a2) = 0.11112;
+        ATTACK-WEIGHT_1(p1, @a2) = 0.00006;
+        ATTACK-WEIGHT_2(p1, @a2) = 0.00000;
+        ATTACK-WEIGHT_0(p1, @a3) = 6.30054;
+        ATTACK-WEIGHT_1(p1, @a3) = 0.00345;
+        ATTACK-WEIGHT_2(p1, @a3) = 0.00000;
+        ATTACK-WEIGHT_0(p1, @a4) = 1.46185;
+        ATTACK-WEIGHT_1(p1, @a4) = 0.00080;
+        ATTACK-WEIGHT_2(p1, @a4) = 0.00000;
+        ATTACK-WEIGHT_0(p1, @a5) = 115.94394;
+        ATTACK-WEIGHT_1(p1, @a5) = 0.06358;
+        ATTACK-WEIGHT_2(p1, @a5) = 0.00003;
+        ATTACK-WEIGHT_0(p1, @a6) = 6.76938;
+        ATTACK-WEIGHT_1(p1, @a6) = 0.00371;
+        ATTACK-WEIGHT_2(p1, @a6) = 0.00000;
+        ATTACK-WEIGHT_0(p1, @a7) = 0.52695;
+        ATTACK-WEIGHT_1(p1, @a7) = 0.00029;
+        ATTACK-WEIGHT_2(p1, @a7) = 0.00000;
+        ATTACK-WEIGHT_0(p1, @a8) = 0.15934;
+        ATTACK-WEIGHT_1(p1, @a8) = 0.00009;
+        ATTACK-WEIGHT_2(p1, @a8) = 0.00000;
+        ATTACK-WEIGHT_0(p1, @a9) = 51.30232;
+        ATTACK-WEIGHT_1(p1, @a9) = 0.02813;
+        ATTACK-WEIGHT_2(p1, @a9) = 0.00002;
+        ATTACK-WEIGHT_0(p1, @a10) = 2.30060;
+        ATTACK-WEIGHT_1(p1, @a10) = 0.00126;
+        ATTACK-WEIGHT_2(p1, @a10) = 0.00000;
+        ATTACK-WEIGHT_0(p2, @a1) = 69.68216;
+        ATTACK-WEIGHT_1(p2, @a1) = 0.28600;
+        ATTACK-WEIGHT_2(p2, @a1) = 0.00117;
+        ATTACK-WEIGHT_0(p2, @a2) = 0.16467;
+        ATTACK-WEIGHT_1(p2, @a2) = 0.00068;
+        ATTACK-WEIGHT_2(p2, @a2) = 0.00000;
+        ATTACK-WEIGHT_0(p2, @a3) = 15.41542;
+        ATTACK-WEIGHT_1(p2, @a3) = 0.06327;
+        ATTACK-WEIGHT_2(p2, @a3) = 0.00026;
+        ATTACK-WEIGHT_0(p2, @a4) = 2.10548;
+        ATTACK-WEIGHT_1(p2, @a4) = 0.00864;
+        ATTACK-WEIGHT_2(p2, @a4) = 0.00004;
+        ATTACK-WEIGHT_0(p2, @a5) = 635.80142;
+        ATTACK-WEIGHT_1(p2, @a5) = 2.60957;
+        ATTACK-WEIGHT_2(p2, @a5) = 0.01071;
+        ATTACK-WEIGHT_0(p2, @a6) = 21.31701;
+        ATTACK-WEIGHT_1(p2, @a6) = 0.08749;
+        ATTACK-WEIGHT_2(p2, @a6) = 0.00036;
+        ATTACK-WEIGHT_0(p2, @a7) = 0.74861;
+        ATTACK-WEIGHT_1(p2, @a7) = 0.00307;
+        ATTACK-WEIGHT_2(p2, @a7) = 0.00001;
+        ATTACK-WEIGHT_0(p2, @a8) = 0.21016;
+        ATTACK-WEIGHT_1(p2, @a8) = 0.00086;
+        ATTACK-WEIGHT_2(p2, @a8) = 0.00000;
+        ATTACK-WEIGHT_0(p2, @a9) = 214.30069;
+        ATTACK-WEIGHT_1(p2, @a9) = 0.87957;
+        ATTACK-WEIGHT_2(p2, @a9) = 0.00361;
+        ATTACK-WEIGHT_0(p2, @a10) = 5.05092;
+        ATTACK-WEIGHT_1(p2, @a10) = 0.02073;
+        ATTACK-WEIGHT_2(p2, @a10) = 0.00009;
+
+        POACHER-REMEMBERS(p1, @1);
+        POACHER-REMEMBERS(p1, @2);
+        POACHER-REMEMBERS(p2, @1);
+        POACHER-REMEMBERS(p2, @2);
+
+    };
+
+    init-state {
+        ~was-defended(@a1,@1);
+    };
+
+    horizon = 30;
+
+    discount = 1.0;
+}

@@ -1,0 +1,4 @@
+[General]
+name=chromaticdice2018
+description= Chromatic Dice is a variant of the popular dice game Yahtzee (also known as Kniffel).
+viz=TextViz.TextVisualizer

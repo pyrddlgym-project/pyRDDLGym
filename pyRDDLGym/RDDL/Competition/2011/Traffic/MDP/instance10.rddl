@@ -1,0 +1,135 @@
+non-fluents nf_traffic_inst_mdp__10 {
+	domain = traffic_mdp;
+	objects {
+		intersection : {ia7a7,ia7a14,ia14a7,ia14a14};
+		cell : {ca7a1,ca1a7,ca7a2,ca2a7,ca7a3,ca3a7,ca7a4,ca4a7,ca7a5,ca5a7,ca7a6,ca6a7,ca7a8,ca8a7,ca7a9,ca9a7,ca7a10,ca10a7,ca7a11,ca11a7,ca7a12,ca12a7,ca7a13,ca13a7,ca7a15,ca15a7,ca7a16,ca16a7,ca7a17,ca17a7,ca7a18,ca18a7,ca7a19,ca19a7,ca7a20,ca20a7,ca14a1,ca1a14,ca14a2,ca2a14,ca14a3,ca3a14,ca14a4,ca4a14,ca14a5,ca5a14,ca14a6,ca6a14,ca14a8,ca8a14,ca14a9,ca9a14,ca14a10,ca10a14,ca14a11,ca11a14,ca14a12,ca12a14,ca14a13,ca13a14,ca14a15,ca15a14,ca14a16,ca16a14,ca14a17,ca17a14,ca14a18,ca18a14,ca14a19,ca19a14,ca14a20,ca20a14};
+	};
+	non-fluents {
+
+		PERIMETER-INPUT-CELL(ca7a1);
+		PERIMETER-INPUT-CELL(ca14a1);
+		PERIMETER-INPUT-CELL(ca1a7);
+		PERIMETER-INPUT-CELL(ca1a14);
+
+		PERIMETER-INPUT-RATE(ca7a1) = 0.18904275;
+		PERIMETER-INPUT-RATE(ca14a1) = 0.2034848;
+		PERIMETER-INPUT-RATE(ca1a7) = 0.26932672;
+		PERIMETER-INPUT-RATE(ca1a14) = 0.48115665;
+
+		PERIMETER-EXIT-CELL(ca7a20);
+		PERIMETER-EXIT-CELL(ca14a20);
+		PERIMETER-EXIT-CELL(ca20a7);
+		PERIMETER-EXIT-CELL(ca20a14);
+
+		FLOWS-INTO-INTERSECTION-EW(ca7a6,ia7a7);
+		FLOWS-INTO-INTERSECTION-EW(ca7a13,ia7a14);
+		FLOWS-INTO-INTERSECTION-EW(ca14a6,ia14a7);
+		FLOWS-INTO-INTERSECTION-EW(ca14a13,ia14a14);
+		FLOWS-INTO-INTERSECTION-NS(ca6a7,ia7a7);
+		FLOWS-INTO-INTERSECTION-NS(ca13a7,ia14a7);
+		FLOWS-INTO-INTERSECTION-NS(ca6a14,ia7a14);
+		FLOWS-INTO-INTERSECTION-NS(ca13a14,ia14a14);
+
+		FLOWS-INTO-CELL(ca7a1,ca7a2);
+		FLOWS-INTO-CELL(ca1a7,ca2a7);
+		FLOWS-INTO-CELL(ca7a2,ca7a3);
+		FLOWS-INTO-CELL(ca2a7,ca3a7);
+		FLOWS-INTO-CELL(ca7a3,ca7a4);
+		FLOWS-INTO-CELL(ca3a7,ca4a7);
+		FLOWS-INTO-CELL(ca7a4,ca7a5);
+		FLOWS-INTO-CELL(ca4a7,ca5a7);
+		FLOWS-INTO-CELL(ca7a5,ca7a6);
+		FLOWS-INTO-CELL(ca5a7,ca6a7);
+		FLOWS-INTO-CELL(ca7a6,ca7a8);
+		FLOWS-INTO-CELL(ca6a7,ca8a7);
+		FLOWS-INTO-CELL(ca7a8,ca7a9);
+		FLOWS-INTO-CELL(ca8a7,ca9a7);
+		FLOWS-INTO-CELL(ca7a9,ca7a10);
+		FLOWS-INTO-CELL(ca9a7,ca10a7);
+		FLOWS-INTO-CELL(ca7a10,ca7a11);
+		FLOWS-INTO-CELL(ca10a7,ca11a7);
+		FLOWS-INTO-CELL(ca7a11,ca7a12);
+		FLOWS-INTO-CELL(ca11a7,ca12a7);
+		FLOWS-INTO-CELL(ca7a12,ca7a13);
+		FLOWS-INTO-CELL(ca12a7,ca13a7);
+		FLOWS-INTO-CELL(ca7a13,ca7a15);
+		FLOWS-INTO-CELL(ca13a7,ca15a7);
+		FLOWS-INTO-CELL(ca7a15,ca7a16);
+		FLOWS-INTO-CELL(ca15a7,ca16a7);
+		FLOWS-INTO-CELL(ca7a16,ca7a17);
+		FLOWS-INTO-CELL(ca16a7,ca17a7);
+		FLOWS-INTO-CELL(ca7a17,ca7a18);
+		FLOWS-INTO-CELL(ca17a7,ca18a7);
+		FLOWS-INTO-CELL(ca7a18,ca7a19);
+		FLOWS-INTO-CELL(ca18a7,ca19a7);
+		FLOWS-INTO-CELL(ca7a19,ca7a20);
+		FLOWS-INTO-CELL(ca19a7,ca20a7);
+		FLOWS-INTO-CELL(ca14a1,ca14a2);
+		FLOWS-INTO-CELL(ca1a14,ca2a14);
+		FLOWS-INTO-CELL(ca14a2,ca14a3);
+		FLOWS-INTO-CELL(ca2a14,ca3a14);
+		FLOWS-INTO-CELL(ca14a3,ca14a4);
+		FLOWS-INTO-CELL(ca3a14,ca4a14);
+		FLOWS-INTO-CELL(ca14a4,ca14a5);
+		FLOWS-INTO-CELL(ca4a14,ca5a14);
+		FLOWS-INTO-CELL(ca14a5,ca14a6);
+		FLOWS-INTO-CELL(ca5a14,ca6a14);
+		FLOWS-INTO-CELL(ca14a6,ca14a8);
+		FLOWS-INTO-CELL(ca6a14,ca8a14);
+		FLOWS-INTO-CELL(ca14a8,ca14a9);
+		FLOWS-INTO-CELL(ca8a14,ca9a14);
+		FLOWS-INTO-CELL(ca14a9,ca14a10);
+		FLOWS-INTO-CELL(ca9a14,ca10a14);
+		FLOWS-INTO-CELL(ca14a10,ca14a11);
+		FLOWS-INTO-CELL(ca10a14,ca11a14);
+		FLOWS-INTO-CELL(ca14a11,ca14a12);
+		FLOWS-INTO-CELL(ca11a14,ca12a14);
+		FLOWS-INTO-CELL(ca14a12,ca14a13);
+		FLOWS-INTO-CELL(ca12a14,ca13a14);
+		FLOWS-INTO-CELL(ca14a13,ca14a15);
+		FLOWS-INTO-CELL(ca13a14,ca15a14);
+		FLOWS-INTO-CELL(ca14a15,ca14a16);
+		FLOWS-INTO-CELL(ca15a14,ca16a14);
+		FLOWS-INTO-CELL(ca14a16,ca14a17);
+		FLOWS-INTO-CELL(ca16a14,ca17a14);
+		FLOWS-INTO-CELL(ca14a17,ca14a18);
+		FLOWS-INTO-CELL(ca17a14,ca18a14);
+		FLOWS-INTO-CELL(ca14a18,ca14a19);
+		FLOWS-INTO-CELL(ca18a14,ca19a14);
+		FLOWS-INTO-CELL(ca14a19,ca14a20);
+		FLOWS-INTO-CELL(ca19a14,ca20a14);
+	};
+}
+
+instance traffic_inst_mdp__10 {
+	domain = traffic_mdp;
+	non-fluents = nf_traffic_inst_mdp__10;
+	init-state {
+		occupied(ca7a1);
+		occupied(ca7a5);
+		occupied(ca7a8);
+		occupied(ca7a10);
+		occupied(ca11a7);
+		occupied(ca7a12);
+		occupied(ca7a13);
+		occupied(ca7a15);
+		occupied(ca7a18);
+		occupied(ca1a14);
+		occupied(ca14a4);
+		occupied(ca4a14);
+		occupied(ca14a5);
+		occupied(ca14a9);
+		occupied(ca14a10);
+		occupied(ca10a14);
+		occupied(ca14a11);
+		occupied(ca12a14);
+		occupied(ca14a16);
+		occupied(ca14a17);
+		occupied(ca19a14);
+		occupied(ca20a14);
+	};
+
+	max-nondef-actions = 4;
+	horizon  = 40;
+	discount = 1.0;
+}

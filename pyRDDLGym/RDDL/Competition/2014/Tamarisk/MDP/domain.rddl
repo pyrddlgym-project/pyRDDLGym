@@ -1,0 +1,221 @@
+///////////////////////////////////////////////////////////////
+//
+// Invasive Species (Tamarisk) Domain 
+//
+// This is adapted from the RL Competition 2014 Invasive Species domain 
+//
+//   https://slots.google.com/slot/rlcompetition2014/domains/invasive-species 
+//
+// by Majid Alkaee Taleghan, Mark Crowley, and Thomas Dietterich 
+// of Oregon State University, who have investigated reinforcement learning
+// for this domain in 
+//
+//   Dietterich, T., Taleghan, M., Crowley, M. (2013). 
+//   PAC Optimal Planning for Invasive Species Management: 
+//     Improved Exploration for Reinforcement Learning from Simulator-Defined MDPs. 
+//   In Proceedings of the AAAI Conference on Artificial Intelligence, AAAI-13.
+//
+// and based their Invasive Species (Tamarisk) model on the following work 
+//
+//   Muneepeerakul, R., Weitz, J. S., Levin, S. a, Rinaldo, A., & Rodriguez-Iturbe, I. (2007). 
+//   A neutral metapopulation model of biodiversity in river networks. 
+//   Journal of theoretical biology, 245(2), 351–63.
+//
+// Quick explanation: a stream system is organized into reaches with
+// slots at each reach.  Each slot may have a native plot or invasive
+// tamarisk plant (or be empty).  Tamarisk plants spread downstream
+// and sometimes upstream and compete to replace native species that
+// spread at a fixed rate.  One can manually intervene to eradicate
+// tamarisk plants at a reach or restore them to their native species.
+// Costs are assessed for eradication and restorative actions based on
+// the amount of work that has to be done and penalties are assessed
+// for invaded or vulnerable reaches.
+//
+// NOTE: this is a variation of the domain defined in the citations
+//       above, points of variation or interpretation are noted below.
+//
+// RDDL translation by Scott Sanner (ssanner@gmail.com).
+//
+///////////////////////////////////////////////////////////////
+
+domain tamarisk_mdp {
+
+  types {
+    reach : object;
+    slot  : object;
+  };
+
+  pvariables {
+
+	// Nonfluents: constant parameters
+	ERADICATION-RATE       : { non-fluent, real, default = 0.9  }; // 0.85 in original
+	RESTORATION-RATE       : { non-fluent, real, default = 0.9  }; // 0.65 in original
+	DOWNSTREAM-SPREAD-RATE : { non-fluent, real, default = 0.6  }; // 0.5 in original
+	UPSTREAM-SPREAD-RATE   : { non-fluent, real, default = 0.15 }; // 0.1 in original
+	DEATH-RATE-TAMARISK    : { non-fluent, real, default = 0.05 }; // 0.2 in original
+	DEATH-RATE-NATIVE      : { non-fluent, real, default = 0.05 }; // 0.2 in original
+	
+	// These are parameters I have added to address native spreading and
+	// competition if a tamarisk and native both appear at a slot.
+	EXOGENOUS-PROD-RATE-NATIVE    : { non-fluent, real, default = 0.1 };
+	EXOGENOUS-PROD-RATE-TAMARISK  : { non-fluent, real, default = 0.1 };
+	COMPETITION-WIN-RATE-NATIVE   : { non-fluent, real, default = 0.2 };
+	COMPETITION-WIN-RATE-TAMARISK : { non-fluent, real, default = 0.8 };
+		
+	// Invasion and vulnerability costs (independent of actions)
+		
+	COST-PER-INVADED-REACH : { non-fluent, real, default = 5.0  }; // 5.0 in original
+	COST-PER-TREE          : { non-fluent, real, default = 0.5  }; // 0.1 in original
+	COST-PER-EMPTY-SLOT    : { non-fluent, real, default = 0.25 }; // 0.05 in original
+	
+	// From https://slots.google.com/slot/rlcompetition2014/domains/invasive-species:
+	//
+	// The following components of the cost function depend on the action being taken 
+	// and are multiplied by the number of habitat slots being treated by that action.
+	
+	ERADICATION-COST                  : { non-fluent, real, default = 0.49 }; // 0.5 in original
+	RESTORATION-COST                  : { non-fluent, real, default = 0.9  };
+	RESTORATION-COST-FOR-EMPTY-SLOT   : { non-fluent, real, default = 0.4  };
+	RESTORATION-COST-FOR-INVADED-SLOT : { non-fluent, real, default = 0.8  };
+		
+    // Nonfluents: topology
+    SLOT-AT-REACH   (slot, reach)  : { non-fluent, bool, default = false }; // Is this slot located on this reach?
+    DOWNSTREAM-REACH(reach, reach) : { non-fluent, bool, default = false }; // Is the first reach downstream from the second reach?
+
+	// State
+	tamarisk-at(slot) : { state-fluent, bool, default = false };
+	native-at(slot)   : { state-fluent, bool, default = false };
+
+	// From https://slots.google.com/slot/rlcompetition2014/domains/invasive-species:
+	//
+	// In each reach at each time step, a management action can be taken and applied to the 
+	// habitats in that reach.  The available actions in each reach are [eradicate and restore
+	// (neither, one, or both)... but in our formulation here, eradication only works when a
+	// tamarisk is present and restoration only when nothing is present... you can do them
+	// both for a reach, but each can only succeed on different slots].
+	//
+	// Both the eradicate and restore parts of an action can fail stochastically, and both 
+	// have a cost that scales linearly with the number of affected slots.
+	//
+	// The following actions are not allowed:
+	// - Doing any action other than null on a reach full of Native plants [would be suboptimal, allow]
+	// - Eradicating an empty slot in an empty reach [effectively a noop, allow]
+	// - Restoring a slot in a fully invaded reach (Tamarisk plants present in all habitats)
+	
+	// Actions
+	eradicate(reach) : { action-fluent, bool, default = false }; // For simplicity this causes tamarisk-at to go false
+	restore(reach)   : { action-fluent, bool, default = false }; // For simplicity this causes native-at to go true
+
+  };
+
+  cpfs {
+	
+	// A tamarisk vacates a slot by 
+	// - dying
+	// - being eradicated by intervention
+	//   (stochastically succeeds *unless* the entire reach is filled by tamarisk)
+	//
+	// A tamarisk may invade a slot not occupied by a native species if
+	// - it spreads downstream or upstream from an invaded slot
+	//   (each upstream or downstream tamarisk spreads independently)
+	//
+	tamarisk-at'(?s) = 
+		// Tamarisk and native competing?
+		if (tamarisk-at(?s) ^ native-at(?s))
+			then Bernoulli ( COMPETITION-WIN-RATE-TAMARISK ) 
+
+		// If eradicated and no tamerisk at ?s, assume it won't spread to ?s on this iteration
+		else if (~tamarisk-at(?s) ^ [exists_{?r : reach} [SLOT-AT-REACH(?s,?r) ^ eradicate(?r) ^ ~forall_{?s2 : slot} [SLOT-AT-REACH(?s2,?r) ^ tamarisk-at(?s2)]]])
+			then false
+		
+		// Was it eradicated?
+		else if (tamarisk-at(?s) ^ [exists_{?r : reach} [SLOT-AT-REACH(?s,?r) ^ eradicate(?r) ^ ~forall_{?s2 : slot} [SLOT-AT-REACH(?s2,?r) ^ tamarisk-at(?s2)]]])
+			then Bernoulli( 1.0 - ERADICATION-RATE ) // eradication success leads to false
+
+		// Did it die?
+		else if (tamarisk-at(?s))
+			then Bernoulli ( 1.0 - DEATH-RATE-TAMARISK ) // death leads to false
+
+		// Modification: mix in EXOGENOUS-PROD-RATE-TAMARISK, previous standalone rule was preventing reaching the following
+		// Did it spread from upstream or downstream?  (Eventually may want to look at transitive closure of up/downstream connections.)
+		// Using UPSTREAM rate for spread within a reach (not specified).
+		// Assume independent cascade epidemic model (=noisy-or model) that each upstream tamarisk independently infects this slot.
+		else if (~tamarisk-at(?s) ^ ~native-at(?s))
+			then Bernoulli( EXOGENOUS-PROD-RATE-TAMARISK + (1 - EXOGENOUS-PROD-RATE-TAMARISK) 
+			                *(1.0 - // noisy-or product that all propagules fail to spread to this slot, take 1.0 - to get probability of at least one propagule spreading!
+			                    [prod_{?r : reach, ?s2 : slot} [if (SLOT-AT-REACH(?s,?r) ^ SLOT-AT-REACH(?s2,?r) ^ (?s ~= ?s2) ^ tamarisk-at(?s2)) then (1.0 - DOWNSTREAM-SPREAD-RATE) else (1.0)]]
+			                   *[prod_{?r : reach, ?r2 : reach, ?s2 : slot} [if (SLOT-AT-REACH(?s,?r) ^ DOWNSTREAM-REACH(?r,?r2) ^ SLOT-AT-REACH(?s2,?r2) ^ tamarisk-at(?s2)) then (1.0 - DOWNSTREAM-SPREAD-RATE) else (1.0)]] 
+							   *[prod_{?r : reach, ?r2 : reach, ?s2 : slot} [if (SLOT-AT-REACH(?s,?r) ^ DOWNSTREAM-REACH(?r2,?r) ^ SLOT-AT-REACH(?s2,?r2) ^ tamarisk-at(?s2)) then (1.0 - UPSTREAM-SPREAD-RATE) else (1.0)]]) )
+
+		// Did not experience competition, eradication, death, spreading, or an exogenous production, so the state persists
+		else
+			tamarisk-at(?s);
+	
+	// From the website description, it's not immediately clear how native plants spread.
+	// Because there do not seem to be spread rates for these species, we'll instead simply
+	// assume that they spontaneously generate at an empty slot with BIRTH-RATE-NATIVE.
+	//
+	// Note: nothing prevents a simultaneous spread of tamarisk and an exogenous production of a native species...
+	//       we'll simply randomly let each compete with some probability of success until one
+	//       of the species wins. 
+	native-at'(?s) = 
+		// Tamarisk and native competing?
+		if (tamarisk-at(?s) ^ native-at(?s))
+			then Bernoulli ( COMPETITION-WIN-RATE-NATIVE ) 
+
+		// If it is restored and a native plant is already there, assume it must persist in next iteration
+		else if (~tamarisk-at(?s) ^ native-at(?s) ^ [exists_{?r : reach} [SLOT-AT-REACH(?s,?r) ^ restore(?r)]])
+			then true
+
+		// Was it empty and restored?
+		else if (~tamarisk-at(?s) ^ ~native-at(?s) ^ [exists_{?r : reach} [SLOT-AT-REACH(?s,?r) ^ restore(?r)]])
+			then Bernoulli( RESTORATION-RATE )
+		
+		// Did it die?
+		else if (native-at(?s))
+			then Bernoulli ( 1.0 - DEATH-RATE-NATIVE ) // death leads to false
+		
+		// Was it produced by an exogenous arrival?
+		else if (~tamarisk-at(?s) ^ ~native-at(?s))
+			then Bernoulli ( EXOGENOUS-PROD-RATE-NATIVE ) // exogenous production leads to true
+		
+		// Did not experience competition, restoration, death, or an exogenous production, so the state persists
+		else
+			native-at(?s); 
+	
+  };
+
+  // Add up all invasion and vulnerability costs with action costs 
+  reward = 
+	[sum_{?r : reach} [ // Invasion cost per reach
+		-COST-PER-INVADED-REACH * (exists_{?s : slot} (SLOT-AT-REACH(?s,?r) ^ tamarisk-at(?s)))
+	]] + 
+	[sum_{?s : slot} [ // Individual Tamarisk cost per slot
+		-COST-PER-TREE * (tamarisk-at(?s))
+	]] + 
+	[sum_{?s : slot} [ // Vulnerable empty slot cost
+		-COST-PER-EMPTY-SLOT * (~tamarisk-at(?s) ^ ~native-at(?s))
+	]] + 
+	[sum_{?r : reach} [ // Restoration cost per reach
+		-ERADICATION-COST * (eradicate(?r))
+	]] + 
+	[sum_{?r : reach} [ // Eradication cost per reach
+		-RESTORATION-COST * (restore(?r))
+	]] + 
+	[sum_{?r : reach, ?s : slot} [ // Cost of restoring a slot if it is empty (no cost if it has a native plant already)
+		-RESTORATION-COST-FOR-EMPTY-SLOT * (restore(?r) ^ SLOT-AT-REACH(?s,?r) ^ ~tamarisk-at(?s) ^ ~native-at(?s))
+	]]; 
+
+	// Cost of restoring a slot if it is invaded (ignoring this since we prevent restoring an invaded slot -- must eradicate first)
+	//+ [sum_{?r : reach, ?s : slot} [ 
+	//	-RESTORATION-COST-FOR-INVADED-SLOT * (restore(?r) ^ SLOT-AT-REACH(?s,?r) ^ tamarisk-at(?s))
+	//]];
+
+  state-action-constraints {
+		
+	// Ensure two different plants never at same slot -- *actually* this can happen if both simultaneously generate,
+	// since we are not using a multivalued discrete variable in this model.
+	// forall_{?s : slot} ~[ tamarisk-at(?s) ^ native-at(?s) ];
+  };
+
+}     
