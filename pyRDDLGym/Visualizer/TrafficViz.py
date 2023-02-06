@@ -361,8 +361,9 @@ class TrafficVisualizer(StateViz):
     def build_states_layout(self, states, fig, ax):
 
         for d in self.TLs:
-            #TODO: Why is cur_ph_idx sometimes -1?
-            cur_ph_idx = max(0,states[f'cur-ph-idx_{d}'])
+            if states[f'all-red_{d}'] > 0:
+                continue
+            cur_ph_idx = states[f'cur-ph-idx_{d}']
             cur_ph = self.phase_by_index_in_intersection[d][cur_ph_idx]
             for t in self.green_turns_by_phase[cur_ph]:
                 ax.add_patch(copy(self.turn_patches[t]))
