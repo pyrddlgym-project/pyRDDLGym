@@ -1,7 +1,24 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //
-//  Implementation of the BLX (van den Berg - Lin - Xi) / QTM (Queue Transmission Model)
-//  model of queue and platoon dynamics in a traffic network.
+//  Implementation of the BLX (van den Berg - Lin - Xi) model / QTM (Queue Transmission Model)
+//  of queue and platoon dynamics in a traffic network.
+//
+//  Platoons travel at free-flow speed, with propagation time along a link determined by
+//  the distance from the link upstream entrance to the end of the current queue. Incoming
+//  flows are split along different turning directions according to turning proportions.
+//
+//  The model takes into account undersaturated, saturated, and oversaturated conditions:
+//      * Undersaturated: The queue + arriving flow is small enough to be released
+//                        in a single time-step
+//      * Saturated:      The queue is released at the saturation flow rate.
+//      * Oversaturated:  The downstream link does not have enough capacity to fit
+//                        the entirety of the queue, causing a spillback.
+//
+//  The implementation allows for quite general phasing schemes. The collection of phases
+//  {p1,p2,...,pn} that are permitted to follow the currently active phase p0 can be a
+//  function of p0. The standard example in the field of traffic engineering is the NEMA8 scheme
+//  for a 4-leg intersection. Fixed-order cycles and schemes that allow any phase transition
+//  are also special cases.
 //
 //  Authors: Ayal Taitler (ataitler@gmail.com)
 //           Ilia Smirnov (iliathesmirnov@gmail.com)
@@ -41,16 +58,15 @@ domain BLX_model {
         // average vehicle length in meters
         Lv                                                     :  { non-fluent, real, default = 5 };
 
-        // each intersection is assigned a unique index
-        // in order to be able to compare identity
-        INTERSECTION-INDEX(intersection)                       :  { non-fluent, int, default = 0 };
-
-        // cartesian coordinates of the intersection
+        // cartesian coordinates of an intersection
         X(intersection)                                        :  { non-fluent, real, default = 0 };
         Y(intersection)                                        :  { non-fluent, real, default = 0 };
 
+        // each intersection is assigned a unique index
+        INTERSECTION-INDEX(intersection)                       :  { non-fluent, int, default = 0 };
 
-        // link between (uplink intersection, downlink intersection)
+
+        // is there a link between (uplink intersection, downlink intersection)?
         LINK(intersection, intersection)                       :  { non-fluent, bool, default = false };
 
         // number of lanes in link
@@ -59,7 +75,7 @@ domain BLX_model {
         // free-flow velocity of traffic in link in m/s
         V(intersection, intersection)                          :  { non-fluent, real, default = 13.8 };
 
-        // saturation flow rate leaving turn (u,d,o)
+        // saturation flow rate leaving turn (u,d,o) in veh/s
         MU(intersection, intersection, intersection)           :  { non-fluent, real, default = 1.2 };
 
         // fraction of the traffic turning to link (d,o) from link (u,d)
@@ -75,10 +91,10 @@ domain BLX_model {
         // is intersection signalized?
         TL(intersection)                                       :  { non-fluent, bool, default = false };
 
-        // arrival rate at sources - the variance for a uniform distribution
+        // arrival rate at sources in veh/s - the mean for a uniform distribution
         ARRIVAL-RATE(intersection)                             :  { non-fluent, real, default = 0.67 };
 
-        // max. flow per lane - cap when releasing virtual queue and vehicles at sinks
+        // max. flow per lane in veh/s - cap when releasing virtual queue and vehicles at sinks
         MAX-FLOWRATE(intersection)                             :  { non-fluent, real, default = 0.67 };
 
 
@@ -88,9 +104,10 @@ domain BLX_model {
         // phase constraints and properties
         PHASE-MIN(phase)                                       :  { non-fluent, int, default = 20 };
         PHASE-MAX(phase)                                       :  { non-fluent, int, default = 60 };
+        // duration of all-red following the phase
         PHASE-ALL-RED-DUR(phase)                               :  { non-fluent, int, default = 3 };
 
-        // is the phase is part of the control plan of the traffic light?
+        // is the phase part of the control plan of the intersection?
         PHASE-OF(phase, intersection)                          :  { non-fluent, bool, default = false};
 
         // is turn green in phase?
@@ -102,7 +119,7 @@ domain BLX_model {
         // phase transitions are enumerated
         PHASE-TRANSITION-INDEX(phase-transition)               :  { non-fluent, int, default = 0 };
 
-        // what phase transition the i-th indexed action corresponds to
+        // which phase transition the i-th indexed action corresponds to
         // the 0 action should always be interpreted as extend
         TRANSITION(phase, phase-transition)                    :  { non-fluent, int, default = -1 };
 
@@ -135,6 +152,17 @@ domain BLX_model {
         TURN(intersection, intersection, intersection)         :  { interm-fluent, bool };
 
         // time delay variables
+        // Suppose it takes
+        //     t*Ts + g, where t, g are integers, and 0 <= g < Ts
+        // time-steps to reach the end of queue from the upstream link entrance.
+        // Define tau=t/Ts and gamma=g/Ts.
+        // Then the inflow is split so that
+        //      (1-gamma) of the inflow will arrive in tau time-steps, and
+        //         gamma of the inflow will arrive in (tau+1) time-steps.
+        // For example, if Ts=4s and the propagation time is 7s, then
+        //         (1/4) of the inflow will arrive in 1 time-step and
+        //         (3/4) will arrive in 2 time-steps
+
         tau(intersection, intersection)                        :  { interm-fluent, int };
         gamma(intersection, intersection)                      :  { interm-fluent, real };
 
@@ -179,7 +207,7 @@ domain BLX_model {
         // number of cars leaving link (u,d) and turning towards link (d,o) - state because of the time delay "memory"
         Ml(intersection, intersection, intersection, time) :  { state-fluent, real, default = 0 };
 
-        // number of cars leaving source u toward intersection d - state because of the time delay "memory"
+        // number of cars leaving source u toward intersection d
         Mlsrc(intersection, intersection, time)            :  { state-fluent, real, default = 0 };
 
         // queue length at step in link (u,d) turning in direction (d,o)
@@ -208,9 +236,9 @@ domain BLX_model {
         // action fluents
         //////////////////////////////
         // The number of actions can be state-dependent.
-        // For example, in the usual NEMA8 phasing scheme, there are between 2 and 5 valid phase transitions,
-        // depending on the current phase. This is handled here by enumerating the valid transitions, {a0,..,an},
-        // for the current phase, and interpreting the integer action set-phase(?d) as the index of the chosen
+        // For example, in the usual NEMA8 phasing scheme, there can be between 1 and 5 valid phase transitions,
+        // depending on the active phase. This is handled here by enumerating the valid transitions, {a0,..,an},
+        // for the active phase, and interpreting the integer action set-phase(?d) as the index of the chosen
         // action in the list. So, if set-phase(?d) is equal to 3, then a3 is taken, which transitions the traffic
         // light to the phase with index TRANSITION(p,a3). By convention, the 0-indexed action a0 is EXTEND.
         //
@@ -234,7 +262,7 @@ domain BLX_model {
         ////////////////////////////////////
 
         // distance between intersections
-        Dl(?u,?d) = sqrt[ (X(?u)-X(?d))*(X(?u)-X(?d)) + (Y(?u)-Y(?d))*(Y(?u)-Y(?d)) ];
+        Dl(?u,?d) = sqrt[ (X(?u) - X(?d))*(X(?u) - X(?d)) + (Y(?u) - Y(?d))*(Y(?u) - Y(?d)) ];
 
         // derived fluent for the actual capacity
         Cl(?u,?d) = Dl(?u,?d) * Nl(?u,?d) / Lv;
@@ -250,19 +278,19 @@ domain BLX_model {
         // green for inflows from link (u,d) in the direction of link (d,o)
         // for non-signalized intersections, all turns are treated as permitted
         b(?u,?d,?o) = ~TL(?d) | [ (all-red(?d) == 0)
-                                  ^ ( sum_{?p : phase}[ PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * GREEN(?u,?d,?o,?p)] ) == 1];
+                                  ^ ( exists_{?p : phase}[ PHASE-OF(?p,?d) ^ (PHASE-INDEX(?p)==cur-ph-idx(?d)) ^ GREEN(?u,?d,?o,?p)] )];
 
         // how many cars should arrive for the direction of u on the link (u,d) if u is a source
         arrivals(?u) =  SOURCE(?u) * Uniform(0,2*ARRIVAL-RATE(?u)*Ts);
 
         // flows from source u
-        src-flow(?u) = SOURCE(?u) * max[0, min[ arrivals(?u), (sum_{?d : intersection}[ LINK(?u,?d) * (Cl(?u,?d)-Nc(?u,?d)) ]) ]];
+        src-flow(?u) = SOURCE(?u) * max[0, min[ arrivals(?u), (sum_{?d : intersection}[ LINK(?u,?d) * (Cl(?u,?d) - Nc(?u,?d)) ]) ]];
         src-overflow(?u) = SOURCE(?u) * max[0, arrivals(?u) - src-flow(?u)];
 
         // number of vehicles arriving to tail of queue at link (u,d)
         // add time-delayed outflows from the sources, and time-delayed outflows over all incoming turns
-        Ma(?u,?d) = LINK(?u,?d) * (     SOURCE(?u)  * (sum_{?t : time}[TIME-HEAD(?t) * Mlsrc(?u,?d,?t)])
-                                   + (1-SOURCE(?u)) * (sum_{?t : time}[TIME-HEAD(?t) * (sum_{?i : intersection}[Ml(?i,?u,?d,?t)])]) );
+        Ma(?u,?d) = LINK(?u,?d) * (       SOURCE(?u)  * (sum_{?t : time}[TIME-HEAD(?t) * Mlsrc(?u,?d,?t)])
+                                   + (1 - SOURCE(?u)) * (sum_{?t : time}[TIME-HEAD(?t) * (sum_{?i : intersection}[Ml(?i,?u,?d,?t)])]) );
 
         // outflow at turn (u,d,o)
         // min(undersaturated, saturated, oversaturated)
@@ -270,7 +298,7 @@ domain BLX_model {
                                  * b(?u,?d,?o)
                                  * max[0, min[ q(?u,?d,?o) + Ma(?u,?d)*BETA(?u,?d,?o), // Undersaturated flow
                                           min[ BETA(?u,?d,?o)*MU(?u,?d,?o)*Ts,         // Saturated flow
-                                               Cl(?d,?o)-Nc(?d,?o) ]]];                // Oversaturated flow (Capacity-Count=Storage)
+                                               Cl(?d,?o) - Nc(?d,?o) ]]];              // Oversaturated flow (Capacity-Count=Storage)
 
 
         // count the number of transitions from the current phase to clip the actions
@@ -286,7 +314,8 @@ domain BLX_model {
 
         // is current phase being extended?
         extend(?d) =
-            // true if any: the intersection is not signalized
+            // true if any:
+            // the intersection is not signalized
                 (~TL(?d))
             // in all-red phase
                 | (all-red(?d) > 0)
@@ -305,7 +334,7 @@ domain BLX_model {
 
         // Source outflows and virtual queues
         Mlsrc'(?u,?d,?t) = LINK(?u,?d) * (
-              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * src-flow(?u)
+              (TIME-VAL(?t) == tau(?u,?d))     * (1 - gamma(?u,?d)) * src-flow(?u)
             + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * src-flow(?u)
             + (sum_{?t2 : time}[ NEXT(?t,?t2) * Mlsrc(?u,?d,?t2) ]));
 
@@ -313,7 +342,7 @@ domain BLX_model {
 
         // Turning outflows
         Ml'(?u,?d,?o,?t) =
-              (TIME-VAL(?t) == tau(?u,?d))     * (1-gamma(?u,?d)) * turn-outflow(?u,?d,?o)
+              (TIME-VAL(?t) == tau(?u,?d))     * (1 - gamma(?u,?d)) * turn-outflow(?u,?d,?o)
             + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * turn-outflow(?u,?d,?o)
             + (sum_{?t2 : time}[ NEXT(?t,?t2) * Ml(?u,?d,?o,?t2) ]);
             
@@ -335,7 +364,7 @@ domain BLX_model {
         //        During all-red, cur-ph-idx is equal to the index of the upcoming phase,
         //        and cur-ph-t is kept at 0.
         //  * If the action integer set-phase(?d) is larger than the number of allowed phase
-        //    transitions from the current phase, the integer is clip above by the largest valid
+        //    transitions from the current phase, the integer is clipped above by the largest valid
         //    index.
         //  * If the phase is at max. time, and the action is 0, the action is clipped below at 1
         //    (i.e. use the 1 action is used instead)
@@ -362,7 +391,26 @@ domain BLX_model {
     reward = - (sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)])
              - (sum_{?u : intersection}[virtual-q(?u)*SOURCE(?u)]);
 
-    state-invariants {};
+    state-invariants {
+        1 <= Ts;
+        0 < Lv;
+
+        // assert that intersection indices are unique
+        (sum_{?u : intersection} (sum_{?d : intersection} (INTERSECTION-INDEX(?u)==INTERSECTION-INDEX(?d)))) <= (sum_{?u : intersection} (1));
+
+        forall_{?d : intersection} [ ~(SINK(?d) ^ TL(?d)) ];
+        forall_{?d : intersection} [ ~(SOURCE(?d) ^ TL(?d)) ];
+
+        forall_{?p : phase} [ 0 < PHASE-MIN(?p) ];
+        forall_{?p : phase} [ PHASE-MIN(?p) <= PHASE-MAX(?p) ];
+        forall_{?p : phase} [ 0 <= PHASE-ALL-RED-DUR(?p) ];
+
+        forall_{?u : intersection} [forall_{?d : intersection} [ 0 < Nl(?u,?d) ]];
+        forall_{?u : intersection} [forall_{?d : intersection} [ 0 < V(?u,?d) ]];
+        forall_{?u : intersection} [forall_{?d : intersection} [forall_{?o : intersection} [ 0 <= BETA(?u,?d,?o) ]]];
+        forall_{?u : intersection} [forall_{?d : intersection} [forall_{?o : intersection} [ 0 < MU(?u,?d,?o) ]]];
+
+    };
 
     action-preconditions {
         forall_{?d : intersection} [ 0 <= set-phase(?d) ];
