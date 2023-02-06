@@ -82,12 +82,6 @@ domain BLX_model {
         MAX-FLOWRATE(intersection)                             :  { non-fluent, real, default = 0.67 };
 
 
-        // the highest possible number of transitions from a given state. used to bound the action space.
-        MAX-POSSIBLE-PHASE-TRANSITIONS(intersection)           :  { non-fluent, int, default = 1 };
-
-        // phase transitions are enumerated
-        PHASE-TRANSITION-INDEX(phase-transition)               :  { non-fluent, int, default = 0 };
-
         // by convention, phases should be enumerated between 0 and (num.phases-1) in every intersection
         PHASE-INDEX(phase)                                     :  { non-fluent, int, default = 0 };
 
@@ -101,6 +95,12 @@ domain BLX_model {
 
         // is turn green in phase?
         GREEN(intersection, intersection, intersection, phase) :  { non-fluent, bool, default = false };
+
+        // the highest possible number of transitions from a given state. used to bound the action space.
+        MAX-POSSIBLE-PHASE-TRANSITIONS(intersection)           :  { non-fluent, int, default = 1 };
+
+        // phase transitions are enumerated
+        PHASE-TRANSITION-INDEX(phase-transition)               :  { non-fluent, int, default = 0 };
 
         // what phase transition the i-th indexed action corresponds to
         // the 0 action should always be interpreted as extend
@@ -167,6 +167,9 @@ domain BLX_model {
 
         // is current phase being extended?
         extend(intersection)                                   :  { interm-fluent, bool };
+
+        // clipped action
+        clipped-set-phase(intersection)                        :  { interm-fluent, int  };
 
 
 
@@ -279,16 +282,21 @@ domain BLX_model {
         cur-ph-below-min(?d) =  [ cur-ph-t(?d) < (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * PHASE-MIN(?p))) ];
 
         // is the current phase at max. time?
-        cur-ph-at-max(?d) = [ cur-ph-t(?d) < (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * PHASE-MAX(?p))) ];
+        cur-ph-at-max(?d) = [ cur-ph-t(?d) == (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * PHASE-MAX(?p))) ];
 
         // is current phase being extended?
         extend(?d) =
-            // if in all-red phase
-                (all-red(?d) > 0)
-            // if cur-ph-t is smaller than the phase min. time
+            // true if any: the intersection is not signalized
+                (~TL(?d))
+            // in all-red phase
+                | (all-red(?d) > 0)
+            // cur-ph-t is smaller than the phase min. time
                 | cur-ph-below-min(?d)
-            // if the action is 0 and cur-ph-t is not at phase max. time
-                | [ cur-ph-at-max(?d) ^ (set-phase(?d) == 0) ];
+            // the action is 0 and cur-ph-t is not at phase max. time
+                | [ (~cur-ph-at-max(?d)) ^ (set-phase(?d) == 0) ];
+
+        // clipped action
+        clipped-set-phase(?d) = max[cur-ph-at-max(?d), min[set-phase(?d), num-transitions-from-cur-ph(?d) - 1]];
              
 
         ////////////////////////////////////
@@ -338,10 +346,10 @@ domain BLX_model {
                                   PHASE-OF(?p,?d)
                                   * (PHASE-INDEX(?p)==cur-ph-idx(?d))
                                   * (sum_{?a : phase-transition}[
-                                        (PHASE-TRANSITION-INDEX(?a)==max[cur-ph-at-max(?d), min[set-phase(?d),num-transitions-from-cur-ph(?d)]])
+                                        (PHASE-TRANSITION-INDEX(?a)==clipped-set-phase(?d))
                                          * TRANSITION(?p,?a) ])]);
                               
-        cur-ph-t'(?d) = if (extend(?d)) then [cur-ph-t(?d) + (all-red(?d) == 0)] else 0;
+        cur-ph-t'(?d) = if (extend(?d)) then [cur-ph-t(?d) + Ts*(all-red(?d) == 0)] else 0;
 
         all-red'(?d) = if (extend(?d))
                            then max[all-red(?d) - Ts, 0]
@@ -352,7 +360,7 @@ domain BLX_model {
     // minus number of cars in the network
     // minus all virtual queues at source nodes
     reward = - (sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)])
-             - (sum_{?u2 : intersection}[virtual-q(?u2)*SOURCE(?u2)]);
+             - (sum_{?u : intersection}[virtual-q(?u)*SOURCE(?u)]);
 
     state-invariants {};
 
