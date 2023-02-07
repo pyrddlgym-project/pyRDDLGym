@@ -14,8 +14,6 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 from pyRDDLGym.Core.Compiler.RDDLModel import RDDLGroundedModel
 from pyRDDLGym.Core.Parser.expr import Expression
 
-PRIME = '\''
-
 AGGREG_OP_TO_STRING_DICT = {
     'prod': '*',
     'sum': '+',
@@ -174,11 +172,13 @@ class RDDLGrounder(Grounder):
         return itertools.product(*objects_by_type)
     
     def _append_variation_to_name(self, base_name, variation):
-        return base_name + '_' + '_'.join(variation)
+        objects = RDDLGroundedModel.OBJECT_SEP.join(variation)
+        return base_name + RDDLGroundedModel.FLUENT_SEP + objects
         
     def _generate_grounded_names(self, base_name,
                                  variation_list,
                                  return_grounding_param_dict=False):
+        PRIME = RDDLGroundedModel.NEXT_STATE_SYM
         all_grounded_names = []
         prime_var = PRIME in base_name
         base_name = base_name.strip(PRIME)
@@ -238,6 +238,7 @@ class RDDLGrounder(Grounder):
                 self.cpforder[level] = [pvariable.name]
 
     def _ground_pvariables_and_cpf(self):
+        PRIME = RDDLGroundedModel.NEXT_STATE_SYM
         all_grounded_state_cpfs = []
         all_grounded_interim_cpfs = []
         all_grounded_derived_cpfs = []
@@ -591,6 +592,7 @@ class RDDLGrounder(Grounder):
                     
     # added on Dec 17 (Mike)
     def _extract_variable_information(self):
+        PRIME = RDDLGroundedModel.NEXT_STATE_SYM
         var_params, var_types, var_ranges = {}, {}, {}
         for pvar in self.AST.domain.pvariables:
             objects = pvar.param_types
@@ -605,7 +607,7 @@ class RDDLGrounder(Grounder):
                 if name in var_params:
                     raise RDDLRepeatedVariableError(
                         f'{pvar.fluent_type} <{pvar.name}> has the same name as '
-                        f'another {var_types[name]}.')
+                        f'another pvariable {var_types[name]}.')
                 primed_name = (name + PRIME) if pvar.is_state_fluent() else name
                 var_params[name] = var_params[primed_name] = []        
                 var_types[name] = pvar.fluent_type

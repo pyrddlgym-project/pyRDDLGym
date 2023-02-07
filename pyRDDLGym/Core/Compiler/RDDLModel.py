@@ -14,6 +14,10 @@ from pyRDDLGym.Core.Parser.expr import Expression, Value
 class PlanningModel(metaclass=ABCMeta):
     '''The base class representing all RDDL domain + instance.
     '''
+    
+    FLUENT_SEP = '___'
+    OBJECT_SEP = '__'
+    NEXT_STATE_SYM = '\''
 
     def __init__(self):
         self._AST = None
@@ -340,28 +344,33 @@ class PlanningModel(metaclass=ABCMeta):
     
     def ground_name(self, name: str, objects: Iterable[str]) -> str:
         '''Given a variable name and list of objects as arguments, produces a 
-        grounded representation <variable>_<obj1>_<obj2>_...
+        grounded representation <variable>___<obj1>__<obj2>__...
         '''
-        is_primed = name.endswith('\'')
+        is_primed = name.endswith(PlanningModel.NEXT_STATE_SYM)
         var = name
         if is_primed:
             var = var[:-1]
         if objects is not None and objects:
-            var += '_' + '_'.join(objects)
+            objects = PlanningModel.OBJECT_SEP.join(objects)
+            var += PlanningModel.FLUENT_SEP + objects
         if is_primed:
-            var += '\''
+            var += PlanningModel.NEXT_STATE_SYM
         return var
     
     def parse(self, expr: str) -> Tuple[str, List[str]]:
-        '''Parses an expression of the form <name> or <name>_<type1>_<type2>...)
+        '''Parses an expression of the form <name> or <name>___<type1>__<type2>...)
         into a tuple of <name>, [<type1>, <type2>, ...].
         '''
-        is_primed = expr.endswith('\'')
+        is_primed = expr.endswith(PlanningModel.NEXT_STATE_SYM)
         if is_primed:
             expr = expr[:-1]
-        var, *objects = expr.split('_')
+        var, *objects = expr.split(PlanningModel.FLUENT_SEP)
+        if objects:
+            if len(objects) != 1:
+                raise RDDLInvalidObjectError(f'Invalid pvariable expression {expr}.')
+            objects = objects[0].split(PlanningModel.OBJECT_SEP)
         if is_primed:
-            var += '\''
+            var += PlanningModel.NEXT_STATE_SYM
         return var, objects
     
     def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:

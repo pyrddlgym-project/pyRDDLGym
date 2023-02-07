@@ -35,37 +35,33 @@ class MarsRoverVisualizer(StateViz):
 
         # style of fluent_p1
         for k, v in self._nonfluents.items():
-            if 'MINERAL-POS-X_' in k:
-                point = k.split('_')[1]
-                mineral_locaiton[point][0] = v
-            elif 'MINERAL-POS-Y_' in k:
-                point = k.split('_')[1]
-                mineral_locaiton[point][1] = v
-            elif 'MINERAL-AREA_' in k:
-                point = k.split('_')[1]
-                mineral_locaiton[point][2] = v
-            elif 'MINERAL-VALUE_' in k:
-                point = k.split('_')[1]
-                mineral_locaiton[point][3] = v
+            var, objects = self._model.parse(k)
+            if var == 'MINERAL-POS-X':
+                mineral_locaiton[objects[0]][0] = v
+            elif var == 'MINERAL-POS-Y':
+                mineral_locaiton[objects[0]][1] = v
+            elif var == 'MINERAL-AREA':
+                mineral_locaiton[objects[0]][2] = v
+            elif var == 'MINERAL-VALUE':
+                mineral_locaiton[objects[0]][3] = v
 
         return {'mineral_location': mineral_locaiton}
     
     def build_states_layout(self, state):
         rover_location = {o: [None, None] for o in self._objects['rover']}
         mineral_harvested = {o: None for o in self._objects['mineral']}
+        
+        for k, v in state.items():
+            var, objects = self._model.parse(k)
+            if var == 'pos-x':
+                rover_location[objects[0]][0] = v
+            elif var == 'pos-y':
+                rover_location[objects[0]][1] = v
 
         for k, v in state.items():
-            if 'pos-x_' in k:
-                point = k.split('_')[1]
-                rover_location[point][0] = v
-            elif 'pos-y_' in k:
-                point = k.split('_')[1]
-                rover_location[point][1] = v
-
-        for k, v in state.items():
-            if 'mineral-harvested_' in k:
-                point = k.split('_')[1]
-                mineral_harvested[point] = v
+            var, objects = self._model.parse(k)
+            if var == 'mineral-harvested':
+                mineral_harvested[objects[0]] = v
 
         return {'mineral_harvested': mineral_harvested,
                 'rover_location': rover_location}
