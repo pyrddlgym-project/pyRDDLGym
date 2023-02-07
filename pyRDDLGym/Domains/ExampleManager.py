@@ -52,8 +52,9 @@ def load():
                 EXP_DICT[name] = dict(zip(HEADER[1:], entries))
     return EXP_DICT
 
-# if __name__ == '__main__':
-#    rebuild()
+
+if __name__ == '__main__':
+    rebuild()
 
 
 class ExampleManager:
