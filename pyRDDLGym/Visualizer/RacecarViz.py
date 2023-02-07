@@ -27,13 +27,14 @@ class RacecarVisualizer(StateViz):
         self.ax = plt.gca()
         
         # draw boundaries
+        FLUENT_SEP = PlanningModel.FLUENT_SEP
         obj = model.objects['b']
         X1, X2, Y1, Y2 = [], [], [], []
         for o in obj:
-            X1.append(self._nonfluents['X1_' + o])
-            X2.append(self._nonfluents['X2_' + o])
-            Y1.append(self._nonfluents['Y1_' + o])
-            Y2.append(self._nonfluents['Y2_' + o])
+            X1.append(self._nonfluents['X1' + FLUENT_SEP + o])
+            X2.append(self._nonfluents['X2' + FLUENT_SEP + o])
+            Y1.append(self._nonfluents['Y1' + FLUENT_SEP + o])
+            Y2.append(self._nonfluents['Y2' + FLUENT_SEP + o])
         lines = [[(x1, y1), (x2, y2)] for x1, y1, x2, y2 in zip(X1, Y1, X2, Y2)]
         lc = mc.LineCollection(lines, linewidths=2)
         self.ax.add_collection(lc)

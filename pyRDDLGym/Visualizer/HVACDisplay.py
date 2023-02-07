@@ -47,31 +47,23 @@ class HVACDisplay(StateViz):
 
         # add none-fluents
         for k, v in self._nonfluents.items():
-            if 'RAIN_SHAPE_' in k:
-                point = k.split('_')[2]
-                rain_shape[point] = v
-            elif 'MAX_RES_CAP_' in k:
-                point = k.split('_')[3]
-                max_res_cap[point] = v
-            elif 'UPPER_BOUND_' in k:
-                point = k.split('_')[2]
-                upper_bound[point] = v
-            elif 'LOWER_BOUND_' in k:
-                point = k.split('_')[2]
-                lower_bound[point] = v
-            elif 'RAIN_SHAPE_' in k:
-                point = k.split('_')[2]
-                rain_shape[point] = v
-            elif 'RAIN_SCALE_' in k:
-                point = k.split('_')[2]
-                rain_scale[point] = v
-            elif 'DOWNSTREAM_' in k:
-                point = k.split('_')[1]
-                v = k.split('_')[2]
-                downstream[point].append(v)
-            elif 'SINK_RES_' in k:
-                point = k.split('_')[2]
-                sink_res[point] = v
+            var, objects = self._model.parse(k)
+            if var == 'RAIN_SHAPE':
+                rain_shape[objects[0]] = v
+            elif var == 'MAX_RES_CAP':
+                max_res_cap[objects[0]] = v
+            elif var == 'UPPER_BOUND':
+                upper_bound[objects[0]] = v
+            elif var == 'LOWER_BOUND':
+                lower_bound[objects[0]] = v
+            elif var == 'RAIN_SHAPE':
+                rain_shape[objects[0]] = v
+            elif var == 'RAIN_SCALE':
+                rain_scale[objects[0]] = v
+            elif var == 'DOWNSTREAM':
+                downstream[objects[0]].append(objects[1])
+            elif var == 'SINK_RES':
+                sink_res[objects[0]] = v
 
         # add states
         for k, v in self._states.items():

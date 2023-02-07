@@ -139,9 +139,10 @@ class RDDLLevelAnalysis:
             # not a recognized type
             if cpf_type not in VALID_DEPENDENCIES:
                 if cpf_type == 'state-fluent':
+                    PRIME = PlanningModel.NEXT_STATE_SYM
                     raise RDDLInvalidDependencyInCPFError(
                         f'CPF definition for state-fluent <{cpf}> is not valid: '
-                        f'did you mean <{cpf}\'>?')
+                        f'did you mean <{cpf}{PRIME}>?')
                 else:
                     raise RDDLNotImplementedError(
                         f'Type {cpf_type} of CPF <{cpf}> is not valid.')
@@ -169,7 +170,7 @@ class RDDLLevelAnalysis:
             fluent_type = self.rddl.variable_types.get(cpf, cpf)
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-' + fluent_type
-                cpf = cpf + '\''
+                cpf = cpf + PlanningModel.NEXT_STATE_SYM
             if fluent_type in VALID_DEPENDENCIES and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
                     f'{fluent_type} CPF <{cpf}> is not defined in cpfs block.')

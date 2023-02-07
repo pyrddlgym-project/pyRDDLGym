@@ -31,37 +31,32 @@ class UAVsVisualizer(StateViz):
     
     def build_nonfluents_layout(self): 
         goal_location = {o: [None, None, None] for o in self._objects['aircraft']}
-
+        
         for k, v in self._nonfluents.items():
-            if 'GOAL-X_' in k:
-                point = k.split('_')[1]
-                goal_location[point][0] = v
-            elif 'GOAL-Y_' in k:
-                point = k.split('_')[1]
-                goal_location[point][1] = v
-            elif 'GOAL-Z_' in k:
-                point = k.split('_')[1]
-                goal_location[point][2] = v
+            var, objects = self._model.parse(k)
+            if var == 'GOAL-X':
+                goal_location[objects[0]][0] = v
+            elif var == 'GOAL-Y':
+                goal_location[objects[0]][1] = v
+            elif var == 'GOAL-Z':
+                goal_location[objects[0]][2] = v
         
         return {'goal_location': goal_location}
     
     def build_states_layout(self, state):
         drone_location = {o: [None, None, None] for o in self._objects['aircraft']}
         velocity = {o: None for o in self._objects['aircraft']}        
-
+        
         for k, v in state.items():
-            if 'pos-x_' in k:
-                point = k.split('_')[1]
-                drone_location[point][0] = v
-            elif 'pos-y_' in k:
-                point = k.split('_')[1]
-                drone_location[point][1] = v
-            elif 'pos-z_' in k:
-                point = k.split('_')[1]
-                drone_location[point][2] = v
-            elif 'vel_' in k:
-                point = k.split('_')[1]
-                velocity[point] = v
+            var, objects = self._model.parse(k)
+            if var == 'pos-x':
+                drone_location[objects[0]][0] = v
+            elif var == 'pos-y':
+                drone_location[objects[0]][1] = v
+            elif var == 'pos-z':
+                drone_location[objects[0]][2] = v
+            elif var == 'vel':
+                velocity[objects[0]] = v
 
         return {'drone_location': drone_location, 'velocity': velocity}
 
