@@ -1,0 +1,4 @@
+[General]
+name=earthobservation2018
+description=The Earth Observation domain models a satellite orbiting Earth that can take pictures of the landscape below with a camera.
+viz=TextViz.TextVisualizer

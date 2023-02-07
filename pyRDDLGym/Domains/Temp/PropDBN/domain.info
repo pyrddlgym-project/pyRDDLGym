@@ -1,0 +1,4 @@
+[General]
+name=propdbn
+description=Simple propositional DBN.
+viz=TextViz.TextVisualizer

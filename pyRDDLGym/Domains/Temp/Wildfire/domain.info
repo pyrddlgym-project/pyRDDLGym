@@ -1,0 +1,4 @@
+[General]
+name=wildfire
+description=A boolean version of the wildfire fighting domain.
+viz=WildfireViz.WildfireVisualizer

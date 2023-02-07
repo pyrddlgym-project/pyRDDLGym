@@ -1,0 +1,62 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Push Your Luck instance #08 for IPC 2018 by Thomas      //
+// Keller (tho.keller [at] unibas.ch).                                         //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance push-your-luck_inst_mdp__08 {
+    domain = push-your-luck_mdp;
+
+    objects {
+        die : { d1, d2 };
+    };
+
+    non-fluents {
+        // reward factor is 0.25 plus a quarter of the die value
+        VALUE(@1) = 0.5;
+        VALUE(@2) = 0.75;
+        VALUE(@3) = 1.0;
+        VALUE(@4) = 1.25;
+        VALUE(@5) = 1.5;
+        VALUE(@6) = 1.75;
+        VALUE(@7) = 2.0;
+        VALUE(@8) = 2.25;
+        VALUE(@9) = 2.5;
+        VALUE(@10) = 2.75;
+
+        // unfair 10-sided die with increasing probabilities
+        PROB(d1, @1) = 0.05;
+        PROB(d1, @2) = 0.05;
+        PROB(d1, @3) = 0.05;
+        PROB(d1, @4) = 0.05;
+        PROB(d1, @5) = 0.1;
+        PROB(d1, @6) = 0.1;
+        PROB(d1, @7) = 0.1;
+        PROB(d1, @8) = 0.1;
+        PROB(d1, @9) = 0.2;
+        PROB(d1, @10) = 0.2;
+
+        // unfair 10-sided die with increasing probabilities
+        PROB(d2, @1) = 0.05;
+        PROB(d2, @2) = 0.05;
+        PROB(d2, @3) = 0.05;
+        PROB(d2, @4) = 0.05;
+        PROB(d2, @5) = 0.1;
+        PROB(d2, @6) = 0.1;
+        PROB(d2, @7) = 0.1;
+        PROB(d2, @8) = 0.1;
+        PROB(d2, @9) = 0.2;
+        PROB(d2, @10) = 0.2;
+    };
+
+    init-state {
+        ~die-value-seen(@1);
+    };
+
+    horizon = 40;
+
+    discount = 1.0;
+}

@@ -1,0 +1,209 @@
+////////////////////////////////////////////////////////////////////
+// Reconnaissance domain (contains elements of Rock Sample / Mars Rover domains)
+//
+// Author: Tom Walsh (thomasjwalsh [at] gmail.com)
+//
+// In the reconnaissance MDP, there is a 2d grid with an agent, 
+// a base, some hazard squares, and objects in different locations.
+// The agent is equipped with 3 tools, one for detecting water, one for detecting
+// life, and one for taking a picture.  The agent's movements are deterministic
+// but the probability of getting a good reading from the life and water sensors 
+// are stochastic.  Plus, running into a hazard OR being an adjacent square to one,
+// has a probability of damaging each sensor, which causes their false negative
+// rate to increase dramatically.  If the agent returns to the base it can repair
+// each tool individually.
+//
+// In the MDP version, when tools report a negative result, they contaminate the 
+// object they were used on.  With the water tool, one negative result 
+// means water will never be detected on that object, and 2 negative 
+// results from the life detector similarly contaminates an object. 
+// Hence, there is a strong reason not to use damaged tools.  Positive reward is 
+// given for taking pictures of objects where life was detected and negative
+// reward is given for pictures where life has not been detected.
+//
+// The major planning decisions in this domain are:
+// 1) Choosing which objects to try the tools on.  
+// 2) Whether or not to repair the tools.
+// 3) Whether or not to risk damage to the tools by moving through hazards.
+//
+// This domain contains elements of the Rock Sample and Mars Rover domains:
+//
+// * Mars Rover reference:
+//
+//   John L. Bresina, Richard Dearden, Nicolas Meuleau, Sailesh Ramkrishnan, 
+//   David E. Smith, Richard Washington: Planning under Continuous Time and 
+//   Resource Uncertainty: A Challenge for AI. UAI 2002: 77-84.
+//   http://ti.arc.nasa.gov/static/asanicms/pub-archive/archive/2002-0339.pdf
+// 
+// * Rock Sample reference:
+//
+//   Trey Smith and Reid G. Simmons: Heuristic Search Value Iteration for 
+//   POMDPs.  UAI 2004.  http://www.cs.cmu.edu/~trey/papers/smith04_hsvi.pdf
+//
+////////////////////////////////////////////////////////////////////
+
+domain recon_mdp {
+  	
+	requirements = { 
+//		constrained-state,
+		reward-deterministic  
+	};
+
+	types { 
+		x_pos : object;
+		y_pos : object; 
+		obj : object;
+		agent: object;
+		tool : object;
+	};
+      	
+	pvariables { 
+	
+		//connecting up the locations
+		ADJACENT-UP(y_pos,y_pos)     : { non-fluent, bool, default = false };
+		ADJACENT-DOWN(y_pos,y_pos)   : { non-fluent, bool, default = false };
+		ADJACENT-RIGHT(x_pos, x_pos) : { non-fluent, bool, default = false };
+		ADJACENT-LEFT(x_pos,x_pos)   : { non-fluent, bool, default = false };
+
+		//whether or not an object is at a location
+		objAt(obj, x_pos, y_pos) : { non-fluent, bool, default = false };
+		
+		//whether this locaion is a hazard (might damage the tools)
+		HAZARD(x_pos, y_pos) : { non-fluent, bool, default = false };
+
+		//probability of the tool being damaged, and its detection capabilities, without and with damage
+		DAMAGE_PROB(tool):   { non-fluent, real, default = 0.0 };
+		DETECT_PROB:         { non-fluent, real, default = 0.8 };
+		DETECT_PROB_DAMAGED: { non-fluent, real, default = 0.4 };
+		
+		//types of tools
+		CAMERA_TOOL(tool) : { non-fluent, bool, default = false };
+		LIFE_TOOL(tool)   : { non-fluent, bool, default = false };
+		WATER_TOOL(tool)  : { non-fluent, bool, default = false };
+
+		//Base where you can repair the tools
+		BASE(x_pos, y_pos): { non-fluent, bool, default = false };
+
+		//weights for the reward function, good pics are one where you detected life, bad pics are where you did not
+		GOOD_PIC_WEIGHT : { non-fluent, real, default = 1.0 };
+		BAD_PIC_WEIGHT  : { non-fluent, real, default = 2.0 };
+
+		damaged(tool) : { state-fluent, bool, default = false };
+		
+		//after you check for water once, there is the observation you will always get back 
+		//you can think of the test as contaminating the sampled object
+		waterChecked(obj)  : { state-fluent, bool, default = false };
+		waterDetected(obj) : { state-fluent, bool, default = false };
+
+		//rechecking for life might be needed as the test is unreliable
+		//again, the test is contaminating, but only after the second try
+		lifeChecked(obj)  : { state-fluent, bool, default = false };
+		lifeChecked2(obj) : { state-fluent, bool, default = false };
+		lifeDetected(obj) : { state-fluent, bool, default = false };
+
+		pictureTaken(obj) : { state-fluent, bool, default = false };
+		agentAt(agent, x_pos, y_pos) : { state-fluent, bool, default = false };
+
+		//actions
+		up(agent) : {action-fluent, bool, default = false};
+		down(agent) : {action-fluent, bool, default = false};
+		left(agent) : {action-fluent, bool, default = false};
+		right(agent) : {action-fluent, bool, default = false};
+		useToolOn(agent, tool, obj) : {action-fluent, bool, default = false};
+		repair(agent, tool) : {action-fluent, bool, default = false};
+	};
+  
+	cpfs {
+		
+		//you can fix damage at the base and tools can be damaged by hazards, even if you are just adjacent to them
+		//NOTE: if the hazard is in your cell, you are subject to the full damage probability,
+		//      if the hazard is only in an adjacent cell, you are subject to half the full damage probability,
+		//      however, the chance is not cumulative (you are subject to one of {full,half,zero} damage probability) 
+		damaged'(?t) = 
+			if (damaged(?t) ^ ~(exists_{?x : x_pos, ?y : y_pos, ?a: agent} [agentAt(?a, ?x, ?y) ^ BASE(?x, ?y) ^ repair(?a, ?t)])) 
+				then KronDelta( true )
+			else if (exists_{?x : x_pos, ?y : y_pos, ?a: agent} [agentAt(?a, ?x, ?y) ^ ~BASE(?x, ?y) ^ HAZARD(?x, ?y) ])  
+				then Bernoulli( DAMAGE_PROB(?t) )
+			else if (exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?x2 :x_pos} [agentAt(?a, ?x, ?y) ^ ~BASE(?x, ?y) ^ HAZARD(?x2, ?y) ^ (ADJACENT-LEFT(?x, ?x2) | ADJACENT-RIGHT(?x, ?x2)) ])  
+				then Bernoulli( DAMAGE_PROB(?t) / 2.0 )
+			else if (exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?y2 :y_pos} [agentAt(?a, ?x, ?y) ^  ~BASE(?x, ?y) ^ HAZARD(?x, ?y2) ^ (ADJACENT-UP(?y, ?y2) | ADJACENT-DOWN(?y, ?y2)) ])  
+				then Bernoulli( DAMAGE_PROB(?t) / 2.0 )
+			else 
+				KronDelta( false );  //silly else structure needed because of the way adjacency is encoded
+
+		//keeps track of whether you checked for water (which fixes the value, even if you used the damaged tool).
+		waterChecked'(?o) = 
+			KronDelta( waterChecked(?o) 
+				|  exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ WATER_TOOL(?t)]);
+
+		//first 2 cases are if you have found water and whether it has been checked, the next two are based on the tool being damaged or not
+		waterDetected'(?o) = 
+			if (waterDetected(?o)) 
+				then KronDelta( true ) 
+			else if (waterChecked(?o)) // Only one chance to detect water
+				then KronDelta( false ) 
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [WATER_TOOL(?t) ^ damaged(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o)]) 
+				then Bernoulli(DETECT_PROB_DAMAGED)
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [WATER_TOOL(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o)]) 
+				then Bernoulli(DETECT_PROB)
+			else
+				KronDelta( false );
+
+		//two lifeChecked variables, only after the second check is the value fixed 
+		lifeChecked'(?o) = 
+			KronDelta( 
+				lifeChecked(?o) 
+				|  exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ LIFE_TOOL(?t)]);
+		
+		lifeChecked2'(?o) = 
+			KronDelta( 
+				lifeChecked2(?o) 
+				|  lifeChecked(?o) ^ exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ LIFE_TOOL(?t)]);
+
+		//similar to waterDetected
+		lifeDetected'(?o) = 
+			if (lifeDetected(?o)) 
+				then KronDelta( true ) 
+			else if (lifeChecked2(?o) | ~waterDetected(?o)) // Never detect life after 2nd try or if no water
+				then KronDelta( false )
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [ LIFE_TOOL(?t) ^ damaged(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ]) 
+				then Bernoulli(DETECT_PROB_DAMAGED)
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [ LIFE_TOOL(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ]) 
+				then Bernoulli(DETECT_PROB)
+			else
+				KronDelta( false );	
+
+		//inhibits reward for future pictures of this object
+		pictureTaken'(?o) =
+			KronDelta( exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [CAMERA_TOOL(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ ~damaged(?t)] );
+
+		agentAt'(?a, ?x, ?y) = 
+			KronDelta(
+				[agentAt(?a, ?x, ?y) ^ ~(up(?a) | down(?a) | right(?a) | left(?a))] |
+				[left(?a) ^ exists_{?x2 : x_pos} [agentAt(?a, ?x2, ?y) ^ ADJACENT-LEFT(?x2, ?x)]] |
+				[right(?a) ^ exists_{?x2 : x_pos} [agentAt(?a, ?x2, ?y) ^ ADJACENT-RIGHT(?x2, ?x)]] |
+				[up(?a) ^ exists_{?y2 : y_pos} [agentAt(?a, ?x, ?y2) ^ ADJACENT-UP(?y2, ?y)]] |
+				[down(?a) ^ exists_{?y2 : y_pos} [agentAt(?a, ?x, ?y2) ^ ADJACENT-DOWN(?y2, ?y)]] );
+	};
+    	
+	//we may want to change the way lifeDetected works because right now the same domain has different possible rewards
+	// Only get rewarded for a good or bad picture the first time the action is *taken*
+	reward = [sum_{?o : obj}  
+				 (GOOD_PIC_WEIGHT * 
+				  [ ~pictureTaken(?o) ^ lifeDetected(?o) ^ exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ CAMERA_TOOL(?t) ^ ~damaged(?t)]])
+			 ] +
+			 [sum_{?o : obj} 
+				 -(BAD_PIC_WEIGHT * 
+				  [ ~lifeDetected(?o) ^ exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ CAMERA_TOOL(?t)]])
+			 ]; 
+
+//	//only 1 of each kind of tool -- actually might be more fun if there were multiple of each one 	
+//	state-action-constraints {
+//		(sum_{?t: tool}[WATER_TOOL(?t)])  >= 1;
+//		(sum_{?t: tool}[CAMERA_TOOL(?t)]) >= 1;
+//		(sum_{?t: tool}[LIFE_TOOL(?t)])   >= 1;
+//	};
+}
+
+
+

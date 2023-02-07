@@ -1,0 +1,4 @@
+[General]
+name=gameoflife2011pomdp
+description= A simple DBN to encode Conway's cellular automata game of life on a grid. This is the pomdp version.
+viz=TextViz.TextVisualizer

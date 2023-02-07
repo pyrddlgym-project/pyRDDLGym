@@ -1,0 +1,64 @@
+non-fluents nf_navigation_inst_pomdp__4 {
+	domain = navigation_pomdp;
+	objects {
+		xpos : {x30,x21,x9,x14,x6};
+		ypos : {y12,y47,y36,y27,y20,y15};
+	};
+	non-fluents {
+		MIN-XPOS(x6);
+		SOUTH(y27,y20);
+		P(x14,y15) = 0.463823274243623;
+		P(x6,y27) = 0.04386437498033047;
+		P(x21,y20) = 0.6970606241375208;
+		NORTH(y36,y47);
+		SOUTH(y47,y36);
+		P(x21,y15) = 0.7123653423041105;
+		P(x30,y36) = 0.9420068506151438;
+		NORTH(y15,y20);
+		MAX-XPOS(x30);
+		GOAL(x30,y47);
+		P(x6,y20) = 0.013390782987698913;
+		WEST(x30,x21);
+		P(x30,y15) = 0.9376830533146858;
+		EAST(x6,x9);
+		NORTH(y12,y15);
+		P(x9,y27) = 0.26191302947700024;
+		EAST(x21,x30);
+		P(x30,y27) = 0.9328240882605314;
+		SOUTH(y15,y12);
+		WEST(x21,x14);
+		P(x14,y36) = 0.5048060771077871;
+		EAST(x14,x21);
+		EAST(x9,x14);
+		P(x21,y36) = 0.7034567669034004;
+		MAX-YPOS(y47);
+		P(x9,y36) = 0.26030201092362404;
+		NORTH(y20,y27);
+		P(x14,y27) = 0.5078285839408636;
+		MIN-YPOS(y12);
+		SOUTH(y36,y27);
+		P(x6,y15) = 0.025492277927696705;
+		WEST(x14,x9);
+		NORTH(y27,y36);
+		P(x9,y20) = 0.26410799100995064;
+		P(x30,y20) = 0.9349031038582325;
+		P(x9,y15) = 0.24551005382090807;
+		P(x14,y20) = 0.4753798162564635;
+		P(x6,y36) = 0.01783149316906929;
+		WEST(x9,x6);
+		P(x21,y27) = 0.6997700994834304;
+		SOUTH(y20,y15);
+	};
+}
+
+instance navigation_inst_pomdp__4 {
+	domain = navigation_pomdp;
+	non-fluents = nf_navigation_inst_pomdp__4;
+	init-state {
+		min-x;
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+}
+

@@ -1,0 +1,951 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Earth Observation instance #19 for IPC 2018 by Thomas   //
+// Keller (tho.keller [at] unibas.ch), based on a domain that was created for  //
+// the paper "An Experimental Comparison of Classical, FOND and Probabilistic  //
+// Planning" by Andreas Hertle, Christian Dornhege, Thomas Keller, Robert      //
+// Mattmüller, Manuela Ortlieb, and Bernhard Nebel (KI 2014).                  //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance earth-observation_inst_mdp__19 {
+    domain = earth-observation_mdp;
+
+    objects {
+        patch : { p0101, p0102, p0103, p0104, p0105, p0106, p0107, p0108, p0109, p0110, p0111, p0112, p0113, p0114, p0115, p0116,
+                  p0201, p0202, p0203, p0204, p0205, p0206, p0207, p0208, p0209, p0210, p0211, p0212, p0213, p0214, p0215, p0216,
+                  p0301, p0302, p0303, p0304, p0305, p0306, p0307, p0308, p0309, p0310, p0311, p0312, p0313, p0314, p0315, p0316,
+                  p0401, p0402, p0403, p0404, p0405, p0406, p0407, p0408, p0409, p0410, p0411, p0412, p0413, p0414, p0415, p0416,
+                  p0501, p0502, p0503, p0504, p0505, p0506, p0507, p0508, p0509, p0510, p0511, p0512, p0513, p0514, p0515, p0516,
+                  p0601, p0602, p0603, p0604, p0605, p0606, p0607, p0608, p0609, p0610, p0611, p0612, p0613, p0614, p0615, p0616,
+                  p0701, p0702, p0703, p0704, p0705, p0706, p0707, p0708, p0709, p0710, p0711, p0712, p0713, p0714, p0715, p0716,
+                  p0801, p0802, p0803, p0804, p0805, p0806, p0807, p0808, p0809, p0810, p0811, p0812, p0813, p0814, p0815, p0816,
+                  p0901, p0902, p0903, p0904, p0905, p0906, p0907, p0908, p0909, p0910, p0911, p0912, p0913, p0914, p0915, p0916,
+                  p1001, p1002, p1003, p1004, p1005, p1006, p1007, p1008, p1009, p1010, p1011, p1012, p1013, p1014, p1015, p1016,
+                  p1101, p1102, p1103, p1104, p1105, p1106, p1107, p1108, p1109, p1110, p1111, p1112, p1113, p1114, p1115, p1116,
+                  p1201, p1202, p1203, p1204, p1205, p1206, p1207, p1208, p1209, p1210, p1211, p1212, p1213, p1214, p1215, p1216 };
+    };
+
+    non-fluents {
+        FAILURE_PROB_HIGH_VIS = 0.117466;
+        FAILURE_PROB_MEDIUM_VIS = 0.652072;
+        FAILURE_PROB_LOW_VIS = 0.857302;
+
+        HIGH_TO_MEDIUM_VIS = 0.400115;
+        HIGH_TO_LOW_VIS = 0.186037;
+
+        MEDIUM_TO_HIGH_VIS = 0.375462;
+        MEDIUM_TO_LOW_VIS = 0.382719;
+
+        LOW_TO_MEDIUM_VIS = 0.417940;
+        LOW_TO_HIGH_VIS = 0.244065;
+
+        CONNECTED(p0101, p0202, @north-east);
+        CONNECTED(p0101, p0201, @east);
+
+        CONNECTED(p0102, p0203, @north-east);
+        CONNECTED(p0102, p0202, @east);
+        CONNECTED(p0102, p0201, @south-east);
+
+        CONNECTED(p0103, p0204, @north-east);
+        CONNECTED(p0103, p0203, @east);
+        CONNECTED(p0103, p0202, @south-east);
+
+        CONNECTED(p0104, p0205, @north-east);
+        CONNECTED(p0104, p0204, @east);
+        CONNECTED(p0104, p0203, @south-east);
+
+        CONNECTED(p0105, p0206, @north-east);
+        CONNECTED(p0105, p0205, @east);
+        CONNECTED(p0105, p0204, @south-east);
+
+        CONNECTED(p0106, p0207, @north-east);
+        CONNECTED(p0106, p0206, @east);
+        CONNECTED(p0106, p0205, @south-east);
+
+        CONNECTED(p0107, p0208, @north-east);
+        CONNECTED(p0107, p0207, @east);
+        CONNECTED(p0107, p0206, @south-east);
+
+        CONNECTED(p0108, p0209, @north-east);
+        CONNECTED(p0108, p0208, @east);
+        CONNECTED(p0108, p0207, @south-east);
+
+        CONNECTED(p0109, p0210, @north-east);
+        CONNECTED(p0109, p0209, @east);
+        CONNECTED(p0109, p0208, @south-east);
+
+        CONNECTED(p0110, p0211, @north-east);
+        CONNECTED(p0110, p0210, @east);
+        CONNECTED(p0110, p0209, @south-east);
+
+        CONNECTED(p0111, p0212, @north-east);
+        CONNECTED(p0111, p0211, @east);
+        CONNECTED(p0111, p0210, @south-east);
+
+        CONNECTED(p0112, p0213, @north-east);
+        CONNECTED(p0112, p0212, @east);
+        CONNECTED(p0112, p0211, @south-east);
+
+        CONNECTED(p0113, p0214, @north-east);
+        CONNECTED(p0113, p0213, @east);
+        CONNECTED(p0113, p0212, @south-east);
+
+        CONNECTED(p0114, p0215, @north-east);
+        CONNECTED(p0114, p0214, @east);
+        CONNECTED(p0114, p0213, @south-east);
+
+        CONNECTED(p0115, p0216, @north-east);
+        CONNECTED(p0115, p0215, @east);
+        CONNECTED(p0115, p0214, @south-east);
+
+        CONNECTED(p0116, p0216, @east);
+        CONNECTED(p0116, p0215, @south-east);
+
+        CONNECTED(p0201, p0302, @north-east);
+        CONNECTED(p0201, p0301, @east);
+
+        CONNECTED(p0202, p0303, @north-east);
+        CONNECTED(p0202, p0302, @east);
+        CONNECTED(p0202, p0301, @south-east);
+
+        CONNECTED(p0203, p0304, @north-east);
+        CONNECTED(p0203, p0303, @east);
+        CONNECTED(p0203, p0302, @south-east);
+
+        CONNECTED(p0204, p0305, @north-east);
+        CONNECTED(p0204, p0304, @east);
+        CONNECTED(p0204, p0303, @south-east);
+
+        CONNECTED(p0205, p0306, @north-east);
+        CONNECTED(p0205, p0305, @east);
+        CONNECTED(p0205, p0304, @south-east);
+
+        CONNECTED(p0206, p0307, @north-east);
+        CONNECTED(p0206, p0306, @east);
+        CONNECTED(p0206, p0305, @south-east);
+
+        CONNECTED(p0207, p0308, @north-east);
+        CONNECTED(p0207, p0307, @east);
+        CONNECTED(p0207, p0306, @south-east);
+
+        CONNECTED(p0208, p0309, @north-east);
+        CONNECTED(p0208, p0308, @east);
+        CONNECTED(p0208, p0307, @south-east);
+
+        CONNECTED(p0209, p0310, @north-east);
+        CONNECTED(p0209, p0309, @east);
+        CONNECTED(p0209, p0308, @south-east);
+
+        CONNECTED(p0210, p0311, @north-east);
+        CONNECTED(p0210, p0310, @east);
+        CONNECTED(p0210, p0309, @south-east);
+
+        CONNECTED(p0211, p0312, @north-east);
+        CONNECTED(p0211, p0311, @east);
+        CONNECTED(p0211, p0310, @south-east);
+
+        CONNECTED(p0212, p0313, @north-east);
+        CONNECTED(p0212, p0312, @east);
+        CONNECTED(p0212, p0311, @south-east);
+
+        CONNECTED(p0213, p0314, @north-east);
+        CONNECTED(p0213, p0313, @east);
+        CONNECTED(p0213, p0312, @south-east);
+
+        CONNECTED(p0214, p0315, @north-east);
+        CONNECTED(p0214, p0314, @east);
+        CONNECTED(p0214, p0313, @south-east);
+
+        CONNECTED(p0215, p0316, @north-east);
+        CONNECTED(p0215, p0315, @east);
+        CONNECTED(p0215, p0314, @south-east);
+
+        CONNECTED(p0216, p0316, @east);
+        CONNECTED(p0216, p0315, @south-east);
+
+        CONNECTED(p0301, p0402, @north-east);
+        CONNECTED(p0301, p0401, @east);
+
+        CONNECTED(p0302, p0403, @north-east);
+        CONNECTED(p0302, p0402, @east);
+        CONNECTED(p0302, p0401, @south-east);
+
+        CONNECTED(p0303, p0404, @north-east);
+        CONNECTED(p0303, p0403, @east);
+        CONNECTED(p0303, p0402, @south-east);
+
+        CONNECTED(p0304, p0405, @north-east);
+        CONNECTED(p0304, p0404, @east);
+        CONNECTED(p0304, p0403, @south-east);
+
+        CONNECTED(p0305, p0406, @north-east);
+        CONNECTED(p0305, p0405, @east);
+        CONNECTED(p0305, p0404, @south-east);
+
+        CONNECTED(p0306, p0407, @north-east);
+        CONNECTED(p0306, p0406, @east);
+        CONNECTED(p0306, p0405, @south-east);
+
+        CONNECTED(p0307, p0408, @north-east);
+        CONNECTED(p0307, p0407, @east);
+        CONNECTED(p0307, p0406, @south-east);
+
+        CONNECTED(p0308, p0409, @north-east);
+        CONNECTED(p0308, p0408, @east);
+        CONNECTED(p0308, p0407, @south-east);
+
+        CONNECTED(p0309, p0410, @north-east);
+        CONNECTED(p0309, p0409, @east);
+        CONNECTED(p0309, p0408, @south-east);
+
+        CONNECTED(p0310, p0411, @north-east);
+        CONNECTED(p0310, p0410, @east);
+        CONNECTED(p0310, p0409, @south-east);
+
+        CONNECTED(p0311, p0412, @north-east);
+        CONNECTED(p0311, p0411, @east);
+        CONNECTED(p0311, p0410, @south-east);
+
+        CONNECTED(p0312, p0413, @north-east);
+        CONNECTED(p0312, p0412, @east);
+        CONNECTED(p0312, p0411, @south-east);
+
+        CONNECTED(p0313, p0414, @north-east);
+        CONNECTED(p0313, p0413, @east);
+        CONNECTED(p0313, p0412, @south-east);
+
+        CONNECTED(p0314, p0415, @north-east);
+        CONNECTED(p0314, p0414, @east);
+        CONNECTED(p0314, p0413, @south-east);
+
+        CONNECTED(p0315, p0416, @north-east);
+        CONNECTED(p0315, p0415, @east);
+        CONNECTED(p0315, p0414, @south-east);
+
+        CONNECTED(p0316, p0416, @east);
+        CONNECTED(p0316, p0415, @south-east);
+
+        CONNECTED(p0401, p0502, @north-east);
+        CONNECTED(p0401, p0501, @east);
+
+        CONNECTED(p0402, p0503, @north-east);
+        CONNECTED(p0402, p0502, @east);
+        CONNECTED(p0402, p0501, @south-east);
+
+        CONNECTED(p0403, p0504, @north-east);
+        CONNECTED(p0403, p0503, @east);
+        CONNECTED(p0403, p0502, @south-east);
+
+        CONNECTED(p0404, p0505, @north-east);
+        CONNECTED(p0404, p0504, @east);
+        CONNECTED(p0404, p0503, @south-east);
+
+        CONNECTED(p0405, p0506, @north-east);
+        CONNECTED(p0405, p0505, @east);
+        CONNECTED(p0405, p0504, @south-east);
+
+        CONNECTED(p0406, p0507, @north-east);
+        CONNECTED(p0406, p0506, @east);
+        CONNECTED(p0406, p0505, @south-east);
+
+        CONNECTED(p0407, p0508, @north-east);
+        CONNECTED(p0407, p0507, @east);
+        CONNECTED(p0407, p0506, @south-east);
+
+        CONNECTED(p0408, p0509, @north-east);
+        CONNECTED(p0408, p0508, @east);
+        CONNECTED(p0408, p0507, @south-east);
+
+        CONNECTED(p0409, p0510, @north-east);
+        CONNECTED(p0409, p0509, @east);
+        CONNECTED(p0409, p0508, @south-east);
+
+        CONNECTED(p0410, p0511, @north-east);
+        CONNECTED(p0410, p0510, @east);
+        CONNECTED(p0410, p0509, @south-east);
+
+        CONNECTED(p0411, p0512, @north-east);
+        CONNECTED(p0411, p0511, @east);
+        CONNECTED(p0411, p0510, @south-east);
+
+        CONNECTED(p0412, p0513, @north-east);
+        CONNECTED(p0412, p0512, @east);
+        CONNECTED(p0412, p0511, @south-east);
+
+        CONNECTED(p0413, p0514, @north-east);
+        CONNECTED(p0413, p0513, @east);
+        CONNECTED(p0413, p0512, @south-east);
+
+        CONNECTED(p0414, p0515, @north-east);
+        CONNECTED(p0414, p0514, @east);
+        CONNECTED(p0414, p0513, @south-east);
+
+        CONNECTED(p0415, p0516, @north-east);
+        CONNECTED(p0415, p0515, @east);
+        CONNECTED(p0415, p0514, @south-east);
+
+        CONNECTED(p0416, p0516, @east);
+        CONNECTED(p0416, p0515, @south-east);
+
+        CONNECTED(p0501, p0602, @north-east);
+        CONNECTED(p0501, p0601, @east);
+
+        CONNECTED(p0502, p0603, @north-east);
+        CONNECTED(p0502, p0602, @east);
+        CONNECTED(p0502, p0601, @south-east);
+
+        CONNECTED(p0503, p0604, @north-east);
+        CONNECTED(p0503, p0603, @east);
+        CONNECTED(p0503, p0602, @south-east);
+
+        CONNECTED(p0504, p0605, @north-east);
+        CONNECTED(p0504, p0604, @east);
+        CONNECTED(p0504, p0603, @south-east);
+
+        CONNECTED(p0505, p0606, @north-east);
+        CONNECTED(p0505, p0605, @east);
+        CONNECTED(p0505, p0604, @south-east);
+
+        CONNECTED(p0506, p0607, @north-east);
+        CONNECTED(p0506, p0606, @east);
+        CONNECTED(p0506, p0605, @south-east);
+
+        CONNECTED(p0507, p0608, @north-east);
+        CONNECTED(p0507, p0607, @east);
+        CONNECTED(p0507, p0606, @south-east);
+
+        CONNECTED(p0508, p0609, @north-east);
+        CONNECTED(p0508, p0608, @east);
+        CONNECTED(p0508, p0607, @south-east);
+
+        CONNECTED(p0509, p0610, @north-east);
+        CONNECTED(p0509, p0609, @east);
+        CONNECTED(p0509, p0608, @south-east);
+
+        CONNECTED(p0510, p0611, @north-east);
+        CONNECTED(p0510, p0610, @east);
+        CONNECTED(p0510, p0609, @south-east);
+
+        CONNECTED(p0511, p0612, @north-east);
+        CONNECTED(p0511, p0611, @east);
+        CONNECTED(p0511, p0610, @south-east);
+
+        CONNECTED(p0512, p0613, @north-east);
+        CONNECTED(p0512, p0612, @east);
+        CONNECTED(p0512, p0611, @south-east);
+
+        CONNECTED(p0513, p0614, @north-east);
+        CONNECTED(p0513, p0613, @east);
+        CONNECTED(p0513, p0612, @south-east);
+
+        CONNECTED(p0514, p0615, @north-east);
+        CONNECTED(p0514, p0614, @east);
+        CONNECTED(p0514, p0613, @south-east);
+
+        CONNECTED(p0515, p0616, @north-east);
+        CONNECTED(p0515, p0615, @east);
+        CONNECTED(p0515, p0614, @south-east);
+
+        CONNECTED(p0516, p0616, @east);
+        CONNECTED(p0516, p0615, @south-east);
+
+        CONNECTED(p0601, p0702, @north-east);
+        CONNECTED(p0601, p0701, @east);
+
+        CONNECTED(p0602, p0703, @north-east);
+        CONNECTED(p0602, p0702, @east);
+        CONNECTED(p0602, p0701, @south-east);
+
+        CONNECTED(p0603, p0704, @north-east);
+        CONNECTED(p0603, p0703, @east);
+        CONNECTED(p0603, p0702, @south-east);
+
+        CONNECTED(p0604, p0705, @north-east);
+        CONNECTED(p0604, p0704, @east);
+        CONNECTED(p0604, p0703, @south-east);
+
+        CONNECTED(p0605, p0706, @north-east);
+        CONNECTED(p0605, p0705, @east);
+        CONNECTED(p0605, p0704, @south-east);
+
+        CONNECTED(p0606, p0707, @north-east);
+        CONNECTED(p0606, p0706, @east);
+        CONNECTED(p0606, p0705, @south-east);
+
+        CONNECTED(p0607, p0708, @north-east);
+        CONNECTED(p0607, p0707, @east);
+        CONNECTED(p0607, p0706, @south-east);
+
+        CONNECTED(p0608, p0709, @north-east);
+        CONNECTED(p0608, p0708, @east);
+        CONNECTED(p0608, p0707, @south-east);
+
+        CONNECTED(p0609, p0710, @north-east);
+        CONNECTED(p0609, p0709, @east);
+        CONNECTED(p0609, p0708, @south-east);
+
+        CONNECTED(p0610, p0711, @north-east);
+        CONNECTED(p0610, p0710, @east);
+        CONNECTED(p0610, p0709, @south-east);
+
+        CONNECTED(p0611, p0712, @north-east);
+        CONNECTED(p0611, p0711, @east);
+        CONNECTED(p0611, p0710, @south-east);
+
+        CONNECTED(p0612, p0713, @north-east);
+        CONNECTED(p0612, p0712, @east);
+        CONNECTED(p0612, p0711, @south-east);
+
+        CONNECTED(p0613, p0714, @north-east);
+        CONNECTED(p0613, p0713, @east);
+        CONNECTED(p0613, p0712, @south-east);
+
+        CONNECTED(p0614, p0715, @north-east);
+        CONNECTED(p0614, p0714, @east);
+        CONNECTED(p0614, p0713, @south-east);
+
+        CONNECTED(p0615, p0716, @north-east);
+        CONNECTED(p0615, p0715, @east);
+        CONNECTED(p0615, p0714, @south-east);
+
+        CONNECTED(p0616, p0716, @east);
+        CONNECTED(p0616, p0715, @south-east);
+
+        CONNECTED(p0701, p0802, @north-east);
+        CONNECTED(p0701, p0801, @east);
+
+        CONNECTED(p0702, p0803, @north-east);
+        CONNECTED(p0702, p0802, @east);
+        CONNECTED(p0702, p0801, @south-east);
+
+        CONNECTED(p0703, p0804, @north-east);
+        CONNECTED(p0703, p0803, @east);
+        CONNECTED(p0703, p0802, @south-east);
+
+        CONNECTED(p0704, p0805, @north-east);
+        CONNECTED(p0704, p0804, @east);
+        CONNECTED(p0704, p0803, @south-east);
+
+        CONNECTED(p0705, p0806, @north-east);
+        CONNECTED(p0705, p0805, @east);
+        CONNECTED(p0705, p0804, @south-east);
+
+        CONNECTED(p0706, p0807, @north-east);
+        CONNECTED(p0706, p0806, @east);
+        CONNECTED(p0706, p0805, @south-east);
+
+        CONNECTED(p0707, p0808, @north-east);
+        CONNECTED(p0707, p0807, @east);
+        CONNECTED(p0707, p0806, @south-east);
+
+        CONNECTED(p0708, p0809, @north-east);
+        CONNECTED(p0708, p0808, @east);
+        CONNECTED(p0708, p0807, @south-east);
+
+        CONNECTED(p0709, p0810, @north-east);
+        CONNECTED(p0709, p0809, @east);
+        CONNECTED(p0709, p0808, @south-east);
+
+        CONNECTED(p0710, p0811, @north-east);
+        CONNECTED(p0710, p0810, @east);
+        CONNECTED(p0710, p0809, @south-east);
+
+        CONNECTED(p0711, p0812, @north-east);
+        CONNECTED(p0711, p0811, @east);
+        CONNECTED(p0711, p0810, @south-east);
+
+        CONNECTED(p0712, p0813, @north-east);
+        CONNECTED(p0712, p0812, @east);
+        CONNECTED(p0712, p0811, @south-east);
+
+        CONNECTED(p0713, p0814, @north-east);
+        CONNECTED(p0713, p0813, @east);
+        CONNECTED(p0713, p0812, @south-east);
+
+        CONNECTED(p0714, p0815, @north-east);
+        CONNECTED(p0714, p0814, @east);
+        CONNECTED(p0714, p0813, @south-east);
+
+        CONNECTED(p0715, p0816, @north-east);
+        CONNECTED(p0715, p0815, @east);
+        CONNECTED(p0715, p0814, @south-east);
+
+        CONNECTED(p0716, p0816, @east);
+        CONNECTED(p0716, p0815, @south-east);
+
+        CONNECTED(p0801, p0902, @north-east);
+        CONNECTED(p0801, p0901, @east);
+
+        CONNECTED(p0802, p0903, @north-east);
+        CONNECTED(p0802, p0902, @east);
+        CONNECTED(p0802, p0901, @south-east);
+
+        CONNECTED(p0803, p0904, @north-east);
+        CONNECTED(p0803, p0903, @east);
+        CONNECTED(p0803, p0902, @south-east);
+
+        CONNECTED(p0804, p0905, @north-east);
+        CONNECTED(p0804, p0904, @east);
+        CONNECTED(p0804, p0903, @south-east);
+
+        CONNECTED(p0805, p0906, @north-east);
+        CONNECTED(p0805, p0905, @east);
+        CONNECTED(p0805, p0904, @south-east);
+
+        CONNECTED(p0806, p0907, @north-east);
+        CONNECTED(p0806, p0906, @east);
+        CONNECTED(p0806, p0905, @south-east);
+
+        CONNECTED(p0807, p0908, @north-east);
+        CONNECTED(p0807, p0907, @east);
+        CONNECTED(p0807, p0906, @south-east);
+
+        CONNECTED(p0808, p0909, @north-east);
+        CONNECTED(p0808, p0908, @east);
+        CONNECTED(p0808, p0907, @south-east);
+
+        CONNECTED(p0809, p0910, @north-east);
+        CONNECTED(p0809, p0909, @east);
+        CONNECTED(p0809, p0908, @south-east);
+
+        CONNECTED(p0810, p0911, @north-east);
+        CONNECTED(p0810, p0910, @east);
+        CONNECTED(p0810, p0909, @south-east);
+
+        CONNECTED(p0811, p0912, @north-east);
+        CONNECTED(p0811, p0911, @east);
+        CONNECTED(p0811, p0910, @south-east);
+
+        CONNECTED(p0812, p0913, @north-east);
+        CONNECTED(p0812, p0912, @east);
+        CONNECTED(p0812, p0911, @south-east);
+
+        CONNECTED(p0813, p0914, @north-east);
+        CONNECTED(p0813, p0913, @east);
+        CONNECTED(p0813, p0912, @south-east);
+
+        CONNECTED(p0814, p0915, @north-east);
+        CONNECTED(p0814, p0914, @east);
+        CONNECTED(p0814, p0913, @south-east);
+
+        CONNECTED(p0815, p0916, @north-east);
+        CONNECTED(p0815, p0915, @east);
+        CONNECTED(p0815, p0914, @south-east);
+
+        CONNECTED(p0816, p0916, @east);
+        CONNECTED(p0816, p0915, @south-east);
+
+        CONNECTED(p0901, p1002, @north-east);
+        CONNECTED(p0901, p1001, @east);
+
+        CONNECTED(p0902, p1003, @north-east);
+        CONNECTED(p0902, p1002, @east);
+        CONNECTED(p0902, p1001, @south-east);
+
+        CONNECTED(p0903, p1004, @north-east);
+        CONNECTED(p0903, p1003, @east);
+        CONNECTED(p0903, p1002, @south-east);
+
+        CONNECTED(p0904, p1005, @north-east);
+        CONNECTED(p0904, p1004, @east);
+        CONNECTED(p0904, p1003, @south-east);
+
+        CONNECTED(p0905, p1006, @north-east);
+        CONNECTED(p0905, p1005, @east);
+        CONNECTED(p0905, p1004, @south-east);
+
+        CONNECTED(p0906, p1007, @north-east);
+        CONNECTED(p0906, p1006, @east);
+        CONNECTED(p0906, p1005, @south-east);
+
+        CONNECTED(p0907, p1008, @north-east);
+        CONNECTED(p0907, p1007, @east);
+        CONNECTED(p0907, p1006, @south-east);
+
+        CONNECTED(p0908, p1009, @north-east);
+        CONNECTED(p0908, p1008, @east);
+        CONNECTED(p0908, p1007, @south-east);
+
+        CONNECTED(p0909, p1010, @north-east);
+        CONNECTED(p0909, p1009, @east);
+        CONNECTED(p0909, p1008, @south-east);
+
+        CONNECTED(p0910, p1011, @north-east);
+        CONNECTED(p0910, p1010, @east);
+        CONNECTED(p0910, p1009, @south-east);
+
+        CONNECTED(p0911, p1012, @north-east);
+        CONNECTED(p0911, p1011, @east);
+        CONNECTED(p0911, p1010, @south-east);
+
+        CONNECTED(p0912, p1013, @north-east);
+        CONNECTED(p0912, p1012, @east);
+        CONNECTED(p0912, p1011, @south-east);
+
+        CONNECTED(p0913, p1014, @north-east);
+        CONNECTED(p0913, p1013, @east);
+        CONNECTED(p0913, p1012, @south-east);
+
+        CONNECTED(p0914, p1015, @north-east);
+        CONNECTED(p0914, p1014, @east);
+        CONNECTED(p0914, p1013, @south-east);
+
+        CONNECTED(p0915, p1016, @north-east);
+        CONNECTED(p0915, p1015, @east);
+        CONNECTED(p0915, p1014, @south-east);
+
+        CONNECTED(p0916, p1016, @east);
+        CONNECTED(p0916, p1015, @south-east);
+
+        CONNECTED(p1001, p1102, @north-east);
+        CONNECTED(p1001, p1101, @east);
+
+        CONNECTED(p1002, p1103, @north-east);
+        CONNECTED(p1002, p1102, @east);
+        CONNECTED(p1002, p1101, @south-east);
+
+        CONNECTED(p1003, p1104, @north-east);
+        CONNECTED(p1003, p1103, @east);
+        CONNECTED(p1003, p1102, @south-east);
+
+        CONNECTED(p1004, p1105, @north-east);
+        CONNECTED(p1004, p1104, @east);
+        CONNECTED(p1004, p1103, @south-east);
+
+        CONNECTED(p1005, p1106, @north-east);
+        CONNECTED(p1005, p1105, @east);
+        CONNECTED(p1005, p1104, @south-east);
+
+        CONNECTED(p1006, p1107, @north-east);
+        CONNECTED(p1006, p1106, @east);
+        CONNECTED(p1006, p1105, @south-east);
+
+        CONNECTED(p1007, p1108, @north-east);
+        CONNECTED(p1007, p1107, @east);
+        CONNECTED(p1007, p1106, @south-east);
+
+        CONNECTED(p1008, p1109, @north-east);
+        CONNECTED(p1008, p1108, @east);
+        CONNECTED(p1008, p1107, @south-east);
+
+        CONNECTED(p1009, p1110, @north-east);
+        CONNECTED(p1009, p1109, @east);
+        CONNECTED(p1009, p1108, @south-east);
+
+        CONNECTED(p1010, p1111, @north-east);
+        CONNECTED(p1010, p1110, @east);
+        CONNECTED(p1010, p1109, @south-east);
+
+        CONNECTED(p1011, p1112, @north-east);
+        CONNECTED(p1011, p1111, @east);
+        CONNECTED(p1011, p1110, @south-east);
+
+        CONNECTED(p1012, p1113, @north-east);
+        CONNECTED(p1012, p1112, @east);
+        CONNECTED(p1012, p1111, @south-east);
+
+        CONNECTED(p1013, p1114, @north-east);
+        CONNECTED(p1013, p1113, @east);
+        CONNECTED(p1013, p1112, @south-east);
+
+        CONNECTED(p1014, p1115, @north-east);
+        CONNECTED(p1014, p1114, @east);
+        CONNECTED(p1014, p1113, @south-east);
+
+        CONNECTED(p1015, p1116, @north-east);
+        CONNECTED(p1015, p1115, @east);
+        CONNECTED(p1015, p1114, @south-east);
+
+        CONNECTED(p1016, p1116, @east);
+        CONNECTED(p1016, p1115, @south-east);
+
+        CONNECTED(p1101, p1202, @north-east);
+        CONNECTED(p1101, p1201, @east);
+
+        CONNECTED(p1102, p1203, @north-east);
+        CONNECTED(p1102, p1202, @east);
+        CONNECTED(p1102, p1201, @south-east);
+
+        CONNECTED(p1103, p1204, @north-east);
+        CONNECTED(p1103, p1203, @east);
+        CONNECTED(p1103, p1202, @south-east);
+
+        CONNECTED(p1104, p1205, @north-east);
+        CONNECTED(p1104, p1204, @east);
+        CONNECTED(p1104, p1203, @south-east);
+
+        CONNECTED(p1105, p1206, @north-east);
+        CONNECTED(p1105, p1205, @east);
+        CONNECTED(p1105, p1204, @south-east);
+
+        CONNECTED(p1106, p1207, @north-east);
+        CONNECTED(p1106, p1206, @east);
+        CONNECTED(p1106, p1205, @south-east);
+
+        CONNECTED(p1107, p1208, @north-east);
+        CONNECTED(p1107, p1207, @east);
+        CONNECTED(p1107, p1206, @south-east);
+
+        CONNECTED(p1108, p1209, @north-east);
+        CONNECTED(p1108, p1208, @east);
+        CONNECTED(p1108, p1207, @south-east);
+
+        CONNECTED(p1109, p1210, @north-east);
+        CONNECTED(p1109, p1209, @east);
+        CONNECTED(p1109, p1208, @south-east);
+
+        CONNECTED(p1110, p1211, @north-east);
+        CONNECTED(p1110, p1210, @east);
+        CONNECTED(p1110, p1209, @south-east);
+
+        CONNECTED(p1111, p1212, @north-east);
+        CONNECTED(p1111, p1211, @east);
+        CONNECTED(p1111, p1210, @south-east);
+
+        CONNECTED(p1112, p1213, @north-east);
+        CONNECTED(p1112, p1212, @east);
+        CONNECTED(p1112, p1211, @south-east);
+
+        CONNECTED(p1113, p1214, @north-east);
+        CONNECTED(p1113, p1213, @east);
+        CONNECTED(p1113, p1212, @south-east);
+
+        CONNECTED(p1114, p1215, @north-east);
+        CONNECTED(p1114, p1214, @east);
+        CONNECTED(p1114, p1213, @south-east);
+
+        CONNECTED(p1115, p1216, @north-east);
+        CONNECTED(p1115, p1215, @east);
+        CONNECTED(p1115, p1214, @south-east);
+
+        CONNECTED(p1116, p1216, @east);
+        CONNECTED(p1116, p1215, @south-east);
+
+        CONNECTED(p1201, p0102, @north-east);
+        CONNECTED(p1201, p0101, @east);
+
+        CONNECTED(p1202, p0103, @north-east);
+        CONNECTED(p1202, p0102, @east);
+        CONNECTED(p1202, p0101, @south-east);
+
+        CONNECTED(p1203, p0104, @north-east);
+        CONNECTED(p1203, p0103, @east);
+        CONNECTED(p1203, p0102, @south-east);
+
+        CONNECTED(p1204, p0105, @north-east);
+        CONNECTED(p1204, p0104, @east);
+        CONNECTED(p1204, p0103, @south-east);
+
+        CONNECTED(p1205, p0106, @north-east);
+        CONNECTED(p1205, p0105, @east);
+        CONNECTED(p1205, p0104, @south-east);
+
+        CONNECTED(p1206, p0107, @north-east);
+        CONNECTED(p1206, p0106, @east);
+        CONNECTED(p1206, p0105, @south-east);
+
+        CONNECTED(p1207, p0108, @north-east);
+        CONNECTED(p1207, p0107, @east);
+        CONNECTED(p1207, p0106, @south-east);
+
+        CONNECTED(p1208, p0109, @north-east);
+        CONNECTED(p1208, p0108, @east);
+        CONNECTED(p1208, p0107, @south-east);
+
+        CONNECTED(p1209, p0110, @north-east);
+        CONNECTED(p1209, p0109, @east);
+        CONNECTED(p1209, p0108, @south-east);
+
+        CONNECTED(p1210, p0111, @north-east);
+        CONNECTED(p1210, p0110, @east);
+        CONNECTED(p1210, p0109, @south-east);
+
+        CONNECTED(p1211, p0112, @north-east);
+        CONNECTED(p1211, p0111, @east);
+        CONNECTED(p1211, p0110, @south-east);
+
+        CONNECTED(p1212, p0113, @north-east);
+        CONNECTED(p1212, p0112, @east);
+        CONNECTED(p1212, p0111, @south-east);
+
+        CONNECTED(p1213, p0114, @north-east);
+        CONNECTED(p1213, p0113, @east);
+        CONNECTED(p1213, p0112, @south-east);
+
+        CONNECTED(p1214, p0115, @north-east);
+        CONNECTED(p1214, p0114, @east);
+        CONNECTED(p1214, p0113, @south-east);
+
+        CONNECTED(p1215, p0116, @north-east);
+        CONNECTED(p1215, p0115, @east);
+        CONNECTED(p1215, p0114, @south-east);
+
+        CONNECTED(p1216, p0116, @east);
+        CONNECTED(p1216, p0115, @south-east);
+
+
+    };
+
+    init-state {
+        is-focal-point(p0109);
+        is-target(p0101);
+        visibility(p0101) = @low;
+        is-target(p0102);
+        visibility(p0102) = @high;
+        visibility(p0103) = @low;
+        visibility(p0104) = @low;
+        is-target(p0106);
+        visibility(p0106) = @low;
+        is-target(p0107);
+        visibility(p0107) = @low;
+        is-target(p0111);
+        is-target(p0112);
+        is-target(p0113);
+        is-target(p0114);
+        is-target(p0115);
+        visibility(p0116) = @low;
+        visibility(p0203) = @high;
+        is-target(p0205);
+        visibility(p0205) = @low;
+        is-target(p0206);
+        is-target(p0208);
+        visibility(p0210) = @low;
+        is-target(p0212);
+        visibility(p0212) = @low;
+        is-target(p0215);
+        visibility(p0302) = @low;
+        is-target(p0304);
+        visibility(p0305) = @low;
+        visibility(p0306) = @low;
+        visibility(p0309) = @low;
+        is-target(p0312);
+        is-target(p0313);
+        visibility(p0313) = @high;
+        is-target(p0315);
+        visibility(p0315) = @low;
+        is-target(p0316);
+        is-target(p0401);
+        is-target(p0405);
+        is-target(p0406);
+        visibility(p0406) = @low;
+        is-target(p0407);
+        visibility(p0408) = @high;
+        visibility(p0409) = @low;
+        visibility(p0410) = @low;
+        is-target(p0413);
+        visibility(p0413) = @high;
+        visibility(p0414) = @low;
+        visibility(p0415) = @low;
+        visibility(p0501) = @low;
+        visibility(p0502) = @high;
+        is-target(p0503);
+        visibility(p0503) = @high;
+        visibility(p0507) = @high;
+        is-target(p0508);
+        visibility(p0508) = @high;
+        visibility(p0510) = @high;
+        visibility(p0512) = @low;
+        visibility(p0516) = @low;
+        is-target(p0601);
+        visibility(p0602) = @low;
+        is-target(p0603);
+        visibility(p0603) = @high;
+        is-target(p0604);
+        visibility(p0604) = @high;
+        visibility(p0605) = @low;
+        visibility(p0608) = @low;
+        is-target(p0611);
+        visibility(p0612) = @high;
+        is-target(p0613);
+        visibility(p0614) = @low;
+        is-target(p0615);
+        visibility(p0701) = @high;
+        visibility(p0703) = @low;
+        is-target(p0705);
+        visibility(p0705) = @low;
+        visibility(p0707) = @low;
+        visibility(p0708) = @low;
+        is-target(p0709);
+        visibility(p0709) = @low;
+        visibility(p0710) = @low;
+        visibility(p0711) = @low;
+        visibility(p0712) = @high;
+        is-target(p0713);
+        visibility(p0714) = @high;
+        is-target(p0801);
+        visibility(p0801) = @low;
+        is-target(p0802);
+        visibility(p0802) = @low;
+        visibility(p0803) = @low;
+        visibility(p0804) = @low;
+        visibility(p0805) = @low;
+        is-target(p0806);
+        visibility(p0810) = @low;
+        is-target(p0812);
+        is-target(p0814);
+        visibility(p0901) = @low;
+        is-target(p0902);
+        visibility(p0905) = @low;
+        visibility(p0906) = @low;
+        visibility(p0907) = @low;
+        is-target(p0909);
+        visibility(p0910) = @low;
+        visibility(p0911) = @low;
+        visibility(p1002) = @low;
+        is-target(p1003);
+        visibility(p1006) = @low;
+        is-target(p1008);
+        visibility(p1008) = @low;
+        is-target(p1009);
+        is-target(p1011);
+        visibility(p1012) = @low;
+        visibility(p1014) = @low;
+        is-target(p1015);
+        is-target(p1016);
+        visibility(p1016) = @low;
+        visibility(p1101) = @low;
+        is-target(p1103);
+        visibility(p1103) = @low;
+        visibility(p1104) = @low;
+        is-target(p1105);
+        visibility(p1106) = @low;
+        is-target(p1107);
+        is-target(p1108);
+        visibility(p1108) = @low;
+        is-target(p1109);
+        visibility(p1109) = @high;
+        visibility(p1110) = @high;
+        visibility(p1112) = @low;
+        visibility(p1113) = @high;
+        is-target(p1114);
+        visibility(p1114) = @low;
+        visibility(p1115) = @high;
+        visibility(p1116) = @high;
+        visibility(p1201) = @low;
+        visibility(p1202) = @high;
+        visibility(p1203) = @low;
+        visibility(p1204) = @low;
+        visibility(p1205) = @high;
+        visibility(p1206) = @low;
+        visibility(p1207) = @high;
+        is-target(p1208);
+        visibility(p1208) = @high;
+        is-target(p1210);
+        visibility(p1210) = @low;
+        is-target(p1211);
+        visibility(p1211) = @low;
+        visibility(p1212) = @high;
+        visibility(p1213) = @low;
+        is-target(p1214);
+        visibility(p1214) = @low;
+        visibility(p1215) = @low;
+        is-target(p1216);
+        visibility(p1216) = @high;
+
+    };
+    horizon = 96;
+    discount = 1.0;
+}

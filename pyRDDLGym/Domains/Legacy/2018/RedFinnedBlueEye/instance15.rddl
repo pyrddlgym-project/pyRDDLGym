@@ -1,0 +1,178 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Red-finned Blue-eye instance #15 for IPC 2018 by Iadine //
+// Chades (iadine.chades [at] csiro.au) and Thomas Keller (tho.keller [at]     //
+// unibas.ch), based on the paper "Finding the best management policy to       //
+// eradicate invasive species from spatial ecological networks with            //
+// simultaneous actions" by Sam Nicol, Regis Sabbadin, Nathalie Peyrard and    //
+// Iadine Chades (Journal of Applied Ecology, 2017).                           //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance red-finned-blue-eye_inst_mdp__15 {
+    domain = red-finned-blue-eye_mdp;
+
+    objects {
+        spring: {s00, s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12, s13, s14, s15, s16, s17, s18};
+    };
+
+    non-fluents {
+        POISON_SUCCESS_PROB = 0.9;
+        TRANSLOCATION_SUCCESS_PROB = 0.42;
+        ACTION_POINTS = 3;
+        REMOVE_MANUALLY_SUCCESS_PROB = 0.25;
+
+        HIGH_WATER_PROB(@exceptionally-low) = 0.025;
+        HIGH_WATER_PROB(@very-low) = 0.1;
+        HIGH_WATER_PROB(@low) = 0.2;
+        HIGH_WATER_PROB(@average) = 0.35;
+        HIGH_WATER_PROB(@high) = 0.2;
+        HIGH_WATER_PROB(@very-high) = 0.1;
+        HIGH_WATER_PROB(@exceptionally-high) = 0.025;
+
+        // Colonization probabilities
+        GAMBUSIA_COLONIZE_PROB(s00, s16) = 0.24;
+        GAMBUSIA_COLONIZE_PROB(s00, s01) = 0.03;
+        GAMBUSIA_COLONIZE_PROB(s00, s02) = 0.31;
+        GAMBUSIA_COLONIZE_PROB(s01, s02) = 0.17;
+        GAMBUSIA_COLONIZE_PROB(s01, s04) = 0.06;
+        GAMBUSIA_COLONIZE_PROB(s03, s04) = 0.16;
+        GAMBUSIA_COLONIZE_PROB(s03, s05) = 0.18;
+        GAMBUSIA_COLONIZE_PROB(s04, s05) = 0.16;
+        GAMBUSIA_COLONIZE_PROB(s05, s10) = 0.09;
+        GAMBUSIA_COLONIZE_PROB(s06, s10) = 0.4;
+        GAMBUSIA_COLONIZE_PROB(s06, s07) = 0.25;
+        GAMBUSIA_COLONIZE_PROB(s07, s08) = 0.42;
+        GAMBUSIA_COLONIZE_PROB(s07, s10) = 0.1;
+        GAMBUSIA_COLONIZE_PROB(s08, s09) = 0.04;
+        GAMBUSIA_COLONIZE_PROB(s09, s10) = 0.51;
+        GAMBUSIA_COLONIZE_PROB(s09, s12) = 0.39;
+        GAMBUSIA_COLONIZE_PROB(s11, s17) = 0.08;
+        GAMBUSIA_COLONIZE_PROB(s11, s12) = 0.07;
+        GAMBUSIA_COLONIZE_PROB(s11, s14) = 0.2;
+        GAMBUSIA_COLONIZE_PROB(s12, s13) = 0.14;
+        GAMBUSIA_COLONIZE_PROB(s13, s14) = 0.37;
+        GAMBUSIA_COLONIZE_PROB(s15, s16) = 0.13;
+        GAMBUSIA_COLONIZE_PROB(s16, s17) = 0.04;
+        GAMBUSIA_COLONIZE_PROB(s17, s18) = 0.25;
+
+
+        NATURAL_MORTALITY_PROB(s00) = 0.07;
+        NATURAL_MORTALITY_PROB(s01) = 0.09;
+        NATURAL_MORTALITY_PROB(s02) = 0.06;
+        NATURAL_MORTALITY_PROB(s03) = 0.03;
+        NATURAL_MORTALITY_PROB(s04) = 0.1;
+        NATURAL_MORTALITY_PROB(s05) = 0.05;
+        NATURAL_MORTALITY_PROB(s06) = 0.08;
+        NATURAL_MORTALITY_PROB(s07) = 0.08;
+        NATURAL_MORTALITY_PROB(s08) = 0.1;
+        NATURAL_MORTALITY_PROB(s09) = 0.05;
+        NATURAL_MORTALITY_PROB(s10) = 0.06;
+        NATURAL_MORTALITY_PROB(s11) = 0.07;
+        NATURAL_MORTALITY_PROB(s12) = 0.01;
+        NATURAL_MORTALITY_PROB(s13) = 0.07;
+        NATURAL_MORTALITY_PROB(s14) = 0.12;
+        NATURAL_MORTALITY_PROB(s15) = 0.09;
+        NATURAL_MORTALITY_PROB(s16) = 0.1;
+        NATURAL_MORTALITY_PROB(s17) = 0.08;
+        NATURAL_MORTALITY_PROB(s18) = 0.07;
+
+
+        SPRINGS_CONNECTED(s04, s05, @exceptionally-high);
+        SPRINGS_CONNECTED(s05, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s11, s12, @exceptionally-high);
+        SPRINGS_CONNECTED(s12, s13, @exceptionally-high);
+        SPRINGS_CONNECTED(s15, s16, @exceptionally-high);
+        SPRINGS_CONNECTED(s15, s16, @very-high);
+        SPRINGS_CONNECTED(s01, s02, @exceptionally-high);
+        SPRINGS_CONNECTED(s01, s02, @very-high);
+        SPRINGS_CONNECTED(s01, s02, @high);
+        SPRINGS_CONNECTED(s03, s04, @exceptionally-high);
+        SPRINGS_CONNECTED(s03, s04, @very-high);
+        SPRINGS_CONNECTED(s03, s04, @high);
+        SPRINGS_CONNECTED(s06, s07, @exceptionally-high);
+        SPRINGS_CONNECTED(s06, s07, @very-high);
+        SPRINGS_CONNECTED(s06, s07, @high);
+        SPRINGS_CONNECTED(s07, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s07, s10, @very-high);
+        SPRINGS_CONNECTED(s07, s10, @high);
+        SPRINGS_CONNECTED(s11, s17, @exceptionally-high);
+        SPRINGS_CONNECTED(s11, s17, @very-high);
+        SPRINGS_CONNECTED(s11, s17, @high);
+        SPRINGS_CONNECTED(s11, s14, @exceptionally-high);
+        SPRINGS_CONNECTED(s11, s14, @very-high);
+        SPRINGS_CONNECTED(s11, s14, @high);
+        SPRINGS_CONNECTED(s03, s05, @exceptionally-high);
+        SPRINGS_CONNECTED(s03, s05, @very-high);
+        SPRINGS_CONNECTED(s03, s05, @high);
+        SPRINGS_CONNECTED(s03, s05, @average);
+        SPRINGS_CONNECTED(s06, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s06, s10, @very-high);
+        SPRINGS_CONNECTED(s06, s10, @high);
+        SPRINGS_CONNECTED(s06, s10, @average);
+        SPRINGS_CONNECTED(s06, s10, @low);
+        SPRINGS_CONNECTED(s07, s08, @exceptionally-high);
+        SPRINGS_CONNECTED(s07, s08, @very-high);
+        SPRINGS_CONNECTED(s07, s08, @high);
+        SPRINGS_CONNECTED(s07, s08, @average);
+        SPRINGS_CONNECTED(s07, s08, @low);
+        SPRINGS_CONNECTED(s09, s12, @exceptionally-high);
+        SPRINGS_CONNECTED(s09, s12, @very-high);
+        SPRINGS_CONNECTED(s09, s12, @high);
+        SPRINGS_CONNECTED(s09, s12, @average);
+        SPRINGS_CONNECTED(s09, s12, @low);
+        SPRINGS_CONNECTED(s17, s18, @exceptionally-high);
+        SPRINGS_CONNECTED(s17, s18, @very-high);
+        SPRINGS_CONNECTED(s17, s18, @high);
+        SPRINGS_CONNECTED(s17, s18, @average);
+        SPRINGS_CONNECTED(s17, s18, @low);
+        SPRINGS_CONNECTED(s00, s16, @exceptionally-high);
+        SPRINGS_CONNECTED(s00, s16, @very-high);
+        SPRINGS_CONNECTED(s00, s16, @high);
+        SPRINGS_CONNECTED(s00, s16, @average);
+        SPRINGS_CONNECTED(s00, s16, @low);
+        SPRINGS_CONNECTED(s00, s16, @very-low);
+        SPRINGS_CONNECTED(s00, s02, @exceptionally-high);
+        SPRINGS_CONNECTED(s00, s02, @very-high);
+        SPRINGS_CONNECTED(s00, s02, @high);
+        SPRINGS_CONNECTED(s00, s02, @average);
+        SPRINGS_CONNECTED(s00, s02, @low);
+        SPRINGS_CONNECTED(s00, s02, @very-low);
+        SPRINGS_CONNECTED(s09, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s09, s10, @very-high);
+        SPRINGS_CONNECTED(s09, s10, @high);
+        SPRINGS_CONNECTED(s09, s10, @average);
+        SPRINGS_CONNECTED(s09, s10, @low);
+        SPRINGS_CONNECTED(s09, s10, @very-low);
+        SPRINGS_CONNECTED(s13, s14, @exceptionally-high);
+        SPRINGS_CONNECTED(s13, s14, @very-high);
+        SPRINGS_CONNECTED(s13, s14, @high);
+        SPRINGS_CONNECTED(s13, s14, @average);
+        SPRINGS_CONNECTED(s13, s14, @low);
+        SPRINGS_CONNECTED(s13, s14, @very-low);
+    };
+
+    init-state {
+        population(s00) = @red-finned-blue-eye;
+        population(s01) = @gambusia;
+        population(s02) = @gambusia;
+        population(s04) = @gambusia;
+        population(s07) = @gambusia;
+        population(s08) = @gambusia;
+        population(s09) = @gambusia;
+        population(s10) = @red-finned-blue-eye;
+        population(s11) = @red-finned-blue-eye;
+        population(s12) = @red-finned-blue-eye;
+        population(s13) = @gambusia;
+        population(s15) = @red-finned-blue-eye;
+        population(s16) = @gambusia;
+        population(s17) = @red-finned-blue-eye;
+        population(s18) = @red-finned-blue-eye;
+    };
+
+    horizon = 50;
+
+    discount = 1.0;
+}

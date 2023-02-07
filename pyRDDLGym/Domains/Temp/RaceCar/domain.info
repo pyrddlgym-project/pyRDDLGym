@@ -1,0 +1,4 @@
+[General]
+name=racecar
+description=A simple continuous MDP for the racecar problem.
+viz=RacecarViz.RacecarVisualizer

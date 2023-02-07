@@ -1,0 +1,112 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Push Your Luck instance #18 for IPC 2018 by Thomas      //
+// Keller (tho.keller [at] unibas.ch).                                         //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance push-your-luck_inst_mdp__18 {
+    domain = push-your-luck_mdp;
+
+    objects {
+        die : { d1, d2, d3, d4, d5 };
+    };
+
+    non-fluents {
+        // reward factor is 0.25 plus a quarter of the die value
+        VALUE(@1) = 0.5;
+        VALUE(@2) = 0.75;
+        VALUE(@3) = 1.0;
+        VALUE(@4) = 1.25;
+        VALUE(@5) = 1.5;
+        VALUE(@6) = 1.75;
+        VALUE(@7) = 2.0;
+        VALUE(@8) = 2.25;
+        VALUE(@9) = 2.5;
+        VALUE(@10) = 2.75;
+        VALUE(@11) = 3.0;
+        VALUE(@12) = 3.25;
+        VALUE(@13) = 3.5;
+        VALUE(@14) = 3.75;
+        VALUE(@15) = 4.0;
+        VALUE(@16) = 4.25;
+        VALUE(@17) = 4.5;
+        VALUE(@18) = 4.75;
+        VALUE(@19) = 5.0;
+        VALUE(@20) = 5.25;
+
+        // unfair 10-sided die with random probabilities
+        PROB(d1, @1) = 0.12;
+        PROB(d1, @2) = 0.06;
+        PROB(d1, @3) = 0.14;
+        PROB(d1, @4) = 0.07;
+        PROB(d1, @5) = 0.1;
+        PROB(d1, @6) = 0.05;
+        PROB(d1, @7) = 0.11;
+        PROB(d1, @8) = 0.1;
+        PROB(d1, @9) = 0.17;
+        PROB(d1, @10) = 0.08;
+
+        // unfair 10-sided die with random probabilities
+        PROB(d2, @1) = 0.02;
+        PROB(d2, @2) = 0.25;
+        PROB(d2, @3) = 0.03;
+        PROB(d2, @4) = 0.20;
+        PROB(d2, @5) = 0.04;
+        PROB(d2, @6) = 0.06;
+        PROB(d2, @7) = 0.08;
+        PROB(d2, @8) = 0.05;
+        PROB(d2, @9) = 0.13;
+        PROB(d2, @10) = 0.14;
+
+        // unfair 20-sided die with random probabilities
+        PROB(d3, @1) = 0.08;
+        PROB(d3, @2) = 0.01;
+        PROB(d3, @3) = 0.06;
+        PROB(d3, @4) = 0.17;
+        PROB(d3, @5) = 0.03;
+        PROB(d3, @6) = 0.07;
+        PROB(d3, @7) = 0.12;
+        PROB(d3, @8) = 0.09;
+        PROB(d3, @9) = 0.04;
+        PROB(d3, @10) = 0.02;
+        PROB(d3, @11) = 0.02;
+        PROB(d3, @12) = 0.05;
+        PROB(d3, @13) = 0.01;
+        PROB(d3, @14) = 0.06;
+        PROB(d3, @15) = 0.04;
+        PROB(d3, @16) = 0.01;
+        PROB(d3, @17) = 0.04;
+        PROB(d3, @18) = 0.02;
+        PROB(d3, @19) = 0.02;
+        PROB(d3, @20) = 0.04;
+
+        // unfair 6-sided die with random probabilities  (using only the first 6 odd 
+        // numbers leads to a die that uses the usual reward factors for 6-valued dice)
+        PROB(d4, @1) = 0.15;
+        PROB(d4, @3) = 0.35;
+        PROB(d4, @5) = 0.01;
+        PROB(d4, @7) = 0.20;
+        PROB(d4, @9) = 0.17;
+        PROB(d4, @11) = 0.12;
+
+        // unfair 6-sided die with random probabilities  (using only the first 6 odd 
+        // numbers leads to a die that uses the usual reward factors for 6-valued dice)
+        PROB(d5, @1) = 0.16;
+        PROB(d5, @3) = 0.26;
+        PROB(d5, @5) = 0.04;
+        PROB(d5, @7) = 0.30;
+        PROB(d5, @9) = 0.22;
+        PROB(d5, @11) = 0.02;
+    };
+
+    init-state {
+        ~die-value-seen(@1);
+    };
+
+    horizon = 40;
+
+    discount = 1.0;
+}

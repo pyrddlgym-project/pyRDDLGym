@@ -1,0 +1,77 @@
+non-fluents nf_skill_teaching_inst_pomdp__7 {
+	domain = skill_teaching_pomdp; 
+	objects { 
+		skill : {s0,s1,s2,s3,s4,s5,s6};
+
+	}; 
+	non-fluents {
+		FALSE_POS(s0) = 0.083209254;
+		FALSE_POS(s1) = 0.031385005;
+		FALSE_POS(s2) = 0.07574118;
+		FALSE_POS(s3) = 0.090722464;
+		FALSE_POS(s4) = 0.09312366;
+		FALSE_POS(s5) = 0.093834415;
+		FALSE_POS(s6) = 0.046680182;
+
+		PROB_ALL_PRE(s0) = 0.64783365;
+		PROB_ALL_PRE_MED(s0) = 0.72518724;
+		PROB_HIGH(s0) = 0.94928455;
+		SKILL_WEIGHT(s0) = 1.3669298;
+		
+		PROB_ALL_PRE(s1) = 0.5362146;
+		PROB_ALL_PRE_MED(s1) = 0.6616194;
+		PROB_HIGH(s1) = 0.9437191;
+		SKILL_WEIGHT(s1) = 1.0352057;
+		
+		PRE_REQ(s0, s2);
+		PROB_ALL_PRE(s2) = 0.5639879;
+		PROB_PER_PRE(s2) = 0.49680978059768677;
+		PROB_ALL_PRE_MED(s2) = 0.76805097;
+		PROB_PER_PRE_MED(s2) = 0.7375038981437683;
+		PROB_HIGH(s2) = 0.8501868;
+		SKILL_WEIGHT(s2) = 2.2176514;
+		
+		PRE_REQ(s2, s3);
+		PROB_ALL_PRE(s3) = 0.7456964;
+		PROB_PER_PRE(s3) = 0.6851173758506774;
+		PROB_ALL_PRE_MED(s3) = 0.7456964;
+		PROB_PER_PRE_MED(s3) = 0.6848728716373443;
+		PROB_HIGH(s3) = 0.99196285;
+		SKILL_WEIGHT(s3) = 3.1296713;
+		
+		PRE_REQ(s3, s4);
+		PRE_REQ(s2, s4);
+		PROB_ALL_PRE(s4) = 0.67841053;
+		PROB_PER_PRE(s4) = 0.25225687623023985;
+		PROB_ALL_PRE_MED(s4) = 0.72581935;
+		PROB_PER_PRE_MED(s4) = 0.33037749528884885;
+		PROB_HIGH(s4) = 0.8891232;
+		SKILL_WEIGHT(s4) = 4.3982325;
+		
+		PRE_REQ(s4, s5);
+		PROB_ALL_PRE(s5) = 0.6280876;
+		PROB_PER_PRE(s5) = 0.5541216611862183;
+		PROB_ALL_PRE_MED(s5) = 0.73223794;
+		PROB_PER_PRE_MED(s5) = 0.6787017107009887;
+		PROB_HIGH(s5) = 0.98531836;
+		SKILL_WEIGHT(s5) = 5.3825264;
+		
+		PRE_REQ(s0, s6);
+		PRE_REQ(s4, s6);
+		PROB_ALL_PRE(s6) = 0.6414955;
+		PROB_PER_PRE(s6) = 0.282601410150528;
+		PROB_ALL_PRE_MED(s6) = 0.7397336;
+		PROB_PER_PRE_MED(s6) = 0.33728710412979124;
+		PROB_HIGH(s6) = 0.9403348;
+		SKILL_WEIGHT(s6) = 5.3337073;
+		
+	};
+}
+instance skill_teaching_inst_pomdp__7 { 
+	domain = skill_teaching_pomdp; 
+ 	non-fluents = nf_skill_teaching_inst_pomdp__7;
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

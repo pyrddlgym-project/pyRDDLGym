@@ -1,0 +1,4 @@
+[General]
+name=recon2018
+description=In this domain, the planner controls one or more planetary rovers that examine objects of interest in order to detect life and take a picture of it.
+viz=TextViz.TextVisualizer
