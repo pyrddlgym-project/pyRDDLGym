@@ -34,21 +34,18 @@ class PowerGenVisualizer(StateViz):
         prod_units_max = {o: None for o in self._objects['plant']}
         prod_change_penalty = {o: None for o in self._objects['plant']}
         cost_per_unit = {o: None for o in self._objects['plant']}
-
+        
         # add none-fluents
         for k, v in self._nonfluents.items():
-            if 'PROD-UNITS-MIN_' in k:
-                point = k.split('_')[1]
-                prod_units_min[point] = v
-            elif 'ROD-UNITS-MAX_' in k:
-                point = k.split('_')[1]
-                prod_units_max[point] = v
-            elif 'PROD-CHANGE-PENALTY_' in k:
-                point = k.split('_')[1]
-                prod_change_penalty[point] = v
-            elif 'COST-PER-UNIT_' in k:
-                point = k.split('_')[1]
-                cost_per_unit[point] = v
+            var, objects = self._model.parse(k)
+            if var == 'PROD-UNITS-MIN':
+                prod_units_min[objects[0]] = v
+            elif var == 'PROD-UNITS-MAX':
+                prod_units_max[objects[0]] = v
+            elif var == 'PROD-CHANGE-PENALTY':
+                prod_change_penalty[objects[0]] = v
+            elif var == 'COST-PER-UNIT':
+                cost_per_unit[objects[0]] = v
 
         return {'prod_units_min': prod_units_min,
                 'prod_units_max': prod_units_max,
@@ -60,9 +57,9 @@ class PowerGenVisualizer(StateViz):
         temperature = None
 
         for k, v in state.items():
-            if 'prevProd_' in k:
-                point = k.split('_')[1]
-                prevProd[point] = v
+            var, objects = self._model.parse(k)
+            if var == 'prevProd':
+                prevProd[objects[0]] = v
             elif 'temperature' in k:
                 temperature = v
         

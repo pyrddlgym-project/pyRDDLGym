@@ -57,18 +57,18 @@ class RecSimVisualizer(StateViz):
         self._creator_index = {p: ind for ind, p in enumerate(creators)}
         self._creator_means = np.zeros((self._num_creators, space_dim))
         self._user_interests = np.zeros((self._num_users, space_dim))
-
+        
         for key, value in self._nonfluents.items():
-            tokens = key.split('_')
-            if tokens[0] == 'CONSUMER-AFFINITY':
+            var, objects = self._model.parse(key)
+            if var == 'CONSUMER-AFFINITY':
                 self._user_interests[
-                    self._user_index[tokens[1]]][
-                        self._feature_index[tokens[2]]] = value
-            elif tokens[0] == 'PROVIDER-COMPETENCE':
-                if tokens[1] == 'pn': continue
+                    self._user_index[objects[0]]][
+                        self._feature_index[objects[1]]] = value
+            elif var == 'PROVIDER-COMPETENCE':
+                if objects[0] == 'pn': continue
                 self._creator_means[
-                    self._creator_index[tokens[1]]][
-                        self._feature_index[tokens[2]]] = value
+                    self._creator_index[objects[0]]][
+                        self._feature_index[objects[1]]] = value
         self._user_plot = None
         self._creator_plot = None
         self._creator_util_scatter = None
@@ -78,12 +78,12 @@ class RecSimVisualizer(StateViz):
         self._user_satisfaction = np.zeros(self._num_users)
         self._creator_satisfaction = np.zeros(self._num_creators)
         for key, value in states.items():
-            tokens = key.split('_')
-            if tokens[0] == 'consumer-satisfaction':
-                self._user_satisfaction[self._user_index[tokens[1]]] = value
-            elif tokens[0] == 'provider-satisfaction':
-                if tokens[1] == 'pn': continue
-                self._creator_satisfaction[self._creator_index[tokens[1]]] = value
+            var, objects = self._model.parse(key)
+            if var == 'consumer-satisfaction':
+                self._user_satisfaction[self._user_index[objects[0]]] = value
+            elif var == 'provider-satisfaction':
+                if objects[0] == 'pn': continue
+                self._creator_satisfaction[self._creator_index[objects[0]]] = value
         return states
     
     def init_canvas(self, figure_size, dpi):
