@@ -12,7 +12,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 # ENV = 'mountaincar'
 # ENV = 'cartpolecontinuous'
 # ENV = 'cartpolediscrete'
-ENV = 'elevators1'
+ENV = 'racecar'
 # ENV = 'recsim'
 # ENV = 'racecar'
 # ENV = 'traffic'
