@@ -117,9 +117,6 @@ domain BLX_model {
 
     cpfs {
 
-        // derived fluent for the actual capacity
-        Cl(?u,?d) = Dl(?u,?d) * Nl(?u,?d) / Lv;
-
         ////////////////////////////////////
         // interm fluents
         ////////////////////////////////////

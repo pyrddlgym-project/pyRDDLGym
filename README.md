@@ -105,7 +105,7 @@ myEnv.set_visualizer(EnvInfo.get_visualizer())
 
 An agent can be initilized:
 ```python
-agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
+agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.numConcurrentActions)
 ```
 
 And the final interaction with the environment is identical to the gym standard interaction:
