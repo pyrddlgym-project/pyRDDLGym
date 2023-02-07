@@ -1,0 +1,72 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Push Your Luck instance #09 for IPC 2018 by Thomas      //
+// Keller (tho.keller [at] unibas.ch).                                         //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance push-your-luck_inst_mdp__09 {
+    domain = push-your-luck_mdp;
+
+    objects {
+        die : { d1, d2 };
+    };
+
+    non-fluents {
+        // reward factor is 0.25 plus a quarter of the die value
+        VALUE(@1) = 0.5;
+        VALUE(@2) = 0.75;
+        VALUE(@3) = 1.0;
+        VALUE(@4) = 1.25;
+        VALUE(@5) = 1.5;
+        VALUE(@6) = 1.75;
+        VALUE(@7) = 2.0;
+        VALUE(@8) = 2.25;
+        VALUE(@9) = 2.5;
+        VALUE(@10) = 2.75;
+        VALUE(@11) = 3.0;
+        VALUE(@12) = 3.25;
+        VALUE(@13) = 3.5;
+        VALUE(@14) = 3.75;
+        VALUE(@15) = 4.0;
+        VALUE(@16) = 4.25;
+        VALUE(@17) = 4.5;
+        VALUE(@18) = 4.75;
+        VALUE(@19) = 5.0;
+        VALUE(@20) = 5.25;
+
+        // fair 10-sided die with even values up to 20
+        PROB(d1, @2) = 0.1;
+        PROB(d1, @4) = 0.1;
+        PROB(d1, @6) = 0.1;
+        PROB(d1, @8) = 0.1;
+        PROB(d1, @10) = 0.1;
+        PROB(d1, @12) = 0.1;
+        PROB(d1, @14) = 0.1;
+        PROB(d1, @16) = 0.1;
+        PROB(d1, @18) = 0.1;
+        PROB(d1, @20) = 0.1;
+
+        // fair 10-sided die with odd values up to 20
+        PROB(d2, @1) = 0.1;
+        PROB(d2, @3) = 0.1;
+        PROB(d2, @5) = 0.1;
+        PROB(d2, @7) = 0.1;
+        PROB(d2, @9) = 0.1;
+        PROB(d2, @11) = 0.1;
+        PROB(d2, @13) = 0.1;
+        PROB(d2, @15) = 0.1;
+        PROB(d2, @17) = 0.1;
+        PROB(d2, @19) = 0.1;
+    };
+
+    init-state {
+        ~die-value-seen(@1);
+    };
+
+    horizon = 40;
+
+    discount = 1.0;
+}

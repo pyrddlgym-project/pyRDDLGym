@@ -1,0 +1,108 @@
+non-fluents nf_sysadmin_inst_pomdp__5 {
+	domain = sysadmin_pomdp;
+	objects {
+		computer : {c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21,c22,c23,c24,c25,c26,c27,c28,c29,c30};
+	};
+	non-fluents {
+		REBOOT-PROB = 0.01;
+		CONNECTED(c1,c11);
+		CONNECTED(c1,c13);
+		CONNECTED(c2,c20);
+		CONNECTED(c2,c15);
+		CONNECTED(c3,c17);
+		CONNECTED(c3,c12);
+		CONNECTED(c4,c22);
+		CONNECTED(c4,c27);
+		CONNECTED(c5,c21);
+		CONNECTED(c5,c30);
+		CONNECTED(c6,c14);
+		CONNECTED(c6,c15);
+		CONNECTED(c7,c19);
+		CONNECTED(c7,c13);
+		CONNECTED(c8,c27);
+		CONNECTED(c8,c26);
+		CONNECTED(c9,c8);
+		CONNECTED(c9,c27);
+		CONNECTED(c10,c14);
+		CONNECTED(c11,c7);
+		CONNECTED(c11,c14);
+		CONNECTED(c12,c22);
+		CONNECTED(c12,c30);
+		CONNECTED(c13,c1);
+		CONNECTED(c13,c7);
+		CONNECTED(c14,c7);
+		CONNECTED(c14,c15);
+		CONNECTED(c15,c19);
+		CONNECTED(c15,c18);
+		CONNECTED(c16,c9);
+		CONNECTED(c16,c10);
+		CONNECTED(c17,c6);
+		CONNECTED(c17,c24);
+		CONNECTED(c18,c13);
+		CONNECTED(c18,c14);
+		CONNECTED(c19,c16);
+		CONNECTED(c19,c11);
+		CONNECTED(c20,c14);
+		CONNECTED(c20,c30);
+		CONNECTED(c21,c23);
+		CONNECTED(c21,c26);
+		CONNECTED(c22,c27);
+		CONNECTED(c22,c11);
+		CONNECTED(c23,c17);
+		CONNECTED(c23,c30);
+		CONNECTED(c24,c17);
+		CONNECTED(c24,c26);
+		CONNECTED(c25,c24);
+		CONNECTED(c25,c27);
+		CONNECTED(c26,c5);
+		CONNECTED(c26,c14);
+		CONNECTED(c27,c3);
+		CONNECTED(c27,c14);
+		CONNECTED(c28,c2);
+		CONNECTED(c28,c20);
+		CONNECTED(c29,c17);
+		CONNECTED(c29,c27);
+		CONNECTED(c30,c3);
+	};
+}
+
+instance sysadmin_inst_pomdp__5 {
+	domain = sysadmin_pomdp;
+	non-fluents = nf_sysadmin_inst_pomdp__5;
+	init-state {
+		running(c1);
+		running(c2);
+		running(c3);
+		running(c4);
+		running(c5);
+		running(c6);
+		running(c7);
+		running(c8);
+		running(c9);
+		running(c10);
+		running(c11);
+		running(c12);
+		running(c13);
+		running(c14);
+		running(c15);
+		running(c16);
+		running(c17);
+		running(c18);
+		running(c19);
+		running(c20);
+		running(c21);
+		running(c22);
+		running(c23);
+		running(c24);
+		running(c25);
+		running(c26);
+		running(c27);
+		running(c28);
+		running(c29);
+		running(c30);
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 40;
+	discount = 1.0;
+}

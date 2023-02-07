@@ -1,0 +1,50 @@
+non-fluents nf_recon_inst_mdp__4 {
+	domain = recon_mdp; 
+	objects { 
+		x_pos : {x0,x1,x2};
+		y_pos : {y0,y1,y2};
+		obj : {o0,o1,o2,o3,o4};
+		agent : {a1};
+		tool : {l1,w1,p1};
+
+	}; 
+	non-fluents {
+		ADJACENT-LEFT(x0, x0);
+		ADJACENT-DOWN(y0, y0);
+		ADJACENT-RIGHT(x0, x1);
+		ADJACENT-UP(y0, y1);
+		ADJACENT-LEFT(x1, x0);
+		ADJACENT-DOWN(y1, y0);
+		ADJACENT-RIGHT(x1, x2);
+		ADJACENT-UP(y1, y2);
+		ADJACENT-LEFT(x2, x1);
+		ADJACENT-DOWN(y2, y1);
+		ADJACENT-RIGHT(x2, x2);
+		ADJACENT-UP(y2, y2);
+		WATER_TOOL(w1);
+		LIFE_TOOL(l1);
+		CAMERA_TOOL(p1);
+		BASE(x2,y2);
+		objAt(o0,x0,y1);
+		objAt(o1,x0,y0);
+		objAt(o2,x1,y1);
+		objAt(o3,x2,y1);
+		objAt(o4,x0,y2);
+		HAZARD(x1,y1);
+		DAMAGE_PROB(w1) = 0.42995942;
+		DAMAGE_PROB(l1) = 0.30572772;
+		GOOD_PIC_WEIGHT = 0.15562552;
+		BAD_PIC_WEIGHT = 0.69803196;
+	};
+}
+instance recon_inst_mdp__4 { 
+	domain = recon_mdp; 
+ 	non-fluents = nf_recon_inst_mdp__4;
+	init-state { 
+		agentAt(a1,x2,y2);
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

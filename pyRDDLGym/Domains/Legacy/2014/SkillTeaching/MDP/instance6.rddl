@@ -1,0 +1,61 @@
+non-fluents nf_skill_teaching_inst_mdp__6 {
+	domain = skill_teaching_mdp; 
+	objects { 
+		skill : {s0,s1,s2,s3,s4,s5};
+
+	}; 
+	non-fluents {
+		PROB_ALL_PRE(s0) = 0.51911426;
+		PROB_ALL_PRE_MED(s0) = 0.7568351;
+		PROB_HIGH(s0) = 0.9770715;
+		SKILL_WEIGHT(s0) = 1.0499556;
+		LOSE_PROB(s0) = 0.01;
+		PROB_ALL_PRE(s1) = 0.5730685;
+		PROB_ALL_PRE_MED(s1) = 0.78583014;
+		PROB_HIGH(s1) = 0.924819;
+		SKILL_WEIGHT(s1) = 1.1698302;
+		LOSE_PROB(s1) = 0.01;
+		PRE_REQ(s0, s2);
+		PRE_REQ(s1, s2);
+		PROB_ALL_PRE(s2) = 0.50426114;
+		PROB_PER_PRE(s2) = 0.22255530953407288;
+		PROB_ALL_PRE_MED(s2) = 0.70021623;
+		PROB_PER_PRE_MED(s2) = 0.3218156695365906;
+		PROB_HIGH(s2) = 0.97022885;
+		SKILL_WEIGHT(s2) = 2.2892184;
+		LOSE_PROB(s2) = 0.04107441306114197;
+		PRE_REQ(s2, s3);
+		PRE_REQ(s1, s3);
+		PROB_ALL_PRE(s3) = 0.62887514;
+		PROB_PER_PRE(s3) = 0.2262321412563324;
+		PROB_ALL_PRE_MED(s3) = 0.7496369;
+		PROB_PER_PRE_MED(s3) = 0.34937326312065126;
+		PROB_HIGH(s3) = 0.95192325;
+		SKILL_WEIGHT(s3) = 3.2861533;
+		LOSE_PROB(s3) = 0.04200699329376221;
+		PRE_REQ(s1, s4);
+		PROB_ALL_PRE(s4) = 0.7391402;
+		PROB_PER_PRE(s4) = 0.6482304692268371;
+		PROB_ALL_PRE_MED(s4) = 0.76726276;
+		PROB_PER_PRE_MED(s4) = 0.7316245138645172;
+		PROB_HIGH(s4) = 0.8891609;
+		SKILL_WEIGHT(s4) = 2.0785954;
+		LOSE_PROB(s4) = 0.040353044867515564;
+		PRE_REQ(s3, s5);
+		PROB_ALL_PRE(s5) = 0.6509724;
+		PROB_PER_PRE(s5) = 0.5587133944034577;
+		PROB_ALL_PRE_MED(s5) = 0.7869552;
+		PROB_PER_PRE_MED(s5) = 0.7214606761932373;
+		PROB_HIGH(s5) = 0.9555468;
+		SKILL_WEIGHT(s5) = 4.4450536;
+		LOSE_PROB(s5) = 0.030699294805526734;
+	};
+}
+instance skill_teaching_inst_mdp__6 { 
+	domain = skill_teaching_mdp; 
+ 	non-fluents = nf_skill_teaching_inst_mdp__6;
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

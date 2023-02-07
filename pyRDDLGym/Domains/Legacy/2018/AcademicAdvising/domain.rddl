@@ -1,0 +1,139 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Academic Advising domain.                  //
+//                                                                             //
+//                                                                             //
+// Created and modified for the probabilistic tracks of IPC 2014 by            //
+//                                                                             //
+//        Libby Ferland (libby.knouse [at] uky.edu) and                        //
+//        Scott Sanner (ssanner [at] mie.utoronto.ca)                          //
+//                                                                             //
+// and modified for the probabilistic tracks of IPC 2018 by                    //
+//                                                                             //
+//        Thomas Keller (tho.keller [at] unibas.ch).                           //
+//                                                                             //
+//                                                                             //
+// In this domain, a student may take courses at a given cost and passes the   //
+// course with a probability determined by how many of the prerequisites they  //
+// have successfully passed. A student also receives a penalty at each time    //
+// step if they have not yet graduated from their program (i.e., completed all //
+// required courses). We allow multiple courses to be taken in a semester in   //
+// some instances. Furthermore, instances differ in the depth of the course    //
+// dependency DAG, the number of courses, in the cost of taking or retaking    //
+// a course, in the number of program requirements and in the horizon.         //
+//                                                                             //
+//                                                                             //
+// Instances were created such that a policy that ignores all dependencies     //
+// between courses and takes each course that is a program requirement until   //
+// it succeeds is better than a policy that does nothing at all. The expected  //
+// reward of this policy is reported in the instance files.                    //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain academic-advising_mdp {
+    requirements { 
+        reward-deterministic,
+        preconditions
+    };
+
+
+    types {
+        course : object;
+    };
+
+
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+        
+        // number of courses that can be taken in parallel, (introduced for IPC
+        // 2018, replaces max-nondef-actions of IPC 2014 domain)
+        COURSES_PER_SEMESTER              : { non-fluent, int, default = 1 };
+        
+        // first argument is a prerequisite of second argument
+        PREREQ(course, course)            : { non-fluent, bool, default = false };
+
+        // probability of passing a course without prerequisites
+        PRIOR_PROB_PASS_NO_PREREQ(course) : { non-fluent, real, default = 0.8 };
+
+        // base probability of passing a course with prerequisites (if no
+        // prerequisite has been passed)
+        PRIOR_PROB_PASS(course)           : { non-fluent, real, default = 0.2 };
+    
+        // program requirements for graduation
+        PROGRAM_REQUIREMENT(course)       : { non-fluent, bool, default = false };
+    
+        // cost for taking a course the first time
+        COURSE_COST                       : { non-fluent, real, default = -1 };
+
+        // cost for taking a course except the first time
+        COURSE_RETAKE_COST                : { non-fluent, real, default = -2 };
+
+        // penalty per step for incomplete program
+        PROGRAM_INCOMPLETE_PENALTY        : { non-fluent, real, default = -5 };
+
+
+        //////////////////// state-fluents ////////////////////
+
+        // course has been taken successfully
+        passed(course)                    : { state-fluent, bool, default = false };
+
+        // course has been taken at least once
+        taken(course)                     : { state-fluent, bool, default = false };
+
+
+        //////////////////// action-fluents ////////////////////
+
+        // take a course
+        take-course(course)               : { action-fluent, bool, default = false };
+    };
+
+
+    cpfs {
+        passed'(?c) =
+            // if ?c is taken and has no prerequisites, it's passed according to
+            // a prior probability
+            if ( take-course(?c) & ~( exists_{?c2 : course} [ PREREQ(?c2,?c) ] ) )
+                then Bernoulli( PRIOR_PROB_PASS_NO_PREREQ(?c) )
+
+            // if ?c is taken and has no prerequisites, it's passed according to
+            // a prior probability and a bonus depending on passed prerequisites
+            else if ( take-course(?c) )
+                then Bernoulli( PRIOR_PROB_PASS(?c) +
+                                ( (1 - PRIOR_PROB_PASS(?c) ) * ( sum_{?c2 : course} [ PREREQ(?c2,?c) & passed(?c2) ] ) /
+								  (1 + sum_{?c2 : course} [ PREREQ(?c2,?c) ] ) ) )
+
+            // otherwise, the value persists
+            else passed(?c);
+
+
+        // ?c is taken if it has been taken earlier or is taken now
+        taken'(?c) = taken(?c) | take-course(?c);
+    };
+
+
+    reward =
+        // taking a course for the first time incurs a cost
+        ( sum_{ ?c : course } [ COURSE_COST * ( take-course(?c) & ~taken(?c) ) ] ) +
+        
+        // taking a course that has been taken before incurs a (usually higher) cost
+        ( sum_{ ?c : course } [ COURSE_RETAKE_COST * ( take-course(?c) & taken(?c) ) ] ) +
+
+        // as long as the program is not completed, a penalty is incurred
+        ( PROGRAM_INCOMPLETE_PENALTY * ~( forall_{ ?c : course } [ PROGRAM_REQUIREMENT(?c) => passed(?c) ] ) );
+
+
+    action-preconditions {
+        // only take courses that haven't been passed
+        ( forall_{ ?c : course } [ take-course(?c) => ~passed(?c) ] );
+
+        // replaces max-nondef-actions
+        ( ( sum_{ ?c : course } [take-course(?c)] ) <= COURSES_PER_SEMESTER );
+    };
+}     
+ 
+    
+
+
+  

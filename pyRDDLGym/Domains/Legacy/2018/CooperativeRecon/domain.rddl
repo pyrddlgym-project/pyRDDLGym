@@ -1,0 +1,326 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Cooperative Recon domain.                  //
+//                                                                             //
+//                                                                             //
+// Based on the Recon domain that has been created for the probabilistic       //
+// tracks of IPC 2011 by                                                       //
+//                                                                             //
+//        Tom Walsh (thomasjwalsh [at] gmail.com)                              //
+//                                                                             //
+// and modified for the probabilistic tracks of IPC 2018 by                    //
+//                                                                             //
+//        Thomas Keller (tho.keller [at] unibas.ch).                           //
+//                                                                             //
+//                                                                             //
+// In the Cooperative Recon domain, the planner controls one or more planetary //
+// rovers that examine objects of interest in order to detect life and take a  //
+// picture of it. As in the Recon domain of IPC 2011, first has to be detected //
+// before life is detected, and negative results (one for life, two for water) //
+// contaminate the object of interest such that no life can be detected.       //
+//                                                                             //
+// The main changes compared to the IPC 2011 Recon domain that have been       //
+// realized are as follows:                                                    //
+//                                                                             //
+// 1. In the 2011 version, taking pictures with a damaged camera lead to a     //
+//    negative reward, which is never a reasonable option (not taking a        //
+//    picture at all is always better). Here, we grant a lower positive        //
+//    reward instead, which makes for interesting decisions between returning  //
+//    to the base to repair the camera or go with the lower reward.            //
+//                                                                             //
+// 2. Hazards are replaced by a more general mechanism where probabilities     //
+//    that a tool is damaged are directly linked to the cell. However, the     //
+//    instance generation script still distributed hazards over the grid to    //
+//    compute these probabilities. The main difference is that hazards can     //
+//    overlap in a way that the probabilities accumulate.                      //
+//                                                                             //
+// 3. In the IPC 2011 instance, all rovers were equipped with a tool to detect //
+//    water, a tool to detect life and a camera. In the instances for IPC      //
+//    2018, some rovers are only partially equipped such that the rovers have  //
+//    to collaborate to perform all required tests.                            //
+//                                                                             //
+// 4. To emphasize colaboration even more, there is a novel support-agent      //
+//    action that rovers can take to increase the probability for successfully //
+//    detecting life or water. This leads to interesting decisions between     //
+//    optimizing the probability of successfully detecting life and the number //
+//    of objects of interest that can be examined within the finite horizon.   //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain cooperative-recon_mdp {
+    requirements { 
+        reward-deterministic,
+        preconditions
+    };
+    
+
+    types { 
+        xpos               : object;
+        ypos               : object; 
+        object-of-interest : object;
+        agent              : object;
+        tool               : object;
+    };
+    
+  	
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+
+        // connectivity of the grid
+        ADJACENT_UP(ypos,ypos)                       : { non-fluent, bool, default = false };
+        ADJACENT_DOWN(ypos,ypos)                     : { non-fluent, bool, default = false };
+        ADJACENT_RIGHT(xpos, xpos)                   : { non-fluent, bool, default = false };
+        ADJACENT_LEFT(xpos,xpos)                     : { non-fluent, bool, default = false };
+
+        // location of object of interest
+        OBJECT_AT(object-of-interest, xpos, ypos)    : { non-fluent, bool, default = false };
+
+        // probability a tool is damaged at a given grid cell
+        DAMAGE_PROB(xpos, ypos)                      : { non-fluent, real, default = 0.0 };
+
+        // probability water or life is detected with non-damaged tool and without support
+        DETECT_PROB                                  : { non-fluent, real, default = 0.6 };
+
+        // probability water or life is detected with damaged tool and without support
+        DETECT_PROB_DAMAGED                          : { non-fluent, real, default = 0.3 };
+
+        // probability water or life is detected with non-damaged tool and with support
+        DETECT_PROB_WITH_SUPPORT                     : { non-fluent, real, default = 0.8 };
+
+        // probability water or life is detected with damaged tool and with support
+        DETECT_PROB_DAMAGED_WITH_SUPPORT             : { non-fluent, real, default = 0.5 };
+
+        // tool is a camera
+        CAMERA_TOOL(tool)                            : { non-fluent, bool, default = false };
+
+        // tool is a life-detector
+        LIFE_TOOL(tool)                              : { non-fluent, bool, default = false };
+
+        // tool is a water-detector
+        WATER_TOOL(tool)                             : { non-fluent, bool, default = false };
+
+        // tool is mounted on agent
+        HAS_TOOL(agent, tool)                        : { non-fluent, bool, default = false };
+
+        // grid cell is a base (where tools can be repaired)
+        BASE(xpos, ypos)                             : { non-fluent, bool, default = false };
+
+        // reward for taking a picture with a non-damaged camera
+        GOOD_PIC_REWARD(object-of-interest)          : { non-fluent, real, default = 10.0 };
+
+        // reward for taking a picture with a damaged camera
+        BAD_PIC_REWARD(object-of-interest)           : { non-fluent, real, default = 5.0 };
+
+
+        //////////////////// state-fluents ////////////////////
+
+        // tool is damaged
+        damaged(tool)                                : { state-fluent, bool, default = false };
+
+        // water detector has been used on this object of interest (at least once)
+        waterChecked(object-of-interest)             : { state-fluent, bool, default = false };
+
+        // water has been detected at this object of interest
+        waterDetected(object-of-interest)            : { state-fluent, bool, default = false };
+
+        // life detector has been used on this object of interest (at least once)
+        lifeChecked(object-of-interest)              : { state-fluent, bool, default = false };
+
+        // life detector has been used on this object of interest at least twice
+        lifeChecked2(object-of-interest)             : { state-fluent, bool, default = false };
+
+        // life has been detected at this object of interest
+        lifeDetected(object-of-interest)             : { state-fluent, bool, default = false };
+
+        // a picture of this object of interest has been taken
+        pictureTaken(object-of-interest)             : { state-fluent, bool, default = false };
+
+        // the location of an agent
+        agent-at(agent, xpos, ypos)                  : { state-fluent, bool, default = false };
+
+
+        //////////////////// action-fluents ////////////////////
+
+        // move an agent upwards
+        up(agent)                                    : { action-fluent, bool, default = false };
+
+        // move an agent downwards
+        down(agent)                                  : { action-fluent, bool, default = false };
+
+        // move an agent to the left
+        left(agent)                                  : { action-fluent, bool, default = false };
+
+        // move an agent to the right
+        right(agent)                                 : { action-fluent, bool, default = false };
+
+        // have an agent use a tool on an object of interest
+        use-tool-on(agent, tool, object-of-interest) : { action-fluent, bool, default = false };
+
+        // have an agent support another agent using a tool
+        support-agent(agent, agent)                  : { action-fluent, bool, default = false };
+
+        // repair a tool
+        repair(agent, tool)                          : { action-fluent, bool, default = false };
+    };
+
+
+    cpfs {
+        damaged'(?t) =
+            // if an agent repairs ?t, it's not damaged
+            if ( exists_{ ?a: agent } [ repair(?a, ?t) ] )
+                then false
+            // if it was damaged and is not repaired, it remains damaged
+            else if ( damaged(?t) )
+                then true
+            // otherwise, it becomes damaged with a probability given by the location
+            // of the agent carrying the tool
+            else Bernoulli( ( sum_{ ?a: agent, ?x : xpos, ?y : ypos } [ HAS_TOOL(?a, ?t) * agent-at(?a, ?x, ?y) * DAMAGE_PROB(?x, ?y) ] ) );
+
+        waterChecked'(?o) =
+            // remains true of becomes true if a water detector is applied now
+            waterChecked(?o) |
+            exists_{ ?a: agent, ?t: tool } [ use-tool-on(?a, ?t, ?o) & WATER_TOOL(?t) ];
+
+        waterDetected'(?o) =
+            // once water is detected, it remains this way
+            if (waterDetected(?o)) 
+                then true
+            // if checking for water fails once, no water is ever detected
+            else if (waterChecked(?o))
+                then false
+            // an agent checks now with a damaged tool and with support
+            else if ( exists_{?t : tool, ?a1: agent, ?a2 : agent} [ use-tool-on(?a1, ?t, ?o) & support-agent(?a2, ?a1) & WATER_TOOL(?t) & damaged(?t) ] )
+                then Bernoulli(DETECT_PROB_DAMAGED_WITH_SUPPORT)
+            // an agent checks now with a damaged tool and without support
+            else if ( exists_{?t : tool, ?a: agent} [ use-tool-on(?a, ?t, ?o) & WATER_TOOL(?t) & damaged(?t) ] ) 
+                then Bernoulli(DETECT_PROB_DAMAGED)
+            // an agent checks now with a non-damaged tool and with support
+            else if ( exists_{?t : tool, ?a1: agent, ?a2 : agent} [ use-tool-on(?a1, ?t, ?o) & support-agent(?a2, ?a1) & WATER_TOOL(?t) ] ) 
+                then Bernoulli(DETECT_PROB_WITH_SUPPORT)
+            // an agent checks now with a non-damaged tool and without support
+            else if ( exists_{?t : tool, ?a: agent} [ use-tool-on(?a, ?t, ?o) & WATER_TOOL(?t) ] ) 
+                then Bernoulli(DETECT_PROB)
+            // the value persists
+            else false;
+
+        lifeChecked'(?o) =
+            // remains true of becomes true if a life detector is applied now
+            lifeChecked(?o) |
+            exists_{ ?a: agent, ?t: tool } [ use-tool-on(?a, ?t, ?o) & LIFE_TOOL(?t) ];
+		
+        lifeChecked2'(?o) =
+            // true if it was true before or if a life detector is applied now and was applied before
+            lifeChecked2(?o) |
+            ( lifeChecked(?o) & exists_{ ?a: agent, ?t: tool } [ use-tool-on(?a, ?t, ?o) & LIFE_TOOL(?t) ] );
+
+        lifeDetected'(?o) =
+            // once life is detected, it remains this way
+            if ( lifeDetected(?o) ) 
+                then true
+            // if checking for life fails twice or there is no water, no life is ever detected
+            else if ( lifeChecked2(?o) | ~waterDetected(?o) ) // Never detect life after 2nd try or if no water
+                then false
+            // an agent checks now with a damaged tool and with support
+            else if ( exists_{?t : tool, ?a1: agent, ?a2 : agent} [ use-tool-on(?a1, ?t, ?o) & support-agent(?a2, ?a1) & LIFE_TOOL(?t) & damaged(?t) ] )
+                then Bernoulli(DETECT_PROB_DAMAGED_WITH_SUPPORT)
+            // an agent checks now with a damaged tool and without support
+            else if ( exists_{?t : tool, ?a: agent} [ use-tool-on(?a, ?t, ?o) & LIFE_TOOL(?t) & damaged(?t) ] )
+                then Bernoulli(DETECT_PROB_DAMAGED)
+            // an agent checks now with a non-damaged tool and with support
+            else if ( exists_{?t : tool, ?a1: agent, ?a2 : agent} [ use-tool-on(?a1, ?t, ?o) & support-agent(?a2, ?a1) & LIFE_TOOL(?t) ] ) 
+                then Bernoulli(DETECT_PROB_WITH_SUPPORT)
+            // an agent checks now with a non-damaged tool and without support
+            else if ( exists_{?t : tool, ?a: agent} [ use-tool-on(?a, ?t, ?o) & LIFE_TOOL(?t) ] ) 
+                then Bernoulli(DETECT_PROB)
+            // the value persists
+            else false;
+
+        pictureTaken'(?o) =
+            // remains true of becomes true if a picture os taken now
+            pictureTaken(?o) |
+            ( exists_{ ?a: agent, ?t: tool } [ use-tool-on(?a, ?t, ?o) & CAMERA_TOOL(?t) ] );
+
+        agent-at'(?a, ?x, ?y) =
+            // agent moves to the left and ends up here 
+            if ( left(?a) & ( exists_{ ?x2 : xpos } [ agent-at(?a, ?x2, ?y) & ADJACENT_LEFT(?x, ?x2) ] ) )
+                then true
+            // agent moves to the right and ends up here 
+            else if( right(?a) & ( exists_{ ?x2 : xpos } [ agent-at(?a, ?x2, ?y) & ADJACENT_RIGHT(?x, ?x2) ] ) )
+                then true
+            // agent moves upwards and ends up here 
+            else if( up(?a) & ( exists_{ ?y2 : ypos } [ agent-at(?a, ?x, ?y2) & ADJACENT_UP(?y, ?y2) ] ) )
+                then true
+            // agent moves downwards and ends up here 
+            else if( down(?a) & ( exists_{ ?y2 : ypos } [ agent-at(?a, ?x, ?y2) & ADJACENT_DOWN(?y, ?y2) ] ) )
+                then true
+            // agent moves, but it doesn't end up here
+            else if ( left(?a) | right(?a) | up(?a) | down(?a) )
+                then false
+            // agent doesn't move, so it is here only if it was already here
+            else agent-at(?a, ?x, ?y);
+    };
+
+
+    reward =
+        ( sum_{?o : object-of-interest}
+            // get reward for a picture of an object of interest with life with a non-damged camera
+            [ ( GOOD_PIC_REWARD(?o) * exists_{ ?a: agent, ?t: tool } [ use-tool-on(?a, ?t, ?o) & CAMERA_TOOL(?t) & ~damaged(?t) ] ) +
+            
+            // get reward for a picture of an object of interest with life with a damged camera
+              (  BAD_PIC_REWARD(?o) * exists_{ ?a: agent, ?t: tool } [ use-tool-on(?a, ?t, ?o) & CAMERA_TOOL(?t) & damaged(?t) ] ) ] );
+
+
+    action-preconditions {
+        // dont move outside of the grid
+        forall_{ ?a : agent } [ left(?a) => exists_{ ?x1 : xpos, ?x2 : xpos, ?y : ypos } [ agent-at(?a, ?x1, ?y) & ADJACENT_LEFT(?x2, ?x1) ] ];
+        forall_{ ?a : agent } [ right(?a) => exists_{ ?x1 : xpos, ?x2 : xpos, ?y : ypos } [ agent-at(?a, ?x1, ?y) & ADJACENT_RIGHT(?x2, ?x1) ] ];
+        forall_{ ?a : agent } [ up(?a) => exists_{ ?x : xpos, ?y1 : ypos, ?y2 : ypos } [ agent-at(?a, ?x, ?y1) & ADJACENT_UP(?y2, ?y1) ] ];
+        forall_{ ?a : agent } [ down(?a) => exists_{ ?x : xpos, ?y1 : ypos, ?y2 : ypos } [ agent-at(?a, ?x, ?y1) & ADJACENT_DOWN(?y2, ?y1) ] ];
+
+        // only use tools on this agent
+        forall_{ ?a : agent, ?t : tool, ?o : object-of-interest }
+            [ use-tool-on(?a, ?t, ?o) => HAS_TOOL(?a, ?t) ];
+
+        // only use tool on objects at the same location
+        forall_{ ?a : agent, ?t : tool, ?o : object-of-interest }
+            [ use-tool-on(?a, ?t, ?o) => ( exists_{ ?x : xpos, ?y : ypos } [ agent-at(?a, ?x, ?y) & OBJECT_AT(?o, ?x, ?y) ] ) ];
+
+        // only take pictures of objects that have not been photographed before
+        forall_{ ?a : agent, ?t : tool, ?o : object-of-interest }
+            [ use-tool-on(?a, ?t, ?o) => ( ~CAMERA_TOOL(?t) | ~pictureTaken(?o) ) ];
+
+        // only take a picture if life was detected
+        forall_{ ?a : agent, ?t : tool, ?o : object-of-interest }
+            [ use-tool-on(?a, ?t, ?o) => ( ~CAMERA_TOOL(?t) | lifeDetected(?o) ) ];
+
+        // repair is only possible at the base
+        forall_{ ?a : agent, ?t : tool } [ repair(?a, ?t) => ( exists_{ ?x : xpos, ?y : ypos } [ agent-at(?a, ?x, ?y) & BASE(?x, ?y) ] ) ];
+
+        // repair only damaged tool
+        forall_{ ?a : agent, ?t : tool } [ repair(?a, ?t) => damaged(?t) ];
+
+        // repair only tools on this agent
+        forall_{ ?a : agent, ?t : tool } [ repair(?a, ?t) => HAS_TOOL(?a, ?t) ];
+
+        // objects can only be investigated by one agent at a time
+        forall_{ ?o : object-of-interest } [ ( sum_{ ?a : agent, ?t : tool } [ use-tool-on(?a, ?t, ?o) ] ) <= 1 ];
+
+        // agents can support other agents if they are in the same location
+        forall_{ ?a1 : agent, ?a2 : agent } [ support-agent(?a1, ?a2) => ( exists_{ ?x : xpos, ?y : ypos } [ agent-at(?a1, ?x, ?y) & agent-at(?a2, ?x, ?y) ] ) ];
+
+        // agents can support other agents only if the other agent is using a tool
+        // NOTE: This one is not possible with ipc 2018 rules. As supporting doesn't have an
+        // effect if the other agent doesn't use a tool, it doesn't matter if we keep it commented, though.
+        // forall_{ ?a1 : agent, ?a2 : agent } [ support-agent(?a1, ?a2) => ( exists_{ ?t : tool, ?o : object-of-interest } [ use-tool-on(?a2, ?t, ?o) ] ) ];
+
+        // each agent may perform one action per step
+        forall_{ ?a : agent } [ ( left(?a) + right(?a) + up(?a) + down(?a) +
+                                  ( sum_{ ?t : tool, ?o : object-of-interest } [ use-tool-on(?a, ?t, ?o) ] ) +
+                                  ( sum_{ ?t : tool } [ repair(?a, ?t) ] ) +
+                                  ( sum_{ ?a2 : agent } [ support-agent(?a, ?a2) ] ) ) <= 1 ];
+    };
+}
+
+

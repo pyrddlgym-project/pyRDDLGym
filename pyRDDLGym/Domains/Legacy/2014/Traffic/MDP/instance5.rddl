@@ -1,0 +1,107 @@
+non-fluents nf_traffic_inst_mdp__5 {
+	domain = traffic_mdp;
+	objects {
+		intersection : {ia5a5,ia5a10,ia10a5,ia10a10};
+		cell : {ca5a1,ca1a5,ca5a2,ca2a5,ca5a3,ca3a5,ca5a4,ca4a5,ca5a6,ca6a5,ca5a7,ca7a5,ca5a8,ca8a5,ca5a9,ca9a5,ca5a11,ca11a5,ca5a12,ca12a5,ca5a13,ca13a5,ca5a14,ca14a5,ca10a1,ca1a10,ca10a2,ca2a10,ca10a3,ca3a10,ca10a4,ca4a10,ca10a6,ca6a10,ca10a7,ca7a10,ca10a8,ca8a10,ca10a9,ca9a10,ca10a11,ca11a10,ca10a12,ca12a10,ca10a13,ca13a10,ca10a14,ca14a10};
+	};
+	non-fluents {
+
+		PERIMETER-INPUT-CELL(ca5a1);
+		PERIMETER-INPUT-CELL(ca10a1);
+		PERIMETER-INPUT-CELL(ca1a5);
+		PERIMETER-INPUT-CELL(ca1a10);
+
+		PERIMETER-INPUT-RATE(ca5a1) = 0.2629145;
+		PERIMETER-INPUT-RATE(ca10a1) = 0.17818838;
+		PERIMETER-INPUT-RATE(ca1a5) = 0.17750853;
+		PERIMETER-INPUT-RATE(ca1a10) = 0.16130137;
+
+		PERIMETER-EXIT-CELL(ca5a14);
+		PERIMETER-EXIT-CELL(ca10a14);
+		PERIMETER-EXIT-CELL(ca14a5);
+		PERIMETER-EXIT-CELL(ca14a10);
+
+		FLOWS-INTO-INTERSECTION-EW(ca5a4,ia5a5);
+		FLOWS-INTO-INTERSECTION-EW(ca5a9,ia5a10);
+		FLOWS-INTO-INTERSECTION-EW(ca10a4,ia10a5);
+		FLOWS-INTO-INTERSECTION-EW(ca10a9,ia10a10);
+		FLOWS-INTO-INTERSECTION-NS(ca4a5,ia5a5);
+		FLOWS-INTO-INTERSECTION-NS(ca9a5,ia10a5);
+		FLOWS-INTO-INTERSECTION-NS(ca4a10,ia5a10);
+		FLOWS-INTO-INTERSECTION-NS(ca9a10,ia10a10);
+
+		FLOWS-INTO-CELL(ca5a1,ca5a2);
+		FLOWS-INTO-CELL(ca1a5,ca2a5);
+		FLOWS-INTO-CELL(ca5a2,ca5a3);
+		FLOWS-INTO-CELL(ca2a5,ca3a5);
+		FLOWS-INTO-CELL(ca5a3,ca5a4);
+		FLOWS-INTO-CELL(ca3a5,ca4a5);
+		FLOWS-INTO-CELL(ca5a4,ca5a6);
+		FLOWS-INTO-CELL(ca4a5,ca6a5);
+		FLOWS-INTO-CELL(ca5a6,ca5a7);
+		FLOWS-INTO-CELL(ca6a5,ca7a5);
+		FLOWS-INTO-CELL(ca5a7,ca5a8);
+		FLOWS-INTO-CELL(ca7a5,ca8a5);
+		FLOWS-INTO-CELL(ca5a8,ca5a9);
+		FLOWS-INTO-CELL(ca8a5,ca9a5);
+		FLOWS-INTO-CELL(ca5a9,ca5a11);
+		FLOWS-INTO-CELL(ca9a5,ca11a5);
+		FLOWS-INTO-CELL(ca5a11,ca5a12);
+		FLOWS-INTO-CELL(ca11a5,ca12a5);
+		FLOWS-INTO-CELL(ca5a12,ca5a13);
+		FLOWS-INTO-CELL(ca12a5,ca13a5);
+		FLOWS-INTO-CELL(ca5a13,ca5a14);
+		FLOWS-INTO-CELL(ca13a5,ca14a5);
+		FLOWS-INTO-CELL(ca10a1,ca10a2);
+		FLOWS-INTO-CELL(ca1a10,ca2a10);
+		FLOWS-INTO-CELL(ca10a2,ca10a3);
+		FLOWS-INTO-CELL(ca2a10,ca3a10);
+		FLOWS-INTO-CELL(ca10a3,ca10a4);
+		FLOWS-INTO-CELL(ca3a10,ca4a10);
+		FLOWS-INTO-CELL(ca10a4,ca10a6);
+		FLOWS-INTO-CELL(ca4a10,ca6a10);
+		FLOWS-INTO-CELL(ca10a6,ca10a7);
+		FLOWS-INTO-CELL(ca6a10,ca7a10);
+		FLOWS-INTO-CELL(ca10a7,ca10a8);
+		FLOWS-INTO-CELL(ca7a10,ca8a10);
+		FLOWS-INTO-CELL(ca10a8,ca10a9);
+		FLOWS-INTO-CELL(ca8a10,ca9a10);
+		FLOWS-INTO-CELL(ca10a9,ca10a11);
+		FLOWS-INTO-CELL(ca9a10,ca11a10);
+		FLOWS-INTO-CELL(ca10a11,ca10a12);
+		FLOWS-INTO-CELL(ca11a10,ca12a10);
+		FLOWS-INTO-CELL(ca10a12,ca10a13);
+		FLOWS-INTO-CELL(ca12a10,ca13a10);
+		FLOWS-INTO-CELL(ca10a13,ca10a14);
+		FLOWS-INTO-CELL(ca13a10,ca14a10);
+	};
+}
+
+instance traffic_inst_mdp__5 {
+	domain = traffic_mdp;
+	non-fluents = nf_traffic_inst_mdp__5;
+	init-state {
+		occupied(ca5a1);
+		occupied(ca1a5);
+		occupied(ca5a3);
+		occupied(ca3a5);
+		occupied(ca5a4);
+		occupied(ca5a6);
+		occupied(ca8a5);
+		occupied(ca9a5);
+		occupied(ca11a5);
+		occupied(ca13a5);
+		occupied(ca14a5);
+		occupied(ca1a10);
+		occupied(ca10a3);
+		occupied(ca10a4);
+		occupied(ca4a10);
+		occupied(ca8a10);
+		occupied(ca10a11);
+		occupied(ca13a10);
+	};
+
+	max-nondef-actions = 4;
+	horizon  = 40;
+	discount = 1.0;
+}

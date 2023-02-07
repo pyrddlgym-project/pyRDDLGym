@@ -1,0 +1,4 @@
+[General]
+name=sysadmin2011
+description=An example RDDL description for the well-known SysAdmin problem.
+viz=TextViz.TextVisualizer

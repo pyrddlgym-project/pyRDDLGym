@@ -1,0 +1,35 @@
+non-fluents nf_academic_advising_inst_pomdp__1 {
+	domain = academic_advising_pomdp;
+	objects {
+		course : {CS11, CS12, CS21, CS22, CS31, CS32, CS41, CS42, CS51, CS52};
+	};
+
+	non-fluents {
+		PROGRAM_REQUIREMENT(CS12);
+		PREREQ(CS12,CS21);
+		PREREQ(CS12,CS22);
+		PREREQ(CS21,CS22);
+		PROGRAM_REQUIREMENT(CS22);
+		PREREQ(CS22,CS31);
+		PREREQ(CS12,CS32);
+		PREREQ(CS22,CS32);
+		PROGRAM_REQUIREMENT(CS32);
+		PREREQ(CS21,CS41);
+		PROGRAM_REQUIREMENT(CS41);
+		PREREQ(CS11,CS42);
+		PREREQ(CS22,CS42);
+		PREREQ(CS21,CS42);
+		PREREQ(CS22,CS51);
+		PREREQ(CS32,CS51);
+		PREREQ(CS21,CS51);
+		PREREQ(CS11,CS52);
+	};
+}
+
+instance academic_advising_inst_pomdp__1 {
+	domain = academic_advising_pomdp;
+	non-fluents = nf_academic_advising_inst_pomdp__1;
+	max-nondef-actions = 1;
+	horizon  = 40;
+	discount = 1.0;
+}

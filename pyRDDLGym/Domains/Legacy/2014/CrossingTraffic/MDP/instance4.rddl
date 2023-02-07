@@ -1,0 +1,47 @@
+non-fluents nf_crossing_traffic_inst_mdp__4 {
+	domain = crossing_traffic_mdp;
+	objects {
+		xpos : {x1,x2,x3,x4};
+		ypos : {y1,y2,y3,y4};
+	};
+	non-fluents {
+		NORTH(y1,y2);
+		SOUTH(y2,y1);
+		NORTH(y2,y3);
+		SOUTH(y3,y2);
+		NORTH(y3,y4);
+		SOUTH(y4,y3);
+
+		EAST(x1,x2);
+		WEST(x2,x1);
+		EAST(x2,x3);
+		WEST(x3,x2);
+		EAST(x3,x4);
+		WEST(x4,x3);
+
+		MIN-XPOS(x1);
+		MAX-XPOS(x4);
+		MIN-YPOS(y1);
+		MAX-YPOS(y4);
+
+		GOAL(x4,y4);
+
+		INPUT-RATE = 0.6;
+	};
+}
+
+instance crossing_traffic_inst_mdp__4 {
+	domain = crossing_traffic_mdp;
+	non-fluents = nf_crossing_traffic_inst_mdp__4;
+	init-state {
+		robot-at(x4,y1);
+		obstacle-at(x2,y3);
+		obstacle-at(x3,y2);
+		obstacle-at(x3,y3);
+		obstacle-at(x4,y2);
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+}
+

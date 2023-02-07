@@ -1,0 +1,4 @@
+[General]
+name=recsim
+description=A problem of recommendation systems, with consumers and providers.
+viz=RecSimViz.RecSimVisualizer
