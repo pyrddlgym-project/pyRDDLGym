@@ -104,7 +104,15 @@ class RDDLLiftedModel(PlanningModel):
                 raise RDDLRepeatedVariableError(
                     f'{pvar.fluent_type} <{name}> has the same name as '
                     f'another {var_types[name]}.')
-        
+                
+            # make sure name does not contain separators
+            SEPARATORS = [PlanningModel.FLUENT_SEP, PlanningModel.OBJECT_SEP] 
+            for separator in SEPARATORS:
+                if separator in name:
+                    raise RDDLInvalidObjectError(
+                        f'Variable name <{name}> contains the '
+                        f'illegal separator {separator}.')
+            
             # variable is new: record its type, parameters and range
             if pvar.is_state_fluent():
                 primed_name = name + PlanningModel.NEXT_STATE_SYM
