@@ -1,0 +1,117 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Red-finned Blue-eye instance #07 for IPC 2018 by Iadine //
+// Chades (iadine.chades [at] csiro.au) and Thomas Keller (tho.keller [at]     //
+// unibas.ch), based on the paper "Finding the best management policy to       //
+// eradicate invasive species from spatial ecological networks with            //
+// simultaneous actions" by Sam Nicol, Regis Sabbadin, Nathalie Peyrard and    //
+// Iadine Chades (Journal of Applied Ecology, 2017).                           //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance red-finned-blue-eye_inst_mdp__07 {
+    domain = red-finned-blue-eye_mdp;
+
+    objects {
+        spring: {s00, s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12};
+    };
+
+    non-fluents {
+        POISON_SUCCESS_PROB = 0.9;
+        TRANSLOCATION_SUCCESS_PROB = 0.42;
+        ACTION_POINTS = 4;
+        REMOVE_MANUALLY_SUCCESS_PROB = 0.25;
+
+        HIGH_WATER_PROB(@exceptionally-high) = 0.125;
+        HIGH_WATER_PROB(@very-high) = 0.2;
+        HIGH_WATER_PROB(@high) = 0.35;
+        HIGH_WATER_PROB(@average) = 0.2;
+        HIGH_WATER_PROB(@low) = 0.1;
+        HIGH_WATER_PROB(@very-low) = 0.025;
+        HIGH_WATER_PROB(@exceptionally-low) = 0;
+
+        // Colonization probabilities
+        GAMBUSIA_COLONIZE_PROB(s00, s01) = 0.21;
+        GAMBUSIA_COLONIZE_PROB(s00, s03) = 0.04;
+        GAMBUSIA_COLONIZE_PROB(s01, s02) = 0.18;
+        GAMBUSIA_COLONIZE_PROB(s02, s03) = 0.34;
+        GAMBUSIA_COLONIZE_PROB(s02, s05) = 0.07;
+        GAMBUSIA_COLONIZE_PROB(s04, s05) = 0.1;
+        GAMBUSIA_COLONIZE_PROB(s04, s06) = 0.36;
+        GAMBUSIA_COLONIZE_PROB(s05, s06) = 0.19;
+        GAMBUSIA_COLONIZE_PROB(s06, s09) = 0.1;
+        GAMBUSIA_COLONIZE_PROB(s07, s08) = 0.12;
+        GAMBUSIA_COLONIZE_PROB(s07, s09) = 0.02;
+        GAMBUSIA_COLONIZE_PROB(s07, s10) = 0.28;
+        GAMBUSIA_COLONIZE_PROB(s07, s11) = 0.12;
+        GAMBUSIA_COLONIZE_PROB(s07, s12) = 0.07;
+
+
+        NATURAL_MORTALITY_PROB(s00) = 0.08;
+        NATURAL_MORTALITY_PROB(s01) = 0.1;
+        NATURAL_MORTALITY_PROB(s02) = 0.09;
+        NATURAL_MORTALITY_PROB(s03) = 0.11;
+        NATURAL_MORTALITY_PROB(s04) = 0.06;
+        NATURAL_MORTALITY_PROB(s05) = 0.06;
+        NATURAL_MORTALITY_PROB(s06) = 0.08;
+        NATURAL_MORTALITY_PROB(s07) = 0.08;
+        NATURAL_MORTALITY_PROB(s08) = 0.03;
+        NATURAL_MORTALITY_PROB(s09) = 0.07;
+        NATURAL_MORTALITY_PROB(s10) = 0.08;
+        NATURAL_MORTALITY_PROB(s11) = 0.09;
+        NATURAL_MORTALITY_PROB(s12) = 0.06;
+
+
+        SPRINGS_CONNECTED(s07, s11, @exceptionally-high);
+        SPRINGS_CONNECTED(s06, s09, @exceptionally-high);
+        SPRINGS_CONNECTED(s06, s09, @very-high);
+        SPRINGS_CONNECTED(s00, s01, @exceptionally-high);
+        SPRINGS_CONNECTED(s00, s01, @very-high);
+        SPRINGS_CONNECTED(s00, s01, @high);
+        SPRINGS_CONNECTED(s01, s02, @exceptionally-high);
+        SPRINGS_CONNECTED(s01, s02, @very-high);
+        SPRINGS_CONNECTED(s01, s02, @high);
+        SPRINGS_CONNECTED(s05, s06, @exceptionally-high);
+        SPRINGS_CONNECTED(s05, s06, @very-high);
+        SPRINGS_CONNECTED(s05, s06, @high);
+        SPRINGS_CONNECTED(s07, s08, @exceptionally-high);
+        SPRINGS_CONNECTED(s07, s08, @very-high);
+        SPRINGS_CONNECTED(s07, s08, @high);
+        SPRINGS_CONNECTED(s07, s10, @exceptionally-high);
+        SPRINGS_CONNECTED(s07, s10, @very-high);
+        SPRINGS_CONNECTED(s07, s10, @high);
+        SPRINGS_CONNECTED(s07, s10, @average);
+        SPRINGS_CONNECTED(s02, s03, @exceptionally-high);
+        SPRINGS_CONNECTED(s02, s03, @very-high);
+        SPRINGS_CONNECTED(s02, s03, @high);
+        SPRINGS_CONNECTED(s02, s03, @average);
+        SPRINGS_CONNECTED(s02, s03, @low);
+        SPRINGS_CONNECTED(s04, s06, @exceptionally-high);
+        SPRINGS_CONNECTED(s04, s06, @very-high);
+        SPRINGS_CONNECTED(s04, s06, @high);
+        SPRINGS_CONNECTED(s04, s06, @average);
+        SPRINGS_CONNECTED(s04, s06, @low);
+        SPRINGS_CONNECTED(s04, s06, @very-low);
+    };
+
+    init-state {
+        population(s00) = @red-finned-blue-eye;
+        population(s01) = @red-finned-blue-eye;
+        population(s02) = @red-finned-blue-eye;
+        population(s03) = @gambusia;
+        population(s04) = @red-finned-blue-eye;
+        population(s05) = @red-finned-blue-eye;
+        population(s07) = @red-finned-blue-eye;
+        population(s08) = @red-finned-blue-eye;
+        population(s09) = @gambusia;
+        population(s10) = @red-finned-blue-eye;
+        population(s11) = @red-finned-blue-eye;
+        population(s12) = @red-finned-blue-eye;
+    };
+
+    horizon = 40;
+
+    discount = 1.0;
+}

@@ -1,0 +1,4 @@
+[General]
+name=newlanguage
+description=Example with new language features.
+viz=TextViz.TextVisualizer

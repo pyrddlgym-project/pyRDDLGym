@@ -1,0 +1,4 @@
+[General]
+name=traffic2011pomdp
+description=A simple binary version of the cell transition model (CTM) for modeling traffic. This is the pomdp version.
+viz=TextViz.TextVisualizer

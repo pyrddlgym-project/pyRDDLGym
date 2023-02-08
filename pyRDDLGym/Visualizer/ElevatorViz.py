@@ -47,18 +47,20 @@ class ElevatorVisualizer(StateViz):
         return img
     
     def render(self, state):
+        
         # Get the state information
+        FLUENT_SEP = PlanningModel.FLUENT_SEP
         elev_to_floor = {}
         for e in self._model.objects['elevator']:
             for fl in self._model.objects['floor']:
-                state_key = f"elevator-at-floor_{e}_{fl}"
+                state_key = self._model.ground_name('elevator-at-floor', [e, fl])
                 if state[state_key]:
                     elev_to_floor[e] = fl
         assert len(elev_to_floor) == self._n_elev
-        num_person_waiting_on_floor = 'num-person-waiting_{floor}'
-        num_person_in_elevator = 'num-person-in-elevator_{elevator}'
-        elev_dir_up = 'elevator-dir-up_{elevator}'
-        elev_closed = 'elevator-closed_{elevator}'
+        num_person_waiting_on_floor = 'num-person-waiting' + FLUENT_SEP + '{floor}'
+        num_person_in_elevator = 'num-person-in-elevator' + FLUENT_SEP + '{elevator}'
+        elev_dir_up = 'elevator-dir-up' + FLUENT_SEP + '{elevator}'
+        elev_closed = 'elevator-closed' + FLUENT_SEP + '{elevator}'
         
         # Initialize the canvas
         screen, surf = self.init_canvas(self._figure_size)

@@ -1,0 +1,165 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Earth Observation domain.                  //
+//                                                                             //
+//                                                                             //
+// Created for the paper                                                       //
+//                                                                             //
+//        Andreas Hertle, Christian Dornhege, Thomas Keller, Robert            //
+//        Mattmüller, Manuela Ortlieb, and Bernhard Nebel: "An Experimental    //
+//        Comparison of Classical, FOND and Probabilistic Planning". KI 2014   //
+//                                                                             //
+// and adapted for IPC 2018 by                                                 //
+//                                                                             //
+//        Thomas Keller (tho.keller [at] unibas.ch).                           //
+//                                                                             //
+//                                                                             //
+// The Earth Observation domain models a satellite orbiting Earth. It can take //
+// pictures of the landscape below with a camera. The landscape is subdivided  //
+// into square regions of interest forming a grid wrapped around a cylindrical //
+// projection of the Earth surface. The camera focuses on one region at a time //
+// and can be shifted north or south. It can take a picture of the region      //
+// currently in focus. The focus may not be shifted while taking a picture.    //
+//                                                                             //
+// Regardless whether the focus is shifted or a picture is taken, the          //
+// satellite moves eastward around Earth, shifting the focus one grid cell to  //
+// the east in addition to the other effects in each step. The objective is to //
+// take pictures of certain regions in a limited timeframe with as few shifts  //
+// and as quick as possible. Taking a picture of a region does not guarantee   //
+// good image quality: the worse the weather, the lower the chance of success. //
+//                                                                             //
+// Over time the visibility in each region can change probabilistically.       //
+// Changes between similar levels of visibility are more likely than vast      //
+// changes.                                                                    //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain earth-observation_mdp {
+    requirements {
+        reward-deterministic,
+        preconditions
+    };
+
+
+    types {
+        patch            : object;
+        direction        : { @north-east, @south-east, @east };
+        visibility-level : { @high, @medium, @low };
+    };
+
+
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+
+        // connectivity of the observation area
+        CONNECTED(patch, patch, direction) : { non-fluent, bool, default = false };
+
+        // probability that taking a picture with high visibility fails
+        FAILURE_PROB_HIGH_VIS              : { non-fluent, real, default = 0.05 };
+
+        // probability that taking a picture with medium visibility fails
+        FAILURE_PROB_MEDIUM_VIS            : { non-fluent, real, default = 0.3 };
+
+        // probability that taking a picture with low visibility fails
+        FAILURE_PROB_LOW_VIS               : { non-fluent, real, default = 0.7 };
+
+        // probability that the visibility changes from high to medium
+        HIGH_TO_MEDIUM_VIS                 : { non-fluent, real, default = 0.3 };
+
+        // probability that the visibility changes from high to low
+        HIGH_TO_LOW_VIS                    : { non-fluent, real, default = 0.1 };
+
+        // probability that the visibility changes from medium to high
+        MEDIUM_TO_HIGH_VIS                 : { non-fluent, real, default = 0.3 };
+
+        // probability that the visibility changes from medium to low
+        MEDIUM_TO_LOW_VIS                  : { non-fluent, real, default = 0.2 };
+
+        // probability that the visibility changes from low to medium
+        LOW_TO_MEDIUM_VIS                  : { non-fluent, real, default = 0.35 };
+
+        // probability that the visibility changes from low to high
+        LOW_TO_HIGH_VIS                    : { non-fluent, real, default = 0.2 };
+
+
+        //////////////////// state-fluents ////////////////////
+
+        // this patch is the current focal point of the satellite's camera
+        is-focal-point(patch)              : { state-fluent, bool, default = false };
+
+        // an image of this patch has to be taken
+        is-target(patch)                   : { state-fluent, bool, default = false };
+
+        // the current visibility at this patch
+        visibility(patch)                  : { state-fluent, visibility-level, default = @medium };
+
+        //////////////////// action-fluents ////////////////////
+
+        // slew the camera
+        slew(direction)                    : { action-fluent, bool, default = false };
+
+        // take an image
+        take-image                         : { action-fluent, bool, default = false }; 
+    };
+
+
+    cpfs {
+        // the next focal point of the camera is the patch in slew-direction
+        // of the current focal point
+        is-focal-point'(?next) =
+            exists_{ ?last : patch, ?d : direction } [ is-focal-point(?last) & CONNECTED(?last, ?next, ?d) & slew(?d) ];
+
+        // a patch remains a target status unless an image is taken
+        // successfully (which depends on the current visibility)
+        is-target'(?p) =
+            // if (is-target(?p) & is-focal-point(?p) & take-image) then 
+            //     switch( visibility(?p) ) {
+            //         case @high   : Bernoulli(FAILURE_PROB_HIGH_VIS),
+            //         case @medium : Bernoulli(FAILURE_PROB_MEDIUM_VIS),
+            //         case @low    : Bernoulli(FAILURE_PROB_LOW_VIS)
+            //     }
+            // else is-target(?p);
+            if (is-target(?p) & is-focal-point(?p) & take-image & (visibility(?p) == @high) )
+               then Bernoulli(FAILURE_PROB_HIGH_VIS)
+            else if (is-target(?p) & is-focal-point(?p) & take-image & (visibility(?p) == @medium) )
+               then Bernoulli(FAILURE_PROB_MEDIUM_VIS)
+            else if (is-target(?p) & is-focal-point(?p) & take-image & (visibility(?p) == @low) )
+               then Bernoulli(FAILURE_PROB_LOW_VIS)
+            else is-target(?p);
+
+        // visibility is a stochastic process depending on the current visibility
+        visibility'(?p) = 
+            if(visibility(?p) == @high) then
+                Discrete( visibility-level,
+                    @high   : 1.0 - HIGH_TO_LOW_VIS - HIGH_TO_MEDIUM_VIS,
+                    @low    : HIGH_TO_LOW_VIS,
+                    @medium : HIGH_TO_MEDIUM_VIS)
+            else if(visibility(?p) == @low) then
+                Discrete( visibility-level,
+                    @high   : LOW_TO_HIGH_VIS,
+                    @low    : 1.0 - LOW_TO_HIGH_VIS - LOW_TO_MEDIUM_VIS,
+                    @medium : LOW_TO_MEDIUM_VIS)
+            else
+                Discrete( visibility-level,
+                    @high   : MEDIUM_TO_HIGH_VIS,
+                    @low    : MEDIUM_TO_LOW_VIS,
+                    @medium : 1.0 - MEDIUM_TO_HIGH_VIS - MEDIUM_TO_LOW_VIS);
+    };
+
+
+    // each patch that hasn't been photographed incurs a penalty, and each action
+    // (apart from slew(east), which is done "automatically") incurs a cost
+    reward = 0 - (sum_{ ?p : patch } [ is-target(?p) ]) - (slew(@north-east) + slew(@south-east) + take-image);
+
+
+    action-preconditions {
+        // do not slew the camera such that the focal point is out of the map
+        forall_{ ?p : patch, ?d : direction } [ ( is-focal-point(?p) & slew(?d) ) => exists_{ ?p2 : patch } [ CONNECTED(?p, ?p2, ?d) ] ];
+
+        // always execute one slew action, and take-image only in conjunction with slew(@east)
+        slew(@north-east) + slew(@south-east) + (take-image | slew(@east)) == 1;
+        take-image => slew(@east);
+  };
+}

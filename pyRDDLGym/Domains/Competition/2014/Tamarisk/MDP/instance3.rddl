@@ -1,0 +1,39 @@
+non-fluents nf_tamarisk_inst_mdp__3 {
+	domain = tamarisk_mdp;
+	objects {
+		slot : {s1s1, s1s2, s2s1, s2s2, s3s1, s3s2, s4s1, s4s2, s5s1, s5s2};
+		reach : {r1, r2, r3, r4, r5};
+	};
+
+	non-fluents {
+		SLOT-AT-REACH(s1s1,r1);
+		SLOT-AT-REACH(s1s2,r1);
+		DOWNSTREAM-REACH(r2,r1);
+		SLOT-AT-REACH(s2s1,r2);
+		SLOT-AT-REACH(s2s2,r2);
+		DOWNSTREAM-REACH(r3,r2);
+		SLOT-AT-REACH(s3s1,r3);
+		SLOT-AT-REACH(s3s2,r3);
+		DOWNSTREAM-REACH(r4,r3);
+		SLOT-AT-REACH(s4s1,r4);
+		SLOT-AT-REACH(s4s2,r4);
+		DOWNSTREAM-REACH(r5,r4);
+		SLOT-AT-REACH(s5s1,r5);
+		SLOT-AT-REACH(s5s2,r5);
+	};
+}
+
+instance tamarisk_inst_mdp__3 {
+	domain = tamarisk_mdp;
+	non-fluents = nf_tamarisk_inst_mdp__3;
+	init-state {
+		tamarisk-at(s1s1);
+		native-at(s2s2);
+		native-at(s3s1);
+		native-at(s4s1);
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 40;
+	discount = 1.0;
+}

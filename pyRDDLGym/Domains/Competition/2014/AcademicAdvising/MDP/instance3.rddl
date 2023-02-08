@@ -1,0 +1,44 @@
+non-fluents nf_academic_advising_inst_mdp__3 {
+	domain = academic_advising_mdp;
+	objects {
+		course : {CS11, CS12, CS13, CS21, CS22, CS23, CS31, CS32, CS33, CS41, CS42, CS43, CS51, CS52, CS53};
+	};
+
+	non-fluents {
+		PROGRAM_REQUIREMENT(CS12);
+		PROGRAM_REQUIREMENT(CS13);
+		PREREQ(CS12,CS21);
+		PREREQ(CS11,CS22);
+		PREREQ(CS13,CS22);
+		PREREQ(CS22,CS23);
+		PREREQ(CS11,CS23);
+		PREREQ(CS11,CS31);
+		PREREQ(CS12,CS31);
+		PROGRAM_REQUIREMENT(CS31);
+		PREREQ(CS11,CS32);
+		PREREQ(CS23,CS32);
+		PREREQ(CS22,CS32);
+		PREREQ(CS13,CS33);
+		PREREQ(CS11,CS33);
+		PREREQ(CS12,CS41);
+		PROGRAM_REQUIREMENT(CS41);
+		PREREQ(CS22,CS42);
+		PREREQ(CS12,CS42);
+		PREREQ(CS12,CS43);
+		PREREQ(CS22,CS43);
+		PREREQ(CS11,CS43);
+		PREREQ(CS33,CS51);
+		PREREQ(CS31,CS51);
+		PREREQ(CS42,CS52);
+		PREREQ(CS52,CS53);
+		PREREQ(CS33,CS53);
+	};
+}
+
+instance academic_advising_inst_mdp__3 {
+	domain = academic_advising_mdp;
+	non-fluents = nf_academic_advising_inst_mdp__3;
+	max-nondef-actions = 1;
+	horizon  = 40;
+	discount = 1.0;
+}

@@ -280,7 +280,13 @@ class RDDLParser(object):
         if p[1] is None:
             p[0] = dict()
         else:
-            name, block = p[2]
+            name, block = p[2]            
+            # <-- START OF CHANGES TO SUPPORT 2018 INSTANCE BLOCKS
+            if name == 'instance':
+                block, inst = block
+                if inst is not None:
+                    p[1]['non_fluents'] = inst
+            # END OF CHANGES TO SUPPORT 2018 INSTANCE BLOCKS -->
             p[1][name] = block
             p[0] = p[1]
 
@@ -868,21 +874,47 @@ class RDDLParser(object):
         '''pos_int_type_or_pos_inf : INTEGER
                                    | POS_INF'''
         p[0] = p[1]
-
+    
+    def fake_nonfluents_block(self, inst):
+        nonfluents = None
+        if 'init_non_fluent' in inst:
+            sections = {'domain': inst['domain'],
+                        'objects': inst['objects'],
+                        'init_non_fluent': inst['init_non_fluent']}
+            inst_name = 'nf__' + inst['domain']
+            nonfluents = NonFluents(inst_name, sections)
+            if 'non_fluents' in inst:
+                print('warning: parser will override instance non-fluents block ' + 
+                      inst['non_fluents'] + ' with non-fluents {...}; block')
+            inst['non_fluents'] = inst_name
+            del inst['objects']
+            del inst['init_non_fluent']
+        return nonfluents
+    
     def p_instance_block(self, p):
         '''instance_block : INSTANCE IDENT LCURLY instance_list RCURLY'''
-        inst = Instance(p[2], p[4])
-        p[0] = ('instance', inst)
-
+        
+        # <-- START OF CHANGES TO SUPPORT 2018 INSTANCE BLOCKS
+        # inst = Instance(p[2], p[4])
+        # p[0] = ('instance', inst)
+        inst = p[4]
+        nonfluents = self.fake_nonfluents_block(inst)
+        inst = Instance(p[2], inst)
+        p[0] = ('instance', (inst, nonfluents))
+        # END OF CHANGES TO SUPPORT 2018 INSTANCE BLOCKS -->
+        
     def p_instance_list(self, p):
+        # <-- START OF CHANGES TO SUPPORT 2018 INSTANCE BLOCKS
         '''instance_list : instance_list domain_section
                          | instance_list nonfluents_section
+                         | instance_list init_non_fluent_section
                          | instance_list objects_section
                          | instance_list init_state_section
                          | instance_list max_nondef_actions_section
                          | instance_list horizon_spec_section
                          | instance_list discount_section
                          | empty'''
+        # END OF CHANGES TO SUPPORT 2018 INSTANCE BLOCKS -->
         if p[1] is None:
             p[0] = dict()
         else:

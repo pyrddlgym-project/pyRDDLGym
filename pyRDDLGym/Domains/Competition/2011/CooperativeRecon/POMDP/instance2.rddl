@@ -1,0 +1,52 @@
+non-fluents nf_recon_inst_pomdp__2 {
+	domain = recon_pomdp; 
+	objects { 
+		x_pos : {x0,x1};
+		y_pos : {y0,y1};
+		obj : {o0,o1,o2,o3};
+		agent : {a1};
+		tool : {l1,w1,p1};
+
+	}; 
+	non-fluents {
+		LIFE_PROB = 0.7;
+		WATER_PROB = 0.8;
+		DAMAGE_OBS(w1) = 0.832915261387825;
+		NOISE_DAMAGE_OBS(w1) = 0.12862563;
+		DAMAGE_OBS(l1) = 0.9609733745455742;
+		NOISE_DAMAGE_OBS(l1) = 0.085622825;
+
+		ADJACENT-LEFT(x0, x0);
+		ADJACENT-DOWN(y0, y0);
+		ADJACENT-RIGHT(x0, x1);
+		ADJACENT-UP(y0, y1);
+		ADJACENT-LEFT(x1, x0);
+		ADJACENT-DOWN(y1, y0);
+		ADJACENT-RIGHT(x1, x1);
+		ADJACENT-UP(y1, y1);
+		WATER_TOOL(w1);
+		LIFE_TOOL(l1);
+		CAMERA_TOOL(p1);
+		BASE(x1,y1);
+		objAt(o0,x0,y1);
+		objAt(o1,x0,y0);
+		objAt(o2,x1,y0);
+		objAt(o3,x1,y1);
+		HAZARD(x0,y0);
+		DAMAGE_PROB(w1) = 0.48885572;
+		DAMAGE_PROB(l1) = 0.36933035;
+		GOOD_PIC_WEIGHT = 0.97359073;
+		BAD_PIC_WEIGHT = 0.8494862;
+	};
+}
+instance recon_inst_pomdp__2 { 
+	domain = recon_pomdp; 
+ 	non-fluents = nf_recon_inst_pomdp__2;
+	init-state { 
+		agentAt(a1,x1,y1);
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+} 
+

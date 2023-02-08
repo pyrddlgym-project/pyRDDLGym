@@ -1,0 +1,4 @@
+[General]
+name=traffic2014
+description=A simple binary version of the cell transition model (CTM) for modeling traffic.
+viz=TextViz.TextVisualizer

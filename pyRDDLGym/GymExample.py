@@ -1,34 +1,19 @@
-# import os
+import sys
 
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
 from pyRDDLGym.Policies.Agents import RandomAgent
 # from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
 
-# ENV = 'PowerGeneration'
-# ENV = 'MarsRover'
-# ENV = 'UAV continuous'
-# ENV = 'UAV discrete'
-# ENV = 'UAV mixed'
-# ENV = 'Wildfire'
-# ENV = 'MountainCar'
-# ENV = 'CartPole continuous'
-# ENV = 'CartPole discrete'
-ENV = 'Elevators'
-# ENV = 'RecSim'
-# ENV = 'RaceCar'
-# ENV = 'Traffic'
-
-# ENV = 'PropDBN'
-# ENV = 'SupplyChain'
-# ENV = 'WildlifePreserve'
-
-def main():
+def main(env, inst):
+    print(f'preparing to launch instance {inst} of domain {env}...')
+    
     # get the environment info
-    EnvInfo = ExampleManager.GetEnvInfo(ENV)
+    EnvInfo = ExampleManager.GetEnvInfo(env)
+    
     # set up the environment class, choose instance 0 because every example has at least one example instance
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
-                            instance=EnvInfo.get_instance(0),
+                            instance=EnvInfo.get_instance(inst),
                             enforce_action_constraints=False,
                             debug=False)
     
@@ -64,4 +49,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = sys.argv
+    if len(args) < 3:
+        env, inst = 'wildfire', '0'
+    else:
+        env, inst = args[1:3]
+    main(env, inst)

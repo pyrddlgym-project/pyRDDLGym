@@ -1,0 +1,243 @@
+////////////////////////////////////////////////////////////////////
+// Reconnaissance domain (contains elements of Rock Sample / Mars Rover domains)
+//
+// Author: Tom Walsh (thomasjwalsh [at] gmail.com)
+//
+// In the reconnaissance POMDP, there is a 2d grid with an agent, 
+// a base, some hazard squares, and objects in different locations.
+// The agent is equipped with 3 tools, one for detecting water, one for detecting
+// life, and one for taking a picture.  The agent's movements are deterministic
+// but the probability of getting a good reading from the life and water sensors 
+// are stochastic.  Plus, running into a hazard has a probability of damaging 
+// each sensor, which causes their false negative rate to increase dramatically.
+// If the agent returns to the base it can repair each tool individually.
+//
+// In the POMDP version, the hidden state is which of the objects actually contain 
+// life and water.  Unlike the MDP version, tools do not contaminate the 
+// readings, but now the agent has to decide when , after a number of samples,
+// to give up looking for life on a particular object.  
+//
+// Also in the POMDP version, the observation of damage on tools is noisy and hazards 
+// only hurt you when you step on them (rather than getting close to them as they do 
+// in the MDP).
+//
+// Positive reward is given for taking pictures of objects where life was detected 
+// and negative reward is given for pictures where life has not been detected.
+//
+// The major planning decisions in this domain are:
+// 1) Choosing which objects to try the tools on and when to stop looking for water
+//    or life on a given object.
+// 2) Whether or not to repair the tools.
+// 3) Whether or not to risk damage to the tools.
+//
+// This domain contains elements of the Rock Sample and Mars Rover domains:
+//
+// * Mars Rover reference:
+//
+//   John L. Bresina, Richard Dearden, Nicolas Meuleau, Sailesh Ramkrishnan, 
+//   David E. Smith, Richard Washington: Planning under Continuous Time and 
+//   Resource Uncertainty: A Challenge for AI. UAI 2002: 77-84.
+//   http://ti.arc.nasa.gov/static/asanicms/pub-archive/archive/2002-0339.pdf
+// 
+// * Rock Sample reference:
+//
+//   Trey Smith and Reid G. Simmons: Heuristic Search Value Iteration for 
+//   POMDPs.  UAI 2004.  http://www.cs.cmu.edu/~trey/papers/smith04_hsvi.pdf
+//
+////////////////////////////////////////////////////////////////////
+
+domain recon_pomdp {
+  	
+	requirements = { 
+		reward-deterministic,
+//		constrained-state,
+		partially-observed
+	};
+
+	types { 
+		x_pos : object;
+		y_pos : object; 
+		obj : object;
+		agent: object;
+		tool : object;
+	};
+      	
+	pvariables { 
+	
+		//connecting up the locations
+		ADJACENT-UP(y_pos,y_pos) : { non-fluent, bool, default = false };
+		ADJACENT-DOWN(y_pos,y_pos) : { non-fluent, bool, default = false };
+		ADJACENT-RIGHT(x_pos, x_pos) : { non-fluent, bool, default = false };
+		ADJACENT-LEFT(x_pos,x_pos) : { non-fluent, bool, default = false };
+
+		//whether or not an object is at a location
+		objAt(obj, x_pos, y_pos) : { non-fluent, bool, default = false };
+	
+		//probability of life or water for any given object, used on the first two timesteps 
+		//to generate water and life respectively
+		LIFE_PROB  : {non-fluent, real, default = 0.2};
+		WATER_PROB : {non-fluent, real, default = 0.8};
+		
+		//whether this location is a hazard (might damage the tools)
+		HAZARD(x_pos, y_pos) : { non-fluent, bool, default = false };
+
+		//probability of the tool being damaged, and its detection capabilities, without and with damage
+		DAMAGE_PROB(tool)   : { non-fluent, real, default = 0.0 };
+		DETECT_PROB         : { non-fluent, real, default = 0.8 };
+		DETECT_PROB_DAMAGED : { non-fluent, real, default = 0.4 };
+		
+		//types of tools
+		CAMERA_TOOL(tool) : { non-fluent, bool, default = false };
+		LIFE_TOOL(tool)   : { non-fluent, bool, default = false };
+		WATER_TOOL(tool)  : { non-fluent, bool, default = false };
+		
+		//Base where you can repair the tools
+		BASE(x_pos, y_pos) : { non-fluent, bool, default = false };
+		
+		//weights for the reward function, good pics are one where you detected life, bad pics are where you did not
+		GOOD_PIC_WEIGHT : { non-fluent, real, default = 1.0 };
+		BAD_PIC_WEIGHT  : { non-fluent, real, default = 2.0 };
+		
+		//probability of seeing damage done to a tool on a given timestep
+		DAMAGE_OBS(tool)       : { non-fluent, real, default = 0.8};
+		NOISE_DAMAGE_OBS(tool) : { non-fluent, real, default = 0.2};
+
+		//keeps track of whether we are on the first two steps (for life and water generation)
+		oneStep : {state-fluent, bool, default = false };
+		twoStep : {state-fluent, bool, default = false };
+
+		//potentially activated in first two steps
+		HAS_LIFE(obj) : { state-fluent, bool, default = false };
+		HAS_WATER(obj) : { state-fluent, bool, default = false };
+		
+		damaged(tool) : { state-fluent, bool, default = false };
+
+		//tool detection fluents
+		waterDetected(obj) : { state-fluent, bool, default = false };
+		lifeDetected(obj)  : { state-fluent, bool, default = false };
+
+		pictureTaken(obj) : { state-fluent, bool, default = false };
+		agentAt(agent, x_pos, y_pos) : { state-fluent, bool, default = false };
+
+		//observables
+		lifeDetectedObs(obj): {observ-fluent, bool};
+		waterDetectedObs(obj) : { observ-fluent, bool };
+		damagedObs(tool) :{ observ-fluent, bool };
+
+		//actions
+		up(agent) : {action-fluent, bool, default = false};
+		down(agent) : {action-fluent, bool, default = false};
+		left(agent) : {action-fluent, bool, default = false};
+		right(agent) : {action-fluent, bool, default = false};
+		useToolOn(agent, tool, obj) : {action-fluent, bool, default = false};
+		repair(agent, tool) : {action-fluent, bool, default = false};
+	};
+  
+	cpfs {
+	
+		//keeping track of those first 2 steps for genesis (see next)
+		oneStep' = KronDelta( true );
+		twoStep' = KronDelta( oneStep );
+
+		//generation of water and life (genesis!)
+		HAS_WATER'(?o) = 
+			if (HAS_WATER(?o))
+				then KronDelta( true )
+			else if (~oneStep)
+				then Bernoulli( WATER_PROB )
+			else // not a step where water can be generated
+				KronDelta( false );
+				
+		HAS_LIFE'(?o) = 
+			if (HAS_LIFE(?o))
+				then KronDelta( true )
+			else if (~twoStep ^ HAS_WATER(?o))
+				then Bernoulli( LIFE_PROB ) // can only have life if water
+			else // not a step where water can be generated
+				KronDelta ( false );
+ 
+		//observables, mostly fully observable
+		lifeDetectedObs(?o) = 
+			KronDelta( lifeDetected'(?o) );
+			
+		waterDetectedObs(?o) = 
+			KronDelta( waterDetected'(?o) );
+			
+		damagedObs(?t) = 
+			if (damaged'(?t)) 
+				then Bernoulli(DAMAGE_OBS(?t)) 
+			else 
+				Bernoulli(NOISE_DAMAGE_OBS(?t));
+
+		//damage caused by hazard
+		//repair at base always repairs it or maintains it in a repair state
+		damaged'(?t) =
+			if ((exists_{?x : x_pos, ?y : y_pos, ?a: agent} [agentAt(?a, ?x, ?y) ^ BASE(?x, ?y) ^ repair(?a, ?t)]))
+				then KronDelta(false) // either not damaged already or repaired
+			else if (~damaged(?t) ^ exists_{?x : x_pos, ?y : y_pos, ?a: agent} [agentAt(?a, ?x, ?y) ^ HAZARD(?x, ?y)])
+				then Bernoulli(DAMAGE_PROB(?t)) // hazard probabilistically affects undamaged tool
+			else
+				KronDelta( damaged(?t) ); // Nothing affected tool so state persists
+		
+		//water detection, no false positives
+		waterDetected'(?o) = 
+			if (waterDetected(?o)) 
+				then KronDelta(true) 
+			else if (~HAS_WATER(?o)) 
+				then KronDelta(false) 
+				
+			// water present for remaining cases
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [WATER_TOOL(?t) ^ damaged(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o)])
+				then Bernoulli(DETECT_PROB_DAMAGED)
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [WATER_TOOL(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o)])
+				then Bernoulli(DETECT_PROB)
+			else
+				KronDelta(false); // no detection action
+
+		//life detection, no false positives
+		lifeDetected'(?o) = 
+			if (lifeDetected(?o)) 
+				then KronDelta(true) 
+			else if (~HAS_LIFE(?o) | ~waterDetected(?o)) 
+				then KronDelta(false)
+				
+			// life present for remaining cases
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [LIFE_TOOL(?t) ^ damaged(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o)])
+				then Bernoulli(DETECT_PROB_DAMAGED)
+			else if (exists_{?t : tool, ?x : x_pos, ?y : y_pos, ?a: agent} [LIFE_TOOL(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o)])
+				then Bernoulli(DETECT_PROB)
+			else
+				KronDelta(false); // no detection action
+				
+		//inhibits reward for future pictures of this object
+		pictureTaken'(?o) =
+			KronDelta( exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [ CAMERA_TOOL(?t) ^ agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ ~damaged(?t)] );
+
+		agentAt'(?a, ?x, ?y) = 
+			KronDelta(
+				[agentAt(?a, ?x, ?y) ^ ~(up(?a) | down(?a) | right(?a) | left(?a))] |
+				[left(?a) ^ exists_{?x2 : x_pos} [agentAt(?a, ?x2, ?y) ^ ADJACENT-LEFT(?x2, ?x)]] |
+				[right(?a) ^ exists_{?x2 : x_pos} [agentAt(?a, ?x2, ?y) ^ ADJACENT-RIGHT(?x2, ?x)]] |
+				[up(?a) ^ exists_{?y2 : y_pos} [agentAt(?a, ?x, ?y2) ^ ADJACENT-UP(?y2, ?y)]] |
+				[down(?a) ^ exists_{?y2 : y_pos} [agentAt(?a, ?x, ?y2) ^ ADJACENT-DOWN(?y2, ?y)]] );
+
+	};
+    	
+	// Only get rewarded for a good or bad picture when the action is *taken*
+	reward = [sum_{?o : obj}  
+				 (GOOD_PIC_WEIGHT * 
+				  [ ~pictureTaken(?o) ^ lifeDetected(?o) ^ exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ CAMERA_TOOL(?t) ^ ~damaged(?t)]])
+			 ] +
+			 [sum_{?o : obj} 
+				 -(BAD_PIC_WEIGHT * 
+				  [ ~lifeDetected(?o) ^ exists_{?x : x_pos, ?y : y_pos, ?a: agent, ?t: tool} [agentAt(?a, ?x, ?y) ^ objAt(?o, ?x, ?y) ^ useToolOn(?a, ?t, ?o) ^ CAMERA_TOOL(?t)]])
+			 ]; 
+
+//	state-action-constraints {
+//		(sum_{?t: tool} [WATER_TOOL(?t)]) >= 1;
+//		(sum_{?t: tool} [CAMERA_TOOL(?t)]) >= 1;
+//		(sum_{?t: tool} [LIFE_TOOL(?t)]) >= 1;
+//	};
+
+}
+

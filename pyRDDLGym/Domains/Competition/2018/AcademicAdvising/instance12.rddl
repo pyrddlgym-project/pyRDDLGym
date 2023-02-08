@@ -1,0 +1,215 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Academic Advising instance #12 for IPC 2018 by Thomas   //
+// Keller (tho.keller [at] unibas.ch), based on the IPC 2014 domain by Libby   //
+// Ferland (libby.knouse [at] uky.edu).                                        //
+//                                                                             //
+//                                                                             //
+// The naive policy that ignores all preconditions and takes courses that are  //
+// program requirements until it succeeds is expected to complete the program  //
+// after 29.00 steps with an expected reward of -185.63.                       //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance academic-advising_inst_mdp__12 {
+    domain = academic-advising_mdp;
+    objects {
+       course : { c0000, c0001, c0002, c0003, c0004, c0005, c0006, c0007, c0008, c0009, c0100, c0101, c0102, c0103, c0104, c0105, c0106, c0107, c0108, c0109, c0200, c0201, c0202, c0203, c0204, c0205, c0206, c0207, c0208, c0209, c0300, c0301, c0302, c0303, c0304, c0305, c0306, c0307, c0308, c0309, c0400, c0401, c0402, c0403, c0404, c0405, c0406, c0407, c0500, c0501, c0502, c0503, c0504, c0505, c0600, c0601, c0602, c0603, c0604, c0700, c0701, c0702, c0703, c0704 };
+    };
+
+    non-fluents {
+        COURSES_PER_SEMESTER = 2;
+
+        // PRIOR PROBS
+        PRIOR_PROB_PASS_NO_PREREQ(c0000) = 0.70;
+        PRIOR_PROB_PASS_NO_PREREQ(c0001) = 0.85;
+        PRIOR_PROB_PASS_NO_PREREQ(c0002) = 0.59;
+        PRIOR_PROB_PASS_NO_PREREQ(c0003) = 0.70;
+        PRIOR_PROB_PASS_NO_PREREQ(c0004) = 0.87;
+        PRIOR_PROB_PASS_NO_PREREQ(c0005) = 0.80;
+        PRIOR_PROB_PASS_NO_PREREQ(c0006) = 0.66;
+        PRIOR_PROB_PASS_NO_PREREQ(c0007) = 0.82;
+        PRIOR_PROB_PASS_NO_PREREQ(c0008) = 0.90;
+        PRIOR_PROB_PASS_NO_PREREQ(c0009) = 0.48;
+        PRIOR_PROB_PASS(c0100) = 0.14;
+        PRIOR_PROB_PASS(c0101) = 0.05;
+        PRIOR_PROB_PASS(c0102) = 0.05;
+        PRIOR_PROB_PASS(c0103) = 0.19;
+        PRIOR_PROB_PASS(c0104) = 0.27;
+        PRIOR_PROB_PASS(c0105) = 0.21;
+        PRIOR_PROB_PASS(c0106) = 0.43;
+        PRIOR_PROB_PASS(c0107) = 0.13;
+        PRIOR_PROB_PASS(c0108) = 0.37;
+        PRIOR_PROB_PASS(c0109) = 0.05;
+        PRIOR_PROB_PASS(c0200) = 0.07;
+        PRIOR_PROB_PASS(c0201) = 0.26;
+        PRIOR_PROB_PASS(c0202) = 0.13;
+        PRIOR_PROB_PASS(c0203) = 0.45;
+        PRIOR_PROB_PASS(c0204) = 0.44;
+        PRIOR_PROB_PASS(c0205) = 0.27;
+        PRIOR_PROB_PASS(c0206) = 0.08;
+        PRIOR_PROB_PASS(c0207) = 0.21;
+        PRIOR_PROB_PASS(c0208) = 0.31;
+        PRIOR_PROB_PASS(c0209) = 0.08;
+        PRIOR_PROB_PASS(c0300) = 0.13;
+        PRIOR_PROB_PASS(c0301) = 0.30;
+        PRIOR_PROB_PASS(c0302) = 0.35;
+        PRIOR_PROB_PASS(c0303) = 0.10;
+        PRIOR_PROB_PASS(c0304) = 0.12;
+        PRIOR_PROB_PASS(c0305) = 0.11;
+        PRIOR_PROB_PASS(c0306) = 0.20;
+        PRIOR_PROB_PASS(c0307) = 0.24;
+        PRIOR_PROB_PASS(c0308) = 0.12;
+        PRIOR_PROB_PASS(c0309) = 0.07;
+        PRIOR_PROB_PASS(c0400) = 0.22;
+        PRIOR_PROB_PASS(c0401) = 0.31;
+        PRIOR_PROB_PASS(c0402) = 0.22;
+        PRIOR_PROB_PASS(c0403) = 0.09;
+        PRIOR_PROB_PASS(c0404) = 0.20;
+        PRIOR_PROB_PASS(c0405) = 0.29;
+        PRIOR_PROB_PASS(c0406) = 0.39;
+        PRIOR_PROB_PASS(c0407) = 0.11;
+        PRIOR_PROB_PASS(c0500) = 0.44;
+        PRIOR_PROB_PASS(c0501) = 0.33;
+        PRIOR_PROB_PASS(c0502) = 0.10;
+        PRIOR_PROB_PASS(c0503) = 0.31;
+        PRIOR_PROB_PASS(c0504) = 0.18;
+        PRIOR_PROB_PASS(c0505) = 0.43;
+        PRIOR_PROB_PASS(c0600) = 0.16;
+        PRIOR_PROB_PASS(c0601) = 0.13;
+        PRIOR_PROB_PASS(c0602) = 0.07;
+        PRIOR_PROB_PASS(c0603) = 0.12;
+        PRIOR_PROB_PASS(c0604) = 0.10;
+        PRIOR_PROB_PASS(c0700) = 0.18;
+        PRIOR_PROB_PASS(c0701) = 0.41;
+        PRIOR_PROB_PASS(c0702) = 0.40;
+        PRIOR_PROB_PASS(c0703) = 0.09;
+        PRIOR_PROB_PASS(c0704) = 0.09;
+
+        // PREREQ
+        PREREQ(c0000, c0100);
+        PREREQ(c0009, c0100);
+        PREREQ(c0001, c0101);
+        PREREQ(c0006, c0102);
+        PREREQ(c0005, c0102);
+        PREREQ(c0009, c0102);
+        PREREQ(c0009, c0103);
+        PREREQ(c0002, c0103);
+        PREREQ(c0001, c0104);
+        PREREQ(c0002, c0104);
+        PREREQ(c0009, c0105);
+        PREREQ(c0006, c0105);
+        PREREQ(c0003, c0106);
+        PREREQ(c0003, c0107);
+        PREREQ(c0002, c0107);
+        PREREQ(c0000, c0108);
+        PREREQ(c0001, c0108);
+        PREREQ(c0003, c0109);
+        PREREQ(c0006, c0200);
+        PREREQ(c0104, c0200);
+        PREREQ(c0101, c0201);
+        PREREQ(c0108, c0202);
+        PREREQ(c0106, c0202);
+        PREREQ(c0000, c0203);
+        PREREQ(c0106, c0203);
+        PREREQ(c0002, c0204);
+        PREREQ(c0106, c0205);
+        PREREQ(c0106, c0206);
+        PREREQ(c0105, c0206);
+        PREREQ(c0008, c0207);
+        PREREQ(c0103, c0208);
+        PREREQ(c0106, c0208);
+        PREREQ(c0106, c0209);
+        PREREQ(c0103, c0209);
+        PREREQ(c0008, c0300);
+        PREREQ(c0101, c0301);
+        PREREQ(c0103, c0301);
+        PREREQ(c0103, c0302);
+        PREREQ(c0209, c0302);
+        PREREQ(c0103, c0303);
+        PREREQ(c0202, c0303);
+        PREREQ(c0109, c0304);
+        PREREQ(c0101, c0305);
+        PREREQ(c0202, c0305);
+        PREREQ(c0205, c0306);
+        PREREQ(c0107, c0306);
+        PREREQ(c0204, c0307);
+        PREREQ(c0203, c0307);
+        PREREQ(c0102, c0308);
+        PREREQ(c0200, c0308);
+        PREREQ(c0204, c0308);
+        PREREQ(c0101, c0309);
+        PREREQ(c0200, c0309);
+        PREREQ(c0302, c0400);
+        PREREQ(c0307, c0400);
+        PREREQ(c0306, c0401);
+        PREREQ(c0005, c0401);
+        PREREQ(c0103, c0402);
+        PREREQ(c0103, c0403);
+        PREREQ(c0307, c0404);
+        PREREQ(c0106, c0404);
+        PREREQ(c0306, c0405);
+        PREREQ(c0307, c0406);
+        PREREQ(c0304, c0406);
+        PREREQ(c0205, c0406);
+        PREREQ(c0306, c0407);
+        PREREQ(c0306, c0407);
+        PREREQ(c0406, c0500);
+        PREREQ(c0407, c0500);
+        PREREQ(c0206, c0501);
+        PREREQ(c0304, c0501);
+        PREREQ(c0406, c0502);
+        PREREQ(c0407, c0502);
+        PREREQ(c0407, c0503);
+        PREREQ(c0203, c0503);
+        PREREQ(c0200, c0504);
+        PREREQ(c0405, c0504);
+        PREREQ(c0405, c0505);
+        PREREQ(c0200, c0505);
+        PREREQ(c0107, c0600);
+        PREREQ(c0405, c0601);
+        PREREQ(c0306, c0602);
+        PREREQ(c0503, c0602);
+        PREREQ(c0502, c0603);
+        PREREQ(c0503, c0603);
+        PREREQ(c0504, c0604);
+        PREREQ(c0501, c0604);
+        PREREQ(c0401, c0700);
+        PREREQ(c0604, c0700);
+        PREREQ(c0504, c0701);
+        PREREQ(c0601, c0701);
+        PREREQ(c0307, c0702);
+        PREREQ(c0504, c0702);
+        PREREQ(c0307, c0703);
+        PREREQ(c0601, c0703);
+        PREREQ(c0601, c0703);
+        PREREQ(c0604, c0704);
+        PREREQ(c0604, c0704);
+
+        // PROGRAM REQUIREMENT
+        PROGRAM_REQUIREMENT(c0704);
+        PROGRAM_REQUIREMENT(c0105);
+        PROGRAM_REQUIREMENT(c0603);
+        PROGRAM_REQUIREMENT(c0504);
+        PROGRAM_REQUIREMENT(c0502);
+        PROGRAM_REQUIREMENT(c0205);
+        PROGRAM_REQUIREMENT(c0000);
+        PROGRAM_REQUIREMENT(c0106);
+        PROGRAM_REQUIREMENT(c0204);
+
+        // COURSE COSTS
+        COURSE_COST = 0;
+        COURSE_RETAKE_COST = -1;
+
+    };
+
+    init-state {
+        ~passed(c0000);
+    };
+
+    horizon  = 40;
+
+    discount = 1.0;
+}
