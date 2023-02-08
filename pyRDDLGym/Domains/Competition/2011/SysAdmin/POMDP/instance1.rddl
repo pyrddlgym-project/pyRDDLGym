@@ -1,0 +1,46 @@
+non-fluents nf_sysadmin_inst_pomdp__1 {
+	domain = sysadmin_pomdp;
+	objects {
+		computer : {c1,c2,c3,c4,c5,c6,c7,c8,c9,c10};
+	};
+	non-fluents {
+		REBOOT-PROB = 0.02;
+		CONNECTED(c1,c3);
+		CONNECTED(c1,c7);
+		CONNECTED(c2,c5);
+		CONNECTED(c3,c1);
+		CONNECTED(c3,c4);
+		CONNECTED(c4,c5);
+		CONNECTED(c4,c8);
+		CONNECTED(c5,c7);
+		CONNECTED(c6,c3);
+		CONNECTED(c6,c4);
+		CONNECTED(c8,c5);
+		CONNECTED(c8,c10);
+		CONNECTED(c9,c2);
+		CONNECTED(c9,c6);
+		CONNECTED(c10,c6);
+		CONNECTED(c10,c8);
+	};
+}
+
+instance sysadmin_inst_pomdp__1 {
+	domain = sysadmin_pomdp;
+	non-fluents = nf_sysadmin_inst_pomdp__1;
+	init-state {
+		running(c1);
+		running(c2);
+		running(c3);
+		running(c4);
+		running(c5);
+		running(c6);
+		running(c7);
+		running(c8);
+		running(c9);
+		running(c10);
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 40;
+	discount = 1.0;
+}

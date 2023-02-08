@@ -1,0 +1,153 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Push Your Luck domain.                     //
+//                                                                             //
+//                                                                             //
+// Created for the probabilistic tracks of IPC 2018 by                         //
+//                                                                             //
+//        Thomas Keller (tho.keller [at] unibas.ch).                           //
+//                                                                             //
+//                                                                             //
+// As the name suggest, Push Your Luck is an artificial version of a "push     //
+// your luck" game like, for instance, Can't Stop (see                         //
+// http://boardgamegeek.com/boardgame/41/cant-stop for more information). The  //
+// main challenge of push your luck games is to determine the optimal moment   //
+// to stop a repeated stochastic process.                                      //
+//                                                                             //
+// In case of the Push Your Luck domain, the player may roll one or more dice  //
+// repeatedly. Each rolled face is marked if it hasn't been marked before, and //
+// all numbers are unmarked if the player chooses to cash out its reward, if a //
+// number is rolled that is already marked or if two rolled dice come up the   //
+// same face.                                                                  //
+//                                                                             //
+// The reward the player obtaines upon cashing out corresponds to the product  //
+// over the value of all marked faces, so it grows exponentially in the number //
+// of consecutive die rolls (by default, the value of the face of a 6-sided    //
+// die equals half the number shown on the die, and the default value of a 10- //
+// or 20-sided die is 0.25 plus a quarter of the shown die value. On the other //
+// hand, the probability to hit a previously rolled number increases with the  //
+// number of consecutive die rolls.                                            //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain push-your-luck_mdp {
+    requirements = {
+        reward-deterministic,
+        preconditions
+    };
+
+
+    types {
+        die    : object;
+        number : { @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12, @13, @14, @15, @16, @17, @18, @19, @20 };
+    };
+
+
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+
+        // the value of the die face with the given number (the number
+        // can be different from the value)
+        VALUE(number)          : { non-fluent, real, default = 0.0 };
+
+        // the probability that a die face is rolled
+        PROB(die, number)      : { non-fluent, real, default = 0.0 };
+
+
+        //////////////////// interm-fluents ////////////////////
+
+        // the face shown by this die
+        die-value(die)         : { interm-fluent, number, level = 1 };
+
+
+        //////////////////// state-fluents ////////////////////
+
+        // this face has been rolled since the last reset
+        die-value-seen(number) : { state-fluent, bool, default = false };
+
+
+        //////////////////// action-fluents ////////////////////
+
+        // roll this die
+        roll(die)              : { action-fluent, bool, default = false };
+
+        // cash-out the current reward
+        cash-out               : { action-fluent, bool, default = false };
+    };
+
+
+    cpfs {
+        // the face shown by this die is determined according to the probability 
+        // that each face shows up (the fact that this also changes if ?d is not
+        // rolled doesn't matter due to the way all other CPFs / reward / action
+        // preconditions are modelled)
+        die-value(?d) =
+            Discrete(number,
+                @1  : PROB(?d, @1),
+                @2  : PROB(?d, @2),
+                @3  : PROB(?d, @3),
+                @4  : PROB(?d, @4),
+                @5  : PROB(?d, @5),
+                @6  : PROB(?d, @6),
+                @7  : PROB(?d, @7),
+                @8  : PROB(?d, @8),
+                @9  : PROB(?d, @9),
+                @10 : PROB(?d, @10),
+                @11 : PROB(?d, @11),
+                @12 : PROB(?d, @12),
+                @13 : PROB(?d, @13),
+                @14 : PROB(?d, @14),
+                @15 : PROB(?d, @15),
+                @16 : PROB(?d, @16),
+                @17 : PROB(?d, @17),
+                @18 : PROB(?d, @18),
+                @19 : PROB(?d, @19),
+                @20 : PROB(?d, @20));
+
+
+        die-value-seen'(?n) =
+            // reset all seen values if two dice are rolled and have the same value
+            if ( exists_{ ?d1 : die, ?d2 : die } [ (?d1 ~= ?d2) & roll(?d1) & roll(?d2) & (die-value(?d1) == die-value(?d2)) ] )
+                then false
+            // reset all seen values if a rolled die comes up a value that has already been seen
+            else if ( ( exists_{ ?d : die, ?n2 : number } [ roll(?d) & (die-value(?d) == ?n2) & die-value-seen(?n2) ] ) )
+                then false
+            // reset all seen values when cash out is executed
+            else if ( cash-out )
+                then false
+            // set this value as it has been rolled this turn
+            else if ( exists_{ ?d : die } [ roll(?d) & (die-value(?d) == ?n) ] )
+                then true
+            // nothing changes
+            else die-value-seen(?n);
+    };
+
+
+    reward =
+        // if cash-out is executed, the reward is equal to the product over
+        // the values of all seen die faces
+        if ( cash-out & ( exists_{?n : number} [ die-value-seen(?n) ] ) )
+            then ( ( (die-value-seen(@1) * VALUE(@1) ) + ~die-value-seen(@1)) * ( (die-value-seen(@2) * VALUE(@2) ) + ~die-value-seen(@2)) *
+                   ( (die-value-seen(@3) * VALUE(@3) ) + ~die-value-seen(@3)) * ( (die-value-seen(@4) * VALUE(@4) ) + ~die-value-seen(@4)) *
+                   ( (die-value-seen(@5) * VALUE(@5) ) + ~die-value-seen(@5)) * ( (die-value-seen(@6) * VALUE(@6) ) + ~die-value-seen(@6)) *
+                   ( (die-value-seen(@7) * VALUE(@7) ) + ~die-value-seen(@7)) * ( (die-value-seen(@8) * VALUE(@8) ) + ~die-value-seen(@8)) *
+                   ( (die-value-seen(@9) * VALUE(@9) ) + ~die-value-seen(@9)) * ( (die-value-seen(@10) * VALUE(@10) ) + ~die-value-seen(@10)) *
+                   ( (die-value-seen(@11) * VALUE(@11) ) + ~die-value-seen(@11)) * ( (die-value-seen(@12) * VALUE(@12) ) + ~die-value-seen(@12)) *
+                   ( (die-value-seen(@13) * VALUE(@13) ) + ~die-value-seen(@13)) * ( (die-value-seen(@14) * VALUE(@14) ) + ~die-value-seen(@14)) *
+                   ( (die-value-seen(@15) * VALUE(@15) ) + ~die-value-seen(@15)) * ( (die-value-seen(@16) * VALUE(@16) ) + ~die-value-seen(@16)) *
+                   ( (die-value-seen(@17) * VALUE(@17) ) + ~die-value-seen(@17)) * ( (die-value-seen(@18) * VALUE(@18) ) + ~die-value-seen(@18)) *
+                   ( (die-value-seen(@19) * VALUE(@19) ) + ~die-value-seen(@19)) * ( (die-value-seen(@20) * VALUE(@20) ) + ~die-value-seen(@20)) )
+        // otherwise, there is no reward (or cost)
+        else 0;
+
+
+    action-preconditions {
+        // execute at least one action
+        cash-out | ( exists_{ ?d : die } [ roll(?d) ] );
+
+        // execute cash-out or roll any number of dice
+        ( forall_{ ?d : die } [ roll( ?d ) + cash-out <= 1 ] );
+    };
+}

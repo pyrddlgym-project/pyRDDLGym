@@ -1,0 +1,4 @@
+[General]
+name=manufacturer2018
+description=In this domain, the agent manages a manufacturing company that buys goods to use them in the production of other goods.
+viz=TextViz.TextVisualizer

@@ -1,0 +1,112 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Earth Observation instance #01 for IPC 2018 by Thomas   //
+// Keller (tho.keller [at] unibas.ch), based on a domain that was created for  //
+// the paper "An Experimental Comparison of Classical, FOND and Probabilistic  //
+// Planning" by Andreas Hertle, Christian Dornhege, Thomas Keller, Robert      //
+// Mattmüller, Manuela Ortlieb, and Bernhard Nebel (KI 2014).                  //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance earth-observation_inst_mdp__01 {
+    domain = earth-observation_mdp;
+
+    objects {
+        patch : { p0101, p0102, p0103, p0104,
+                  p0201, p0202, p0203, p0204,
+                  p0301, p0302, p0303, p0304,
+                  p0401, p0402, p0403, p0404 };
+    };
+
+    non-fluents {
+        FAILURE_PROB_HIGH_VIS = 0.049464;
+        FAILURE_PROB_MEDIUM_VIS = 0.114411;
+        FAILURE_PROB_LOW_VIS = 1.000000;
+
+        HIGH_TO_MEDIUM_VIS = 0.178733;
+        HIGH_TO_LOW_VIS = 0.020000;
+
+        MEDIUM_TO_HIGH_VIS = 0.102450;
+        MEDIUM_TO_LOW_VIS = 0.097493;
+
+        LOW_TO_MEDIUM_VIS = 0.227234;
+        LOW_TO_HIGH_VIS = 0.020000;
+
+        CONNECTED(p0101, p0202, @north-east);
+        CONNECTED(p0101, p0201, @east);
+
+        CONNECTED(p0102, p0203, @north-east);
+        CONNECTED(p0102, p0202, @east);
+        CONNECTED(p0102, p0201, @south-east);
+
+        CONNECTED(p0103, p0204, @north-east);
+        CONNECTED(p0103, p0203, @east);
+        CONNECTED(p0103, p0202, @south-east);
+
+        CONNECTED(p0104, p0204, @east);
+        CONNECTED(p0104, p0203, @south-east);
+
+        CONNECTED(p0201, p0302, @north-east);
+        CONNECTED(p0201, p0301, @east);
+
+        CONNECTED(p0202, p0303, @north-east);
+        CONNECTED(p0202, p0302, @east);
+        CONNECTED(p0202, p0301, @south-east);
+
+        CONNECTED(p0203, p0304, @north-east);
+        CONNECTED(p0203, p0303, @east);
+        CONNECTED(p0203, p0302, @south-east);
+
+        CONNECTED(p0204, p0304, @east);
+        CONNECTED(p0204, p0303, @south-east);
+
+        CONNECTED(p0301, p0402, @north-east);
+        CONNECTED(p0301, p0401, @east);
+
+        CONNECTED(p0302, p0403, @north-east);
+        CONNECTED(p0302, p0402, @east);
+        CONNECTED(p0302, p0401, @south-east);
+
+        CONNECTED(p0303, p0404, @north-east);
+        CONNECTED(p0303, p0403, @east);
+        CONNECTED(p0303, p0402, @south-east);
+
+        CONNECTED(p0304, p0404, @east);
+        CONNECTED(p0304, p0403, @south-east);
+
+        CONNECTED(p0401, p0102, @north-east);
+        CONNECTED(p0401, p0101, @east);
+
+        CONNECTED(p0402, p0103, @north-east);
+        CONNECTED(p0402, p0102, @east);
+        CONNECTED(p0402, p0101, @south-east);
+
+        CONNECTED(p0403, p0104, @north-east);
+        CONNECTED(p0403, p0103, @east);
+        CONNECTED(p0403, p0102, @south-east);
+
+        CONNECTED(p0404, p0104, @east);
+        CONNECTED(p0404, p0103, @south-east);
+
+
+    };
+
+    init-state {
+        is-focal-point(p0103);
+        visibility(p0102) = @high;
+        visibility(p0103) = @high;
+        visibility(p0104) = @high;
+        visibility(p0201) = @high;
+        visibility(p0202) = @high;
+        visibility(p0204) = @high;
+        is-target(p0301);
+        visibility(p0303) = @high;
+        visibility(p0304) = @high;
+        visibility(p0403) = @high;
+
+    };
+    horizon = 32;
+    discount = 1.0;
+}

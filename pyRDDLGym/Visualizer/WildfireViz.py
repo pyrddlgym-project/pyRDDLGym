@@ -32,12 +32,12 @@ class WildfireVisualizer(StateViz):
     
     def build_nonfluents_layout(self): 
         targets = []
-
+        
         for k, v in self._nonfluents.items():
-            if 'TARGET_' in k:
+            var, objects = self._model.parse(k)
+            if var == 'TARGET':
                 if v == True:
-                    x = k.split("_")[1]
-                    y = k.split("_")[2]
+                    x, y = objects
                     targets.append((x, y))
 
         return {'targets':targets}
@@ -47,15 +47,14 @@ class WildfireVisualizer(StateViz):
         fuel = []
 
         for k, v in state.items():
-            if 'burning_' in k:
+            var, objects = self._model.parse(k)
+            if var == 'burning':
                 if v == True:
-                    x = k.split("_")[1]
-                    y = k.split("_")[2]
+                    x, y = objects
                     burning.append((x, y))
-            if 'out-of-fuel_' in k:
+            if var == 'out-of-fuel':
                 if v == True:
-                    x = k.split("_")[1]
-                    y = k.split("_")[2]
+                    x, y = objects
                     fuel.append((x, y))
         
         return {'burning':burning, 'out-of-fuel':fuel}

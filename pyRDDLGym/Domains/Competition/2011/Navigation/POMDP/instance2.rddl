@@ -1,0 +1,43 @@
+non-fluents nf_navigation_inst_pomdp__2 {
+	domain = navigation_pomdp;
+	objects {
+		xpos : {x21,x9,x30,x14,x6};
+		ypos : {y15,y20,y12};
+	};
+	non-fluents {
+		MAX-XPOS(x30);
+		NORTH(y15,y20);
+		SOUTH(y20,y15);
+		MIN-YPOS(y12);
+		WEST(x21,x14);
+		P(x30,y15) = 0.9514062609523535;
+		WEST(x9,x6);
+		P(x6,y15) = 0.02450648322701454;
+		WEST(x30,x21);
+		EAST(x21,x30);
+		EAST(x14,x21);
+		SOUTH(y15,y12);
+		EAST(x9,x14);
+		WEST(x14,x9);
+		P(x14,y15) = 0.4726340211927891;
+		GOAL(x30,y20);
+		P(x21,y15) = 0.7125460356473923;
+		NORTH(y12,y15);
+		MAX-YPOS(y20);
+		MIN-XPOS(x6);
+		P(x9,y15) = 0.2541063576936722;
+		EAST(x6,x9);
+	};
+}
+
+instance navigation_inst_pomdp__2 {
+	domain = navigation_pomdp;
+	non-fluents = nf_navigation_inst_pomdp__2;
+	init-state {
+		min-x;
+	};
+	max-nondef-actions = 1;
+	horizon = 40;
+	discount = 1.0;
+}
+

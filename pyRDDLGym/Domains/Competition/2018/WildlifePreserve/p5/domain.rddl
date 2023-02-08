@@ -1,0 +1,158 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of the IPC 2018 Wildlife Preserve domain for instance 05.  //
+//                                                                             //
+//                                                                             //
+// Created for the probabilistic tracks of IPC 2018 by                         //
+//                                                                             //
+//        Fei Fang (feifang [at] cmu.edu),                                     //
+//        Thanh Hong Nguyen (thanhhng [at] umich.edu) and                      //
+//        Thomas Keller (tho.keller [at] unibas.ch)                            //
+//                                                                             //
+// based on the papers                                                         //
+//                                                                             //
+//    [1] Fei Fang, Peter Stone and Milind Tambe: "When Security Games Go      //
+//        Green: Designing Defender Strategies to Prevent Poaching and Illegal //
+//        Fishing". IJCAI 2015.                                                //
+//                                                                             //
+//    [2] Thanh H. Nguyen, Rong Yang, Amos Azaria, Sarit Kraus and Milind      //
+//        Tambe: "Analyzing the Effectiveness of Adversary Modeling in         //
+//        Security Games". AAAI 2013.                                          //
+//                                                                             //
+//                                                                             //
+// The aim of the Wildlife Preserve domain is to protect a wildlife preserve   //
+// from poachers by sending available ranger to areas. Poachers attack parts   //
+// of the preserve depending on their preferences and an expectation where     //
+// rangers will likely show up. This expectation is computed by exploiting the //
+// assumption typically taken in Stackelberg Security Games that the           //
+// defender’s (i.e., rangers) mixed strategy is fully observed by the          //
+// attacker, and memorized for a predefined number of steps.                   //
+//                                                                             //
+// In each step, the planner obtains a reward for each area that has not been  //
+// attacked undefended, and a penalty for each area that has. The challenge is //
+// to predict where poachers will attack with high probability and to lure the //
+// poachers that observe each step of the rangers into attacking an area where //
+// they are caught. A poacher that has been caught does not attack in the next //
+// step.                                                                       //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+domain wildlife-preserve_05_mdp {
+    requirements { 
+        reward-deterministic,
+        preconditions
+    };
+
+
+    types {
+        ranger  : object;
+        poacher : object;
+        area    : { @a1, @a2, @a3, @a4, @a5, @a6 };
+        number  : { @1 };
+    };
+
+
+    pvariables {
+        //////////////////// non-fluents ////////////////////
+
+        // reward for a successfully defended (or unattacked) area  
+        DEFENDER-REWARD(area)              : { non-fluent, real, default = 10.0 };
+
+        // penalty for a successfully attacked area      
+        DEFENDER-PENALTY(area)             : { non-fluent, real, default = -10.0 };
+
+        // ATTACK-WEIGHT_x(poacher, area) corresponds to the value of
+        // e^(w_1 * eta_i + w_2 * R^a_i + w_3 * P^a_i) as described in [1], where x is
+        // the number of times the area has been attacked in the last y steps, where y 
+        // is the number of rounds the poacher remembers. As the RDDL Exponential
+        // keyword was not explicitly mentioned as part of IPC 2018,
+        // ATTACK-WEIGHT_x(poacher, area) is precomputed.
+        ATTACK-WEIGHT_0(poacher, area)     : { non-fluent, real, default = 0.0 };
+        ATTACK-WEIGHT_1(poacher, area)     : { non-fluent, real, default = 0.0 };
+
+        // true if the poacher remembers what the rangers did a number
+        // of steps ago equal to the given number
+        POACHER-REMEMBERS(poacher, number) : { non-fluent, bool, default = false };
+
+
+        //////////////////// interm-fluents ////////////////////
+
+        // the poacher attacks this area
+        poacher-attacks(poacher)           : { interm-fluent, area, level = 1 };
+
+
+        //////////////////// state-fluents ////////////////////
+
+        // a ranger defended this area a number of steps ago equal to the given number
+        was-defended(area, number)         : { state-fluent, bool, default = false };
+
+        // if a poacher attacks an area that is defended by a ranger, it is 
+        // caught in the next step
+        poacher-caught(poacher)            : { state-fluent, bool, default = false };
+
+
+        //////////////////// action-fluents ////////////////////
+
+        // the only available action is to have a ranger defend an area
+        defend(area, ranger)               : { action-fluent, bool, default = false };
+    };
+
+
+    cpfs {
+        // true if ?n is @1 and ?a was defended by a ranger, or if ?a
+        // was defended at step ?n-1
+        was-defended'(?a, ?n) = exists_{?r : ranger} [ defend(?a, ?r) ];
+
+        // a poacher is caught this step if it attacked a defended area last step
+        poacher-caught'(?p) =
+            exists_{ ?r : ranger, ?a : area } [ (poacher-attacks(?p) == ?a) & defend(?a, ?r) ];
+
+        // We use the SUQR model of [1] and [2] to determine which area is attacked
+        poacher-attacks(?p) =
+            Discrete(area,
+            @a1 :       (((( sum_{?n : number} [ was-defended(@a1, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, @a1)) +
+                         ((( sum_{?n : number} [ was-defended(@a1, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, @a1))) /
+                         sum_{?a :area} [
+                             (((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, ?a)) +
+                              ((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, ?a))) ],
+            @a2 :       (((( sum_{?n : number} [ was-defended(@a2, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, @a2)) +
+                         ((( sum_{?n : number} [ was-defended(@a2, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, @a2))) /
+                         sum_{?a :area} [
+                             (((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, ?a)) +
+                              ((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, ?a))) ],
+            @a3 :       (((( sum_{?n : number} [ was-defended(@a3, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, @a3)) +
+                         ((( sum_{?n : number} [ was-defended(@a3, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, @a3))) /
+                         sum_{?a :area} [
+                             (((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, ?a)) +
+                              ((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, ?a))) ],
+            @a4 :       (((( sum_{?n : number} [ was-defended(@a4, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, @a4)) +
+                         ((( sum_{?n : number} [ was-defended(@a4, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, @a4))) /
+                         sum_{?a :area} [
+                             (((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, ?a)) +
+                              ((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, ?a))) ],
+            @a5 :       (((( sum_{?n : number} [ was-defended(@a5, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, @a5)) +
+                         ((( sum_{?n : number} [ was-defended(@a5, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, @a5))) /
+                         sum_{?a :area} [
+                             (((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, ?a)) +
+                              ((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, ?a))) ],
+            @a6 :       (((( sum_{?n : number} [ was-defended(@a6, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, @a6)) +
+                         ((( sum_{?n : number} [ was-defended(@a6, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, @a6))) /
+                         sum_{?a :area} [
+                             (((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 0)  * ATTACK-WEIGHT_0(?p, ?a)) +
+                              ((( sum_{?n : number} [ was-defended(?a, ?n) & POACHER-REMEMBERS(?p, ?n) ] ) == 1)  * ATTACK-WEIGHT_1(?p, ?a))) ]
+            );
+    };
+
+    // each area that is successfully attacked yields a penalty,
+    // and all other areas yield a reward
+    reward = sum_{?a : area} [ if (~(exists_{?p : poacher} [ (poacher-attacks(?p) == ?a) & ~poacher-caught(?p) ]) |
+                                    ( exists_{?r : ranger} [ defend(?a, ?r) ] ) )
+                               then DEFENDER-REWARD(?a) else DEFENDER-PENALTY(?a) ];
+
+    action-preconditions {
+        // each ranger defends one area per step
+        forall_{?r : ranger} [ ( sum_{?a : area} [ defend(?a, ?r) ] ) == 1 ];
+    };
+}

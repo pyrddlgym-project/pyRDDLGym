@@ -1,0 +1,114 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Push Your Luck instance #12 for IPC 2018 by Thomas      //
+// Keller (tho.keller [at] unibas.ch).                                         //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance push-your-luck_inst_mdp__12 {
+    domain = push-your-luck_mdp;
+
+    objects {
+        die : { d1, d2, d3 };
+    };
+
+    non-fluents {
+        // reward factor is 0.25 plus a quarter of the die value
+        VALUE(@1) = 0.5;
+        VALUE(@2) = 0.75;
+        VALUE(@3) = 1.0;
+        VALUE(@4) = 1.25;
+        VALUE(@5) = 1.5;
+        VALUE(@6) = 1.75;
+        VALUE(@7) = 2.0;
+        VALUE(@8) = 2.25;
+        VALUE(@9) = 2.5;
+        VALUE(@10) = 2.75;
+        VALUE(@11) = 3.0;
+        VALUE(@12) = 3.25;
+        VALUE(@13) = 3.5;
+        VALUE(@14) = 3.75;
+        VALUE(@15) = 4.0;
+        VALUE(@16) = 4.25;
+        VALUE(@17) = 4.5;
+        VALUE(@18) = 4.75;
+        VALUE(@19) = 5.0;
+        VALUE(@20) = 5.25;
+
+        // fair 20-sided die
+        PROB(d1, @1) = 0.05;
+        PROB(d1, @2) = 0.05;
+        PROB(d1, @3) = 0.05;
+        PROB(d1, @4) = 0.05;
+        PROB(d1, @5) = 0.05;
+        PROB(d1, @6) = 0.05;
+        PROB(d1, @7) = 0.05;
+        PROB(d1, @8) = 0.05;
+        PROB(d1, @9) = 0.05;
+        PROB(d1, @10) = 0.05;
+        PROB(d1, @11) = 0.05;
+        PROB(d1, @12) = 0.05;
+        PROB(d1, @13) = 0.05;
+        PROB(d1, @14) = 0.05;
+        PROB(d1, @15) = 0.05;
+        PROB(d1, @16) = 0.05;
+        PROB(d1, @17) = 0.05;
+        PROB(d1, @18) = 0.05;
+        PROB(d1, @19) = 0.05;
+        PROB(d1, @20) = 0.05;
+
+        // fair 20-sided die
+        PROB(d2, @1) = 0.05;
+        PROB(d2, @2) = 0.05;
+        PROB(d2, @3) = 0.05;
+        PROB(d2, @4) = 0.05;
+        PROB(d2, @5) = 0.05;
+        PROB(d2, @6) = 0.05;
+        PROB(d2, @7) = 0.05;
+        PROB(d2, @8) = 0.05;
+        PROB(d2, @9) = 0.05;
+        PROB(d2, @10) = 0.05;
+        PROB(d2, @11) = 0.05;
+        PROB(d2, @12) = 0.05;
+        PROB(d2, @13) = 0.05;
+        PROB(d2, @14) = 0.05;
+        PROB(d2, @15) = 0.05;
+        PROB(d2, @16) = 0.05;
+        PROB(d2, @17) = 0.05;
+        PROB(d2, @18) = 0.05;
+        PROB(d2, @19) = 0.05;
+        PROB(d2, @20) = 0.05;
+
+        // fair 20-sided die
+        PROB(d3, @1) = 0.05;
+        PROB(d3, @2) = 0.05;
+        PROB(d3, @3) = 0.05;
+        PROB(d3, @4) = 0.05;
+        PROB(d3, @5) = 0.05;
+        PROB(d3, @6) = 0.05;
+        PROB(d3, @7) = 0.05;
+        PROB(d3, @8) = 0.05;
+        PROB(d3, @9) = 0.05;
+        PROB(d3, @10) = 0.05;
+        PROB(d3, @11) = 0.05;
+        PROB(d3, @12) = 0.05;
+        PROB(d3, @13) = 0.05;
+        PROB(d3, @14) = 0.05;
+        PROB(d3, @15) = 0.05;
+        PROB(d3, @16) = 0.05;
+        PROB(d3, @17) = 0.05;
+        PROB(d3, @18) = 0.05;
+        PROB(d3, @19) = 0.05;
+        PROB(d3, @20) = 0.05;
+    };
+
+    init-state {
+        ~die-value-seen(@1);
+    };
+
+    horizon = 40;
+
+    discount = 1.0;
+}

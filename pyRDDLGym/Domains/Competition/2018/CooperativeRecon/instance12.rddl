@@ -1,0 +1,135 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Cooperative Recon instance #12 for IPC 2018 by Thomas   //
+// Keller (tho.keller [at] unibas.ch), based on the IPC 2011 domain by Tom     //
+// Walsh (thomasjwalsh [at] gmail.com).                                        //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance cooperative-recon_inst_mdp__12 {
+    domain = cooperative-recon_mdp;
+
+    objects { 
+        xpos               : { x00, x01, x02, x03, x04, x05 };
+        ypos               : { y00, y01, y02, y03, y04, y05 };
+        object-of-interest : { obj00, obj01, obj02, obj03, obj04, obj05, obj06, obj07, obj08, obj09 };
+        agent              : { a00, a01, a02 };
+        tool               : { w00, l01, c02 };
+    };
+
+    non-fluents {
+        // ADJACENCY
+        ADJACENT_LEFT(x00, x01);
+        ADJACENT_RIGHT(x01, x00);
+        ADJACENT_LEFT(x01, x02);
+        ADJACENT_RIGHT(x02, x01);
+        ADJACENT_LEFT(x02, x03);
+        ADJACENT_RIGHT(x03, x02);
+        ADJACENT_LEFT(x03, x04);
+        ADJACENT_RIGHT(x04, x03);
+        ADJACENT_LEFT(x04, x05);
+        ADJACENT_RIGHT(x05, x04);
+        ADJACENT_DOWN(y00, y01);
+        ADJACENT_UP(y01, y00);
+        ADJACENT_DOWN(y01, y02);
+        ADJACENT_UP(y02, y01);
+        ADJACENT_DOWN(y02, y03);
+        ADJACENT_UP(y03, y02);
+        ADJACENT_DOWN(y03, y04);
+        ADJACENT_UP(y04, y03);
+        ADJACENT_DOWN(y04, y05);
+        ADJACENT_UP(y05, y04);
+
+        // BASE
+        BASE(x00, y01);
+
+        // TOOLS
+        WATER_TOOL(w00);
+        HAS_TOOL(a00, w00);
+        LIFE_TOOL(l01);
+        HAS_TOOL(a01, l01);
+        CAMERA_TOOL(c02);
+        HAS_TOOL(a02, c02);
+
+        // DAMAGE_PROBS
+        DAMAGE_PROB(x00, y02) = 0.11;
+        DAMAGE_PROB(x00, y03) = 0.27;
+        DAMAGE_PROB(x00, y04) = 0.11;
+        DAMAGE_PROB(x01, y01) = 0.78;
+        DAMAGE_PROB(x01, y02) = 1.00;
+        DAMAGE_PROB(x01, y03) = 1.00;
+        DAMAGE_PROB(x01, y04) = 0.29;
+        DAMAGE_PROB(x02, y01) = 1.00;
+        DAMAGE_PROB(x02, y02) = 1.00;
+        DAMAGE_PROB(x02, y03) = 0.98;
+        DAMAGE_PROB(x03, y00) = 0.10;
+        DAMAGE_PROB(x03, y01) = 0.38;
+        DAMAGE_PROB(x03, y02) = 0.69;
+        DAMAGE_PROB(x03, y05) = 0.38;
+        DAMAGE_PROB(x04, y00) = 0.23;
+        DAMAGE_PROB(x04, y01) = 0.10;
+        DAMAGE_PROB(x04, y02) = 0.27;
+        DAMAGE_PROB(x04, y04) = 0.38;
+        DAMAGE_PROB(x04, y05) = 1.00;
+        DAMAGE_PROB(x05, y00) = 0.10;
+        DAMAGE_PROB(x05, y01) = 0.27;
+        DAMAGE_PROB(x05, y02) = 0.47;
+        DAMAGE_PROB(x05, y03) = 0.27;
+        DAMAGE_PROB(x05, y04) = 0.29;
+        DAMAGE_PROB(x05, y05) = 0.86;
+
+        // DETECT_PROBS
+        DETECT_PROB = 0.4;
+        DETECT_PROB_DAMAGED = 0.2;
+        DETECT_PROB_WITH_SUPPORT = 0.8;
+        DETECT_PROB_DAMAGED_WITH_SUPPORT = 0.4;
+
+        // OBJECT_AT
+        OBJECT_AT(obj00, x00, y00);
+        OBJECT_AT(obj01, x05, y03);
+        OBJECT_AT(obj02, x00, y04);
+        OBJECT_AT(obj03, x01, y04);
+        OBJECT_AT(obj04, x01, y01);
+        OBJECT_AT(obj05, x04, y03);
+        OBJECT_AT(obj06, x02, y01);
+        OBJECT_AT(obj07, x03, y03);
+        OBJECT_AT(obj08, x02, y05);
+        OBJECT_AT(obj09, x02, y00);
+
+        // REWARDS
+        GOOD_PIC_REWARD(obj00) = 0.50;
+        BAD_PIC_REWARD(obj00) = 0.20;
+        GOOD_PIC_REWARD(obj01) = 19.60;
+        BAD_PIC_REWARD(obj01) = 3.92;
+        GOOD_PIC_REWARD(obj02) = 12.67;
+        BAD_PIC_REWARD(obj02) = 10.96;
+        GOOD_PIC_REWARD(obj03) = 8.12;
+        BAD_PIC_REWARD(obj03) = 3.19;
+        GOOD_PIC_REWARD(obj04) = 2.79;
+        BAD_PIC_REWARD(obj04) = 2.74;
+        GOOD_PIC_REWARD(obj05) = 3.00;
+        BAD_PIC_REWARD(obj05) = 2.76;
+        GOOD_PIC_REWARD(obj06) = 6.96;
+        BAD_PIC_REWARD(obj06) = 3.42;
+        GOOD_PIC_REWARD(obj07) = 12.75;
+        BAD_PIC_REWARD(obj07) = 8.01;
+        GOOD_PIC_REWARD(obj08) = 3.00;
+        BAD_PIC_REWARD(obj08) = 2.37;
+        GOOD_PIC_REWARD(obj09) = 10.96;
+        BAD_PIC_REWARD(obj09) = 7.85;
+
+    };
+
+    init-state { 
+        agent-at(a00, x02, y02);
+        agent-at(a01, x01, y03);
+        agent-at(a02, x00, y04);
+
+    };
+
+    horizon = 60;
+
+    discount = 1.0;
+}

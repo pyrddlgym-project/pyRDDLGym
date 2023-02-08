@@ -1,0 +1,319 @@
+/////////////////////////////////////////////////////////////////////////////////
+//                                                                             //
+//                                                                             //
+// RDDL MDP version of Manufacturer instance #18 for IPC 2018 by Thomas Keller //
+// (tho.keller [at] unibas.ch).                                                //
+//                                                                             //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+
+instance manufacturer_inst_mdp__18 {
+    domain = manufacturer_mdp;
+
+    objects {
+        good : { g0000, g0001, g0002, g0003, g0004, g0005, g0100, g0101, g0102, g0103, g0104, g0105, g0200, g0201, g0202, g0203, g0204, g0205, g0300, g0301, g0302, g0303, g0304, g0305, g0400, g0401, g0402, g0403, g0500, g0501, g0502 };
+    };
+ 
+    non-fluents {
+        // PRODUCTION CHAIN
+        PROCESSED_TO(g0003, g0100);
+        PROCESSED_TO(g0004, g0100);
+        PROCESSED_TO(g0005, g0101);
+        PROCESSED_TO(g0002, g0101);
+        PROCESSED_TO(g0000, g0102);
+        PROCESSED_TO(g0004, g0102);
+        PROCESSED_TO(g0002, g0103);
+        PROCESSED_TO(g0003, g0103);
+        PROCESSED_TO(g0002, g0104);
+        PROCESSED_TO(g0004, g0104);
+        PROCESSED_TO(g0004, g0105);
+        PROCESSED_TO(g0103, g0200);
+        PROCESSED_TO(g0100, g0200);
+        PROCESSED_TO(g0100, g0201);
+        PROCESSED_TO(g0005, g0201);
+        PROCESSED_TO(g0003, g0202);
+        PROCESSED_TO(g0105, g0202);
+        PROCESSED_TO(g0105, g0203);
+        PROCESSED_TO(g0004, g0203);
+        PROCESSED_TO(g0105, g0204);
+        PROCESSED_TO(g0102, g0204);
+        PROCESSED_TO(g0100, g0205);
+        PROCESSED_TO(g0100, g0205);
+        PROCESSED_TO(g0200, g0300);
+        PROCESSED_TO(g0105, g0300);
+        PROCESSED_TO(g0100, g0301);
+        PROCESSED_TO(g0201, g0301);
+        PROCESSED_TO(g0203, g0302);
+        PROCESSED_TO(g0101, g0303);
+        PROCESSED_TO(g0201, g0303);
+        PROCESSED_TO(g0004, g0304);
+        PROCESSED_TO(g0200, g0304);
+        PROCESSED_TO(g0005, g0305);
+        PROCESSED_TO(g0204, g0305);
+        PROCESSED_TO(g0304, g0400);
+        PROCESSED_TO(g0305, g0401);
+        PROCESSED_TO(g0102, g0401);
+        PROCESSED_TO(g0204, g0402);
+        PROCESSED_TO(g0203, g0402);
+        PROCESSED_TO(g0302, g0403);
+        PROCESSED_TO(g0302, g0403);
+        PROCESSED_TO(g0100, g0500);
+        PROCESSED_TO(g0402, g0500);
+        PROCESSED_TO(g0401, g0501);
+        PROCESSED_TO(g0203, g0501);
+        PROCESSED_TO(g0304, g0502);
+        PROCESSED_TO(g0403, g0502);
+
+
+        // PRICES
+        PRICE(g0000) = 23;
+        PRICE(g0001) = 25;
+        PRICE(g0002) = 16;
+        PRICE(g0003) = 19;
+        PRICE(g0004) = 17;
+        PRICE(g0005) = 25;
+        PRICE(g0100) = 64;
+        PRICE(g0101) = 61;
+        PRICE(g0102) = 74;
+        PRICE(g0103) = 63;
+        PRICE(g0104) = 47;
+        PRICE(g0105) = 22;
+        PRICE(g0200) = 234;
+        PRICE(g0201) = 140;
+        PRICE(g0202) = 77;
+        PRICE(g0203) = 65;
+        PRICE(g0204) = 162;
+        PRICE(g0205) = 214;
+        PRICE(g0300) = 459;
+        PRICE(g0301) = 327;
+        PRICE(g0302) = 92;
+        PRICE(g0303) = 351;
+        PRICE(g0304) = 383;
+        PRICE(g0305) = 297;
+        PRICE(g0400) = 543;
+        PRICE(g0401) = 549;
+        PRICE(g0402) = 362;
+        PRICE(g0403) = 289;
+        PRICE(g0500) = 791;
+        PRICE(g0501) = 963;
+        PRICE(g0502) = 1156;
+
+
+        // PRICE TRENDS
+        PRICE_TREND_CHANGE_PROB(g0000) = 0.10;
+        PRICE_TREND_CHANGE_PROB(g0001) = 0.10;
+        PRICE_TREND_CHANGE_PROB(g0002) = 0.08;
+        PRICE_TREND_CHANGE_PROB(g0003) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0004) = 0.06;
+        PRICE_TREND_CHANGE_PROB(g0005) = 0.03;
+        PRICE_TREND_CHANGE_PROB(g0100) = 0.13;
+        PRICE_TREND_CHANGE_PROB(g0101) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0102) = 0.05;
+        PRICE_TREND_CHANGE_PROB(g0103) = 0.02;
+        PRICE_TREND_CHANGE_PROB(g0104) = 0.10;
+        PRICE_TREND_CHANGE_PROB(g0105) = 0.01;
+        PRICE_TREND_CHANGE_PROB(g0200) = 0.01;
+        PRICE_TREND_CHANGE_PROB(g0201) = 0.07;
+        PRICE_TREND_CHANGE_PROB(g0202) = 0.14;
+        PRICE_TREND_CHANGE_PROB(g0203) = 0.14;
+        PRICE_TREND_CHANGE_PROB(g0204) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0205) = 0.02;
+        PRICE_TREND_CHANGE_PROB(g0300) = 0.01;
+        PRICE_TREND_CHANGE_PROB(g0301) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0302) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0303) = 0.03;
+        PRICE_TREND_CHANGE_PROB(g0304) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0305) = 0.04;
+        PRICE_TREND_CHANGE_PROB(g0400) = 0.01;
+        PRICE_TREND_CHANGE_PROB(g0401) = 0.13;
+        PRICE_TREND_CHANGE_PROB(g0402) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0403) = 0.01;
+        PRICE_TREND_CHANGE_PROB(g0500) = 0.11;
+        PRICE_TREND_CHANGE_PROB(g0501) = 0.09;
+        PRICE_TREND_CHANGE_PROB(g0502) = 0.05;
+
+
+        // PRICE_LEVEL_FACTORS
+        PRICE_LEVEL_FACTOR(@level1) = 0.5;
+        PRICE_LEVEL_FACTOR(@level2) = 0.6667;
+        PRICE_LEVEL_FACTOR(@level3) = 0.8333;
+        PRICE_LEVEL_FACTOR(@level4) = 1.0;
+        PRICE_LEVEL_FACTOR(@level5) = 1.1667;
+        PRICE_LEVEL_FACTOR(@level6) = 1.3333;
+        PRICE_LEVEL_FACTOR(@level7) = 1.5;
+
+
+        // PRICE_LEVEL_PROBS
+        PRICE_LEVEL_PROB(@level1, @level1, @down) = 1.0;
+        PRICE_LEVEL_PROB(@level1, @level2, @down) = 0.2;
+        PRICE_LEVEL_PROB(@level2, @level2, @down) = 0.8;
+        PRICE_LEVEL_PROB(@level2, @level3, @down) = 0.2;
+        PRICE_LEVEL_PROB(@level3, @level3, @down) = 0.8;
+        PRICE_LEVEL_PROB(@level3, @level4, @down) = 0.2;
+        PRICE_LEVEL_PROB(@level4, @level4, @down) = 0.8;
+        PRICE_LEVEL_PROB(@level4, @level5, @down) = 0.2;
+        PRICE_LEVEL_PROB(@level5, @level5, @down) = 0.8;
+        PRICE_LEVEL_PROB(@level5, @level6, @down) = 0.2;
+        PRICE_LEVEL_PROB(@level6, @level6, @down) = 0.8;
+        PRICE_LEVEL_PROB(@level6, @level7, @down) = 0.2;
+        PRICE_LEVEL_PROB(@level7, @level7, @down) = 0.8;
+
+        PRICE_LEVEL_PROB(@level1, @level1, @stable) = 0.9;
+        PRICE_LEVEL_PROB(@level1, @level2, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level2, @level1, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level2, @level2, @stable) = 0.8;
+        PRICE_LEVEL_PROB(@level2, @level3, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level3, @level2, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level3, @level3, @stable) = 0.8;
+        PRICE_LEVEL_PROB(@level3, @level4, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level4, @level3, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level4, @level4, @stable) = 0.8;
+        PRICE_LEVEL_PROB(@level4, @level5, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level5, @level4, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level5, @level5, @stable) = 0.8;
+        PRICE_LEVEL_PROB(@level5, @level6, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level6, @level5, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level6, @level6, @stable) = 0.8;
+        PRICE_LEVEL_PROB(@level6, @level7, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level7, @level6, @stable) = 0.1;
+        PRICE_LEVEL_PROB(@level7, @level7, @stable) = 0.9;
+
+        PRICE_LEVEL_PROB(@level1, @level1, @up) = 0.8;
+        PRICE_LEVEL_PROB(@level2, @level1, @up) = 0.2;
+        PRICE_LEVEL_PROB(@level2, @level2, @up) = 0.8;
+        PRICE_LEVEL_PROB(@level3, @level2, @up) = 0.2;
+        PRICE_LEVEL_PROB(@level3, @level3, @up) = 0.8;
+        PRICE_LEVEL_PROB(@level4, @level3, @up) = 0.2;
+        PRICE_LEVEL_PROB(@level4, @level4, @up) = 0.8;
+        PRICE_LEVEL_PROB(@level5, @level4, @up) = 0.2;
+        PRICE_LEVEL_PROB(@level5, @level5, @up) = 0.8;
+        PRICE_LEVEL_PROB(@level6, @level5, @up) = 0.2;
+        PRICE_LEVEL_PROB(@level6, @level6, @up) = 0.8;
+        PRICE_LEVEL_PROB(@level7, @level6, @up) = 0.2;
+        PRICE_LEVEL_PROB(@level7, @level7, @up) = 1.0;
+
+
+        // FACTORY
+        MAX_NUM_FACTORIES = 5;
+        BUILD_FACTORY_COST(g0000) = 0;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0000) = 0.00;
+        BUILD_FACTORY_COST(g0001) = 0;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0001) = 0.00;
+        BUILD_FACTORY_COST(g0002) = 0;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0002) = 0.00;
+        BUILD_FACTORY_COST(g0003) = 0;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0003) = 0.00;
+        BUILD_FACTORY_COST(g0004) = 0;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0004) = 0.00;
+        BUILD_FACTORY_COST(g0005) = 0;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0005) = 0.00;
+        BUILD_FACTORY_COST(g0100) = 43;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0100) = 0.07;
+        BUILD_FACTORY_COST(g0101) = 44;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0101) = 0.23;
+        BUILD_FACTORY_COST(g0102) = 48;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0102) = 0.27;
+        BUILD_FACTORY_COST(g0103) = 57;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0103) = 0.18;
+        BUILD_FACTORY_COST(g0104) = 59;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0104) = 0.05;
+        BUILD_FACTORY_COST(g0105) = 44;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0105) = 0.36;
+        BUILD_FACTORY_COST(g0200) = 82;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0200) = 0.04;
+        BUILD_FACTORY_COST(g0201) = 100;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0201) = 0.35;
+        BUILD_FACTORY_COST(g0202) = 116;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0202) = 0.27;
+        BUILD_FACTORY_COST(g0203) = 103;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0203) = 0.06;
+        BUILD_FACTORY_COST(g0204) = 0;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0204) = 0.00;
+        BUILD_FACTORY_COST(g0205) = 89;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0205) = 0.03;
+        BUILD_FACTORY_COST(g0300) = 168;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0300) = 0.28;
+        BUILD_FACTORY_COST(g0301) = 125;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0301) = 0.11;
+        BUILD_FACTORY_COST(g0302) = 144;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0302) = 0.40;
+        BUILD_FACTORY_COST(g0303) = 137;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0303) = 0.47;
+        BUILD_FACTORY_COST(g0304) = 167;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0304) = 0.40;
+        BUILD_FACTORY_COST(g0305) = 131;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0305) = 0.02;
+        BUILD_FACTORY_COST(g0400) = 205;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0400) = 0.44;
+        BUILD_FACTORY_COST(g0401) = 215;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0401) = 0.42;
+        BUILD_FACTORY_COST(g0402) = 223;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0402) = 0.24;
+        BUILD_FACTORY_COST(g0403) = 171;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0403) = 0.50;
+        BUILD_FACTORY_COST(g0500) = 225;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0500) = 0.26;
+        BUILD_FACTORY_COST(g0501) = 269;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0501) = 0.26;
+        BUILD_FACTORY_COST(g0502) = 298;
+        PROB_CONSTRUCTION_DELAY_FACTORY(g0502) = 0.14;
+
+
+        // STAFF
+        // instance with marketing manager
+        SALARY_MARKETING_MANAGER = 14;
+        PROB_MARKETING_MANAGER_APPLIES = 0.13;
+        MARKETING_MANAGER_BONUS = 0.67;
+
+        // instance with lobbyist
+        SALARY_LOBBYIST = 13;
+        PROB_LOBBYIST_APPLIES = 0.13;
+        LOBBYIST_BONUS = 0.13;
+
+        // instance without production manager
+        SALARY_PRODUCTION_MANAGER = 0;
+        PROB_PRODUCTION_MANAGER_APPLIES = 0;
+
+    };
+
+    init-state {
+        have-factory(g0204);
+
+        price-trend(g0000) = @stable;
+        price-trend(g0001) = @down;
+        price-trend(g0002) = @stable;
+        price-trend(g0003) = @up;
+        price-trend(g0004) = @up;
+        price-trend(g0005) = @up;
+        price-trend(g0100) = @up;
+        price-trend(g0101) = @stable;
+        price-trend(g0102) = @stable;
+        price-trend(g0103) = @up;
+        price-trend(g0104) = @stable;
+        price-trend(g0105) = @down;
+        price-trend(g0200) = @stable;
+        price-trend(g0201) = @stable;
+        price-trend(g0202) = @down;
+        price-trend(g0203) = @down;
+        price-trend(g0204) = @stable;
+        price-trend(g0205) = @stable;
+        price-trend(g0300) = @stable;
+        price-trend(g0301) = @stable;
+        price-trend(g0302) = @stable;
+        price-trend(g0303) = @stable;
+        price-trend(g0304) = @stable;
+        price-trend(g0305) = @stable;
+        price-trend(g0400) = @up;
+        price-trend(g0401) = @stable;
+        price-trend(g0402) = @up;
+        price-trend(g0403) = @stable;
+        price-trend(g0500) = @down;
+        price-trend(g0501) = @stable;
+        price-trend(g0502) = @stable;
+        
+    };
+
+    horizon = 80;
+
+    discount = 1.0;
+}

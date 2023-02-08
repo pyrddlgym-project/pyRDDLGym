@@ -104,10 +104,18 @@ class RDDLLiftedModel(PlanningModel):
                 raise RDDLRepeatedVariableError(
                     f'{pvar.fluent_type} <{name}> has the same name as '
                     f'another {var_types[name]}.')
-        
+                
+            # make sure name does not contain separators
+            SEPARATORS = [PlanningModel.FLUENT_SEP, PlanningModel.OBJECT_SEP] 
+            for separator in SEPARATORS:
+                if separator in name:
+                    raise RDDLInvalidObjectError(
+                        f'Variable name <{name}> contains the '
+                        f'illegal separator {separator}.')
+            
             # variable is new: record its type, parameters and range
             if pvar.is_state_fluent():
-                primed_name = name + '\''
+                primed_name = name + PlanningModel.NEXT_STATE_SYM
             ptypes = pvar.param_types
             if ptypes is None:
                 ptypes = []
@@ -139,13 +147,14 @@ class RDDLLiftedModel(PlanningModel):
     def _extract_states(self):
         
         # get the default value for each grounded state variable
+        PRIME = PlanningModel.NEXT_STATE_SYM
         states, statesranges, nextstates, prevstates = {}, {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_state_fluent():
                 name, ptypes = pvar.name, pvar.param_types
                 statesranges[name] = pvar.range
-                nextstates[name] = name + '\''
-                prevstates[name + '\''] = name
+                nextstates[name] = name + PRIME
+                prevstates[name + PRIME] = name
                 states[name] = {gname: pvar.default 
                                 for gname in self.ground_names(name, ptypes)}                
         
@@ -307,7 +316,7 @@ class RDDLLiftedModel(PlanningModel):
         self.horizon = horizon
 
     def _extract_max_actions(self):
-        numactions = self._AST.instance.max_nondef_actions
+        numactions = getattr(self._AST.instance, 'max_nondef_actions', 'pos-inf')
         if numactions == 'pos-inf':
             self.max_allowed_actions = sum(np.size(action) 
                                            for action in self.actions.values())

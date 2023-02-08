@@ -1,0 +1,4 @@
+[General]
+name=crossingtraffic2011pomdp
+description=In a grid, a robot must get to a goal and avoid obstacles arriving randomly and moving left. This is the pomdp version.
+viz=TextViz.TextVisualizer
