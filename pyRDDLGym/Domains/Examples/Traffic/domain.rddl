@@ -4,8 +4,8 @@
 //  of queue and platoon dynamics in a traffic network.
 //
 //  Platoons travel at free-flow speed, with propagation time along a link determined by
-//  the distance from the link upstream entrance to the end of the current queue. Incoming
-//  flows are split along different turning directions according to turning proportions.
+//  the distance from the upstream link entrance to the end of the queue at entrance time.
+//  Incoming flows are split along different turning directions according to turning proportions.
 //
 //  The model takes into account undersaturated, saturated, and oversaturated conditions:
 //      * Undersaturated: The queue + arriving flow is small enough to be released
@@ -44,7 +44,7 @@ domain BLX_model {
     types {
         intersection : object;
         phase : object;
-        phase-transition: object;
+        action-token: object;
         time : object;
     };
 
@@ -64,6 +64,12 @@ domain BLX_model {
 
         // each intersection is assigned a unique index
         INTERSECTION-INDEX(intersection)                       :  { non-fluent, int, default = 0 };
+
+        // action tokens are enumerated
+        ACTION-TOKEN-INDEX(action-token)                       :  { non-fluent, int, default = 0 };
+
+        // the highest possible number of valid actions for the intersection. used to bound the action space.
+        NUM-ACTION-TOKENS(intersection)                        :  { non-fluent, int, default = 1 };
 
 
         // is there a link between (uplink intersection, downlink intersection)?
@@ -113,15 +119,9 @@ domain BLX_model {
         // is turn green in phase?
         GREEN(intersection, intersection, intersection, phase) :  { non-fluent, bool, default = false };
 
-        // the highest possible number of transitions from a given state. used to bound the action space.
-        MAX-POSSIBLE-PHASE-TRANSITIONS(intersection)           :  { non-fluent, int, default = 1 };
-
-        // phase transitions are enumerated
-        PHASE-TRANSITION-INDEX(phase-transition)               :  { non-fluent, int, default = 0 };
-
         // which phase transition the i-th indexed action corresponds to
         // the 0 action should always be interpreted as extend
-        TRANSITION(phase, phase-transition)                    :  { non-fluent, int, default = -1 };
+        TRANSITION(phase, action-token)                    :  { non-fluent, int, default = -1 };
 
 
         // time ordering for time-delayed queues
@@ -304,7 +304,7 @@ domain BLX_model {
         // count the number of transitions from the current phase to clip the actions
         num-transitions-from-cur-ph(?d) =
             (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d))
-                               * (sum_{?a : phase-transition} (TRANSITION(?p,?a) > -1))));
+                               * (sum_{?a : action-token} (TRANSITION(?p,?a) > -1))));
 
         // is the current phase time below the min. time?
         cur-ph-below-min(?d) =  [ cur-ph-t(?d) < (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * PHASE-MIN(?p))) ];
@@ -374,8 +374,8 @@ domain BLX_model {
                               (sum_{?p : phase} [
                                   PHASE-OF(?p,?d)
                                   * (PHASE-INDEX(?p)==cur-ph-idx(?d))
-                                  * (sum_{?a : phase-transition}[
-                                        (PHASE-TRANSITION-INDEX(?a)==clipped-set-phase(?d))
+                                  * (sum_{?a : action-token}[
+                                        (ACTION-TOKEN-INDEX(?a)==clipped-set-phase(?d))
                                          * TRANSITION(?p,?a) ])]);
                               
         cur-ph-t'(?d) = if (extend(?d)) then [cur-ph-t(?d) + Ts*(all-red(?d) == 0)] else 0;
@@ -414,7 +414,7 @@ domain BLX_model {
 
     action-preconditions {
         forall_{?d : intersection} [ 0 <= set-phase(?d) ];
-        forall_{?d : intersection} [ set-phase(?d) < MAX-POSSIBLE-PHASE-TRANSITIONS(?d) ];
+        forall_{?d : intersection} [ set-phase(?d) < NUM-ACTION-TOKENS(?d) ];
     };
 }
 
