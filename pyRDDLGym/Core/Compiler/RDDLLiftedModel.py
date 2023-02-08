@@ -316,7 +316,7 @@ class RDDLLiftedModel(PlanningModel):
         self.horizon = horizon
 
     def _extract_max_actions(self):
-        numactions = self._AST.instance.max_nondef_actions
+        numactions = getattr(self._AST.instance, 'max_nondef_actions', 'pos-inf')
         if numactions == 'pos-inf':
             self.max_allowed_actions = sum(np.size(action) 
                                            for action in self.actions.values())
