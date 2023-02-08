@@ -16,7 +16,6 @@ from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym import Visualizer
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
-
 ROAD_PAVED_WIDTH = 12
 ROAD_HALF_MEDIAN_WIDTH = 1
 ROAD_WIDTH = ROAD_PAVED_WIDTH + ROAD_HALF_MEDIAN_WIDTH
@@ -36,6 +35,10 @@ RGBA_ARRIVING_CELL_SAT_COLOR = (1, 0.2, 1, 0.4)
 def get_fillcolor_by_density(N, capacity):
     p = min(1, N/capacity)
     return tuple(p*c for c in RGBA_ARRIVING_CELL_SAT_COLOR)
+
+def id(var_id, *objs):
+    # Returns <var_id>___<ob1>__<ob2>__<ob3>...
+    return var_id + PlanningModel.FLUENT_SEP + PlanningModel.OBJECT_SEP.join(objs)
 
 
 class TrafficVisualizer(StateViz):
@@ -79,18 +82,18 @@ class TrafficVisualizer(StateViz):
         self.sources, self.sinks, self.TLs = set(), set(), set()
         for d in self._objects['intersection']:
             self.intersections[d] = {
-                'coords': np.array([self._nonfluents[f'X_{d}'], self._nonfluents[f'Y_{d}']]),
+                'coords': np.array([self._nonfluents[id('X', d)], self._nonfluents[id('Y', d)]]),
                 'inc_links': [],
                 'out_links': []}
-            if self._nonfluents[f'SINK_{d}']: self.sinks.add(d)
-            if self._nonfluents[f'SOURCE_{d}']: self.sources.add(d)
-            if self._nonfluents[f'TL_{d}']: self.TLs.add(d)
+            if self._nonfluents[id('SINK', d)]: self.sinks.add(d)
+            if self._nonfluents[id('SOURCE', d)]: self.sources.add(d)
+            if self._nonfluents[id('TL', d)]: self.TLs.add(d)
 
         # Register the links.
         # Links are indexed by the upstream and downstream intersection pairs
         self.link_ids = []
         for u, d in product(self.intersections.keys(), self.intersections.keys()):
-            if self._nonfluents[f'LINK_{u}_{d}']:
+            if self._nonfluents[id('LINK', u,d)]:
                 self.link_ids.append((u,d))
                 self.intersections[u]['out_links'].append((u,d))
                 self.intersections[d]['inc_links'].append((u,d))
@@ -101,7 +104,7 @@ class TrafficVisualizer(StateViz):
         for u, d, o in product(self.intersections.keys(), self.intersections.keys(), self.intersections.keys()):
             if u == d or d == o or u == o:
                 continue
-            if self._nonfluents[f'LINK_{u}_{d}'] and self._nonfluents[f'LINK_{d}_{o}']:
+            if self._nonfluents[id('LINK', u,d)] and self._nonfluents[id('LINK', d,o)]:
                 self.turn_ids.append((u,d,o))
 
         # Record the required link data
@@ -112,8 +115,8 @@ class TrafficVisualizer(StateViz):
             dir = vd-vu
             link_len = np.linalg.norm(dir)
 
-            num_lanes = self._nonfluents[f'Nl_{u}_{d}']
-            v = self._nonfluents[f'V_{u}_{d}']
+            num_lanes = self._nonfluents[id('Nl', u,d)]
+            v = self._nonfluents[id('V', u,d)]
             num_cells = ceil(link_len / (v * self.sim_step))
             cell_capacity = (link_len * num_lanes) / (num_cells * self.veh_len)
 
@@ -144,7 +147,7 @@ class TrafficVisualizer(StateViz):
             for o in self.intersections.keys():
                 if u == o:
                     continue
-                if self._nonfluents[f'LINK_{d}_{o}']:
+                if self._nonfluents[id('LINK', d,o)]:
                     turns_from_u_d.append(o)
             turns_from_u_d.sort(key=lambda o:
                                     -signed_angle(self.linkdata[(u,d)]['dir'], self.linkdata[(d,o)]['dir'])
@@ -156,7 +159,7 @@ class TrafficVisualizer(StateViz):
         self.green_turns_by_phase = defaultdict(list)
         for (u,d,o) in self.turn_ids:
             for p in self.phase_ids:
-                if self._nonfluents[f'GREEN_{u}_{d}_{o}_{p}']:
+                if self._nonfluents[id('GREEN', u,d,o,p)]:
                     self.green_turns_by_phase[p].append((u,d,o))
 
         # Register inverse map from phase index to phase object
@@ -164,8 +167,8 @@ class TrafficVisualizer(StateViz):
         for d in self.intersections.keys():
              self.phase_by_index_in_intersection[d] = {}
              for p in self.phase_ids:
-                 if self._nonfluents[f'PHASE-OF_{p}_{d}']:
-                     self.phase_by_index_in_intersection[d][self._nonfluents[f'PHASE-INDEX_{p}']] = p
+                 if self._nonfluents[id('PHASE-OF', p,d)]:
+                     self.phase_by_index_in_intersection[d][self._nonfluents[id('PHASE-INDEX', p)]] = p
 
 
     def build_nonfluents_patches(self):
@@ -361,9 +364,9 @@ class TrafficVisualizer(StateViz):
     def build_states_layout(self, states, fig, ax):
 
         for d in self.TLs:
-            if states[f'all-red_{d}'] > 0:
+            if states[id('all-red', d)] > 0:
                 continue
-            cur_ph_idx = states[f'cur-ph-idx_{d}']
+            cur_ph_idx = states[id('cur-ph-idx', d)]
             cur_ph = self.phase_by_index_in_intersection[d][cur_ph_idx]
             for t in self.green_turns_by_phase[cur_ph]:
                 ax.add_patch(copy(self.turn_patches[t]))
@@ -374,8 +377,8 @@ class TrafficVisualizer(StateViz):
 
                 # If downstream intersection is not a sink, draw the queue data
                 # (for a downstream sink, the queues are zero, so no need)
-                if not self._nonfluents[f'SINK_{d}']:
-                    Q = states[f'qd_{u}_{d}']
+                if not self._nonfluents[id('SINK', d)]:
+                    Q = states[id('qd', u,d)]
                     Q_line = (Q*self.veh_len/ld['num_lanes']) * ld['shrink']
                     Q_line_L = ld['queues_top_left'] - Q_line*ld['dir']
                     Q_line_R = Q_line_L - ROAD_PAVED_WIDTH*ld['nrm']
@@ -391,7 +394,7 @@ class TrafficVisualizer(StateViz):
 
                     # Draw queue bars
                     for idx, o in enumerate(ld['turns_from']):
-                        Q_turn = states[f'q_{u}_{d}_{o}']
+                        Q_turn = states[id('q', u,d,o)]
                         Q_turn_height = (Q_turn/(Q+1e-6)) * Q_line
                         Q_turn_bar = np.zeros(shape=(4,2))
                         Q_turn_bar[0] = ld['queues_top_left'] - (1+4*idx)*ROAD_DELTA*ld['nrm']
@@ -405,14 +408,14 @@ class TrafficVisualizer(StateViz):
 
                 # Aggregate the incoming flows, depending on the type of u
                 num_cells_to_Q_line = max(ceil((ld['len'] - Q_line)/ld['cell_len']), 1)
-                if self._nonfluents[f'SOURCE_{u}']:
-                    flows = tuple( states[f'Mlsrc_{u}_{d}_t{t}'] for t in range(1, num_cells_to_Q_line+1))
+                if self._nonfluents[id('SOURCE', u)]:
+                    flows = tuple( states[id('Mlsrc', u,d,f't{t}')] for t in range(1, num_cells_to_Q_line+1))
                 else:
                     flows = np.zeros(num_cells_to_Q_line+1)
                     for t in range(1,num_cells_to_Q_line+1):
                         for (i,u) in self.intersections[u]['inc_links']:
                             if i != d:
-                                flows[t] += states[f'Ml_{i}_{u}_{d}_t{t}']
+                                flows[t] += states[id('Ml', i,u,d,f't{t}')]
 
                 line_L, line_R = Q_line_L, Q_line_R
                 for t in range(1,num_cells_to_Q_line):
