@@ -5,6 +5,7 @@ import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -595,6 +596,15 @@ class RDDLGrounder(Grounder):
         PRIME = RDDLGroundedModel.NEXT_STATE_SYM
         var_params, var_types, var_ranges = {}, {}, {}
         for pvar in self.AST.domain.pvariables:
+            
+            # make sure name does not contain separators
+            SEPARATORS = [RDDLGroundedModel.FLUENT_SEP, RDDLGroundedModel.OBJECT_SEP] 
+            for separator in SEPARATORS:
+                if separator in pvar.name:
+                    raise RDDLInvalidObjectError(
+                        f'Variable name <{pvar.name}> contains the '
+                        f'illegal separator {separator}.')
+                    
             objects = pvar.param_types
             if objects is None:
                 objects = []
