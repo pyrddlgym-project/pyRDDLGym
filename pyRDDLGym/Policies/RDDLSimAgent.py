@@ -1,10 +1,10 @@
 import base64
 import json
-import os
 import socket
 import xml.etree.ElementTree as xmltree
 
 from pyRDDLGym import RDDLEnv
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 
 class RDDLSimAgent:
     ''' creates a TCP/IP server that listens to the provided port and passes
@@ -175,11 +175,14 @@ class RDDLSimAgent:
         msg = msg + "<immediate-reward>" + str(rew) + "</immediate-reward>"
         for key in state:
             msg = msg + "<observed-fluent>"
+            fluent_name = key.split(PlanningModel.FLUENT_SEP)[0]
+            objects = key.split(PlanningModel.FLUENT_SEP)[1:]
+            objects = PlanningModel.FLUENT_SEP.join(objects)
+            objects = objects.split(PlanningModel.OBJECT_SEP)
             var = key.split("_")
-            msg = msg + "<fluent-name>" + var[0] + "</fluent-name>"
-            var = var[1:]
-            for param in var:
-                msg = msg + "<fluent-arg>" + param + "</fluent-arg>"
+            msg = msg + "<fluent-name>" + fluent_name + "</fluent-name>"
+            for object in objects:
+                msg = msg + "<fluent-arg>" + object + "</fluent-arg>"
             msg = msg + "<fluent-value>" + str(state[key]).lower() + "</fluent-value>"
             msg = msg + "</observed-fluent>"
         msg = msg + "</turn>"
@@ -246,9 +249,10 @@ class RDDLSimAgent:
         for act in actions:
             name = act.find("action-name").text
             args = act.findall("action-arg")
+            separator = PlanningModel.FLUENT_SEP
             for arg in args:
-                name = name + "_" + arg.text
+                name = name + separator + arg.text
+                separator = PlanningModel.OBJECT_SEP
             value = act.find("action-value").text
             result[name] = value
         return result
-
