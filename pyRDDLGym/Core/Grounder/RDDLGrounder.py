@@ -66,8 +66,7 @@ class RDDLGrounder(Grounder):
         self.invariants = []
         
         self.index_of_object = {}
-        self.enum_types = set()
-        self.enum_literals = set()
+        self.enums = set()
         
         self.param_types = {}
         self.variable_types = {}
@@ -122,8 +121,7 @@ class RDDLGrounder(Grounder):
         model.variable_ranges = self.variable_ranges
         
         model.index_of_object = self.index_of_object
-        model.enum_types = self.enum_types
-        model.enum_literals = self.enum_literals        
+        model.enums = self.enums   
         model.grounded_names = self.grounded_names
         
         return model
@@ -159,8 +157,7 @@ class RDDLGrounder(Grounder):
                 for obj in obj_type[1]:
                     self.objects_rev[obj] = obj_type[0]
         self.index_of_object = {}
-        self.enum_types = set()
-        self.enum_literals = set()
+        self.enums = set()
 
     def _ground_objects(self, args):
         objects_by_type = []
@@ -176,8 +173,7 @@ class RDDLGrounder(Grounder):
         objects = RDDLGroundedModel.OBJECT_SEP.join(variation)
         return base_name + RDDLGroundedModel.FLUENT_SEP + objects
         
-    def _generate_grounded_names(self, base_name,
-                                 variation_list,
+    def _generate_grounded_names(self, base_name, variation_list,
                                  return_grounding_param_dict=False):
         PRIME = RDDLGroundedModel.NEXT_STATE_SYM
         all_grounded_names = []

@@ -110,28 +110,29 @@ class RDDLSimulator:
                             'switch': np.select}
     
     def _compile(self):
+        rddl = self.rddl
         
         # compile initial values
         if self.logger is not None:
             self.logger.clear()
-        initializer = RDDLValueInitializer(self.rddl, logger=self.logger)
+        initializer = RDDLValueInitializer(rddl, logger=self.logger)
         self.init_values = initializer.initialize()
         
         # compute dependency graph for CPFs and sort them by evaluation order
-        sorter = RDDLLevelAnalysis(self.rddl, self.allow_synchronous_state, 
+        sorter = RDDLLevelAnalysis(rddl, self.allow_synchronous_state, 
                                    logger=self.logger)
         levels = sorter.compute_levels()      
         self.cpfs = []  
         for cpfs in levels.values():
             for cpf in cpfs:
-                _, expr = self.rddl.cpfs[cpf]
-                prange = self.rddl.variable_ranges[cpf]
+                _, expr = rddl.cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
                 dtype = RDDLValueInitializer.NUMPY_TYPES.get(
                     prange, RDDLValueInitializer.INT)
                 self.cpfs.append((cpf, expr, dtype))
                 
         # trace expressions to cache information to be used later
-        tracer = RDDLObjectsTracer(self.rddl, logger=self.logger)
+        tracer = RDDLObjectsTracer(rddl, logger=self.logger)
         self.traced = tracer.trace()
         
         # initialize all fluent and non-fluent values        
@@ -139,8 +140,8 @@ class RDDLSimulator:
         self.state = None  
         self.noop_actions = {var: values
                              for (var, values) in self.init_values.items()
-                             if self.rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(self.rddl.observ)
+                             if rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(rddl.observ)
         
     @property
     def states(self) -> Args:
@@ -168,13 +169,13 @@ class RDDLSimulator:
             dtype = getattr(value, 'dtype', type(value))
             if arg is None:
                 raise RDDLTypeError(
-                    f'{msg} must evaluate to {valid}, '
-                    f'got {value} of type {dtype}.\n' + 
+                    f'{msg} must evaluate to <{valid}>, '
+                    f'got {value} of type <{dtype}>.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
             else:
                 raise RDDLTypeError(
-                    f'Argument {arg} of {msg} must evaluate to {valid}, '
-                    f'got {value} of type {dtype}.\n' + 
+                    f'Argument {arg} of {msg} must evaluate to <{valid}>, '
+                    f'got {value} of type <{dtype}>.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -185,7 +186,7 @@ class RDDLSimulator:
         dtype = getattr(value, 'dtype', type(value))
         raise RDDLTypeError(
             f'{msg} must evaluate to one of {valid}, '
-            f'got {value} of type {dtype}.\n' + 
+            f'got {value} of type <{dtype}>.\n' + 
             RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -202,7 +203,7 @@ class RDDLSimulator:
     def _check_arity(args, required, msg, expr):
         if len(args) != required:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'{msg} requires {required} arguments, got {len(args)}.\n' + 
+                f'{msg} requires {required} argument(s), got {len(args)}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -236,16 +237,15 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _process_actions(self, actions):
+        rddl = self.rddl
         new_actions = {action: np.copy(value) 
                        for (action, value) in self.noop_actions.items()}
         
         # override new_actions with any new actions
-        rddl = self.rddl
         for (action, value) in actions.items(): 
             
-            # enum literals are converted to their canonical int indices
-            if value in rddl.enum_literals:
-                value = rddl.index_of_object[value]
+            # objects are converted to their canonical indices
+            value = rddl.index_of_object.get(value, value)
             
             # parse action string and assign to the correct coordinates
             if action in new_actions:
@@ -300,10 +300,10 @@ class RDDLSimulator:
     
     def reset(self) -> Union[Dict[str, None], Args]:
         '''Resets the state variables to their initial values.'''
+        rddl = self.rddl
         subs = self.subs = self.init_values.copy()
         
         # update state
-        rddl = self.rddl
         self.state = {}
         for state in rddl.states:
             self.state.update(rddl.ground_values(state, subs[state]))
@@ -322,12 +322,12 @@ class RDDLSimulator:
         
         :param actions: a dict mapping current action fluent to their values
         '''
+        rddl = self.rddl
         actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
         # evaluate CPFs in topological order
-        rddl = self.rddl
         for (cpf, expr, dtype) in self.cpfs:
             sample = self._sample(expr, subs)
             RDDLSimulator._check_type(sample, dtype, cpf, expr)
@@ -396,13 +396,10 @@ class RDDLSimulator:
     def _sample_pvar(self, expr, subs):
         var, args = expr.args
         
-        # free variable (e.g., ?x) treated as integer array (0, 1, 2...)
-        if self.rddl.is_free_variable(var):
-            return self.traced.cached_sim_info(expr)
-        
-        # literal of enumerated type is treated as integer
-        elif not args and self.rddl.is_literal(var):
-            return self.traced.cached_sim_info(expr)
+        # free variable (e.g., ?x) and object converted to canonical index
+        is_value, cached_info = self.traced.cached_sim_info(expr)
+        if is_value:
+            return cached_info
         
         # extract variable value
         sample = subs.get(var, None)
@@ -412,9 +409,8 @@ class RDDLSimulator:
                 RDDLSimulator._print_stack_trace(expr))
         
         # lifted domain must slice and/or reshape value tensor
-        shape_info = self.traced.cached_sim_info(expr)
-        if shape_info is not None:
-            slices, axis, shape, op_code, op_args = shape_info
+        if cached_info is not None:
+            slices, axis, shape, op_code, op_args = cached_info
             if slices: 
                 if op_code == -1:
                     slices = tuple(

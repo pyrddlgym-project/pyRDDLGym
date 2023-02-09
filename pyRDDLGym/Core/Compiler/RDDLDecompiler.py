@@ -6,8 +6,7 @@ from pyRDDLGym.Core.Parser.cpf import CPF
 
 class RDDLDecompiler:
     '''Converts AST representation (e.g., Expression) to a string that represents
-    the corresponding expression in RDDL.
-    '''
+    the corresponding expression in RDDL.'''
     
     def decompile_expr(self, expr: Expression) -> str:
         '''Converts an AST expression to a string representing valid RDDL code.
@@ -28,8 +27,7 @@ class RDDLDecompiler:
     
     def decompile_exprs(self, rddl) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
         '''Converts a RDDL model to a dictionary of decompiled expression strings,
-        as they would appear in the domain description file.
-        '''
+        as they would appear in the domain description file.'''
         decompiled = {}
         decompiled['cpfs'] = {name: self.decompile_expr(expr)
                               for (name, (_, expr)) in rddl.cpfs.items()}
@@ -89,7 +87,8 @@ class RDDLDecompiler:
         _, name = expr.etype
         _, params = expr.args 
         if params is not None:
-            params = ((self._decompile(arg, False, 0) if isinstance(arg, Expression) 
+            params = ((self._decompile(arg, False, 0) 
+                       if isinstance(arg, Expression) 
                        else arg)
                       for arg in params)
         return self._symbolic(name, params, aggregation=False)

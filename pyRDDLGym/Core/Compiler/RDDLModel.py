@@ -30,8 +30,7 @@ class PlanningModel(metaclass=ABCMeta):
         self._actions = None
         self._objects = None
         self._objects_rev = None
-        self._enum_types = None
-        self._enum_literals = None
+        self._enums = None
         self._actionsranges = None
         self._derived = None
         self._interm = None
@@ -83,20 +82,12 @@ class PlanningModel(metaclass=ABCMeta):
         self._objects_rev = value
     
     @property
-    def enum_types(self):
-        return self._enum_types
+    def enums(self):
+        return self._enums
 
-    @enum_types.setter
-    def enum_types(self, value):
-        self._enum_types = value
-    
-    @property
-    def enum_literals(self):
-        return self._enum_literals
-
-    @enum_literals.setter
-    def enum_literals(self, value):
-        self._enum_literals = value
+    @enums.setter
+    def enums(self, value):
+        self._enums = value
     
     @property
     def nonfluents(self):
@@ -344,8 +335,7 @@ class PlanningModel(metaclass=ABCMeta):
     
     def ground_name(self, name: str, objects: Iterable[str]) -> str:
         '''Given a variable name and list of objects as arguments, produces a 
-        grounded representation <variable>___<obj1>__<obj2>__...
-        '''
+        grounded representation <variable>___<obj1>__<obj2>__...'''
         PRIME = PlanningModel.NEXT_STATE_SYM
         is_primed = name.endswith(PRIME)
         var = name
@@ -360,8 +350,7 @@ class PlanningModel(metaclass=ABCMeta):
     
     def parse(self, expr: str) -> Tuple[str, List[str]]:
         '''Parses an expression of the form <name> or <name>___<type1>__<type2>...)
-        into a tuple of <name>, [<type1>, <type2>, ...].
-        '''
+        into a tuple of <name>, [<type1>, <type2>, ...].'''
         PRIME = PlanningModel.NEXT_STATE_SYM
         is_primed = expr.endswith(PRIME)
         if is_primed:
@@ -377,8 +366,7 @@ class PlanningModel(metaclass=ABCMeta):
     
     def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
         '''Given a list of types, computes the Cartesian product of all object
-        enumerations that corresponds to those types.
-        '''
+        enumerations that corresponds to those types.'''
         if ptypes is None or not ptypes:
             return [()]
         objects_by_type = []
@@ -394,8 +382,7 @@ class PlanningModel(metaclass=ABCMeta):
     def ground_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
         '''Given a variable name and list of types, produces a new iterator
         whose elements are the grounded representations in the cartesian product 
-        of all object enumerations that corresponds to those types.
-        '''
+        of all object enumerations that corresponds to those types.'''
         for objects in self.variations(ptypes):
             yield self.ground_name(name, objects)
     
@@ -403,39 +390,39 @@ class PlanningModel(metaclass=ABCMeta):
         '''Determines whether the quantity is a free variable (e.g., ?x).'''
         return name[0] == '?'
         
-    def is_literal(self, name: str, msg='') -> bool:
-        '''Determines whether the quantity with the given name is a literal
-        (e.g., an object) belonging to an enum type.
-        '''
-        
-        # this must be a literal
+    def object_name(self, name: str) -> str:
+        '''Extracts the internal object name representation. 
+        Used to read objects with string quantification, e.g. @obj.'''
         if name[0] == '@':
-            if name not in self.enum_literals:
+            name = name[1:]
+        return name
+        
+    def is_object(self, name: str, msg='') -> bool:
+        '''Determines whether the given string points to an object.'''
+        
+        # this must be an object
+        if name[0] == '@':
+            name = name[1:]
+            if name not in self.objects_rev:
                 raise RDDLInvalidObjectError(
-                    f'Literal <{name}> is not defined, '
-                    f'must be one of {self.enum_literals}. {msg}')
+                    f'Object <{name}> is not defined. {msg}')
             return True
         
-        # this could either be a literal or variable
-        # literal if a variable does not exist with the same name
-        # literal if a variable has the same name but free parameters
+        # this could either be an object or variable
+        # object if a variable does not exist with the same name
+        # object if a variable has the same name but free parameters
         # ambiguous if a variable has the same name but no free parameters
-        literal = '@' + name
-        if literal in self.enum_literals:
+        if name in self.objects_rev:
             params = self.param_types.get(name, None)
             if params is not None and not params:
                 raise RDDLInvalidObjectError(
-                    f'Ambiguous reference to literal <{literal}> or '
-                    f'variable <{name}> with no parameters. {msg}')
+                    f'Ambiguous reference to object or '
+                    f'parameter-free variable with identical name <{name}>. {msg}')
             return True
         
         # this must be a variable or free parameter
         return False
     
-    def literal_name(self, name: str) -> str:
-        '''Prepends @ to the given name if it is not already present.'''
-        return name if name[0] == '@' else ('@' + name)
-        
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given variable can be evaluated
         for the given list of objects.'''
@@ -477,8 +464,8 @@ class PlanningModel(metaclass=ABCMeta):
             if self.is_free_variable(name):
                 return True
                 
-            # enum literal is non-fluent
-            elif not pvars and self.is_literal(name):
+            # an object is non-fluent
+            elif not pvars and self.is_object(name):
                 return True
                         
             # variable must be well-defined and non-fluent
