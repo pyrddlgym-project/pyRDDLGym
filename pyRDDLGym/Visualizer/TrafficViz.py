@@ -1,5 +1,6 @@
 import matplotlib
 matplotlib.use('agg')
+import pygame
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as mpatches
@@ -21,7 +22,7 @@ ROAD_HALF_MEDIAN_WIDTH = 1
 ROAD_WIDTH = ROAD_PAVED_WIDTH + ROAD_HALF_MEDIAN_WIDTH
 ROAD_DELTA = ROAD_PAVED_WIDTH/12
 TURN_RADIUS_DELTA = 5
-ARRIVING_RATE_SAT = 0.67
+ARRIVING_RATE_SAT = 0.52 #per lane
 
 RGBA_PAVEMENT_COLOR = (0.6, 0.6, 0.6, 1)
 RGBA_INTERSECTION_COLOR = (0.3, 0.3, 0.3, 1)
@@ -45,7 +46,7 @@ class TrafficVisualizer(StateViz):
 
     def __init__(self,
                  model: PlanningModel,
-                 figure_size=[10, 10],
+                 figure_size=None, # Pass [int, int] when overriding default
                  dpi=100,
                  fontsize=10,
                  display=False) -> None:
@@ -54,7 +55,15 @@ class TrafficVisualizer(StateViz):
         self._nonfluents = model.groundnonfluents()
         self._objects = model.objects
 
-        self._figure_size = figure_size
+        if figure_size is None:
+            pygame.init()
+            info = pygame.display.Info()
+            if info.current_w == -1 or info.current_h == -1:
+                # Display info not available to pygame
+                self._figure_size = [10,10]
+            else:
+                self._figure_size = [0.9*info.current_w/dpi, 0.9*info.current_h/dpi]
+
         self._display = display
         self._dpi = dpi
         self._fig, self._ax = None, None
@@ -67,7 +76,7 @@ class TrafficVisualizer(StateViz):
         self._img = None
 
         self.parse_nonfluents()
-        self.build_nonfluents_patches()
+        self.build_nonfluent_patches()
 
         # if display == True:
         #     self.pygame_thread = threading.Thread(target=self.init_display)
@@ -171,7 +180,7 @@ class TrafficVisualizer(StateViz):
                      self.phase_by_index_in_intersection[d][self._nonfluents[id('PHASE-INDEX', p)]] = p
 
 
-    def build_nonfluents_patches(self):
+    def build_nonfluent_patches(self):
         # Find the bbox
         x0, y0, x1, y1 = inf, inf, -inf, -inf
         for intersection in self.intersections.values():
@@ -389,7 +398,7 @@ class TrafficVisualizer(StateViz):
                     Q_bg_patch[1] = Q_bg_patch[0] - ROAD_PAVED_WIDTH*ld['nrm']
                     Q_bg_patch[2] = Q_line_R
                     Q_bg_patch[3] = Q_line_L
-                    patch = plt.Polygon(Q_bg_patch, facecolor=RGBA_Q_PATCH_COLOR, edgecolor=RGBA_Q_LINE_COLOR, linewidth=2)
+                    patch = plt.Polygon(Q_bg_patch, facecolor=RGBA_Q_PATCH_COLOR, linewidth=0)
                     ax.add_patch(patch)
 
                     # Draw queue bars
@@ -401,7 +410,7 @@ class TrafficVisualizer(StateViz):
                         Q_turn_bar[1] = Q_turn_bar[0] - 2*ROAD_DELTA*ld['nrm']
                         Q_turn_bar[2] = Q_turn_bar[1] - Q_turn_height*ld['dir']
                         Q_turn_bar[3] = Q_turn_bar[2] + 2*ROAD_DELTA*ld['nrm']
-                        patch = plt.Polygon(Q_turn_bar, color=RGBA_Q_LINE_COLOR)
+                        patch = plt.Polygon(Q_turn_bar, color=RGBA_Q_LINE_COLOR, linewidth=0)
                         ax.add_patch(patch)
                 else:
                     Q_line, Q_line_L, Q_line_R = 0, ld['queues_top_left'], ld['queues_top_left']-ROAD_PAVED_WIDTH*ld['nrm']
