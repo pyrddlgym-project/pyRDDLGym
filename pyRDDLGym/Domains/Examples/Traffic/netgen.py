@@ -2,10 +2,10 @@
 
 import numpy as np
 
-def generate_NEMA8_4_leg_intersection(center, north, east, south, west,
-                                      minor_phase_min, minor_phase_max, minor_red,
-                                      major_phase_min, major_phase_max, major_red,
-                                      p0, right_on_red=True):
+def generate_NEMA8_phasing_data(center, north, east, south, west,
+                                minor_phase_min, minor_phase_max, minor_red,
+                                major_phase_min, major_phase_max, major_red,
+                                p0, right_on_red=True):
     """ Generates the non-fluents for a 4-leg NEMA8 intersection.
 
         center, north, east, south, west (string):
@@ -197,32 +197,15 @@ def generate_NEMA8_grid(nrows,
     for i in range(1,nrows+1):
         for j in range(1,ncols+1):
             link_pairs.extend([
-                (inames[i,j], inames[i-1,j]),
-                (inames[i,j], inames[i,j+1]),
-                (inames[i,j], inames[i+1,j]),
-                (inames[i,j], inames[i,j-1]),
-                (inames[i-1,j], inames[i,j]),
-                (inames[i,j+1], inames[i,j]),
-                (inames[i+1,j], inames[i,j]),
-                (inames[i,j-1], inames[i,j]),
+                f'{inames[i,j]},{inames[i-1,j]}',
+                f'{inames[i,j]},{inames[i,j+1]}',
+                f'{inames[i,j]},{inames[i+1,j]}',
+                f'{inames[i,j]},{inames[i,j-1]}',
+                f'{inames[i-1,j]},{inames[i,j]}',
+                f'{inames[i,j+1]},{inames[i,j]}',
+                f'{inames[i+1,j]},{inames[i,j]}',
+                f'{inames[i,j-1]},{inames[i,j]}',
             ])
-    """
-    for i in range(1,nrows+1):
-        link_pairs.extend([
-            (inames[i,0], inames[i,1]),
-            (inames[i,1], inames[i,0]),
-            (inames[i,ncols], inames[i,ncols+1]),
-            (inames[i,ncols+1], inames[i,ncols])
-        ])
-    for j in range(1,ncols+1):
-        link_pairs.extend([
-            (inames[0,j], inames[1,j]),
-            (inames[1,j], inames[0,j]),
-            (inames[nrows,j], inames[nrows+1,j]),
-            (inames[nrows+1,j], inames[nrows,j])
-        ])
-    """
-    link_pairs = tuple(','.join(pair) for pair in link_pairs)
 
     arrival_rates = np.round( np.random.uniform(inflow_rate[0]-inflow_rate[1],
                                                 inflow_rate[0]+inflow_rate[1],
@@ -282,7 +265,7 @@ def generate_NEMA8_grid(nrows,
     phase_counter = 0
     for i in range(1, nrows+1):
         for j in range(1, ncols+1):
-            instance_str += generate_NEMA8_4_leg_intersection(
+            instance_str += generate_NEMA8_phasing_data(
                                   inames[i,j],
                                   inames[i-1,j],
                                   inames[i,j+1],
@@ -316,5 +299,18 @@ def generate_NEMA8_grid(nrows,
     return instance_str
 
 if __name__ == '__main__':
-    print(generate_NEMA8_grid(2,2))
+    import argparse
+    import os
 
+    parser = argparse.ArgumentParser(description='Tool for automatically generating grid instances for the RDDL traffic domain')
+    parser.add_argument('target_path', type=str, help='Path the generated rddl code will be saved to')
+    parser.add_argument('-r', '--rows', type=int, help='Number of rows in the grid', required=True)
+    parser.add_argument('-c', '--cols', type=int, help='Number of columns in the grid', required=True)
+    parser.add_argument('-f', '--force-overwrite', action='store_true', help='By default the generator will not overwrite existing files. With this flag on, it will')
+    args = parser.parse_args()
+
+    if os.path.isfile(args.target_path) and not args.force_overwrite:
+        raise RuntimeError('[netgen.py] File with the requested path already exists. Pass a diffent path or add the -f flag to force overwrite')
+
+    with open(args.target_path, 'w') as file:
+        file.write(generate_NEMA8_grid(args.rows, args.cols))
