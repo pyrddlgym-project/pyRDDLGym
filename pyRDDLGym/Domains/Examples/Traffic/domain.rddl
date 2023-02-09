@@ -342,8 +342,8 @@ domain BLX_model {
 
         // Turning outflows
         Ml'(?u,?d,?o,?t) =
-              (TIME-VAL(?t) == tau(?u,?d))     * (1 - gamma(?u,?d)) * turn-outflow(?u,?d,?o)
-            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * turn-outflow(?u,?d,?o)
+              (TIME-VAL(?t) == tau(?d,?o))     * (1 - gamma(?u,?d)) * turn-outflow(?u,?d,?o)
+            + (TIME-VAL(?t) == (tau(?d,?o)+1)) * gamma(?u,?d) * turn-outflow(?u,?d,?o)
             + (sum_{?t2 : time}[ NEXT(?t,?t2) * Ml(?u,?d,?o,?t2) ]);
             
         q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - turn-outflow(?u,?d,?o)] * TURN(?u,?d,?o);
