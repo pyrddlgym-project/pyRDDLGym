@@ -10,6 +10,8 @@ from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
 
+# this specifies the valid dependencies that can occur between variable types
+# in the RDDL language
 VALID_DEPENDENCIES = {
     'derived-fluent': {'state-fluent', 'derived-fluent'},
     'interm-fluent': {'action-fluent', 'state-fluent',
@@ -57,10 +59,11 @@ class RDDLLevelAnalysis:
         which each parent depends. Also handles validation of the call graph to
         make sure it follows RDDL rules.
         '''
+        rddl = self.rddl
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
-        for (name, (_, expr)) in self.rddl.cpfs.items():
+        for (name, (_, expr)) in rddl.cpfs.items():
             self._update_call_graph(cpf_graph, name, expr)
             if name not in cpf_graph:
                 cpf_graph[name] = set()
@@ -69,10 +72,10 @@ class RDDLLevelAnalysis:
         
         # check validity of reward, constraints, termination
         for (name, exprs) in [
-            ('reward', [self.rddl.reward]),
-            ('precondition', self.rddl.preconditions),
-            ('invariant', self.rddl.invariants),
-            ('termination', self.rddl.terminals)
+            ('reward', [rddl.reward]),
+            ('precondition', rddl.preconditions),
+            ('invariant', rddl.invariants),
+            ('termination', rddl.terminals)
         ]:
             call_graph = {}
             for expr in exprs:
@@ -90,20 +93,21 @@ class RDDLLevelAnalysis:
         
         elif expr.is_pvariable_expression():
             name, pvars = expr.args
+            rddl = self.rddl
             
             # free variables (e.g., ?x) are ignored
-            if self.rddl.is_free_variable(name):
+            if rddl.is_free_variable(name):
                 pass
             
             # objects are ignored
-            elif not pvars and self.rddl.is_object(name):
+            elif not pvars and rddl.is_object(name):
                 pass
             
             # variable defined in pvariables {..} scope
             else:
                 
                 # check that name is valid variable
-                var_type = self.rddl.variable_types.get(name, None)
+                var_type = rddl.variable_types.get(name, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
                         f'Variable <{name}> is not defined in '
@@ -116,7 +120,8 @@ class RDDLLevelAnalysis:
                 # if a nested fluent
                 if pvars is not None:
                     self._update_call_graph(graph, cpf, pvars)
-                
+        
+        # scan compound expression
         elif not expr.is_constant_expression():
             self._update_call_graph(graph, cpf, expr.args)
     
@@ -183,6 +188,7 @@ class RDDLLevelAnalysis:
         topological sort to determine the optimal order in which the CPFs in the 
         RDDL should be be evaluated.
         '''
+        rddl = self.rddl
         graph = self.build_call_graph()
         order = RDDLLevelAnalysis._topological_sort(graph)
         
@@ -191,17 +197,17 @@ class RDDLLevelAnalysis:
         # a CPF can only depend on another CPF of a lower level than it
         levels, result = {}, {}
         for var in order:
-            if var in self.rddl.cpfs:
+            if var in rddl.cpfs:
                 level = 0
                 for child in graph[var]:
-                    if child in self.rddl.cpfs:
+                    if child in rddl.cpfs:
                         level = max(level, levels[child] + 1)
                 result.setdefault(level, set()).add(var)
                 levels[var] = level
         
         # log dependency graph information to file
         if self.logger is not None: 
-            graph_info = '\n\t'.join(f"{self.rddl.variable_types[k]} {k}: "
+            graph_info = '\n\t'.join(f"{rddl.variable_types[k]} {k}: "
                                      f"{{{', '.join(v)}}}"
                                      for (k, v) in graph.items())
             self.logger.log(f'computed fluent dependencies in CPFs:\n' 

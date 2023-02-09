@@ -48,6 +48,7 @@ class RDDLObjectsTracer:
     '''Performs static/compile-time tracing of a RDDL AST representation and
     annotates nodes with info about objects that appear inside expressions.'''
     
+    # for multivariate sampling: how many dimensions sample has
     REQUIRED_DIST_PVARS = {
         'MultivariateNormal': 1,
         'MultivariateStudent': 1,
@@ -55,6 +56,7 @@ class RDDLObjectsTracer:
         'Multinomial': 1
     }
     
+    # for multivariate sampling: how many _ identifiers each argument has
     REQUIRED_DIST_UNDERSCORES = {
         'MultivariateNormal': (1, 2),  # mean, covariance
         'MultivariateStudent': (1, 2, 0),  # mean, covariance, df

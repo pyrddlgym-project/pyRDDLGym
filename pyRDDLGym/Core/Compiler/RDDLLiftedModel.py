@@ -42,7 +42,7 @@ class RDDLLiftedModel(PlanningModel):
         
         # objects of each type as defined in the non-fluents {..} block
         ast_objects = self._AST.non_fluents.objects
-        if (not ast_objects) or ast_objects[0] is None:
+        if not ast_objects or ast_objects[0] is None:
             ast_objects = []
         ast_objects = dict(ast_objects)
         
@@ -52,7 +52,8 @@ class RDDLLiftedModel(PlanningModel):
             
             # check duplicated type
             if name in objects:
-                raise RDDLInvalidObjectError(f'Type <{name}> is repeated.')
+                raise RDDLInvalidObjectError(
+                    f'Type <{name}> is repeated in types block.')
             
             # instance object
             if pvalues == 'object': 
@@ -76,19 +77,18 @@ class RDDLLiftedModel(PlanningModel):
                 objects_rev[obj] = name
         
         # check that all types in instance are declared in domain
-        for (ptype, _) in self._AST.non_fluents.objects:
+        for ptype in ast_objects:
             if ptype not in objects:
                 raise RDDLInvalidObjectError(
-                    f'Type <{ptype}> declared in the instance is not declared in '
-                    f'types {{ ... }} block in the domain.')
+                    f'Type <{ptype}> defined in the instance is not declared in '
+                    f'the domain.')
         
         # maps each object to its canonical order as it appears in definition
-        objects_index = {obj: i 
-                         for objs in objects.values() 
-                            for (i, obj) in enumerate(objs)}
+        self.index_of_object = {obj: i 
+                                for objs in objects.values() 
+                                    for (i, obj) in enumerate(objs)}
         
         self.objects, self.objects_rev, self.enums = objects, objects_rev, enums
-        self.index_of_object = objects_index
     
     def _extract_variable_information(self):
         
@@ -127,12 +127,11 @@ class RDDLLiftedModel(PlanningModel):
             var_ranges[name] = var_ranges[primed_name] = pvar.range    
         
         # maps each variable (as appears in RDDL) to list of grounded variations
-        var_grounded = {var: list(self.ground_names(var, types))
-                        for (var, types) in var_params.items()}        
+        self.grounded_names = {var: list(self.ground_names(var, types))
+                               for (var, types) in var_params.items()}        
         
         self.param_types, self.variable_types, self.variable_ranges = \
             var_params, var_types, var_ranges
-        self.grounded_names = var_grounded
     
     def _grounded_dict_to_dict_of_list(self, grounded_dict):
         new_dict = {}
@@ -146,13 +145,13 @@ class RDDLLiftedModel(PlanningModel):
         return new_dict
     
     def _extract_default_value(self, pvar):
-        name, prange, default = pvar.name, pvar.range, pvar.default
+        prange, default = pvar.range, pvar.default
         if default is not None:
             if isinstance(default, str):
                 default = self.object_name(default)
             if prange in self.objects and default not in self.objects[prange]:
                 raise RDDLTypeError(
-                    f'Default value <{default}> of variable <{name}> '
+                    f'Default value <{default}> of variable <{pvar.name}> '
                     f'is not an object of type <{prange}>.')         
         return default
     
@@ -163,8 +162,8 @@ class RDDLLiftedModel(PlanningModel):
         states, statesranges, nextstates, prevstates = {}, {}, {}, {}
         for pvar in self._AST.domain.pvariables:
             if pvar.is_state_fluent():
-                name, ptypes, prange = pvar.name, pvar.param_types, pvar.range
-                statesranges[name] = prange
+                name, ptypes = pvar.name, pvar.param_types
+                statesranges[name] = pvar.range
                 nextstates[name] = name + PRIME
                 prevstates[name + PRIME] = name
                 default = self._extract_default_value(pvar)              
@@ -173,42 +172,42 @@ class RDDLLiftedModel(PlanningModel):
                 
         # update the state values with the values in the instance
         initstates = copy.deepcopy(states)
-        if hasattr(self._AST.instance, 'init_state'):
-            for ((name, params), value) in self._AST.instance.init_state:
+        init_state_info = getattr(self._AST.instance, 'init_state', [])
+        for ((name, params), value) in init_state_info:
                 
-                # check whether name is a valid state-fluent
-                if name not in initstates:
-                    raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> referenced in init-state block '
-                        f'is not a valid state-fluent.')
+            # check whether name is a valid state-fluent
+            if name not in initstates:
+                raise RDDLUndefinedVariableError(
+                    f'Variable <{name}> referenced in init-state block '
+                    f'is not a valid state-fluent.')
                     
-                # extract the grounded name and check that parameters are valid
-                if params is not None:
-                    params = list(map(self.object_name, params))
-                gname = self.ground_name(name, params)
-                if gname not in initstates[name]:
-                    raise RDDLInvalidObjectError(
-                        f'Parameter(s) {params} of state-fluent <{name}> '
-                        f'declared in the init-state block are not valid.')
+            # extract the grounded name and check that parameters are valid
+            if params is not None:
+                params = list(map(self.object_name, params))
+            gname = self.ground_name(name, params)
+            if gname not in initstates[name]:
+                raise RDDLInvalidObjectError(
+                    f'Parameter(s) {params} of state-fluent <{name}> '
+                    f'declared in the init-state block are not valid.')
                 
-                # make sure value is correct type
-                if isinstance(value, str):
-                    value = self.object_name(value)
-                    value_type = self.objects_rev.get(value, None)
-                    required_type = statesranges[name]
-                    if value_type != required_type:
-                        if value_type is None:
-                            raise RDDLInvalidObjectError(
-                                f'State-fluent <{name}> of type <{required_type}> '
-                                f'is initialized in init-state block with undefined '
-                                f'object <{value}>.')
-                        else:
-                            raise RDDLInvalidObjectError(
-                                f'State-fluent <{name}> of type <{required_type}> '
-                                f'is initialized in init-state block with object '
-                                f'<{value}> of type {value_type}.')
+            # make sure value is correct type
+            if isinstance(value, str):
+                value = self.object_name(value)
+                value_type = self.objects_rev.get(value, None)
+                required_type = statesranges[name]
+                if value_type != required_type:
+                    if value_type is None:
+                        raise RDDLInvalidObjectError(
+                            f'State-fluent <{name}> of type <{required_type}> '
+                            f'is initialized in init-state block with undefined '
+                            f'object <{value}>.')
+                    else:
+                        raise RDDLInvalidObjectError(
+                            f'State-fluent <{name}> of type <{required_type}> '
+                            f'is initialized in init-state block with object '
+                            f'<{value}> of type {value_type}.')
                         
-                initstates[name][gname] = value
+            initstates[name][gname] = value
                 
         # state dictionary associates the variable lifted name with a list of
         # values for all variations of parameter arguments in C-based order
@@ -274,43 +273,43 @@ class RDDLLiftedModel(PlanningModel):
                                      for gname in self.ground_names(name, ptypes)}
         
         # update non-fluent values with the values in the instance
-        if hasattr(self._AST.non_fluents, 'init_non_fluent'):
-            for ((name, params), value) in self._AST.non_fluents.init_non_fluent:
+        non_fluent_info = getattr(self._AST.non_fluents, 'init_non_fluent', [])
+        for ((name, params), value) in non_fluent_info:
                 
-                # check whether name is a valid non-fluent
-                grounded_names = non_fluents.get(name, None)
-                if grounded_names is None:
-                    raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> referenced in non-fluents block '
-                        f'is not a valid non-fluent.')
+            # check whether name is a valid non-fluent
+            grounded_names = non_fluents.get(name, None)
+            if grounded_names is None:
+                raise RDDLUndefinedVariableError(
+                    f'Variable <{name}> referenced in non-fluents block '
+                    f'is not a valid non-fluent.')
                 
-                # extract the grounded name and check that parameters are valid
-                if params is not None:
-                    params = list(map(self.object_name, params))
-                gname = self.ground_name(name, params)                           
-                if gname not in grounded_names:
-                    raise RDDLInvalidObjectError(
-                        f'Parameter(s) {params} of non-fluent <{name}> '
-                        f'as declared in the non-fluents block are not valid.')
+            # extract the grounded name and check that parameters are valid
+            if params is not None:
+                params = list(map(self.object_name, params))
+            gname = self.ground_name(name, params)                           
+            if gname not in grounded_names:
+                raise RDDLInvalidObjectError(
+                    f'Parameter(s) {params} of non-fluent <{name}> '
+                    f'as declared in the non-fluents block are not valid.')
                     
-                # make sure value is correct type
-                if isinstance(value, str):
-                    value = self.object_name(value)
-                    value_type = self.objects_rev.get(value, None)
-                    required_type = self.variable_ranges[name]
-                    if value_type != required_type:
-                        if value_type is None:
-                            raise RDDLInvalidObjectError(
-                                f'Non-fluent <{name}> of type <{required_type}> '
-                                f'is initialized in non-fluents block with '
-                                f'undefined object <{value}>')
-                        else:
-                            raise RDDLInvalidObjectError(
-                                f'Non-fluent <{name}> of type <{required_type}> '
-                                f'is initialized in non-fluents block with object '
-                                f'<{value}> of type <{value_type}>.')
+            # make sure value is correct type
+            if isinstance(value, str):
+                value = self.object_name(value)
+                value_type = self.objects_rev.get(value, None)
+                required_type = self.variable_ranges[name]
+                if value_type != required_type:
+                    if value_type is None:
+                        raise RDDLInvalidObjectError(
+                            f'Non-fluent <{name}> of type <{required_type}> '
+                            f'is initialized in non-fluents block with '
+                            f'undefined object <{value}>.')
+                    else:
+                        raise RDDLInvalidObjectError(
+                            f'Non-fluent <{name}> of type <{required_type}> '
+                            f'is initialized in non-fluents block with object '
+                            f'<{value}> of type <{value_type}>.')
                         
-                grounded_names[gname] = value
+            grounded_names[gname] = value
                                         
         # non-fluents are stored similar to states described above
         self.nonfluents = self._grounded_dict_to_dict_of_list(non_fluents)
@@ -351,15 +350,9 @@ class RDDLLiftedModel(PlanningModel):
         self.cpfs = cpfs
     
     def _extract_constraints(self):
-        terminals, preconds, invariants = [], [], []
-        if hasattr(self._AST.domain, 'terminals'):
-            terminals = self._AST.domain.terminals
-        if hasattr(self._AST.domain, 'preconds'):
-            preconds = self._AST.domain.preconds
-        if hasattr(self._AST.domain, 'invariants'):
-            invariants = self._AST.domain.invariants
-        self.terminals, self.preconditions, self.invariants = \
-            terminals, preconds, invariants
+        self.terminals = getattr(self._AST.domain, 'terminals', [])
+        self.preconditions = getattr(self._AST.domain, 'preconds', [])
+        self.invariants = getattr(self._AST.domain, 'invariants', [])
 
     def _extract_horizon(self):
         horizon = self._AST.instance.horizon
