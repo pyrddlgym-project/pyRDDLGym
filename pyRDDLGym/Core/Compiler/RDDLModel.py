@@ -417,7 +417,7 @@ class PlanningModel(metaclass=ABCMeta):
             if params is not None and not params:
                 raise RDDLInvalidObjectError(
                     f'Ambiguous reference to object or '
-                    f'parameter-free variable with same name <{name}>. {msg}')
+                    f'parameter-free variable with identical name <{name}>. {msg}')
             return True
         
         # this must be a variable or free parameter
