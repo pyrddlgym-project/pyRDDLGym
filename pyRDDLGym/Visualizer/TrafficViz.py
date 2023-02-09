@@ -22,7 +22,7 @@ ROAD_HALF_MEDIAN_WIDTH = 1
 ROAD_WIDTH = ROAD_PAVED_WIDTH + ROAD_HALF_MEDIAN_WIDTH
 ROAD_DELTA = ROAD_PAVED_WIDTH/12
 TURN_RADIUS_DELTA = 5
-ARRIVING_RATE_SAT = 0.52 #per lane
+ARRIVING_RATE_SAT = 0.2 #per lane
 
 RGBA_PAVEMENT_COLOR = (0.6, 0.6, 0.6, 1)
 RGBA_INTERSECTION_COLOR = (0.3, 0.3, 0.3, 1)
@@ -379,6 +379,7 @@ class TrafficVisualizer(StateViz):
             cur_ph = self.phase_by_index_in_intersection[d][cur_ph_idx]
             for t in self.green_turns_by_phase[cur_ph]:
                 ax.add_patch(copy(self.turn_patches[t]))
+
 
         for d in self.TLs.union(self.sinks):
             for (u,d) in self.intersections[d]['inc_links']:
