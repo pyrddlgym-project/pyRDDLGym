@@ -63,7 +63,19 @@ class RDDLObjectsTracer:
         'Dirichlet': (1,),  # weights
         'Multinomial': (0, 1)  # trials, probabilities
     }
-
+    
+    @staticmethod
+    def enum(**enums):
+        return type('Enum', (), enums)
+    
+    # operation codes on pvariable tensors
+    NUMPY_OP_CODE = enum(
+        NESTED_SLICE=-1,  # nested pvariables detected: slice required
+        EINSUM=0,  # duplicated variables like fluent(?x, ?x) - reduction required
+        TRANSPOSE=1,  # evaluation order differs from outerscope -- reorder required
+        NOOP=2  # a scalar pvariable for example does not require any operation
+    )
+    
     def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
@@ -396,7 +408,7 @@ class RDDLObjectsTracer:
             new_axis = None
             new_shape = None
             op_args = None
-            op_code = -1
+            op_code = RDDLObjectsTracer.NUMPY_OP_CODE.NESTED_SLICE
         else:
             
             # update permutation based on objects not in args
@@ -410,17 +422,16 @@ class RDDLObjectsTracer:
             objects_range = list(range(len(objects)))        
             if len(covered) != len_after_slice:
                 op_args = (permuted, objects_range)
-                op_code = 0
+                op_code = RDDLObjectsTracer.NUMPY_OP_CODE.EINSUM
             elif permuted != objects_range:
                 op_args = tuple(np.argsort(permuted))  # inverse permutation
-                op_code = 1
+                op_code = RDDLObjectsTracer.NUMPY_OP_CODE.TRANSPOSE
             else:
                 op_args = None
-                op_code = 2
+                op_code = RDDLObjectsTracer.NUMPY_OP_CODE.NOOP
         
         # log information about the new transformation
         if self.logger is not None:
-            operation = ['einsum', 'transpose', 'none'][op_code]
             message = (
                 f'computing info for pvariable tensor transformation:' 
                 f'\n\taddress of expression   ={super(Expression, expr).__str__()}'
@@ -430,7 +441,7 @@ class RDDLObjectsTracer:
                 f'\n\tslice                   ={slices}'
                 f'\n\tnew axes to append      ={new_axis}'
                 f'\n\tbroadcast shape         ={new_shape}'
-                f'\n\ttransform operation     ={operation} with argument(s) {op_args}\n'
+                f'\n\ttransform operation     ={op_code} with argument(s) {op_args}\n'
             )
             self.logger.log(message)
             

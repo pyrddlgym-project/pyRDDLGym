@@ -490,7 +490,7 @@ class JaxRDDLCompiler:
             slices, axis, shape, op_code, op_args = cached_info 
         
             # compile nested expressions
-            if slices and op_code == -1:
+            if slices and op_code == RDDLObjectsTracer.NUMPY_OP_CODE.NESTED_SLICE:
                 
                 jax_nested_expr = [(self._jax(arg) 
                                     if _slice is None 
@@ -519,9 +519,9 @@ class JaxRDDLCompiler:
                     if axis:
                         sample = jnp.expand_dims(sample, axis=axis)
                         sample = jnp.broadcast_to(sample, shape=shape)
-                    if op_code == 0:
+                    if op_code == RDDLObjectsTracer.NUMPY_OP_CODE.EINSUM:
                         sample = jnp.einsum(sample, *op_args)
-                    elif op_code == 1:
+                    elif op_code == RDDLObjectsTracer.NUMPY_OP_CODE.TRANSPOSE:
                         sample = jnp.transpose(sample, axes=op_args)
                     return sample, key, NORMAL
                 

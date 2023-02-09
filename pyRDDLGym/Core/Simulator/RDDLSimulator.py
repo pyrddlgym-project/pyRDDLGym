@@ -412,7 +412,7 @@ class RDDLSimulator:
         if cached_info is not None:
             slices, axis, shape, op_code, op_args = cached_info
             if slices: 
-                if op_code == -1:
+                if op_code == RDDLObjectsTracer.NUMPY_OP_CODE.NESTED_SLICE:
                     slices = tuple(
                         (self._sample(arg, subs) if _slice is None else _slice)
                         for (arg, _slice) in zip(args, slices)
@@ -421,9 +421,9 @@ class RDDLSimulator:
             if axis:
                 sample = np.expand_dims(sample, axis=axis)
                 sample = np.broadcast_to(sample, shape=shape)
-            if op_code == 0:
+            if op_code == RDDLObjectsTracer.NUMPY_OP_CODE.EINSUM:
                 sample = np.einsum(sample, *op_args)
-            elif op_code == 1:
+            elif op_code == RDDLObjectsTracer.NUMPY_OP_CODE.TRANSPOSE:
                 sample = np.transpose(sample, axes=op_args)
         return sample
     
