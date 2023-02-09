@@ -243,9 +243,8 @@ class RDDLSimulator:
         rddl = self.rddl
         for (action, value) in actions.items(): 
             
-            # enum literals are converted to their canonical int indices
-            if value in rddl.enum_literals:
-                value = rddl.index_of_object[value]
+            # objects are converted to their canonical indices
+            value = rddl.index_of_object.get(value, value)
             
             # parse action string and assign to the correct coordinates
             if action in new_actions:
@@ -396,13 +395,10 @@ class RDDLSimulator:
     def _sample_pvar(self, expr, subs):
         var, args = expr.args
         
-        # free variable (e.g., ?x) treated as integer array (0, 1, 2...)
-        if self.rddl.is_free_variable(var):
-            return self.traced.cached_sim_info(expr)
-        
-        # literal of enumerated type is treated as integer
-        elif not args and self.rddl.is_literal(var):
-            return self.traced.cached_sim_info(expr)
+        # free variable (e.g., ?x) and object converted to canonical index
+        is_value, cached_info = self.traced.cached_sim_info(expr)
+        if is_value:
+            return cached_info
         
         # extract variable value
         sample = subs.get(var, None)
@@ -412,9 +408,8 @@ class RDDLSimulator:
                 RDDLSimulator._print_stack_trace(expr))
         
         # lifted domain must slice and/or reshape value tensor
-        shape_info = self.traced.cached_sim_info(expr)
-        if shape_info is not None:
-            slices, axis, shape, op_code, op_args = shape_info
+        if cached_info is not None:
+            slices, axis, shape, op_code, op_args = cached_info
             if slices: 
                 if op_code == -1:
                     slices = tuple(
