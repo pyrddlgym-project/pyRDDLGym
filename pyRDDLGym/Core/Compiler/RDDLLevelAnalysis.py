@@ -131,7 +131,7 @@ class RDDLLevelAnalysis:
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
                 warnings.warn(
-                    f'The use of derived-fluent is discouraged in this version, '
+                    f'The use of derived-fluent is discouraged, '
                     f'please change <{cpf}> to interm-fluent.', stacklevel=2)
             
             # not a recognized type
@@ -143,7 +143,7 @@ class RDDLLevelAnalysis:
                         f'did you mean <{cpf}{PRIME}>?')
                 else:
                     raise RDDLNotImplementedError(
-                        f'Type {cpf_type} of CPF <{cpf}> is not valid.')
+                        f'Type <{cpf_type}> of CPF <{cpf}> is not valid.')
             
             # check that all dependencies are valid
             for dep in deps: 
@@ -171,7 +171,8 @@ class RDDLLevelAnalysis:
                 cpf = cpf + PlanningModel.NEXT_STATE_SYM
             if fluent_type in VALID_DEPENDENCIES and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{cpf}> is not defined in cpfs block.')
+                    f'{fluent_type} CPF <{cpf}> is not defined '
+                    f'in cpfs {{...}} block.')
                     
     # ===========================================================================
     # topological sort

@@ -220,8 +220,8 @@ class RDDLObjectsTracer:
             enum_type = rddl.objects_rev[literal]  
             if enum_type not in rddl.enums:
                 raise RDDLInvalidObjectError(
-                    f'Object <{var}> must belong to a domain-defined object '
-                    f'type, got type <{enum_type}>.')
+                    f'Object <{var}> must be of a domain-defined object type, '
+                    f'got type <{enum_type}>.')
             
             # map to canonical index - for pvariable fill an array with it
             const = rddl.index_of_object[literal]
@@ -598,6 +598,7 @@ class RDDLObjectsTracer:
         out._append(expr, objects, enum_type, None)
         
     def _trace_switch(self, expr, objects, out):
+        rddl = self.rddl
         pred, *cases = expr.args
         
         # predicate must be a pvar
@@ -608,11 +609,11 @@ class RDDLObjectsTracer:
             
         # type in pvariables scope must be a domain object
         var, _ = pred.args
-        enum_type = self.rddl.variable_ranges.get(var, None)
-        if enum_type not in self.rddl.enums:
+        enum_type = rddl.variable_ranges.get(var, None)
+        if enum_type not in rddl.enums:
             raise RDDLTypeError(
                 f'Type <{enum_type}> of switch predicate <{var}> is not a '
-                f'domain-defined object, must be one of {self.rddl.enums}.\n' + 
+                f'domain-defined object, must be one of {rddl.enums}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))
             
         # default statement becomes ("default", expr)
@@ -622,7 +623,7 @@ class RDDLObjectsTracer:
         )    
         
         # strip @ from any cases
-        case_dict = {self.rddl.object_name(key): value 
+        case_dict = {rddl.object_name(key): value 
                      for (key, value) in case_dict.items()}
         
         # check for duplicated cases
@@ -651,12 +652,12 @@ class RDDLObjectsTracer:
         out._append(expr, objects, enum_type, cached_sim_info)
         
     def _order_cases(self, enum_type, case_dict, expr): 
-        enum_values = self.rddl.objects[enum_type]
+        rddl = self.rddl
+        enum_values = rddl.objects[enum_type]
         
         # check that all literals belong to enum_type
         for _case in case_dict:
-            if _case != 'default' \
-            and self.rddl.objects_rev.get(_case, None) != enum_type:
+            if _case != 'default' and rddl.objects_rev.get(_case, None) != enum_type:
                 raise RDDLInvalidObjectError(
                     f'Object <{_case}> does not belong to type <{enum_type}>, '
                     f'must be one of {set(enum_values)}.\n' + 
@@ -667,7 +668,7 @@ class RDDLObjectsTracer:
         for obj in enum_values:
             arg = case_dict.get(obj, None)
             if arg is not None: 
-                index = self.rddl.index_of_object[obj]
+                index = rddl.index_of_object[obj]
                 expressions[index] = arg
         
         # if default statement is missing, cases must be comprehensive
@@ -705,18 +706,19 @@ class RDDLObjectsTracer:
             self._trace_random_other(expr, objects, out)
                 
     def _trace_discrete(self, expr, objects, out):
+        rddl = self.rddl
         (_, enum_type), *cases = expr.args
             
         # object type must be a valid domain object type
-        if enum_type not in self.rddl.enums:
+        if enum_type not in rddl.enums:
             raise RDDLTypeError(
                 f'Type <{enum_type}> in Discrete distribution is not a '
-                f'domain-defined object, must be one of {self.rddl.enums}.\n' + 
+                f'domain-defined object, must be one of {rddl.enums}.\n' + 
                 RDDLObjectsTracer._print_stack_trace(expr))        
         case_dict = dict(case_tup for (_, case_tup) in cases) 
         
         # strip @ from any cases       
-        case_dict = {self.rddl.object_name(key): value 
+        case_dict = {rddl.object_name(key): value 
                      for (key, value) in case_dict.items()}
         
         # no duplicate cases are allowed
@@ -878,8 +880,8 @@ class RDDLObjectsTracer:
             pvar, ptype = objects[index]
             if ptype != enum_type:
                 raise RDDLTypeError(
-                    f'{op} sampling is performed over type {enum_type}, '
-                    f'but destination variable <{pvar}> is of type {ptype}.\n' + 
+                    f'{op} sampling is performed over type <{enum_type}>, '
+                    f'but destination variable <{pvar}> is of type <{ptype}>.\n' + 
                     RDDLObjectsTracer._print_stack_trace(expr))
              
         out._append(expr, objects, None, sample_pvar_indices)

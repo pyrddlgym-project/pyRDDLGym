@@ -104,14 +104,14 @@ class RDDLLiftedModel(PlanningModel):
             if name in var_params:
                 raise RDDLRepeatedVariableError(
                     f'{pvar.fluent_type} <{name}> has the same name as '
-                    f'another {var_types[name]}.')
+                    f'another {var_types[name]} variable.')
                 
             # make sure name does not contain separators
             SEPARATORS = [PlanningModel.FLUENT_SEP, PlanningModel.OBJECT_SEP] 
             for separator in SEPARATORS:
                 if separator in name:
                     raise RDDLInvalidObjectError(
-                        f'Variable name <{name}> contains the '
+                        f'Variable name <{name}> contains an '
                         f'illegal separator {separator}.')
             
             # record its type, parameters and range
@@ -152,8 +152,8 @@ class RDDLLiftedModel(PlanningModel):
                 default = self.object_name(default)
             if prange in self.objects and default not in self.objects[prange]:
                 raise RDDLTypeError(
-                    f'Default value {default} of variable <{name}> '
-                    f'is not an object of type {prange}.')         
+                    f'Default value <{default}> of variable <{name}> '
+                    f'is not an object of type <{prange}>.')         
         return default
     
     def _extract_states(self):
@@ -188,24 +188,25 @@ class RDDLLiftedModel(PlanningModel):
                 gname = self.ground_name(name, params)
                 if gname not in initstates[name]:
                     raise RDDLInvalidObjectError(
-                        f'Parameter(s) {params} of state-fluent {name} '
-                        f'as declared in the init-state block are not valid.')
+                        f'Parameter(s) {params} of state-fluent <{name}> '
+                        f'declared in the init-state block are not valid.')
                 
                 # make sure value is correct type
                 if isinstance(value, str):
                     value = self.object_name(value)
                     value_type = self.objects_rev.get(value, None)
-                    if value_type != statesranges[name]:
+                    required_type = statesranges[name]
+                    if value_type != required_type:
                         if value_type is None:
                             raise RDDLInvalidObjectError(
-                                f'State-fluent <{name}> of type <{statesranges[name]}> '
+                                f'State-fluent <{name}> of type <{required_type}> '
                                 f'is initialized in init-state block with undefined '
                                 f'object <{value}>.')
                         else:
                             raise RDDLInvalidObjectError(
-                                f'State-fluent <{name}> of type <{statesranges[name]}> '
-                                f'is initialized in init-state block with an object '
-                                f'<{value}> of type <{value_type}>.')
+                                f'State-fluent <{name}> of type <{required_type}> '
+                                f'is initialized in init-state block with object '
+                                f'<{value}> of type {value_type}.')
                         
                 initstates[name][gname] = value
                 
@@ -289,18 +290,25 @@ class RDDLLiftedModel(PlanningModel):
                 gname = self.ground_name(name, params)                           
                 if gname not in grounded_names:
                     raise RDDLInvalidObjectError(
-                        f'Parameter(s) {params} of non-fluent {name} '
+                        f'Parameter(s) {params} of non-fluent <{name}> '
                         f'as declared in the non-fluents block are not valid.')
                     
                 # make sure value is correct type
                 if isinstance(value, str):
                     value = self.object_name(value)
                     value_type = self.objects_rev.get(value, None)
-                    if value_type != self.variable_ranges[name]:
-                        raise RDDLInvalidObjectError(
-                            f'Non-fluent <{name}> of type <{self.variable_ranges[name]}> '
-                            f'is initialized in non-fluents block with an object '
-                            f'<{value}> of type <{value_type}>.')
+                    required_type = self.variable_ranges[name]
+                    if value_type != required_type:
+                        if value_type is None:
+                            raise RDDLInvalidObjectError(
+                                f'Non-fluent <{name}> of type <{required_type}> '
+                                f'is initialized in non-fluents block with '
+                                f'undefined object <{value}>')
+                        else:
+                            raise RDDLInvalidObjectError(
+                                f'Non-fluent <{name}> of type <{required_type}> '
+                                f'is initialized in non-fluents block with object '
+                                f'<{value}> of type <{value_type}>.')
                         
                 grounded_names[gname] = value
                                         
