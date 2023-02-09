@@ -110,28 +110,29 @@ class RDDLSimulator:
                             'switch': np.select}
     
     def _compile(self):
+        rddl = self.rddl
         
         # compile initial values
         if self.logger is not None:
             self.logger.clear()
-        initializer = RDDLValueInitializer(self.rddl, logger=self.logger)
+        initializer = RDDLValueInitializer(rddl, logger=self.logger)
         self.init_values = initializer.initialize()
         
         # compute dependency graph for CPFs and sort them by evaluation order
-        sorter = RDDLLevelAnalysis(self.rddl, self.allow_synchronous_state, 
+        sorter = RDDLLevelAnalysis(rddl, self.allow_synchronous_state, 
                                    logger=self.logger)
         levels = sorter.compute_levels()      
         self.cpfs = []  
         for cpfs in levels.values():
             for cpf in cpfs:
-                _, expr = self.rddl.cpfs[cpf]
-                prange = self.rddl.variable_ranges[cpf]
+                _, expr = rddl.cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
                 dtype = RDDLValueInitializer.NUMPY_TYPES.get(
                     prange, RDDLValueInitializer.INT)
                 self.cpfs.append((cpf, expr, dtype))
                 
         # trace expressions to cache information to be used later
-        tracer = RDDLObjectsTracer(self.rddl, logger=self.logger)
+        tracer = RDDLObjectsTracer(rddl, logger=self.logger)
         self.traced = tracer.trace()
         
         # initialize all fluent and non-fluent values        
@@ -139,8 +140,8 @@ class RDDLSimulator:
         self.state = None  
         self.noop_actions = {var: values
                              for (var, values) in self.init_values.items()
-                             if self.rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(self.rddl.observ)
+                             if rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(rddl.observ)
         
     @property
     def states(self) -> Args:
@@ -168,13 +169,13 @@ class RDDLSimulator:
             dtype = getattr(value, 'dtype', type(value))
             if arg is None:
                 raise RDDLTypeError(
-                    f'{msg} must evaluate to {valid}, '
-                    f'got {value} of type {dtype}.\n' + 
+                    f'{msg} must evaluate to <{valid}>, '
+                    f'got {value} of type <{dtype}>.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
             else:
                 raise RDDLTypeError(
-                    f'Argument {arg} of {msg} must evaluate to {valid}, '
-                    f'got {value} of type {dtype}.\n' + 
+                    f'Argument {arg} of {msg} must evaluate to <{valid}>, '
+                    f'got {value} of type <{dtype}>.\n' + 
                     RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -185,7 +186,7 @@ class RDDLSimulator:
         dtype = getattr(value, 'dtype', type(value))
         raise RDDLTypeError(
             f'{msg} must evaluate to one of {valid}, '
-            f'got {value} of type {dtype}.\n' + 
+            f'got {value} of type <{dtype}>.\n' + 
             RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -202,7 +203,7 @@ class RDDLSimulator:
     def _check_arity(args, required, msg, expr):
         if len(args) != required:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'{msg} requires {required} arguments, got {len(args)}.\n' + 
+                f'{msg} requires {required} argument(s), got {len(args)}.\n' + 
                 RDDLSimulator._print_stack_trace(expr))
     
     @staticmethod
@@ -236,11 +237,11 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _process_actions(self, actions):
+        rddl = self.rddl
         new_actions = {action: np.copy(value) 
                        for (action, value) in self.noop_actions.items()}
         
         # override new_actions with any new actions
-        rddl = self.rddl
         for (action, value) in actions.items(): 
             
             # objects are converted to their canonical indices
@@ -299,10 +300,10 @@ class RDDLSimulator:
     
     def reset(self) -> Union[Dict[str, None], Args]:
         '''Resets the state variables to their initial values.'''
+        rddl = self.rddl
         subs = self.subs = self.init_values.copy()
         
         # update state
-        rddl = self.rddl
         self.state = {}
         for state in rddl.states:
             self.state.update(rddl.ground_values(state, subs[state]))
@@ -321,12 +322,12 @@ class RDDLSimulator:
         
         :param actions: a dict mapping current action fluent to their values
         '''
+        rddl = self.rddl
         actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
         # evaluate CPFs in topological order
-        rddl = self.rddl
         for (cpf, expr, dtype) in self.cpfs:
             sample = self._sample(expr, subs)
             RDDLSimulator._check_type(sample, dtype, cpf, expr)
