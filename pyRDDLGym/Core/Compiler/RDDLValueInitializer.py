@@ -44,8 +44,7 @@ class RDDLValueInitializer:
     def initialize(self) -> Dict[str, Union[np.ndarray, INT, REAL, bool]]:
         '''Compiles all initial values of all variables for the current RDDL file.
         A dictionary is returned with variable names as keys (as they appear in
-        the RDDL) and value arrays as values. 
-        '''
+        the RDDL) and value arrays as values.'''
         rddl = self.rddl
                 
         # initial values consists of non-fluents, state and action fluents
@@ -54,19 +53,19 @@ class RDDLValueInitializer:
         init_values.update(rddl.init_state)
         init_values.update(rddl.actions)
 
-        # enum literals are converted to integers
+        # domain objects are converted to integers
         for (var, values) in init_values.items():
             prange = rddl.variable_ranges[var]
-            if prange in rddl.enum_types:
-                init_values[var] = self._enum_literals_to_ints(values, prange, var)
+            if prange in rddl.enums:
+                init_values[var] = self._objects_to_ints(values, prange, var)
         
         # create a tensor for each pvar with the init_values
         # if the init_values are missing use the default value of range
         np_init_values = {}
         for (var, prange) in rddl.variable_ranges.items():
             
-            # enum types are treated as int
-            if prange in rddl.enum_types:
+            # domain objects are treated as int
+            if prange in rddl.enums:
                 prange = 'int'
             
             # get default value and dtype
@@ -75,8 +74,9 @@ class RDDLValueInitializer:
             if default is None or dtype is None:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
-                    f'must be an enum type in {self.rddl.enum_types} '
-                    f'or one of {set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
+                    f'must be either a domain-defined object type in '
+                    f'{rddl.enums} or a primitive type in '
+                    f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
             
             # scalar value is just cast to the desired type
             # list values are converted to numpy arrays and reshaped such that 
@@ -85,8 +85,7 @@ class RDDLValueInitializer:
             if ptypes:
                 shape = rddl.object_counts(ptypes)
                 if var in init_values:
-                    values = [(default if v is None else v) 
-                              for v in init_values[var]]
+                    values = [(default if v is None else v) for v in init_values[var]]
                     values = np.asarray(values, dtype=dtype)
                     values = np.reshape(values, newshape=shape, order='C')
                 else:
@@ -108,28 +107,21 @@ class RDDLValueInitializer:
         
         return np_init_values
     
-    def _enum_literals_to_ints(self, literals, prange, var):
+    def _objects_to_ints(self, literals, prange, var):
         is_scalar = isinstance(literals, str)
         if is_scalar:
             literals = [literals]
             
         indices = [0] * len(literals)
-        for (i, literal) in enumerate(literals):
-            if literal is not None:
-                
-                # literal is either undefined or not the right type
-                literal = self.rddl.literal_name(literal)
-                if self.rddl.objects_rev.get(literal, None) != prange:
+        for (i, obj) in enumerate(literals):
+            if obj is not None:
+                if self.rddl.objects_rev.get(obj, None) != prange:
                     raise RDDLInvalidObjectError(
-                        f'Value <{literal}> assigned to variable <{var}> '
-                        f'does not belong to enum <{prange}>, '
-                        f'must be one of {set(self.rddl.objects[prange])}.')
-                
-                # canonical index of literal in object list
-                indices[i] = self.rddl.index_of_object[literal]
+                        f'<{obj}> assigned to pvariable <{var}> in instance '
+                        f'is not an object of type <{prange}>.')
+                indices[i] = self.rddl.index_of_object[obj]
                 
         if is_scalar:
             indices, = indices
-            
         return indices
     

@@ -45,12 +45,12 @@ class JaxRDDLSimulator(RDDLSimulator):
         super(JaxRDDLSimulator, self).__init__(rddl, logger=logger)
     
     def _compile(self):
+        rddl = self.rddl
         
         # compilation
         if self.logger is not None:
             self.logger.clear()
-        compiled = JaxRDDLCompiler(self.rddl, logger=self.logger, 
-                                   **self.compiler_args)
+        compiled = JaxRDDLCompiler(rddl, logger=self.logger, **self.compiler_args)
         compiled.compile(log_jax_expr=True)
         self.init_values = compiled.init_values
         self.levels = compiled.levels
@@ -67,7 +67,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         for cpfs in self.levels.values():
             for cpf in cpfs:
                 expr = jax_cpfs[cpf]
-                prange = self.rddl.variable_ranges[cpf]
+                prange = rddl.variable_ranges[cpf]
                 dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, JaxRDDLCompiler.INT)
                 self.cpfs.append((cpf, expr, dtype))
         
@@ -76,8 +76,8 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.state = None 
         self.noop_actions = {var: values 
                              for (var, values) in self.init_values.items() 
-                             if self.rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(self.rddl.observ)
+                             if rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(rddl.observ)
         
     def handle_error_code(self, error, msg) -> None:
         if self.raise_error:
@@ -129,6 +129,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         :param actions: a dict mapping current action fluents to their values
         '''
+        rddl = self.rddl
         actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
@@ -142,7 +143,6 @@ class JaxRDDLSimulator(RDDLSimulator):
         reward = self.sample_reward()
         
         # update state
-        rddl = self.rddl
         self.state = {}
         for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
