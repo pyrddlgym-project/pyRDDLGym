@@ -95,8 +95,8 @@ class RDDLLevelAnalysis:
             if self.rddl.is_free_variable(name):
                 pass
             
-            # enum literals are ignored
-            elif not pvars and self.rddl.is_literal(name):
+            # objects are ignored
+            elif not pvars and self.rddl.is_object(name):
                 pass
             
             # variable defined in pvariables {..} scope
@@ -106,8 +106,8 @@ class RDDLLevelAnalysis:
                 var_type = self.rddl.variable_types.get(name, None)
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> is not defined. '
-                        f'Please check expression for CPF <{cpf}>.')
+                        f'Variable <{name}> is not defined in '
+                        f'expression for CPF <{cpf}>.')
                 
                 # if var is a fluent assign it as dependent of cpf
                 elif var_type != 'non-fluent':
@@ -115,12 +115,10 @@ class RDDLLevelAnalysis:
                 
                 # if a nested fluent
                 if pvars is not None:
-                    for arg in pvars:
-                        self._update_call_graph(graph, cpf, arg)
+                    self._update_call_graph(graph, cpf, pvars)
                 
         elif not expr.is_constant_expression():
-            for arg in expr.args:
-                self._update_call_graph(graph, cpf, arg)
+            self._update_call_graph(graph, cpf, expr.args)
     
     # ===========================================================================
     # call graph validation
@@ -133,7 +131,7 @@ class RDDLLevelAnalysis:
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
                 warnings.warn(
-                    f'The use of derived-fluent is discouraged in this version: '
+                    f'The use of derived-fluent is discouraged in this version, '
                     f'please change <{cpf}> to interm-fluent.', stacklevel=2)
             
             # not a recognized type
@@ -141,7 +139,7 @@ class RDDLLevelAnalysis:
                 if cpf_type == 'state-fluent':
                     PRIME = PlanningModel.NEXT_STATE_SYM
                     raise RDDLInvalidDependencyInCPFError(
-                        f'CPF definition for state-fluent <{cpf}> is not valid: '
+                        f'CPF definition for state-fluent <{cpf}> is not valid, '
                         f'did you mean <{cpf}{PRIME}>?')
                 else:
                     raise RDDLNotImplementedError(
@@ -160,8 +158,8 @@ class RDDLLevelAnalysis:
                 elif not self.allow_synchronous_state and \
                 cpf_type == dep_type == 'next-state-fluent':
                     raise RDDLInvalidDependencyInCPFError(
-                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>. '
-                        f'Set allow_synchronous_state=True to allow this.')                
+                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>, '
+                        f'set allow_synchronous_state=True to allow this.')                
     
     def _validate_cpf_definitions(self, graph): 
         

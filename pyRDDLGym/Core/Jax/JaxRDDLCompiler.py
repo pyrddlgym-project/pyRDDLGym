@@ -463,27 +463,18 @@ class JaxRDDLCompiler:
     def _jax_pvar(self, expr):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args  
-        cached_info = self.traced.cached_sim_info(expr)
+        is_value, cached_info = self.traced.cached_sim_info(expr)
         
         # boundary case: free variable is converted to array (0, 1, 2...)
-        if self.rddl.is_free_variable(var):
+        # boundary case: domain object is converted to canonical integer index
+        if is_value:
             cached_value = cached_info
 
-            def _jax_wrapped_pvar_free_variable(_, key):
+            def _jax_wrapped_object(_, key):
                 sample = jnp.asarray(cached_value)
                 return sample, key, NORMAL
             
-            return _jax_wrapped_pvar_free_variable
-        
-        # boundary case: enum literal is converted to canonical integer index
-        elif not pvars and self.rddl.is_literal(var):
-            cached_literal = cached_info
-            
-            def _jax_wrapped_pvar_literal(_, key):
-                sample = jnp.asarray(cached_literal)
-                return sample, key, NORMAL
-            
-            return _jax_wrapped_pvar_literal
+            return _jax_wrapped_object
         
         # boundary case: no shape information (e.g. scalar pvar)
         elif cached_info is None:
@@ -501,7 +492,8 @@ class JaxRDDLCompiler:
             # compile nested expressions
             if slices and op_code == -1:
                 
-                jax_nested_expr = [(self._jax(arg) if _slice is None 
+                jax_nested_expr = [(self._jax(arg) 
+                                    if _slice is None 
                                     else (lambda _, key: (_slice, key, NORMAL)))
                                    for (arg, _slice) in zip(pvars, slices)]    
                 

@@ -70,7 +70,7 @@ class RDDLEnv(gym.Env):
         action_space = Dict()
         for act in self.defaultAction:
             act_range = self.actionsranges[act]
-            if act_range in self.model.enum_types:
+            if act_range in self.model.enums:
                 action_space[act] = Discrete(len(self.model.objects[act_range]))            
             elif act_range == 'real':
                 action_space[act] = Box(low=bounds[act][0],
@@ -102,7 +102,7 @@ class RDDLEnv(gym.Env):
         state_space = Dict()
         for state in search_dict:
             state_range = ranges[state]
-            if state_range in self.model.enum_types:
+            if state_range in self.model.enums:
                 state_space[state] = Discrete(len(self.model.objects[state_range]))          
             elif state_range == 'real':
                 state_space[state] = Box(low=bounds[state][0],
