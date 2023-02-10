@@ -301,7 +301,8 @@ class JaxRDDLBackpropPlanner:
                  initializer: initializers.Initializer=initializers.zeros,
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  logic: FuzzyLogic=ProductLogic(),
-                 use_symlog_reward: bool=True) -> None:
+                 use_symlog_reward: bool=True,
+                 utility=jnp.mean) -> None:
         '''Creates a new gradient-based algorithm for optimizing action sequences
         (plan) in the given RDDL. Some operations will be converted to their
         differentiable counterparts; the specific operations can be customized
@@ -322,6 +323,8 @@ class JaxRDDLBackpropPlanner:
         operations to their differentiable counterparts 
         :param use_symlog_reward: whether to use the symlog transform on the 
         reward as a form of normalization
+        :param utility: how to aggregate return observations to compute utility
+        of a policy or plan
         '''
         self.rddl = rddl
         self.batch_size_train = batch_size_train
@@ -336,6 +339,7 @@ class JaxRDDLBackpropPlanner:
         self.optimizer = optimizer
         self.logic = logic
         self.use_symlog_reward = use_symlog_reward
+        self.utility = utility
         
         self._jax_compile_rddl()        
         self._jax_compile_optimizer()
@@ -398,6 +402,7 @@ class JaxRDDLBackpropPlanner:
         
     def _jax_loss(self, rollouts, use_symlog=False):
         gamma = self.rddl.discount
+        utility = self.utility
         
         # symlog transform sign(x) * ln(|x| + 1) and discounting
         def _jax_wrapped_scale_reward(reward):
@@ -409,6 +414,10 @@ class JaxRDDLBackpropPlanner:
                 reward = reward * discount
             return reward
         
+        # estimate utility of the plan or policy as expected return
+        def _jax_wrapped_plan_utility(returns):
+            return utility(returns)
+            
         # the loss is the average cumulative reward across all roll-outs
         def _jax_wrapped_plan_loss(params, subs, key):
             logged, keys = rollouts(params, subs, key)
@@ -416,7 +425,7 @@ class JaxRDDLBackpropPlanner:
             reward = _jax_wrapped_scale_reward(reward)
             returns = jnp.sum(reward, axis=-1)
             logged['return'] = returns
-            loss = -jnp.mean(returns)
+            loss = -_jax_wrapped_plan_utility(returns)
             key = keys[-1]
             return loss, (key, logged)
         
