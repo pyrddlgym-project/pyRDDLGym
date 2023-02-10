@@ -438,9 +438,13 @@ class JaxRDDLBackpropPlanner:
         
         init_train, init_test = {}, {}
         for (name, value) in subs.items():
-            train_value = np.repeat(value[np.newaxis, ...], repeats=n_train, axis=0)     
-            init_train[name] = np.asarray(train_value, dtype=RDDLValueInitializer.REAL) 
-            init_test[name] = np.repeat(value[np.newaxis, ...], repeats=n_test, axis=0)
+            train_value = np.expand_dims(value, axis=0)
+            train_value = np.repeat(train_value, repeats=n_train, axis=0)
+            train_value = np.asarray(train_value, dtype=RDDLValueInitializer.REAL) 
+            init_train[name] = train_value
+            test_value = np.expand_dims(value, axis=0)
+            test_value = np.repeat(test_value, repeats=n_test, axis=0)
+            init_test[name] = test_value
         for (state, next_state) in rddl.next_state.items():
             init_train[next_state] = init_train[state]
             init_test[next_state] = init_test[state]            
