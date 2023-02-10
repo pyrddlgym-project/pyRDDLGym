@@ -71,11 +71,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             'argmin': logic.argmin,
             'argmax': logic.argmax
         }
-        self.KNOWN_UNARY['sgn'] = logic.signum        
-        self.CONTROL_OPS = {
-            'if': logic.If,
-            'switch': logic.Switch
-        }
+        self.KNOWN_UNARY['sgn'] = logic.signum   
             
     def _compile_cpfs(self):
         warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
@@ -86,36 +82,29 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
                 jax_cpfs[cpf] = self._jax(expr, dtype=JaxRDDLCompiler.REAL)
         return jax_cpfs
     
+    def _jax_if_helper(self):
+        return self.logic.If
+    
+    def _jax_switch_helper(self):
+        return self.logic.Switch
+        
     def _jax_kron(self, expr):
         warnings.warn('KronDelta will be ignored.', stacklevel=2)                       
         arg, = expr.args
         arg = self._jax(arg)
         return arg
     
-    def _jax_bernoulli(self, expr): 
-        ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
-        JaxRDDLCompiler._check_num_args(expr, 1)
-        
-        arg_prob, = expr.args
-        jax_prob = self._jax(arg_prob)
-        bernoulli = self.logic.bernoulli
-        
-        def _jax_wrapped_distribution_bernoulli(x, key):
-            prob, key, err = jax_prob(x, key)
-            key, subkey = random.split(key)
-            sample = bernoulli(prob, subkey)
-            out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
-            err |= (out_of_bounds * ERR)
-            return sample, key, err
-        
-        return _jax_wrapped_distribution_bernoulli
+    def _jax_bernoulli_helper(self):
+        return self.logic.bernoulli
     
     def _jax_discrete_helper(self):
         discrete = self.logic.discrete
 
-        def _jax_discrete_calc_approx(prob, subkey):
-            sample = discrete(prob, subkey)
-            out_of_bounds = False
+        def _jax_discrete_calc_approx(key, prob):
+            sample = discrete(key, prob)
+            out_of_bounds = jnp.logical_not(jnp.logical_and(
+                jnp.all(prob >= 0),
+                jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
             return sample, out_of_bounds
         
         return _jax_discrete_calc_approx
@@ -404,7 +393,8 @@ class JaxRDDLBackpropPlanner:
         for (name, value) in subs.items():
             train_shape = (self.batch_size_train,) + np.shape(value)
             init_train[name] = np.broadcast_to(value, shape=train_shape)
-            init_train[name] = np.asarray(init_train[name], dtype=RDDLValueInitializer.REAL) 
+            init_train[name] = np.asarray(
+                init_train[name], dtype=RDDLValueInitializer.REAL) 
             test_shape = (self.batch_size_test,) + np.shape(value)            
             init_test[name] = np.broadcast_to(value, shape=test_shape)
         for (state, next_state) in self.rddl.next_state.items():
