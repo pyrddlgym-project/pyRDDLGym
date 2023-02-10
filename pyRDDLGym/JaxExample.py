@@ -11,13 +11,14 @@ def slp_no_replan(env):
               str(callback['iteration']).rjust(4),
               callback['train_return'],
               callback['test_return']))
-    plan = planner.get_plan(callback['params'])
+    params = callback['params']
+    key = train_args['key']
     
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.horizon):
         # myEnv.render()
-        action = plan[step]
+        action, key = planner.get_action(params, step, None, key)
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
         print()
@@ -35,13 +36,15 @@ def slp_no_replan(env):
     
 def slp_replan(env):
     myEnv, planner, train_args = JaxConfigManager.get(f'{env}.cfg')
+    key = train_args['key']
     
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.horizon):
         # myEnv.render()
         * _, callback = planner.optimize(**train_args, init_subs=myEnv.sampler.subs)
-        action = planner.get_plan(callback['params'])[0]
+        params = callback['params']
+        action, key = planner.get_action(params, 0, None, key)
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
         print()
@@ -66,7 +69,7 @@ def main(env, replan):
         
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        args = [sys.argv[0]] + ['UAV continuous']
+        args = [sys.argv[0]] + ['Wildfire replan']
     else:
         args = sys.argv
     env = args[1]
