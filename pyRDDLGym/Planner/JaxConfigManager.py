@@ -33,7 +33,6 @@ def get(path: str) -> Dict[str, object]:
     # read the optimizer settings
     opt_args = {k: args[k] for (k, v) in config.items('Optimizer')}
     opt_args['rddl'] = myEnv.model
-    opt_args['key'] = jax.random.PRNGKey(opt_args['key'])
     opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(**opt_args['optimizer_kwargs'])
     opt_args['logic'] = getattr(JaxRDDLLogic, opt_args['logic'])(**opt_args['logic_kwargs'])
     del opt_args['optimizer_kwargs']
@@ -42,6 +41,7 @@ def get(path: str) -> Dict[str, object]:
     
     # read the train/test arguments
     train_args = {k: args[k] for (k, v) in config.items('Training')}
+    train_args['key'] = jax.random.PRNGKey(train_args['key'])
     
     return myEnv, optimizer, train_args
 
