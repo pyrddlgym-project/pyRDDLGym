@@ -66,10 +66,10 @@ class FuzzyLogic:
     def argmin(self, x, axis):
         return self.argmax(-x, axis)
     
-    def bernoulli(self, prob, key):
+    def bernoulli(self, key, prob):
         raise NotImplementedError
     
-    def discrete(self, prob, key):
+    def discrete(self, key, prob):
         raise NotImplementedError
     
 
@@ -155,7 +155,7 @@ class ProductLogic(FuzzyLogic):
         literals = self._literal_array(prob.shape)
         return jnp.sum(literals * prob, axis=0)
     
-    def bernoulli(self, prob, key):
+    def bernoulli(self, key, prob):
         warnings.warn('Using the replacement rule '
                       'Bernoulli(p) --> Gumbel-softmax trick', stacklevel=2)
         dist = jnp.stack([prob, 1.0 - prob], axis=-1)
@@ -165,7 +165,7 @@ class ProductLogic(FuzzyLogic):
         sample = jax.nn.softmax(sample, axis=-1)[..., 0]     
         return sample
     
-    def discrete(self, prob, key):
+    def discrete(self, key, prob):
         warnings.warn('Using the replacement rule '
                       'Discrete(p) --> Gumbel-softmax trick', stacklevel=2)
         clipped_prob = jnp.maximum(prob, 1e-12)
@@ -189,8 +189,8 @@ if __name__ == '__main__':
         pred = logic.If(cond, +1, -1)
         return pred
     
-    x1 = jnp.asarray([1, 1, -1, -1, 0.1, 15, -0.5])
-    x2 = jnp.asarray([1, -1, 1, -1, 10, -30, 6])
+    x1 = jnp.asarray([1, 1, -1, -1, 0.1, 15, -0.5]).astype(float)
+    x2 = jnp.asarray([1, -1, 1, -1, 10, -30, 6]).astype(float)
     print(test_logic(x1, x2))
     
     def switch(pred, cases):

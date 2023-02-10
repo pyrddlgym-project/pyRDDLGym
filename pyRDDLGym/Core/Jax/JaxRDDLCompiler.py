@@ -123,10 +123,6 @@ class JaxRDDLCompiler:
             'pow': jnp.power,
             'log': lambda x, y: jnp.log(x) / jnp.log(y),
             'hypot': jnp.hypot
-        }        
-        self.CONTROL_OPS = {
-            'if': jnp.where,
-            'switch': self._jax_switch_helper()
         }
         
     # ===========================================================================
@@ -686,19 +682,23 @@ class JaxRDDLCompiler:
     # ===========================================================================
     
     def _jax_control(self, expr):
-        _, op = expr.etype
-        valid_ops = self.CONTROL_OPS
-        JaxRDDLCompiler._check_valid_op(expr, valid_ops)
-        
+        _, op = expr.etype        
         if op == 'if':
             return self._jax_if(expr)
-        else:
+        elif op == 'switch':
             return self._jax_switch(expr)
+        
+        raise RDDLNotImplementedError(
+                f'Control operator {op} is not supported.\n' + 
+                JaxRDDLCompiler._print_stack_trace(expr))   
+    
+    def _jax_if_helper(self):
+        return jnp.where
     
     def _jax_if(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         JaxRDDLCompiler._check_num_args(expr, 3)
-        jax_op = self.CONTROL_OPS['if']
+        jax_if = self._jax_if_helper()
         
         pred, if_true, if_false = expr.args        
         jax_pred = self._jax(pred)
@@ -709,7 +709,7 @@ class JaxRDDLCompiler:
             sample1, key, err1 = jax_pred(x, key)
             sample2, key, err2 = jax_true(x, key)
             sample3, key, err3 = jax_false(x, key)
-            sample = jax_op(sample1, sample2, sample3)
+            sample = jax_if(sample1, sample2, sample3)
             err = err1 | err2 | err3
             invalid_cast = jnp.logical_not(jnp.can_cast(sample1, bool))
             err |= (invalid_cast * ERR)
@@ -730,7 +730,7 @@ class JaxRDDLCompiler:
     def _jax_switch(self, expr):
         pred, *_ = expr.args             
         jax_pred = self._jax(pred)
-        jax_switch = self.CONTROL_OPS['switch']
+        jax_switch = self._jax_switch_helper()
         
         # wrap cases as JAX expressions
         cases, default = self.traced.cached_sim_info(expr) 
@@ -953,10 +953,14 @@ class JaxRDDLCompiler:
             return sample, key, err
         
         return _jax_wrapped_distribution_weibull
-            
+    
+    def _jax_bernoulli_helper(self):
+        return random.bernoulli
+        
     def _jax_bernoulli(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
         JaxRDDLCompiler._check_num_args(expr, 1)
+        bernoulli = self._jax_bernoulli_helper()
         
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob)
@@ -965,7 +969,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_distribution_bernoulli(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
-            sample = random.bernoulli(key=subkey, p=prob)
+            sample = bernoulli(subkey, prob)
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
@@ -1277,12 +1281,12 @@ class JaxRDDLCompiler:
     
     def _jax_discrete_helper(self):
         
-        def _jax_discrete_calc_exact(prob, subkey):
+        def _jax_discrete_calc_exact(key, prob):
+            logits = jnp.log(prob)
+            sample = random.categorical(key=key, logits=logits, axis=-1)
             out_of_bounds = jnp.logical_not(jnp.logical_and(
                 jnp.all(prob >= 0),
                 jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
-            logits = jnp.log(prob)
-            sample = random.categorical(key=subkey, logits=logits, axis=-1)
             return sample, out_of_bounds
         
         return _jax_discrete_calc_exact
@@ -1290,10 +1294,10 @@ class JaxRDDLCompiler:
     def _jax_discrete(self, expr, unnorm):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
+        jax_discrete = self._jax_discrete_helper()
         
         ordered_args = self.traced.cached_sim_info(expr)
         jax_probs = [self._jax(arg) for arg in ordered_args]
-        jax_discrete = self._jax_discrete_helper()
         
         def _jax_wrapped_distribution_discrete(x, key):
             
@@ -1310,7 +1314,7 @@ class JaxRDDLCompiler:
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample, out_of_bounds = jax_discrete(prob, subkey)
+            sample, out_of_bounds = jax_discrete(subkey, prob)
             error |= (out_of_bounds * ERR)
             return sample, key, error
         
@@ -1319,11 +1323,11 @@ class JaxRDDLCompiler:
     def _jax_discrete_pvar(self, expr, unnorm):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         JaxRDDLCompiler._check_num_args(expr, 1)
+        jax_discrete = self._jax_discrete_helper()
         
         _, args = expr.args
         arg, = args
         jax_probs = self._jax(arg)
-        jax_discrete = self._jax_discrete_helper()
 
         def _jax_wrapped_distribution_discrete_pvar(x, key):
             
@@ -1335,7 +1339,7 @@ class JaxRDDLCompiler:
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample, out_of_bounds = jax_discrete(prob, subkey)
+            sample, out_of_bounds = jax_discrete(subkey, prob)
             error |= (out_of_bounds * ERR)
             return sample, key, error
         
@@ -1461,8 +1465,7 @@ class JaxRDDLCompiler:
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             key, subkey = random.split(key)
-            dist = tfp.distributions.Multinomial(
-                total_count=trials, probs=prob)
+            dist = tfp.distributions.Multinomial(total_count=trials, probs=prob)
             sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
             sample = jnp.moveaxis(sample, source=-1, destination=index)
             out_of_bounds = jnp.logical_not(jnp.all(
@@ -1473,45 +1476,6 @@ class JaxRDDLCompiler:
             return sample, key, error            
         
         return _jax_wrapped_distribution_multinomial
-    
-        # jax_discrete = self._jax_discrete_helper()
-        # # samples from a discrete(prob), computes a one-hot mask w.r.t categories
-        # def _jax_wrapped_multinomial_trial(_, values):
-        #     samples, errors, key, prob, categories = values
-        #     key, subkey = random.split(key)
-        #     sample, error = jax_discrete(prob, subkey)            
-        #     sample = sample[jnp.newaxis, ...]
-        #     masked = (sample == categories)
-        #     samples += masked
-        #     errors |= error
-        #     return (samples, errors, key, prob, categories)            
-        #
-        # def _jax_wrapped_distribution_multinomial(x, key):
-        #
-        #     # sample multinomial parameters
-        #     # note that # of trials must not be parameterized
-        #     prob, key, err1 = jax_prob(x, key)
-        #     trials, key, err2 = jax_trials(x, key)
-        #     num_trials = jnp.ravel(trials)[0]
-        #     out_of_bounds = jnp.logical_not(num_trials > 0)
-        #     error = err1 | err2 | (out_of_bounds * ERR)
-        #
-        #     # create a categories mask that spans support of discrete(prob)
-        #     num_categories = prob.shape[-1]
-        #     categories = np.arange(num_categories)
-        #     categories = categories[(...,) + (jnp.newaxis,) * len(prob.shape[:-1])]
-        #
-        #     # do a for loop over trials, accumulate category counts in samples
-        #     counts = jnp.zeros(shape=(num_categories,) + prob.shape[:-1],
-        #                        dtype=JaxRDDLCompiler.INT)
-        #     sample, err3, key, *_ = jax.lax.fori_loop(
-        #         lower=0,
-        #         upper=num_trials,
-        #         body_fun=_jax_wrapped_multinomial_trial,
-        #         init_val=(counts, NORMAL, key, prob, categories))
-        #     sample = jnp.moveaxis(sample, source=0, destination=index)
-        #     error |= err3
-        #     return sample, key, error
     
     # ===========================================================================
     # matrix algebra
