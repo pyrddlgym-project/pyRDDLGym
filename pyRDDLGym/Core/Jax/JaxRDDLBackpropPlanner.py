@@ -223,6 +223,7 @@ class JaxStraightLinePlan:
                                 if rddl.variable_ranges[var] == 'bool')
         use_sogbofa_clip_trick = rddl.max_allowed_actions < bool_action_count
         
+        # if no max-constraint is present just clip each action to box bounds
         if not use_sogbofa_clip_trick:
             
             def _jax_wrapped_project_action_to_box(params):
@@ -233,11 +234,10 @@ class JaxStraightLinePlan:
             self.projection = _jax_wrapped_project_action_to_box
             return
         
-        else:
-            warnings.warn(f'Using projected gradient trick to satisfy '
-                          f'max_nondef_actions: total boolean actions '
-                          f'{bool_action_count} > max_nondef_actions '
-                          f'{rddl.max_allowed_actions}.', stacklevel=2)
+        warnings.warn(f'Using projected gradient trick to satisfy '
+                      f'max_nondef_actions: total boolean actions '
+                      f'{bool_action_count} > max_nondef_actions '
+                      f'{rddl.max_allowed_actions}.', stacklevel=2)
         
         # calculates the surplus of actions above max-nondef-actions
         def _jax_wrapped_sogbofa_surplus(params):
@@ -390,8 +390,7 @@ class JaxRDDLBackpropPlanner:
         train_loss = self._jax_loss(
             train_rollouts, use_symlog=self.use_symlog_reward)
         self.train_loss = jax.jit(train_loss)
-        self.test_loss = jax.jit(self._jax_loss(
-            test_rollouts, use_symlog=False))
+        self.test_loss = jax.jit(self._jax_loss(test_rollouts, use_symlog=False))
         
         # optimization
         self.update = jax.jit(self._jax_update(
@@ -400,17 +399,21 @@ class JaxRDDLBackpropPlanner:
     def _jax_loss(self, rollouts, use_symlog=False):
         gamma = self.rddl.discount
         
-        # the loss is the average cumulative reward across all roll-outs
-        # use symlog transformation sign(x) * ln(|x| + 1) for reward
-        def _jax_wrapped_plan_loss(params, subs, key):
-            logged, keys = rollouts(params, subs, key)
-            reward = logged['reward']
+        # symlog transform sign(x) * ln(|x| + 1) and discounting
+        def _jax_wrapped_scale_reward(reward):
             if use_symlog:
                 reward = jnp.sign(reward) * jnp.log1p(jnp.abs(reward))
             if gamma < 1:
                 discount = jnp.power(gamma, jnp.arange(reward.shape[-1]))
                 discount = discount[jnp.newaxis, ...]
                 reward = reward * discount
+            return reward
+        
+        # the loss is the average cumulative reward across all roll-outs
+        def _jax_wrapped_plan_loss(params, subs, key):
+            logged, keys = rollouts(params, subs, key)
+            reward = logged['reward']
+            reward = _jax_wrapped_scale_reward(reward)
             returns = jnp.sum(reward, axis=-1)
             logged['return'] = returns
             loss = -jnp.mean(returns)
@@ -421,7 +424,8 @@ class JaxRDDLBackpropPlanner:
     
     def _jax_update(self, loss, optimizer, projection):
         
-        # calculates the plan gradient w.r.t. return loss and updates optimizer
+        # calculate the plan gradient w.r.t. return loss and update optimizer
+        # also perform a projection step to satisfy constraints on actions
         def _jax_wrapped_plan_update(params, subs, key, opt_state):
             grad, (key, logged) = jax.grad(loss, has_aux=True)(params, subs, key)
             updates, opt_state = optimizer.update(grad, opt_state)
@@ -433,21 +437,27 @@ class JaxRDDLBackpropPlanner:
             
     def _initialize_rollout_state(self, subs): 
         rddl = self.rddl
-        n_train = self.batch_size_train
-        n_test = self.batch_size_test
+        n_train, n_test = self.batch_size_train, self.batch_size_test
         
         init_train, init_test = {}, {}
         for (name, value) in subs.items():
+            
+            # batched training state
             train_value = np.expand_dims(value, axis=0)
             train_value = np.repeat(train_value, repeats=n_train, axis=0)
             train_value = np.asarray(train_value, dtype=RDDLValueInitializer.REAL) 
             init_train[name] = train_value
+            
+            # batched testing state
             test_value = np.expand_dims(value, axis=0)
             test_value = np.repeat(test_value, repeats=n_test, axis=0)
             init_test[name] = test_value
+        
+        # make sure next-state fluents are also set
         for (state, next_state) in rddl.next_state.items():
             init_train[next_state] = init_train[state]
-            init_test[next_state] = init_test[state]            
+            init_test[next_state] = init_test[state]
+                        
         return init_train, init_test
     
     def optimize(self, key: jax.random.PRNGKey,
@@ -495,11 +505,16 @@ class JaxRDDLBackpropPlanner:
                 yield callback
     
     def get_action(self, params, step, subs, key):
+        
+        # predict raw action tensors from plan or policy
         actions, key = self.test_policy(params, step, subs, key)
+        
+        # record only those actions that differ from no-op
         grounded_actions = {}
         for (var, action) in actions.items():
             for (ground_var, ground_act) in self.rddl.ground_values(var, action):
                 if ground_act != self.noop_actions[ground_var]:
                     grounded_actions[ground_var] = ground_act
+                    
         return grounded_actions, key
     
