@@ -69,7 +69,7 @@ def main(env, replan):
         
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        args = [sys.argv[0]] + ['Wildfire replan']
+        args = [sys.argv[0]] + ['UAV continuous']
     else:
         args = sys.argv
     env = args[1]

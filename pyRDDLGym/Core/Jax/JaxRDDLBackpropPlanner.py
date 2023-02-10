@@ -111,11 +111,19 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
 
 
 class JaxStraightLinePlan:
+    '''A straight line plan implementation in JAX'''
     
     def __init__(self, compiled: JaxRDDLCompilerWithGrad,
                  rollout_horizon: int,
                  initializer: initializers.Initializer=initializers.zeros,
                  action_bounds: Dict={}):
+        '''Creates a new straight line plan in JAX.
+        
+        :param compiled: a JAX compiled RDDL program
+        :param rollout_horizon: lookahead planning horizon
+        :param initializer: a Jax Initializer for setting the initial actions
+        :param action_bounds: dict of valid ranges (min, max) for each action
+        '''
         self._compiled = compiled
         self._rddl = compiled.rddl
         self._horizon = rollout_horizon
@@ -129,8 +137,7 @@ class JaxStraightLinePlan:
         
     def _compile_action_info(self):
         rddl, compiled = self._rddl, self._compiled
-        horizon = self._horizon
-        _bounds = self._action_bounds
+        horizon, _bounds = self._horizon, self._action_bounds
         
         shapes, bounds = {}, {}
         for (name, prange) in rddl.variable_ranges.items():
@@ -218,10 +225,12 @@ class JaxStraightLinePlan:
         
         if not use_sogbofa_clip_trick:
             
-            def _jax_wrapped_no_action_clip(params):
+            def _jax_wrapped_project_action_to_box(params):
+                params = {var: jnp.clip(param, *bounds[var])
+                          for (var, param) in params.items()}
                 return params
             
-            self.projection = _jax_wrapped_no_action_clip
+            self.projection = _jax_wrapped_project_action_to_box
             return
         
         else:
@@ -271,13 +280,13 @@ class JaxStraightLinePlan:
         
         # the project gradient applies the action clipping to valid bounds
         # it also applies the SOGBOFA trick to satisfy constraint on concurrency
-        def _jax_wrapped_plan_project(params):
+        def _jax_wrapped_project_action_to_max_constraint(params):
             params = {var: jnp.clip(param, *bounds[var])
                       for (var, param) in params.items()}
             params = _jax_wrapped_sogbofa_clip_actions_batched(params)
             return params
         
-        self.projection = _jax_wrapped_plan_project
+        self.projection = _jax_wrapped_project_action_to_max_constraint
         
  
 class JaxRDDLBackpropPlanner:
@@ -303,7 +312,7 @@ class JaxRDDLBackpropPlanner:
         step
         :param batch_size_test: how many rollouts to use to test the plan at each
         optimization step
-        :param rollout_horizon: how long each rollout should be: None uses the
+        :param rollout_horizon: lookahead planning horizon: None uses the
         horizon parameter in the RDDL instance
         :param action_bounds: dict of valid ranges (min, max) for each action
         :param initializer: a Jax Initializer for setting the initial actions
@@ -330,17 +339,24 @@ class JaxRDDLBackpropPlanner:
         
         self._jax_compile_rddl()        
         self._jax_compile_optimizer()
-    
+        
     def _jax_compile_rddl(self):
+        rddl = self.rddl
         
         # Jax compilation of the differentiable RDDL for training
-        self.compiled = JaxRDDLCompilerWithGrad(rddl=self.rddl, logic=self.logic)
+        self.compiled = JaxRDDLCompilerWithGrad(rddl=rddl, logic=self.logic)
         self.compiled.compile()
         
         # Jax compilation of the exact RDDL for testing
-        self.test_compiled = JaxRDDLCompiler(rddl=self.rddl)
+        self.test_compiled = JaxRDDLCompiler(rddl=rddl)
         self.test_compiled.compile()
-
+    
+        # calculate grounded no-op actions
+        self.noop_actions = {}
+        for (var, values) in self.test_compiled.init_values.items():
+            if rddl.variable_types[var] == 'action-fluent':
+                self.noop_actions.update(rddl.ground_values(var, values))
+        
     def _jax_compile_optimizer(self):
         
         # policy
@@ -457,7 +473,7 @@ class JaxRDDLBackpropPlanner:
             # update the parameters of the plan
             params, key, opt_state, _ = self.update(params, train_subs, key, opt_state)            
             train_loss, (key, _) = self.train_loss(params, train_subs, key)            
-            test_loss, (key, test_log) = self.test_loss(params, test_subs, key)
+            test_loss, (key, log) = self.test_loss(params, test_subs, key)
             
             # record the best plan so far
             if test_loss < best_loss:
@@ -471,22 +487,15 @@ class JaxRDDLBackpropPlanner:
                             'best_return':-best_loss,
                             'params': params,
                             'best_params': best_params,
-                            **test_log}
+                            **log}
                 yield callback
     
     def get_action(self, params, step, subs, key):
-        rddl = self.rddl
-        
-        # TODO: what happens if no-op was True?
         actions, key = self.test_policy(params, step, subs, key)
-        actions = jax.tree_map(np.ravel, actions)
         grounded_actions = {}
         for (var, action) in actions.items():
-            grounded_action = dict(rddl.ground_values(var, action))
-            if rddl.variable_ranges[var] == 'bool':
-                grounded_action = {gvar: value 
-                                   for (gvar, value) in grounded_action.items()
-                                   if value == True}
-            grounded_actions.update(grounded_action)
+            for (ground_var, ground_act) in self.rddl.ground_values(var, action):
+                if ground_act != self.noop_actions[ground_var]:
+                    grounded_actions[ground_var] = ground_act
         return grounded_actions, key
     
