@@ -18,7 +18,7 @@ def slp_no_replan(env):
     state = myEnv.reset()
     for step in range(myEnv.horizon):
         # myEnv.render()
-        action, key = planner.get_action(params, step, None, key)
+        action, key = planner.get_action(params, step, myEnv.sampler.subs, key)
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
         print()
