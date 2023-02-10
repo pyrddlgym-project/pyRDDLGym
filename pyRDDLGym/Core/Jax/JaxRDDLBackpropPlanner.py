@@ -5,7 +5,7 @@ import jax.random as random
 import jax.nn.initializers as initializers
 import numpy as np
 import optax
-from typing import Dict, Iterable
+from typing import Dict, Iterable, List
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -319,22 +319,27 @@ class JaxStraightLinePlan(JaxPlan):
 class JaxDeepReactivePolicy(JaxPlan):
     '''A deep reactive policy network implementation in JAX'''
     
-    def __init__(self, layers: hk.Sequential,
+    def __init__(self, neurons: List[int],
+                 activation: str='relu',
                  action_bounds: Dict={}) -> None:
         '''Creates a new deep reactive policy in JAX.
         
+        :param neurons: number of neurons per layer
+        :param activation: activation function between hidden layers (a string 
+        identifier in jax.nn)
         :param layers: a Haiku sequential model for mapping inputs to last hidden
         layer outputs
         :param action_bounds: dict of valid ranges (min, max) for each action
         '''
         super(JaxDeepReactivePolicy, self).__init__()
-        self._layers = layers
+        self._neurons = neurons
+        self._activation = getattr(jax.nn, activation)
         self._action_bounds = action_bounds
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad) -> None:
         rddl = compiled.rddl
         _bounds = self._action_bounds
-        layers = self._layers
+        neurons, activation = self._neurons, self._activation
         
         # calculate the correct action box bounds
         shapes, bounds = {}, {}
@@ -365,6 +370,7 @@ class JaxDeepReactivePolicy(JaxPlan):
             values = []
             for (var, value) in subs.items():
                 if rddl.variable_types[var] == 'state-fluent':
+                    value = jnp.asarray(value, dtype=JaxRDDLCompiler.REAL)
                     values.append(value)
             values = jnp.concatenate(values, axis=None)
             return values
@@ -381,14 +387,24 @@ class JaxDeepReactivePolicy(JaxPlan):
             else:
                 return action
         
+        # constructs hidden layers of DRP network
+        def _jax_wrapped_drp_hidden(inputs):
+            layers = []
+            for n_neurons in neurons[:-1]: 
+                layers.append(hk.Linear(n_neurons))
+                layers.append(activation)
+            layers.append(hk.Linear(neurons[-1]))
+            mlp = hk.Sequential(layers)(inputs)
+            return mlp
+            
         # prediction of policy network
         def _jax_wrapped_drp_predict(subs):
             inputs = _jax_wrapped_flatten_state(subs)
+            hidden = _jax_wrapped_drp_hidden(inputs)
             actions = {}
-            mlp = layers(inputs)
             for (var, shape) in shapes.items():
-                n_actions = jnp.size(shape)
-                action = hk.Linear(n_actions)(mlp)
+                n_actions = np.prod(shape)
+                action = hk.Linear(n_actions)(hidden)
                 action = jnp.reshape(action, newshape=shape)
                 action = _jax_wrapped_drp_project_to_box(action, bounds[var])
                 actions[var] = action
