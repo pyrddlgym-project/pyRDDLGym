@@ -1,3 +1,4 @@
+from functools import partial
 import jax
 import jax.numpy as jnp
 import jax.random as random
@@ -194,76 +195,92 @@ class JaxRDDLCompiler:
         returned log and does not raise an exception
         '''
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        
+        next_states = self.rddl.next_state
+        reward_fn, cpfs = self.reward, self.cpfs
+        preconds, invariants, terminals = \
+            self.preconditions, self.invariants, self.termination
+        
+        # do a single step update from the RDDL model
+        def _jax_wrapped_single_step(actions, subs, key):
+            errors = NORMAL
             
-        # this performs a single step update
-        def _step(carried, step):
-            params, subs, key = carried
-            action, key = policy(params, step, subs, key)
-            subs.update(action)
-            error = NORMAL
-            
-            # check preconditions
+            # check action preconditions
+            precond_check = True
             if check_constraints:
-                preconds = jnp.zeros(shape=(len(self.preconditions),), dtype=bool)
-                for (i, precond) in enumerate(self.preconditions):
-                    sample, key, precond_err = precond(subs, key)
-                    preconds = preconds.at[i].set(sample)
-                    error |= precond_err
+                for precond in preconds:
+                    sample, key, err = precond(subs, key)
+                    precond_check = jnp.logical_and(precond_check, sample)
+                    errors |= err
             
-            # calculate CPFs in topological order and reward
-            for (name, cpf) in self.cpfs.items():
-                subs[name], key, cpf_err = cpf(subs, key)
-                error |= cpf_err                
-            reward, key, reward_err = self.reward(subs, key)
-            error |= reward_err
+            # calculate CPFs in topological order
+            for (name, cpf) in cpfs.items():
+                subs[name], key, err = cpf(subs, key)
+                errors |= err                
+                
+            # calculate the immediate reward
+            reward, key, err = reward_fn(subs, key)
+            errors |= err
             
-            for (state, next_state) in self.rddl.next_state.items():
+            # set the next state to the current state
+            for (state, next_state) in next_states.items():
                 subs[state] = subs[next_state]
             
-            # check the invariants in the new state
+            # check the state invariants
+            invariant_check = True
             if check_constraints:
-                invariants = jnp.zeros(shape=(len(self.invariants),), dtype=bool)
-                for (i, invariant) in enumerate(self.invariants):
-                    sample, key, invariant_err = invariant(subs, key)
-                    invariants = invariants.at[i].set(sample)
-                    error |= invariant_err
+                for invariant in invariants:
+                    sample, key, err = invariant(subs, key)
+                    invariant_check = jnp.logical_and(invariant_check, sample)
+                    errors |= err
             
             # check the termination (TODO: zero out reward in s if terminated)
+            terminated = False
             if check_constraints:
-                terminated = False
-                for terminal in self.termination:
-                    sample, key, terminal_err = terminal(subs, key)
+                for terminal in terminals:
+                    sample, key, err = terminal(subs, key)
                     terminated = jnp.logical_or(terminated, sample)
-                    error |= terminal_err
+                    errors |= err
             
-            logged = {'fluent': subs,
-                      'action': action,
-                      'reward': reward,
-                      'error': error}            
-            if check_constraints:
-                logged['preconditions'] = preconds
-                logged['invariants'] = invariants
-                logged['terminated'] = terminated
-                
-            carried = (params, subs, key)
-            return carried, logged
+            logged = {
+                'fluent': subs,
+                'action': actions,
+                'reward': reward,
+                'error': errors,
+                'preconditions': precond_check,
+                'invariants': invariant_check,
+                'terminated': terminated
+            }
+            return logged, subs
         
-        # this performs a single roll-out starting from subs
-        def _rollout(params, subs, key):
+        # do a batched step update
+        def _jax_wrapped_batched_step(carry, step):
+            params, batch, key = carry
+            
+            # compute actions on batch
+            actions, key = policy(params, step, batch, key)
+            batch.update(actions)
+            
+            # batched next state transition
+            keys = jax.random.split(key, num=n_batch + 1)    
+            key, subkeys = keys[0, ...], keys[1:, ...]
+            logged, batch = jax.vmap(_jax_wrapped_single_step, in_axes=0)(
+                actions, batch, subkeys)
+            
+            carry = (params, batch, key)
+            return carry, logged            
+            
+        # do a batched roll-out
+        def _jax_wrapped_batched_rollout(params, batch, key):
+            start = (params, batch, key)
             steps = jnp.arange(n_steps)
-            carry = (params, subs, key)
-            (* _, key), logged = jax.lax.scan(_step, carry, steps)
+            (* _, key), logged = jax.lax.scan(
+                _jax_wrapped_batched_step, start, steps)
+            logged = jax.tree_map(
+                partial(jnp.swapaxes, axis1=0, axis2=1), logged)
             return logged, key
         
-        # this performs batched roll-outs
-        def _rollouts(params, subs, key): 
-            subkeys = jax.random.split(key, num=n_batch)
-            logged, keys = jax.vmap(_rollout, in_axes=(None, 0, 0))(
-                params, subs, subkeys)
-            logged['keys'] = subkeys
-            return logged, keys
-        
-        return _rollouts
+        return _jax_wrapped_batched_rollout
     
     # ===========================================================================
     # error checks
