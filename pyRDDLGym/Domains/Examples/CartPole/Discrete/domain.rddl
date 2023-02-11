@@ -52,12 +52,12 @@ domain cart_pole_discrete {
 				 else -FORCE-MAG;
 		
 		// compute the pole angular acceleration
-		temp = (force + POLE-LEN * pow[ang-vel, 2] * sin[ang-pos]) / (CART-MASS + POLE-MASS);
+		temp = (force + POLE-LEN * POLE-MASS * pow[ang-vel, 2] * sin[ang-pos]) / (CART-MASS + POLE-MASS);
 		ang-acc = (GRAVITY * sin[ang-pos] - cos[ang-pos] * temp) / (
             POLE-LEN * ((4.0 / 3.0) - (POLE-MASS * pow[cos[ang-pos], 2] / (CART-MASS + POLE-MASS))));
 		
 		// compute the cart acceleration
-		acc = temp - (POLE-LEN * ang-acc * cos[ang-pos] / (CART-MASS + POLE-MASS));
+		acc = temp - (POLE-LEN * POLE-MASS * ang-acc * cos[ang-pos] / (CART-MASS + POLE-MASS));
 
 		// Euler integration formula
 		pos' = pos + TIME-STEP * vel;
