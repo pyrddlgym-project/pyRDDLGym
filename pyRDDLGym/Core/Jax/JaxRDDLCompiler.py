@@ -242,7 +242,7 @@ class JaxRDDLCompiler:
                     terminated = jnp.logical_or(terminated, sample)
                     errors |= err
             
-            logged = {
+            log = {
                 'fluent': subs,
                 'action': actions,
                 'reward': reward,
@@ -251,7 +251,7 @@ class JaxRDDLCompiler:
                 'invariants': invariant_check,
                 'terminated': terminated
             }
-            return logged, subs
+            return log, subs
         
         # do a batched step update
         def _jax_wrapped_batched_step(carry, step):
@@ -262,7 +262,7 @@ class JaxRDDLCompiler:
             batch.update(actions)
             
             # batched next state transition
-            keys = jax.random.split(key, num=n_batch + 1)    
+            keys = random.split(key, num=n_batch + 1)    
             key, subkeys = keys[0, ...], keys[1:, ...]
             logged, batch = jax.vmap(_jax_wrapped_single_step, in_axes=0)(
                 actions, batch, subkeys)
@@ -274,11 +274,9 @@ class JaxRDDLCompiler:
         def _jax_wrapped_batched_rollout(params, batch, key):
             start = (params, batch, key)
             steps = jnp.arange(n_steps)
-            (* _, key), logged = jax.lax.scan(
-                _jax_wrapped_batched_step, start, steps)
-            logged = jax.tree_map(
-                partial(jnp.swapaxes, axis1=0, axis2=1), logged)
-            return logged, key
+            (* _, key), log = jax.lax.scan(_jax_wrapped_batched_step, start, steps)
+            log = jax.tree_map(partial(jnp.swapaxes, axis1=0, axis2=1), log)
+            return log, key
         
         return _jax_wrapped_batched_rollout
     
