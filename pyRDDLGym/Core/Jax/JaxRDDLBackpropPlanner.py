@@ -365,11 +365,11 @@ class JaxDeepReactivePolicy(JaxPlan):
         # construct hidden layers of DRP network
         def _jax_wrapped_drp_hidden(inputs):
             layers = []
-            for n_neurons in neurons[:-1]: 
-                layers.append(hk.Linear(n_neurons))
-                layers.append(activation)
-            layers.append(hk.Linear(neurons[-1]))
-            hidden = hk.Sequential(layers)(inputs)
+            for i, n_neurons in enumerate(neurons): 
+                layer = hk.Linear(n_neurons, name=f'hidden_layer_{i + 1}')
+                layers.extend([layer, activation])
+            mlp = hk.Sequential(layers[:-1])
+            hidden = mlp(inputs)
             return hidden
             
         # apply a sigmoid to project actions to box bounds
@@ -384,20 +384,24 @@ class JaxDeepReactivePolicy(JaxPlan):
             else:
                 return action
         
-        # calculate prediction of policy network
-        def _jax_wrapped_drp_predict(batch):
-            inputs = jax.vmap(_jax_wrapped_drp_inputs, in_axes=0)(batch)
+        # calculate prediction of policy network given state
+        def _jax_wrapped_drp_predict(subs):
+            inputs = _jax_wrapped_drp_inputs(subs)
             hidden = _jax_wrapped_drp_hidden(inputs)
             actions = {}
             for (var, shape) in shapes.items():
                 num_actions = np.prod(shape, dtype=int)
-                action = hk.Linear(num_actions)(hidden)
-                action = jnp.reshape(action, newshape=(action.shape[0],) + shape)
+                action = hk.Linear(num_actions, name=f'action_{var}_layer')(hidden)
+                action = jnp.reshape(action, newshape=shape)
                 action = _jax_wrapped_drp_project_to_box(action, bounds[var])
                 actions[var] = action
             return actions
-            
-        drp = hk.transform(_jax_wrapped_drp_predict)
+        
+        # calculate prediction of policy network given batch of states
+        def _jax_wrapped_drp_predict_batch(batch):
+            return jax.vmap(_jax_wrapped_drp_predict, in_axes=0)(batch)
+        
+        drp = hk.transform(_jax_wrapped_drp_predict_batch)
         
         # initialize the parameters inside their valid ranges
         def _jax_wrapped_drp_init(batch, key):
@@ -413,13 +417,12 @@ class JaxDeepReactivePolicy(JaxPlan):
         
         # convert smooth actions back to discrete/boolean
         def _jax_wrapped_drp_predict_test(params, _, batch, key):
-            predict, key = _jax_wrapped_drp_predict_train(params, _, batch, key)
+            train, key = _jax_wrapped_drp_predict_train(params, None, batch, key)
             actions = {}
-            for (var, action) in predict.items():
+            for (var, action) in train.items():
                 prange = rddl.variable_ranges[var]
                 if prange == 'int':
-                    actions[var] = jnp.asarray(
-                        jnp.round(action), dtype=JaxRDDLCompiler.INT)
+                    actions[var] = jnp.round(action).astype(JaxRDDLCompiler.INT)
                 elif prange == 'bool':
                     actions[var] = action > 0.5
                 else:
@@ -448,7 +451,7 @@ class JaxRDDLBackpropPlanner:
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  logic: FuzzyLogic=ProductLogic(),
-                 use_symlog_reward: bool=True,
+                 use_symlog_reward: bool=False,
                  utility=jnp.mean) -> None:
         '''Creates a new gradient-based algorithm for optimizing action sequences
         (plan) in the given RDDL. Some operations will be converted to their
@@ -577,10 +580,12 @@ class JaxRDDLBackpropPlanner:
         return _jax_wrapped_plan_loss
     
     def _jax_update(self, loss, optimizer, projection):
-        
+            
         # calculate the plan gradient w.r.t. return loss and update optimizer
         # also perform a projection step to satisfy constraints on actions
         def _jax_wrapped_plan_update(params, batch, key, opt_state):
+            trainable = jax.tree_map(jnp.shape, params)
+            warnings.warn(f'trainable parameters:\n{trainable}', stacklevel=2)
             grad, (key, log) = jax.grad(loss, has_aux=True)(params, batch, key)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
@@ -655,7 +660,7 @@ class JaxRDDLBackpropPlanner:
     def get_action(self, params, step, subs, key):
         
         # predict raw action tensors from plan or policy
-        batch = jax.tree_map(partial(jnp.expand_dims, axis=0), subs)
+        batch = jax.tree_map(partial(np.expand_dims, axis=0), subs)
         actions, key = self.test_policy(params, step, batch, key)
         
         # record only those actions that differ from no-op
