@@ -190,7 +190,7 @@ class JaxStraightLinePlan(JaxPlan):
             valid_types = JaxRDDLCompiler.JAX_TYPES
             if prange not in valid_types:
                 raise RDDLTypeError(
-                    f'Invalid range {prange} of action-fluent <{name}>, '
+                    f'Invalid range <{prange}. of action-fluent <{name}>, '
                     f'must be one of {set(valid_types.keys())}.')
                 
             # clip boolean to (0, 1) otherwise use the user action bounds
@@ -246,68 +246,67 @@ class JaxStraightLinePlan(JaxPlan):
                                 if rddl.variable_ranges[var] == 'bool')
         use_sogbofa_clip_trick = rddl.max_allowed_actions < bool_action_count
         
-        # if no max-constraint is present just clip each action to box bounds
-        if not use_sogbofa_clip_trick:
+        if use_sogbofa_clip_trick:                
+            warnings.warn(f'Using projected gradient trick to satisfy '
+                          f'max_nondef_actions: total boolean actions '
+                          f'{bool_action_count} > max_nondef_actions '
+                          f'{rddl.max_allowed_actions}.', stacklevel=2)
             
+            # calculate the surplus of actions above max-nondef-actions
+            def _jax_wrapped_sogbofa_surplus(params):
+                surplus, count = 0.0, 0
+                for (var, param) in params.items():
+                    if rddl.variable_ranges[var] == 'bool':
+                        surplus += jnp.sum(param)
+                        count += jnp.sum(param > 0)
+                count = jnp.maximum(count, 1)
+                return (surplus - rddl.max_allowed_actions) / count
+                
+            # return whether the surplus is positive
+            def _jax_wrapped_sogbofa_positive_surplus(values):
+                _, surplus = values
+                return surplus > 0
+            
+            # reduce all bool action values by the surplus clipping at zero
+            def _jax_wrapped_sogbofa_subtract_surplus(values):
+                params, surplus = values
+                new_params = {}
+                for (var, param) in params.items():
+                    if rddl.variable_ranges[var] == 'bool':
+                        new_params[var] = jnp.maximum(param - surplus, 0.0)
+                    else:
+                        new_params[var] = param
+                new_surplus = _jax_wrapped_sogbofa_surplus(new_params)
+                return new_params, new_surplus
+            
+            # reduce bool action values by surplus until it becomes zero
+            def _jax_wrapped_sogbofa_clip_actions(params):
+                surplus = _jax_wrapped_sogbofa_surplus(params)
+                params, _ = jax.lax.while_loop(
+                    cond_fun=_jax_wrapped_sogbofa_positive_surplus,
+                    body_fun=_jax_wrapped_sogbofa_subtract_surplus,
+                    init_val=(params, surplus))
+                return params
+            
+            # clip actions to valid bounds and satisfy constraint on max actions
+            def _jax_wrapped_slp_project_to_max_constraint(params):
+                params = {var: jnp.clip(param, *bounds[var])
+                          for (var, param) in params.items()}
+                params = jax.vmap(_jax_wrapped_sogbofa_clip_actions, 
+                                  in_axes=0)(params)
+                return params
+            
+            self.projection = _jax_wrapped_slp_project_to_max_constraint
+            
+        else:
+            
+            # just clip actions to valid bounds
             def _jax_wrapped_slp_project_to_box(params):
                 params = {var: jnp.clip(param, *bounds[var])
                           for (var, param) in params.items()}
                 return params
             
             self.projection = _jax_wrapped_slp_project_to_box
-            return
-        
-        warnings.warn(f'Using projected gradient trick to satisfy '
-                      f'max_nondef_actions: total boolean actions '
-                      f'{bool_action_count} > max_nondef_actions '
-                      f'{rddl.max_allowed_actions}.', stacklevel=2)
-        
-        # calculates the surplus of actions above max-nondef-actions
-        def _jax_wrapped_sogbofa_surplus(params):
-            surplus, count = 0.0, 0
-            for (var, param) in params.items():
-                if rddl.variable_ranges[var] == 'bool':
-                    surplus += jnp.sum(param)
-                    count += jnp.sum(param > 0)
-            count = jnp.maximum(count, 1)
-            return (surplus - rddl.max_allowed_actions) / count
-            
-        # returns whether the surplus is positive
-        def _jax_wrapped_sogbofa_positive_surplus(values):
-            _, surplus = values
-            return surplus > 0
-        
-        # reduces all bool action values by the surplus clipping at zero
-        def _jax_wrapped_sogbofa_subtract_surplus(values):
-            params, surplus = values
-            new_params = {}
-            for (var, param) in params.items():
-                if rddl.variable_ranges[var] == 'bool':
-                    new_params[var] = jnp.maximum(param - surplus, 0.0)
-                else:
-                    new_params[var] = param
-            new_surplus = _jax_wrapped_sogbofa_surplus(new_params)
-            return new_params, new_surplus
-        
-        # continues to reduce bool action values by surplus until it becomes zero
-        def _jax_wrapped_sogbofa_clip_actions(params):
-            surplus = _jax_wrapped_sogbofa_surplus(params)
-            params, _ = jax.lax.while_loop(
-                cond_fun=_jax_wrapped_sogbofa_positive_surplus,
-                body_fun=_jax_wrapped_sogbofa_subtract_surplus,
-                init_val=(params, surplus))
-            return params
-        
-        # the project gradient applies the action clipping to valid bounds
-        # it also applies the SOGBOFA trick to satisfy constraint on concurrency
-        def _jax_wrapped_slp_project_to_max_constraint(params):
-            params = {var: jnp.clip(param, *bounds[var])
-                      for (var, param) in params.items()}
-            params = jax.vmap(_jax_wrapped_sogbofa_clip_actions, 
-                              in_axes=0)(params)
-            return params
-        
-        self.projection = _jax_wrapped_slp_project_to_max_constraint
         
 
 class JaxDeepReactivePolicy(JaxPlan):
@@ -358,9 +357,9 @@ class JaxDeepReactivePolicy(JaxPlan):
             values = []
             for (var, value) in subs.items():
                 if rddl.variable_types[var] == 'state-fluent':
-                    value = jnp.asarray(value, dtype=JaxRDDLCompiler.REAL)
+                    value = jnp.atleast_1d(value)
                     values.append(value)
-            values = jnp.concatenate(values, axis=None)
+            values = jnp.concatenate(values, axis=None, dtype=JaxRDDLCompiler.REAL)
             return values
         
         # construct hidden layers of DRP network
@@ -391,7 +390,7 @@ class JaxDeepReactivePolicy(JaxPlan):
             hidden = _jax_wrapped_drp_hidden(inputs)
             actions = {}
             for (var, shape) in shapes.items():
-                num_actions = np.prod(shape)
+                num_actions = np.prod(shape, dtype=int)
                 action = hk.Linear(num_actions)(hidden)
                 action = jnp.reshape(action, newshape=(action.shape[0],) + shape)
                 action = _jax_wrapped_drp_project_to_box(action, bounds[var])
@@ -407,7 +406,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         
         self.initializer = _jax_wrapped_drp_init
             
-        # just extract the predictions of the DRP network
+        # extract the predictions of the DRP network
         def _jax_wrapped_drp_predict_train(params, _, batch, key): 
             actions = drp.apply(params, key, batch)
             return actions, key                            
