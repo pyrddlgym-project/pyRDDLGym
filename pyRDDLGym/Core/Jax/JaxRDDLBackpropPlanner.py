@@ -388,7 +388,7 @@ class JaxDeepReactivePolicy(JaxPlan):
                 return action
         
         # create an output layer in the policy net for the given action
-        def _jax_wrapped_drp_action_layer(var, hidden):
+        def _jax_wrapped_drp_output(var, hidden):
             shape = shapes[var]
             name = var.replace('-', '_')
             num_actions = np.prod(shape, dtype=int)
@@ -402,8 +402,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         def _jax_wrapped_drp_predict(batch):
             inputs = _jax_wrapped_drp_inputs_batched(batch)
             hidden = _jax_wrapped_drp_hidden(inputs)
-            actions = {var: _jax_wrapped_drp_action_layer(var, hidden)
-                       for var in shapes}
+            actions = {var: _jax_wrapped_drp_output(var, hidden) for var in shapes}
             return actions
         
         drp = hk.transform(_jax_wrapped_drp_predict)
