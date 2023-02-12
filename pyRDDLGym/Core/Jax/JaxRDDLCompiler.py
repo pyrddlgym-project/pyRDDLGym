@@ -235,11 +235,11 @@ class JaxRDDLCompiler:
                     errors |= err
             
             # check the termination (TODO: zero out reward in s if terminated)
-            terminated = False
+            terminated_check = False
             if check_constraints:
                 for terminal in terminals:
                     sample, key, err = terminal(subs, key)
-                    terminated = jnp.logical_or(terminated, sample)
+                    terminated_check = jnp.logical_or(terminated_check, sample)
                     errors |= err
             
             log = {
@@ -249,7 +249,7 @@ class JaxRDDLCompiler:
                 'error': errors,
                 'preconditions': precond_check,
                 'invariants': invariant_check,
-                'terminated': terminated
+                'terminated': terminated_check
             }
             return log, subs
         
@@ -261,11 +261,10 @@ class JaxRDDLCompiler:
             actions, key = policy(params, step, batch, key)
             batch.update(actions)
             
-            # batched next state transition
-            keys = random.split(key, num=n_batch + 1)    
-            key, subkeys = keys[0, ...], keys[1:, ...]
+            # batched next state transition 
+            key, *subkeys = random.split(key, num=1 + n_batch)   
             logged, batch = jax.vmap(_jax_wrapped_single_step, in_axes=0)(
-                actions, batch, subkeys)
+                actions, batch, jnp.asarray(subkeys))
             
             carry = (params, batch, key)
             return carry, logged            
