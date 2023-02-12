@@ -433,7 +433,7 @@ class JaxRDDLBackpropPlanner:
             log = rollouts(key, params, subs)
             rewards = log['reward']
             rewards = _jax_wrapped_scale_reward(rewards)
-            returns = jnp.sum(rewards, axis=-1)
+            returns = jnp.sum(rewards, axis=1)
             utility = utility_fn(returns)
             loss = -utility
             return loss, log
