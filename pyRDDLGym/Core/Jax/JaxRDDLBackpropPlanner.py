@@ -197,7 +197,7 @@ class JaxStraightLinePlan(JaxPlan):
             if prange == 'bool':
                 bounds[name] = (0.0, 1.0)
             else:
-                bounds[name] = _bounds.get(name, (-np.inf, np.inf))
+                bounds[name] = _bounds.get(name, (-jnp.inf, jnp.inf))
                 
         # initialize the parameters inside their valid ranges
         def _jax_wrapped_slp_init(_, key):
@@ -280,7 +280,7 @@ class JaxStraightLinePlan(JaxPlan):
                 return new_params, new_surplus
             
             # reduce bool action values by surplus until it becomes zero
-            def _jax_wrapped_sogbofa_clip_actions(params):
+            def _jax_wrapped_sogbofa_project(params):
                 surplus = _jax_wrapped_sogbofa_surplus(params)
                 params, _ = jax.lax.while_loop(
                     cond_fun=_jax_wrapped_sogbofa_positive_surplus,
@@ -292,8 +292,7 @@ class JaxStraightLinePlan(JaxPlan):
             def _jax_wrapped_slp_project_to_max_constraint(params):
                 params = {var: jnp.clip(param, *bounds[var])
                           for (var, param) in params.items()}
-                params = jax.vmap(_jax_wrapped_sogbofa_clip_actions, 
-                                  in_axes=0)(params)
+                params = jax.vmap(_jax_wrapped_sogbofa_project, in_axes=0)(params)
                 return params
             
             self.projection = _jax_wrapped_slp_project_to_max_constraint
@@ -350,58 +349,61 @@ class JaxDeepReactivePolicy(JaxPlan):
             if prange == 'bool':
                 bounds[name] = (0.0, 1.0)
             else:
-                bounds[name] = _bounds.get(name, (-np.inf, np.inf))
+                bounds[name] = _bounds.get(name, (-jnp.inf, jnp.inf))
         
         # transform the state dictionary into a flattened array
         def _jax_wrapped_drp_inputs(subs):
-            values = []
+            states = []
             for (var, value) in subs.items():
                 if rddl.variable_types[var] == 'state-fluent':
-                    value = jnp.atleast_1d(value)
-                    values.append(value)
-            values = jnp.concatenate(values, axis=None, dtype=JaxRDDLCompiler.REAL)
-            return values
+                    state = jnp.atleast_1d(value)
+                    states.append(state)
+            states_1d = jnp.concatenate(
+                states, axis=None, dtype=JaxRDDLCompiler.REAL)
+            return states_1d
         
         # construct hidden layers of DRP network
         def _jax_wrapped_drp_hidden(inputs):
             layers = []
-            for i, n_neurons in enumerate(neurons): 
-                layer = hk.Linear(n_neurons, name=f'hidden_layer_{i + 1}')
+            for (i, size) in enumerate(neurons): 
+                layer = hk.Linear(size, name=f'hidden_layer_{i + 1}')
                 layers.extend([layer, activation])
-            mlp = hk.Sequential(layers[:-1])
+            mlp = hk.Sequential(layers)
             hidden = mlp(inputs)
             return hidden
             
-        # apply a sigmoid to project actions to box bounds
-        def _jax_wrapped_drp_project_to_box(action, bound):
+        # project actions to box constraints
+        def _jax_wrapped_drp_constrain_action_to_box(action, bound):
             low, high = bound
-            if low > -np.inf and high < np.inf:
+            if low > -jnp.inf and high < jnp.inf:
                 return low + (high - low) * jax.nn.sigmoid(action)
-            elif low > -np.inf and high == np.inf:
+            elif low > -jnp.inf and high == jnp.inf:
                 return low + jnp.exp(action)
-            elif low == -np.inf and high < np.inf:
+            elif low == -jnp.inf and high < jnp.inf:
                 return high - jnp.exp(-action)
             else:
                 return action
         
+        # create an output layer in the policy net for the given action
+        def _jax_wrapped_drp_action_layer(var, hidden):
+            shape = shapes[var]
+            num_actions = np.prod(shape, dtype=int)
+            name = var.replace('-', '_')
+            layer = hk.Linear(num_actions, name=f'action_layer_{name}')
+            action = layer(hidden)
+            action = jax.vmap(partial(jnp.reshape, newshape=shape), in_axes=0)(action)
+            action = _jax_wrapped_drp_constrain_action_to_box(action, bounds[var])
+            return action
+        
         # calculate prediction of policy network given state
-        def _jax_wrapped_drp_predict(subs):
-            inputs = _jax_wrapped_drp_inputs(subs)
+        def _jax_wrapped_drp_predict(batch):
+            inputs = jax.vmap(_jax_wrapped_drp_inputs, in_axes=0)(batch)
             hidden = _jax_wrapped_drp_hidden(inputs)
-            actions = {}
-            for (var, shape) in shapes.items():
-                num_actions = np.prod(shape, dtype=int)
-                action = hk.Linear(num_actions, name=f'action_{var}_layer')(hidden)
-                action = jnp.reshape(action, newshape=shape)
-                action = _jax_wrapped_drp_project_to_box(action, bounds[var])
-                actions[var] = action
+            actions = {var: _jax_wrapped_drp_action_layer(var, hidden)
+                       for var in shapes}
             return actions
         
-        # calculate prediction of policy network given batch of states
-        def _jax_wrapped_drp_predict_batch(batch):
-            return jax.vmap(_jax_wrapped_drp_predict, in_axes=0)(batch)
-        
-        drp = hk.transform(_jax_wrapped_drp_predict_batch)
+        drp = hk.transform(_jax_wrapped_drp_predict)
         
         # initialize the parameters inside their valid ranges
         def _jax_wrapped_drp_init(batch, key):
@@ -603,7 +605,8 @@ class JaxRDDLBackpropPlanner:
         for (name, value) in subs.items():
             value = np.asarray(value)[np.newaxis, ...]
             train_value = np.repeat(value, repeats=n_train, axis=0)
-            init_train[name] = train_value.astype(JaxRDDLCompiler.REAL)
+            train_value = train_value.astype(JaxRDDLCompiler.REAL)
+            init_train[name] = train_value
             init_test[name] = np.repeat(value, repeats=n_test, axis=0)
         
         # make sure next-state fluents are also set
@@ -658,6 +661,8 @@ class JaxRDDLBackpropPlanner:
                 yield callback
     
     def get_action(self, params, step, subs, key):
+        rddl = self.rddl
+        noop = self.noop_actions
         
         # predict raw action tensors from plan or policy
         batch = jax.tree_map(partial(np.expand_dims, axis=0), subs)
@@ -666,10 +671,8 @@ class JaxRDDLBackpropPlanner:
         # record only those actions that differ from no-op
         grounded_actions = {}
         for (var, action) in actions.items():
-            action = action[0, ...]
-            for (ground_var, ground_act) in self.rddl.ground_values(var, action):
-                if ground_act != self.noop_actions[ground_var]:
-                    grounded_actions[ground_var] = ground_act
-                    
+            for (ground_var, ground_act) in rddl.ground_values(var, action[0]):
+                if ground_act != noop[ground_var]:
+                    grounded_actions[ground_var] = ground_act                    
         return grounded_actions, key
     
