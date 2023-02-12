@@ -362,6 +362,9 @@ class JaxDeepReactivePolicy(JaxPlan):
                 states, axis=None, dtype=JaxRDDLCompiler.REAL)
             return states_1d
         
+        def _jax_wrapped_drp_inputs_batched(batch):
+            return jax.vmap(_jax_wrapped_drp_inputs, in_axes=0)(batch)
+        
         # construct hidden layers of DRP network
         def _jax_wrapped_drp_hidden(inputs):
             layers = []
@@ -387,17 +390,17 @@ class JaxDeepReactivePolicy(JaxPlan):
         # create an output layer in the policy net for the given action
         def _jax_wrapped_drp_action_layer(var, hidden):
             shape = shapes[var]
-            num_actions = np.prod(shape, dtype=int)
             name = var.replace('-', '_')
-            layer = hk.Linear(num_actions, name=f'action_layer_{name}')
-            action = layer(hidden)
-            action = jax.vmap(partial(jnp.reshape, newshape=shape), in_axes=0)(action)
+            num_actions = np.prod(shape, dtype=int)
+            linear = hk.Linear(num_actions, name=f'output_layer_{name}')
+            reshape = hk.Reshape(shape, name=f'reshape_layer_{name}')
+            action = reshape(linear(hidden))
             action = _jax_wrapped_drp_constrain_action_to_box(action, bounds[var])
             return action
         
         # calculate prediction of policy network given state
         def _jax_wrapped_drp_predict(batch):
-            inputs = jax.vmap(_jax_wrapped_drp_inputs, in_axes=0)(batch)
+            inputs = _jax_wrapped_drp_inputs_batched(batch)
             hidden = _jax_wrapped_drp_hidden(inputs)
             actions = {var: _jax_wrapped_drp_action_layer(var, hidden)
                        for var in shapes}
@@ -418,8 +421,8 @@ class JaxDeepReactivePolicy(JaxPlan):
             return actions, key                            
         
         # convert smooth actions back to discrete/boolean
-        def _jax_wrapped_drp_predict_test(params, _, batch, key):
-            train, key = _jax_wrapped_drp_predict_train(params, None, batch, key)
+        def _jax_wrapped_drp_predict_test(params, step, batch, key):
+            train, key = _jax_wrapped_drp_predict_train(params, step, batch, key)
             actions = {}
             for (var, action) in train.items():
                 prange = rddl.variable_ranges[var]
@@ -435,10 +438,10 @@ class JaxDeepReactivePolicy(JaxPlan):
         self.test_policy = _jax_wrapped_drp_predict_test
         
         # projection is dummy
-        def _jax_wrapped_slp_project_to_max_constraint(params):
+        def _jax_wrapped_drp_project_to_max_constraint(params):
             return params
         
-        self.projection = _jax_wrapped_slp_project_to_max_constraint
+        self.projection = _jax_wrapped_drp_project_to_max_constraint
         
     
 class JaxRDDLBackpropPlanner:
