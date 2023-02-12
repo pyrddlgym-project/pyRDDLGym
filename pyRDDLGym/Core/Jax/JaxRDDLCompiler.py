@@ -1,9 +1,10 @@
+from functools import partial
 import jax
 import jax.numpy as jnp
 import jax.random as random
 import jax.scipy as scipy 
 from tensorflow_probability.substrates import jax as tfp
-from typing import Dict
+from typing import Callable, Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -177,7 +178,8 @@ class JaxRDDLCompiler:
     def _compile_reward(self):
         return self._jax(self.rddl.reward, dtype=JaxRDDLCompiler.REAL)
     
-    def compile_rollouts(self, policy, n_steps: int, n_batch: int,
+    def compile_rollouts(self, policy: Callable, 
+                         n_steps: int, n_batch: int,
                          check_constraints: bool=False):
         '''Compiles the current RDDL into a wrapped function that samples multiple
         rollouts (state trajectories) in batched form for the given policy. The
@@ -185,8 +187,7 @@ class JaxRDDLCompiler:
         returns a dictionary of all logged information from the rollouts.
         
         :param policy: a Jax compiled function that takes the policy parameters, 
-        decision epoch, subs dict, and an RNG key and returns an action and the
-        next RNG key in the sequence
+        decision epoch, state dict, and an RNG key and returns an action dict
         :param n_steps: the length of each rollout
         :param n_batch: how many rollouts each batch performs
         :param check_constraints: whether state, action and termination 
@@ -194,76 +195,92 @@ class JaxRDDLCompiler:
         returned log and does not raise an exception
         '''
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        
+        rddl = self.rddl
+        reward_fn, cpfs = self.reward, self.cpfs
+        preconds, invariants, terminals = \
+            self.preconditions, self.invariants, self.termination
+        
+        # do a single step update from the RDDL model
+        def _jax_wrapped_single_step(key, params, step, subs):
+            errors = NORMAL
             
-        # this performs a single step update
-        def _step(carried, step):
-            params, subs, key = carried
-            action, key = policy(params, step, subs, key)
-            subs.update(action)
-            error = NORMAL
+            # compute action
+            key, subkey = random.split(key)
+            states = {var: values 
+                      for (var, values) in subs.items()
+                      if rddl.variable_types[var] == 'state-fluent'}
+            actions = policy(subkey, params, step, states)
+            subs.update(actions)
             
-            # check preconditions
+            # check action preconditions
+            precond_check = True
             if check_constraints:
-                preconds = jnp.zeros(shape=(len(self.preconditions),), dtype=bool)
-                for (i, precond) in enumerate(self.preconditions):
-                    sample, key, precond_err = precond(subs, key)
-                    preconds = preconds.at[i].set(sample)
-                    error |= precond_err
+                for precond in preconds:
+                    sample, key, err = precond(subs, key)
+                    precond_check = jnp.logical_and(precond_check, sample)
+                    errors |= err
             
-            # calculate CPFs in topological order and reward
-            for (name, cpf) in self.cpfs.items():
-                subs[name], key, cpf_err = cpf(subs, key)
-                error |= cpf_err                
-            reward, key, reward_err = self.reward(subs, key)
-            error |= reward_err
+            # calculate CPFs in topological order
+            for (name, cpf) in cpfs.items():
+                subs[name], key, err = cpf(subs, key)
+                errors |= err                
+                
+            # calculate the immediate reward
+            reward, key, err = reward_fn(subs, key)
+            errors |= err
             
-            for (state, next_state) in self.rddl.next_state.items():
+            # set the next state to the current state
+            for (state, next_state) in rddl.next_state.items():
                 subs[state] = subs[next_state]
             
-            # check the invariants in the new state
+            # check the state invariants
+            invariant_check = True
             if check_constraints:
-                invariants = jnp.zeros(shape=(len(self.invariants),), dtype=bool)
-                for (i, invariant) in enumerate(self.invariants):
-                    sample, key, invariant_err = invariant(subs, key)
-                    invariants = invariants.at[i].set(sample)
-                    error |= invariant_err
+                for invariant in invariants:
+                    sample, key, err = invariant(subs, key)
+                    invariant_check = jnp.logical_and(invariant_check, sample)
+                    errors |= err
             
             # check the termination (TODO: zero out reward in s if terminated)
+            terminated_check = False
             if check_constraints:
-                terminated = False
-                for terminal in self.termination:
-                    sample, key, terminal_err = terminal(subs, key)
-                    terminated = jnp.logical_or(terminated, sample)
-                    error |= terminal_err
+                for terminal in terminals:
+                    sample, key, err = terminal(subs, key)
+                    terminated_check = jnp.logical_or(terminated_check, sample)
+                    errors |= err
             
-            logged = {'fluent': subs,
-                      'action': action,
-                      'reward': reward,
-                      'error': error}            
-            if check_constraints:
-                logged['preconditions'] = preconds
-                logged['invariants'] = invariants
-                logged['terminated'] = terminated
-                
-            carried = (params, subs, key)
-            return carried, logged
+            log = {
+                'pvar': subs,
+                'action': actions,
+                'reward': reward,
+                'error': errors,
+                'precondition': precond_check,
+                'invariant': invariant_check,
+                'termination': terminated_check
+            }
+            return log, subs
         
-        # this performs a single roll-out starting from subs
-        def _rollout(params, subs, key):
+        # do a batched step update from the RDDL model
+        def _jax_wrapped_batched_step(carry, step):
+            key, params, subs = carry  
+            key, *subkeys = random.split(key, num=1 + n_batch)
+            batched_step = jax.vmap(
+                _jax_wrapped_single_step, in_axes=(0, None, None, 0)
+            ) 
+            log, subs = batched_step(jnp.asarray(subkeys), params, step, subs)            
+            carry = (key, params, subs)
+            return carry, log            
+            
+        # do a batched roll-out from the RDDL model
+        def _jax_wrapped_batched_rollout(key, params, subs):
+            start = (key, params, subs)
             steps = jnp.arange(n_steps)
-            carry = (params, subs, key)
-            (* _, key), logged = jax.lax.scan(_step, carry, steps)
-            return logged, key
+            _, log = jax.lax.scan(_jax_wrapped_batched_step, start, steps)
+            log = jax.tree_map(partial(jnp.swapaxes, axis1=0, axis2=1), log)
+            return log
         
-        # this performs batched roll-outs
-        def _rollouts(params, subs, key): 
-            subkeys = jax.random.split(key, num=n_batch)
-            logged, keys = jax.vmap(_rollout, in_axes=(None, 0, 0))(
-                params, subs, subkeys)
-            logged['keys'] = subkeys
-            return logged, keys
-        
-        return _rollouts
+        return _jax_wrapped_batched_rollout
     
     # ===========================================================================
     # error checks
