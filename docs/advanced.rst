@@ -88,12 +88,11 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
         model, 
         plan=JaxStraightLinePlan(),
         batch_size_train=32, 
-        batch_size_test=32,
         optimizer=optax.rmsprop(0.01),
         action_bounds={'action': (0.0, 2.0)})
       
     # train for 1000 epochs using gradient ascent - print progress every 50
-    for callback in planner.optimize(jax.random.PRNGKey(42), epochs=1000, step=50):
+    for callback in planner.optimize(jax.random.PRNGKey(42), epochs=1000, step=10):
     	print('step={} train_return={:.6f} test_return={:.6f}'.format(
               str(callback['iteration']).rjust(4),
               callback['train_return'],
@@ -146,7 +145,6 @@ This quantity overrides the default horizon specified in the RDDL instance.
         model, 
         plan=JaxStraightLinePlan(),
         batch_size_train=32, 
-        batch_size_test=32,
         rollout_horizon=5,
         optimizer=optax.rmsprop(0.01))
 
@@ -158,14 +156,15 @@ The optimizer can then be invoked at every decision step (or periodically), as s
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.horizon):
-        key, subkey = jax.random.split(key)
+        key, subkey1, subkey2 = jax.random.split(key, num=3)
         *_, callback = planner.optimize(
-            subkey, epochs=500, step=100, subs=myEnv.sampler.subs)
-        key, subkey = jax.random.split(key)
-        action = planner.get_action(subkey, callback['params'], 0, None)
+            subkey1, epochs=500, step=100, subs=myEnv.sampler.subs)
+        action = planner.get_action(
+            subkey2, params=callback['params'], step=0, subs=None)
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
         ...
+        
     print(f'episode ended with reward {total_reward}')
     myEnv.close()
     
