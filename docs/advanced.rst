@@ -289,7 +289,7 @@ Please note, that boolean actions are automatically clipped to (0, 1), even if t
 
 The JAX planner also supports constraints on the maximum number of action-fluents that can be set at any given time.
 Specifically, if the ``max-nondef-actions`` property in the RDDL instance is less than the total number of boolean action fluents, then ``JaxRDDLBackpropPlanner`` will automatically apply a projected gradient technique to ensure ``max_nondef_actions`` is satisfied at each optimization step.
-The exact implementation details are provided `in this paper <https://ipc2018-probabilistic.bitbucket.io/planner-abstracts/conformant-sogbofa-ipc18.pdf>`_
+The exact implementation details are provided `in this paper <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_
 Please note, that the constraints are only applied to boolean actions: only box constraints can be applied to non-boolean (e.g. real, int) actions.
 
 Reward Normalization
