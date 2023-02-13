@@ -42,8 +42,12 @@ class RDDLTracedObjects:
     def cached_sim_info(self, expr: Expression) -> object:
         '''Returns compiled info that is specific to the expression.'''
         return self._cached_sim_info[expr.id]
-    
 
+
+def enum(**enums):
+    return type('Enum', (), enums)
+
+    
 class RDDLObjectsTracer:
     '''Performs static/compile-time tracing of a RDDL AST representation and
     annotates nodes with info about objects that appear inside expressions.'''
@@ -63,10 +67,6 @@ class RDDLObjectsTracer:
         'Dirichlet': (1,),  # weights
         'Multinomial': (0, 1)  # trials, probabilities
     }
-    
-    @staticmethod
-    def enum(**enums):
-        return type('Enum', (), enums)
     
     # operation codes on pvariable tensors
     NUMPY_OP_CODE = enum(
