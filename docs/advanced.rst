@@ -17,7 +17,9 @@ In pyRDDLGym, this can be done easily by specifying the backend:
                             backend=JaxRDDLSimulator)
 	
 For the purpose of simulation, the default backend and the ``JaxRDDLSimulator`` are designed to be as interchangeable as possible, so the latter can be used in place of the former with identical outputs in most cases.
-All RDDL syntax (both new and old!) is already supported in the RDDL-to-JAX compiler.
+
+.. note::
+   All RDDL syntax (both new and old!) is supported in the RDDL-to-JAX compiler.
 
 Logging RDDL Compilation
 -------------------
@@ -108,18 +110,18 @@ The final action sequence can then be easily extracted from the final callback.
 Re-Planning: Planning in Stochastic Domains
 -------------------
 
-In domains that have stochastic transitions, an open loop plan can be considerably suboptimal.
+In domains that have stochastic transitions, an open loop plan can be considerably sub-optimal.
 In order to take into account the actual evolution of the state trajectory into the planning problem, it is possible to re-compute the optimal plan periodically in each state.
 This is often called "re-planning".
 
 Another problem of planning in stochastic domains is that the state transition function :math:`s_{t + 1} = f(s_t, a_t)` is no longer deterministic, and so the gradients are no longer well-defined in this formulation.
 pyRDDLGym works around this problem by using the reparameterization trick.
 To illustrate this in action, if :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)`, then after reparametization this becomes :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, and back-propagation can now be performed with respect to both state and action.
-The reparameterization trick can also work for other classes of probability distributions. Mathematically,
+The reparameterization trick can also work for other classes of probability distributions, if there exists a closed-form function f such that
 
 .. math::
 
-    s_{t+1} \sim f(s_t, a_t, \xi_t)
+    s_{t+1} = f(s_t, a_t, \xi_t)
     
 where :math:`\xi_t` are i.i.d. random variables drawn from some concrete distribution. 
 For a detailed discussion of reparameterization in the context of planning by back-propagation, please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
@@ -127,7 +129,9 @@ For a detailed discussion of reparameterization in the context of planning by ba
 pyRDDLGym will automatically perform reparameterization as needed if it is possible to do so.
 However, some probability distributions, such as the Beta distribution, do not have tractable reparameterizations.
 For a small subset of them, like the Bernoulli and Discrete distribution, pyRDDLGym offers efficient approximations backed by the existing literature (see, e.g. the Gumbel-softmax discussion below). 
-For other distributions, the result of the derivative calculation can be unpredictable: either it could return an erroneous gradient (such as zero) or raise an exception.
+
+.. warning::
+   For non-reparameterizable distributions, the result of the gradient calculation is fully dependent on the JAX implementation: it could return an erroneous gradient (such as zero) or raise an exception.
 
 The ``JaxRDDLBackpropPlanner`` makes it relatively easy to do re-planning in stochastic domains inside the usual simulation loop.
 To do this, the parameter ``rollout_horizon`` specifies how far ahead the planner will look during optimization at each time step. 
@@ -168,13 +172,14 @@ The optimizer can then be invoked at every decision step (or periodically), as s
     print(f'episode ended with reward {total_reward}')
     myEnv.close()
     
-By executing this code, and comparing the realized return to the one obtained by the code in the previous section, it is clear that re-planning can perform much better.
+By executing this code, and comparing the realized return to the one obtained by the code in the previous section, 
+it is clear that re-planning can perform much better.
 
 Dealing with Non-Differentiable Expressions
 -------------------
 
 Many RDDL programs contain CPFs or reward functions that do not support derivatives.
-A common technique to deal with such problems is to map non-differentiable operations to similar differentiable ones.
+A common technique to deal with such problems is to rewrite non-differentiable operations as similar differentiable ones.
 For instance, consider the following problem of classifying points (x, y) in 2D-space as +1 if they lie in the top-right or bottom-left quadrants, and -1 otherwise:
 
 .. code-block:: python
@@ -206,7 +211,7 @@ Specifically, the ``classify`` function above could be written as follows:
 For illustration, calling ``approximate_classify`` with ``x=0.5`` and ``y=1.5`` returns 0.98661363, which is very close to 1.
 
 It is possible to gain fine-grained control over how pyRDDLGym should perform differentiable relaxations.
-The abstract class ``FuzzyLogic``, from which ``ProductLogic`` is derived, can be subclassed to specify how each mathematical operation should be approximated in JAX.
+The abstract class ``FuzzyLogic``, from which ``ProductLogic`` is derived, can be sub-classed to specify how each mathematical operation should be approximated in JAX.
 This logic can be passed to the planner as an optimal argument:
 
 .. code-block:: python
@@ -260,7 +265,7 @@ Then, a random variable :math:`X` with probability mass function :math:`p_1, \do
 where the approximation rule in the above table is used for argmax.
 Further details about Gumbel-softmax can be found `in this paper <https://arxiv.org/pdf/1611.01144.pdf>`_.
 
-Any operation(s) can be replaced by the user by subclassing ``FuzzyLogic`` or ``ProductLogic``.
+Any operation(s) can be replaced by the user by sub-classing ``FuzzyLogic`` or ``ProductLogic``.
 For example, the RDDL operation :math:`a \text{ ^ } b` can be replaced with a user-specified one by sub-classing as follows:
 
 .. code-block:: python
@@ -285,12 +290,16 @@ The syntax for specifying box constraints is written as follows:
     action_bounds={ <action_name1>: (lower1, upper1), <action_name2>: (lower2, upper2), ... }
    
 where ``lower#`` and ``upper#`` can be any floating point value, including positive and negative infinity.
-Please note, that boolean actions are automatically clipped to (0, 1), even if they are not specified in ``action_bounds``.
+
+.. note::
+   Boolean actions are automatically clipped to (0, 1), even if not specified in ``action_bounds``.
 
 The JAX planner also supports constraints on the maximum number of action-fluents that can be set at any given time.
 Specifically, if the ``max-nondef-actions`` property in the RDDL instance is less than the total number of boolean action fluents, then ``JaxRDDLBackpropPlanner`` will automatically apply a projected gradient technique to ensure ``max_nondef_actions`` is satisfied at each optimization step.
 The exact implementation details are provided `in this paper <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_
-Please note, that the constraints are only applied to boolean actions: only box constraints can be applied to non-boolean (e.g. real, int) actions.
+
+.. note::
+   Concurrency constraints on action-fluents are applied to boolean actions only: e.g., real and int actions will be ignored.
 
 Reward Normalization
 -------------------
@@ -304,7 +313,7 @@ Mathematically, symlog is defined as
     \mathrm{symlog}(x) = \mathrm{sign}(x) * \ln(|x| + 1)
 
 which compresses the magnitudes of large positive and negative outcomes.
-Enabled by default, the use of symlog can be controlled by the ``use_symlog_reward`` argument in ``JaxBackpropPlanner``.
+The use of symlog can be enabled by the ``use_symlog_reward`` argument in ``JaxBackpropPlanner``.
 
 Limitations
 -------------------

@@ -18,7 +18,7 @@ Installing via pip
 
     pip install pyRDDLGym
 
-We recommand installing under a conda virtual environment:
+We recommend installing under a conda virtual environment:
 
 .. code-block:: shell
 
