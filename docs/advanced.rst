@@ -78,7 +78,7 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 	
     # specify the model
-    EnvInfo = ExampleManager.GetEnvInfo('MountainCar')
+    EnvInfo = ExampleManager.GetEnvInfo('mountaincar')
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
     model = myEnv.model
     
@@ -86,15 +86,14 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
     # note that actions should be constrained to [0, 2] for MountainCar
     planner = JaxRDDLBackpropPlanner(
         model, 
-        key=jax.random.PRNGKey(42), 
+        plan=JaxStraightLinePlan(),
         batch_size_train=32, 
         batch_size_test=32,
         optimizer=optax.rmsprop(0.01),
         action_bounds={'action': (0.0, 2.0)})
       
-    # train for 1000 epochs using gradient ascent
-    # print progress every 50 epochs
-    for callback in planner.optimize(epochs=1000, step=50):
+    # train for 1000 epochs using gradient ascent - print progress every 50
+    for callback in planner.optimize(jax.random.PRNGKey(42), epochs=1000, step=50):
     	print('step={} train_return={:.6f} test_return={:.6f}'.format(
               str(callback['iteration']).rjust(4),
               callback['train_return'],
@@ -104,7 +103,7 @@ The final action sequence can then be easily extracted from the final callback.
 
 .. code-block:: python
 	
-	plan = planner.get_plan(callback['params'])
+	plan = planner.get_action(<PRNG key>, callback['params'], <step>, None)
 	
 
 Re-Planning: Planning in Stochastic Domains
@@ -138,14 +137,14 @@ This quantity overrides the default horizon specified in the RDDL instance.
 .. code-block:: python
 
     # specify the model
-    EnvInfo = ExampleManager.GetEnvInfo('Wildfire')
+    EnvInfo = ExampleManager.GetEnvInfo('wildfire')
     myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
     model = myEnv.model
     
     # initialize the planner with a roll-out horizon of 5
     planner = JaxRDDLBackpropPlanner(
         model, 
-        key=jax.random.PRNGKey(42), 
+        plan=JaxStraightLinePlan(),
         batch_size_train=32, 
         batch_size_test=32,
         rollout_horizon=5,
@@ -155,19 +154,21 @@ The optimizer can then be invoked at every decision step (or periodically), as s
 
 .. code-block:: python
 
+    key = jax.random.PRNGKey(42)
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.horizon):
-        myEnv.render()
-        *_, callback = planner.optimize(500, 10, init_subs=myEnv.sampler.subs)
-        action = planner.get_plan(callback['params'])[0]
+        key, subkey = jax.random.split(key)
+        *_, callback = planner.optimize(
+            subkey, epochs=500, step=100, subs=myEnv.sampler.subs)
+        key, subkey = jax.random.split(key)
+        action = planner.get_action(subkey, callback['params'], 0, None)
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
         ...
-        
     print(f'episode ended with reward {total_reward}')
     myEnv.close()
-
+    
 By executing this code, and comparing the realized return to the one obtained by the code in the previous section, it is clear that re-planning can perform much better.
 
 Dealing with Non-Differentiable Expressions
