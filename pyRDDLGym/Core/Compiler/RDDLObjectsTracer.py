@@ -44,7 +44,7 @@ class RDDLTracedObjects:
         return self._cached_sim_info[expr.id]
 
 
-def enum(**enums):
+def py_enum(**enums):
     return type('Enum', (), enums)
 
     
@@ -69,7 +69,7 @@ class RDDLObjectsTracer:
     }
     
     # operation codes on pvariable tensors
-    NUMPY_OP_CODE = enum(
+    NUMPY_OP_CODE = py_enum(
         NESTED_SLICE=-1,  # nested pvariables detected: slice required
         EINSUM=0,  # duplicated variables like fluent(?x, ?x) - reduction required
         TRANSPOSE=1,  # evaluation order differs from outerscope -- reorder required
