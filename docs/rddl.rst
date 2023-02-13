@@ -12,7 +12,9 @@ parameterized variables and the evolution of a fully or partially observed
 variables conditioned on current state and action variables (n.b., concurrency 
 is allowed). Parameterized variables are simply templates for ground variables 
 that can be obtained when given a particular problem instance defining possible 
-domain objects. Semantically, RDDL is simply a dynamic Bayes net (DBN) 
+domain objects. 
+
+Semantically, RDDL is simply a dynamic Bayes net (DBN) 
 (with potentially many intermediate layers) extended with a simple influence 
 diagram (ID) utility node representing immediate reward. An objective function 
 specifies how these immediate rewards should be optimized over time for optimal 
@@ -43,7 +45,8 @@ The block should be written in a .rddl file as the following:
         termination { <code> }; // optional
     }
     
-Note that there should not be a semicolon at the end of the domain block.
+.. note::
+   There should not be a semicolon at the end of the domain block.
 
 Requirements
 ^^^^^^^^^^^^^^^^^^^
@@ -106,6 +109,7 @@ be used in the domain, according to the following format:
 
 An ``object`` is a user-defined parameter that will be used to parameterize variables. 
 They are often things or people that will be simulated to move or act in this domain. 
+
 For example, consider a simulation where elevators are to travel between different 
 floors and open doors to allow people to get on and off the elevators to 
 ultimately minimize the waiting time (see elevators.rddl example). ``person``
@@ -118,12 +122,14 @@ and ``elevator`` can be declared as objects in the domain as follows:
         elevator : object;
     };
 
-``<enumerable>`` (e.g., enumerated values) are always prefixed with the @ symbol 
-when defining or referring to them.
-However, if an enumerated value does not correspond to the name of a variable 
-defined in the domain with no parameters (see pVariables below), then there
-is no ambiguity whether the enumerated value or the variable are being referred to, 
-and the @ can be dropped in this case.
+The ``@`` quantifier specifies that the given value should be treated as an object rather than a pvariable.
+This symbol is generally optional for objects in expressions, however:
+
+.. warning::
+   If the ``@`` symbol is not prepended to an object, and there is a variable defined in the domain 
+   with the same name as the object that does not have parameters, then it is ambiguous whether the 
+   object or the variable are being referred to inside an expression. 
+   The compiler will raise an exception in this case.
 
 Parameterized Variables (pVariables)
 ^^^^^^^^^^^^^^^^^^^
@@ -176,12 +182,13 @@ mentioned in later sections), the variable will take its default value.
 If the variable is an action-fluent, then when the action is not performed 
 this variable will take on its default value; an action-fluent taking an non-default 
 value would imply the action is performed in most cases. 
-Default values are not needed for interm-fluent and observ-fluent. 
-In case of a interm-fluent, the old RDDL specification required that the last 
-argument be ``level = <int>`` instead, where the integer represents the level of stratification. 
-However, the new RDDL specification no longer requires this, since the levels are 
-computed automatically by the compiler by analyzing the dependencies between variables
-as defined by their CPFs (see next section).
+Default values are not specified for interm-fluent and observ-fluent.
+
+.. note::
+   In case of a interm-fluent, the old RDDL specification required that the last 
+   argument be ``level = <int>`` instead, where the integer represents the level of stratification. 
+   However, the new RDDL specification no longer requires levels to be specified in the domain, since they are 
+   computed automatically at compile time.
 
 Conditional Probability Functions (CPFs)
 ^^^^^^^^^^^^^^^^^^^
@@ -198,7 +205,8 @@ value of this state-fluent at the next time step.
 The state-fluent at the next time step is represented by adding an apostrophe 
 at the end of the state-fluent (i.e., ``<name_state-fluent>'``). 
 If the state-fluent is parameterized by ``objects``, the objects are referenced 
-by a question mark followed with user assigned names for the query objects. 
+by a ``?`` followed with user assigned names for the query objects. 
+
 For example, if a pvariable ``elevator-at-floor(elevator, floor)`` is defined, 
 then ``elevator-at-floor(?e, ?f)`` represents the value of this variable 
 parameterized by elevator ``?e`` and floor ``?f``.
@@ -231,6 +239,11 @@ load the person; otherwise there is a Bernoulli probability distribution with
 next-time-step ``person-waiting`` up state-fluent to be true. 
 Evidently, this models the randomness of people arriving and waiting for an elevator.
 
+.. warning::
+   Cyclic dependencies between two or more CPFs, 
+   or a CPF expression that refers to itself, 
+   is strictly prohibited and will raise an exception.
+   
 The usage of all conditional expressions, logical and arithmetic operators, and 
 probability distribution expressions will be described in a later section.
 
@@ -334,7 +347,8 @@ The non-fluents block should have the following syntax:
         };
     }
 
-Note that there should not be a semicolon at the end of the ``non-fluents`` block.
+.. note::
+   There should not be a semicolon at the end of the ``non-fluents`` block.
 
 The ``objects`` section define all objects needed; these are grouped by types 
 and listed in curly bracket. 
@@ -383,7 +397,8 @@ The ``instance`` block should have the following syntax:
         discount = <real>;
     }
 
-Note again that there should not be a semicolon at the end of the ``instance`` block.
+.. note::
+   There should not be a semicolon at the end of the ``instance`` block.
 
 Any state-fluents that do not take their default value initially should be assigned 
 a value in the ``init-state`` section. 
@@ -394,22 +409,23 @@ will take their default value stated in the ``domain`` block.
 
 The ``max-nondef-actions`` represents the maximum number of action-fluent there 
 can be at a single time step that are not at their default values, or the maximum 
-number of concurrent actions. 
-Note that if concurrent is not one of the domain requirements (i.e., the problem 
-does not allow concurrent actions), this value should be 1. Setting this parameter
+number of concurrent actions. Setting this parameter
 to ``pos-inf`` will set the number of concurrent actions equal to the total number
 of action-fluents.
 
 The ``horizon`` and ``discount`` factor are parameters for MDP to work on this instance. 
 ``horizon`` is the total number of time steps that the instance will be simulated 
 for (e.g., if horizon = 10, the instance will be simulated from time = 0 to time = 9). 
+
 The ``discount`` represents how much more/less future rewards should be worth 
 compared to the current reward. 
 For example, if discount = 0.9, then 1 point of reward in two time steps after 
 would have the same value as 1 * 0.9 * 0.9 = 0.81 point of reward currently. 
-Note a discount factor of less than 1 means earlier rewards are preferred, a 
-discount factor of greater than 1 means later rewards are preferred, and a discount 
-factor of 1 means the reward should have no difference with respect to time.
+
+.. note::
+   A discount factor of less than 1 means earlier rewards are preferred, a 
+   discount factor of greater than 1 means later rewards are preferred, and a discount 
+   factor of 1 means the reward should have no difference with respect to time.
 
 Functions and Expressions
 -------------------
@@ -504,6 +520,11 @@ and disequality (~=) can be used between any identical range variables, while
 inequality comparisons (>, <, >=, <=) can be used between any numerically valued 
 variables (real, int, and bool).
 
+.. warning::
+   Using any of the comparison operators on objects of different types, 
+   or mixed object and primitive (e.g. real, int, bool) data types, will raise an 
+   exception; this includes equality and disequality operators.
+    
 If-then-else
 ^^^^^^^^^^^^^^^^^^^
 
@@ -515,7 +536,7 @@ The ``if-then-else`` expressions is similar to any if expressions in other progr
 
 If ``<condition>`` evaluates to true, ``<expression1>`` will be used; otherwise, ``<expression2>`` will be used. 
  
-Note that each ``<expression>`` can also be an ``if-then-else`` expression, as shown 
+Each ``<expression>`` can also be an ``if-then-else`` expression, as shown 
 in the following. Also note that in RDDL, parentheses ( ) and square brackets [ ] 
 serve the same purpose of grouping and are interchangeable.
 
@@ -541,8 +562,13 @@ conditions is an enumerated variable. The syntax of this expressions is
  
 This allows RDDL to examine the value of ``<argument>`` first, then use the 
 corresponding expression associated with that value.
-Note that the default statement must be included if the cases are not exhaustive. 
-Multiple cases with the same case value, or multiple default statements, will raise an exception.
+
+.. note::
+   Note that the default statement must be included if the cases are not exhaustive. 
+
+.. warning::
+   Multiple cases with the same case value, multiple default statements, 
+   or non-exhaustive cases without a default statement, will raise an exception.
 
 Logical Expressions
 -------------------
@@ -580,9 +606,10 @@ such as sum and product are also supported:
 
     sum_{?<obj1>: <object1_name>, [?<obj2>: <object2_name>, ...]} [<expression>]
     prod_{?<obj1>: <object1_name>, [?<obj2>: <object2_name>, ...]} [<expression>]
-	
-Unlike the old RDDL specification, it is now possible to aggregate over enumerated values
-in addition to objects.
+
+.. note::
+   Unlike the old RDDL specification, it is now possible to aggregate over 
+   enumerated (domain object) types in addition to instance-defined objects.
 
 RDDL supports the following aggregations over types:
 
@@ -613,10 +640,15 @@ syntax:
 
 The first (second) expression returns the index of the object ``<obj>`` that minimizes 
 (maximizes) ``<expression>`` over all objects in ``<object_name>``. 
-Note that, unlike aggregations, these statements can only iterate over a single enumerated value.
 
-It is now REQUIRED to put a pair of parentheses around each aggregation, to make 
-sure the correct arithmetic order of operations is been parsed by RDDL.
+.. note::
+   Unlike aggregations, ``argmax`` and ``argmin`` iterate over a single parameter only.
+
+.. warning::
+   It is required to put a pair of parentheses ``(...)`` or ``[...]`` 
+   around each aggregation, to make sure the correct arithmetic order of operations 
+   is been parsed by RDDL. Failure to do this could result in the parser silently
+   compiling expressions that differ from their RDDL specification.
 
 Probability Distributions
 -------------------
@@ -631,27 +663,36 @@ Discrete Distributions
 RDDL currently supports the following discrete (int, bool or enumerated values) probability distributions:
 
 .. list-table:: Discrete Probability Distributions
-   :widths: 100 60
+   :widths: 100 60 60
    :header-rows: 1
    
    * - RDDL syntax
      - description
+     - reparameterizable
    * - ``KronDelta(v)``
      - Places all probability mass on its discrete argument ``v``
+     - Yes
    * - ``Bernoulli(p)``
      - Samples a boolean value with probability of true given by parameter ``p``; must have ``0 <= p <= 1``
+     - Yes
    * - ``Discrete(<var_name>, p)``
      - Samples an enumerated value with probability vector ``p``; elements of ``p`` must be non-negative and sum to 1; the syntax of ``p`` is described after this table
+   	 - Yes
    * - ``UnnormDiscrete(<var_name>, p)``
      - Same as ``Discrete``, except ``p`` needs to be only non-negative   
+     - Yes
    * - ``Poisson(rate)``
      - Samples an integer value from a Poisson distribution with given rate parameter   
+     - No
    * - ``Binomial(trials, p)``
      - Samples an integer value from a Binomial distribution with given number of trials and trial probability of success ``p``
+     - No
    * - ``NegativeBinomial(successes, p)``
      - Samples an integer value from a Negative Binomial distribution with required number of successes and trial probability of success ``p``
+     - No
    * - ``Geometric(p)``
      - Samples an integer value from a Geometric distribution with trial probability of success ``p``
+     - Yes
 
 In a ``Discrete`` probability distribution, the probability vector assign a 
 probability density to each possible value of the enumerated variable, 
@@ -681,41 +722,57 @@ Continuous Distributions
 RDDL also currently supports the following continuous (real values) probability distributions:
 
 .. list-table:: Continuous Probability Distributions
-   :widths: 100 60
+   :widths: 100 60 60
    :header-rows: 1
    
    * - RDDL syntax
      - description
+     - reparameterizable
    * - ``DiracDelta(v)``
      - Places all probability mass on its continuous argument ``v``
+     - Yes
    * - ``Normal(mean, variance)``
      - Samples a continuous value from a Normal distribution with given mean and variance
+     - Yes
    * - ``Uniform(lower, upper)``
      - Samples a real value from a Uniform distribution with given lower and upper bounds
+     - Yes
    * - ``Exponential(scale)``
      - Samples a real value from an Exponential distribution with mean ``scale``
+     - Yes
    * - ``Weibull(shape, scale)``
      - Samples a real value from a Weibull distribution with given shape and scale parameters
+     - Yes
    * - ``Gamma(shape, scale)``
      - Samples a real value from a Gamma distribution with given shape and scale parameters
+     - ``scale`` only
    * - ``Beta(a, b)``
      - Samples a real value from a Beta distribution with parameters ``a`` and ``b``
+     - No
    * - ``Pareto(shape, scale)``
      - Samples a real value from a Pareto distribution with given shape and scale parameters
+     - Yes
    * - ``Student(df)``
      - Samples a real value from a Student-t distribution with zero mean, unit scale and degrees of freedom ``df``
+     - No
    * - ``Gumbel(mean, scale)``
      - Samples a real value from a Gumbel distribution with given mean and scale parameters
+     - Yes
    * - ``Laplace(mean, scale)``
      - Samples a real value from a Laplace distribution with given mean and scale parameters
+     - Yes
    * - ``Cauchy(mean, scale)``
      - Samples a real value from a Cauchy distribution with given mean and scale parameters
+     - Yes
    * - ``Gompertz(shape, scale)``
      - Samples a real value from a Gompertz distribution with given shape and scale parameters
+     - Yes
    * - ``ChiSquare(df)``
      - Samples a real value from a Chi-Square distribution with degrees of freedom ``df``
+     - No
    * - ``Kumaraswamy(a, b)``
      - Samples a real value from a Kumaraswamy distribution with parameters ``a`` and ``b``; this is a reparameterizable analogue of the Beta distribution
+     - Yes
 
 New Language Features
 -------------------
@@ -749,17 +806,13 @@ when evaluating a pVariable
 
     <pvar>(<pvar_as_parameter>([?<object1>, ...]), @<enum_value>, ?<object>)
     
-but care must be taken to ensure the ``@<enum_value>``, ``?<object>`` and ``<pvar_as_parameter>`` types match
+as long as ``@<enum_value>``, ``?<object>`` and ``<pvar_as_parameter>`` types match
 what is required by the outer ``<pvar>``.
 
 Multivariable Distributions
 ^^^^^^^^^^^^^^^^^^^
 
 The new RDDL syntax now supports sampling from some well-known multivariable probability distributions.
-Unlike the single-variable distributions discussed previously, samples from 
-multivariable distributions must be assigned to CPFs directly. The parameters of such distributions
-cannot be compound expressions, but they can be any valid state-fluent, action-fluent, interm-fluent, or non-fluent variable.
-
 For example, a Dirichlet distribution with parameter vector "alpha"
 can be parameterized by a pVariable ``alpha`` that takes at least one enumerated value. 
 The syntax to sample from this distribution and assign it to a CPF is
@@ -773,6 +826,13 @@ where ``cpf`` is the name of a CPF (e.g., state-fluent, interm-fluent),
 of the Dirichlet distribution is described, and ``[?<value>]`` indicates which 
 parameter of ``<cpf>`` is to receive the sample from this distribution.
 
+.. warning::
+   Unlike the single-variable distributions, samples from 
+   multivariable distributions must be assigned to CPFs directly 
+   (e.g. cannot be nested inside other expressions). 
+   Furthermore, their parameters cannot be compound expressions either, 
+   but can refer to any valid CPF.
+
 It is also possible to include an arbitrary number of other parameters from the 
 ``<cpf>`` in "alpha", e.g. the following could be valid syntax:
 
@@ -782,8 +842,8 @@ It is also possible to include an arbitrary number of other parameters from the
 	<cpf>(?<value1>, ?<value2>) = Dirichlet[?<value1>]( alpha(_, ?<value2>) );
 	
 provided the types of the required and given arguments in ``alpha`` match. These
-examples should be seen as "batched" sampling, where the parameter ``?<value2>`` 
-NOT corresponding to the sampled dimension specifies a single sample in the "batch".
+examples could be seen as "batched" sampling, where the parameter ``?<value2>`` 
+not corresponding to the sampled dimension specifies a single sample in the "batch".
 
 In a similar way, new RDDL also provides a syntax for the Multinomial distribution
 with given trials ``trials`` and probabilities ``p``
@@ -838,6 +898,6 @@ into which the inverse matrix will be assigned. Also, to break ambiguity between
 which of ``?<value1>`` and ``?<value2>`` corresponds to the row and column dimensions
 of ``<expression>``, they must be explicitly assigned to the row and column dimensions as
 in the code above, i.e. ``?<value1>`` runs over the rows and 
-``?<value2>`` runs over the columns of the "matrix" produced by ``<expression>``. As with determinant,
-this calculation can be "batched" if ``<expression>`` is appropriately parameterized by other variables
-from the outer scope.
+``?<value2>`` runs over the columns of the "matrix" produced by ``<expression>``. 
+As with determinant, this calculation can be "batched" if ``<expression>`` is 
+appropriately parameterized by other variables from the outer scope.
