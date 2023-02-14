@@ -35,6 +35,7 @@ class ColorVisualizer(StateViz):
         self._state_shapes = {}
         self._labels = {}
         for (state, values) in self._model.states.items():
+            values = np.atleast_1d(values)
             self._state_hist[state] = np.full(
                 shape=(len(values), self._steps),
                 fill_value=np.nan
@@ -92,7 +93,7 @@ class ColorVisualizer(StateViz):
             self._ax[y].yaxis.label.set_fontsize(self._fontsize)
             self._ax[y].title.set_text(state)
             self._ax[y].set_xlabel('decision epoch')
-            self._ax[y].set_ylabel('state')
+            self._ax[y].set_ylabel(state)
             self._ax[y].axvline(
                 x=index + 0.5, ymin=0.0, ymax=1.0,
                 color=self._loccol, linestyle='--', linewidth=2, alpha=0.9
@@ -107,6 +108,7 @@ class ColorVisualizer(StateViz):
                 rotation=30
             )
         self._step = self._step + 1
+        plt.tight_layout()
         
         img = self.convert2img(self._fig, self._ax)
         
