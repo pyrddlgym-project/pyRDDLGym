@@ -133,8 +133,8 @@ class RDDLEnv(gym.Env):
         self.to_render = False
         self.image_size = None
 
-    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False):
-        self._visualizer = viz(self.model)
+    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False, **viz_kwargs):
+        self._visualizer = viz(self.model, **viz_kwargs)
         self._movie_generator = movie_gen
         self._movie_per_episode = movie_per_episode
         self._movies = 0
