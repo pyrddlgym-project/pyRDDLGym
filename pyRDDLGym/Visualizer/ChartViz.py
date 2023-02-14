@@ -100,7 +100,7 @@ class ChartVisualizer(StateViz):
             
             if self._model.variable_ranges[state] == 'bool':
                 self._ax[y].pcolormesh(
-                    values, edgecolors=self._loccol, linewidth=0.5, 
+                    values, edgecolors=self._loccol, linewidth=0.5,
                     cmap=matplotlib.colors.ListedColormap(self._boolcol)
                 )            
                 patches = [
@@ -117,13 +117,29 @@ class ChartVisualizer(StateViz):
                     fontdict={"fontsize": self._fontsize},
                     rotation=30
                 )
+            
+            elif self._model.variable_ranges[state] == 'int':
+                num_ser = len(self._labels[state])
+                if num_ser > 1:
+                    offsets = np.linspace(-0.05, 0.05, num=num_ser, endpoint=True)
+                else:
+                    offsets = np.zeros((num_ser,))
+                
+                for (i, var) in enumerate(self._labels[state]):
+                    self._ax[y].plot(np.arange(values[i, :].size) + offsets[i], 
+                                     values[i, :], 
+                                     linestyle=':', 
+                                     marker='o', 
+                                     markerfacecolor='none',
+                                     label=var)
+                self._ax[y].set_xlim([0, values[i,:].size])
+                self._ax[y].legend(loc='upper right')
                 
             else:
                 for (i, var) in enumerate(self._labels[state]):
                     self._ax[y].plot(values[i, :], 'o-', label=var)
-                self._ax[y].set_xlim([0, values[i, :].size])
+                self._ax[y].set_xlim([0, values[i,:].size])
                 self._ax[y].legend(loc='upper right')
-            
             
         self._step = self._step + 1
         plt.tight_layout()
