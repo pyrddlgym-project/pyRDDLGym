@@ -8,7 +8,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgume
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Debug.Logger import Logger, SimLogger
 from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
@@ -18,10 +18,11 @@ from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 class RDDLEnv(gym.Env):
     
-    def __init__(self, domain: str, 
-                 instance: str=None, 
+    def __init__(self, domain: str,
+                 instance: str=None,
                  enforce_action_constraints: bool=False,
-                 debug: bool=False, 
+                 debug: bool=False,
+                 log: bool=False,
                  backend: object=RDDLSimulator):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
@@ -30,6 +31,7 @@ class RDDLEnv(gym.Env):
         :param enforce_action_constraints: whether to raise an exception if the
         action constraints are violated
         :param debug: whether to log compilation information to a log file
+        :param log: whether to log simulation data to file
         :param backend: the subclass of RDDLSimulator to use as backend for
         simulation (currently supports numpy and Jax)
         '''
@@ -48,7 +50,11 @@ class RDDLEnv(gym.Env):
         
         # for logging
         ast = self.model._AST
-        logger = Logger(f'{ast.domain.name}_{ast.instance.name}.log') if debug else None
+        fname = f'{ast.domain.name}_{ast.instance.name}'
+        logger = Logger(f'{fname}_debug.log') if debug else None
+        self.simlogger = SimLogger(f'{fname}_log.csv') if log else None
+        if self.simlogger:
+            self.simlogger.clear()
         
         # define the model sampler and bounds    
         self.sampler = backend(self.model, logger=logger)
@@ -169,11 +175,16 @@ class RDDLEnv(gym.Env):
         # sample next state and reward
         obs, reward, self.done = self.sampler.step(clipped_actions)
         state = self.sampler.states
-
+            
         # check if the state invariants are satisfied
         if not self.done:
             self.sampler.check_state_invariants()               
 
+        # log to file
+        if self.simlogger is not None:
+            self.simlogger.log(
+                obs, clipped_actions, reward, self.done, self.currentH)
+        
         # update step horizon
         self.currentH += 1
         if self.currentH == self.horizon:
@@ -224,6 +235,9 @@ class RDDLEnv(gym.Env):
         return image
     
     def close(self):
+        if self.simlogger:
+            self.simlogger.close()
+                        
         if self.to_render:
             pygame.display.quit()
             pygame.quit()
