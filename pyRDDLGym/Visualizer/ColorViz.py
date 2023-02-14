@@ -17,13 +17,16 @@ class ColorVisualizer(StateViz):
                  dpi=100,
                  fontsize=10,
                  cmap='seismic',
-                 loccol='black') -> None:
+                 loccol='black',
+                 ranges=None) -> None:
         self._model = model
         self._figure_size = figure_size
         self._dpi = dpi
         self._fontsize = fontsize
         self._cmap = cmap
         self._loccol = loccol
+        self._ranges = ranges
+        
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
@@ -86,8 +89,13 @@ class ColorVisualizer(StateViz):
             
         for (y, (state, values)) in enumerate(self._state_hist.items()):
             values = values[::-1, :]
+            if self._ranges is not None:
+                vmin, vmax = self._ranges[state]
+            else:
+                vmin, vmax = None, None
             im = self._ax[y].pcolormesh(
-                values, edgecolors=self._loccol, linewidth=0.5, cmap=self._cmap
+                values, edgecolors=self._loccol, linewidth=0.5, cmap=self._cmap,
+                vmin=vmin, vmax=vmax
             )
             self._ax[y].xaxis.label.set_fontsize(self._fontsize)
             self._ax[y].yaxis.label.set_fontsize(self._fontsize)
