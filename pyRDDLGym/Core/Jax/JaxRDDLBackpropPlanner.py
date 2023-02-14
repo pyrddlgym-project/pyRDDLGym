@@ -122,7 +122,10 @@ class JaxPlan:
                 _bounds: Dict,
                 horizon: int) -> None:
         raise NotImplementedError
-
+    
+    def guess_next_epoch(self, params: Dict) -> Dict:
+        raise NotImplementedError
+    
     @property
     def initializer(self):
         return self._initializer
@@ -154,7 +157,7 @@ class JaxPlan:
     @projection.setter
     def projection(self, value):
         self._projection = value
-    
+        
     
 class JaxStraightLinePlan(JaxPlan):
     '''A straight line plan implementation in JAX'''
@@ -303,7 +306,16 @@ class JaxStraightLinePlan(JaxPlan):
         else:
             
             self.projection = _jax_wrapped_slp_project_to_box
-        
+    
+    @staticmethod
+    @jax.jit
+    def _guess_next_epoch(param):
+        # "progress" the plan one step forward and set last action to second-last
+        return jnp.append(param[1:, ...], param[-1:, ...], axis=0)
+
+    def guess_next_epoch(self, params: Dict) -> Dict:
+        return jax.tree_map(JaxStraightLinePlan._guess_next_epoch, params)
+
             
 class JaxRDDLBackpropPlanner:
     '''A class for optimizing an action sequence in the given RDDL MDP using 
@@ -478,7 +490,8 @@ class JaxRDDLBackpropPlanner:
     def optimize(self, key: random.PRNGKey,
                  epochs: int,
                  step: int=1,
-                 subs: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
+                 subs: Dict[str, object]=None,
+                 guess: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
         ''' Compute an optimal straight-line plan.
         
         :param key: JAX PRNG key
@@ -486,6 +499,8 @@ class JaxRDDLBackpropPlanner:
         :param step: frequency the callback is provided back to the user
         :param subs: dictionary mapping initial state and non-fluents to 
         their values: if None initializes all variables from the RDDL instance
+        :param guess: initial policy parameters: if None will use the initializer
+        specified in this instance
         '''
         
         # compute a batched version of the initial values
@@ -494,8 +509,12 @@ class JaxRDDLBackpropPlanner:
         train_subs, test_subs = self._batched_init_subs(subs)
         
         # initialize policy parameters
-        key, subkey = random.split(key)
-        params, opt_state = self.initialize(subkey, train_subs)        
+        if guess is None:
+            key, subkey = random.split(key)
+            params, opt_state = self.initialize(subkey, train_subs)
+        else:
+            params = guess
+            opt_state = self.optimizer.init(params)
         best_params, best_loss = params, jnp.inf
         
         for it in range(epochs):
@@ -540,5 +559,5 @@ class JaxRDDLBackpropPlanner:
         for (var, action) in actions.items():
             for (ground_var, ground_act) in self.rddl.ground_values(var, action):
                 if ground_act != self.noop_actions[ground_var]:
-                    grounded_actions[ground_var] = ground_act                    
+                    grounded_actions[ground_var] = ground_act
         return grounded_actions
