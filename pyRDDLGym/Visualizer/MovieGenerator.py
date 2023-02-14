@@ -44,7 +44,7 @@ class MovieGenerator:
             removed += 1
         if removed:
             warnings.warn(f'removed {removed} temporary files at {load_path}', 
-                          FutureWarning, stacklevel=2)
+                          stacklevel=2)
         
         self._n_frame = 0
         self._time = 0
