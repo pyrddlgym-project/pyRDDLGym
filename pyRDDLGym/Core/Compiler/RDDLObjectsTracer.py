@@ -1,6 +1,7 @@
 import numpy as np
 from typing import List, Tuple, Union
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -8,7 +9,6 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
-from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
@@ -91,16 +91,8 @@ class RDDLObjectsTracer:
         if enum_type is not None:
             raise RDDLTypeError(
                 f'{msg} can not be a domain object of type <{enum_type}>.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr)) 
-                
-    @staticmethod
-    def _print_stack_trace(expr):
-        if isinstance(expr, Expression):
-            trace = RDDLDecompiler().decompile_expr(expr)
-        else:
-            trace = str(expr)
-        return f'>> {trace}'
-    
+                print_stack_trace(expr)) 
+             
     def trace(self) -> RDDLTracedObjects:
         '''Traces all expressions in CPF block and all constraints and annotates
         AST nodes with object information.'''   
@@ -180,7 +172,7 @@ class RDDLObjectsTracer:
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     # ===========================================================================
     # leaves
@@ -285,8 +277,7 @@ class RDDLObjectsTracer:
         if len(args) != len(args_types):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> requires {len(args_types)} argument(s), '
-                f'got {len(args)}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                f'got {len(args)}.\n' + print_stack_trace(expr))
         
         # for vector distributions, occurrences of _ are mapped to unique new 
         # objects ?_1, ?_2, ... because we have to take care not to einsum them;
@@ -331,8 +322,7 @@ class RDDLObjectsTracer:
                     raise RDDLTypeError(
                         f'Argument {i + 1} of variable <{var}> expects object '
                         f'of type <{args_types[i]}>, got nested expression '
-                        f'of type <{enum_type}>.\n' + 
-                        RDDLObjectsTracer._print_stack_trace(expr))
+                        f'of type <{enum_type}>.\n' + print_stack_trace(expr))
                 
                 # leave slice blank since it's filled at runtime
                 slices[i] = None
@@ -347,8 +337,7 @@ class RDDLObjectsTracer:
                     raise RDDLTypeError(
                         f'Argument {i + 1} of variable <{var}> expects object '
                         f'of type <{args_types[i]}>, got <{arg}> '
-                        f'of type <{enum_type}>.\n' + 
-                        RDDLObjectsTracer._print_stack_trace(expr))
+                        f'of type <{enum_type}>.\n' + print_stack_trace(expr))
                 
                 # extract value at current dimension at object's canonical index
                 slices[i] = rddl.index_of_object[literal]
@@ -365,8 +354,7 @@ class RDDLObjectsTracer:
                 if index_of_arg is None:
                     raise RDDLInvalidObjectError(
                         f'Undefined argument <{arg}> at position {i + 1} '
-                        f'of variable <{var}>.\n' + 
-                        RDDLObjectsTracer._print_stack_trace(expr))
+                        f'of variable <{var}>.\n' + print_stack_trace(expr))
                 
                 # make sure type of argument is correct
                 _, ptype = objects[index_of_arg]
@@ -374,8 +362,7 @@ class RDDLObjectsTracer:
                     raise RDDLTypeError(
                         f'Argument {i + 1} of variable <{var}> expects object '
                         f'of type <{args_types[i]}>, got <{arg}> '
-                        f'of type <{ptype}>.\n' + 
-                        RDDLObjectsTracer._print_stack_trace(expr))
+                        f'of type <{ptype}>.\n' + print_stack_trace(expr))
                                       
                 # if nesting is found, then free variables like ?x are implicitly 
                 # converted to arrays with shape of objects
@@ -473,14 +460,14 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Relational operator {op} can not compare arguments '
                 f'of different object types or mix object and non-object types.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # can not use operator besides == and ~= to compare object types
         enum_type, = enum_types
         if enum_type is not None and op != '==' and op != '~=':
             raise RDDLTypeError(
                 f'Relational operator {op} is not valid for comparing objects.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         out._append(expr, objects, None, None)
     
@@ -518,7 +505,7 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Type(s) {bad_types} are not defined, '
                 f'must be one of {set(self.rddl.objects.keys())}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # check for valid type arguments
         scope_vars = {var for (var, _) in objects}
@@ -529,7 +516,7 @@ class RDDLObjectsTracer:
             if var in seen_vars:
                 raise RDDLRepeatedVariableError(
                     f'Iteration variable <{var}> is repeated.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))             
+                    print_stack_trace(expr))             
             seen_vars.add(var)
              
             # check if iteration variable is same as one defined in outer scope
@@ -537,8 +524,7 @@ class RDDLObjectsTracer:
             if var in scope_vars:
                 raise RDDLRepeatedVariableError(
                     f'Iteration variable <{var}> is already defined '
-                    f'in outer scope.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
+                    f'in outer scope.\n' + print_stack_trace(expr))
         
     def _trace_aggregation(self, expr, objects, out):
         _, op = expr.etype
@@ -558,8 +544,7 @@ class RDDLObjectsTracer:
             if len(pvars) != 1:
                 raise RDDLInvalidNumberOfArgumentsError(
                     f'Aggregation <{op}> requires one iteration variable, '
-                    f'got {len(pvars)}.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
+                    f'got {len(pvars)}.\n' + print_stack_trace(expr))
             cached_sim_info = (new_objects, reduced_axes[0])
             (_, (_, enum_type)), = pvars
         
@@ -605,7 +590,7 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Branches in if then else statement cannot produce values '
                 f'of different object types or mix object and non-object types.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))     
+                print_stack_trace(expr))     
     
         enum_type, = enum_types
         out._append(expr, objects, enum_type, None)
@@ -618,7 +603,7 @@ class RDDLObjectsTracer:
         if not pred.is_pvariable_expression():
             raise RDDLNotImplementedError(
                 f'Switch predicate is not a pvariable.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
             
         # type in pvariables scope must be a domain object
         var, _ = pred.args
@@ -627,7 +612,7 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Type <{enum_type}> of switch predicate <{var}> is not a '
                 f'domain-defined object, must be one of {rddl.enums}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
             
         # default statement becomes ("default", expr)
         case_dict = dict(
@@ -643,7 +628,7 @@ class RDDLObjectsTracer:
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Duplicated literal or default case(s).\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # order cases by canonical ordering of objects
         cached_sim_info = self._order_cases(enum_type, case_dict, expr)
@@ -659,7 +644,7 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Case expressions in switch statement cannot produce values '
                 f'of different object types or mix object and non-object types.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))    
+                print_stack_trace(expr))    
                                 
         enum_type, = enum_types
         out._append(expr, objects, enum_type, cached_sim_info)
@@ -674,7 +659,7 @@ class RDDLObjectsTracer:
                 raise RDDLInvalidObjectError(
                     f'Object <{_case}> does not belong to type <{enum_type}>, '
                     f'must be one of {set(enum_values)}.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
+                    print_stack_trace(expr))
         
         # store expressions in order of canonical literal index
         expressions = [None] * len(enum_values)
@@ -691,8 +676,7 @@ class RDDLObjectsTracer:
                 if arg is None:
                     raise RDDLUndefinedVariableError(
                         f'Object <{enum_values[i]}> of type <{enum_type}> '
-                        f'is missing in case list.\n' + 
-                        RDDLObjectsTracer._print_stack_trace(expr))
+                        f'is missing in case list.\n' + print_stack_trace(expr))
         
         # log cases ordering
         if self.logger is not None:
@@ -727,7 +711,7 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Type <{enum_type}> in Discrete distribution is not a '
                 f'domain-defined object, must be one of {rddl.enums}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))        
+                print_stack_trace(expr))        
         case_dict = dict(case_tup for (_, case_tup) in cases) 
         
         # strip @ from any cases       
@@ -737,14 +721,14 @@ class RDDLObjectsTracer:
         # no duplicate cases are allowed
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default case(s).\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                f'Duplicated literal or default case(s).\n' +
+                print_stack_trace(expr))
         
         # no default cases are allowed
         if 'default' in case_dict:
             raise RDDLNotImplementedError(
                 f'Default case not allowed in Discrete distribution.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
             
         # order enum cases by canonical ordering of literals
         cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr)
@@ -767,11 +751,11 @@ class RDDLObjectsTracer:
         if len(pvars) != 1:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Discrete requires one iteration variable, got {len(pvars)}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         elif len(args) != 1:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Discrete requires one argument, got {len(args)}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # sampling variables are appended to scope free variables        
         iter_objects = [pvar for (_, pvar) in pvars]     
@@ -813,14 +797,14 @@ class RDDLObjectsTracer:
         if required_sample_pvars is None or required_underscores is None:
             raise RDDLNotImplementedError(
                 f'Internal error: distribution {op} is not supported.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # check the number of sample parameters is correct
         if len(sample_pvars) != required_sample_pvars:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Distribution {op} requires {required_sample_pvars} sampling '
                 f'parameter(s), got {len(sample_pvars)}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # check that all sample_pvars are defined in the outer scope
         scope_pvars = {pvar: i for (i, (pvar, _)) in enumerate(objects)}
@@ -829,14 +813,14 @@ class RDDLObjectsTracer:
             raise RDDLInvalidObjectError(
                 f'Sampling parameter(s) {bad_pvars} of {op} are not defined in '
                 f'outer scope, must be one of {set(scope_pvars.keys())}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # check duplicates in sample_pvars
         sample_pvar_set = set(sample_pvars)
         if len(sample_pvar_set) != len(sample_pvars):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Sampling parameter(s) {sample_pvars} of {op} are duplicated.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # sample_pvars are excluded when tracing arguments (e.g., mean)
         # because they are only introduced through sampling which follows after 
@@ -856,8 +840,7 @@ class RDDLObjectsTracer:
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {bad_pvars} of argument <{name}> at position '
                     f'{i + 1} of {op} can not be sampling parameter(s) '
-                    f'{sample_pvar_set}.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
+                    f'{sample_pvar_set}.\n' + print_stack_trace(expr))
             
             # check number of _ parameters is valid in argument
             underscores = [j for (j, pvar) in enumerate(pvars) if pvar == '_']            
@@ -865,8 +848,7 @@ class RDDLObjectsTracer:
                 raise RDDLInvalidNumberOfArgumentsError(
                     f'Argument <{name}> at position {i + 1} of {op} must contain '
                     f'{required_underscores[i]} sampling parameter(s) _, '
-                    f'got {len(underscores)}.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
+                    f'got {len(underscores)}.\n' + print_stack_trace(expr))
             
             # trace argument
             self._trace(arg, batch_objects, out)
@@ -884,7 +866,7 @@ class RDDLObjectsTracer:
             raise RDDLTypeError(
                 f'Sampling parameter(s) _ across all argument(s) of {op} must '
                 f'correspond to a single type, got multiple types {enum_types}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # objects of type _ must be compatible with sample dimension(s)
         enum_type, = enum_types
@@ -895,7 +877,7 @@ class RDDLObjectsTracer:
                 raise RDDLTypeError(
                     f'{op} sampling is performed over type <{enum_type}>, '
                     f'but destination variable <{pvar}> is of type <{ptype}>.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
+                    print_stack_trace(expr))
              
         out._append(expr, objects, None, sample_pvar_indices)
 
@@ -914,7 +896,7 @@ class RDDLObjectsTracer:
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: matrix operation {op} is not supported.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     def _trace_matrix_det(self, expr, objects, out):
         * pvars, arg = expr.args
@@ -933,7 +915,7 @@ class RDDLObjectsTracer:
                 f'Matrix in det operation must be square, '
                 f'got {n1} objects of type <{ptype1}> '
                 f'and {n2} objects of type <{ptype2}>.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # axes of new free variables in aggregation are appended to value array
         new_objects = objects + iter_objects
@@ -970,15 +952,14 @@ class RDDLObjectsTracer:
             raise RDDLInvalidObjectError(
                 f'Row or column parameter(s) {bad_pvars} of {op} are not defined '
                 f'in outer scope, must be one of {set(scope_pvars.keys())}.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # check duplicates in pvars
         pvar1, pvar2 = pvars
         if pvar1 == pvar2:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Row and column parameters of {op} must differ, '
-                f'got <{pvar1}> and <{pvar2}>.\n' + 
-                RDDLObjectsTracer._print_stack_trace(expr))
+                f'got <{pvar1}> and <{pvar2}>.\n' + print_stack_trace(expr))
             
         # for regular inverse, check that matrix is square
         index_pvar1 = scope_pvars[pvar1]
@@ -992,7 +973,7 @@ class RDDLObjectsTracer:
                     f'Matrix in {op} operation must be square, '
                     f'got {n1} objects of type <{ptype1}> '
                     f'and {n2} objects of type <{ptype2}>.\n' + 
-                    RDDLObjectsTracer._print_stack_trace(expr))
+                    print_stack_trace(expr))
         
         # move the matrix parameters to end of objects
         batch_objects = [pvar for pvar in objects if pvar[0] not in scope_pvars]

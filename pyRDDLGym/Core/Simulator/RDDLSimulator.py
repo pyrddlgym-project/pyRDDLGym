@@ -2,6 +2,7 @@ import numpy as np
 np.seterr(all='raise')
 from typing import Dict, Union
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -11,13 +12,12 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
 
-from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Parser.expr import Expression, Value
+from pyRDDLGym.Core.Parser.expr import Value
 
 Args = Dict[str, Value]
 
@@ -156,27 +156,17 @@ class RDDLSimulator:
     # ===========================================================================
     
     @staticmethod
-    def _print_stack_trace(expr):
-        if isinstance(expr, Expression):
-            trace = RDDLDecompiler().decompile_expr(expr)
-        else:
-            trace = str(expr)
-        return '>> ' + trace
-    
-    @staticmethod
     def _check_type(value, valid, msg, expr, arg=None):
         if not np.can_cast(value, valid):
             dtype = getattr(value, 'dtype', type(value))
             if arg is None:
                 raise RDDLTypeError(
                     f'{msg} must evaluate to <{valid}>, '
-                    f'got {value} of type <{dtype}>.\n' + 
-                    RDDLSimulator._print_stack_trace(expr))
+                    f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
             else:
                 raise RDDLTypeError(
                     f'Argument {arg} of {msg} must evaluate to <{valid}>, '
-                    f'got {value} of type <{dtype}>.\n' + 
-                    RDDLSimulator._print_stack_trace(expr))
+                    f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
     
     @staticmethod
     def _check_types(value, valid, msg, expr):
@@ -186,8 +176,7 @@ class RDDLSimulator:
         dtype = getattr(value, 'dtype', type(value))
         raise RDDLTypeError(
             f'{msg} must evaluate to one of {valid}, '
-            f'got {value} of type <{dtype}>.\n' + 
-            RDDLSimulator._print_stack_trace(expr))
+            f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
     
     @staticmethod
     def _check_op(op, valid, msg, expr):
@@ -195,8 +184,7 @@ class RDDLSimulator:
         if numpy_op is None:
             raise RDDLNotImplementedError(
                 f'{msg} operator {op} is not supported: '
-                f'must be in {set(valid.keys())}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                f'must be in {set(valid.keys())}.\n' + print_stack_trace(expr))
         return numpy_op
         
     @staticmethod
@@ -204,18 +192,18 @@ class RDDLSimulator:
         if len(args) != required:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'{msg} requires {required} argument(s), got {len(args)}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     @staticmethod
     def _check_positive(value, strict, msg, expr):
         if strict and not np.all(value > 0):
             raise RDDLValueOutOfRangeError(
                 f'{msg} must be positive, got {value}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
         elif not strict and not np.all(value >= 0):
             raise RDDLValueOutOfRangeError(
                 f'{msg} must be non-negative, got {value}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     @staticmethod
     def _check_bounds(lb, ub, msg, expr):
@@ -223,14 +211,14 @@ class RDDLSimulator:
             raise RDDLValueOutOfRangeError(
                 f'Bounds of {msg} are invalid:' 
                 f'max value {ub} must be >= min value {lb}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
             
     @staticmethod
     def _check_range(value, lb, ub, msg, expr):
         if not np.all(np.logical_and(value >= lb, value <= ub)):
             raise RDDLValueOutOfRangeError(
                 f'{msg} must be in the range [{lb}, {ub}], got {value}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     # ===========================================================================
     # main sampling routines
@@ -270,7 +258,7 @@ class RDDLSimulator:
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
                     f'Invariant {i + 1} is not satisfied.\n' + 
-                    RDDLSimulator._print_stack_trace(invariant))
+                    print_stack_trace(invariant))
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''        
@@ -283,7 +271,7 @@ class RDDLSimulator:
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
                     f'Precondition {i + 1} is not satisfied.\n' + 
-                    RDDLSimulator._print_stack_trace(precond))
+                    print_stack_trace(precond))
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
@@ -384,7 +372,7 @@ class RDDLSimulator:
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
                 
     # ===========================================================================
     # leaves
@@ -406,7 +394,7 @@ class RDDLSimulator:
         if sample is None:
             raise RDDLUndefinedVariableError(
                 f'Variable <{var}> is referenced before assignment.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
         
         # lifted domain must slice and/or reshape value tensor
         if cached_info is not None:
@@ -458,7 +446,7 @@ class RDDLSimulator:
                     raise ArithmeticError(
                         f'Cannot evaluate arithmetic operation {op} '
                         f'at {sample_lhs} and {sample_rhs}.\n' + 
-                        RDDLSimulator._print_stack_trace(expr))
+                        print_stack_trace(expr))
         
         # for a grounded domain can short-circuit * and +
         elif n > 0 and not self.traced.cached_objects_in_scope(expr):
@@ -469,8 +457,7 @@ class RDDLSimulator:
         
         raise RDDLInvalidNumberOfArgumentsError(
             f'Arithmetic operator {op} does not have the required '
-            f'number of arguments.\n' + 
-            RDDLSimulator._print_stack_trace(expr))
+            f'number of arguments.\n' + print_stack_trace(expr))
     
     def _sample_product(self, lhs, rhs, subs):
         
@@ -559,8 +546,7 @@ class RDDLSimulator:
             
         raise RDDLInvalidNumberOfArgumentsError(
             f'Logical operator {op} does not have the required '
-            f'number of arguments.\n' + 
-            RDDLSimulator._print_stack_trace(expr))
+            f'number of arguments.\n' + print_stack_trace(expr))
     
     def _sample_and_or(self, lhs, rhs, op, expr, subs):
         
@@ -649,7 +635,7 @@ class RDDLSimulator:
             except:
                 raise ArithmeticError(
                     f'Cannot evaluate unary function {name} at {sample}.\n' + 
-                    RDDLSimulator._print_stack_trace(expr))
+                    print_stack_trace(expr))
         
         # binary function
         binary_op = self.BINARY.get(name, None)
@@ -663,12 +649,10 @@ class RDDLSimulator:
             except:
                 raise ArithmeticError(
                     f'Cannot evaluate binary function {name} at '
-                    f'{sample_lhs} and {sample_rhs}.\n' + 
-                    RDDLSimulator._print_stack_trace(expr))
+                    f'{sample_lhs} and {sample_rhs}.\n' + print_stack_trace(expr))
         
         raise RDDLNotImplementedError(
-            f'Function {name} is not supported.\n' + 
-            RDDLSimulator._print_stack_trace(expr))
+            f'Function {name} is not supported.\n' + print_stack_trace(expr))
     
     # ===========================================================================
     # control flow
@@ -793,7 +777,7 @@ class RDDLSimulator:
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
 
     def _sample_kron_delta(self, expr, subs):
         args = expr.args
@@ -1032,7 +1016,7 @@ class RDDLSimulator:
         if not np.allclose(cdf[..., -1], 1.0):
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must sum to 1, got {cdf[..., -1]}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))     
+                print_stack_trace(expr))     
         
         # use inverse CDF sampling                  
         U = self.rng.random(size=cdf.shape[:-1] + (1,))
@@ -1067,7 +1051,7 @@ class RDDLSimulator:
         else:
             raise RDDLNotImplementedError(
                 f'Multivariate distribution {name} is not supported.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     def _sample_multivariate_normal(self, expr, subs):
         _, args = expr.args
@@ -1147,7 +1131,7 @@ class RDDLSimulator:
         if not np.allclose(cum_prob, 1.0):
             raise RDDLValueOutOfRangeError(
                 f'Multinomial probabilities must sum to 1, got {cum_prob}.\n' + 
-                RDDLSimulator._print_stack_trace(expr))    
+                print_stack_trace(expr))    
             
         # sample from the multinomial
         sample = self.rng.multinomial(n=sample_trials, pvals=sample_prob)
@@ -1173,7 +1157,7 @@ class RDDLSimulator:
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operator {op} is not supported.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     def _sample_matrix_det(self, expr, subs):
         * _, arg = expr.args
