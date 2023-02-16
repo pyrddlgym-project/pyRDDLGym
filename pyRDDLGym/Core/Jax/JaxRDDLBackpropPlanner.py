@@ -12,7 +12,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic, ProductLogic
+from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 
 
 class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
@@ -23,7 +23,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     '''
     
     def __init__(self, *args,
-                 logic: FuzzyLogic=ProductLogic(),
+                 logic: FuzzyLogic=FuzzyLogic(),
                  cpfs_without_grad: Set=set(),
                  **kwargs) -> None:
         '''Creates a new RDDL to Jax compiler, where operations that are not
@@ -78,6 +78,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             'argmax': logic.argmax
         }
         self.KNOWN_UNARY['sgn'] = logic.signum   
+        self.KNOWN_UNARY['sqrt'] = logic.sqrt
     
     def _jax_stop_grad(self, jax_expr):
         
@@ -96,8 +97,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
                 _, expr = self.rddl.cpfs[cpf]
                 jax_cpfs[cpf] = self._jax(expr, dtype=JaxRDDLCompiler.REAL)
                 if cpf in self.cpfs_without_grad:
-                    warnings.warn(f'CPF {cpf} uses straight-through gradient.', 
-                                  stacklevel=2)      
+                    warnings.warn(f'CPF <{cpf}> stops gradient.', stacklevel=2)      
                     jax_cpfs[cpf] = self._jax_stop_grad(jax_cpfs[cpf])
         return jax_cpfs
     
@@ -348,7 +348,7 @@ class JaxRDDLBackpropPlanner:
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  normalize_grad: bool=False,
-                 logic: FuzzyLogic=ProductLogic(),
+                 logic: FuzzyLogic=FuzzyLogic(),
                  use_symlog_reward: bool=False,
                  utility=jnp.mean,
                  cpfs_without_grad: Set=set()) -> None:
