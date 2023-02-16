@@ -1,0 +1,33 @@
+////////////////////////////////////////////////////////////////////
+// A simple continuous MDP for the classical mountain car control
+// problem. A car is placed at the bottom of a valley, and must be
+// brought to a destination located at the top of a hill by pushing
+// the car left and right. 
+// 
+// This domain originated in Andrew Moore's 1990 PhD thesis found here:
+// https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-209.pdf, and implemented
+// e.g. here: http://incompleteideas.net/MountainCar/MountainCar1.cp.
+////////////////////////////////////////////////////////////////////
+non-fluents mountain_car_vars {
+    domain = mountain_car;
+}
+
+// Specify cart pole with default settings
+instance inst_mountain_car {
+
+	domain = mountain_car;
+
+	non-fluents = mountain_car_vars;
+
+	init-state {
+	    pos = -0.5;
+        vel = 0.0;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 200;
+	discount = 1.0;
+}
+

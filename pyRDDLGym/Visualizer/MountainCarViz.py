@@ -39,8 +39,7 @@ class MountainCarVisualizer(StateViz):
         surf.fill((255, 255, 255))
         xs = np.linspace(self._nonfluents['MIN-POS'],
                          self._nonfluents['MAX-POS'], 100)
-        ys = np.sin(3 * xs) * self._nonfluents['DEPTH'] + \
-            (1. - self._nonfluents['DEPTH'])
+        ys = np.sin(3 * xs) * 0.45 + (1. - 0.45)
         xys = list(zip((xs - self._nonfluents['MIN-POS']) * scale, ys * scale))
         pygame.draw.aalines(surf, points=xys, closed=False, color=(0, 0, 0))
         
@@ -52,10 +51,7 @@ class MountainCarVisualizer(StateViz):
             coords.append(
                 (
                     c[0] + (state['pos'] - self._nonfluents['MIN-POS']) * scale,
-                    c[1] + clearance + (
-                        np.sin(3 * state['pos']) * self._nonfluents['DEPTH'] + \
-                        (1. - self._nonfluents['DEPTH'])
-                    ) * scale,
+                    c[1] + clearance + (np.sin(3 * state['pos']) * 0.45 + 0.55) * scale,
                 )
             )
 
@@ -66,10 +62,7 @@ class MountainCarVisualizer(StateViz):
             c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * state['pos']))
             wheel = (
                 int(c[0] + (state['pos'] - self._nonfluents['MIN-POS']) * scale),
-                int(c[1] + clearance + (
-                    np.sin(3 * state['pos']) * self._nonfluents['DEPTH'] + \
-                    (1. - self._nonfluents['DEPTH'])
-                ) * scale),
+                int(c[1] + clearance + (np.sin(3 * state['pos']) * 0.45 + 0.55) * scale),
             )
             gfxdraw.aacircle(
                 surf, wheel[0], wheel[1], int(carheight / 2.5), (128, 128, 128)
@@ -79,8 +72,7 @@ class MountainCarVisualizer(StateViz):
             )
             
         flagx = int((self._nonfluents['GOAL-MIN'] - self._nonfluents['MIN-POS']) * scale)
-        flagy1 = int((np.sin(3 * self._nonfluents['GOAL-MIN']) * self._nonfluents['DEPTH'] + \
-                      (1. - self._nonfluents['DEPTH'])) * scale)
+        flagy1 = int((np.sin(3 * self._nonfluents['GOAL-MIN']) * 0.45 + 0.55) * scale)
         flagy2 = flagy1 + 50
         gfxdraw.vline(surf, flagx, flagy1, flagy2, (0, 0, 0))
         

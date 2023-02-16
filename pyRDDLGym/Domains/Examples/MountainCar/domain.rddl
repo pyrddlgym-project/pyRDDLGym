@@ -7,49 +7,72 @@
 // This domain originated in Andrew Moore's 1990 PhD thesis found here:
 // https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-209.pdf, and implemented
 // e.g. here: http://incompleteideas.net/MountainCar/MountainCar1.cp.
+//
+// A crucial deviation from the original problem above is that the valley
+// is no longer described by a simple smooth curve, but rather a piecewise
+// linear function whose points are fully configurable by the user.
+//
+// author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
 ////////////////////////////////////////////////////////////////////
 domain mountain_car {
 
     requirements = {
         reward-deterministic
     };
-
+	
+	// piecewise linear slopes
+	types {
+		segment : object;
+	};
+	
     pvariables {
 
     	// physics constants
 		GRAVITY-MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
-		FORCE-MAG 	: { non-fluent, real, default = 0.001 };		// force applied to the side of the cart
+		FORCE-MAG 	: { non-fluent, real, default = 0.001 };	    // force applied to the side of the cart
 
-		// valley shape
-		DEPTH : { non-fluent, real, default = 0.45 };				// depth of the valley
+		// valley shape defined by piecewise linear with x in [-1.2, 0.6] and y in [0, 1]
+		X-START(segment) : { non-fluent, real, default = -1.2 };    // starting x-position of segment
+		Y-START(segment) : { non-fluent, real, default = 0 };       // starting y-position of segment
+		X-END(segment)   : { non-fluent, real, default = 0.6 };     // ending x-position of segment
+		Y-END(segment)   : { non-fluent, real, default = 0 };	    // ending y-position of segment
 		
 		// bounds
-		MIN-POS  : { non-fluent, real, default = -1.2 };        		// min position of cart
-		MAX-POS  : { non-fluent, real, default = 0.6 };			 	// max position of cart
-		MAX-VEL  : { non-fluent, real, default = 0.07 };				// max velocity of cart
-		GOAL-MIN : { non-fluent, real, default = 0.5 };				// desired x position of cart
-		VEL-MIN  : { non-fluent, real, default = 0.0 };				// desired velocity of the cart
+		MIN-POS  : { non-fluent, real, default = -1.2 };            // min position of cart
+		MAX-POS  : { non-fluent, real, default = 0.6 };			    // max position of cart
+		MAX-VEL  : { non-fluent, real, default = 0.07 };            // max velocity of cart
+		GOAL-MIN : { non-fluent, real, default = 0.5 };	            // desired x position of cart
+		VEL-MIN  : { non-fluent, real, default = 0.0 };             // desired velocity of the cart
+		
+		// interm fluents
+		in-segment(segment) : { interm-fluent, bool };              // is the cart currently in this segment
+		pos-slope           : { interm-fluent, real };              // slope of current line segment
 		
 		// states
        	pos    	: { state-fluent, real, default = -0.5 };          	// cart position
-       	vel   	: { state-fluent, real, default = 0 };          	// cart velocity
+       	vel   	: { state-fluent, real, default = 0 };              // cart velocity
 
        	// actions
-       	action : { action-fluent, real, default = 1 };      		// whether to accelerate left (0), none (1) or right (2)
+       	action : { action-fluent, real, default = 1 };              // whether to accelerate left (0), none (1) or right (2)
     };
 
     cpfs {
-	
-		// update position and velocity of the cart
-		vel' = [max[min[vel + (action - 1) * FORCE-MAG + cos[3 * pos] * (-GRAVITY-MAG) * (3 * DEPTH), 
-					MAX-VEL], -MAX-VEL]];
-		pos' = max[min[pos + vel', MAX-POS], MIN-POS];
+		
+	    // get the slope of the segment the cart is currently in
+	    in-segment(?p) = (pos >= X-START(?p)) ^ (pos < X-END(?p));
+	    pos-slope = ( sum_{?p : segment} [ ((Y-END(?p) - Y-START(?p)) / (X-END(?p) - X-START(?p))) * in-segment(?p) ] );
+		
+	    // update the position of the cart
+	    pos' = max[min[pos + vel, MAX-POS], MIN-POS];
+		
+	    // update the velocity of the cart				
+	    vel' = [ max[min[vel + (action - 1) * FORCE-MAG + (-GRAVITY-MAG) * pos-slope, MAX-VEL], -MAX-VEL] ];
     };
 
     // R = 1 as long as the pole is upright and the cart is not out of bounds
     reward = if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN))
-				then 1.0
-				else 0.0;
+			    then 1.0
+			    else 0.0;
 	
 	termination {
 		(pos >= GOAL-MIN) ^ (vel >= VEL-MIN);
@@ -66,6 +89,14 @@ domain mountain_car {
 		// system is physically plausible
 		GRAVITY-MAG >= 0 ^ FORCE-MAG >= 0;
 		MAX-POS >= MIN-POS ^ MAX-VEL >= 0;
+		
+		// segments are valid
+		forall_{?p : segment} [X-START(?p) >= MIN-POS ^ X-START(?p) <= MAX-POS];
+		forall_{?p : segment} [X-END(?p) >= MIN-POS ^ X-END(?p) <= MAX-POS];
+		forall_{?p : segment} [X-END(?p) > X-START(?p)];
+		
+		forall_{?p : segment} [Y-START(?p) >= 0 ^ Y-START(?p) <= 1];
+		forall_{?p : segment} [Y-END(?p) >= 0 ^ Y-END(?p) <= 1];
     };
 
     action-preconditions {
