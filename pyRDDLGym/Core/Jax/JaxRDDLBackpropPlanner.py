@@ -490,6 +490,7 @@ class JaxRDDLBackpropPlanner:
         # also perform a projection step to satisfy constraints on actions
         def _jax_wrapped_plan_update(key, params, subs, opt_state):
             grad, log = jax.grad(loss, argnums=1, has_aux=True)(key, params, subs)
+            log['grad'] = grad
             if normalize:
                 leaves, _ = jax.tree_util.tree_flatten(grad)
                 grad_norm = jnp.asarray([jnp.max(jnp.abs(leaf)) for leaf in leaves])
@@ -557,7 +558,7 @@ class JaxRDDLBackpropPlanner:
             
             # update the parameters of the plan
             key, subkey1, subkey2, subkey3 = random.split(key, num=4)
-            params, opt_state, _ = self.update(subkey1, params, train_subs, opt_state)            
+            params, opt_state, train_log = self.update(subkey1, params, train_subs, opt_state)            
             train_loss, _ = self.train_loss(subkey2, params, train_subs)            
             test_loss, log = self.test_loss(subkey3, params, test_subs)
             
@@ -574,6 +575,7 @@ class JaxRDDLBackpropPlanner:
                     'best_return':-best_loss,
                     'params': params,
                     'best_params': best_params,
+                    'grad': train_log['grad'],
                     **log
                 }
                 yield callback
