@@ -4,7 +4,7 @@ import jax.random as random
 import jax.nn.initializers as initializers
 import numpy as np
 import optax
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, Set, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -22,7 +22,10 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     (e.g. non-zero) gradient where appropriate. 
     '''
     
-    def __init__(self, *args, logic: FuzzyLogic=ProductLogic(), **kwargs) -> None:
+    def __init__(self, *args,
+                 logic: FuzzyLogic=ProductLogic(),
+                 cpfs_without_grad: Set=set(),
+                 **kwargs) -> None:
         '''Creates a new RDDL to Jax compiler, where operations that are not
         differentiable are converted to approximate forms that have defined 
         gradients.
@@ -31,10 +34,13 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         :param logic: Fuzzy logic object that specifies how exact operations
         are converted to their approximate forms: this class may be subclassed
         to customize these operations
+        :param cpfs_without_grad: which CPFs do not have gradients (use straight
+        through gradient trick)
         :param *kwargs: keyword arguments to pass to base compiler
         '''
         super(JaxRDDLCompilerWithGrad, self).__init__(*args, **kwargs)
         self.logic = logic
+        self.cpfs_without_grad = cpfs_without_grad
         
         # actions and CPFs must be continuous
         warnings.warn(f'Initial values of pvariables will be cast to real.',
@@ -72,7 +78,16 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             'argmax': logic.argmax
         }
         self.KNOWN_UNARY['sgn'] = logic.signum   
-            
+    
+    def _jax_stop_grad(self, jax_expr):
+        
+        def _jax_wrapped_stop_grad(x, key):
+            sample, key, error = jax_expr(x, key)
+            sample = jax.lax.stop_gradient(sample)
+            return sample, key, error
+        
+        return _jax_wrapped_stop_grad
+        
     def _compile_cpfs(self):
         warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
         jax_cpfs = {}
@@ -80,6 +95,10 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
                 jax_cpfs[cpf] = self._jax(expr, dtype=JaxRDDLCompiler.REAL)
+                if cpf in self.cpfs_without_grad:
+                    warnings.warn(f'CPF {cpf} uses straight-through gradient.', 
+                                  stacklevel=2)      
+                    jax_cpfs[cpf] = self._jax_stop_grad(jax_cpfs[cpf])
         return jax_cpfs
     
     def _jax_if_helper(self):
@@ -328,9 +347,11 @@ class JaxRDDLBackpropPlanner:
                  rollout_horizon: int=None,
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
+                 normalize_grad: bool=False,
                  logic: FuzzyLogic=ProductLogic(),
                  use_symlog_reward: bool=False,
-                 utility=jnp.mean) -> None:
+                 utility=jnp.mean,
+                 cpfs_without_grad: Set=set()) -> None:
         '''Creates a new gradient-based algorithm for optimizing action sequences
         (plan) in the given RDDL. Some operations will be converted to their
         differentiable counterparts; the specific operations can be customized
@@ -347,12 +368,15 @@ class JaxRDDLBackpropPlanner:
         :param action_bounds: box constraints on actions
         :param optimizer: an Optax algorithm that specifies how gradient updates
         are performed
+        :param normalize_grad: whether to normalize gradient during optimization
         :param logic: a subclass of FuzzyLogic for mapping exact mathematical
         operations to their differentiable counterparts 
         :param use_symlog_reward: whether to use the symlog transform on the 
         reward as a form of normalization
         :param utility: how to aggregate return observations to compute utility
         of a policy or plan
+        :param cpfs_without_grad: which CPFs do not have gradients (use straight
+        through gradient trick)
         '''
         self.rddl = rddl
         self.plan = plan
@@ -365,9 +389,12 @@ class JaxRDDLBackpropPlanner:
         self.horizon = rollout_horizon
         self._action_bounds = action_bounds
         self.optimizer = optimizer
+        self.normalize_grad = normalize_grad
+        
         self.logic = logic
         self.use_symlog_reward = use_symlog_reward
         self.utility = utility
+        self.cpfs_without_grad = cpfs_without_grad
         
         self._jax_compile_rddl()        
         self._jax_compile_optimizer()
@@ -376,7 +403,10 @@ class JaxRDDLBackpropPlanner:
         rddl = self.rddl
         
         # Jax compilation of the differentiable RDDL for training
-        self.compiled = JaxRDDLCompilerWithGrad(rddl=rddl, logic=self.logic)
+        self.compiled = JaxRDDLCompilerWithGrad(
+            rddl=rddl,
+            logic=self.logic, 
+            cpfs_without_grad=self.cpfs_without_grad)
         self.compiled.compile()
         
         # Jax compilation of the exact RDDL for testing
@@ -453,13 +483,19 @@ class JaxRDDLBackpropPlanner:
         return _jax_wrapped_plan_loss
     
     def _jax_update(self, loss, optimizer, projection):
-            
+        normalize = self.normalize_grad
+        
         # calculate the plan gradient w.r.t. return loss and update optimizer
+        # optionally does gradient normalization
         # also perform a projection step to satisfy constraints on actions
         def _jax_wrapped_plan_update(key, params, subs, opt_state):
-            trainable = jax.tree_map(jnp.shape, params)
-            warnings.warn(f'trainable parameters:\n{trainable}', stacklevel=2)
             grad, log = jax.grad(loss, argnums=1, has_aux=True)(key, params, subs)
+            if normalize:
+                leaves, _ = jax.tree_util.tree_flatten(grad)
+                grad_norm = jnp.asarray([jnp.max(jnp.abs(leaf)) for leaf in leaves])
+                grad_norm = jnp.max(grad_norm)
+                nonzero_norm = jnp.where(grad_norm > 0, grad_norm, 1.0)
+                grad = jax.tree_map(lambda g: g / nonzero_norm, grad)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
             params = projection(params)
