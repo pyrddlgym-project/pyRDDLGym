@@ -1,6 +1,8 @@
 import numpy as np
 import warnings
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
+
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 
@@ -32,8 +34,8 @@ class RDDLConstraints:
             
         # log bounds to file
         if simulator.logger is not None:
-            bounds_info = '\n\t'.join(f'{k}: {v}' 
-                                      for (k, v) in self._bounds.items())
+            bounds_info = '\n\t'.join(
+                f'{k}: {v}' for (k, v) in self._bounds.items())
             message = (f'computed simulation bounds:\n' 
                        f'\t{bounds_info}\n')
             simulator.logger.log(message)
@@ -86,7 +88,7 @@ class RDDLConstraints:
                     f'\n<op> is one of {{<=, <, >=, >}}'
                     f'\n<rhs> is a deterministic function of '
                     f'non-fluents or constants only.\n' + 
-                RDDLSimulator._print_stack_trace(expr))
+                    print_stack_trace(expr))
             return None, 0.0, None, []
             
         elif not is_left_pvar and not is_right_pvar:
@@ -106,7 +108,7 @@ class RDDLConstraints:
                 warnings.warn(
                     f'Bound must be a deterministic function of '
                     f'non-fluents or constants only.\n' + 
-                    RDDLSimulator._print_stack_trace(const_expr))
+                    print_stack_trace(const_expr))
                 return None, 0.0, None, []
             
             const = self.sim._sample(const_expr, self.sim.subs)

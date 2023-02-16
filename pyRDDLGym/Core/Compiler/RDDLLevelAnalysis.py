@@ -10,24 +10,7 @@ from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
 
-# this specifies the valid dependencies that can occur between variable types
-# in the RDDL language
-VALID_DEPENDENCIES = {
-    'derived-fluent': {'state-fluent', 'derived-fluent'},
-    'interm-fluent': {'action-fluent', 'state-fluent',
-                      'derived-fluent', 'interm-fluent'},
-    'next-state-fluent': {'action-fluent', 'state-fluent',
-                          'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-    'observ-fluent': {'action-fluent',
-                      'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-    'reward': {'action-fluent', 'state-fluent',
-               'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-    'invariant': {'state-fluent'},
-    'precondition': {'state-fluent', 'action-fluent'},
-    'termination': {'state-fluent'}
-}
 
-    
 class RDDLLevelAnalysis:
     '''Performs graphical analysis of a RDDL domain, including dependency
     structure of CPFs, performs topological sort to figure out order of evaluation,
@@ -35,6 +18,23 @@ class RDDLLevelAnalysis:
     according to the RDDL language specification.     
     '''
         
+    # this specifies the valid dependencies that can occur between variable types
+    # in the RDDL language
+    VALID_DEPENDENCIES = {
+        'derived-fluent': {'state-fluent', 'derived-fluent'},
+        'interm-fluent': {'action-fluent', 'state-fluent',
+                          'derived-fluent', 'interm-fluent'},
+        'next-state-fluent': {'action-fluent', 'state-fluent',
+                              'derived-fluent', 'interm-fluent', 'next-state-fluent'},
+        'observ-fluent': {'action-fluent',
+                          'derived-fluent', 'interm-fluent', 'next-state-fluent'},
+        'reward': {'action-fluent', 'state-fluent',
+                   'derived-fluent', 'interm-fluent', 'next-state-fluent'},
+        'invariant': {'state-fluent'},
+        'precondition': {'state-fluent', 'action-fluent'},
+        'termination': {'state-fluent'}
+    }
+    
     def __init__(self, rddl: PlanningModel,
                  allow_synchronous_state: bool=True,
                  logger: Logger=None) -> None:
@@ -140,7 +140,7 @@ class RDDLLevelAnalysis:
                     f'please change <{cpf}> to interm-fluent.', stacklevel=2)
             
             # not a recognized type
-            if cpf_type not in VALID_DEPENDENCIES:
+            if cpf_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES:
                 if cpf_type == 'state-fluent':
                     PRIME = PlanningModel.NEXT_STATE_SYM
                     raise RDDLInvalidDependencyInCPFError(
@@ -155,13 +155,13 @@ class RDDLLevelAnalysis:
                 dep_type = self.rddl.variable_types.get(dep, dep)
                 
                 # completely illegal dependency
-                if dep_type not in VALID_DEPENDENCIES[cpf_type]:
+                if dep_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES[cpf_type]:
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.') 
                 
                 # s' cannot depend on s' if allow_synchronous_state = False
-                elif not self.allow_synchronous_state and \
-                cpf_type == dep_type == 'next-state-fluent':
+                elif not self.allow_synchronous_state \
+                and cpf_type == dep_type == 'next-state-fluent':
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>, '
                         f'set allow_synchronous_state=True to allow this.')                
@@ -174,7 +174,8 @@ class RDDLLevelAnalysis:
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-' + fluent_type
                 cpf = cpf + PlanningModel.NEXT_STATE_SYM
-            if fluent_type in VALID_DEPENDENCIES and cpf not in graph:
+            if fluent_type in RDDLLevelAnalysis.VALID_DEPENDENCIES \
+            and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
                     f'{fluent_type} CPF <{cpf}> is not defined '
                     f'in cpfs {{...}} block.')
@@ -190,7 +191,7 @@ class RDDLLevelAnalysis:
         '''
         rddl = self.rddl
         graph = self.build_call_graph()
-        order = RDDLLevelAnalysis._topological_sort(graph)
+        order = _topological_sort(graph)
         
         # use the graph structure to group CPFs into levels 0, 1, 2, ...
         # two CPFs in the same level cannot depend on each other
@@ -220,38 +221,41 @@ class RDDLLevelAnalysis:
         
         return result
     
-    @staticmethod
-    def _topological_sort(graph):
-        order = []
-        unmarked = set(graph.keys()).union(*graph.values())
-        temp = set()
-        while unmarked:
-            var = next(iter(unmarked))
-            RDDLLevelAnalysis._sort_variables(order, graph, var, unmarked, temp)
-        return order
+# ===========================================================================
+# helper functions for performing topological sort
+# ===========================================================================
+
     
-    @staticmethod
-    def _sort_variables(order, graph, var, unmarked, temp):
+def _topological_sort(graph):
+    order = []
+    unmarked = set(graph.keys()).union(*graph.values())
+    temp = set()
+    while unmarked:
+        var = next(iter(unmarked))
+        _sort_variables(order, graph, var, unmarked, temp)
+    return order
+
+    
+def _sort_variables(order, graph, var, unmarked, temp):
         
-        # var has already been visited
-        if var not in unmarked: 
-            return
+    # var has already been visited
+    if var not in unmarked: 
+        return
         
-        # a cycle is detected
-        elif var in temp:
-            cycle = ', '.join(temp)
-            raise RDDLInvalidDependencyInCPFError(
-                f'Cyclic dependency detected among CPFs {{{cycle}}}.')
+    # a cycle is detected
+    elif var in temp:
+        cycle = ', '.join(temp)
+        raise RDDLInvalidDependencyInCPFError(
+            f'Cyclic dependency detected among CPFs {{{cycle}}}.')
         
-        # recursively sort all variables on which var depends
-        else: 
-            temp.add(var)
-            deps = graph.get(var, None)
-            if deps is not None:
-                for dep in deps:
-                    RDDLLevelAnalysis._sort_variables(
-                        order, graph, dep, unmarked, temp)
-            temp.remove(var)
-            unmarked.remove(var)
-            order.append(var)
+    # recursively sort all variables on which var depends
+    else: 
+        temp.add(var)
+        deps = graph.get(var, None)
+        if deps is not None:
+            for dep in deps:
+                _sort_variables(order, graph, dep, unmarked, temp)
+        temp.remove(var)
+        unmarked.remove(var)
+        order.append(var)
     

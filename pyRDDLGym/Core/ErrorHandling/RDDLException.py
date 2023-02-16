@@ -1,4 +1,16 @@
+from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
+from pyRDDLGym.Core.Parser.expr import Expression
 
+ERROR_MESSAGE_DECOMPILER = RDDLDecompiler()
+
+
+def print_stack_trace(expr):
+    if isinstance(expr, Expression):
+        trace = ERROR_MESSAGE_DECOMPILER.decompile_expr(expr)
+    else:
+        trace = str(expr)
+    return f'>> {trace}'
+    
 
 class RDDLActionPreconditionNotSatisfiedError(ValueError):
     pass

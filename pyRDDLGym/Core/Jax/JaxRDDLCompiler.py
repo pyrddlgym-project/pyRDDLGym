@@ -6,16 +6,15 @@ import jax.scipy as scipy
 from tensorflow_probability.substrates import jax as tfp
 from typing import Callable, Dict
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 
-from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Parser.expr import Expression
 
 
 class JaxRDDLCompiler:
@@ -305,22 +304,13 @@ class JaxRDDLCompiler:
         return printed
         
     @staticmethod
-    def _print_stack_trace(expr):
-        if isinstance(expr, Expression):
-            trace = RDDLDecompiler().decompile_expr(expr)
-        else:
-            trace = str(expr)
-        return '>> ' + trace
-    
-    @staticmethod
     def _check_valid_op(expr, valid_ops):
         etype, op = expr.etype
         if op not in valid_ops:
             valid_op_str = ','.join(valid_ops.keys())
             raise RDDLNotImplementedError(
                 f'{etype} operator {op} is not supported: '
-                f'must be in {valid_op_str}.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
+                f'must be in {valid_op_str}.\n' + print_stack_trace(expr))
     
     @staticmethod
     def _check_num_args(expr, required_args):
@@ -329,8 +319,7 @@ class JaxRDDLCompiler:
             etype, op = expr.etype
             raise RDDLInvalidNumberOfArgumentsError(
                 f'{etype} operator {op} requires {required_args} arguments, '
-                f'got {actual_args}.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
+                f'got {actual_args}.\n' + print_stack_trace(expr))
         
     ERROR_CODES = {
         'NORMAL': 0,
@@ -438,7 +427,7 @@ class JaxRDDLCompiler:
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {expr} is not supported.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
+                print_stack_trace(expr))
                 
         if dtype is not None:
             jax_expr = self._jax_cast(jax_expr, dtype)
@@ -691,8 +680,7 @@ class JaxRDDLCompiler:
                 jax_lhs, jax_rhs, jax_op, at_least_int=True)
         
         raise RDDLNotImplementedError(
-                f'Function {op} is not supported.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))   
+                f'Function {op} is not supported.\n' + print_stack_trace(expr))   
     
     # ===========================================================================
     # control flow
@@ -707,7 +695,7 @@ class JaxRDDLCompiler:
         
         raise RDDLNotImplementedError(
                 f'Control operator {op} is not supported.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))   
+                print_stack_trace(expr))   
     
     def _jax_if_helper(self):
         return jnp.where
@@ -860,7 +848,7 @@ class JaxRDDLCompiler:
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
+                print_stack_trace(expr))
         
     def _jax_kron(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_KRON_DELTA']
@@ -1379,7 +1367,7 @@ class JaxRDDLCompiler:
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     def _jax_multivariate_normal(self, expr): 
         _, args = expr.args
@@ -1509,7 +1497,7 @@ class JaxRDDLCompiler:
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operation {op} is not supported.\n' + 
-                JaxRDDLCompiler._print_stack_trace(expr))
+                print_stack_trace(expr))
     
     def _jax_matrix_det(self, expr):
         * _, arg = expr.args
