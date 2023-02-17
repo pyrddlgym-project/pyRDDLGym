@@ -462,6 +462,14 @@ class JaxRDDLCompiler:
 
         return _jax_wrapped_constant
     
+    def _jax_pvar_slice(self, _slice):
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
+        
+        def _jax_wrapped_pvar_slice(x, key):
+            return _slice, key, NORMAL
+        
+        return _jax_wrapped_pvar_slice
+            
     def _jax_pvar(self, expr):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args  
@@ -496,7 +504,7 @@ class JaxRDDLCompiler:
                 
                 jax_nested_expr = [(self._jax(arg) 
                                     if _slice is None 
-                                    else (lambda _, key: (_slice, key, NORMAL)))
+                                    else self._jax_pvar_slice(_slice))
                                    for (arg, _slice) in zip(pvars, slices)]    
                 
                 def _jax_wrapped_pvar_tensor_nested(x, key):
@@ -506,7 +514,8 @@ class JaxRDDLCompiler:
                     for (i, jax_expr) in enumerate(jax_nested_expr):
                         new_slices[i], key, err = jax_expr(x, key)
                         error |= err
-                    sample = sample[tuple(new_slices)]
+                    new_slices = tuple(new_slices)
+                    sample = sample[new_slices]
                     return sample, key, error
                 
                 return _jax_wrapped_pvar_tensor_nested
