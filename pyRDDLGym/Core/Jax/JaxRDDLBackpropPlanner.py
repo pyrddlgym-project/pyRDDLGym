@@ -4,7 +4,7 @@ import jax.random as random
 import jax.nn.initializers as initializers
 import numpy as np
 import optax
-from typing import Dict, Iterable, Set, Tuple
+from typing import Callable, Dict, Iterable, Set, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -589,3 +589,124 @@ class JaxRDDLBackpropPlanner:
                 if ground_act != self.noop_actions[ground_var]:
                     grounded_actions[ground_var] = ground_act
         return grounded_actions
+
+
+class JaxRDDLModelError:
+
+    def __init__(self, rddl: RDDLLiftedModel,
+                 test_policy: Callable,
+                 batch_size: int,
+                 rollout_horizon: int=None,
+                 logic: FuzzyLogic=FuzzyLogic(),
+                 statistic=jnp.mean) -> None:
+        '''Creates a new instance to empirically estimate the model error.
+        
+        :param rddl: the RDDL domain to optimize
+        :param test_policy: policy to generate rollouts
+        :param batch_size: batch size
+        :param rollout_horizon: lookahead planning horizon: None uses the
+        horizon parameter in the RDDL instance
+        :param logic: a subclass of FuzzyLogic for mapping exact mathematical
+        operations to their differentiable counterparts
+        '''
+        self.rddl = rddl
+        self.test_policy = test_policy
+        self.batch_size = batch_size
+        if rollout_horizon is None:
+            rollout_horizon = rddl.horizon
+        self.horizon = rollout_horizon
+        self.logic = logic
+        self.statistic = statistic
+        
+        self._jax_compile()
+    
+    def _jax_compile(self):
+        rddl = self.rddl
+        n_batch = self.batch_size
+        test_policy = self.test_policy
+        stat = self.statistic
+        
+        # Jax compilation of the differentiable RDDL for training
+        self.train_compiled = JaxRDDLCompilerWithGrad(
+            rddl=rddl,
+            logic=self.logic)
+        self.train_compiled.compile()
+        
+        # Jax compilation of the exact RDDL for testing
+        self.test_compiled = JaxRDDLCompiler(rddl=rddl)
+        self.test_compiled.compile()
+        
+        # roll-outs
+        def _jax_wrapped_train_policy(key, params, step, subs):
+            test_actions = test_policy(key, params, step, subs)
+            train_actions = jax.tree_map(
+                lambda x: x.astype(JaxRDDLCompiler.REAL), 
+                test_actions
+            )
+            return train_actions
+        
+        train_rollouts = self.train_compiled.compile_rollouts(
+            policy=_jax_wrapped_train_policy,
+            n_steps=self.horizon,
+            n_batch=n_batch)
+        
+        test_rollouts = self.test_compiled.compile_rollouts(
+            policy=test_policy,
+            n_steps=self.horizon,
+            n_batch=n_batch)
+        
+        # batched initial subs
+        def _jax_wrapped_batched_subs(subs): 
+            train_subs, test_subs = {}, {}
+            for (name, value) in subs.items():
+                value = jnp.asarray(value)[jnp.newaxis, ...]
+                train_value = jnp.repeat(value, repeats=n_batch, axis=0)
+                train_value = train_value.astype(JaxRDDLCompiler.REAL)
+                train_subs[name] = train_value
+                test_subs[name] = jnp.repeat(value, repeats=n_batch, axis=0)
+            for (state, next_state) in rddl.next_state.items():
+                train_subs[next_state] = train_subs[state]
+                test_subs[next_state] = test_subs[state]
+            return train_subs, test_subs
+        
+        def _jax_wrapped_average_model_error(key, params, subs):
+            
+            # train and test subs differ only in data type
+            train_subs, test_subs = _jax_wrapped_batched_subs(subs)
+            
+            # generate rollouts from train and test model for the same inputs
+            train_log = train_rollouts(key, params, train_subs)
+            test_log = test_rollouts(key, params, test_subs)
+            
+            # extract variables and reward
+            train_pvars = train_log['pvar']
+            test_pvars = test_log['pvar']
+            train_pvars['reward'] = train_log['reward']
+            test_pvars['reward'] = test_log['reward']
+            
+            # compute the Euclidean distance between fluent values per particle 
+            metrics = {}
+            for (name, train_values) in train_pvars.items():
+                if name == 'reward' or \
+                (rddl.variable_types[name] not in {'non-fluent', 'action-fluent'} \
+                and name not in rddl.prev_state):
+                    test_values = test_pvars[name]
+                    train_values = train_values.astype(JaxRDDLCompiler.REAL)
+                    test_values = test_values.astype(JaxRDDLCompiler.REAL)
+                    model_diff = test_values - train_values
+                    if len(model_diff.shape) == 2:
+                        norm = jnp.abs(model_diff)
+                    else:
+                        non_batch_axes = tuple(range(2, len(model_diff.shape)))
+                        norm = jnp.linalg.norm(model_diff, axis=non_batch_axes)
+                    metric = stat(norm, axis=0)  # (horizon,)
+                    metrics[name] = metric
+            return metrics
+        
+        self.metric = jax.jit(_jax_wrapped_average_model_error)
+    
+    def estimate_error(self, key: random.PRNGKey, params: Dict, subs: Dict=None):
+        if subs is None:
+            subs = self.test_compiled.init_values
+        return self.metric(key, params, subs)
+        
