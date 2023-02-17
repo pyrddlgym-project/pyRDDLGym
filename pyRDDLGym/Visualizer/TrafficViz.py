@@ -411,7 +411,7 @@ class TrafficVisualizer(StateViz):
             # If the link is not a sink, draw the total queue
             # as well as the queue proportions by turning movement.
             # (for a sink, there is no queue)
-            Q = states[id('qd', L)]
+            Q = sum(states[id('q', L,M)] for M in Lv['turns_from'])
 
             if L not in self.sinks and Q > 0:
                 Q_dist = (Q*self.veh_len/Lv['num_lanes']) * Lv['shrink']

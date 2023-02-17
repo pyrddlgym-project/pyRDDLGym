@@ -173,6 +173,8 @@ domain BLX_model {
         // number of vehicles entering link1, summed over all possible inflows
         flow-into-link(link)                                   :  { interm-fluent, real };
 
+        // 
+
         // advance action with enforced constraints
         constrained-advance(intersection)                      :  { interm-fluent, bool };
 
@@ -186,9 +188,6 @@ domain BLX_model {
 
         // queue length in link0 waiting to turn to link1
         q(link, link)                                      :  { state-fluent, real, default = 0 };
-
-        // total queue length at step in a link (all turning directions)
-        qd(link)                                           :  { state-fluent, real, default = 0 };
 
         // number of vehicles in link
         Nc(link)                                           :  { state-fluent, real, default = 0 };
@@ -229,7 +228,7 @@ domain BLX_model {
         Cl(?u) = Dl(?u) * Nl(?u) / Lv;
 
         // time-delay variables update
-        offset(?u) = (Cl(?u)-qd(?u))*Lv / (Nl(?u)*Vl(?u)*Ts);
+        offset(?u) = (Cl(?u) - [sum_{?d : link} (q(?u,?d))])*Lv / (Nl(?u)*Vl(?u)*Ts);
         tau(?u) = floor[ offset(?u) ];
         gamma(?u) = offset(?u) - tau(?u);
 
@@ -278,8 +277,6 @@ domain BLX_model {
         virtual-q'(?u) = virtual-q(?u) + src-arrivals(?u) - flow-from-source(?u);
             
         q'(?u,?d) = [q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d) - flow-through-turn(?u,?d)] * TURN(?u,?d);
-
-        qd'(?u) = (sum_{?d : link} [q(?u,?d)]);
 
         Nc'(?u) =
             Nc(?u)
