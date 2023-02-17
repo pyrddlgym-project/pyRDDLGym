@@ -41,17 +41,17 @@ domain BLX_model {
 
     types {
         intersection : object;
-        link: object;
+        link : object;
         time : object;
 
-        signal-phase: {@ALL-RED,
-                       @WEST-EAST-LEFT,
-                       @ALL-RED2,
-                       @WEST-EAST-THROUGH,
-                       @ALL-RED3,
-                       @NORTH-SOUTH-LEFT,
-                       @ALL-RED4,
-                       @NORTH-SOUTH-THROUGH};
+        signal-phase : {@ALL-RED,
+                        @WEST-EAST-LEFT,
+                        @ALL-RED2,
+                        @WEST-EAST-THROUGH,
+                        @ALL-RED3,
+                        @NORTH-SOUTH-LEFT,
+                        @ALL-RED4,
+                        @NORTH-SOUTH-THROUGH};
     };
 
     pvariables {
@@ -66,7 +66,7 @@ domain BLX_model {
 
 
         // number of lanes in link
-        Nl(link)                                               :  { non-fluent, int, default = 3 };
+        Nl(link)                                               :  { non-fluent, int, default = 4 };
 
         // free-flow velocity of traffic in link in m/s
         Vl(link)                                               :  { non-fluent, real, default = 13.8 };
@@ -172,8 +172,6 @@ domain BLX_model {
 
         // number of vehicles entering link1, summed over all possible inflows
         flow-into-link(link)                                   :  { interm-fluent, real };
-
-        // 
 
         // advance action with enforced constraints
         constrained-advance(intersection)                      :  { interm-fluent, bool };

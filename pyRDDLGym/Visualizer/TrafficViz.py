@@ -199,12 +199,15 @@ class TrafficVisualizer(StateViz):
         # Register the signal phases
         self.signal_phases = self._objects['signal-phase']
 
-        # Register the green turns for each phase
-        self.green_turns_by_phase = defaultdict(list)
-        for (L,M) in self.turn_ids:
-            for p in self.signal_phases:
-                if self._nonfluents[id('GREEN', L,M,p)]:
-                    self.green_turns_by_phase[p].append((L,M))
+        # Register the green turns for each phase in each intersection
+        self.green_turns_by_intersection_phase = {}
+        for d, dv in self.intersections.items():
+            self.green_turns_by_intersection_phase[d] = {k: [] for k in self.signal_phases}
+            for L in dv['inc_links']:
+                for M in self.linkdata[L]['turns_from']:
+                    for p in self.signal_phases:
+                        if self._nonfluents[id('GREEN', L,M,p)]:
+                            self.green_turns_by_intersection_phase[d][p].append((L,M))
 
 
     def build_nonfluent_patches(self):
@@ -404,7 +407,7 @@ class TrafficVisualizer(StateViz):
 
         for d in self.intersections:
             signal = self.signal_phases[states[id('signal', d)]]
-            for t in self.green_turns_by_phase[signal]:
+            for t in self.green_turns_by_intersection_phase[d][signal]:
                 ax.add_patch(copy(self.turn_patches[t]))
 
         for L, Lv in self.linkdata.items():
