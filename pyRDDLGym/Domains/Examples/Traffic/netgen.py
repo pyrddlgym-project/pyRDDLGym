@@ -13,7 +13,8 @@ def dist(p0, p1): return np.linalg.norm(p1-p0)
 def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
                                min, max, red, right_on_red=True):
     """ Generates the non-fluents for a four-leg intersection """
-    nonfluents_str = newline_indent_str * 2 + f'//intersection {i}'
+
+    nonfluents_str = newline_indent_str*2 + f'//intersection {i}'
     nonfluents_str += newline_indent_str + '//turns' + newline_indent_str
     nonfluents_str += newline_indent_str.join((
         f'TURN({Ein},{Nout});',
@@ -47,8 +48,8 @@ def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
         f'GREEN({Win},{Nout},@WEST-EAST-LEFT);',
         f'GREEN({Ein},{Wout},@WEST-EAST-THROUGH);',
         f'GREEN({Win},{Eout},@WEST-EAST-THROUGH);',
-        f'GREEN({Nin},{Wout},@NORTH-SOUTH-LEFT);',
-        f'GREEN({Sin},{Eout},@NORTH-SOUTH-LEFT);',
+        f'GREEN({Nin},{Eout},@NORTH-SOUTH-LEFT);',
+        f'GREEN({Sin},{Wout},@NORTH-SOUTH-LEFT);',
         f'GREEN({Nin},{Sout},@NORTH-SOUTH-THROUGH);',
         f'GREEN({Sin},{Nout},@NORTH-SOUTH-THROUGH);'))
 
@@ -83,8 +84,8 @@ def generate_grid(nrows,
                   ns_link_len=(200,50),
                   feeder_link_elongation_factor=1.5,
                   Vl=13.8,
-                  inflow_rate_per_lane=(0.1,0.05),
-                  satflow_per_lane=0.53,
+                  inflow_rate_per_lane=(0.08,0.02),
+                  satflow_per_lane=0.63,
                   num_lanes=4,
                   high_left_prob=0,
                   min_green=7,
@@ -140,7 +141,7 @@ def generate_grid(nrows,
     num_intersections = nrows*ncols
     num_bdry = 2*(nrows + ncols)
     N = num_intersections + num_bdry
-    num_ts = int(np.ceil(max_len/Vl))+1
+    num_ts = int(np.ceil(max_len/Vl))+2
 
 
     intersection_names = tuple(f'i{i}' for i in range(num_intersections))
@@ -236,13 +237,13 @@ def generate_grid(nrows,
         else:
             high_turn, low_turn = T, L
 
-        turn_probs[high_turn] = 0.6 - dp
-        turn_probs[low_turn] = 0.25 + dp
+        turn_probs[high_turn] = 0.7 - dp
+        turn_probs[low_turn] = 0.2 + dp
         turn_probs[R] = 1-turn_probs[high_turn]-turn_probs[low_turn]
         total_satflow = satflow_per_lane * num_lanes
         satflow_rates[high_turn] = 0.5 * total_satflow
-        satflow_rates[low_turn] = 0.25 * total_satflow
-        satflow_rates[R] = 0.25 * total_satflow
+        satflow_rates[low_turn] = 0.3 * total_satflow
+        satflow_rates[R] = 0.2 * total_satflow
 
     inflow_lb = (inflow_rate_per_lane[0]-inflow_rate_per_lane[1]) * num_lanes
     inflow_ub = (inflow_rate_per_lane[0]+inflow_rate_per_lane[1]) * num_lanes
