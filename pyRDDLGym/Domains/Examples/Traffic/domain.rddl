@@ -1,8 +1,25 @@
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////// QTM ////////////////////////////////////////////////
 //
-//  A BLX\QTM transportation model of macroscopic urban traffic network model
+//  Implementation of the BLX (van den Berg - Lin - Xi) model / QTM (Queue Transmission Model)
+//  of queue and platoon dynamics in a traffic network.
 //
-//  Author: Ayal Taitler (ataitler@gmail.com)
+//  The propagation time along a link determined by the free-flow speed along that link, and
+//  the distance from the upstream link entrance to the end of the queue at entrance time.
+//  Incoming flows are split along different turning directions according to turning proportions.
+//
+//  The model takes into account undersaturated, saturated, and oversaturated conditions:
+//      * Undersaturated: The queue + arriving flow is small enough to be released
+//                        in a single time-step
+//      * Saturated:      The queue is released at the saturation flow rate.
+//      * Oversaturated:  The downstream link does not have enough capacity to fit
+//                        the entirety of the queue, causing a spillback.
+//
+//  This implementation uses a fixed signal-phase order, and the action consists of a concurrently
+//  chosen boolean for each intersection: whether or not to extend the current signal phase or switch
+//  to the next one in the fixed order.
+//
+//  Authors: Ayal Taitler (ataitler@gmail.com)
+//           Ilia Smirnov (iliathesmirnov@gmail.com)
 //
 //  References:
 //      S. Lin, B. De Schutter, Y. Xi, and J. Hellendoorn, "A simplified macroscopic urban
@@ -14,98 +31,183 @@
 //      time mixed integer linear programming formulation for traffic signal control,"
 //      Transportation Research Record, pp. 128-138 2595(1), 2016
 //
-///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 domain BLX_model {
 
+    requirements = {
+        constrained-state
+    };
+
     types {
         intersection : object;
+        link: object;
         time : object;
+
+        signal-phase: {@ALL-RED,
+                       @WEST-EAST-LEFT,
+                       @ALL-RED2,
+                       @WEST-EAST-THROUGH,
+                       @ALL-RED3,
+                       @NORTH-SOUTH-LEFT,
+                       @ALL-RED4,
+                       @NORTH-SOUTH-THROUGH};
     };
 
     pvariables {
-        //////////////////////////////
-        // non-fluents == topology
-        //////////////////////////////
-        // link between (uplink intersection, downlink intersection)
-        LINK(intersection, intersection)     :  { non-fluent, bool, default = false };
-        // number of lanes in link
-        Nl(intersection, intersection)        : { non-fluent, int, default = 1 };
-        // free-flow velocity of traffic in link in m/s
-        V(intersection, intersection)        :  { non-fluent, real, default = 13.8 };
+        ///////////////////////////////////////////
+        // non-fluents == topology and geometry
+        ///////////////////////////////////////////
+
         // simulation time step in seconds
-        Ts                                   :  { non-fluent, int, default = 1 };
-        // average vehicle length im meters
-        Lv                                   :  { non-fluent, real, default = 3 };
-        // distance between intersections
-        Dl(intersection, intersection)       :  { non-fluent, real, default = 100 };
-        // saturated flow rate leaving link (u,d)
-        MU(intersection, intersection)       :  { non-fluent, real, default = 1 };
-        // fraction of the traffic turning to link (d,o) from link (u,d)
-        BETA(intersection, intersection, intersection)     :  { non-fluent, real, default = 0.33 };
-        // is intersection a source
-        SOURCE(intersection)                 :  { non-fluent, bool, default = false };
-        // is intersection a sink
-        SINK(intersection)                   :  { non-fluent, bool, default = false };
-        // arrival rate at sources - the variance for a uniform distribution
-        ARRIVAL(intersection)                :  { non-fluent, int, default = 1 };
+        Ts                                                     :  { non-fluent, int, default = 1 };
+        // average vehicle length in meters
+        Lv                                                     :  { non-fluent, real, default = 5 };
+
+
+        // number of lanes in link
+        Nl(link)                                               :  { non-fluent, int, default = 3 };
+
+        // free-flow velocity of traffic in link in m/s
+        Vl(link)                                               :  { non-fluent, real, default = 13.8 };
+
+        // link length
+        Dl(link)                                               :  { non-fluent, real, default = 150 };
+
+        // does the link end at the intersection?
+        LINK-TO(link, intersection)                            :  { non-fluent, bool, default = false };
+
+        // does the link begin at the intersection?
+        LINK-FROM(intersection, link)                          :  { non-fluent, bool, default = false };
+
+        // is there a turn from link0 to link1?
+        TURN(link, link)                                       :  { non-fluent, bool, default = false };
+
+        // saturated flow rate leaving turn (link0,link1) in veh/s
+        MU(link, link)                                         :  { non-fluent, real, default = 1.2 };
+
+        // fraction of the traffic turning from link0 to link1
+        BETA(link, link)                                       :  { non-fluent, real, default = 0.33 };
+
+
+        // phase constraints and properties
+        PHASE-MIN(intersection)                                :  { non-fluent, int, default = 20 };
+        PHASE-MAX(intersection)                                :  { non-fluent, int, default = 60 };
+        PHASE-ALL-RED-DUR(intersection)                        :  { non-fluent, int, default = 3 };
+
+        // is turn green in phase?
+        GREEN(link, link, signal-phase)                        :  { non-fluent, bool, default = false };
+
+
+        // is there a source at the link entrance?
+        SOURCE(link)                                           :  { non-fluent, bool, default = false };
+
+        // is there a sink at the link exit?
+        SINK(link)                                             :  { non-fluent, bool, default = false };
+
+        // arrival rate at sources in veh/s - the mean for a uniform distribution
+        SOURCE-ARRIVAL-RATE(link)                              :  { non-fluent, real, default = 0.67 };
+
+        // saturated flow rate from a source in veh/s
+        SOURCE-MU(link)                                        :  { non-fluent, real, default = 2.0 };
+
+
         // time ordering for time-delayed queues
-        NEXT(time, time)                     :  { non-fluent, bool, default = false };
+        NEXT(time, time)                                       :  { non-fluent, bool, default = false };
+
         // is the time index first in the queue, i,e., no delay
-        TIME-HEAD(time)                      :  {non-fluent, bool, default = false };
+        TIME-HEAD(time)                                        :  {non-fluent, bool, default = false };
+
         // is the time index last in the queue, i,e., maximum delay memory depth
-        TIME-TAIL(time)                      :  {non-fluent, bool, default = false };
+        TIME-TAIL(time)                                        :  {non-fluent, bool, default = false };
+
         // time object to actual time delay index
-        TIME-VAL(time)                       :  { non-fluent, int, default = 1 };
+        TIME-VAL(time)                                         :  { non-fluent, int, default = 1 };
+
+        // cartesian coordinates
+        X(intersection)                                        :  { non-fluent, real, default = 0 };
+        Y(intersection)                                        :  { non-fluent, real, default = 0 };
+        SOURCE-X(link)                                         :  { non-fluent, real, default = 0 };
+        SOURCE-Y(link)                                         :  { non-fluent, real, default = 0 };
+        SINK-X(link)                                           :  { non-fluent, real, default = 0 };
+        SINK-Y(link)                                           :  { non-fluent, real, default = 0 };
+
 
 
         //////////////////////////////
         // interm fluents
         //////////////////////////////
-        // link capacity
-        Cl(intersection, intersection)                  :  { interm-fluent, real };
-        //temp(intersection, intersection)                  :  { interm-fluent, real };
 
-        // time delay constants
-        tau(intersection, intersection)                 :  { interm-fluent, int };
-        gama(intersection, intersection)                :  { interm-fluent, int };
+        // current link capacity (remaining storage)
+        Cl(link)                                               :  { interm-fluent, real };
 
-        // time delayed queue of the the leaving traffic for k-tau
-        Mltau(intersection, intersection, intersection) :  { interm-fluent, real };
-        // time delayed queue of the the leaving traffic for k-tau-1
-        Mltau1(intersection, intersection, intersection):  { interm-fluent, real };
+        // time delay variables
+        // Suppose it takes
+        //     t*Ts + g
+        // time-steps to reach the end of queue from the upstream link entrance,
+        // where t, g are integers, 0 <= t and 0 <= g < Ts. Define tau=t/Ts and gamma=g/Ts.
+        // Then the inflow is split so that
+        //      (1-gamma) of the inflow will arrive in tau time-steps, and
+        //         gamma of the inflow will arrive in (tau+1) time-steps.
+        // For example, if Ts=4s and the propagation time is 7s, then
+        //         (1/4) of the inflow will arrive in 1 time-step and
+        //         (3/4) will arrive in 2 time-steps
 
-        // number of cars arriving at the end of the queue (u,d)
-        Ma(intersection, intersection)                  :  { interm-fluent, real };
+        offset(link)                                           :  { interm-fluent, real };
+        tau(link)                                              :  { interm-fluent, int };
+        gamma(link)                                            :  { interm-fluent, real };
 
-        //arrivals at time step k in link (u,d) is u is a source
-        arrivals(intersection)                          : { interm-fluent, real };
+
+        // number of cars leaving link0 and entering link1
+        flow-through-turn(link, link)                          :  { interm-fluent, real };
+
+        // number of vehicles coming to end of queue on link
+        queue-arrivals(link)                                   :  { interm-fluent, real };
+
+        // arrivals from a source link at time step k
+        src-arrivals(link)                                     :  { interm-fluent, real };
+
+        // flow from source u into the network (taking into account storage and maximal inflow rate)
+        flow-from-source(link)                                 :  { interm-fluent, real };
+
+        // number of vehicles entering link1, summed over all possible inflows
+        flow-into-link(link)                                   :  { interm-fluent, real };
+
+        // 
+
+        // advance action with enforced constraints
+        constrained-advance(intersection)                      :  { interm-fluent, bool };
 
 
         //////////////////////////////
         // states fluents
         //////////////////////////////
-        // number of cars leaving link (u,d) and turning towards link Om - state because of the time delay "memory"
-        Ml(intersection, intersection, intersection, time) :  { state-fluent, real, default = 0 };
 
-        // available storage space of link (u,d) in number of cars
-        S(intersection, intersection)                :  { state-fluent, real, default = 100 };
+        // flow of vehicles along a link, indexed by the number of time-steps before arrival to the end of queue
+        flow-on-link(link, time)                           :  { state-fluent, real, default = 0 };
 
-        // queue length at step in link (u,d) turning in direction Om
-        q(intersection, intersection, intersection)  :  { state-fluent, real, default = 0 };
-
-        // total queue length at step in link (u,d) (all directions)
-        qd(intersection, intersection)               :  { state-fluent, real, default = 0 };
+        // queue length in link0 waiting to turn to link1
+        q(link, link)                                      :  { state-fluent, real, default = 0 };
 
         // number of vehicles in link
-        Nc(intersection, intersection)               :  { state-fluent, real, default = 0 };
+        Nc(link)                                           :  { state-fluent, real, default = 0 };
+
+        //virtual queue at source (i.e. vehicles held outside of the network)
+        virtual-q(link)                                    :  { state-fluent, real, default = 0 };
+
+        // current phase
+        signal(intersection)                               :  { state-fluent, signal-phase, default = @ALL-RED};
+
+        // current phase time
+        signal-t(intersection)                             :  { state-fluent, real, default = 0 };
 
 
         //////////////////////////////
         // action fluents
         //////////////////////////////
-        // is green for inflows from link (u,d) in the direction of link (d,o)
-        b(intersection, intersection, intersection)  :  { action-fluent, bool, default = false };
+
+        // is the current signal phase being advanced?
+        advance(intersection)                              :  { action-fluent, bool, default = true };
 
 
         //////////////////////////////
@@ -120,66 +222,95 @@ domain BLX_model {
         ////////////////////////////////////
         // interm fluents
         ////////////////////////////////////
-        // derived fluent for the actual capacity
-        Cl(?u,?d) = Dl(?u,?d) * Nl(?u,?d) / Lv;
 
-        // time delay constants
-        tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ] ;
-        gama(?u,?d) = LINK(?u,?d) * mod[ (Cl(?u,?d) - qd(?u,?d))*Lv , (Nl(?u,?d)*V(?u,?d)*Ts) ];
 
-        // time delay queue of k-tau(k)
-        Mltau(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*(TIME-VAL(?t) == tau(?u,?d))]);
+        // derived fluent for the link capacity (total storage of the link)
+        Cl(?u) = Dl(?u) * Nl(?u) / Lv;
 
-        // time delay queue of time k-tau(k)-1
-        Mltau1(?u,?d,?o) = (sum_{?t : time}[Ml(?u,?d,?o,?t)*((TIME-VAL(?t)-1) == tau(?u,?d))]);
+        // time-delay variables update
+        offset(?u) = (Cl(?u) - [sum_{?d : link} (q(?u,?d))])*Lv / (Nl(?u)*Vl(?u)*Ts);
+        tau(?u) = floor[ offset(?u) ];
+        gamma(?u) = offset(?u) - tau(?u);
 
-        // how many cars should arrive for the direction of u on the link (u,d) if u is a source
-        arrivals(?u) =  Uniform(0,ARRIVAL(?u)) * 10;
+        // number of vehicles arriving to the end of the queue at current time-step
+        queue-arrivals(?u) = [sum_{?t : time} (TIME-HEAD(?t) * flow-on-link(?u,?t))];
 
-        // arriving queue at link (u,d)
-        Ma(?u,?d) =
-            SOURCE(?u)*arrivals(?u)
-            + LINK(?u,?d) * (1 - gama(?u,?d)) * (sum_{?i : intersection}[Mltau(?i,?u,?d)*LINK(?i,?u)])
-            + LINK(?u,?d) * gama(?u,?d) * (sum_{?i : intersection}[Mltau1(?i,?u,?d)*LINK(?i,?u)]);
+        // number of vehicles leaving link0 and entering link1
+        flow-through-turn(?u,?d) = TURN(?u,?d)
+                            * (exists_{?i : intersection} [ LINK-TO(?u,?i) ^ GREEN(?u,?d,signal(?i)) ])
+                            * max[ 0, min[ q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d),          // Undersaturated
+                                           min [ BETA(?u,?d) * MU(?u,?d) * Ts,                 // Saturated
+                                                 Cl(?d) - Nc(?d) ]]];                          // Oversaturated
+  
+        // number of vehicles entering from a source
+        src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
 
+        // flow from source u into the network
+        flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),             // Undersaturated
+                                                 min[ SOURCE-MU(?u),                           // Saturated
+                                                      Cl(?u) - Nc(?u) ]];                      // Oversaturated
+
+
+        // number of vehicles entering link d, summed over all possible inflows
+        flow-into-link(?d) =   SOURCE(?d)       * flow-from-source(?d)
+                             + (1 - SOURCE(?d)) * [sum_{?u : link} ( flow-through-turn(?u,?d) )];
+
+
+        // signal-phase action: handle the cases when the action is forced by the constraints
+        constrained-advance(?i) = if ( signal(?i) == @ALL-RED | signal(?i) == @ALL-RED2 | signal(?i) == @ALL-RED3 | signal(?i) == @ALL-RED4 ) then (
+                                     signal-t(?i) >= (PHASE-ALL-RED-DUR(?i)-1)
+                                  )
+                                  else if (signal-t(?i) < PHASE-MIN(?i)) then false
+                                  else if (signal-t(?i) >= PHASE-MAX(?i)) then true
+                                  else advance(?i);
+                                  
 
         ////////////////////////////////////
         // State space evolution
         ////////////////////////////////////
 
-        Ml'(?u,?d,?o,?t) =
-                    TIME-TAIL(?t) * b(?u,?d,?o) * max[ 0, min[ q(?u,?d,?o)+Ma(?u,?d)*BETA(?u,?d,?o), min[S(?d,?o),
-                                                        BETA(?u,?d,?o)*MU(?u,?d)*Ts] ] ] * LINK(?u,?d)*LINK(?d,?o)
-                    + (1 - TIME-TAIL(?t)) * (sum_{?t1 : time}[ Ml(?u,?d,?o,?t1) * NEXT(?t1,?t) ]);
+        flow-on-link'(?u,?t) =
+            (TIME-VAL(?t) == tau(?u))     * (1 - gamma(?u)) * flow-into-link(?u)
+          + (TIME-VAL(?t) == (tau(?u)+1)) * gamma(?u)       * flow-into-link(?u)
+          + (sum_{?t2 : time} [ NEXT(?t,?t2) * flow-on-link(?u,?t2) ]);
 
-        q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])] * LINK(?d,?o)*LINK(?u,?d);
+        virtual-q'(?u) = virtual-q(?u) + src-arrivals(?u) - flow-from-source(?u);
+            
+        q'(?u,?d) = [q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d) - flow-through-turn(?u,?d)] * TURN(?u,?d);
 
-        qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o)* LINK(?d,?o)]) * LINK(?u,?d);
+        Nc'(?u) =
+            Nc(?u)
+            + flow-into-link(?u)
+            - (1 - SINK(?u)) * (sum_{?d : link}[flow-through-turn(?u,?d)])
+            - SINK(?u)       *  queue-arrivals(?u);
 
-        S'(?u,?d) = round[ [S(?u,?d)
-                    - (sum_{?i : intersection}[ (sum_{?t : time}[Ml(?i,?u,?d,?t)*TIME-HEAD(?t)]) * LINK(?i,?d) ])
-                    + (sum_{?o : intersection}[ (sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)]) * LINK(?d,?o) ])] * LINK(?u,?d) ] ;
+        signal'(?i) = if (constrained-advance(?i)) then
+                          switch (signal(?i)) {
+                              case @ALL-RED             : @WEST-EAST-LEFT,
+                              case @WEST-EAST-LEFT      : @ALL-RED2,
+                              case @ALL-RED2            : @WEST-EAST-THROUGH,
+                              case @WEST-EAST-THROUGH   : @ALL-RED3,
+                              case @ALL-RED3            : @NORTH-SOUTH-LEFT,
+                              case @NORTH-SOUTH-LEFT    : @ALL-RED4,
+                              case @ALL-RED4            : @NORTH-SOUTH-THROUGH,
+                              case @NORTH-SOUTH-THROUGH : @ALL-RED
+                          }
+                      else signal(?i);
 
-        // n_{u,d}(k+1) = n_{u,d}(k) - m^l_{u,d}(k) + \sum_{entering turns (u',d')} m^l_{u',d'}(k)
-        Nc'(?u,?d) = max[0, [Nc(?u,?d) + SOURCE(?u)*arrivals(?u)
-                     - (sum_{?o : intersection}[(sum_{?t : time}[Ml(?u,?d,?o,?t)*TIME-HEAD(?t)])*LINK(?d,?o)])  //Leaving
-                     + (sum_{?i : intersection}[(sum_{?t : time}[Ml(?i,?u,?d,?t)*TIME-HEAD(?t)])*LINK(?i,?u)])] * LINK(?u,?d) * (1-SINK(?d))] ;
-
+        signal-t'(?i) = if (constrained-advance(?i)) then 0 else (signal-t(?i) + Ts);
     };
 
     // minus number of cars in the network
-    reward = -sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)];
+    // minus all virtual queues at source links
+    reward = - ( sum_{?u : link} [ Nc(?u) + SOURCE(?u)*virtual-q(?u) ] );
 
     state-invariants {
-        // no more than 4 neighbours outgoing
-        forall_{?u : intersection} [(sum_{?d : intersection} [LINK(?u,?d)]) <= 4];
-        // no more than 4 neighbours ingoing
-        forall_{?d : intersection} [(sum_{?u : intersection} [LINK(?u,?d)]) <= 4];
-        //
-    };
+        1 <= Ts;
+        0 < Lv;
 
-    action-preconditions {
-        // any preconditions? only bools and should allow for arbitrary phasing schemes
+        forall_{?u : link} [ SOURCE(?u) => (virtual-q(?u) >= 0) ];
+        forall_{?u : link, ?d : link} [ q(?u,?d) >= 0 ];
+        forall_{?i : intersection} [ (0 <= signal-t(?i)) ^ (signal-t(?i) < (PHASE-MAX(?i)+Ts)) ];
     };
 
 }
