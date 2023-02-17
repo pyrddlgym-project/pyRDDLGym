@@ -685,12 +685,14 @@ class JaxRDDLModelError:
             test_pvars['reward'] = test_log['reward']
             
             # compute the Euclidean distance between fluent values per particle 
-            metrics = {}
+            metrics = {'train': {}, 'test': {}, 'error': {}}
             for (name, train_values) in train_pvars.items():
                 if name == 'reward' or \
                 (rddl.variable_types[name] not in {'non-fluent', 'action-fluent'} \
                 and name not in rddl.prev_state):
                     test_values = test_pvars[name]
+                    metrics['train'][name] = train_values
+                    metrics['test'][name] = test_values
                     train_values = train_values.astype(JaxRDDLCompiler.REAL)
                     test_values = test_values.astype(JaxRDDLCompiler.REAL)
                     model_diff = test_values - train_values
@@ -699,8 +701,7 @@ class JaxRDDLModelError:
                     else:
                         non_batch_axes = tuple(range(2, len(model_diff.shape)))
                         norm = jnp.linalg.norm(model_diff, axis=non_batch_axes)
-                    metric = stat(norm, axis=0)  # (horizon,)
-                    metrics[name] = metric
+                    metrics['error'][name] = stat(norm, axis=0)
             return metrics
         
         self.metric = jax.jit(_jax_wrapped_average_model_error)
