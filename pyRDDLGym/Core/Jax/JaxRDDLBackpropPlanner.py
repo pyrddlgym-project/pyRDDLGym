@@ -347,7 +347,6 @@ class JaxRDDLBackpropPlanner:
                  rollout_horizon: int=None,
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
-                 normalize_grad: bool=False,
                  logic: FuzzyLogic=FuzzyLogic(),
                  use_symlog_reward: bool=False,
                  utility=jnp.mean,
@@ -368,7 +367,6 @@ class JaxRDDLBackpropPlanner:
         :param action_bounds: box constraints on actions
         :param optimizer: an Optax algorithm that specifies how gradient updates
         are performed
-        :param normalize_grad: whether to normalize gradient during optimization
         :param logic: a subclass of FuzzyLogic for mapping exact mathematical
         operations to their differentiable counterparts 
         :param use_symlog_reward: whether to use the symlog transform on the 
@@ -389,7 +387,6 @@ class JaxRDDLBackpropPlanner:
         self.horizon = rollout_horizon
         self._action_bounds = action_bounds
         self.optimizer = optimizer
-        self.normalize_grad = normalize_grad
         
         self.logic = logic
         self.use_symlog_reward = use_symlog_reward
@@ -483,7 +480,6 @@ class JaxRDDLBackpropPlanner:
         return _jax_wrapped_plan_loss
     
     def _jax_update(self, loss, optimizer, projection):
-        normalize = self.normalize_grad
         
         # calculate the plan gradient w.r.t. return loss and update optimizer
         # optionally does gradient normalization
@@ -491,12 +487,6 @@ class JaxRDDLBackpropPlanner:
         def _jax_wrapped_plan_update(key, params, subs, opt_state):
             grad, log = jax.grad(loss, argnums=1, has_aux=True)(key, params, subs)
             log['grad'] = grad
-            if normalize:
-                leaves, _ = jax.tree_util.tree_flatten(grad)
-                grad_norm = jnp.asarray([jnp.max(jnp.abs(leaf)) for leaf in leaves])
-                grad_norm = jnp.max(grad_norm)
-                nonzero_norm = jnp.where(grad_norm > 0, grad_norm, 1.0)
-                grad = jax.tree_map(lambda g: g / nonzero_norm, grad)
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
             params = projection(params)
