@@ -10,32 +10,30 @@ import pprint
 from itertools import product
 from collections import defaultdict
 from copy import copy
-from math import ceil
-from math import inf
+import math
 
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym import Visualizer
 from pyRDDLGym.Visualizer.StateViz import StateViz
 
-ROAD_PAVED_WIDTH = 12
-ROAD_HALF_MEDIAN_WIDTH = 1
-ROAD_WIDTH = ROAD_PAVED_WIDTH + ROAD_HALF_MEDIAN_WIDTH
-ROAD_DELTA = ROAD_PAVED_WIDTH/12
-TURN_RADIUS_DELTA = 5
-ARRIVING_RATE_SAT = 0.2 #per lane
+ROAD_PAVED_WIDTH = 12                                   # The width of the paved part of the road in m
+ROAD_HALF_MEDIAN_WIDTH = 1                              # The width of the median in-between links in m
+ROAD_WIDTH = ROAD_PAVED_WIDTH + ROAD_HALF_MEDIAN_WIDTH  # Combined width of a single link (paved + 0.5*median)
+ROAD_DELTA = ROAD_PAVED_WIDTH/12                        # Division of a link into parts for drawing turns
+TURN_RADIUS_DELTA = 5                                   # Curvature of a turn
+LINK_GRID_SAT_DENSITY = 0.2 #per lane                   # Density at which a cell in the flow grid gets a saturated color
 
 RGBA_PAVEMENT_COLOR = (0.6, 0.6, 0.6, 1)
 RGBA_INTERSECTION_COLOR = (0.3, 0.3, 0.3, 1)
-RGBA_GREEN_TURNING_COLOR = (0.2, 1, 0.2, 1)
-RGBA_Q_LINE_COLOR = (1, 0.2, 0.2, 1)
-RGBA_Q_BARS_COLOR = (1, 0.2, 0.2, 1)
+RGBA_GREEN_TURN_COLOR = (0.2, 1, 0.2, 1)
 RGBA_Q_PATCH_COLOR = (1, 0.2, 0.2, 0.4)
-RGBA_ARRIVING_CELL_BORDER_COLOR = RGBA_PAVEMENT_COLOR
-RGBA_ARRIVING_CELL_SAT_COLOR = (1, 0.2, 1, 0.4)
+RGBA_Q_LINE_COLOR = (1, 0.2, 0.2, 1)
+RGBA_LINK_GRID_COLOR = RGBA_PAVEMENT_COLOR
+RGBA_LINK_GRID_SAT_COLOR = (1, 0.2, 1, 0.4)
 
 def get_fillcolor_by_density(N, capacity):
     p = min(1, N/capacity)
-    return tuple(p*c for c in RGBA_ARRIVING_CELL_SAT_COLOR)
+    return tuple(p*c for c in RGBA_LINK_GRID_SAT_COLOR)
 
 def id(var_id, *objs):
     # Returns <var_id>___<ob1>__<ob2>__<ob3>...
@@ -86,52 +84,76 @@ class TrafficVisualizer(StateViz):
         self.veh_len = self._nonfluents['Lv']
         self.sim_step = self._nonfluents['Ts']
 
-        # Register the intersection coordinates, sinks, and sources
+        # Register the intersection coordinates and the links incident to them
         self.intersections = {}
-        self.sources, self.sinks, self.TLs = set(), set(), set()
+        self.linkdata = defaultdict(dict)
         for d in self._objects['intersection']:
+            coords = np.array([self._nonfluents[id('X', d)],
+                               self._nonfluents[id('Y', d)]])
+            inc_links, out_links = [], []
+
+            for L in self._objects['link']:
+
+                if self._nonfluents[id('LINK-TO', L,d)]:
+                    self.linkdata[L]['to'] = coords
+                    self.linkdata[L]['to_id'] = d
+                    inc_links.append(L)
+
+                elif self._nonfluents[id('LINK-FROM', d,L)]:
+                    self.linkdata[L]['from'] = coords
+                    self.linkdata[L]['from_id'] = d
+                    out_links.append(L)
+
             self.intersections[d] = {
-                'coords': np.array([self._nonfluents[id('X', d)], self._nonfluents[id('Y', d)]]),
-                'inc_links': [],
-                'out_links': []}
-            if self._nonfluents[id('SINK', d)]: self.sinks.add(d)
-            if self._nonfluents[id('SOURCE', d)]: self.sources.add(d)
-            if self._nonfluents[id('TL', d)]: self.TLs.add(d)
+                'coords': coords,
+                'inc_links': inc_links,
+                'out_links': out_links}
 
-        # Register the links.
-        # Links are indexed by the upstream and downstream intersection pairs
-        self.link_ids = []
-        for u, d in product(self.intersections.keys(), self.intersections.keys()):
-            if self._nonfluents[id('LINK', u,d)]:
-                self.link_ids.append((u,d))
-                self.intersections[u]['out_links'].append((u,d))
-                self.intersections[d]['inc_links'].append((u,d))
 
-        # Register the turning movements.
-        # Turns are indexed by upstream, downstream, and outgoing intersection triples
-        self.turn_ids = []
-        for u, d, o in product(self.intersections.keys(), self.intersections.keys(), self.intersections.keys()):
-            if u == d or d == o or u == o:
-                continue
-            if self._nonfluents[id('LINK', u,d)] and self._nonfluents[id('LINK', d,o)]:
-                self.turn_ids.append((u,d,o))
-
-        # Record the required link data
-        self.linkdata = {}
+        # Register the links and record the required link data
         ccw_turn_matrix = np.array([[0,-1],[1,0]])
-        for (u, d) in self.link_ids:
-            vu, vd = self.intersections[u]['coords'], self.intersections[d]['coords']
+        self.sources, self.sinks = {}, {}
+
+        for L in self.linkdata:
+
+            # Register the sources and sinks, and in addition
+            # find the start and ends points of the link
+            if self._nonfluents[id('SOURCE', L)]:
+                try:
+                    vu = np.array([self._nonfluents[id('SOURCE-X', L)],
+                                   self._nonfluents[id('SOURCE-Y', L)]])
+                except KeyError as e:
+                    print('[TrafficViz] Please include the X and Y coordinates of the source '
+                          f'{L} in the instance defn')
+                    raise e
+                self.sources[L] = {'coords': vu}
+                self.linkdata[L]['from'] = vu
+                self.linkdata[L]['from_id'] = f'source{len(self.sources)}'
+
+            elif self._nonfluents[id('SINK', L)]:
+                 try:
+                     vd = np.array([self._nonfluents[id('SINK-X', L)],
+                                    self._nonfluents[id('SINK-Y', L)]])
+                 except KeyError as e:
+                     print('[TrafficViz] Please include the X and Y coordinates of the sink '
+                           f'{L} in the instance defn')
+                     raise e
+                 self.sinks[L] = {'coords': vd}
+                 self.linkdata[L]['to'] = vd
+                 self.linkdata[L]['to_id'] = f'sink{len(self.sinks)}'
+
+            vu, vd = self.linkdata[L]['from'], self.linkdata[L]['to']
             dir = vd-vu
             link_len = np.linalg.norm(dir)
 
-            num_lanes = self._nonfluents[id('Nl', u,d)]
-            v = self._nonfluents[id('V', u,d)]
-            num_cells = ceil(link_len / (v * self.sim_step))
+            num_lanes = self._nonfluents[id('Nl', L)]
+            v = self._nonfluents[id('Vl', L)]
+            num_cells = math.ceil(link_len / (v * self.sim_step))
             cell_capacity = (link_len * num_lanes) / (num_cells * self.veh_len)
 
             dir = dir/link_len
 
-            self.linkdata[(u,d)] = {
+            self.linkdata[L].update({
                 # Unit vector along the link direction
                 'dir': dir,
                 # Unit normal vector (ccw of unit dir vector)
@@ -145,46 +167,53 @@ class TrafficVisualizer(StateViz):
                 # Number of incoming cells
                 'num_cells': num_cells,
                 # Cell capacity (for shading)
-                'cell_capacity': cell_capacity
-            }
+                'cell_capacity': cell_capacity })
 
-        # Order turns from each link left-to-right
-        def signed_angle(v0, v1): return np.sign(np.cross(v0,v1)) * np.arccos(np.dot(v0,v1))
 
-        for (u, d) in self.link_ids:
-            turns_from_u_d = []
-            for o in self.intersections.keys():
-                if u == o:
-                    continue
-                if self._nonfluents[id('LINK', d,o)]:
-                    turns_from_u_d.append(o)
-            turns_from_u_d.sort(key=lambda o:
-                                    -signed_angle(self.linkdata[(u,d)]['dir'], self.linkdata[(d,o)]['dir'])
-                               )
-            self.linkdata[(u,d)]['turns_from'] = turns_from_u_d
+        # Register the turning movements.
+        # Turns are indexed by upstream, downstream link pairs
+        # Additionally, order turns from each link left-to-right
+        def signed_angle(v0, v1):
+            if np.cross(v0,v1) == 0:
+                return -math.pi if np.dot(v0,v1) < 0 else 0
+            return np.sign(np.cross(v0,v1)) * np.arccos(np.dot(v0,v1))
+
+        self.turn_ids = []
+        for L in self.linkdata:
+            self.linkdata[L]['turns_from'] = []
+            for M in self.linkdata:
+                if self._nonfluents[id('TURN', L,M)]:
+                     self.turn_ids.append((L,M))
+                     self.linkdata[L]['turns_from'].append(M)
+            self.linkdata[L]['turns_from'].sort(
+                key=lambda M: -signed_angle(self.linkdata[L]['dir'], self.linkdata[M]['dir']))
+
+        # Try to find the opposite link by the most negative dot product
+        for d, v in self.intersections.items():
+            for L in v['inc_links']:
+                dL = self.linkdata[L]['dir']
+                M = sorted(v['out_links'], key=lambda M: np.dot(dL, self.linkdata[M]['dir']))[0]
+                self.linkdata[L]['opposite_link'] = M
+                self.linkdata[M]['opposite_link'] = L
+
+        # Register the signal phases
+        self.signal_phases = self._objects['signal-phase']
 
         # Register the green turns for each phase
-        self.phase_ids = self._objects['phase']
         self.green_turns_by_phase = defaultdict(list)
-        for (u,d,o) in self.turn_ids:
-            for p in self.phase_ids:
-                if self._nonfluents[id('GREEN', u,d,o,p)]:
-                    self.green_turns_by_phase[p].append((u,d,o))
-
-        # Register inverse map from phase index to phase object
-        self.phase_by_index_in_intersection = {}
-        for d in self.intersections.keys():
-             self.phase_by_index_in_intersection[d] = {}
-             for p in self.phase_ids:
-                 if self._nonfluents[id('PHASE-OF', p,d)]:
-                     self.phase_by_index_in_intersection[d][self._nonfluents[id('PHASE-INDEX', p)]] = p
+        for (L,M) in self.turn_ids:
+            for p in self.signal_phases:
+                if self._nonfluents[id('GREEN', L,M,p)]:
+                    self.green_turns_by_phase[p].append((L,M))
 
 
     def build_nonfluent_patches(self):
         # Find the bbox
-        x0, y0, x1, y1 = inf, inf, -inf, -inf
-        for intersection in self.intersections.values():
-            v = intersection['coords']
+        x0, y0, x1, y1 = math.inf, math.inf, -math.inf, -math.inf
+        for geopoint in (tuple(self.intersections.values()) +
+                         tuple(self.sources.values()) +
+                         tuple(self.sinks.values())):
+            v = geopoint['coords']
             x0, y0, x1, y1 = min(x0, v[0]), min(y0, v[1]), max(x1, v[0]), max(y1, v[1])
 
         # Slightly expand bbox
@@ -207,47 +236,50 @@ class TrafficVisualizer(StateViz):
             return ctrl1
 
         # Construct intersection objects and correct link lengths
-        for d in self.TLs:
+        for d in self.intersections:
 
             # Preliminary computations
-            alpha_ud, alpha_do = {}, {}
-            for (u,d) in self.intersections[d]['inc_links']:
-                # Right-turn-target from (u,d)
-                o = self.linkdata[(u,d)]['turns_from'][-1]
+            alpha_in, alpha_out = {}, {}
+            for L in self.intersections[d]['inc_links']:
+                # Right-turn-target from L
+                M = self.linkdata[L]['turns_from'][-1]
 
-                # Find the point of intersection of the right boundary of (u,d)
-                # and the right boundary of (d,o) (if both links are extended)
-                # The links will be shortened so that they do not intersect
-                vu, vd = self.intersections[u]['coords'], self.intersections[d]['coords']
-                dir0, n0 = self.linkdata[(u,d)]['dir'], self.linkdata[(u,d)]['nrm']
-                dir1, n1 = self.linkdata[(d,o)]['dir'], self.linkdata[(d,o)]['nrm']
+                # Find the point of intersection of the right boundary of L
+                # and the right boundary of M (if both links are extended).
+                # The links will be shortened so that they do not intersect,
+                # as well as shortened by TURN_RADIUS_DELTA to draw a smoother
+                # connecting curve
+                vu, vd = self.linkdata[L]['from'], self.linkdata[L]['to']
+                dir0, n0 = self.linkdata[L]['dir'], self.linkdata[L]['nrm']
+                dir1, n1 = self.linkdata[M]['dir'], self.linkdata[M]['nrm']
                 c = np.cross(dir0,dir1)
                 if c == 0:
                     # Exceptional case when the right-turn direction happens to be straight ahead
-                    alpha_ud[(u,d)] = 0
-                    alpha_do[(d,o)] = 0
+                    alpha_in[L] = 0
+                    alpha_out[M] = 0
                 else:
-                    alpha_ud[(u,d)] = ROAD_WIDTH*np.cross(dir1, n1-n0)/np.cross(dir0,dir1)
-                    alpha_do[(d,o)] = ROAD_WIDTH*np.cross(dir0, n1-n0)/np.cross(dir0,dir1)
+                    alpha_in[L]  = ROAD_WIDTH*np.cross(dir1, n1-n0)/np.cross(dir0,dir1)
+                    alpha_out[M] = ROAD_WIDTH*np.cross(dir0, n1-n0)/np.cross(dir0,dir1)
 
             # Construct the intersection contour
-            (u0,d0) = self.intersections[d]['inc_links'][0]
-            (u,d) = (u0,d0)
+            L0 = self.intersections[d]['inc_links'][0]
+            L = L0
             contour, codes = [], []
             while True:
-                if u in self.sources:
-                    self.linkdata[(u,d)]['from'] = self.intersections[u]['coords']
 
-                # Right-turn-target from (u,d)
-                o = self.linkdata[(u,d)]['turns_from'][-1]
-                vu, vd = self.intersections[u]['coords'], self.intersections[d]['coords']
-                dir0, n0 = self.linkdata[(u,d)]['dir'], self.linkdata[(u,d)]['nrm']
-                dir1, n1 = self.linkdata[(d,o)]['dir'], self.linkdata[(d,o)]['nrm']
+                # Right-turn-target from L
+                M = self.linkdata[L]['turns_from'][-1]
+                Lopp = self.linkdata[L]['opposite_link']
+                Mopp = self.linkdata[M]['opposite_link']
+
+                vu, vd = self.linkdata[L]['from'], self.linkdata[L]['to']
+                dir0, n0 = self.linkdata[L]['dir'], self.linkdata[L]['nrm']
+                dir1, n1 = self.linkdata[M]['dir'], self.linkdata[M]['nrm']
 
                 # Find the control points for the right-turn Bezier curves
                 # Shorten the links by the same amount in both travel directions
-                beta =  max(-alpha_ud[(u,d)], alpha_do[(d,u)]) + TURN_RADIUS_DELTA #(u,d) shortening
-                alpha = max(-alpha_ud[(o,d)], alpha_do[(d,o)]) + TURN_RADIUS_DELTA #(d,o) shortening
+                beta =  max(-alpha_in[L],    alpha_out[Lopp]) + TURN_RADIUS_DELTA #L shortening
+                alpha = max(-alpha_in[Mopp], alpha_out[M]) + TURN_RADIUS_DELTA #M shortening
 
                 # Right-turn Bezier control points
                 ctrl0 = vd - ROAD_WIDTH*n0 - beta*dir0
@@ -257,14 +289,14 @@ class TrafficVisualizer(StateViz):
                 # Correct the link lengths
                 # * Subtract TURN_RADIUS_DELTA
                 # * Avoid intersections
-                self.linkdata[(u,d)]['len'] -= beta
-                self.linkdata[(d,o)]['from'] = vd + alpha*dir1
-                self.linkdata[(d,o)]['len'] -= alpha
+                self.linkdata[L]['len'] -= beta
+                self.linkdata[M]['from'] = vd + alpha*dir1
+                self.linkdata[M]['len'] -= alpha
 
                 # Trace the path
-                F = self.linkdata[(u,d)].get('from', vu)
-                L = self.linkdata[(u,d)]['len']
-                p = F + L*dir0 - ROAD_HALF_MEDIAN_WIDTH*n0
+                F = self.linkdata[L].get('from', vu)
+                Llen = self.linkdata[L]['len']
+                p = F + Llen*dir0 - ROAD_HALF_MEDIAN_WIDTH*n0
                 if len(contour) == 0:
                     # Initializer
                     contour.append(p)
@@ -282,8 +314,8 @@ class TrafficVisualizer(StateViz):
                 contour.extend([ctrl0, ctrl1, ctrl2])
                 codes.extend([Path.LINETO, Path.CURVE3, Path.CURVE3])
 
-                (u,d) = (o,d)
-                if (u,d) == (u0,d0):
+                L = Mopp
+                if L == L0:
                     contour.append(np.array([0,0])) #ignored
                     codes.append(Path.CLOSEPOLY)
                     break
@@ -299,43 +331,42 @@ class TrafficVisualizer(StateViz):
         # register data for plotting the queues,
         # construct turning curve patches
         self.link_patches = {}
-        self.incoming_grid_patches = {}
         self.turn_patches = {}
-        for (u,d) in self.link_ids:
-            vu, vd = self.intersections[u]['coords'], self.intersections[d]['coords']
-            d0, n0 = self.linkdata[(u,d)]['dir'], self.linkdata[(u,d)]['nrm']
+        for L, Lv in self.linkdata.items():
+            vu, vd = Lv['from'], Lv['to']
+            d0, n0 = Lv['dir'], Lv['nrm']
             road = np.zeros(shape=(4,2))
-            L = self.linkdata[(u,d)]['len']
+            Llen = Lv['len']
 
             # Record the visual shrinking factor for visualizing queues
-            self.linkdata[(u,d)]['shrink'] = L/np.linalg.norm(vd-vu)
+            self.linkdata[L]['shrink'] = Llen/np.linalg.norm(vd-vu)
 
             # Create the link patch
-            road[0] = self.linkdata[(u,d)]['from'] - ROAD_HALF_MEDIAN_WIDTH*n0
-            road[1] = road[0] + L*d0
+            road[0] = vu - ROAD_HALF_MEDIAN_WIDTH*n0
+            road[1] = road[0] + Llen*d0
             road[2] = road[1] - ROAD_PAVED_WIDTH*n0
-            road[3] = road[2] - L*d0
-            self.link_patches[(u,d)] = plt.Polygon(road, color=RGBA_PAVEMENT_COLOR)
+            road[3] = road[2] - Llen*d0
+            self.link_patches[L] = plt.Polygon(road, color=RGBA_PAVEMENT_COLOR)
 
-            self.linkdata[(u,d)]['cell_len'] = L/self.linkdata[(u,d)]['num_cells']
-            self.linkdata[(u,d)]['queues_top_left'] = road[1]
+            self.linkdata[L]['cell_len'] = Llen/self.linkdata[L]['num_cells']
+            self.linkdata[L]['stopline_left'] = road[1]
 
-            for idx, o in enumerate(self.linkdata[(u,d)]['turns_from']):
+            for idx, M in enumerate(Lv['turns_from']):
                 # Turns are indexed left-to-right
-                d1, n1 = self.linkdata[(d,o)]['dir'], self.linkdata[(d,o)]['nrm']
+                d1, n1 = self.linkdata[M]['dir'], self.linkdata[M]['nrm']
 
                 # Turning curve patch
                 delta = (2+4*idx)*ROAD_DELTA
                 from_ = road[1] - delta*n0
-                to_ = self.linkdata[(d,o)]['from'] - (ROAD_HALF_MEDIAN_WIDTH+delta)*n1
+                to_ = self.linkdata[M]['from'] - (ROAD_HALF_MEDIAN_WIDTH+delta)*n1
                 ctrl1 = quad_bezier_middle_ctrl_pt(from_, to_, d0, d1)
                 path = Path([from_, ctrl1, to_], [Path.MOVETO, Path.CURVE3, Path.CURVE3])
                 patch = mpatches.PathPatch(
                     path,
-                    edgecolor=RGBA_GREEN_TURNING_COLOR,
+                    edgecolor=RGBA_GREEN_TURN_COLOR,
                     fill=False,
                     linewidth=2)
-                self.turn_patches[(u,d,o)] = patch
+                self.turn_patches[(L,M)] = patch
 
     def init_canvas(self, figure_size, dpi):
         fig = plt.figure(figsize=figure_size, dpi=dpi)
@@ -366,84 +397,72 @@ class TrafficVisualizer(StateViz):
         for link_patch in self.link_patches.values():
             ax.add_patch(copy(link_patch))
 
-        for d in self.TLs:
-            intersection_patch = self.intersections[d]['patch']
-            ax.add_patch(copy(intersection_patch))
+        for v in self.intersections.values():
+            ax.add_patch(copy(v['patch']))
 
     def build_states_layout(self, states, fig, ax):
 
-        for d in self.TLs:
-            if states[id('all-red', d)] > 0:
-                continue
-            cur_ph_idx = states[id('cur-ph-idx', d)]
-            cur_ph = self.phase_by_index_in_intersection[d][cur_ph_idx]
-            for t in self.green_turns_by_phase[cur_ph]:
+        for d in self.intersections:
+            signal = self.signal_phases[states[id('signal', d)]]
+            for t in self.green_turns_by_phase[signal]:
                 ax.add_patch(copy(self.turn_patches[t]))
 
+        for L, Lv in self.linkdata.items():
+            # If the link is not a sink, draw the total queue
+            # as well as the queue proportions by turning movement.
+            # (for a sink, there is no queue)
+            Q = states[id('qd', L)]
 
-        for d in self.TLs.union(self.sinks):
-            for (u,d) in self.intersections[d]['inc_links']:
-                ld = self.linkdata[(u,d)]
+            if L not in self.sinks and Q > 0:
+                Q_dist = (Q*self.veh_len/Lv['num_lanes']) * Lv['shrink']
+                Q_frontier_L = Lv['stopline_left'] - Q_dist*Lv['dir']
+                Q_frontier_R = Q_frontier_L - ROAD_PAVED_WIDTH*Lv['nrm']
 
-                # If downstream intersection is not a sink, draw the queue data
-                # (for a downstream sink, the queues are zero, so no need)
-                if not self._nonfluents[id('SINK', d)]:
-                    Q = states[id('qd', u,d)]
-                    Q_line = (Q*self.veh_len/ld['num_lanes']) * ld['shrink']
-                    Q_line_L = ld['queues_top_left'] - Q_line*ld['dir']
-                    Q_line_R = Q_line_L - ROAD_PAVED_WIDTH*ld['nrm']
-
-                    # Draw queue background patch
-                    Q_bg_patch = np.zeros(shape=(4,2))
-                    Q_bg_patch[0] = ld['queues_top_left']
-                    Q_bg_patch[1] = Q_bg_patch[0] - ROAD_PAVED_WIDTH*ld['nrm']
-                    Q_bg_patch[2] = Q_line_R
-                    Q_bg_patch[3] = Q_line_L
-                    patch = plt.Polygon(Q_bg_patch, facecolor=RGBA_Q_PATCH_COLOR, linewidth=0)
-                    ax.add_patch(patch)
-
-                    # Draw queue bars
-                    for idx, o in enumerate(ld['turns_from']):
-                        Q_turn = states[id('q', u,d,o)]
-                        Q_turn_height = (Q_turn/(Q+1e-6)) * Q_line
-                        Q_turn_bar = np.zeros(shape=(4,2))
-                        Q_turn_bar[0] = ld['queues_top_left'] - (1+4*idx)*ROAD_DELTA*ld['nrm']
-                        Q_turn_bar[1] = Q_turn_bar[0] - 2*ROAD_DELTA*ld['nrm']
-                        Q_turn_bar[2] = Q_turn_bar[1] - Q_turn_height*ld['dir']
-                        Q_turn_bar[3] = Q_turn_bar[2] + 2*ROAD_DELTA*ld['nrm']
-                        patch = plt.Polygon(Q_turn_bar, color=RGBA_Q_LINE_COLOR, linewidth=0)
-                        ax.add_patch(patch)
-                else:
-                    Q_line, Q_line_L, Q_line_R = 0, ld['queues_top_left'], ld['queues_top_left']-ROAD_PAVED_WIDTH*ld['nrm']
-
-                # Aggregate the incoming flows, depending on the type of u
-                num_cells_to_Q_line = max(ceil((ld['len'] - Q_line)/ld['cell_len']), 1)
-                if self._nonfluents[id('SOURCE', u)]:
-                    flows = tuple( states[id('Mlsrc', u,d,f't{t}')] for t in range(1, num_cells_to_Q_line+1))
-                else:
-                    flows = np.zeros(num_cells_to_Q_line+1)
-                    for t in range(1,num_cells_to_Q_line+1):
-                        for (i,u) in self.intersections[u]['inc_links']:
-                            if i != d:
-                                flows[t] += states[id('Ml', i,u,d,f't{t}')]
-
-                line_L, line_R = Q_line_L, Q_line_R
-                for t in range(1,num_cells_to_Q_line):
-                    flow = flows[t]
-                    next_line_L, next_line_R = line_L-ld['cell_len']*ld['dir'], line_R-ld['cell_len']*ld['dir']
-                    cell = np.array([line_L, line_R, next_line_R, next_line_L])
-                    color = get_fillcolor_by_density(flow, ARRIVING_RATE_SAT*ld['num_lanes'])
-                    patch = plt.Polygon(cell, linewidth=1, facecolor=color, edgecolor=RGBA_ARRIVING_CELL_BORDER_COLOR)
-                    ax.add_patch(patch)
-                    line_L, line_R = next_line_L, next_line_R
-                # Draw the last cell
-                flow = flows[-1]
-                remainder = ld['len'] - (ld['cell_len']*(num_cells_to_Q_line-1) + Q_line)
-                next_line_L, next_line_R = line_L-remainder*ld['dir'], line_R-remainder*ld['dir']
-                cell = np.array([line_L, line_R, next_line_R, next_line_L])
-                color = get_fillcolor_by_density(flow, ARRIVING_RATE_SAT*ld['num_lanes'])
-                patch = plt.Polygon(cell, linewidth=1, facecolor=color, edgecolor=RGBA_ARRIVING_CELL_BORDER_COLOR)
+                # Draw the total queue patch
+                Q_total_patch = np.zeros(shape=(4,2))
+                Q_total_patch[0] = Lv['stopline_left']
+                Q_total_patch[1] = Q_total_patch[0] - ROAD_PAVED_WIDTH*Lv['nrm']
+                Q_total_patch[2] = Q_frontier_R
+                Q_total_patch[3] = Q_frontier_L
+                patch = plt.Polygon(Q_total_patch, facecolor=RGBA_Q_PATCH_COLOR, linewidth=1)
                 ax.add_patch(patch)
+
+                # Draw the queue-proportions per individual turn
+                for idx, M in enumerate(Lv['turns_from']):
+                    Q_turn = states[id('q', L,M)]
+                    barlen = (Q_turn/Q) * Q_dist
+                    Q_turn_bar = np.zeros(shape=(4,2))
+                    Q_turn_bar[0] = Lv['stopline_left'] - (1+4*idx)*ROAD_DELTA*Lv['nrm']
+                    Q_turn_bar[1] = Q_turn_bar[0] - 2*ROAD_DELTA*Lv['nrm']
+                    Q_turn_bar[2] = Q_turn_bar[1] - barlen*Lv['dir']
+                    Q_turn_bar[3] = Q_turn_bar[2] + 2*ROAD_DELTA*Lv['nrm']
+                    patch = plt.Polygon(Q_turn_bar, color=RGBA_Q_LINE_COLOR, linewidth=0)
+                    ax.add_patch(patch)
+            else:
+                Q_dist, Q_frontier_L, Q_frontier_R = 0, Lv['stopline_left'], Lv['stopline_left'] - ROAD_PAVED_WIDTH*Lv['nrm']
+
+            # Plot the flows through the link
+            num_cells_in_use = math.ceil((Lv['len'] - Q_dist) / Lv['cell_len'])
+            frontier = np.array([Q_frontier_L, Q_frontier_R])
+            saturation_d = LINK_GRID_SAT_DENSITY * Lv['num_lanes']
+            for t in range(1, num_cells_in_use):
+                flow = states[id('flow-on-link', L,f't{t}')]
+                color = get_fillcolor_by_density(flow, saturation_d)
+                next_frontier = frontier - Lv['cell_len']*Lv['dir']
+                cell = np.array((frontier[0], frontier[1], next_frontier[1], next_frontier[0]))
+                patch = plt.Polygon(cell, linewidth=1, facecolor=color,
+                                    edgecolor=RGBA_ARRIVING_CELL_BORDER_COLOR)
+                ax.add_patch(patch)
+                frontier = next_frontier
+            # The last cell may be shorter
+            flow = states[id('flow-on-link', L,f't{num_cells_in_use}')]
+            color = get_fillcolor_by_density(flow, saturation_d)
+            delta = Lv['len'] - (Lv['cell_len']*(num_cells_in_use-1) + Q_dist)
+            next_frontier = frontier - delta*Lv['dir']
+            cell = np.array((frontier[0], frontier[1], next_frontier[1], next_frontier[0]))
+            patch = plt.Polygon(cell, linewidth=1, facecolor=color,
+                                edgecolor=RGBA_LINK_GRID_COLOR)
+            ax.add_patch(patch)
 
 
     def render(self, state):
@@ -456,5 +475,4 @@ class TrafficVisualizer(StateViz):
         img = self.convert2img(self._fig, self._ax)
         self._ax.cla()
         plt.close()
-
         return img

@@ -28,53 +28,77 @@ non-fluents isolated_intersection {
     non-fluents {
         // cartesian coordinates
         X(i0) = 0;    Y(i0) = 0;
-
-        // traffic lights
-        TL(i0)                 = true;
+        SOURCE-X(l0) = 150;    SOURCE-Y(l0) = 0;
+        SOURCE-X(l2) = 100;    SOURCE-Y(l2) = 100;
+        SOURCE-X(l4) = -150;   SOURCE-Y(l4) = 0;
+        SOURCE-X(l6) = -100;   SOURCE-Y(l6) = -100;
+        SINK-X(l7) = 150;    SINK-Y(l7) = 0;
+        SINK-X(l1) = 100;    SINK-Y(l1) = 100;
+        SINK-X(l3) = -150;   SINK-Y(l3) = 0;
+        SINK-X(l5) = -100;   SINK-Y(l5) = -100;
 
         // turns
-        TURN(l0,l1)            = true;
-        TURN(l0,l3)            = true;
-        TURN(l0,l5)            = true;
-        TURN(l2,l3)            = true;
-        TURN(l2,l5)            = true;
-        TURN(l2,l7)            = true;
-        TURN(l4,l5)            = true;
-        TURN(l4,l7)            = true;
-        TURN(l4,l1)            = true;
-        TURN(l6,l7)            = true;
-        TURN(l6,l1)            = true;
-        TURN(l6,l3)            = true;
+        TURN(l0,l1);
+        TURN(l0,l3);
+        TURN(l0,l5);
+        TURN(l2,l3);
+        TURN(l2,l5);
+        TURN(l2,l7);
+        TURN(l4,l5);
+        TURN(l4,l7);
+        TURN(l4,l1);
+        TURN(l6,l7);
+        TURN(l6,l1);
+        TURN(l6,l3);
 
         // link-to
-        LINK-TO(l0,i0)         = true;
-        LINK-TO(l2,i0)         = true;
-        LINK-TO(l4,i0)         = true;
-        LINK-TO(l6,i0)         = true;
+        LINK-TO(l0,i0);
+        LINK-TO(l2,i0);
+        LINK-TO(l4,i0);
+        LINK-TO(l6,i0);
 
         // link-from
-        LINK-FROM(i0,l1)       = true;
-        LINK-FROM(i0,l3)       = true;
-        LINK-FROM(i0,l5)       = true;
-        LINK-FROM(i0,l7)       = true;
+        LINK-FROM(i0,l1);
+        LINK-FROM(i0,l3);
+        LINK-FROM(i0,l5);
+        LINK-FROM(i0,l7);
 
         // source links
-        SOURCE(l0)             = true;
-        SOURCE(l2)             = true;
-        SOURCE(l4)             = true;
-        SOURCE(l6)             = true;
+        SOURCE(l0);
+        SOURCE(l2);
+        SOURCE(l4);
+        SOURCE(l6);
 
         // sink links
-        SINK(l1)               = true;
-        SINK(l3)               = true;
-        SINK(l5)               = true;
-        SINK(l7)               = true;
+        SINK(l1);
+        SINK(l3);
+        SINK(l5);
+        SINK(l7);
 
         // arrival rate from each source
         SOURCE-ARRIVAL-RATE(l0) = 0.5;
         SOURCE-ARRIVAL-RATE(l2) = 0.5;
         SOURCE-ARRIVAL-RATE(l4) = 0.5;
         SOURCE-ARRIVAL-RATE(l6) = 0.5;
+
+        // green turns
+        GREEN(l0,l5,@WEST-EAST-LEFT);
+        GREEN(l4,l1,@WEST-EAST-LEFT);
+
+        GREEN(l0,l3,@WEST-EAST-THROUGH);
+        GREEN(l4,l7,@WEST-EAST-THROUGH);
+
+        GREEN(l2,l7,@NORTH-SOUTH-LEFT);
+        GREEN(l6,l3,@NORTH-SOUTH-LEFT);
+
+        GREEN(l2,l5,@NORTH-SOUTH-THROUGH);
+        GREEN(l6,l1,@NORTH-SOUTH-THROUGH);
+
+        // right turns are always permitted
+        GREEN(l0,l1,@ALL-RED); GREEN(l0,l1,@WEST-EAST-LEFT); GREEN(l0,l1,@ALL-RED2); GREEN(l0,l1,@WEST-EAST-THROUGH); GREEN(l0,l1,@ALL-RED3); GREEN(l0,l1,@NORTH-SOUTH-LEFT); GREEN(l0,l1,@ALL-RED4); GREEN(l0,l1,@NORTH-SOUTH-THROUGH);
+        GREEN(l2,l3,@ALL-RED); GREEN(l2,l3,@WEST-EAST-LEFT); GREEN(l2,l3,@ALL-RED2); GREEN(l2,l3,@WEST-EAST-THROUGH); GREEN(l2,l3,@ALL-RED3); GREEN(l2,l3,@NORTH-SOUTH-LEFT); GREEN(l2,l3,@ALL-RED4); GREEN(l2,l3,@NORTH-SOUTH-THROUGH);
+        GREEN(l4,l5,@ALL-RED); GREEN(l4,l5,@WEST-EAST-LEFT); GREEN(l4,l5,@ALL-RED2); GREEN(l4,l5,@WEST-EAST-THROUGH); GREEN(l4,l5,@ALL-RED3); GREEN(l4,l5,@NORTH-SOUTH-LEFT); GREEN(l4,l5,@ALL-RED4); GREEN(l4,l5,@NORTH-SOUTH-THROUGH);
+        GREEN(l6,l7,@ALL-RED); GREEN(l6,l7,@WEST-EAST-LEFT); GREEN(l6,l7,@ALL-RED2); GREEN(l6,l7,@WEST-EAST-THROUGH); GREEN(l6,l7,@ALL-RED3); GREEN(l6,l7,@NORTH-SOUTH-LEFT); GREEN(l6,l7,@ALL-RED4); GREEN(l6,l7,@NORTH-SOUTH-THROUGH);
 
         // time delay properties
         TIME-HEAD(t0)           = true;
@@ -100,26 +124,26 @@ non-fluents isolated_intersection {
         TIME-VAL(t18)           = 18;
         TIME-VAL(t19)           = 19;
         TIME-VAL(t20)           = 20;
-        NEXT(t0,t1)             = true;
-        NEXT(t1,t2)             = true;
-        NEXT(t2,t3)             = true;
-        NEXT(t3,t4)             = true;
-        NEXT(t4,t5)             = true;
-        NEXT(t5,t6)             = true;
-        NEXT(t6,t7)             = true;
-        NEXT(t7,t8)             = true;
-        NEXT(t8,t9)             = true;
-        NEXT(t9,t10)            = true;
-        NEXT(t10,t11)           = true;
-        NEXT(t11,t12)           = true;
-        NEXT(t12,t13)           = true;
-        NEXT(t13,t14)           = true;
-        NEXT(t14,t15)           = true;
-        NEXT(t15,t16)           = true;
-        NEXT(t16,t17)           = true;
-        NEXT(t17,t18)           = true;
-        NEXT(t18,t19)           = true;
-        NEXT(t19,t20)           = true;
+        NEXT(t0,t1);
+        NEXT(t1,t2);
+        NEXT(t2,t3);
+        NEXT(t3,t4);
+        NEXT(t4,t5);
+        NEXT(t5,t6);
+        NEXT(t6,t7);
+        NEXT(t7,t8);
+        NEXT(t8,t9);
+        NEXT(t9,t10);
+        NEXT(t10,t11);
+        NEXT(t11,t12);
+        NEXT(t12,t13);
+        NEXT(t13,t14);
+        NEXT(t14,t15);
+        NEXT(t15,t16);
+        NEXT(t16,t17);
+        NEXT(t17,t18);
+        NEXT(t18,t19);
+        NEXT(t19,t20);
     };
 }
 

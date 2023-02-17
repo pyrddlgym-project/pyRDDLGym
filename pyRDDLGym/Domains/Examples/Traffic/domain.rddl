@@ -64,10 +64,6 @@ domain BLX_model {
         // average vehicle length in meters
         Lv                                                     :  { non-fluent, real, default = 5 };
 
-        // cartesian coordinates of an intersection
-        X(intersection)                                        :  { non-fluent, real, default = 0 };
-        Y(intersection)                                        :  { non-fluent, real, default = 0 };
-
 
         // number of lanes in link
         Nl(link)                                               :  { non-fluent, int, default = 3 };
@@ -76,26 +72,23 @@ domain BLX_model {
         Vl(link)                                               :  { non-fluent, real, default = 13.8 };
 
         // link length
-        Dl(link)                                               :  { non-fluent, real, default = 150.0 };
+        Dl(link)                                               :  { non-fluent, real, default = 150 };
+
+        // does the link end at the intersection?
+        LINK-TO(link, intersection)                            :  { non-fluent, bool, default = false };
+
+        // does the link begin at the intersection?
+        LINK-FROM(intersection, link)                          :  { non-fluent, bool, default = false };
 
         // is there a turn from link0 to link1?
         TURN(link, link)                                       :  { non-fluent, bool, default = false };
 
-        // is the link exit at the intersection?
-        LINK-TO(link, intersection)                            :  { non-fluent, bool, default = false };
-
-        // is the link entrance from the intersection?
-        LINK-FROM(intersection, link)                          :  { non-fluent, bool, default = false };
-
-        // saturation flow rate leaving turn (link0,link1) in veh/s
+        // saturated flow rate leaving turn (link0,link1) in veh/s
         MU(link, link)                                         :  { non-fluent, real, default = 1.2 };
 
         // fraction of the traffic turning from link0 to link1
         BETA(link, link)                                       :  { non-fluent, real, default = 0.33 };
 
-
-        // is the intersection signalized?
-        TL(intersection)                                       :  { non-fluent, bool, default = false };
 
         // phase constraints and properties
         PHASE-MIN(intersection)                                :  { non-fluent, int, default = 20 };
@@ -131,6 +124,14 @@ domain BLX_model {
         // time object to actual time delay index
         TIME-VAL(time)                                         :  { non-fluent, int, default = 1 };
 
+        // cartesian coordinates
+        X(intersection)                                        :  { non-fluent, real, default = 0 };
+        Y(intersection)                                        :  { non-fluent, real, default = 0 };
+        SOURCE-X(link)                                         :  { non-fluent, real, default = 0 };
+        SOURCE-Y(link)                                         :  { non-fluent, real, default = 0 };
+        SINK-X(link)                                           :  { non-fluent, real, default = 0 };
+        SINK-Y(link)                                           :  { non-fluent, real, default = 0 };
+
 
 
         //////////////////////////////
@@ -158,7 +159,7 @@ domain BLX_model {
 
 
         // number of cars leaving link0 and entering link1
-        turn-flow(link, link)                                  :  { interm-fluent, real };
+        flow-through-turn(link, link)                          :  { interm-fluent, real };
 
         // number of vehicles coming to end of queue on link
         queue-arrivals(link)                                   :  { interm-fluent, real };
@@ -167,10 +168,10 @@ domain BLX_model {
         src-arrivals(link)                                     :  { interm-fluent, real };
 
         // flow from source u into the network (taking into account storage and maximal inflow rate)
-        src-outflow(link)                                      :  { interm-fluent, real };
+        flow-from-source(link)                                 :  { interm-fluent, real };
 
         // number of vehicles entering link1, summed over all possible inflows
-        link-inflow(link)                                      :  { interm-fluent, real };
+        flow-into-link(link)                                   :  { interm-fluent, real };
 
         // advance action with enforced constraints
         constrained-advance(intersection)                      :  { interm-fluent, bool };
@@ -181,7 +182,7 @@ domain BLX_model {
         //////////////////////////////
 
         // flow of vehicles along a link, indexed by the number of time-steps before arrival to the end of queue
-        link-flow(link, time)                              :  { state-fluent, real, default = 0 };
+        flow-on-link(link, time)                           :  { state-fluent, real, default = 0 };
 
         // queue length in link0 waiting to turn to link1
         q(link, link)                                      :  { state-fluent, real, default = 0 };
@@ -224,7 +225,7 @@ domain BLX_model {
         ////////////////////////////////////
 
 
-        // derived fluent for the link capacity (remaining storage)
+        // derived fluent for the link capacity (total storage of the link)
         Cl(?u) = Dl(?u) * Nl(?u) / Lv;
 
         // time-delay variables update
@@ -233,11 +234,11 @@ domain BLX_model {
         gamma(?u) = offset(?u) - tau(?u);
 
         // number of vehicles arriving to the end of the queue at current time-step
-        queue-arrivals(?u) = [sum_{?t : time} (TIME-HEAD(?t) * link-flow(?u,?t))];
+        queue-arrivals(?u) = [sum_{?t : time} (TIME-HEAD(?t) * flow-on-link(?u,?t))];
 
         // number of vehicles leaving link0 and entering link1
-        turn-flow(?u,?d) = TURN(?u,?d)
-                            * (exists_{?i : intersection} [ LINK-TO(?u,?i) ^ LINK-FROM(?i,?d) ^ GREEN(?u,?d,signal(?i)) ])
+        flow-through-turn(?u,?d) = TURN(?u,?d)
+                            * (exists_{?i : intersection} [ LINK-TO(?u,?i) ^ GREEN(?u,?d,signal(?i)) ])
                             * max[ 0, min[ q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d),          // Undersaturated
                                            min [ BETA(?u,?d) * MU(?u,?d) * Ts,                 // Saturated
                                                  Cl(?d) - Nc(?d) ]]];                          // Oversaturated
@@ -246,14 +247,14 @@ domain BLX_model {
         src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
 
         // flow from source u into the network
-        src-outflow(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),                  // Undersaturated
-                                            min[ SOURCE-MU(?u),                                // Saturated
-                                                 Cl(?u) - Nc(?u) ]];                           // Oversaturated
+        flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),             // Undersaturated
+                                                 min[ SOURCE-MU(?u),                           // Saturated
+                                                      Cl(?u) - Nc(?u) ]];                      // Oversaturated
 
 
         // number of vehicles entering link d, summed over all possible inflows
-        link-inflow(?d) =   SOURCE(?d)       * src-outflow(?d)
-                          + (1 - SOURCE(?d)) * [sum_{?u : link} ( turn-flow(?u,?d) )];
+        flow-into-link(?d) =   SOURCE(?d)       * flow-from-source(?d)
+                             + (1 - SOURCE(?d)) * [sum_{?u : link} ( flow-through-turn(?u,?d) )];
 
 
         // signal-phase action: handle the cases when the action is forced by the constraints
@@ -269,21 +270,21 @@ domain BLX_model {
         // State space evolution
         ////////////////////////////////////
 
-        link-flow'(?u,?t) =
-            (TIME-VAL(?t) == tau(?u))     * (1 - gamma(?u)) * link-inflow(?u)
-          + (TIME-VAL(?t) == (tau(?u)+1)) * gamma(?u)       * link-inflow(?u)
-          + (sum_{?t2 : time} [ NEXT(?t,?t2) * link-flow(?u,?t2) ]);
+        flow-on-link'(?u,?t) =
+            (TIME-VAL(?t) == tau(?u))     * (1 - gamma(?u)) * flow-into-link(?u)
+          + (TIME-VAL(?t) == (tau(?u)+1)) * gamma(?u)       * flow-into-link(?u)
+          + (sum_{?t2 : time} [ NEXT(?t,?t2) * flow-on-link(?u,?t2) ]);
 
-        virtual-q'(?u) = virtual-q(?u) + src-arrivals(?u) - src-outflow(?u);
+        virtual-q'(?u) = virtual-q(?u) + src-arrivals(?u) - flow-from-source(?u);
             
-        q'(?u,?d) = [q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d) - turn-flow(?u,?d)] * TURN(?u,?d);
+        q'(?u,?d) = [q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d) - flow-through-turn(?u,?d)] * TURN(?u,?d);
 
-        qd'(?u) = (sum_{?d : link}[q(?u,?d)]);
+        qd'(?u) = (sum_{?d : link} [q(?u,?d)]);
 
         Nc'(?u) =
             Nc(?u)
-            + link-inflow(?u)
-            - (1 - SINK(?u)) * (sum_{?d : link}[turn-flow(?u,?d)])
+            + flow-into-link(?u)
+            - (1 - SINK(?u)) * (sum_{?d : link}[flow-through-turn(?u,?d)])
             - SINK(?u)       *  queue-arrivals(?u);
 
         signal'(?i) = if (constrained-advance(?i)) then
@@ -311,6 +312,8 @@ domain BLX_model {
         0 < Lv;
 
         forall_{?u : link} [ SOURCE(?u) => (virtual-q(?u) >= 0) ];
+        forall_{?u : link, ?d : link} [ q(?u,?d) >= 0 ];
+        forall_{?i : intersection} [ (0 <= signal-t(?i)) ^ (signal-t(?i) < (PHASE-MAX(?i)+Ts)) ];
     };
 
 }
