@@ -431,7 +431,6 @@ class TrafficVisualizer(StateViz):
                 for idx, M in enumerate(Lv['turns_from']):
                     Q_turn = states[id('q', L,M)]
                     barlen = (Q_turn/Q) * Q_dist
-                    print(Q_turn/Q, Q_turn, Q, L, M)
                     Q_turn_bar = np.zeros(shape=(4,2))
                     Q_turn_bar[0] = Lv['stopline_left'] - (1+4*idx)*ROAD_DELTA*Lv['nrm']
                     Q_turn_bar[1] = Q_turn_bar[0] - 2*ROAD_DELTA*Lv['nrm']
@@ -439,7 +438,6 @@ class TrafficVisualizer(StateViz):
                     Q_turn_bar[3] = Q_turn_bar[2] + 2*ROAD_DELTA*Lv['nrm']
                     patch = plt.Polygon(Q_turn_bar, color=RGBA_Q_LINE_COLOR, linewidth=0)
                     ax.add_patch(patch)
-                print('=====')
             else:
                 Q_dist, Q_frontier_L, Q_frontier_R = 0, Lv['stopline_left'], Lv['stopline_left'] - ROAD_PAVED_WIDTH*Lv['nrm']
 
