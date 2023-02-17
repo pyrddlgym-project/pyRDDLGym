@@ -255,8 +255,9 @@ domain BLX_model {
 
 
         // signal-phase action: handle the cases when the action is forced by the constraints
-        constrained-advance(?i) = if ( signal(?i) == @ALL-RED | signal(?i) == @ALL-RED2 | signal(?i) == @ALL-RED3 | signal(?i) == @ALL-RED4 ) then (
-                                     signal-t(?i) >= (PHASE-ALL-RED-DUR(?i)-1)
+        constrained-advance(?i) = if ( signal(?i) == @ALL-RED | signal(?i) == @ALL-RED2 | signal(?i) == @ALL-RED3 | signal(?i) == @ALL-RED4 )
+                                  then (
+                                     signal-t(?i) >= (PHASE-ALL-RED-DUR(?i) - 1)
                                   )
                                   else if (signal-t(?i) < PHASE-MIN(?i)) then false
                                   else if (signal-t(?i) >= PHASE-MAX(?i)) then true
