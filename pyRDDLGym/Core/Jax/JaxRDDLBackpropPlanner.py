@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 import jax.nn.initializers as initializers
+import matplotlib.pyplot as plt
 import numpy as np
 import optax
 from typing import Callable, Dict, Iterable, Set, Tuple
@@ -402,7 +403,7 @@ class JaxRDDLBackpropPlanner:
         # Jax compilation of the differentiable RDDL for training
         self.compiled = JaxRDDLCompilerWithGrad(
             rddl=rddl,
-            logic=self.logic, 
+            logic=self.logic,
             cpfs_without_grad=self.cpfs_without_grad)
         self.compiled.compile()
         
@@ -592,13 +593,15 @@ class JaxRDDLBackpropPlanner:
 
 
 class JaxRDDLModelError:
+    '''Assists in the analysis of model error that arises from replacing exact
+    operations with fuzzy logic.
+    '''
 
     def __init__(self, rddl: RDDLLiftedModel,
                  test_policy: Callable,
                  batch_size: int,
                  rollout_horizon: int=None,
-                 logic: FuzzyLogic=FuzzyLogic(),
-                 statistic=jnp.mean) -> None:
+                 logic: FuzzyLogic=FuzzyLogic()) -> None:
         '''Creates a new instance to empirically estimate the model error.
         
         :param rddl: the RDDL domain to optimize
@@ -616,7 +619,6 @@ class JaxRDDLModelError:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
         self.logic = logic
-        self.statistic = statistic
         
         self._jax_compile()
     
@@ -624,7 +626,6 @@ class JaxRDDLModelError:
         rddl = self.rddl
         n_batch = self.batch_size
         test_policy = self.test_policy
-        stat = self.statistic
         
         # Jax compilation of the differentiable RDDL for training
         self.train_compiled = JaxRDDLCompilerWithGrad(
@@ -640,7 +641,7 @@ class JaxRDDLModelError:
         def _jax_wrapped_train_policy(key, params, step, subs):
             test_actions = test_policy(key, params, step, subs)
             train_actions = jax.tree_map(
-                lambda x: x.astype(JaxRDDLCompiler.REAL), 
+                lambda x: x.astype(JaxRDDLCompiler.REAL),
                 test_actions
             )
             return train_actions
@@ -669,7 +670,7 @@ class JaxRDDLModelError:
                 test_subs[next_state] = test_subs[state]
             return train_subs, test_subs
         
-        def _jax_wrapped_average_model_error(key, params, subs):
+        def _jax_wrapped_simulate_particles(key, params, subs):
             
             # train and test subs differ only in data type
             train_subs, test_subs = _jax_wrapped_batched_subs(subs)
@@ -685,29 +686,92 @@ class JaxRDDLModelError:
             test_pvars['reward'] = test_log['reward']
             
             # compute the Euclidean distance between fluent values per particle 
-            metrics = {'train': {}, 'test': {}, 'error': {}}
+            train_fluents, test_fluents = {}, {}
             for (name, train_values) in train_pvars.items():
-                if name == 'reward' or \
-                (rddl.variable_types[name] not in {'non-fluent', 'action-fluent'} \
-                and name not in rddl.prev_state):
-                    test_values = test_pvars[name]
-                    metrics['train'][name] = train_values
-                    metrics['test'][name] = test_values
-                    train_values = train_values.astype(JaxRDDLCompiler.REAL)
-                    test_values = test_values.astype(JaxRDDLCompiler.REAL)
-                    model_diff = test_values - train_values
-                    if len(model_diff.shape) == 2:
-                        norm = jnp.abs(model_diff)
-                    else:
-                        non_batch_axes = tuple(range(2, len(model_diff.shape)))
-                        norm = jnp.linalg.norm(model_diff, axis=non_batch_axes)
-                    metrics['error'][name] = stat(norm, axis=0)
-            return metrics
+                if name == 'reward' or (
+                    rddl.variable_types[name] != 'non-fluent'
+                    and rddl.variable_types[name] != 'action-fluent'
+                    and name not in rddl.prev_state
+                ):
+                    train_fluents[name] = train_values
+                    test_fluents[name] = test_pvars[name]
+            return train_fluents, test_fluents
         
-        self.metric = jax.jit(_jax_wrapped_average_model_error)
+        self.simulation = jax.jit(_jax_wrapped_simulate_particles)
     
-    def estimate_error(self, key: random.PRNGKey, params: Dict, subs: Dict=None):
+    def summarize(self, key: random.PRNGKey, params: Dict, subs: Dict=None,
+                  filename: str='summary.pdf', figsize=(6, 3)):
+        
+        # get train and test particles
         if subs is None:
             subs = self.test_compiled.init_values
-        return self.metric(key, params, subs)
+        train_fluents, test_fluents = self.simulation(key, params, subs)
+        
+        # figure out # of plots required to plot each fluent component separately
+        sizes = {name: np.prod(value.shape[2:], dtype=int)
+                 for (name, value) in train_fluents.items()}
+        num_plots = sum(sizes.values())
+        
+        # subplots arranged in a square grid
+        dim = np.floor(np.sqrt(num_plots)).astype(int) + 1
+        w, h = figsize
+        fig, axs = plt.subplots(nrows=dim, ncols=dim, figsize=(w * dim, h * dim))
+        
+        # plot each fluent component
+        ix, iy = 0, 0
+        for (name, train_value) in train_fluents.items():
+            test_value = test_fluents[name]
+            
+            # calculate statistics for fluent
+            train_value = train_value.reshape(*train_value.shape[:2], -1, order='C')
+            test_value = test_value.reshape(*test_value.shape[:2], -1, order='C')
+            train_mean = np.mean(train_value, axis=0)
+            test_mean = np.mean(test_value, axis=0)
+            train_std = np.std(train_value, axis=0)
+            test_std = np.std(test_value, axis=0)     
+            
+            grounded_names = list(self.rddl.ground_names(
+                name, self.rddl.param_types.get(name, [])))
+            assert len(grounded_names) == sizes[name]
+            
+            # plot each component j of fluent on a separate plot
+            for j in range(sizes[name]):
+                
+                # show mean
+                xs = np.arange(train_mean.shape[0])
+                axs[iy, ix].plot(xs, train_mean[:, j], label='approx mean', 
+                                 color='blue')
+                axs[iy, ix].plot(xs, test_mean[:, j], label='true mean', 
+                                 linestyle='dashed', color='black')
+                
+                # show two standard deviations spread
+                axs[iy, ix].fill_between(xs, train_mean[:, j] - 2 * train_std[:, j],
+                                         train_mean[:, j] + 2 * train_std[:, j],
+                                         color='blue', alpha=0.15)
+                axs[iy, ix].fill_between(xs, test_mean[:, j] - 2 * test_std[:, j],
+                                         test_mean[:, j] + 2 * test_std[:, j],
+                                         color='black', alpha=0.15)
+                
+                axs[iy, ix].legend()
+                axs[iy, ix].set_xlabel('epoch')
+                axs[iy, ix].set_ylabel(grounded_names[j])
+                
+                # move to the next plot
+                ix += 1
+                if ix >= dim:
+                    ix = 0
+                    iy += 1
+        
+        # blank out unused axes
+        while iy < dim:
+            axs[iy, ix].set_axis_off()
+            ix += 1
+            if ix >= dim:
+                ix = 0
+                iy += 1
+            
+        plt.tight_layout()
+        fig.savefig(filename)
+        plt.clf()
+        plt.close(fig)
         
