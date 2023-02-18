@@ -30,16 +30,21 @@ def get(path: str) -> Dict[str, object]:
     myEnv = RDDLEnv(**env_args)
     myEnv.set_visualizer(EnvInfo.get_visualizer())
     
+    # read the model settings
+    model_args = {k: args[k] for (k, v) in config.items('Model')}
+    member = getattr(JaxRDDLLogic, model_args['membership'])(**model_args['membership_kwargs'])
+    tnorm = getattr(JaxRDDLLogic, model_args['tnorm'])(**model_args['tnorm_kwargs'])
+    logic = getattr(JaxRDDLLogic, model_args['logic'])(membership=member, tnorm=tnorm, **model_args['logic_kwargs'])
+    
     # read the optimizer settings
     opt_args = {k: args[k] for (k, v) in config.items('Optimizer')}
     opt_args['rddl'] = myEnv.model
     opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, opt_args['method'])(**opt_args['method_kwargs'])
     opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(**opt_args['optimizer_kwargs'])
-    opt_args['logic'] = getattr(JaxRDDLLogic, opt_args['logic'])(**opt_args['logic_kwargs'])
+    opt_args['logic'] = logic
     del opt_args['method']
     del opt_args['method_kwargs']
     del opt_args['optimizer_kwargs']
-    del opt_args['logic_kwargs']
     optimizer = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**opt_args)
     
     # read the train/test arguments
