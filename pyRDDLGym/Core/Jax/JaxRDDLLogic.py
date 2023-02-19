@@ -1,35 +1,79 @@
 import jax
 import jax.numpy as jnp
 import jax.random as random
-import math
 import warnings
 
+DEFAULT_WEIGHT = 10.0
 
+
+class MembershipFunction:
+    
+    def __call__(self, x, c):
+        raise NotImplementedError
+
+
+class SigmoidMembershipFunction(MembershipFunction):
+    
+    def __init__(self, weight: float=DEFAULT_WEIGHT):
+        self.weight = weight
+        
+    def __call__(self, x, c):
+        return jax.nn.sigmoid(self.weight * (x - c))
+
+
+class TNorm:
+    
+    def norm(self, x, y):
+        raise NotImplementedError
+    
+    def norms(self, x, axis):
+        raise NotImplementedError
+        
+
+class ProductTNorm(TNorm):
+    
+    def norm(self, x, y):
+        return x * y
+    
+    def norms(self, x, axis):
+        return jnp.prod(x, axis=axis)
+
+    
 class FuzzyLogic:
-    '''A class representing fuzzy logic in JAX using the product t-norm. 
-    Override this class directly to override its functionality.
+    '''A class representing fuzzy logic in JAX.
+    
+    Functionality can be customized by either providing a membership or tnorm
+    as parameters, or by overriding its methods.
     '''
     
-    def __init__(self, sigmoid_weight: float=10.0):
+    def __init__(self, membership: MembershipFunction=SigmoidMembershipFunction(),
+                 tnorm: TNorm=ProductTNorm(),
+                 weight: float=DEFAULT_WEIGHT,
+                 eps: float=1e-12):
         '''Creates a new fuzzy logic in Jax.
         
-        :param sigmoid_weight: how concentrated the sigmoids should be;
-        this is currently used to convert relational (e.g. <=, ==) operations
-        to probabilities; higher values mean sharper values that fall off faster
+        :param membership: membership function for doing fuzzy comparison
+        :param tnorm: t-norm for doing fuzzy boolean logic
+        :param weight: a concentration parameter (larger means better accuracy)
+        :param eps: small positive float to mitigate underflow
         '''
-        self._w = sigmoid_weight
-        self._normalizer = math.tanh(0.25 * self._w)
+        self.membership = membership
+        self.tnorm = tnorm
+        self.weight = weight
+        self.eps = eps
         
     # ===========================================================================
     # logical operators
     # ===========================================================================
      
     def And(self, a, b):
-        warnings.warn('Using the replacement rule: a ^ b --> a * b.', stacklevel=2)
-        return a * b
+        warnings.warn('Using the replacement rule: '
+                      'a ^ b --> tnorm(a, b).', stacklevel=2)
+        return self.tnorm.norm(a, b)
     
     def Not(self, x):
-        warnings.warn('Using the replacement rule: ~a --> 1 - a', stacklevel=2)
+        warnings.warn('Using the replacement rule: '
+                      '~a --> 1 - a', stacklevel=2)
         return 1.0 - x
     
     def Or(self, a, b):
@@ -45,9 +89,9 @@ class FuzzyLogic:
         return self.And(self.implies(a, b), self.implies(b, a))
     
     def forall(self, x, axis=None):
-        warnings.warn('Using the replacement rule: forall(a) --> prod(a)',
-                      stacklevel=2)
-        return jnp.prod(x, axis=axis)
+        warnings.warn('Using the replacement rule: '
+                      'forall(a) --> tnorm(a)', stacklevel=2)
+        return self.tnorm.norms(x, axis=axis)
     
     def exists(self, x, axis=None):
         return self.Not(self.forall(self.Not(x), axis=axis))
@@ -56,27 +100,15 @@ class FuzzyLogic:
     # comparison operators
     # ===========================================================================
      
-    def equal(self, a, b):
-        warnings.warn('Using the replacement rule: '
-                      'a == b --> sigmoid(a - b + 0.5) - sigmoid(a - b - 0.5)',
-                      stacklevel=2)
-        expr = a - b
-        p1 = jax.nn.sigmoid(self._w * (expr + 0.5))
-        p2 = jax.nn.sigmoid(self._w * (expr - 0.5))
-        return (p1 - p2) / self._normalizer
-    
-    def notEqual(self, a, b):
-        return self.Not(self.equal(a, b))
-    
     def greaterEqual(self, a, b):
-        warnings.warn('Using the replacement rule: a >= b --> sigmoid(a - b)',
-                      stacklevel=2)
-        return jax.nn.sigmoid(self._w * (a - b))
+        warnings.warn('Using the replacement rule: '
+                      'a >= b --> membership(a, b)', stacklevel=2)
+        return self.membership(a, b)
     
     def greater(self, a, b):
-        warnings.warn('Using the replacement rule: a > b --> sigmoid(a - b)',
-                      stacklevel=2)
-        return self.greaterEqual(a, b)
+        warnings.warn('Using the replacement rule: '
+                      'a > b --> membership(a, b)', stacklevel=2)
+        return self.membership(a, b)
     
     def less(self, a, b):
         return self.Not(self.greaterEqual(a, b))
@@ -84,11 +116,37 @@ class FuzzyLogic:
     def lessEqual(self, a, b):
         return self.Not(self.greater(a, b))
     
+    def equal(self, a, b):
+        warnings.warn('Using the replacement rule: '
+                      'a == b --> membership(a, b - 0.5) - membership(a, b + 0.5)',
+                      stacklevel=2)
+        diff = self.membership(a, b - 0.5) - self.membership(a, b + 0.5)
+        scale = self.membership(0, -0.5) - self.membership(0, +0.5)
+        return diff / scale
+    
+    def notEqual(self, a, b):
+        return self.Not(self.equal(a, b))
+    
     # ===========================================================================
-    # aggregations
+    # special functions
     # ===========================================================================
      
-    def _literal_array(self, shape):
+    def signum(self, x):
+        warnings.warn('Using the replacement rule: '
+                      'signum(x) --> tanh(x)', stacklevel=2)
+        return jnp.tanh(self.weight * x)
+    
+    def sqrt(self, x):
+        warnings.warn('Using the replacement rule: '
+                      'sqrt(x) --> sqrt(x + eps)', stacklevel=2)
+        return jnp.sqrt(x + self.eps)
+    
+    # ===========================================================================
+    # control flow
+    # ===========================================================================
+     
+    @staticmethod
+    def _literals(shape):
         num_values, *shape_batch = shape
         literals = jnp.arange(num_values)
         literals = literals[(...,) + (jnp.newaxis,) * len(shape_batch)]
@@ -97,20 +155,16 @@ class FuzzyLogic:
         
     def argmax(self, x, axis):
         warnings.warn('Using the replacement rule: '
-                      f'argmax(x) --> sum(i * softmax(x[i]))',
-                      stacklevel=2)
-        prob = jax.nn.softmax(self._w * x, axis=axis)
-        prob = jnp.moveaxis(prob, source=axis, destination=0)
-        literals = self._literal_array(prob.shape)
-        return jnp.sum(literals * prob, axis=0)
+                      f'argmax(x) --> sum(i * softmax(x[i]))', stacklevel=2)
+        prob_max = jax.nn.softmax(self.weight * x, axis=axis)
+        prob_max = jnp.moveaxis(prob_max, source=axis, destination=0)
+        literals = FuzzyLogic._literals(prob_max.shape)
+        sample = jnp.sum(literals * prob_max, axis=0)
+        return sample
     
     def argmin(self, x, axis):
         return self.argmax(-x, axis)
     
-    # ===========================================================================
-    # control flow
-    # ===========================================================================
-     
     def If(self, c, a, b):
         warnings.warn('Using the replacement rule: '
                       'if c then a else b --> c * a + (1 - c) * b', stacklevel=2)
@@ -118,23 +172,13 @@ class FuzzyLogic:
     
     def Switch(self, pred, cases):
         warnings.warn('Using the replacement rule: '
-                      'switch(pred) { cond... } --> sum((pred == i) * cond[i])', 
-                      stacklevel=2)
-        pred = pred[jnp.newaxis, ...]
-        pred = jnp.broadcast_to(pred, shape=cases.shape)    
-        literals = self._literal_array(cases.shape)
-        prob = self.equal(pred, literals)
-        return jnp.sum(cases * prob, axis=0)
-    
-    def signum(self, x):
-        warnings.warn('Using the replacement rule: signum(x) --> tanh(x)',
-                      stacklevel=2)
-        return jnp.tanh(self._w * x)
-    
-    def sqrt(self, x):
-        warnings.warn('Using the replacement rule: sqrt(x) --> sqrt(x + eps)',
-                      stacklevel=2)
-        return jnp.sqrt(x + 1e-12)
+                      'switch(pred) { cond } --> sum(cond[i] * membership(pred, i))',
+                      stacklevel=2)    
+        pred = jnp.broadcast_to(pred[jnp.newaxis, ...], shape=cases.shape)
+        literals = FuzzyLogic._literals(cases.shape)
+        membership = self.equal(pred, literals)
+        sample = jnp.sum(cases * membership, axis=0)
+        return sample
     
     # ===========================================================================
     # random variables
@@ -142,32 +186,31 @@ class FuzzyLogic:
      
     def _gumbel_softmax(self, key, prob):
         Gumbel01 = random.gumbel(key=key, shape=prob.shape)
-        clipped_dist = jnp.maximum(prob, 1e-12)
-        sample = self._w * (Gumbel01 + jnp.log(clipped_dist))
+        clipped_prob = jnp.maximum(prob, self.eps)
+        sample = self.weight * (Gumbel01 + jnp.log(clipped_prob))
+        sample = jax.nn.softmax(sample, axis=-1)
         return sample
         
     def bernoulli(self, key, prob):
         warnings.warn('Using the replacement rule: '
-                      'Bernoulli(p) --> Gumbel-softmax', stacklevel=2)
+                      'Bernoulli(p) --> Gumbel-softmax(p)', stacklevel=2)
         prob = jnp.stack([prob, 1.0 - prob], axis=-1)
         sample = self._gumbel_softmax(key, prob)
-        sample = jax.nn.softmax(sample, axis=-1)[..., 0]     
-        return sample
+        return sample[..., 0]
     
     def discrete(self, key, prob):
         warnings.warn('Using the replacement rule: '
-                      'Discrete(p) --> Gumbel-softmax', stacklevel=2)
+                      'Discrete(p) --> Gumbel-softmax(p)', stacklevel=2)
         sample = self._gumbel_softmax(key, prob)
-        sample = jax.nn.softmax(sample, axis=-1)
-        *shape_batch, num_values = prob.shape
-        indices = jnp.arange(num_values)
+        * shape_batch, num_categories = prob.shape
+        indices = jnp.arange(num_categories)
         indices = indices[(jnp.newaxis,) * len(shape_batch) + (...,)]
         sample = jnp.sum(sample * indices, axis=-1)
         return sample
         
     
 if __name__ == '__main__':
-    logic = FuzzyLogic(10)
+    logic = FuzzyLogic()
     
     # https://towardsdatascience.com/emulating-logical-gates-with-a-neural-network-75c229ec4cc9
     def test_logic(x1, x2):
