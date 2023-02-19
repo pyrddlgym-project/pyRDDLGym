@@ -235,7 +235,8 @@ domain BLX_model {
 
         // number of vehicles leaving link0 and entering link1
         flow-through-turn(?u,?d) = TURN(?u,?d)
-                            * (exists_{?i : intersection} [ LINK-TO(?u,?i) ^ GREEN(?u,?d,signal(?i)) ])
+                            * (exists_{?i : intersection, ?p : signal-phase}
+                                   [ LINK-TO(?u,?i) ^ GREEN(?u,?d,?p) ^ (signal(?i) == ?p) ])
                             * max[ 0, min[ q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d),          // Undersaturated
                                            min [ BETA(?u,?d) * MU(?u,?d) * Ts,                 // Saturated
                                                  Cl(?d) - Nc(?d) ]]];                          // Oversaturated
@@ -244,6 +245,7 @@ domain BLX_model {
         src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
 
         // flow from source u into the network
+        // may not equal src-arrivals due to vehicles previously held in virtual queue
         flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),             // Undersaturated
                                                  min[ SOURCE-MU(?u),                           // Saturated
                                                       Cl(?u) - Nc(?u) ]];                      // Oversaturated
@@ -255,8 +257,12 @@ domain BLX_model {
 
 
         // signal-phase action: handle the cases when the action is forced by the constraints
-        constrained-advance(?i) = if ( signal(?i) == @ALL-RED | signal(?i) == @ALL-RED2 | signal(?i) == @ALL-RED3 | signal(?i) == @ALL-RED4 )
+        constrained-advance(?i) = if (   signal(?i) == @ALL-RED
+                                       | signal(?i) == @ALL-RED2
+                                       | signal(?i) == @ALL-RED3
+                                       | signal(?i) == @ALL-RED4 )
                                   then (
+                                     // advance iff the all-red duration is done
                                      signal-t(?i) >= (PHASE-ALL-RED-DUR(?i) - 1)
                                   )
                                   else if (signal-t(?i) < PHASE-MIN(?i)) then false
@@ -299,13 +305,15 @@ domain BLX_model {
         signal-t'(?i) = if (constrained-advance(?i)) then 0 else (signal-t(?i) + Ts);
     };
 
+    // total travel time: 
     // minus number of cars in the network
     // minus all virtual queues at source links
-    reward = - ( sum_{?u : link} [ Nc(?u) + SOURCE(?u)*virtual-q(?u) ] );
+    reward = - ( sum_{?u : link} [ (Nc(?u) + SOURCE(?u)*virtual-q(?u)) * Ts ] );
 
     state-invariants {
         1 <= Ts;
         0 < Lv;
+        forall_{?u : link, ?d : link, ?i : intersection} [ (LINK-TO(?u,?i) ^ TURN(?u,?d)) => LINK-FROM(?i,?d) ];
 
         forall_{?u : link} [ SOURCE(?u) => (virtual-q(?u) >= 0) ];
         forall_{?u : link, ?d : link} [ q(?u,?d) >= 0 ];
