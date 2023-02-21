@@ -1,3 +1,4 @@
+import cv2
 import glob
 import os
 from PIL import Image
@@ -13,7 +14,8 @@ class MovieGenerator:
                  skip: int=1,
                  frame_duration: int=50,
                  loop: int=0, 
-                 save_format: str='png'):
+                 save_format: str='png',
+                 save_as_video: bool=False):
         '''Creates a new movie generator for saving frames to disk, and creating animated GIFs.
         
         :param save_dir: the directory to save images to
@@ -23,6 +25,7 @@ class MovieGenerator:
         :param frame_duration: the duration of each frame in the animated GIF
         :param loop: how many times the animated GIF should loop
         :param save_format: the format in which to save individual frames
+        :param save_as_video: whether to save video (True) or animated GIF (False)
         '''
         self.save_dir = save_dir
         self.save_path = os.path.join(save_dir, env_name + '_{}' + '.' + save_format)
@@ -31,6 +34,7 @@ class MovieGenerator:
         self.skip = skip
         self.frame_duration = frame_duration
         self.loop = loop
+        self.save_as_video = save_as_video
         
         self._n_frame = 0
         self._time = 0
@@ -62,6 +66,13 @@ class MovieGenerator:
         self._n_frame += 1 
         self._time += 1
     
+    def save_animation(self, file_name: str=None):
+        if self.save_as_video:
+            self.save_video(file_name)
+        else:
+            self.save_gif(file_name)
+        self.reset()
+            
     def save_gif(self, file_name: str=None):
         if file_name is None:
             file_name = self.env_name
@@ -76,6 +87,22 @@ class MovieGenerator:
                         append_images=images,
                         save_all=True,
                         duration=self.frame_duration,
-                        loop=self.loop)
+                        loop=self.loop)  
         
-        self.reset()
+    def save_video(self, file_name: str=None):
+        if file_name is None:
+            file_name = self.env_name
+        load_path = self.save_path.format('*')
+        images = glob.glob(load_path)
+        
+        writer, w, h = None, None, None
+        for file in images:
+            frame = cv2.imread(file)
+            if w is None:
+                h, w, _ = frame.shape
+                fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+                writer = cv2.VideoWriter(file_name + '.mp4', fourcc, 15, (w, h))
+            for _ in range(15):
+                writer.write(frame)
+        if writer is not None:
+            writer.release()
