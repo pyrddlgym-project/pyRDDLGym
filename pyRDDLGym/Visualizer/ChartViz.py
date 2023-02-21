@@ -83,12 +83,10 @@ class ChartVisualizer(StateViz):
             self._state_hist[name][:, index] = np.ravel(values, order='C')
             
         # draw color plots
-        self._fig, self._ax = plt.subplots(
-            len(self._state_hist), 1,
-            squeeze=True,
-            figsize=self._figure_size,
-            sharex=True
-        ) 
+        self._fig, self._ax = plt.subplots(len(self._state_hist), 1,
+                                           squeeze=True,
+                                           figsize=self._figure_size,
+                                           sharex=True) 
         if len(self._state_hist) == 1:
             self._ax = (self._ax,)
             
