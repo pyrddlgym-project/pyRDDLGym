@@ -17,7 +17,7 @@ class SigmoidMembershipFunction(MembershipFunction):
     def __init__(self, weight: float=DEFAULT_WEIGHT):
         self.weight = weight
         
-    def __call__(self, x, c):
+    def __call__(self, x, c, strict):
         return jax.nn.sigmoid(self.weight * (x - c))
 
 
@@ -103,12 +103,12 @@ class FuzzyLogic:
     def greaterEqual(self, a, b):
         warnings.warn('Using the replacement rule: '
                       'a >= b --> membership(a, b)', stacklevel=2)
-        return self.membership(a, b)
+        return self.membership(a, b, False)
     
     def greater(self, a, b):
         warnings.warn('Using the replacement rule: '
                       'a > b --> membership(a, b)', stacklevel=2)
-        return self.membership(a, b)
+        return self.membership(a, b, True)
     
     def less(self, a, b):
         return self.Not(self.greaterEqual(a, b))
@@ -120,8 +120,8 @@ class FuzzyLogic:
         warnings.warn('Using the replacement rule: '
                       'a == b --> membership(a, b - 0.5) - membership(a, b + 0.5)',
                       stacklevel=2)
-        diff = self.membership(a, b - 0.5) - self.membership(a, b + 0.5)
-        scale = self.membership(0, -0.5) - self.membership(0, +0.5)
+        diff = self.membership(a, b - 0.5, False) - self.membership(a, b + 0.5, False)
+        scale = self.membership(0, -0.5, False) - self.membership(0, +0.5, False)
         return diff / scale
     
     def notEqual(self, a, b):
@@ -135,6 +135,21 @@ class FuzzyLogic:
         warnings.warn('Using the replacement rule: '
                       'signum(x) --> tanh(x)', stacklevel=2)
         return jnp.tanh(self.weight * x)
+    
+    def floor(self, x):
+        warnings.warn('Using the replacement rule: '
+                      'floor(x) --> x', stacklevel=2)
+        return x
+    
+    def ceil(self, x):
+        warnings.warn('Using the replacement rule: '
+                      'ceil(x) --> x', stacklevel=2)
+        return x
+    
+    def round(self, x):
+        warnings.warn('Using the replacement rule: '
+                      'round(x) --> x', stacklevel=2)
+        return x
     
     def sqrt(self, x):
         warnings.warn('Using the replacement rule: '

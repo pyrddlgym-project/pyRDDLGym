@@ -79,6 +79,9 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             'argmax': logic.argmax
         }
         self.KNOWN_UNARY['sgn'] = logic.signum   
+        self.KNOWN_UNARY['floor'] = logic.floor   
+        self.KNOWN_UNARY['ceil'] = logic.ceil   
+        self.KNOWN_UNARY['round'] = logic.round
         self.KNOWN_UNARY['sqrt'] = logic.sqrt
     
     def _jax_stop_grad(self, jax_expr):
