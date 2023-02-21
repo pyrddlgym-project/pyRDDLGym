@@ -116,19 +116,16 @@ class FuzzyLogic:
         return jnp.tanh(self.weight * x)
     
     def floor(self, x):
-        warnings.warn('Using the replacement rule: '
-                      'floor(x) --> x', stacklevel=2)
-        return x
+        warnings.warn('floor() will have zero gradient', stacklevel=2)
+        return jnp.floor(x)
     
     def ceil(self, x):
-        warnings.warn('Using the replacement rule: '
-                      'ceil(x) --> x', stacklevel=2)
-        return x
+        warnings.warn('ceil() will have zero gradient', stacklevel=2)
+        return jnp.ceil(x)
     
     def round(self, x):
-        warnings.warn('Using the replacement rule: '
-                      'round(x) --> x', stacklevel=2)
-        return x
+        warnings.warn('round() will have zero gradient', stacklevel=2)
+        return jnp.round(x)
     
     def sqrt(self, x):
         warnings.warn('Using the replacement rule: '
@@ -140,10 +137,10 @@ class FuzzyLogic:
     # ===========================================================================
      
     @staticmethod
-    def _literals(shape):
-        num_values, *shape_batch = shape
-        literals = jnp.arange(num_values)
-        literals = literals[(...,) + (jnp.newaxis,) * len(shape_batch)]
+    def _literals(shape, axis):
+        literals = jnp.arange(shape[axis])
+        literals = literals[(...,) + (jnp.newaxis,) * (len(shape) - 1)]
+        literals = jnp.moveaxis(literals, source=0, destination=axis)
         literals = jnp.broadcast_to(literals, shape=shape)
         return literals
         
@@ -151,9 +148,8 @@ class FuzzyLogic:
         warnings.warn('Using the replacement rule: '
                       f'argmax(x) --> sum(i * softmax(x[i]))', stacklevel=2)
         prob_max = jax.nn.softmax(self.weight * x, axis=axis)
-        prob_max = jnp.moveaxis(prob_max, source=axis, destination=0)
-        literals = FuzzyLogic._literals(prob_max.shape)
-        softargmax = jnp.sum(literals * prob_max, axis=0)
+        literals = FuzzyLogic._literals(prob_max.shape, axis=axis)
+        softargmax = jnp.sum(literals * prob_max, axis=axis)
         trueargmax = jnp.argmax(x, axis=axis)
         sample = softargmax + jax.lax.stop_gradient(trueargmax - softargmax)
         return sample
@@ -171,10 +167,13 @@ class FuzzyLogic:
                       'switch(pred) { x } --> sum(x[i] * (pred == i))',
                       stacklevel=2)    
         pred = jnp.broadcast_to(pred[jnp.newaxis, ...], shape=cases.shape)
-        literals = FuzzyLogic._literals(cases.shape)
-        proximity = jnp.abs(pred - literals)
-        prob_cases = jax.nn.softmax(-self.weight * proximity, axis=0)
-        sample = jnp.sum(cases * prob_cases, axis=0)
+        literals = FuzzyLogic._literals(cases.shape, axis=0)
+        proximity = -jnp.abs(pred - literals)
+        softcase = jax.nn.softmax(self.weight * proximity, axis=0)
+        softswitch = jnp.sum(cases * softcase, axis=0)
+        hardcase = jnp.argmax(proximity, axis=0)[jnp.newaxis, ...]        
+        hardswitch = jnp.take_along_axis(cases, hardcase, axis=0)[0, ...]
+        sample = softswitch + jax.lax.stop_gradient(hardswitch - softswitch)
         return sample
     
     # ===========================================================================
@@ -185,24 +184,21 @@ class FuzzyLogic:
         Gumbel01 = random.gumbel(key=key, shape=prob.shape)
         clipped_prob = jnp.maximum(prob, self.eps)
         sample = self.weight * (Gumbel01 + jnp.log(clipped_prob))
-        sample = jax.nn.softmax(sample, axis=-1)
         return sample
         
     def bernoulli(self, key, prob):
         warnings.warn('Using the replacement rule: '
                       'Bernoulli(p) --> Gumbel-softmax(p)', stacklevel=2)
-        prob = jnp.stack([prob, 1.0 - prob], axis=-1)
+        prob = jnp.stack([1.0 - prob, prob], axis=-1)
         sample = self._gumbel_softmax(key, prob)
-        return sample[..., 0]
+        sample = self.argmax(sample, axis=-1)
+        return sample
     
     def discrete(self, key, prob):
         warnings.warn('Using the replacement rule: '
                       'Discrete(p) --> Gumbel-softmax(p)', stacklevel=2)
-        sample = self._gumbel_softmax(key, prob)
-        * shape_batch, num_categories = prob.shape
-        indices = jnp.arange(num_categories)
-        indices = indices[(jnp.newaxis,) * len(shape_batch) + (...,)]
-        sample = jnp.sum(sample * indices, axis=-1)
+        sample = self._gumbel_softmax(key, prob) 
+        sample = self.argmax(sample, axis=-1)
         return sample
         
     
