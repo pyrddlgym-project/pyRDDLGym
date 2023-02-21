@@ -174,7 +174,9 @@ class FuzzyLogic:
         prob_max = jax.nn.softmax(self.weight * x, axis=axis)
         prob_max = jnp.moveaxis(prob_max, source=axis, destination=0)
         literals = FuzzyLogic._literals(prob_max.shape)
-        sample = jnp.sum(literals * prob_max, axis=0)
+        softargmax = jnp.sum(literals * prob_max, axis=0)
+        trueargmax = jnp.argmax(x, axis=axis)
+        sample = softargmax + jax.lax.stop_gradient(trueargmax - softargmax)
         return sample
     
     def argmin(self, x, axis):
