@@ -17,13 +17,15 @@ class ChartVisualizer(StateViz):
                  dpi=100,
                  fontsize=10,
                  boolcol=['red', 'green'],
-                 loccol='black') -> None:
+                 loccol='black',
+                 ranges=None) -> None:
         self._model = model
         self._figure_size = figure_size
         self._dpi = dpi
         self._fontsize = fontsize
         self._boolcol = boolcol
         self._loccol = loccol
+        self._ranges = ranges
         
         self._fig, self._ax = None, None
         self._data = None
@@ -98,6 +100,11 @@ class ChartVisualizer(StateViz):
                 color=self._loccol, linestyle='--', linewidth=2, alpha=0.9
             )
             
+            if self._ranges is not None:
+                vmin, vmax = self._ranges.get(state, (None, None))
+            else:
+                vmin, vmax = None, None
+                
             if self._model.variable_ranges[state] == 'bool':
                 self._ax[y].pcolormesh(
                     values, edgecolors=self._loccol, linewidth=0.5,
@@ -133,12 +140,14 @@ class ChartVisualizer(StateViz):
                                      markerfacecolor='none',
                                      label=var)
                 self._ax[y].set_xlim([0, values[i,:].size])
+                self._ax[y].set_ylim([vmin, vmax])
                 self._ax[y].legend(loc='upper right')
                 
             else:
                 for (i, var) in enumerate(self._labels[state]):
                     self._ax[y].plot(values[i, :], 'o-', label=var)
                 self._ax[y].set_xlim([0, values[i,:].size])
+                self._ax[y].set_ylim([vmin, vmax])
                 self._ax[y].legend(loc='upper right')
             
         self._step = self._step + 1
