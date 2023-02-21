@@ -12,20 +12,20 @@ class MovieGenerator:
                  env_name: str,
                  max_frames: int,
                  skip: int=1,
-                 frame_duration: int=50,
-                 loop: int=0, 
                  save_format: str='png',
-                 save_as_video: bool=False):
+                 frame_duration: int=100,
+                 loop: int=0, 
+                 save_as_mp4: bool=False):
         '''Creates a new movie generator for saving frames to disk, and creating animated GIFs.
         
         :param save_dir: the directory to save images to
         :param env_name: the root name of each image file
         :param max_frames: the max number of frames to save
         :param skip: how often frames should be recorded
-        :param frame_duration: the duration of each frame in the animated GIF
-        :param loop: how many times the animated GIF should loop
         :param save_format: the format in which to save individual frames
-        :param save_as_video: whether to save video (True) or animated GIF (False)
+        :param frame_duration: the duration of each frame in the animated video
+        :param loop: how many times the animated GIF should loop
+        :param save_as_mp4: whether to save mp4 video (or GIF if False)
         '''
         self.save_dir = save_dir
         self.save_path = os.path.join(save_dir, env_name + '_{}' + '.' + save_format)
@@ -34,7 +34,7 @@ class MovieGenerator:
         self.skip = skip
         self.frame_duration = frame_duration
         self.loop = loop
-        self.save_as_video = save_as_video
+        self.save_as_mp4 = save_as_mp4
         
         self._n_frame = 0
         self._time = 0
@@ -67,8 +67,8 @@ class MovieGenerator:
         self._time += 1
     
     def save_animation(self, file_name: str=None):
-        if self.save_as_video:
-            self.save_video(file_name)
+        if self.save_as_mp4:
+            self.save_mp4(file_name)
         else:
             self.save_gif(file_name)
         self.reset()
@@ -89,20 +89,20 @@ class MovieGenerator:
                         duration=self.frame_duration,
                         loop=self.loop)  
         
-    def save_video(self, file_name: str=None):
+    def save_mp4(self, file_name: str=None):
         if file_name is None:
             file_name = self.env_name
         load_path = self.save_path.format('*')
         images = glob.glob(load_path)
         
         writer, w, h = None, None, None
+        fps = 1000 / self.frame_duration
         for file in images:
             frame = cv2.imread(file)
             if w is None:
                 h, w, _ = frame.shape
                 fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-                writer = cv2.VideoWriter(file_name + '.mp4', fourcc, 15, (w, h))
-            for _ in range(15):
-                writer.write(frame)
+                writer = cv2.VideoWriter(file_name + '.mp4', fourcc, fps, (w, h))
+            writer.write(frame)
         if writer is not None:
             writer.release()
