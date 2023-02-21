@@ -71,6 +71,7 @@ racecar,A simple continuous MDP for the racecar problem.,/Examples/RaceCar/,"0,1
 recsim,"A problem of recommendation systems, with consumers and providers.",/Examples/RecSim/,"0,1,2",RecSimViz.RecSimVisualizer
 reservoir,Management of the water level in interconnected reservoirs.,/Examples/Reservoir/,0,ReservoirViz.ReservoirVisualizer
 supplychain,A supply chain with factory and multiple warehouses.,/Examples/SupplyChain/,0,TextViz.TextVisualizer
+supplychainnet,A supply chain network with factory and multiple warehouses.,/Examples/SupplyChainNet/,0,TextViz.TextVisualizer
 traffic,BLX/QTM traffic model.,/Examples/Traffic/,"0,1",TrafficViz.TrafficVisualizer
 uavcontinuous,Continuous action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/Examples/UAV/Continuous/,"0,1",UAVsViz.UAVsVisualizer
 uavdiscrete,Discrete action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/Examples/UAV/Discrete/,0,UAVsViz.UAVsVisualizer
