@@ -6,21 +6,6 @@ import warnings
 DEFAULT_WEIGHT = 10.0
 
 
-class MembershipFunction:
-    
-    def __call__(self, x, c):
-        raise NotImplementedError
-
-
-class SigmoidMembershipFunction(MembershipFunction):
-    
-    def __init__(self, weight: float=DEFAULT_WEIGHT):
-        self.weight = weight
-        
-    def __call__(self, x, c, strict):
-        return jax.nn.sigmoid(self.weight * (x - c))
-
-
 class TNorm:
     
     def norm(self, x, y):
@@ -42,22 +27,19 @@ class ProductTNorm(TNorm):
 class FuzzyLogic:
     '''A class representing fuzzy logic in JAX.
     
-    Functionality can be customized by either providing a membership or tnorm
-    as parameters, or by overriding its methods.
+    Functionality can be customized by either providing a tnorm as parameters, 
+    or by overriding its methods.
     '''
     
-    def __init__(self, membership: MembershipFunction=SigmoidMembershipFunction(),
-                 tnorm: TNorm=ProductTNorm(),
+    def __init__(self, tnorm: TNorm=ProductTNorm(),
                  weight: float=DEFAULT_WEIGHT,
                  eps: float=1e-12):
         '''Creates a new fuzzy logic in Jax.
         
-        :param membership: membership function for doing fuzzy comparison
         :param tnorm: t-norm for doing fuzzy boolean logic
         :param weight: a concentration parameter (larger means better accuracy)
         :param eps: small positive float to mitigate underflow
         '''
-        self.membership = membership
         self.tnorm = tnorm
         self.weight = weight
         self.eps = eps
@@ -90,7 +72,7 @@ class FuzzyLogic:
     
     def forall(self, x, axis=None):
         warnings.warn('Using the replacement rule: '
-                      'forall(a) --> tnorm(a)', stacklevel=2)
+                      'forall(a) --> tnorm(a[1], tnorm(a[2], ...))', stacklevel=2)
         return self.tnorm.norms(x, axis=axis)
     
     def exists(self, x, axis=None):
@@ -102,27 +84,24 @@ class FuzzyLogic:
      
     def greaterEqual(self, a, b):
         warnings.warn('Using the replacement rule: '
-                      'a >= b --> membership(a, b)', stacklevel=2)
-        return self.membership(a, b, False)
+                      'a >= b --> sigmoid(a - b)', stacklevel=2)
+        return jax.nn.sigmoid(self.weight * (a - b))
     
     def greater(self, a, b):
         warnings.warn('Using the replacement rule: '
-                      'a > b --> membership(a, b)', stacklevel=2)
-        return self.membership(a, b, True)
-    
-    def less(self, a, b):
-        return self.Not(self.greaterEqual(a, b))
+                      'a > b --> sigmoid(a - b)', stacklevel=2)
+        return jax.nn.sigmoid(self.weight * (a - b))
     
     def lessEqual(self, a, b):
-        return self.Not(self.greater(a, b))
+        return self.greaterEqual(-a, -b)
     
+    def less(self, a, b):
+        return self.greater(-a, -b)
+
     def equal(self, a, b):
         warnings.warn('Using the replacement rule: '
-                      'a == b --> membership(a, b - 0.5) - membership(a, b + 0.5)',
-                      stacklevel=2)
-        diff = self.membership(a, b - 0.5, False) - self.membership(a, b + 0.5, False)
-        scale = self.membership(0, -0.5, False) - self.membership(0, +0.5, False)
-        return diff / scale
+                      'a == b --> sech^2(b - a)', stacklevel=2)
+        return 1.0 - jnp.square(jnp.tanh(self.weight * (b - a)))
     
     def notEqual(self, a, b):
         return self.Not(self.equal(a, b))
@@ -189,12 +168,13 @@ class FuzzyLogic:
     
     def Switch(self, pred, cases):
         warnings.warn('Using the replacement rule: '
-                      'switch(pred) { cond } --> sum(cond[i] * membership(pred, i))',
+                      'switch(pred) { x } --> sum(x[i] * (pred == i))',
                       stacklevel=2)    
         pred = jnp.broadcast_to(pred[jnp.newaxis, ...], shape=cases.shape)
         literals = FuzzyLogic._literals(cases.shape)
-        membership = self.equal(pred, literals)
-        sample = jnp.sum(cases * membership, axis=0)
+        proximity = jnp.abs(pred - literals)
+        prob_cases = jax.nn.softmax(-self.weight * proximity, axis=0)
+        sample = jnp.sum(cases * prob_cases, axis=0)
         return sample
     
     # ===========================================================================

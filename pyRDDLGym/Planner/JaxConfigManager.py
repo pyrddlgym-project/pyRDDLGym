@@ -32,9 +32,8 @@ def get(path: str) -> Dict[str, object]:
     
     # read the model settings
     model_args = {k: args[k] for (k, v) in config.items('Model')}
-    member = getattr(JaxRDDLLogic, model_args['membership'])(**model_args['membership_kwargs'])
     tnorm = getattr(JaxRDDLLogic, model_args['tnorm'])(**model_args['tnorm_kwargs'])
-    logic = getattr(JaxRDDLLogic, model_args['logic'])(membership=member, tnorm=tnorm, **model_args['logic_kwargs'])
+    logic = getattr(JaxRDDLLogic, model_args['logic'])(tnorm=tnorm, **model_args['logic_kwargs'])
     
     # read the optimizer settings
     opt_args = {k: args[k] for (k, v) in config.items('Optimizer')}
