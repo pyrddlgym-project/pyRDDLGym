@@ -207,8 +207,10 @@ class FuzzyLogic:
         
 
 # UNIT TESTS
+logic = FuzzyLogic()
+
+
 def _test_logical():
-    logic = FuzzyLogic()
     
     # https://towardsdatascience.com/emulating-logical-gates-with-a-neural-network-75c229ec4cc9
     def test_logic(x1, x2):
@@ -224,7 +226,6 @@ def _test_logical():
 
 
 def _test_indexing():
-    logic = FuzzyLogic()
 
     def argmaxmin(x):
         amax = logic.argmax(x, axis=0)
@@ -238,7 +239,6 @@ def _test_indexing():
 
 
 def _test_control():
-    logic = FuzzyLogic()
     
     def switch(pred, cases):
         return logic.Switch(pred, cases)
@@ -252,10 +252,9 @@ def _test_control():
 
 
 def _test_random():
-    logic = FuzzyLogic()
+    key = random.PRNGKey(42)
 
     def bern(n):
-        key = random.PRNGKey(42)
         prob = jnp.asarray([0.3] * n)
         sample = logic.bernoulli(key, prob)
         return sample
