@@ -133,7 +133,7 @@ class FuzzyLogic:
         return jnp.sqrt(x + self.eps)
     
     # ===========================================================================
-    # control flow
+    # indexing
     # ===========================================================================
      
     @staticmethod
@@ -157,6 +157,10 @@ class FuzzyLogic:
     def argmin(self, x, axis):
         return self.argmax(-x, axis)
     
+    # ===========================================================================
+    # control flow
+    # ===========================================================================
+     
     def If(self, c, a, b):
         warnings.warn('Using the replacement rule: '
                       'if c then a else b --> c * a + (1 - c) * b', stacklevel=2)
@@ -201,8 +205,9 @@ class FuzzyLogic:
         sample = self.argmax(sample, axis=-1)
         return sample
         
-    
-if __name__ == '__main__':
+
+# UNIT TESTS
+def _test_logical():
     logic = FuzzyLogic()
     
     # https://towardsdatascience.com/emulating-logical-gates-with-a-neural-network-75c229ec4cc9
@@ -216,19 +221,11 @@ if __name__ == '__main__':
     x1 = jnp.asarray([1, 1, -1, -1, 0.1, 15, -0.5]).astype(float)
     x2 = jnp.asarray([1, -1, 1, -1, 10, -30, 6]).astype(float)
     print(test_logic(x1, x2))
-    
-    # test control flow
-    def switch(pred, cases):
-        return logic.Switch(pred, cases)
-    
-    pred = jnp.asarray(jnp.linspace(0, 2, 10))
-    case1 = jnp.asarray([-10.] * 10)
-    case2 = jnp.asarray([1.5] * 10)
-    case3 = jnp.asarray([10.] * 10)
-    cases = jnp.asarray([case1, case2, case3])
-    print(switch(pred, cases))
-    
-    # test argmax/argmin
+
+
+def _test_indexing():
+    logic = FuzzyLogic()
+
     def argmaxmin(x):
         amax = logic.argmax(x, axis=0)
         amin = logic.argmin(x, axis=0)
@@ -238,8 +235,25 @@ if __name__ == '__main__':
     amax, amin = argmaxmin(values)
     print(amax)
     print(amin)
+
+
+def _test_control():
+    logic = FuzzyLogic()
     
-    # test gumbel-softmax
+    def switch(pred, cases):
+        return logic.Switch(pred, cases)
+
+    pred = jnp.asarray(jnp.linspace(0, 2, 10))
+    case1 = jnp.asarray([-10.] * 10)
+    case2 = jnp.asarray([1.5] * 10)
+    case3 = jnp.asarray([10.] * 10)
+    cases = jnp.asarray([case1, case2, case3])
+    print(switch(pred, cases))
+
+
+def _test_random():
+    logic = FuzzyLogic()
+
     def bern(n):
         key = random.PRNGKey(42)
         prob = jnp.asarray([0.3] * n)
@@ -248,3 +262,11 @@ if __name__ == '__main__':
     
     samples = bern(5000)
     print(jnp.mean(samples))
+
+
+if __name__ == '__main__':
+    _test_logical()
+    _test_indexing()
+    _test_control()
+    _test_random()
+    
