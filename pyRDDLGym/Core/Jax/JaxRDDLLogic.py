@@ -143,7 +143,7 @@ class FuzzyLogic:
         literals = jnp.moveaxis(literals, source=0, destination=axis)
         literals = jnp.broadcast_to(literals, shape=shape)
         return literals
-        
+    
     def argmax(self, x, axis):
         warnings.warn('Using the replacement rule: '
                       f'argmax(x) --> sum(i * softmax(x[i]))', stacklevel=2)
@@ -183,7 +183,7 @@ class FuzzyLogic:
     def _gumbel_softmax(self, key, prob):
         Gumbel01 = random.gumbel(key=key, shape=prob.shape)
         clipped_prob = jnp.maximum(prob, self.eps)
-        sample = self.weight * (Gumbel01 + jnp.log(clipped_prob))
+        sample = Gumbel01 + jnp.log(clipped_prob)
         return sample
         
     def bernoulli(self, key, prob):
