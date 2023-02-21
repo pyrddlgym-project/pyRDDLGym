@@ -164,7 +164,7 @@ class FuzzyLogic:
     
     def Switch(self, pred, cases):
         warnings.warn('Using the replacement rule: '
-                      'switch(pred) { x } --> sum(x[i] * (pred == i))',
+                      'switch(pred) { cases } --> sum(cases[i] * (pred == i))',
                       stacklevel=2)    
         pred = jnp.broadcast_to(pred[jnp.newaxis, ...], shape=cases.shape)
         literals = FuzzyLogic._literals(cases.shape, axis=0)
@@ -217,6 +217,7 @@ if __name__ == '__main__':
     x2 = jnp.asarray([1, -1, 1, -1, 10, -30, 6]).astype(float)
     print(test_logic(x1, x2))
     
+    # test control flow
     def switch(pred, cases):
         return logic.Switch(pred, cases)
     
@@ -227,6 +228,7 @@ if __name__ == '__main__':
     cases = jnp.asarray([case1, case2, case3])
     print(switch(pred, cases))
     
+    # test argmax/argmin
     def argmaxmin(x):
         amax = logic.argmax(x, axis=0)
         amin = logic.argmin(x, axis=0)
@@ -236,3 +238,13 @@ if __name__ == '__main__':
     amax, amin = argmaxmin(values)
     print(amax)
     print(amin)
+    
+    # test gumbel-softmax
+    def bern(n):
+        key = random.PRNGKey(42)
+        prob = jnp.asarray([0.3] * n)
+        sample = logic.bernoulli(key, prob)
+        return sample
+    
+    samples = bern(5000)
+    print(jnp.mean(samples))
