@@ -34,7 +34,7 @@ class HVACVisualizer(StateViz):
     
     def build_object_layout(self) -> dict: 
         
-        print(self._nonfluents)
+        # print(self._nonfluents)
 
         zone_vol = {o: None for o in self._objects['zone']}
         heater_vol = {o: None for o in self._objects['heater']}
@@ -125,7 +125,7 @@ class HVACVisualizer(StateViz):
         heater_list.sort(reverse=True,
                          key=lambda x: len(self._object_layout['adj-heater'][x]))
 
-        print(zone_list, start_points_zone, room_center, room_grid_size)
+        # print(zone_list, start_points_zone, room_center, room_grid_size)
         zone_init_points = {zone_list[i]:start_points_zone[i] 
                             for i in range(len(zone_list))}
         heater_init_points = {heater_list[i]:start_points_heater[i] 

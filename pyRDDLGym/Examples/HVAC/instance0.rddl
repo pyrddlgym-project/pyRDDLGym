@@ -9,6 +9,7 @@ non-fluents HVAC_1nf {
 	non-fluents {
 	    SIGMA(z1) = 0.1;
 	    ADJ-HEATER(h1, z1) = true;
+	    K = 10;
 	};
 }
 
@@ -17,8 +18,8 @@ instance HVAC_1 {
 	non-fluents = HVAC_1nf;
 
 	init-state{
-		temp-zone(z1) = 5;
-		temp-heater(h1) = 0;
+		temp-zone(z1) = 20;
+		temp-heater(h1) = 30;
 	};
 
 	max-nondef-actions = pos-inf;
