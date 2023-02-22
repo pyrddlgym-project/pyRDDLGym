@@ -52,7 +52,7 @@ def main(env, inst):
 if __name__ == "__main__":
     args = sys.argv
     if len(args) < 3:
-        env, inst = 'Reservoir continuous', '0'
+        env, inst = 'HVAC', '0'
     else:
         env, inst = args[1:3]
     main(env, inst)

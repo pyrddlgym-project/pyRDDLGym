@@ -45,29 +45,29 @@ class HVACVisualizer(StateViz):
         # add none-fluents
         for k, v in self._nonfluents.items():
             if 'ZONE-VOL_' in k:
-                point = k.split('_')[1]
+                point = k.split('___')[1]
                 zone_vol[point] = v
             elif 'HEATER-VOL_' in k:
-                point = k.split('_')[1]
+                point = k.split('___')[1]
                 heater_vol[point] = v
             elif 'ADJ-ZONES_' in k:
                 if v == True:
-                    point = k.split('_')[1]
-                    v = k.split('_')[2]
-                    adj_zone[point].append(v)
+                    point = k.split('___')[1]
+                    v = point.split('__')
+                    adj_zone[v[0]].append(v[1])
             elif 'ADJ-HEATER_' in k:
                 if v == True:
-                    point = k.split('_')[1]
-                    v = k.split('_')[2]
-                    adj_heater[point].append(v)
+                    point = k.split('___')[1]
+                    v = point.split('__')
+                    adj_heater[v[0]].append(v[1])
 
         # add states
         for k, v in self._states.items():
             if 'temp-zone_' in k:
-                point = k.split('_')[1]
+                point = k.split('___')[1]
                 temp_zone[point] = v
             elif 'temp-heater_' in k:
-                point = k.split('_')[1]
+                point = k.split('___')[1]
                 temp_heater[point] = v
 
         temp_zone_max = self._nonfluents['TEMP-ZONE-MAX']
