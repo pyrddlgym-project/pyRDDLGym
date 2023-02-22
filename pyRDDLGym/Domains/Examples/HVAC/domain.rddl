@@ -1,0 +1,96 @@
+// based on the paper "NONLINEAR OPTIMAL CONTROL OF HVAC SYSTEMS"
+// by Ti{\u{g}}rek, T{\^u}ba and Dasgupta, Soura and Smith, Theodore F.
+
+
+domain hvac{
+
+	types {
+		zone	: object;
+		heater	: object;
+	};
+
+	pvariables {
+
+		// constants
+		ADJ-ZONES(zone, zone)	: { non-fluent, bool, default = false };		// bi-directional adjecency between zones
+		TEMP-OUT				: { non-fluent, real, default = 25 };			// outside temperature
+		ADJ-HEATER(heater, zone): { non-fluent, bool, default = false }; 		// is a heater connected to a zone
+		AIR-COST				: { non-fluent, real, default = 0.01 };			// air cost
+		HEAT-COST				: { non-fluent, real, default = 0.001 };		// heat cost
+		ZONE-DISCOMFORT-PENALTY	: { non-fluent, real, default = 0.1 };			// zone temperature out of range discomfort penalty
+		TEMP-ZONE-MIN			: { non-fluent, real, default = 10 };			// minimum zone comfort temperature
+		TEMP-ZONE-MAX			: { non-fluent, real, default = 15 };			// maximum zone comfort temperature
+		OUT-AIR-FLOW			: { non-fluent, real, default = 0.05 };			// incoming vav from out flow (>0)
+		ZONE-VOL(zone)			: { non-fluent, real, default = 255 };			// zone air capacity
+		HEATER-VOL(heater)		: { non-fluent, real, default = 25.5 };			// heater air capacity
+		K						: { non-fluent, real, default = 1195.95 };		// rho * C_p - air density and constant pressure specific heat of air respectivlly
+		DELTA-T					: { non-fluent, real, default = 0.1 };			// control time period
+		SIGMA(zone)				: { non-fluent, real, default = 0.1 };			// heat conductivity of room's walls
+
+		// interm fluents
+		temp-1(heater) : { interm-fluent, real };					// the temperature before the heater, from outside and circulated air
+
+		// states
+		temp-zone(zone) : { state-fluent, real, default = 1 };
+		temp-heater(heater) : { state-fluent, real, default = 1 };
+
+		// actions
+		fan-in(zone) : {action-fluent, real, default = 1 };
+		heat-input(heater)	: {action-fluent, real, default = 0 };
+
+	};
+
+	cpfs {
+
+		// derived air temperature before each heater
+		temp-1(?h) = if ((sum_{?z : zone}[ADJ-HEATER(?h, ?z)]) > 0)
+		             then 1/(sum_{?z : zone}[ADJ-HEATER(?h, ?z)]) * (sum_{?z : zone}[ (temp-zone(?z) + (TEMP-OUT - temp-zone(?z)*OUT-AIR-FLOW/fan-in(?z)))*ADJ-HEATER(?h, ?z) ])
+		             else 0;
+
+		// heater's new output air temperature
+		temp-heater'(?h) =
+                        if ((sum_{?z : zone}[ADJ-HEATER(?h, ?z)]) > 0)
+                        then temp-heater(?h)
+					         + DELTA-T / HEATER-VOL(?h) * (sum_{?z : zone} [ADJ-HEATER(?h, ?z)*fan-in(?z)]) / (sum_{?z : zone} [ADJ-HEATER(?h, ?z)]) * (temp-1(?h) - TEMP-OUT)
+					         + DELTA-T / (K * HEATER-VOL(?h)) * heat-input(?h)
+					    else temp-heater(?h)
+					         + DELTA-T / (K * HEATER-VOL(?h)) * heat-input(?h);
+
+		// zone's new inner temperature
+		temp-zone'(?z) =
+    		            if ((sum_{?h : heater}[ADJ-HEATER(?h, ?z)]) > 0)
+    		            then temp-zone(?z)
+    		                 + DELTA-T / (ZONE-VOL(?z) * (sum_{?h : heater}[ADJ-HEATER(?h, ?z)])) * fan-in(?z) * (sum_{?h : heater}[(temp-heater(?h) - temp-zone(?z)) * ADJ-HEATER(?h, ?z)])
+    		                 + DELTA-T * (sum_{?z2 : zone} [ ZONE-VOL(?z2)/ZONE-VOL(?z)*SIGMA(?z) * (temp-zone(?z2) - temp-zone(?z)) *
+							 (ADJ-ZONES(?z, ?z2) | ADJ-ZONES(?z2, ?z))])
+						else temp-zone(?z)
+						     + DELTA-T * (sum_{?z2 : zone} [ ZONE-VOL(?z2)/ZONE-VOL(?z)*SIGMA(?z) * (temp-zone(?z2) - temp-zone(?z)) *
+							 (ADJ-ZONES(?z, ?z2) | ADJ-ZONES(?z2, ?z))]);
+
+
+//		            temp-zone(?z)
+//		            + (if ((sum_{?h : heater}[ADJ-HEATER(?h, ?z)]) > 0))
+//		            then DELTA-T / (ZONE-VOL(?z) * (sum_{?h : heater}[ADJ-HEATER(?h, ?z)])) * fan-in(?z) * (sum_{?h : heater}[(temp-heater(?h) - temp-zone(?z)) * ADJ-HEATER(?h, ?z)])
+//		            else 0)
+//					+ DELTA-T * (sum_{?z2 : zone} [ ZONE-VOL(?z2)/ZONE-VOL(?z)*SIGMA(?z) * (temp-zone(?z2) - temp-zone(?z)) *
+//							(ADJ-ZONES(?z, ?z2) | ADJ-ZONES(?z2, ?z))])
+//					+ (if ((sum_{?h : heater}[ADJ-HEATER(?h, ?z)]) > 0))
+//		            then DELTA-T / (ZONE-VOL(?z) * (sum_{?h : heater}[ADJ-HEATER(?h, ?z)])) * fan-in(?z) * (sum_{?h : heater}[(temp-heater(?h) - temp-zone(?z)) * ADJ-HEATER(?h, ?z)])
+//		            else 0);
+
+	};
+
+	reward = - HEAT-COST * (sum_{?h : heater}[pow[heat-input(?h), 2]])
+	         - AIR-COST * (sum_{?z : zone}[pow[fan-in(?z), 2]])
+			 - ZONE-DISCOMFORT-PENALTY * (sum_{?z1 : zone}[ (temp-zone(?z1) < TEMP-ZONE-MIN) | (temp-zone(?z1) > TEMP-ZONE-MAX)]);
+
+
+	action-preconditions {
+		forall_{?z : zone} [ fan-in(?z) >= OUT-AIR-FLOW ];
+	};
+
+	// constraints:
+	// each heater is connected to at least one zone
+	// each zone is connected to at least on heater
+
+}
