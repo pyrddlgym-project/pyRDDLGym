@@ -4,7 +4,7 @@ Reservoir discrete,Discrete version of management of the water level in intercon
 Reservoir continuous,Continuous action version of management of the water level in interconnected reservoirs.,/Examples/Reservoir/Continuous/,"1,0",ReservoirViz.ReservoirVisualizer
 racecar,A simple continuous MDP for the racecar problem.,/Examples/RaceCar/,"1,0",RacecarViz.RacecarVisualizer
 recsim,"A problem of recommendation systems, with consumers and providers.",/Examples/RecSim/,"1,0,2",RecSimViz.RecSimVisualizer
-HVAC,Multi-zone and multi-heater HVAC control problem,/Examples/HVAC/,"1,0,2",TextViz.TextVisualizer
+HVAC,Multi-zone and multi-heater HVAC control problem,/Examples/HVAC/,"1,0,2",HVACViz.HVACVisualizer
 propdbn,Simple propositional DBN.,/Examples/PropDBN/,0,TextViz.TextVisualizer
 wildfire,A boolean version of the wildfire fighting domain.,/Examples/Wildfire/,0,WildfireViz.WildfireVisualizer
 cartpolediscrete,"A simple continuous state MDP for the classical cart-pole system by Rich Sutton, with discrete actions that apply a constant force on either the left or right side of the cart.",/Examples/CartPole/Discrete/,0,CartPoleViz.CartPoleVisualizer
