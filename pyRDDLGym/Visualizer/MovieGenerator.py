@@ -1,8 +1,16 @@
-import cv2
 import glob
 import os
 from PIL import Image
 import warnings
+
+# (mike: #166) opencv is now optional
+try:
+    import cv2
+    _ALLOW_MP4 = True
+except:
+    warnings.warn('cv2 is not installed: save_as_mp4 option will be disabled.',
+                  stacklevel=2)
+    _ALLOW_MP4 = False
 
 
 class MovieGenerator:
@@ -14,7 +22,7 @@ class MovieGenerator:
                  skip: int=1,
                  save_format: str='png',
                  frame_duration: int=100,
-                 loop: int=0, 
+                 loop: int=0,
                  save_as_mp4: bool=False):
         '''Creates a new movie generator for saving frames to disk, and creating animated GIFs.
         
@@ -47,7 +55,7 @@ class MovieGenerator:
             os.remove(file)
             removed += 1
         if removed:
-            warnings.warn(f'removed {removed} temporary files at {load_path}', 
+            warnings.warn(f'removed {removed} temporary files at {load_path}',
                           stacklevel=2)
         
         self._n_frame = 0
@@ -67,7 +75,7 @@ class MovieGenerator:
         self._time += 1
     
     def save_animation(self, file_name: str=None):
-        if self.save_as_mp4:
+        if _ALLOW_MP4 and self.save_as_mp4:
             self.save_mp4(file_name)
         else:
             self.save_gif(file_name)

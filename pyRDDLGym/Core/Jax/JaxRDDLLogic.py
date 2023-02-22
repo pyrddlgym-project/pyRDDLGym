@@ -186,8 +186,7 @@ class FuzzyLogic:
      
     def _gumbel_softmax(self, key, prob):
         Gumbel01 = random.gumbel(key=key, shape=prob.shape)
-        clipped_prob = jnp.maximum(prob, self.eps)
-        sample = Gumbel01 + jnp.log(clipped_prob)
+        sample = Gumbel01 + jnp.log(prob + self.eps)
         return sample
         
     def bernoulli(self, key, prob):
