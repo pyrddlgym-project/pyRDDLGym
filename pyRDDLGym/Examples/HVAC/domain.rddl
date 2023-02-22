@@ -19,7 +19,7 @@ domain hvac{
 		HEAT-COST				: { non-fluent, real, default = 0.001 };		// heat cost
 		ZONE-DISCOMFORT-PENALTY	: { non-fluent, real, default = 0.1 };			// zone temperature out of range discomfort penalty
 		TEMP-ZONE-MIN			: { non-fluent, real, default = 10 };			// minimum zone comfort temperature
-		TEMP-ZONE-MAX			: { non-fluent, real, default = 20 };			// maximum zone comfort temperature
+		TEMP-ZONE-MAX			: { non-fluent, real, default = 15 };			// maximum zone comfort temperature
 		OUT-AIR-FLOW			: { non-fluent, real, default = 0.05 };			// incoming vav from out flow (>0)
 		ZONE-VOL(zone)			: { non-fluent, real, default = 255 };			// zone air capacity
 		HEATER-VOL(heater)		: { non-fluent, real, default = 25.5 };			// heater air capacity
