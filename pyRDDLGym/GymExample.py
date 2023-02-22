@@ -9,6 +9,7 @@ def main(env, inst):
     print(f'preparing to launch instance {inst} of domain {env}...')
     
     # get the environment info
+    ExampleManager.RebuildExamples()
     EnvInfo = ExampleManager.GetEnvInfo(env)
     
     # set up the environment class, choose instance 0 because every example has at least one example instance
@@ -51,7 +52,7 @@ def main(env, inst):
 if __name__ == "__main__":
     args = sys.argv
     if len(args) < 3:
-        env, inst = 'wildfire', '0'
+        env, inst = 'Reservoir continuous', '0'
     else:
         env, inst = args[1:3]
     main(env, inst)
