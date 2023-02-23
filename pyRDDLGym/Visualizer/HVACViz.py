@@ -44,31 +44,49 @@ class HVACVisualizer(StateViz):
 
         # add none-fluents
         for k, v in self._nonfluents.items():
-            if 'ZONE-VOL_' in k:
-                point = k.split('___')[1]
-                zone_vol[point] = v
-            elif 'HEATER-VOL_' in k:
-                point = k.split('___')[1]
-                heater_vol[point] = v
-            elif 'ADJ-ZONES_' in k:
+            var, objects = self._model.parse(k)
+            if var == 'ZONE_VOL':
+                zone_vol[objects[0]] = v
+            elif var == 'HEATER-VOL':
+                heater_vol[objects[0]] = v
+            elif var == 'ADJ_ZONES':
                 if v == True:
-                    point = k.split('___')[1]
-                    v = point.split('__')
-                    adj_zone[v[0]].append(v[1])
-            elif 'ADJ-HEATER_' in k:
+                    adj_zone[objects[0]] = objects[1]
+            elif var == 'ADJ_HEATER':
                 if v == True:
-                    point = k.split('___')[1]
-                    v = point.split('__')
-                    adj_heater[v[0]].append(v[1])
+                    adj_heater[objects[0]] = objects[1]
+
+
+            # if 'ZONE-VOL_' in k:
+            #     point = k.split('___')[1]
+            #     zone_vol[point] = v
+            # elif 'HEATER-VOL_' in k:
+            #     point = k.split('___')[1]
+            #     heater_vol[point] = v
+            # elif 'ADJ-ZONES_' in k:
+            #     if v == True:
+            #         point = k.split('___')[1]
+            #         v = point.split('__')
+            #         adj_zone[v[0]].append(v[1])
+            # elif 'ADJ-HEATER_' in k:
+            #     if v == True:
+            #         point = k.split('___')[1]
+            #         v = point.split('__')
+            #         adj_heater[v[0]].append(v[1])
 
         # add states
         for k, v in self._states.items():
-            if 'temp-zone_' in k:
-                point = k.split('___')[1]
-                temp_zone[point] = v
-            elif 'temp-heater_' in k:
-                point = k.split('___')[1]
-                temp_heater[point] = v
+            var, objects = self._model.parse(k)
+            if var == 'temp-zone':
+                temp_zone[objects[0]] = v
+            elif var == 'temp-heater':
+                temp_heater[objects[0]] = v
+            # if 'temp-zone_' in k:
+            #     point = k.split('___')[1]
+            #     temp_zone[point] = v
+            # elif 'temp-heater_' in k:
+            #     point = k.split('___')[1]
+            #     temp_heater[point] = v
 
         temp_zone_max = self._nonfluents['TEMP-ZONE-MAX']
         temp_zone_min = self._nonfluents['TEMP-ZONE-MIN']
