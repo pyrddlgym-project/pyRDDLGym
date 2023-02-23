@@ -221,7 +221,6 @@ domain BLX_model {
         // interm fluents
         ////////////////////////////////////
 
-
         // derived fluent for the link capacity (total storage of the link)
         Cl(?u) = Dl(?u) * Nl(?u) / Lv;
 
@@ -234,21 +233,35 @@ domain BLX_model {
         queue-arrivals(?u) = [sum_{?t : time} (TIME-HEAD(?t) * flow-on-link(?u,?t))];
 
         // number of vehicles leaving link0 and entering link1
-        flow-through-turn(?u,?d) = TURN(?u,?d)
-                            * (exists_{?i : intersection, ?p : signal-phase}
-                                   [ LINK-TO(?u,?i) ^ GREEN(?u,?d,?p) ^ (signal(?i) == ?p) ])
-                            * max[ 0, min[ q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d),          // Undersaturated
-                                           min [ BETA(?u,?d) * MU(?u,?d) * Ts,                 // Saturated
-                                                 Cl(?d) - Nc(?d) ]]];                          // Oversaturated
+        flow-through-turn(?u,?d) =
+             TURN(?u,?d)
+             * (exists_{?i : intersection} [
+                   LINK-TO(?u,?i) 
+                       // Unroll the nested fluent GREEN(?u,?d,signal(?i)) into
+                       // a switch statement to assist the JAX planner
+                 ^ (switch (signal(?i)) {
+                        case @ALL-RED             : GREEN(?u,?d,@ALL-RED),
+                        case @WEST-EAST-LEFT      : GREEN(?u,?d,@WEST-EAST-LEFT),
+                        case @ALL-RED2            : GREEN(?u,?d,@ALL-RED2),
+                        case @WEST-EAST-THROUGH   : GREEN(?u,?d,@WEST-EAST-THROUGH),
+                        case @ALL-RED3            : GREEN(?u,?d,@ALL-RED3),
+                        case @NORTH-SOUTH-LEFT    : GREEN(?u,?d.@NORTH-SOUTH-LEFT),
+                        case @ALL-RED4            : GREEN(?u,?d,@ALL-RED4),
+                        case @NORTH-SOUTH-THROUGH : GREEN(?u,?d,@NORTH-SOUTH-THROUGH)
+                   })
+               ])
+             * max[ 0, min[ q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d),        // Undersaturated
+                            min [ BETA(?u,?d) * MU(?u,?d) * Ts,               // Saturated
+                                  Cl(?d) - Nc(?d) ]]];                        // Oversaturated
   
         // number of vehicles entering from a source
         src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
 
         // flow from source u into the network
         // may not equal src-arrivals due to vehicles previously held in virtual queue
-        flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),             // Undersaturated
-                                                 min[ SOURCE-MU(?u) * Ts,                      // Saturated
-                                                      Cl(?u) - Nc(?u) ]];                      // Oversaturated
+        flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),        // Undersaturated
+                                                 min[ SOURCE-MU(?u) * Ts,                 // Saturated
+                                                      Cl(?u) - Nc(?u) ]];                 // Oversaturated
 
 
         // number of vehicles entering link d, summed over all possible inflows
