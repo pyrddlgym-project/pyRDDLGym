@@ -247,7 +247,7 @@ domain BLX_model {
         // flow from source u into the network
         // may not equal src-arrivals due to vehicles previously held in virtual queue
         flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),             // Undersaturated
-                                                 min[ SOURCE-MU(?u),                           // Saturated
+                                                 min[ SOURCE-MU(?u) * Ts,                      // Saturated
                                                       Cl(?u) - Nc(?u) ]];                      // Oversaturated
 
 
