@@ -1,0 +1,55 @@
+////////////////////////////////////////////////////////////////////
+// A modification of a typical supply chain control problem with a factory
+// and multiple warehouses. Here, there is a transportation cost of deliver-
+// ing goods between factory and warehouses, such that the allocation problem
+// can be seen as an embedded travelling salesman problem (TSP) of finding
+// the cheapest transporation route. Meanwhile, actions are continuous and
+// indicate the proportion of goods that must be shipped out of each factory
+// or warehouse to meet demand, modeled here as Poisson random variables, and
+// how many units to produce as a fraction of maximum production capacity.
+//
+// author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
+// 
+////////////////////////////////////////////////////////////////////
+
+non-fluents supply_chain_network_6 {
+    domain = supply_chain_network;
+
+    objects {
+		warehouse : {a, b, c, d, e, f};
+	};
+	
+	non-fluents {
+		TRUCK-COST-FACTORY(e) = 3.0;
+		TRUCK-COST-FACTORY(f) = 3.0;
+		TRUCK-COST-WAREHOUSE(b, a) = 3.0;
+		TRUCK-COST-WAREHOUSE(b, c) = 3.0;
+		TRUCK-COST-WAREHOUSE(c, a) = 3.0;
+		TRUCK-COST-WAREHOUSE(c, b) = 3.0;
+		TRUCK-COST-WAREHOUSE(d, b) = 3.0;
+		TRUCK-COST-WAREHOUSE(d, c) = 3.0;
+		TRUCK-COST-WAREHOUSE(e, d) = 3.0;
+		TRUCK-COST-WAREHOUSE(e, f) = 3.0;
+		TRUCK-COST-WAREHOUSE(f, d) = 3.0;
+		TRUCK-COST-WAREHOUSE(f, e) = 3.0;
+		DEMAND-RATE(a) = 6;
+		DEMAND-RATE(b) = 12;
+		DEMAND-RATE(c) = 18;
+		DEMAND-RATE(d) = 5;
+		DEMAND-RATE(e) = 20;
+		DEMAND-RATE(f) = 2;
+	};
+}
+
+instance inst_supply_chain_network {
+
+	domain = supply_chain_network;
+	
+	non-fluents = supply_chain_network_6;
+  
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+  
+	horizon  = 200;
+	discount = 1.0;
+}

@@ -302,7 +302,7 @@ domain BLX_model {
                           }
                       else signal(?i);
 
-        signal-t'(?i) = if (constrained-advance(?i)) then 0 else (signal-t(?i) + Ts);
+        signal-t'(?i) = if (constrained-advance(?i)) then 0.0 else (signal-t(?i) + Ts);
     };
 
     // total travel time: 
