@@ -8,7 +8,7 @@ from typing import Dict
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax import JaxRDDLLogic
-from pyRDDLGym.Domains.ExampleManager import ExampleManager
+from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 
 def get(path: str) -> Dict[str, object]:

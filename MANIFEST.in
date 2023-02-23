@@ -1,0 +1,2 @@
+recursive-include pyRDDLGym/Examples *.rddl
+recursive-include pyRDDLGym/Examples *.info
