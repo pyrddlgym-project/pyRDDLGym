@@ -10,7 +10,9 @@ HEADER = ['name', 'description', 'location', 'instances', 'viz']
 
 def rebuild():
     path = os.path.dirname(os.path.abspath(__file__))    
+    # path_to_manifest = os.path.join(path, '../Domains/manifest.csv')
     path_to_manifest = os.path.join(path, 'manifest.csv')
+    print (path, path_to_manifest)
     
     with open(path_to_manifest, 'w', newline='') as file:
         
@@ -39,6 +41,7 @@ def rebuild():
 
 def load():
     path = os.path.dirname(os.path.abspath(__file__))
+    # path_to_manifest = os.path.join(path, '../Domains/manifest.csv')
     path_to_manifest = os.path.join(path, 'manifest.csv')
     if not os.path.isfile(path_to_manifest):
         return {}
