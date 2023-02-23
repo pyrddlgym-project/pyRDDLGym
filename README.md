@@ -145,7 +145,7 @@ myEnv.close()
 ```
 
 __Note__: the _rddlrepository_ package contains an example manager similar to the one included with pyRDDLGym.
-It is possible (and encourange!) to `import rddlrepository.Manager.RDDLRepoManager` and use it in a similar manner to the pyRDDLGym example manager to access the full RDDL problems archive. 
+It is possible (and encouraged!) to `import rddlrepository.Manager.RDDLRepoManager` and use it in a similar manner to the pyRDDLGym example manager to access the full RDDL problems archive. 
 
 ### Observations and actions representation
 All observations (POMDP), states (MDP) and actions are represented by DICT objects.
