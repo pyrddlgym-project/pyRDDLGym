@@ -351,6 +351,7 @@ class JaxRDDLBackpropPlanner:
                  rollout_horizon: int=None,
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
+                 clip_grad: float=1000.,
                  logic: FuzzyLogic=FuzzyLogic(),
                  use_symlog_reward: bool=False,
                  utility=jnp.mean,
@@ -371,6 +372,7 @@ class JaxRDDLBackpropPlanner:
         :param action_bounds: box constraints on actions
         :param optimizer: an Optax algorithm that specifies how gradient updates
         are performed
+        :param clip_grad: maximum magnitude of gradient updates
         :param logic: a subclass of FuzzyLogic for mapping exact mathematical
         operations to their differentiable counterparts 
         :param use_symlog_reward: whether to use the symlog transform on the 
@@ -390,7 +392,11 @@ class JaxRDDLBackpropPlanner:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
         self._action_bounds = action_bounds
-        self.optimizer = optimizer
+        
+        self.optimizer = optax.chain(
+            optax.clip(clip_grad),
+            optimizer
+        )
         
         self.logic = logic
         self.use_symlog_reward = use_symlog_reward
@@ -490,6 +496,7 @@ class JaxRDDLBackpropPlanner:
         # also perform a projection step to satisfy constraints on actions
         def _jax_wrapped_plan_update(key, params, subs, opt_state):
             grad, log = jax.grad(loss, argnums=1, has_aux=True)(key, params, subs)
+            
             log['grad'] = grad
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
