@@ -9,7 +9,7 @@ def main(env, inst):
     print(f'preparing to launch instance {inst} of domain {env}...')
     
     # get the environment info
-    ExampleManager.RebuildExamples()
+    # ExampleManager.RebuildExamples()
     EnvInfo = ExampleManager.GetEnvInfo(env)
     
     # set up the environment class, choose instance 0 because every example has at least one example instance
