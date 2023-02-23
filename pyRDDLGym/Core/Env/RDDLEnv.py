@@ -204,7 +204,7 @@ class RDDLEnv(gym.Env):
         image = self._visualizer.render(self.state)
         if self._movie_generator is not None:
             if self._movie_per_episode:
-                self._movie_generator.save_gif(
+                self._movie_generator.save_animation(
                     self._movie_generator.env_name + '_' + str(self._movies))
                 self._movies += 1
             self._movie_generator.save_frame(image)            
@@ -243,7 +243,7 @@ class RDDLEnv(gym.Env):
             pygame.quit()
     
             if self._movie_generator is not None:
-                self._movie_generator.save_gif(
+                self._movie_generator.save_animation(
                     self._movie_generator.env_name + '_' + str(self._movies))
                 self._movies += 1
 

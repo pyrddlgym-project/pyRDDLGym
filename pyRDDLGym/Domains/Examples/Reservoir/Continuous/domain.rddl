@@ -1,0 +1,88 @@
+domain reservoir_control_cont {
+
+	requirements = {
+		concurrent,           // different reservoirs are controlled independently
+		reward-deterministic, // this domain does not use a stochastic reward
+		intermediate-nodes,   // this domain uses intermediate pvariable nodes
+		constrained-state     // this domain uses state constraints
+	};
+
+	types {
+		reservoir: object;
+	};
+
+    pvariables {
+
+		// Constants
+        TOP_RES(reservoir): { non-fluent, real, default = 100.0 }; // Overflowing amount
+        MAX_LEVEL(reservoir): { non-fluent, real, default = 80.0 };  // The upper bound for desired reservoir level
+		MIN_LEVEL(reservoir): { non-fluent, real, default = 20.0 };  // The lower bound for desired reservoir level
+		RAIN_VAR(reservoir):  { non-fluent, real, default = 5.0 };  // Half normal variance parameter for rainfall
+        RES_CONNECT(reservoir, reservoir): { non-fluent, bool, default = false }; // Indicates 2nd reservoir is forward connected to 1st reservoir
+        EVAPORATION_FACTOR: { non-fluent, real, default = 0.05 }; // Maximum fraction of evaporation
+        CONNECTED_TO_SEA(reservoir): {non-fluent, bool, default = false}; // reservoirs connected to the sea
+
+        LOW_COST(reservoir) : { non-fluent, real, default =  -5.0 }; // Penalty per unit of level < MIN_LEVEL
+		HIGH_COST(reservoir): { non-fluent, real, default = -10.0 }; // Penalty per unit of level > MAX_LEVEL
+        OVERFLOW_COST(reservoir): { non-fluent, real, default = -15.0 }; // Penalty per unit of level > TOP_RES
+
+        // Intermediate fluents
+        rain(reservoir):   {interm-fluent, real}; // Amount of rain fell
+        evaporated(reservoir): {interm-fluent, real}; // Evaporated water from reservoir
+        overflow(reservoir):   {interm-fluent, real}; // Excess overflow (over the rim)
+        inflow(reservoir):     {interm-fluent, real}; // Amount received from backward reservoirs
+        individual_outflow(reservoir): {interm-fluent, real}; // Net amount of water released from reservoir to individually connected reservoirs
+        released_water(reservoir): {interm-fluent, real}; // Actual amount of water released (with action clipping
+
+        // State fluents
+        rlevel(reservoir): {state-fluent, real, default = 50.0 }; // Reservoir level
+
+        // Action fluents
+        release(reservoir): { action-fluent, real, default = 0.0 }; // Action to set outflow of reservoir
+    };
+
+    cpfs {
+        // amount of ran fall for this timestep
+        rain(?r) =  abs[Normal(0, RAIN_VAR(?r))];
+
+        // amount of evaporated water, proportional to the amount of water in the tank
+        evaporated(?r) = EVAPORATION_FACTOR * rlevel(?r) / TOP_RES(?r);
+
+        // feasible bound enforcement on action
+        released_water(?r) = max[0, min[rlevel(?r), release(?r)]];
+
+        // amount of water spilled over the rim
+        overflow(?r) = max[0, rlevel(?r) - released_water(?r) - TOP_RES(?r)];
+
+        // the fraction of outflow to each of the forward connected tanks
+        individual_outflow(?r) = released_water(?r)* 1 / ((sum_{?out: reservoir} [RES_CONNECT(?r,?out)]) + CONNECTED_TO_SEA(?r));
+
+        // total incoming flow from all previous connected tanks
+        inflow(?r) = (sum_{?in : reservoir} [RES_CONNECT(?in,?r) * individual_outflow(?in)]);
+
+        rlevel'(?r) = min[TOP_RES(?r), max[0, rlevel(?r) + inflow(?r) + rain(?r) - evaporated(?r) - overflow(?r) - released_water(?r)]];
+    };
+
+    reward = (sum_{?r: reservoir} [if ((rlevel'(?r) >= MIN_LEVEL(?r)) ^ (rlevel'(?r) <= MAX_LEVEL(?r)))
+                                   then 0
+                                   else if (rlevel'(?r) <= MIN_LEVEL(?r))
+                                        then LOW_COST(?r) * (MIN_LEVEL(?r) - rlevel'(?r))
+                                        else if ((rlevel'(?r) > MAX_LEVEL(?r)) ^ (rlevel'(?r) <= TOP_RES(?r)))
+                                             then HIGH_COST(?r) * (rlevel'(?r) - MAX_LEVEL(?r))
+                                             else HIGH_COST(?r) * (rlevel'(?r) - MAX_LEVEL(?r)) + OVERFLOW_COST(?r) * overflow(?r)
+                                   ]);
+
+
+    action-preconditions {
+		forall_{?r : reservoir} release(?r) <= TOP_RES(?r);
+		forall_{?r : reservoir} release(?r) >= 0;
+	};
+
+	state-invariants {
+
+		forall_{?r : reservoir} rlevel(?r) >= 0;
+		forall_{?r : reservoir} rlevel(?r) <= TOP_RES(?r);
+        (sum_{?r : reservoir} [CONNECTED_TO_SEA(?r)]) == 1;
+	};
+
+}
