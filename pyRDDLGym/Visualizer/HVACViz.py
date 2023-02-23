@@ -51,10 +51,10 @@ class HVACVisualizer(StateViz):
                 heater_vol[objects[0]] = v
             elif var == 'ADJ_ZONES':
                 if v == True:
-                    adj_zone[objects[0]] = objects[1]
+                    adj_zone[objects[0]].append(objects[1])
             elif var == 'ADJ_HEATER':
                 if v == True:
-                    adj_heater[objects[0]] = objects[1]
+                    adj_heater[objects[0]].append(objects[1])
 
 
             # if 'ZONE-VOL_' in k:
