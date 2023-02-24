@@ -3,7 +3,6 @@
 import numpy as np
 from itertools import product
 
-
 indent_str = ' ' * 8
 newline_indent_str = '\n' + indent_str
 
@@ -78,6 +77,142 @@ def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
 
 
 
+def generate_webster_scenario(d,
+                              dNSfrac,
+                              dEWfrac,
+                              betaL,
+                              betaT,
+                              link_lengths=250,
+                              min_green=6,
+                              max_green=60,
+                              all_red=4,
+                              mu=0.53,
+                              instance_name=None,
+                              horizon=1024,
+                              discount=1.0):
+    """ Generates a single intersection instance for a Webster timing experiment """
+    if instance_name is None:
+        instance_name = f'single_intersection_webster_experiment'
+
+    num_ts = int(np.ceil(link_lengths/13.6))+1
+    t_names = (f't{t}' for t in range(num_ts))
+    instance_str = '\n'.join((
+        f'// d={d}, dNS={dNSfrac:.2f}, dEW={dEWfrac:.2f}, bL={betaL:.3f}, bT={betaT:.3f}',
+        f'',
+        f'non-fluents {instance_name} {{',
+        f'    domain = BLX_model;',
+        f'',
+        f'    objects {{',
+        f'        intersection : {{i0}};',
+        f'        link         : {{l0, l1, l2, l3, l4, l5, l6, l7}};',
+        f'        time         : {{{", ".join(t_names)}}};',
+        f'    }};',
+        f'',
+        f'    //             | |',
+        f'    //             | |',
+        f'    //             | |',
+        f'    //            l2 l1',
+        f'    //             | |',
+        f'    //             v ^',
+        f'    //             | |',
+        f'    //             ____',
+        f'    // --- l3 -<- | i0 | -<- l0 ---',
+        f'    // --- l4 ->- |____| ->- l7 ---',
+        f'    //             | |',
+        f'    //             v ^',
+        f'    //             | |',
+        f'    //            l5 l6',
+        f'    //             | |',
+        f'    //             | |',
+        f'    //             | |',
+        f'',
+        f'    non-fluents {{',
+        f'        //cartesian coordinates',
+        f'        X(i0) = 0;    Y(i0) = 0;',
+        f'        SOURCE-X(l0) = {link_lengths};    SOURCE-Y(l0) = 0;',
+        f'        SOURCE-X(l2) = 0;    SOURCE-Y(l2) = {link_lengths};',
+        f'        SOURCE-X(l4) = -{link_lengths};   SOURCE-Y(l4) = 0;',
+        f'        SOURCE-X(l6) = 0;   SOURCE-Y(l6) = -{link_lengths};',
+        f'        SINK-X(l7) = {link_lengths};    SINK-Y(l7) = 0;',
+        f'        SINK-X(l1) = 0;    SINK-Y(l1) = {link_lengths};',
+        f'        SINK-X(l3) = -{link_lengths};   SINK-Y(l3) = 0;',
+        f'        SINK-X(l5) = 0;   SINK-Y(l5) = -{link_lengths};',
+        f'',
+        f'        // source links',
+        f'        SOURCE(l0);',
+        f'        SOURCE(l2);',
+        f'        SOURCE(l4);',
+        f'        SOURCE(l6);',
+        f'',
+        f'        // sink links',
+        f'        SINK(l1);',
+        f'        SINK(l3);',
+        f'        SINK(l5);',
+        f'        SINK(l7);',
+        f'',
+        f'        // arrival rate from each source',
+        f'        SOURCE-ARRIVAL-RATE(l0) = {d*dEWfrac/2};',
+        f'        SOURCE-ARRIVAL-RATE(l2) = {d*dNSfrac/2};',
+        f'        SOURCE-ARRIVAL-RATE(l4) = {d*dEWfrac/2};',
+        f'        SOURCE-ARRIVAL-RATE(l6) = {d*dNSfrac/2};',
+        f''
+        f'        // link lengths',
+        f'        Dl(l0) = {link_lengths};',
+        f'        Dl(l1) = {link_lengths};',
+        f'        Dl(l2) = {link_lengths};',
+        f'        Dl(l3) = {link_lengths};',
+        f'        Dl(l4) = {link_lengths};',
+        f'        Dl(l5) = {link_lengths};',
+        f'        Dl(l6) = {link_lengths};',
+        f'        Dl(l7) = {link_lengths};',
+        f'',
+        f'        // satflow rates',
+        f'        MU(l0,l3) = {2*mu};',
+        f'        MU(l2,l5) = {2*mu};',
+        f'        MU(l4,l7) = {2*mu};',
+        f'        MU(l6,l1) = {2*mu};',
+        f'        MU(l0,l5) = {mu};',
+        f'        MU(l2,l7) = {mu};',
+        f'        MU(l4,l1) = {mu};',
+        f'        MU(l6,l3) = {mu};',
+        f'',
+        f'        // turn probabilities',
+        f'        BETA(l0,l3) = {betaT};',
+        f'        BETA(l2,l5) = {betaT};',
+        f'        BETA(l4,l7) = {betaT};',
+        f'        BETA(l6,l1) = {betaT};',
+        f'        BETA(l0,l5) = {betaL};',
+        f'        BETA(l2,l7) = {betaL};',
+        f'        BETA(l4,l1) = {betaL};',
+        f'        BETA(l6,l3) = {betaL};',
+        f''))
+
+    instance_str += generate_4leg_intersection('i0', 'l0', 'l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7',
+                               min=min_green, max=max_green, red=all_red, right_on_red=True)
+
+
+    instance_str += '\n        '.join(('', '// time-delay properties',
+       f'TIME-HEAD(t0);',
+       f'TIME-TAIL(t{num_ts-1});') +
+        tuple(f'TIME-VAL(t{i}) = {i};' for i in range(num_ts)) +
+        tuple(f'NEXT(t{i},t{i+1});' for i in range(num_ts-1)))
+
+    instance_str += '\n'
+    instance_str += '\n'.join((
+        f'    }};',
+        f'}}',
+        f'',
+        f'instance {instance_name} {{',
+        f'    domain = BLX_model;',
+        f'    non-fluents = {instance_name};',
+        f'    max-nondef-actions = 1;',
+        f'    horizon = {horizon};',
+        f'    discount = {discount};',
+        f'}}' ))
+    return instance_str
+
+
+
 def generate_grid(nrows,
                   ncols,
                   ew_link_len=(200,50), #(a,b) parsed as Uniform(a-b,a+b)
@@ -85,7 +220,7 @@ def generate_grid(nrows,
                   feeder_link_elongation_factor=1.5,
                   Vl=13.8,
                   inflow_rate_per_lane=(0.08,0.02),
-                  satflow_per_lane=0.63,
+                  satflow_per_lane=0.53,
                   num_lanes=4,
                   high_left_prob=0,
                   min_green=7,
@@ -377,18 +512,21 @@ def generate_grid(nrows,
 
 
 
+
+
 if __name__ == '__main__':
     import argparse
     import os
 
     parser = argparse.ArgumentParser(description='Tool for automatically generating grid instances for the RDDL traffic domain')
     parser.add_argument('target_path', type=str, help='Path the generated rddl code will be saved to')
-    parser.add_argument('-r', '--rows', type=int, help='Number of rows in the grid', required=True)
-    parser.add_argument('-c', '--cols', type=int, help='Number of columns in the grid', required=True)
+    parser.add_argument('-r', '--rows', type=int, help='Number of rows in the network', required=True)
+    parser.add_argument('-c', '--cols', type=int, help='Number of columns in the network', required=True)
     parser.add_argument('-f', '--force-overwrite', action='store_true', help='By default the generator will not overwrite existing files. With this argument, it will')
     parser.add_argument('-l', '--high-left-prob', default=0, help='Probability of having heavier demand on through than left from an approach')
     parser.add_argument('-n', '--instance-name', help='Name of instance')
     args = parser.parse_args()
+
 
     args.high_left_prob = float(args.high_left_prob)
     assert(0 <= args.high_left_prob <= 1)
@@ -397,7 +535,9 @@ if __name__ == '__main__':
         raise RuntimeError('[netgen.py] File with the requested path already exists. Pass a diffent path or add the -f argument to force overwrite')
 
     with open(args.target_path, 'w') as file:
-        file.write(generate_grid(args.rows,
-                                 args.cols,
-                                 instance_name=args.instance_name,
-                                 high_left_prob=args.high_left_prob))
+        network = generate_grid(
+            args.rows, args.cols,
+            instance_name=args.instance_name,
+            high_left_prob=args.high_left_prob)
+
+        file.write(network)
