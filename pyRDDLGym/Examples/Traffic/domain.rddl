@@ -255,7 +255,8 @@ domain BLX_model {
                                   Cl(?d) - Nc(?d) ]]];                        // Oversaturated
   
         // number of vehicles entering from a source
-        src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
+        //src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
+        src-arrivals(?u) = SOURCE(?u) * SOURCE-ARRIVAL-RATE(?u)*Ts;
 
         // flow from source u into the network
         // may not equal src-arrivals due to vehicles previously held in virtual queue
