@@ -245,7 +245,7 @@ domain BLX_model {
                         case @ALL-RED2            : GREEN(?u,?d,@ALL-RED2),
                         case @WEST-EAST-THROUGH   : GREEN(?u,?d,@WEST-EAST-THROUGH),
                         case @ALL-RED3            : GREEN(?u,?d,@ALL-RED3),
-                        case @NORTH-SOUTH-LEFT    : GREEN(?u,?d.@NORTH-SOUTH-LEFT),
+                        case @NORTH-SOUTH-LEFT    : GREEN(?u,?d,@NORTH-SOUTH-LEFT),
                         case @ALL-RED4            : GREEN(?u,?d,@ALL-RED4),
                         case @NORTH-SOUTH-THROUGH : GREEN(?u,?d,@NORTH-SOUTH-THROUGH)
                    })
