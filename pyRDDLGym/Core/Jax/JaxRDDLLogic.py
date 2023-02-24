@@ -6,6 +6,18 @@ import warnings
 DEFAULT_WEIGHT = 10.0
 
 
+class Complement:
+    
+    def __call__(self, x):
+        raise NotImplementedError
+
+
+class StandardComplement(Complement):
+    
+    def __call__(self, x):
+        return 1.0 - x
+
+
 class TNorm:
     
     def norm(self, x, y):
@@ -32,15 +44,18 @@ class FuzzyLogic:
     '''
     
     def __init__(self, tnorm: TNorm=ProductTNorm(),
+                 complement: Complement=StandardComplement(),
                  weight: float=DEFAULT_WEIGHT,
                  eps: float=1e-12):
         '''Creates a new fuzzy logic in Jax.
         
-        :param tnorm: t-norm for doing fuzzy boolean logic
+        :param tnorm: fuzzy operator for logical AND
+        :param complement: fuzzy operator for logical NOT
         :param weight: a concentration parameter (larger means better accuracy)
         :param eps: small positive float to mitigate underflow
         '''
         self.tnorm = tnorm
+        self.complement = complement
         self.weight = weight
         self.eps = eps
         
@@ -56,7 +71,7 @@ class FuzzyLogic:
     def Not(self, x):
         warnings.warn('Using the replacement rule: '
                       '~a --> 1 - a', stacklevel=2)
-        return 1.0 - x
+        return self.complement(x)
     
     def Or(self, a, b):
         return self.Not(self.And(self.Not(a), self.Not(b)))
