@@ -34,6 +34,8 @@ def get(path: str) -> Dict[str, object]:
     model_args = {k: args[k] for (k, v) in config.items('Model')}
     tnorm = getattr(JaxRDDLLogic, model_args['tnorm'])(**model_args['tnorm_kwargs'])
     logic = getattr(JaxRDDLLogic, model_args['logic'])(tnorm=tnorm, **model_args['logic_kwargs'])
+    model_params = model_args['model_params']
+    del model_args['model_params']
     
     # read the optimizer settings
     opt_args = {k: args[k] for (k, v) in config.items('Optimizer')}
@@ -41,6 +43,7 @@ def get(path: str) -> Dict[str, object]:
     opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, opt_args['method'])(**opt_args['method_kwargs'])
     opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(**opt_args['optimizer_kwargs'])
     opt_args['logic'] = logic
+    opt_args['model_params'] = model_params
     del opt_args['method']
     del opt_args['method_kwargs']
     del opt_args['optimizer_kwargs']

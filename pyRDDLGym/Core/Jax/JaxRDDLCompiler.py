@@ -59,70 +59,71 @@ class JaxRDDLCompiler:
         tracer = RDDLObjectsTracer(rddl, logger=self.logger)
         self.traced = tracer.trace()
         
-        # basic operations        
+        # basic operations
+        self.NEGATIVE = lambda x, subs: jnp.negative(x)        
         self.ARITHMETIC_OPS = {
-            '+': jnp.add,
-            '-': jnp.subtract,
-            '*': jnp.multiply,
-            '/': jnp.divide
+            '+': lambda x, y, subs: jnp.add(x, y),
+            '-': lambda x, y, subs: jnp.subtract(x, y),
+            '*': lambda x, y, subs: jnp.multiply(x, y),
+            '/': lambda x, y, subs: jnp.divide(x, y)
         }    
         self.RELATIONAL_OPS = {
-            '>=': jnp.greater_equal,
-            '<=': jnp.less_equal,
-            '<': jnp.less,
-            '>': jnp.greater,
-            '==': jnp.equal,
-            '~=': jnp.not_equal
+            '>=': lambda x, y, subs: jnp.greater_equal(x, y),
+            '<=': lambda x, y, subs: jnp.less_equal(x, y),
+            '<': lambda x, y, subs: jnp.less(x, y),
+            '>': lambda x, y, subs: jnp.greater(x, y),
+            '==': lambda x, y, subs: jnp.equal(x, y),
+            '~=': lambda x, y, subs: jnp.not_equal(x, y)
         }
-        self.LOGICAL_NOT = jnp.logical_not
+        self.LOGICAL_NOT = lambda x, subs: jnp.logical_not(x)
         self.LOGICAL_OPS = {
-            '^': jnp.logical_and,
-            '&': jnp.logical_and,
-            '|': jnp.logical_or,
-            '~': jnp.logical_xor,
-            '=>': lambda e1, e2: jnp.logical_or(jnp.logical_not(e1), e2),
-            '<=>': jnp.equal
+            '^': lambda x, y, subs: jnp.logical_and(x, y),
+            '&': lambda x, y, subs: jnp.logical_and(x, y),
+            '|': lambda x, y, subs: jnp.logical_or(x, y),
+            '~': lambda x, y, subs: jnp.logical_xor(x, y),
+            '=>': lambda x, y, subs: jnp.logical_or(jnp.logical_not(x), y),
+            '<=>': lambda x, y, subs: jnp.equal(x, y)
         }
         self.AGGREGATION_OPS = {
-            'sum': jnp.sum,
-            'avg': jnp.mean,
-            'prod': jnp.prod,
-            'minimum': jnp.min,
-            'maximum': jnp.max,
-            'forall': jnp.all,
-            'exists': jnp.any,
-            'argmin': jnp.argmin,
-            'argmax': jnp.argmax
+            'sum': lambda x, axis, subs: jnp.sum(x, axis=axis),
+            'avg': lambda x, axis, subs: jnp.mean(x, axis=axis),
+            'prod': lambda x, axis, subs: jnp.prod(x, axis=axis),
+            'minimum': lambda x, axis, subs: jnp.min(x, axis=axis),
+            'maximum': lambda x, axis, subs: jnp.max(x, axis=axis),
+            'forall': lambda x, axis, subs: jnp.all(x, axis=axis),
+            'exists': lambda x, axis, subs: jnp.any(x, axis=axis),
+            'argmin': lambda x, axis, subs: jnp.argmin(x, axis=axis),
+            'argmax': lambda x, axis, subs: jnp.argmax(x, axis=axis)
         }
         self.KNOWN_UNARY = {        
-            'abs': jnp.abs,
-            'sgn': jnp.sign,
-            'round': jnp.round,
-            'floor': jnp.floor,
-            'ceil': jnp.ceil,
-            'cos': jnp.cos,
-            'sin': jnp.sin,
-            'tan': jnp.tan,
-            'acos': jnp.arccos,
-            'asin': jnp.arcsin,
-            'atan': jnp.arctan,
-            'cosh': jnp.cosh,
-            'sinh': jnp.sinh,
-            'tanh': jnp.tanh,
-            'exp': jnp.exp,
-            'ln': jnp.log,
-            'sqrt': jnp.sqrt,
-            'lngamma': scipy.special.gammaln,
-            'gamma': lambda x: jnp.exp(scipy.special.gammaln(x))
+            'abs': lambda x, subs: jnp.abs(x),
+            'sgn': lambda x, subs: jnp.sign(x),
+            'round': lambda x, subs: jnp.round(x),
+            'floor': lambda x, subs: jnp.floor(x),
+            'ceil': lambda x, subs: jnp.ceil(x),
+            'cos': lambda x, subs: jnp.cos(x),
+            'sin': lambda x, subs: jnp.sin(x),
+            'tan': lambda x, subs: jnp.tan(x),
+            'acos': lambda x, subs: jnp.arccos(x),
+            'asin': lambda x, subs: jnp.arcsin(x),
+            'atan': lambda x, subs: jnp.arctan(x),
+            'cosh': lambda x, subs: jnp.cosh(x),
+            'sinh': lambda x, subs: jnp.sinh(x),
+            'tanh': lambda x, subs: jnp.tanh(x),
+            'exp': lambda x, subs: jnp.exp(x),
+            'ln': lambda x, subs: jnp.log(x),
+            'sqrt': lambda x, subs: jnp.sqrt(x),
+            'lngamma': lambda x, subs: scipy.special.gammaln(x),
+            'gamma': lambda x, subs: jnp.exp(scipy.special.gammaln(x))
         }        
         self.KNOWN_BINARY = {
-            'div': jnp.floor_divide,
-            'mod': jnp.mod,
-            'min': jnp.minimum,
-            'max': jnp.maximum,
-            'pow': jnp.power,
-            'log': lambda x, y: jnp.log(x) / jnp.log(y),
-            'hypot': jnp.hypot
+            'div': lambda x, y, subs: jnp.floor_divide(x, y),
+            'mod': lambda x, y, subs: jnp.mod(x, y),
+            'min': lambda x, y, subs: jnp.minimum(x, y),
+            'max': lambda x, y, subs: jnp.maximum(x, y),
+            'pow': lambda x, y, subs: jnp.power(x, y),
+            'log': lambda x, y, subs: jnp.log(x) / jnp.log(y),
+            'hypot': lambda x, y, subs: jnp.hypot(x, y)
         }
         
     # ===========================================================================
@@ -177,7 +178,7 @@ class JaxRDDLCompiler:
     def _compile_reward(self):
         return self._jax(self.rddl.reward, dtype=JaxRDDLCompiler.REAL)
     
-    def compile_rollouts(self, policy: Callable, 
+    def compile_rollouts(self, policy: Callable,
                          n_steps: int, n_batch: int,
                          check_constraints: bool=False):
         '''Compiles the current RDDL into a wrapped function that samples multiple
@@ -206,9 +207,7 @@ class JaxRDDLCompiler:
             
             # compute action
             key, subkey = random.split(key)
-            states = {var: values 
-                      for (var, values) in subs.items()
-                      if rddl.variable_types[var] == 'state-fluent'}
+            states = {var: subs[var] for var in rddl.states}
             actions = policy(subkey, params, step, states)
             subs.update(actions)
             
@@ -550,7 +549,7 @@ class JaxRDDLCompiler:
             sample, key, err = jax_expr(x, key)
             if at_least_int:
                 sample = 1 * sample
-            sample = jax_op(sample)
+            sample = jax_op(sample, subs=x)
             if check_dtype is not None:
                 invalid_cast = jnp.logical_not(jnp.can_cast(sample, check_dtype))
                 err |= (invalid_cast * ERR)
@@ -568,7 +567,7 @@ class JaxRDDLCompiler:
             if at_least_int:
                 sample1 = 1 * sample1
                 sample2 = 1 * sample2
-            sample = jax_op(sample1, sample2)
+            sample = jax_op(sample1, sample2, subs=x)
             err = err1 | err2
             if check_dtype is not None:
                 invalid_cast = jnp.logical_not(jnp.logical_and(
@@ -591,7 +590,7 @@ class JaxRDDLCompiler:
             arg, = args
             jax_expr = self._jax(arg)
             return JaxRDDLCompiler._jax_unary(
-                jax_expr, jnp.negative, at_least_int=True)
+                jax_expr, self.NEGATIVE, at_least_int=True)
                     
         elif n == 2:
             lhs, rhs = args
@@ -661,7 +660,7 @@ class JaxRDDLCompiler:
             else:
                 invalid_cast = jnp.logical_not(jnp.can_cast(sample, bool))
                 err |= (invalid_cast * ERR)
-            sample = jax_op(sample, axis=axes)
+            sample = jax_op(sample, axis=axes, subs=x)
             return sample, key, err
         
         return _jax_wrapped_aggregation
@@ -707,7 +706,11 @@ class JaxRDDLCompiler:
                 print_stack_trace(expr))   
     
     def _jax_if_helper(self):
-        return jnp.where
+        
+        def _jax_wrapped_if_helper(pred, branch1, branch2, subs):
+            return jnp.where(pred, branch1, branch2)
+        
+        return _jax_wrapped_if_helper
     
     def _jax_if(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
@@ -723,7 +726,7 @@ class JaxRDDLCompiler:
             sample1, key, err1 = jax_pred(x, key)
             sample2, key, err2 = jax_true(x, key)
             sample3, key, err3 = jax_false(x, key)
-            sample = jax_if(sample1, sample2, sample3)
+            sample = jax_if(sample1, sample2, sample3, x)
             err = err1 | err2 | err3
             invalid_cast = jnp.logical_not(jnp.can_cast(sample1, bool))
             err |= (invalid_cast * ERR)
@@ -733,7 +736,7 @@ class JaxRDDLCompiler:
     
     def _jax_switch_helper(self):
         
-        def _jax_switch_calc_exact(pred, cases):
+        def _jax_switch_calc_exact(pred, cases, subs):
             pred = pred[jnp.newaxis, ...]
             sample = jnp.take_along_axis(cases, pred, axis=0)
             assert sample.shape[0] == 1
@@ -765,7 +768,7 @@ class JaxRDDLCompiler:
             sample_cases = jnp.asarray(sample_cases)
             
             # predicate (enum) is an integer - use it to extract from case array
-            sample = jax_switch(sample_pred, sample_cases)
+            sample = jax_switch(sample_pred, sample_cases, subs=x)
             return sample, key, err    
         
         return _jax_wrapped_switch
@@ -969,7 +972,11 @@ class JaxRDDLCompiler:
         return _jax_wrapped_distribution_weibull
     
     def _jax_bernoulli_helper(self):
-        return random.bernoulli
+        
+        def _jax_wrapped_bernoulli_helper(key, prob, subs):
+            return random.bernoulli(key, prob)
+        
+        return _jax_wrapped_bernoulli_helper
         
     def _jax_bernoulli(self, expr):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
@@ -983,7 +990,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_distribution_bernoulli(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
-            sample = bernoulli(subkey, prob)
+            sample = bernoulli(subkey, prob, x)
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
@@ -1295,7 +1302,7 @@ class JaxRDDLCompiler:
     
     def _jax_discrete_helper(self):
         
-        def _jax_discrete_calc_exact(key, prob):
+        def _jax_discrete_calc_exact(key, prob, subs):
             logits = jnp.log(prob)
             sample = random.categorical(key=key, logits=logits, axis=-1)
             out_of_bounds = jnp.logical_not(jnp.logical_and(
@@ -1328,7 +1335,7 @@ class JaxRDDLCompiler:
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample, out_of_bounds = jax_discrete(subkey, prob)
+            sample, out_of_bounds = jax_discrete(subkey, prob, subs=x)
             error |= (out_of_bounds * ERR)
             return sample, key, error
         
@@ -1353,7 +1360,7 @@ class JaxRDDLCompiler:
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample, out_of_bounds = jax_discrete(subkey, prob)
+            sample, out_of_bounds = jax_discrete(subkey, prob, subs=x)
             error |= (out_of_bounds * ERR)
             return sample, key, error
         

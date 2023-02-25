@@ -67,17 +67,11 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
             '=>': logic.implies,
             '<=>': logic.equiv
         }
-        self.AGGREGATION_OPS = {
-            'sum': jnp.sum,
-            'avg': jnp.mean,
-            'prod': jnp.prod,
-            'minimum': jnp.min,
-            'maximum': jnp.max,
-            'forall': logic.forall,
-            'exists': logic.exists,
-            'argmin': logic.argmin,
-            'argmax': logic.argmax
-        }
+        self.AGGREGATION_OPS['forall'] = logic.forall
+        self.AGGREGATION_OPS['exists'] = logic.exists
+        self.AGGREGATION_OPS['argmin'] = logic.argmin
+        self.AGGREGATION_OPS['argmax'] = logic.argmax
+        
         self.KNOWN_UNARY['sgn'] = logic.signum   
         self.KNOWN_UNARY['floor'] = logic.floor   
         self.KNOWN_UNARY['ceil'] = logic.ceil   
@@ -123,8 +117,8 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     def _jax_discrete_helper(self):
         discrete = self.logic.discrete
 
-        def _jax_discrete_calc_approx(key, prob):
-            sample = discrete(key, prob)
+        def _jax_discrete_calc_approx(key, prob, subs):
+            sample = discrete(key, prob, subs=subs)
             out_of_bounds = jnp.logical_not(jnp.logical_and(
                 jnp.all(prob >= 0),
                 jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
@@ -346,6 +340,7 @@ class JaxRDDLBackpropPlanner:
     
     def __init__(self, rddl: RDDLLiftedModel,
                  plan: JaxPlan,
+                 model_params: Dict,
                  batch_size_train: int,
                  batch_size_test: int=None,
                  rollout_horizon: int=None,
@@ -363,6 +358,8 @@ class JaxRDDLBackpropPlanner:
         
         :param rddl: the RDDL domain to optimize
         :param plan: the policy/plan representation to optimize
+        :param model_params: hyper-parameters (e.g. temperature) for approximated
+        model
         :param batch_size_train: how many rollouts to perform per optimization 
         step
         :param batch_size_test: how many rollouts to use to test the plan at each
@@ -384,6 +381,7 @@ class JaxRDDLBackpropPlanner:
         '''
         self.rddl = rddl
         self.plan = plan
+        self.model_params = model_params
         self.batch_size_train = batch_size_train
         if batch_size_test is None:
             batch_size_test = batch_size_train
@@ -495,8 +493,7 @@ class JaxRDDLBackpropPlanner:
         # optionally does gradient normalization
         # also perform a projection step to satisfy constraints on actions
         def _jax_wrapped_plan_update(key, params, subs, opt_state):
-            grad, log = jax.grad(loss, argnums=1, has_aux=True)(key, params, subs)
-            
+            grad, log = jax.grad(loss, argnums=1, has_aux=True)(key, params, subs)            
             log['grad'] = grad
             updates, opt_state = optimizer.update(grad, opt_state)
             params = optax.apply_updates(params, updates)
@@ -544,6 +541,7 @@ class JaxRDDLBackpropPlanner:
         # compute a batched version of the initial values
         if subs is None:
             subs = self.test_compiled.init_values
+        subs.update(self.model_params)
         train_subs, test_subs = self._batched_init_subs(subs)
         
         # initialize policy parameters
