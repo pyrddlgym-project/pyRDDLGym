@@ -8,7 +8,7 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 
 def test_xadd(
-        env_name: str = 'Wildfire',
+        env_name: str = 'wildfire',
         cpf: Optional[str] = None,
         save_graph: bool = False,
 ):
@@ -34,6 +34,9 @@ def test_xadd(
     xadd_model.compile()
     context = xadd_model._context
     
+    if save_graph:
+        Path(f'tmp/{env_name}').mkdir(parents=True, exist_ok=True)
+        
     if cpf is not None:
         expr = xadd_model.cpfs.get(f"{cpf}'")
         if expr is None:
@@ -59,7 +62,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--env', type=str, default='Wildfire',
+    parser.add_argument('--env', type=str, default='wildfire',
                         help='The name of the RDDL environment')
     parser.add_argument('--cpf', type=str, default=None,
                         help='If specified, only print out this CPF')
