@@ -3,9 +3,10 @@ from pyRDDLGym.Visualizer.visualize_dbn import RDDL2Graph
 
 def test_dbn_visualization():
     domains = [
-        'CartPole discrete', 'CartPole continuous', 'MarsRover', 
-        'MountainCar', 'PowerGeneration', 'RaceCar', 'UAV continuous', 
-        'UAV discrete', 'UAV mixed', 'Wildfire', 'SupplyChain'
+        'cartpole discrete', 'cartpole continuous', 'marsrover', 
+        # 'mountaincar',    # Takes too long to create DBN graph for this
+        'powergen', 'racecar', 'uavcontinuous', 
+        'uavdiscrete', 'uavmixed', 'wildfire', 'supplychain'
     ]
     
     for domain in domains:

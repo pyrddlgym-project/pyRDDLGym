@@ -445,7 +445,8 @@ class RDDL2Graph:
     
     @staticmethod
     def get_objects(gvar: str, pvar: str) -> List[str]:
-        return list(map(lambda x: '?' + x, gvar.split(pvar)[1].split('_')[1:]))
+        return list(map(lambda x: '?' + x, 
+                        [v_str for v_str in gvar.split(pvar)[1].split('_')[1:] if v_str]))
     
     def add_node(self, node_name: str):
         gvar = self._node_name_to_gvar[node_name]
