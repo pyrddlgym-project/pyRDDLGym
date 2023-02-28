@@ -231,7 +231,8 @@ def _test_logical():
     
     # https://towardsdatascience.com/emulating-logical-gates-with-a-neural-network-75c229ec4cc9
     def test_logic(x1, x2):
-        q1 = logic.And(logic.greater(x1, 0, subs), logic.greater(x2, 0, subs), subs)
+        q1 = logic.And(logic.greater(x1, 0, subs), 
+                       logic.greater(x2, 0, subs), subs)
         q2 = logic.And(logic.Not(logic.greater(x1, 0, subs), subs), 
                        logic.Not(logic.greater(x2, 0, subs), subs), subs)
         cond = logic.Or(q1, q2, subs)

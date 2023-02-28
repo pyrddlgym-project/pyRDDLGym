@@ -990,7 +990,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_distribution_bernoulli(x, key):
             prob, key, err = jax_prob(x, key)
             key, subkey = random.split(key)
-            sample = bernoulli(subkey, prob, x)
+            sample = bernoulli(subkey, prob, subs=x)
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
