@@ -15,8 +15,8 @@
 //                        the entirety of the queue, causing a spillback.
 //
 //  This implementation uses a fixed signal-phase order, and the action consists of a concurrently
-//  chosen boolean for each intersection: whether or not to extend the current signal phase or switch
-//  to the next one in the fixed order.
+//  chosen boolean for each intersection: whether or not to extend the current signal phase or
+//  switch to the next one in the fixed order.
 //
 //  Authors: Ayal Taitler (ataitler@gmail.com)
 //           Ilia Smirnov (iliathesmirnov@gmail.com)
@@ -83,8 +83,8 @@ domain BLX_model {
         // is there a turn from link0 to link1?
         TURN(link, link)                                       :  { non-fluent, bool, default = false };
 
-        // saturated flow rate leaving turn (link0,link1) in veh/s
-        MU(link, link)                                         :  { non-fluent, real, default = 1.2 };
+        // saturation flow rate leaving turn (link0,link1) in veh/s
+        MU(link, link)                                         :  { non-fluent, real, default = 0.53 };
 
         // fraction of the traffic turning from link0 to link1
         BETA(link, link)                                       :  { non-fluent, real, default = 0.33 };
@@ -108,7 +108,7 @@ domain BLX_model {
         // arrival rate at sources in veh/s - the mean for a uniform distribution
         SOURCE-ARRIVAL-RATE(link)                              :  { non-fluent, real, default = 0.67 };
 
-        // saturated flow rate from a source in veh/s
+        // saturation flow rate from a source in veh/s
         SOURCE-MU(link)                                        :  { non-fluent, real, default = 2.0 };
 
 
@@ -224,6 +224,16 @@ domain BLX_model {
         // derived fluent for the link capacity (total storage of the link)
         Cl(?u) = Dl(?u) * Nl(?u) / Lv;
 
+        // number of vehicles entering from a source
+        //src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
+        src-arrivals(?u) = SOURCE(?u) * SOURCE-ARRIVAL-RATE(?u)*Ts;
+
+        // flow from source u into the network
+        // may not equal src-arrivals due to vehicles previously held in virtual queue
+        flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),        // Undersaturated
+                                                 min[ SOURCE-MU(?u) * Ts,                 // Saturated
+                                                      Cl(?u) - Nc(?u) ]];                 // Oversaturated
+
         // time-delay variables update
         offset(?u) = (Cl(?u) - [sum_{?d : link} (q(?u,?d))])*Lv / (Nl(?u)*Vl(?u)*Ts);
         tau(?u) = floor[ offset(?u) ];
@@ -250,20 +260,10 @@ domain BLX_model {
                         case @NORTH-SOUTH-THROUGH : GREEN(?u,?d,@NORTH-SOUTH-THROUGH)
                    })
                ])
-             * max[ 0, min[ q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d),        // Undersaturated
-                            min [ BETA(?u,?d) * MU(?u,?d) * Ts,               // Saturated
+             * max[ 0, min[ q(?u,?d) + BETA(?u,?d)*queue-arrivals(?u),        // Undersaturated
+                            min [ MU(?u,?d) * Ts,                             // Saturated
                                   Cl(?d) - Nc(?d) ]]];                        // Oversaturated
   
-        // number of vehicles entering from a source
-        //src-arrivals(?u) =  SOURCE(?u) * Uniform(0, 2*SOURCE-ARRIVAL-RATE(?u)*Ts);
-        src-arrivals(?u) = SOURCE(?u) * SOURCE-ARRIVAL-RATE(?u)*Ts;
-
-        // flow from source u into the network
-        // may not equal src-arrivals due to vehicles previously held in virtual queue
-        flow-from-source(?u) = SOURCE(?u) * min[ src-arrivals(?u) + virtual-q(?u),        // Undersaturated
-                                                 min[ SOURCE-MU(?u) * Ts,                 // Saturated
-                                                      Cl(?u) - Nc(?u) ]];                 // Oversaturated
-
 
         // number of vehicles entering link d, summed over all possible inflows
         flow-into-link(?d) =   SOURCE(?d)       * flow-from-source(?d)
@@ -295,7 +295,7 @@ domain BLX_model {
 
         virtual-q'(?u) = virtual-q(?u) + src-arrivals(?u) - flow-from-source(?u);
             
-        q'(?u,?d) = [q(?u,?d) + queue-arrivals(?u)*BETA(?u,?d) - flow-through-turn(?u,?d)] * TURN(?u,?d);
+        q'(?u,?d) = [q(?u,?d) + BETA(?u,?d)*queue-arrivals(?u) - flow-through-turn(?u,?d)] * TURN(?u,?d);
 
         Nc'(?u) =
             Nc(?u)
