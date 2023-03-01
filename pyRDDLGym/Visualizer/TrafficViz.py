@@ -29,10 +29,10 @@ RGBA_GREEN_TURN_COLOR = (0.2, 1, 0.2, 1)
 RGBA_Q_PATCH_COLOR = (1, 0.2, 0.2, 0.4)
 RGBA_Q_LINE_COLOR = (1, 0.2, 0.2, 1)
 RGBA_LINK_GRID_COLOR = RGBA_PAVEMENT_COLOR
-RGBA_LINK_GRID_SAT_COLOR = (1, 0.2, 1, 0.4)
+RGBA_LINK_GRID_SAT_COLOR = (0.9, 0.3, 0.9, 1)
 
 def get_fillcolor_by_density(N, capacity):
-    p = min(1, N/capacity)
+    p = max(min(1, N/capacity),0)
     return tuple(p*c for c in RGBA_LINK_GRID_SAT_COLOR)
 
 def id(var_id, *objs):
