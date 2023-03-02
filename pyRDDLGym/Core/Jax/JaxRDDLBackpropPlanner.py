@@ -83,6 +83,8 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         self.KNOWN_UNARY['ceil'] = logic.ceil   
         self.KNOWN_UNARY['round'] = logic.round
         self.KNOWN_UNARY['sqrt'] = logic.sqrt
+        self.KNOWN_BINARY['div'] = logic.floorDiv
+        self.KNOWN_BINARY['mod'] = logic.mod
     
     def _jax_stop_grad(self, jax_expr):
         

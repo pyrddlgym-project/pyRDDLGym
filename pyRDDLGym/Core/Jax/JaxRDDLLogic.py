@@ -153,6 +153,12 @@ class FuzzyLogic:
                       'round(x) --> x', stacklevel=2)
         return x
     
+    def mod(self, x, y):
+        return x - y * self.floor(x / y)
+    
+    def floorDiv(self, x, y):
+        return self.floor(x / y)
+    
     def sqrt(self, x):
         warnings.warn('Using the replacement rule: '
                       'sqrt(x) --> sqrt(x + eps)', stacklevel=2)
@@ -288,6 +294,7 @@ def _test_rounding():
     x = jnp.asarray([2.1, 0.5, 1.99, 2.0, -3.2, -0.1, -1.0, 23.01, -101.99, 200.01])
     print(logic.floor(x))
     print(logic.ceil(x))
+    print(logic.mod(x, 2.0))
 
 
 if __name__ == '__main__':
