@@ -133,8 +133,7 @@ class FuzzyLogic:
     def _sawtooth(self, x):
         d = self.eps
         pi = jnp.pi
-        trg = 1.0 - 2.0 * jnp.arccos(
-            (1.0 - d) * jnp.sin(pi * (2.0 * x - 1.0) / 2.0)) / pi
+        trg = 1.0 - 2.0 * jnp.arccos((1.0 - d) * jnp.sin(pi * (x - 0.5))) / pi
         sqr = 2.0 * jnp.arctan(jnp.sin(pi * x) / d) / pi
         swt = (1.0 + trg * sqr) / 2.0
         return swt        
