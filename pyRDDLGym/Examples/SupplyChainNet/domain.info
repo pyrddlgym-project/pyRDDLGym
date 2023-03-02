@@ -1,4 +1,4 @@
 [General]
-name=supplychainnet
+name=SupplyChainNet
 description=A supply chain network with factory and multiple warehouses.
 viz=TextViz.TextVisualizer

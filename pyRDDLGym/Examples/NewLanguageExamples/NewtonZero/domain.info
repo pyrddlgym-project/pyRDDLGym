@@ -1,4 +1,4 @@
 [General]
-name=newtonzero
+name=NewtonZero
 description=Example with Newton root-finding method.
 viz=TextViz.TextVisualizer
