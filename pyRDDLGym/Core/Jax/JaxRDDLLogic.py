@@ -130,17 +130,29 @@ class FuzzyLogic:
                       'signum(x) --> tanh(x)', stacklevel=2)
         return jnp.tanh(self.weight * x)
     
+    def _sawtooth(self, x):
+        d = self.eps
+        pi = jnp.pi
+        trg = 1.0 - 2.0 * jnp.arccos(
+            (1.0 - d) * jnp.sin(pi * (2.0 * x - 1.0) / 2.0)) / pi
+        sqr = 2.0 * jnp.arctan(jnp.sin(pi * x) / d) / pi
+        swt = (1.0 + trg * sqr) / 2.0
+        return swt        
+        
     def floor(self, x):
-        warnings.warn('floor() will have zero gradient', stacklevel=2)
-        return jnp.floor(x)
+        warnings.warn('Using the replacement rule: '
+                      'floor(x) --> x - sawtooth(x), where sawtooth is a '
+                      'trigonometric approximation of the sawtooth function',
+                      stacklevel=2)
+        return x - self._sawtooth(x)
     
     def ceil(self, x):
-        warnings.warn('ceil() will have zero gradient', stacklevel=2)
-        return jnp.ceil(x)
+        return -self.floor(-x)
     
     def round(self, x):
-        warnings.warn('round() will have zero gradient', stacklevel=2)
-        return jnp.round(x)
+        warnings.warn('Using the replacement rule: '
+                      'round(x) --> x', stacklevel=2)
+        return x
     
     def sqrt(self, x):
         warnings.warn('Using the replacement rule: '
@@ -253,16 +265,12 @@ def _test_indexing():
 
 
 def _test_control():
-    
-    def switch(pred, cases):
-        return logic.Switch(pred, cases)
-
     pred = jnp.asarray(jnp.linspace(0, 2, 10))
     case1 = jnp.asarray([-10.] * 10)
     case2 = jnp.asarray([1.5] * 10)
     case3 = jnp.asarray([10.] * 10)
     cases = jnp.asarray([case1, case2, case3])
-    print(switch(pred, cases))
+    print(logic.Switch(pred, cases))
 
 
 def _test_random():
@@ -277,9 +285,16 @@ def _test_random():
     print(jnp.mean(samples))
 
 
+def _test_rounding():
+    x = jnp.asarray([2.1, 0.5, 1.99, 2.0, -3.2, -0.1, -1.0, 23.01, -101.99, 200.01])
+    print(logic.floor(x))
+    print(logic.ceil(x))
+
+
 if __name__ == '__main__':
     _test_logical()
     _test_indexing()
     _test_control()
     _test_random()
+    _test_rounding()
     
