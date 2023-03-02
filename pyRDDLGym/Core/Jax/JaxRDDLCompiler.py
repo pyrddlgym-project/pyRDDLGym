@@ -1106,6 +1106,7 @@ class JaxRDDLCompiler:
         
         arg_prob, = expr.args
         jax_prob = self._jax(arg_prob)
+        floor_op = self.KNOWN_UNARY['floor']
         
         # reparameterization trick Geom(p) = floor(ln(U(0, 1)) / ln(p)) + 1
         def _jax_wrapped_distribution_geometric(x, key):
@@ -1113,7 +1114,7 @@ class JaxRDDLCompiler:
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
-            sample = jnp.floor(jnp.log1p(-U) / jnp.log1p(-prob)) + 1
+            sample = floor_op(jnp.log1p(-U) / jnp.log1p(-prob)) + 1
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
