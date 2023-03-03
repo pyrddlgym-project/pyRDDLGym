@@ -3,6 +3,8 @@ import jax.numpy as jnp
 import jax.random as random
 import warnings
 
+from typing import Set
+
 
 class Complement:
     
@@ -44,24 +46,24 @@ class FuzzyLogic:
     def __init__(self, tnorm: TNorm=ProductTNorm(),
                  complement: Complement=StandardComplement(),
                  weight: float=10.0,
-                 error: float=1e-12,
-                 eps: float=1e-12,
-                 debias: bool=False):
+                 error: float=1e-6,
+                 debias: Set[str]={'argmax', 'Switch'},
+                 eps: float=1e-12):
         '''Creates a new fuzzy logic in Jax.
         
         :param tnorm: fuzzy operator for logical AND
         :param complement: fuzzy operator for logical NOT
         :param weight: a concentration parameter (larger means better accuracy)
         :param error: an error parameter (e.g. floor) (smaller means better accuracy)
+        :param debias: which functions to de-bias approximate on forward pass
         :param eps: small positive float to mitigate underflow
-        :param debias: whether to de-bias approximate operations on forward pass
         '''
         self.tnorm = tnorm
         self.complement = complement
         self.weight = weight
         self.error = error
-        self.eps = eps
         self.debias = debias
+        self.eps = eps
         
     # ===========================================================================
     # logical operators
@@ -167,10 +169,11 @@ class FuzzyLogic:
     def greaterEqual(self):
         warnings.warn('Using the replacement rule: '
                       'a >= b --> sigmoid(a - b)', stacklevel=2)
+        debias = 'greaterEqual' in self.debias
         
         def _jax_wrapped_calc_geq_approx(a, b, param):
             sample = jax.nn.sigmoid(param * (a - b))
-            if self.debias:
+            if debias:
                 hard_sample = jnp.greater_equal(a, b)
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
@@ -200,10 +203,11 @@ class FuzzyLogic:
     def equal(self):
         warnings.warn('Using the replacement rule: '
                       'a == b --> sech^2(b - a)', stacklevel=2)
+        debias = 'equal' in self.debias
         
         def _jax_wrapped_calc_equal_approx(a, b, param):
             sample = 1.0 - jnp.square(jnp.tanh(param * (b - a)))
-            if self.debias:
+            if debias:
                 hard_sample = jnp.equal(a, b)
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
@@ -227,10 +231,11 @@ class FuzzyLogic:
     def signum(self):
         warnings.warn('Using the replacement rule: '
                       'signum(x) --> tanh(x)', stacklevel=2)
+        debias = 'signum' in self.debias
         
         def _jax_wrapped_calc_signum_approx(x, param):
             sample = jnp.tanh(param * x)
-            if self.debias:
+            if debias:
                 hard_sample = jnp.sign(x)
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
@@ -250,10 +255,11 @@ class FuzzyLogic:
                       'floor(x) --> x - sawtooth(x), where sawtooth is a '
                       'trigonometric approximation of the sawtooth function',
                       stacklevel=2)
+        debias = 'floor' in self.debias
         
         def _jax_wrapped_calc_floor_approx(x, param):
             sample = x - self._sawtooth(x, param)
-            if self.debias:
+            if debias:
                 hard_sample = jnp.floor(x)
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
@@ -318,12 +324,13 @@ class FuzzyLogic:
     def argmax(self):
         warnings.warn('Using the replacement rule: '
                       f'argmax(x) --> sum(i * softmax(x[i]))', stacklevel=2)
+        debias = 'argmax' in self.debias
         
         def _jax_wrapped_calc_argmax_approx(x, axis, param):
             prob_max = jax.nn.softmax(param * x, axis=axis)
             literals = FuzzyLogic._literals(prob_max.shape, axis=axis)
             sample = jnp.sum(literals * prob_max, axis=axis)
-            if self.debias:
+            if debias:
                 hard_sample = jnp.argmax(x, axis=axis)
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
@@ -355,7 +362,8 @@ class FuzzyLogic:
     def Switch(self):
         warnings.warn('Using the replacement rule: '
                       'switch(pred) { cases } --> sum(cases[i] * (pred == i))',
-                      stacklevel=2)    
+                      stacklevel=2)   
+        debias = 'Switch' in self.debias
         
         def _jax_wrapped_calc_switch_approx(pred, cases, param):
             pred = jnp.broadcast_to(pred[jnp.newaxis, ...], shape=cases.shape)
@@ -363,7 +371,7 @@ class FuzzyLogic:
             proximity = -jnp.abs(pred - literals)
             soft_case = jax.nn.softmax(param * proximity, axis=0)
             sample = jnp.sum(cases * soft_case, axis=0)
-            if self.debias:
+            if debias:
                 hard_case = jnp.argmax(proximity, axis=0)[jnp.newaxis, ...]      
                 hard_sample = jnp.take_along_axis(cases, hard_case, axis=0)[0, ...]
                 sample += jax.lax.stop_gradient(hard_sample - sample)
