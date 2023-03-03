@@ -44,17 +44,20 @@ class FuzzyLogic:
     def __init__(self, tnorm: TNorm=ProductTNorm(),
                  complement: Complement=StandardComplement(),
                  weight: float=10.0,
+                 error: float=1e-12,
                  eps: float=1e-12):
         '''Creates a new fuzzy logic in Jax.
         
         :param tnorm: fuzzy operator for logical AND
         :param complement: fuzzy operator for logical NOT
         :param weight: a concentration parameter (larger means better accuracy)
+        :param error: an error parameter (e.g. floor) (smaller means better accuracy)
         :param eps: small positive float to mitigate underflow
         '''
         self.tnorm = tnorm
         self.complement = complement
         self.weight = weight
+        self.error = error
         self.eps = eps
         
     # ===========================================================================
@@ -236,7 +239,7 @@ class FuzzyLogic:
         def _jax_wrapped_calc_floor_approx(x, param):
             return x - self._sawtooth(x, param)
         
-        new_param = ('error_floor', 1e-12)
+        new_param = ('error_floor', self.error)
         return _jax_wrapped_calc_floor_approx, new_param
     
     def ceil(self):
