@@ -47,92 +47,86 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         warnings.warn(f'Initial values of pvariables will be cast to real.',
                       stacklevel=2)   
         for (var, values) in self.init_values.items():
-            self.init_values[var] = np.asarray(values, dtype=RDDLValueInitializer.REAL) 
+            self.init_values[var] = np.asarray(
+                values, dtype=RDDLValueInitializer.REAL) 
         
         # overwrite basic operations with fuzzy ones
         self.RELATIONAL_OPS = {
-            '>=': logic.greaterEqual,
-            '<=': logic.lessEqual,
-            '<': logic.less,
-            '>': logic.greater,
-            '==': logic.equal,
-            '~=': logic.notEqual
+            '>=': logic.greaterEqual(),
+            '<=': logic.lessEqual(),
+            '<': logic.less(),
+            '>': logic.greater(),
+            '==': logic.equal(),
+            '~=': logic.notEqual()
         }
-        self.LOGICAL_NOT = logic.Not  
+        self.LOGICAL_NOT = logic.Not()
         self.LOGICAL_OPS = {
-            '^': logic.And,
-            '&': logic.And,
-            '|': logic.Or,
-            '~': logic.xor,
-            '=>': logic.implies,
-            '<=>': logic.equiv
+            '^': logic.And(),
+            '&': logic.And(),
+            '|': logic.Or(),
+            '~': logic.xor(),
+            '=>': logic.implies(),
+            '<=>': logic.equiv()
         }
-        self.AGGREGATION_OPS = {
-            'sum': jnp.sum,
-            'avg': jnp.mean,
-            'prod': jnp.prod,
-            'minimum': jnp.min,
-            'maximum': jnp.max,
-            'forall': logic.forall,
-            'exists': logic.exists,
-            'argmin': logic.argmin,
-            'argmax': logic.argmax
-        }
-        self.KNOWN_UNARY['sgn'] = logic.signum   
-        self.KNOWN_UNARY['floor'] = logic.floor   
-        self.KNOWN_UNARY['ceil'] = logic.ceil   
-        self.KNOWN_UNARY['round'] = logic.round
-        self.KNOWN_UNARY['sqrt'] = logic.sqrt
-        self.KNOWN_BINARY['div'] = logic.floorDiv
-        self.KNOWN_BINARY['mod'] = logic.mod
+        self.AGGREGATION_OPS['forall'] = logic.forall()
+        self.AGGREGATION_OPS['exists'] = logic.exists()
+        self.AGGREGATION_OPS['argmin'] = logic.argmin()
+        self.AGGREGATION_OPS['argmax'] = logic.argmax()
+        self.KNOWN_UNARY['sgn'] = logic.signum()
+        self.KNOWN_UNARY['floor'] = logic.floor()   
+        self.KNOWN_UNARY['ceil'] = logic.ceil()   
+        self.KNOWN_UNARY['round'] = logic.round()
+        self.KNOWN_UNARY['sqrt'] = logic.sqrt()
+        self.KNOWN_BINARY['div'] = logic.floorDiv()
+        self.KNOWN_BINARY['mod'] = logic.mod()
     
     def _jax_stop_grad(self, jax_expr):
         
-        def _jax_wrapped_stop_grad(x, key):
-            sample, key, error = jax_expr(x, key)
+        def _jax_wrapped_stop_grad(x, params, key):
+            sample, key, error = jax_expr(x, params, key)
             sample = jax.lax.stop_gradient(sample)
             return sample, key, error
         
         return _jax_wrapped_stop_grad
         
-    def _compile_cpfs(self):
+    def _compile_cpfs(self, info):
         warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
         jax_cpfs = {}
         for (_, cpfs) in self.levels.items():
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
-                jax_cpfs[cpf] = self._jax(expr, dtype=JaxRDDLCompiler.REAL)
+                jax_cpfs[cpf] = self._jax(expr, info, dtype=JaxRDDLCompiler.REAL)
                 if cpf in self.cpfs_without_grad:
                     warnings.warn(f'CPF <{cpf}> stops gradient.', stacklevel=2)      
                     jax_cpfs[cpf] = self._jax_stop_grad(jax_cpfs[cpf])
         return jax_cpfs
     
     def _jax_if_helper(self):
-        return self.logic.If
+        return self.logic.If()
     
     def _jax_switch_helper(self):
-        return self.logic.Switch
+        return self.logic.Switch()
         
-    def _jax_kron(self, expr):
+    def _jax_kron(self, expr, info):
         warnings.warn('KronDelta will be ignored.', stacklevel=2)                       
         arg, = expr.args
-        arg = self._jax(arg)
+        arg = self._jax(arg, info)
         return arg
     
     def _jax_bernoulli_helper(self):
-        return self.logic.bernoulli
+        return self.logic.bernoulli()
     
     def _jax_discrete_helper(self):
-        discrete = self.logic.discrete
+        jax_discrete, jax_param = self.logic.discrete()
 
-        def _jax_discrete_calc_approx(key, prob):
-            sample = discrete(key, prob)
+        def _jax_wrapped_discrete_calc_approx(key, prob, params):
+            sample = jax_discrete(key, prob, params)
             out_of_bounds = jnp.logical_not(jnp.logical_and(
                 jnp.all(prob >= 0),
                 jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
             return sample, out_of_bounds
         
-        return _jax_discrete_calc_approx
+        return _jax_wrapped_discrete_calc_approx, jax_param
 
 
 class JaxPlan:
@@ -353,7 +347,7 @@ class JaxRDDLBackpropPlanner:
                  rollout_horizon: int=None,
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
-                 clip_grad: float=1000.,
+                 clip_grad: float=9999.,
                  logic: FuzzyLogic=FuzzyLogic(),
                  use_symlog_reward: bool=False,
                  utility=jnp.mean,
@@ -418,6 +412,8 @@ class JaxRDDLBackpropPlanner:
             cpfs_without_grad=self.cpfs_without_grad)
         self.compiled.compile()
         
+        print(self.compiled.model_params)
+        
         # Jax compilation of the exact RDDL for testing
         self.test_compiled = JaxRDDLCompiler(rddl=rddl)
         self.test_compiled.compile()
@@ -480,8 +476,8 @@ class JaxRDDLBackpropPlanner:
             return rewards
         
         # the loss is the average cumulative reward across all roll-outs
-        def _jax_wrapped_plan_loss(key, params, subs):
-            log = rollouts(key, params, subs)
+        def _jax_wrapped_plan_loss(key, policy_params, subs, model_params):
+            log = rollouts(key, policy_params, subs, model_params)
             rewards = log['reward']
             rewards = _jax_wrapped_scale_reward(rewards)
             returns = jnp.sum(rewards, axis=1)
@@ -496,14 +492,17 @@ class JaxRDDLBackpropPlanner:
         # calculate the plan gradient w.r.t. return loss and update optimizer
         # optionally does gradient normalization
         # also perform a projection step to satisfy constraints on actions
-        def _jax_wrapped_plan_update(key, params, subs, opt_state):
-            grad, log = jax.grad(loss, argnums=1, has_aux=True)(key, params, subs)
+        def _jax_wrapped_plan_update(
+                key, policy_params, subs, model_params, opt_state):
+            grad, log = jax.grad(
+                loss, argnums=1, has_aux=True)(
+                    key, policy_params, subs, model_params)
             
             log['grad'] = grad
             updates, opt_state = optimizer.update(grad, opt_state)
-            params = optax.apply_updates(params, updates)
-            params = projection(params)
-            return params, opt_state, log
+            policy_params = optax.apply_updates(policy_params, updates)
+            policy_params = projection(policy_params)
+            return policy_params, opt_state, log
         
         return _jax_wrapped_plan_update
             
@@ -548,26 +547,33 @@ class JaxRDDLBackpropPlanner:
             subs = self.test_compiled.init_values
         train_subs, test_subs = self._batched_init_subs(subs)
         
+        # initialize, model parameters
+        model_params = self.compiled.model_params
+        model_params_test = self.test_compiled.model_params
+        
         # initialize policy parameters
         if guess is None:
             key, subkey = random.split(key)
-            params, opt_state = self.initialize(subkey, train_subs)
+            policy_params, opt_state = self.initialize(subkey, train_subs)
         else:
-            params = guess
-            opt_state = self.optimizer.init(params)
-        best_params, best_loss = params, jnp.inf
+            policy_params = guess
+            opt_state = self.optimizer.init(policy_params)
+        best_params, best_loss = policy_params, jnp.inf
         
         for it in range(epochs):
             
             # update the parameters of the plan
             key, subkey1, subkey2, subkey3 = random.split(key, num=4)
-            params, opt_state, train_log = self.update(subkey1, params, train_subs, opt_state)            
-            train_loss, _ = self.train_loss(subkey2, params, train_subs)            
-            test_loss, log = self.test_loss(subkey3, params, test_subs)
+            policy_params, opt_state, train_log = self.update(
+                subkey1, policy_params, train_subs, model_params, opt_state)
+            train_loss, _ = self.train_loss(
+                subkey2, policy_params, train_subs, model_params)
+            test_loss, log = self.test_loss(
+                subkey3, policy_params, test_subs, model_params_test)
             
             # record the best plan so far
             if test_loss < best_loss:
-                best_params, best_loss = params, test_loss
+                best_params, best_loss = policy_params, test_loss
             
             # periodically return a callback
             if it % step == 0 or it == epochs - 1:
@@ -576,7 +582,7 @@ class JaxRDDLBackpropPlanner:
                     'train_return':-train_loss,
                     'test_return':-test_loss,
                     'best_return':-best_loss,
-                    'params': params,
+                    'params': policy_params,
                     'best_params': best_params,
                     'grad': train_log['grad'],
                     **log
@@ -682,14 +688,17 @@ class JaxRDDLModelError:
                 test_subs[next_state] = test_subs[state]
             return train_subs, test_subs
         
-        def _jax_wrapped_simulate_particles(key, params, subs):
+        def _jax_wrapped_simulate_particles(
+                key, policy_params, subs, model_params, model_params_test):
             
             # train and test subs differ only in data type
             train_subs, test_subs = _jax_wrapped_batched_subs(subs)
             
             # generate rollouts from train and test model for the same inputs
-            train_log = train_rollouts(key, params, train_subs)
-            test_log = test_rollouts(key, params, test_subs)
+            train_log = train_rollouts(
+                key, policy_params, train_subs, model_params)
+            test_log = test_rollouts(
+                key, policy_params, test_subs, model_params_test)
             
             # extract variables and reward
             train_pvars = train_log['pvar']
@@ -711,13 +720,19 @@ class JaxRDDLModelError:
         
         self.simulation = jax.jit(_jax_wrapped_simulate_particles)
     
-    def summarize(self, key: random.PRNGKey, params: Dict, subs: Dict=None,
-                  filename: str='summary.pdf', figsize=(6, 3)):
+    def summarize(self, key: random.PRNGKey,
+                  params: Dict,
+                  subs: Dict=None,
+                  filename: str='summary.pdf',
+                  figsize: Tuple[int, int]=(6, 3)):
         
         # get train and test particles
         if subs is None:
             subs = self.test_compiled.init_values
-        train_fluents, test_fluents = self.simulation(key, params, subs)
+        train_fluents, test_fluents = self.simulation(
+            key, params, subs,
+            self.train_compiled.model_params,
+            self.test_compiled.model_params)
         
         # figure out # of plots required to plot each fluent component separately
         sizes = {name: np.prod(value.shape[2:], dtype=int)
@@ -751,9 +766,9 @@ class JaxRDDLModelError:
                 
                 # show mean
                 xs = np.arange(train_mean.shape[0])
-                axs[iy, ix].plot(xs, train_mean[:, j], label='approx mean', 
+                axs[iy, ix].plot(xs, train_mean[:, j], label='approx mean',
                                  color='blue')
-                axs[iy, ix].plot(xs, test_mean[:, j], label='true mean', 
+                axs[iy, ix].plot(xs, test_mean[:, j], label='true mean',
                                  linestyle='dashed', color='black')
                 
                 # show two standard deviations spread
