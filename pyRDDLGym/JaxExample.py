@@ -3,9 +3,9 @@ import sys
 
 from pyRDDLGym.Planner import JaxConfigManager
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
-  
 
-def slp_train(planner, **train_args):
+
+def print_parameterized_exprs(planner):
     model_params = planner.compiled.model_params
     print(f'model_params = {model_params}')
     ids = [int(key.split('_')[-1]) for key in model_params]
@@ -13,6 +13,9 @@ def slp_train(planner, **train_args):
         expr = planner.compiled.traced.lookup(_id)
         print(f'\nid = {_id}:\n' + RDDLDecompiler().decompile_expr(expr))
     
+    
+def slp_train(planner, **train_args):
+    # print_parameterized_exprs(planner)
     print('\n' + 'training plan:')
     for callback in planner.optimize(**train_args):
         print('step={} train_return={:.6f} test_return={:.6f}'.format(
