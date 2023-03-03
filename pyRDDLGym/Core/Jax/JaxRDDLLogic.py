@@ -45,7 +45,8 @@ class FuzzyLogic:
                  complement: Complement=StandardComplement(),
                  weight: float=10.0,
                  error: float=1e-12,
-                 eps: float=1e-12):
+                 eps: float=1e-12,
+                 debias: bool=False):
         '''Creates a new fuzzy logic in Jax.
         
         :param tnorm: fuzzy operator for logical AND
@@ -53,12 +54,14 @@ class FuzzyLogic:
         :param weight: a concentration parameter (larger means better accuracy)
         :param error: an error parameter (e.g. floor) (smaller means better accuracy)
         :param eps: small positive float to mitigate underflow
+        :param debias: whether to de-bias approximate operations on forward pass
         '''
         self.tnorm = tnorm
         self.complement = complement
         self.weight = weight
         self.error = error
         self.eps = eps
+        self.debias = debias
         
     # ===========================================================================
     # logical operators
@@ -163,10 +166,14 @@ class FuzzyLogic:
      
     def greaterEqual(self):
         warnings.warn('Using the replacement rule: '
-                      'a >=/> b --> sigmoid(a - b)', stacklevel=2)
+                      'a >= b --> sigmoid(a - b)', stacklevel=2)
         
         def _jax_wrapped_calc_geq_approx(a, b, param):
-            return jax.nn.sigmoid(param * (a - b))
+            sample = jax.nn.sigmoid(param * (a - b))
+            if self.debias:
+                hard_sample = jnp.greater_equal(a, b)
+                sample += jax.lax.stop_gradient(hard_sample - sample)
+            return sample
         
         new_param = ('weight_greater', self.weight)
         return _jax_wrapped_calc_geq_approx, new_param
@@ -195,7 +202,11 @@ class FuzzyLogic:
                       'a == b --> sech^2(b - a)', stacklevel=2)
         
         def _jax_wrapped_calc_equal_approx(a, b, param):
-            return 1.0 - jnp.square(jnp.tanh(param * (b - a)))
+            sample = 1.0 - jnp.square(jnp.tanh(param * (b - a)))
+            if self.debias:
+                hard_sample = jnp.equal(a, b)
+                sample += jax.lax.stop_gradient(hard_sample - sample)
+            return sample
         
         new_param = ('weight_equal', self.weight)
         return _jax_wrapped_calc_equal_approx, new_param
@@ -218,7 +229,11 @@ class FuzzyLogic:
                       'signum(x) --> tanh(x)', stacklevel=2)
         
         def _jax_wrapped_calc_signum_approx(x, param):
-            return jnp.tanh(param * x)
+            sample = jnp.tanh(param * x)
+            if self.debias:
+                hard_sample = jnp.sign(x)
+                sample += jax.lax.stop_gradient(hard_sample - sample)
+            return sample
         
         new_param = ('weight_signum', self.weight)
         return _jax_wrapped_calc_signum_approx, new_param
@@ -237,7 +252,11 @@ class FuzzyLogic:
                       stacklevel=2)
         
         def _jax_wrapped_calc_floor_approx(x, param):
-            return x - self._sawtooth(x, param)
+            sample = x - self._sawtooth(x, param)
+            if self.debias:
+                hard_sample = jnp.floor(x)
+                sample += jax.lax.stop_gradient(hard_sample - sample)
+            return sample
         
         new_param = ('error_floor', self.error)
         return _jax_wrapped_calc_floor_approx, new_param
@@ -303,9 +322,10 @@ class FuzzyLogic:
         def _jax_wrapped_calc_argmax_approx(x, axis, param):
             prob_max = jax.nn.softmax(param * x, axis=axis)
             literals = FuzzyLogic._literals(prob_max.shape, axis=axis)
-            softargmax = jnp.sum(literals * prob_max, axis=axis)
-            trueargmax = jnp.argmax(x, axis=axis)
-            sample = softargmax + jax.lax.stop_gradient(trueargmax - softargmax)
+            sample = jnp.sum(literals * prob_max, axis=axis)
+            if self.debias:
+                hard_sample = jnp.argmax(x, axis=axis)
+                sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
         new_param = ('weight_argmax', self.weight)
@@ -341,11 +361,12 @@ class FuzzyLogic:
             pred = jnp.broadcast_to(pred[jnp.newaxis, ...], shape=cases.shape)
             literals = FuzzyLogic._literals(cases.shape, axis=0)
             proximity = -jnp.abs(pred - literals)
-            softcase = jax.nn.softmax(param * proximity, axis=0)
-            softswitch = jnp.sum(cases * softcase, axis=0)
-            hardcase = jnp.argmax(proximity, axis=0)[jnp.newaxis, ...]        
-            hardswitch = jnp.take_along_axis(cases, hardcase, axis=0)[0, ...]
-            sample = softswitch + jax.lax.stop_gradient(hardswitch - softswitch)
+            soft_case = jax.nn.softmax(param * proximity, axis=0)
+            sample = jnp.sum(cases * soft_case, axis=0)
+            if self.debias:
+                hard_case = jnp.argmax(proximity, axis=0)[jnp.newaxis, ...]      
+                hard_sample = jnp.take_along_axis(cases, hard_case, axis=0)[0, ...]
+                sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
         new_param = ('weight_switch', self.weight)
