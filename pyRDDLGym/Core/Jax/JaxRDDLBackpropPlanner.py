@@ -412,8 +412,6 @@ class JaxRDDLBackpropPlanner:
             cpfs_without_grad=self.cpfs_without_grad)
         self.compiled.compile()
         
-        print(self.compiled.model_params)
-        
         # Jax compilation of the exact RDDL for testing
         self.test_compiled = JaxRDDLCompiler(rddl=rddl)
         self.test_compiled.compile()
