@@ -46,7 +46,6 @@ class FuzzyLogic:
     def __init__(self, tnorm: TNorm=ProductTNorm(),
                  complement: Complement=StandardComplement(),
                  weight: float=10.0,
-                 error: float=1e-6,
                  debias: Set[str]={'argmax', 'Switch'},
                  eps: float=1e-12):
         '''Creates a new fuzzy logic in Jax.
@@ -61,7 +60,6 @@ class FuzzyLogic:
         self.tnorm = tnorm
         self.complement = complement
         self.weight = weight
-        self.error = error
         self.debias = debias
         self.eps = eps
         
@@ -246,39 +244,66 @@ class FuzzyLogic:
         new_param = (tags, self.weight)
         return _jax_wrapped_calc_signum_approx, new_param
     
-    def _sawtooth(self, x, d):
-        pi = jnp.pi
-        trg = 1.0 - 2.0 * jnp.arccos((1.0 - d) * jnp.sin(pi * (x - 0.5))) / pi
-        sqr = 2.0 * jnp.arctan(jnp.sin(pi * x) / d) / pi
-        swt = (1.0 + trg * sqr) / 2.0
-        return swt        
+    # def _sawtooth(self, x, d):
+    #     pi = jnp.pi
+    #     trg = 1.0 - 2.0 * jnp.arccos((1.0 - d) * jnp.sin(pi * (x - 0.5))) / pi
+    #     sqr = 2.0 * jnp.arctan(jnp.sin(pi * x) / d) / pi
+    #     swt = (1.0 + trg * sqr) / 2.0
+    #     return swt        
         
-    def floor(self):
+    # def floor(self):
+    #     warnings.warn('Using the replacement rule: '
+    #                   'floor(x) --> x - sawtooth(x), where sawtooth is a '
+    #                   'trigonometric approximation of the sawtooth function',
+    #                   stacklevel=2)
+    #     debias = 'floor' in self.debias
+    #
+    #     def _jax_wrapped_calc_floor_approx(x, param):
+    #         sample = x - self._sawtooth(x, param)
+    #         if debias:
+    #             hard_sample = jnp.floor(x)
+    #             sample += jax.lax.stop_gradient(hard_sample - sample)
+    #         return sample
+    #
+    #     tags = ('error', 'floor')
+    #     new_param = (tags, self.error)
+    #     return _jax_wrapped_calc_floor_approx, new_param
+    #
+    # def ceil(self):
+    #     jax_floor, jax_param = self.floor()
+    #
+    #     def _jax_wrapped_calc_ceil_approx(x, param):
+    #         return -jax_floor(-x, param)
+    #
+    #     return _jax_wrapped_calc_ceil_approx, jax_param
+    
+    def ceil(self):
         warnings.warn('Using the replacement rule: '
-                      'floor(x) --> x - sawtooth(x), where sawtooth is a '
-                      'trigonometric approximation of the sawtooth function',
-                      stacklevel=2)
-        debias = 'floor' in self.debias
+                      'ceil(x) --> x - 0.5 - approx(x - 0.5), where approx is a '
+                      'smooth approximation of the step function')
+        debias = 'ceil' in self.debias
         
-        def _jax_wrapped_calc_floor_approx(x, param):
-            sample = x - self._sawtooth(x, param)
+        def _jax_wrapped_calc_ceil_approx(x, param):
+            diff = (x - 0.5) - jnp.floor(x - 0.5)
+            arg = jnp.log1p((2.0 * diff - 1.0) / (1.0 - diff) + self.eps)            
+            sample = jnp.ceil(x - 0.5) + jax.nn.sigmoid(arg * param)
             if debias:
-                hard_sample = jnp.floor(x)
+                hard_sample = jnp.ceil(x)
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        tags = ('error', 'floor')
-        new_param = (tags, self.error)
-        return _jax_wrapped_calc_floor_approx, new_param
+        tags = ('weight', 'ceil')
+        new_param = (tags, self.weight)
+        return _jax_wrapped_calc_ceil_approx, new_param
     
-    def ceil(self):
-        jax_floor, jax_param = self.floor()
+    def floor(self):
+        jax_ceil, jax_param = self.ceil()
         
-        def _jax_wrapped_calc_ceil_approx(x, param):
-            return -jax_floor(-x, param)
+        def _jax_wrapped_calc_floor_approx(x, param):
+            return -jax_ceil(-x, param)
         
-        return _jax_wrapped_calc_ceil_approx, jax_param
-    
+        return _jax_wrapped_calc_floor_approx, jax_param
+        
     def round(self):
         warnings.warn('Using the replacement rule: '
                       'round(x) --> x', stacklevel=2)
@@ -427,8 +452,7 @@ class FuzzyLogic:
 
 # UNIT TESTS
 logic = FuzzyLogic()
-w = logic.weight
-w2 = 1e-12
+w = 100.0
 
 
 def _test_logical():
@@ -495,10 +519,10 @@ def _test_rounding():
     _ceil, _ = logic.ceil()
     _mod, _ = logic.mod()
     
-    x = jnp.asarray([2.1, 0.5, 1.99, 2.0, -3.2, -0.1, -1.0, 23.01, -101.99, 200.01])
-    print(_floor(x, w2))
-    print(_ceil(x, w2))
-    print(_mod(x, 2.0, w2))
+    x = jnp.asarray([2.1, 0.5001, 1.99, -2.01, -3.2, -0.1, -1.01, 23.01, -101.99, 200.01])
+    print(_floor(x, w))
+    print(_ceil(x, w))
+    print(_mod(x, 2.0, w))
 
 
 if __name__ == '__main__':

@@ -15,7 +15,7 @@ def print_parameterized_exprs(planner):
     
     
 def slp_train(planner, **train_args):
-    print_parameterized_exprs(planner)
+    # print_parameterized_exprs(planner)
     print('\n' + 'training plan:')
     for callback in planner.optimize(**train_args):
         print('step={} train_return={:.6f} test_return={:.6f}'.format(
@@ -87,7 +87,7 @@ def main(env, replan):
         
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        args = [sys.argv[0]] + ['HVAC']
+        args = [sys.argv[0]] + ['Traffic']
     else:
         args = sys.argv
     env = args[1]
