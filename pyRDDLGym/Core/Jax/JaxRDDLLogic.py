@@ -178,7 +178,8 @@ class FuzzyLogic:
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        new_param = ('weight_greater', self.weight)
+        tags = ('weight', 'greater')
+        new_param = (tags, self.weight)
         return _jax_wrapped_calc_geq_approx, new_param
     
     def greater(self):
@@ -212,7 +213,8 @@ class FuzzyLogic:
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        new_param = ('weight_equal', self.weight)
+        tags = ('weight', 'equal')
+        new_param = (tags, self.weight)
         return _jax_wrapped_calc_equal_approx, new_param
     
     def notEqual(self):
@@ -240,7 +242,8 @@ class FuzzyLogic:
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        new_param = ('weight_signum', self.weight)
+        tags = ('weight', 'signum')
+        new_param = (tags, self.weight)
         return _jax_wrapped_calc_signum_approx, new_param
     
     def _sawtooth(self, x, d):
@@ -264,7 +267,8 @@ class FuzzyLogic:
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        new_param = ('error_floor', self.error)
+        tags = ('error', 'floor')
+        new_param = (tags, self.error)
         return _jax_wrapped_calc_floor_approx, new_param
     
     def ceil(self):
@@ -335,7 +339,8 @@ class FuzzyLogic:
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        new_param = ('weight_argmax', self.weight)
+        tags = ('weight', 'argmax')
+        new_param = (tags, self.weight)
         return _jax_wrapped_calc_argmax_approx, new_param
     
     def argmin(self):
@@ -377,7 +382,8 @@ class FuzzyLogic:
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        new_param = ('weight_switch', self.weight)
+        tags = ('weight', 'switch')
+        new_param = (tags, self.weight)
         return _jax_wrapped_calc_switch_approx, new_param
     
     # ===========================================================================
