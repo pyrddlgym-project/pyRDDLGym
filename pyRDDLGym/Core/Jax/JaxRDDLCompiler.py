@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import jax.random as random
 import jax.scipy as scipy 
 from tensorflow_probability.substrates import jax as tfp
-from typing import Callable, Dict
+from typing import Callable, Dict, List
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -30,6 +30,8 @@ class JaxRDDLCompiler:
         'real': REAL,
         'bool': bool
     }
+    
+    MODEL_PARAM_TAG_SEPARATOR = '___'
     
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
@@ -410,6 +412,33 @@ class JaxRDDLCompiler:
         return messages
     
     # ===========================================================================
+    # handling of auxiliary data (e.g. model tuning parameters)
+    # ===========================================================================
+    
+    def _unwrap(self, op, expr_id, info):
+        sep = JaxRDDLCompiler.MODEL_PARAM_TAG_SEPARATOR
+        jax_op, name = op, None
+        if isinstance(op, tuple):
+            jax_op, param = op
+            if param is not None:
+                tags, values = param
+                if isinstance(tags, tuple):
+                    name = sep.join(tags)
+                else:
+                    name = str(tags)
+                name = f'{name}{sep}{expr_id}'
+                if name in info:
+                    raise Exception(f'Model parameter {name} is already defined.')
+                info[name] = values
+        return jax_op, name
+    
+    def get_ids_of_parameterized_expressions(self) -> List[int]:
+        '''Returns a list of expression IDs that have tuning parameters.'''
+        sep = JaxRDDLCompiler.MODEL_PARAM_TAG_SEPARATOR
+        ids = [int(key.split(sep)[-1]) for key in self.model_params] 
+        return ids
+    
+    # ===========================================================================
     # expression compilation
     # ===========================================================================
     
@@ -593,18 +622,6 @@ class JaxRDDLCompiler:
             return sample, key, err
         
         return _jax_wrapped_binary_op
-    
-    def _unwrap(self, op, expr_id, info):
-        jax_op, name = op, None
-        if isinstance(op, tuple):
-            jax_op, param = op
-            if param is not None:
-                name, value = param
-                name = f'{name}_{expr_id}'
-                if name in info:
-                    raise Exception(f'Model parameter {name} is already defined.')
-                info[name] = value
-        return jax_op, name
     
     def _jax_arithmetic(self, expr, info):
         _, op = expr.etype
