@@ -250,7 +250,7 @@ class FuzzyLogic:
     #     sqr = 2.0 * jnp.arctan(jnp.sin(pi * x) / d) / pi
     #     swt = (1.0 + trg * sqr) / 2.0
     #     return swt        
-        
+    #
     # def floor(self):
     #     warnings.warn('Using the replacement rule: '
     #                   'floor(x) --> x - sawtooth(x), where sawtooth is a '
@@ -279,8 +279,8 @@ class FuzzyLogic:
     
     def ceil(self):
         warnings.warn('Using the replacement rule: '
-                      'ceil(x) --> x - 0.5 - approx(x - 0.5), where approx is a '
-                      'smooth approximation of the step function')
+                      'ceil(x) --> ceil(x - 0.5) + step(x - 0.5), '
+                      'where step is a smooth approximation of the step function')
         debias = 'ceil' in self.debias
         
         def _jax_wrapped_calc_ceil_approx(x, param):
