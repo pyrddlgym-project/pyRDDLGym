@@ -3,6 +3,7 @@ import sys
 
 from pyRDDLGym.Planner import JaxConfigManager
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
+# from pyRDDLGym.Core.Jax.JaxRDDLModelError import JaxRDDLModelError
 
 
 def print_parameterized_exprs(planner):
@@ -23,6 +24,12 @@ def slp_train(planner, **train_args):
               callback['train_return'],
               callback['test_return']))
     params = callback['params']
+    
+    # key = jax.random.PRNGKey(42)
+    # error = JaxRDDLModelError(planner.rddl, planner.test_policy, 
+    #                           batch_size=64, logic=planner.logic)
+    # error.summarize(key, params)
+    # error.sensitivity(key, params)
     return params
 
 

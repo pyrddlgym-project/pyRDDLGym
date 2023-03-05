@@ -188,7 +188,8 @@ class JaxRDDLCompiler:
         return self._jax(self.rddl.reward, info, dtype=JaxRDDLCompiler.REAL)
     
     def compile_rollouts(self, policy: Callable,
-                         n_steps: int, n_batch: int,
+                         n_steps: int, 
+                         n_batch: int,
                          check_constraints: bool=False):
         '''Compiles the current RDDL into a wrapped function that samples multiple
         rollouts (state trajectories) in batched form for the given policy. The

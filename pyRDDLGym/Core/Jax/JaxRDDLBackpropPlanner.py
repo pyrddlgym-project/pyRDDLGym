@@ -2,10 +2,9 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 import jax.nn.initializers as initializers
-import matplotlib.pyplot as plt
 import numpy as np
 import optax
-from typing import Callable, Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, Set, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -493,8 +492,8 @@ class JaxRDDLBackpropPlanner:
         def _jax_wrapped_plan_update(
                 key, policy_params, subs, model_params, opt_state):
             grad, log = jax.grad(
-                loss, argnums=1, has_aux=True)(
-                    key, policy_params, subs, model_params)
+                loss, argnums=1, has_aux=True
+            )(key, policy_params, subs, model_params)
             
             log['grad'] = grad
             updates, opt_state = optimizer.update(grad, opt_state)
@@ -590,7 +589,7 @@ class JaxRDDLBackpropPlanner:
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
                    step: int,
-                   subs: Dict):
+                   subs: Dict) -> Dict[str, object]:
         '''Returns an action dictionary from the policy or plan with the given
         parameters.
         
@@ -607,196 +606,3 @@ class JaxRDDLBackpropPlanner:
                     grounded_actions[ground_var] = ground_act
         return grounded_actions
 
-
-class JaxRDDLModelError:
-    '''Assists in the analysis of model error that arises from replacing exact
-    operations with fuzzy logic.
-    '''
-
-    def __init__(self, rddl: RDDLLiftedModel,
-                 test_policy: Callable,
-                 batch_size: int,
-                 rollout_horizon: int=None,
-                 logic: FuzzyLogic=FuzzyLogic()) -> None:
-        '''Creates a new instance to empirically estimate the model error.
-        
-        :param rddl: the RDDL domain to optimize
-        :param test_policy: policy to generate rollouts
-        :param batch_size: batch size
-        :param rollout_horizon: lookahead planning horizon: None uses the
-        horizon parameter in the RDDL instance
-        :param logic: a subclass of FuzzyLogic for mapping exact mathematical
-        operations to their differentiable counterparts
-        '''
-        self.rddl = rddl
-        self.test_policy = test_policy
-        self.batch_size = batch_size
-        if rollout_horizon is None:
-            rollout_horizon = rddl.horizon
-        self.horizon = rollout_horizon
-        self.logic = logic
-        
-        self._jax_compile()
-    
-    def _jax_compile(self):
-        rddl = self.rddl
-        n_batch = self.batch_size
-        test_policy = self.test_policy
-        
-        # Jax compilation of the differentiable RDDL for training
-        self.train_compiled = JaxRDDLCompilerWithGrad(
-            rddl=rddl,
-            logic=self.logic)
-        self.train_compiled.compile()
-        
-        # Jax compilation of the exact RDDL for testing
-        self.test_compiled = JaxRDDLCompiler(rddl=rddl)
-        self.test_compiled.compile()
-        
-        # roll-outs
-        def _jax_wrapped_train_policy(key, params, step, subs):
-            test_actions = test_policy(key, params, step, subs)
-            train_actions = jax.tree_map(
-                lambda x: x.astype(JaxRDDLCompiler.REAL),
-                test_actions
-            )
-            return train_actions
-        
-        train_rollouts = self.train_compiled.compile_rollouts(
-            policy=_jax_wrapped_train_policy,
-            n_steps=self.horizon,
-            n_batch=n_batch)
-        
-        test_rollouts = self.test_compiled.compile_rollouts(
-            policy=test_policy,
-            n_steps=self.horizon,
-            n_batch=n_batch)
-        
-        # batched initial subs
-        def _jax_wrapped_batched_subs(subs): 
-            train_subs, test_subs = {}, {}
-            for (name, value) in subs.items():
-                value = jnp.asarray(value)[jnp.newaxis, ...]
-                train_value = jnp.repeat(value, repeats=n_batch, axis=0)
-                train_value = train_value.astype(JaxRDDLCompiler.REAL)
-                train_subs[name] = train_value
-                test_subs[name] = jnp.repeat(value, repeats=n_batch, axis=0)
-            for (state, next_state) in rddl.next_state.items():
-                train_subs[next_state] = train_subs[state]
-                test_subs[next_state] = test_subs[state]
-            return train_subs, test_subs
-        
-        def _jax_wrapped_simulate_particles(
-                key, policy_params, subs, model_params, model_params_test):
-            
-            # train and test subs differ only in data type
-            train_subs, test_subs = _jax_wrapped_batched_subs(subs)
-            
-            # generate rollouts from train and test model for the same inputs
-            train_log = train_rollouts(
-                key, policy_params, train_subs, model_params)
-            test_log = test_rollouts(
-                key, policy_params, test_subs, model_params_test)
-            
-            # extract variables and reward
-            train_pvars = train_log['pvar']
-            test_pvars = test_log['pvar']
-            train_pvars['reward'] = train_log['reward']
-            test_pvars['reward'] = test_log['reward']
-            
-            # compute the Euclidean distance between fluent values per particle 
-            train_fluents, test_fluents = {}, {}
-            for (name, train_values) in train_pvars.items():
-                if name == 'reward' or (
-                    rddl.variable_types[name] != 'non-fluent'
-                    and rddl.variable_types[name] != 'action-fluent'
-                    and name not in rddl.prev_state
-                ):
-                    train_fluents[name] = train_values
-                    test_fluents[name] = test_pvars[name]
-            return train_fluents, test_fluents
-        
-        self.simulation = jax.jit(_jax_wrapped_simulate_particles)
-    
-    def summarize(self, key: random.PRNGKey,
-                  params: Dict,
-                  subs: Dict=None,
-                  filename: str='summary.pdf',
-                  figsize: Tuple[int, int]=(6, 3)):
-        
-        # get train and test particles
-        if subs is None:
-            subs = self.test_compiled.init_values
-        train_fluents, test_fluents = self.simulation(
-            key, params, subs,
-            self.train_compiled.model_params,
-            self.test_compiled.model_params)
-        
-        # figure out # of plots required to plot each fluent component separately
-        sizes = {name: np.prod(value.shape[2:], dtype=int)
-                 for (name, value) in train_fluents.items()}
-        num_plots = sum(sizes.values())
-        
-        # subplots arranged in a square grid
-        dim = np.floor(np.sqrt(num_plots)).astype(int) + 1
-        w, h = figsize
-        fig, axs = plt.subplots(nrows=dim, ncols=dim, figsize=(w * dim, h * dim))
-        
-        # plot each fluent component
-        ix, iy = 0, 0
-        for (name, train_value) in train_fluents.items():
-            test_value = test_fluents[name]
-            
-            # calculate statistics for fluent
-            train_value = train_value.reshape(*train_value.shape[:2], -1, order='C')
-            test_value = test_value.reshape(*test_value.shape[:2], -1, order='C')
-            train_mean = np.mean(train_value, axis=0)
-            test_mean = np.mean(test_value, axis=0)
-            train_std = np.std(train_value, axis=0)
-            test_std = np.std(test_value, axis=0)     
-            
-            grounded_names = list(self.rddl.ground_names(
-                name, self.rddl.param_types.get(name, [])))
-            assert len(grounded_names) == sizes[name]
-            
-            # plot each component j of fluent on a separate plot
-            for j in range(sizes[name]):
-                
-                # show mean
-                xs = np.arange(train_mean.shape[0])
-                axs[iy, ix].plot(xs, train_mean[:, j], label='approx mean',
-                                 color='blue')
-                axs[iy, ix].plot(xs, test_mean[:, j], label='true mean',
-                                 linestyle='dashed', color='black')
-                
-                # show two standard deviations spread
-                axs[iy, ix].fill_between(xs, train_mean[:, j] - 2 * train_std[:, j],
-                                         train_mean[:, j] + 2 * train_std[:, j],
-                                         color='blue', alpha=0.15)
-                axs[iy, ix].fill_between(xs, test_mean[:, j] - 2 * test_std[:, j],
-                                         test_mean[:, j] + 2 * test_std[:, j],
-                                         color='black', alpha=0.15)
-                
-                axs[iy, ix].legend()
-                axs[iy, ix].set_xlabel('epoch')
-                axs[iy, ix].set_ylabel(grounded_names[j])
-                
-                # move to the next plot
-                ix += 1
-                if ix >= dim:
-                    ix = 0
-                    iy += 1
-        
-        # blank out unused axes
-        while iy < dim:
-            axs[iy, ix].set_axis_off()
-            ix += 1
-            if ix >= dim:
-                ix = 0
-                iy += 1
-            
-        plt.tight_layout()
-        fig.savefig(filename)
-        plt.clf()
-        plt.close(fig)
-        
