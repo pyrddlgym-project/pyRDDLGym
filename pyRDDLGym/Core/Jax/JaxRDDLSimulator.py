@@ -61,6 +61,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.terminals = jax.tree_map(jax.jit, compiled.termination)
         self.reward = jax.jit(compiled.reward)
         jax_cpfs = jax.tree_map(jax.jit, compiled.cpfs)
+        self.model_params = compiled.model_params
         
         # level analysis
         self.cpfs = []  
@@ -84,13 +85,14 @@ class JaxRDDLSimulator(RDDLSimulator):
             errors = JaxRDDLCompiler.get_error_messages(error)
             if errors:
                 message = f'Internal error in evaluation of {msg}:\n'
-                errors = '\n'.join(f'{i + 1}. {s}' for i, s in enumerate(errors))
+                errors = '\n'.join(f'{i + 1}. {s}' for (i, s) in enumerate(errors))
                 raise RDDLInvalidExpressionError(message + errors)
     
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
         for (i, invariant) in enumerate(self.invariants):
-            sample, self.key, error = invariant(self.subs, self.key)
+            sample, self.key, error = invariant(
+                self.subs, self.model_params, self.key)
             self.handle_error_code(error, f'invariant {i + 1}')            
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
@@ -103,7 +105,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs.update(actions)
         
         for (i, precond) in enumerate(self.preconds):
-            sample, self.key, error = precond(subs, self.key)
+            sample, self.key, error = precond(subs, self.model_params, self.key)
             self.handle_error_code(error, f'precondition {i + 1}')            
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
@@ -112,7 +114,8 @@ class JaxRDDLSimulator(RDDLSimulator):
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
         for (i, terminal) in enumerate(self.terminals):
-            sample, self.key, error = terminal(self.subs, self.key)
+            sample, self.key, error = terminal(
+                self.subs, self.model_params, self.key)
             self.handle_error_code(error, f'termination {i + 1}')
             if bool(sample):
                 return True
@@ -120,7 +123,8 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def sample_reward(self) -> float:
         '''Samples the current reward given the current state and action.'''
-        reward, self.key, error = self.reward(self.subs, self.key)
+        reward, self.key, error = self.reward(
+            self.subs, self.model_params, self.key)
         self.handle_error_code(error, 'reward function')
         return float(reward)
     
@@ -136,7 +140,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         
         # compute CPFs in topological order
         for (cpf, expr, _) in self.cpfs:
-            subs[cpf], self.key, error = expr(subs, self.key)
+            subs[cpf], self.key, error = expr(subs, self.model_params, self.key)
             self.handle_error_code(error, f'CPF <{cpf}>')            
                 
         # sample reward
