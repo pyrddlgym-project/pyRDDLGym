@@ -2,9 +2,21 @@ import jax
 import sys
 
 from pyRDDLGym.Planner import JaxConfigManager
-  
+from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
+# from pyRDDLGym.Core.Jax.JaxRDDLModelError import JaxRDDLModelError
 
+
+def print_parameterized_exprs(planner):
+    model_params = planner.compiled.model_params
+    print(f'model_params = {model_params}')
+    ids = planner.compiled.get_ids_of_parameterized_expressions()
+    for _id in ids:
+        expr = planner.compiled.traced.lookup(_id)
+        print(f'\nid = {_id}:\n' + RDDLDecompiler().decompile_expr(expr))
+    
+    
 def slp_train(planner, **train_args):
+    # print_parameterized_exprs(planner)
     print('\n' + 'training plan:')
     for callback in planner.optimize(**train_args):
         print('step={} train_return={:.6f} test_return={:.6f}'.format(
@@ -12,6 +24,12 @@ def slp_train(planner, **train_args):
               callback['train_return'],
               callback['test_return']))
     params = callback['params']
+    
+    # key = jax.random.PRNGKey(42)
+    # error = JaxRDDLModelError(planner.rddl, planner.test_policy, 
+    #                           batch_size=64, logic=planner.logic)
+    # error.summarize(key, params)
+    # error.sensitivity(key, params)
     return params
 
 
@@ -76,7 +94,7 @@ def main(env, replan):
         
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        args = [sys.argv[0]] + ['Wildfire replan']
+        args = [sys.argv[0]] + ['Traffic']
     else:
         args = sys.argv
     env = args[1]

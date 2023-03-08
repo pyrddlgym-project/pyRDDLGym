@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import jax.random as random
 import jax.scipy as scipy 
 from tensorflow_probability.substrates import jax as tfp
-from typing import Callable, Dict
+from typing import Callable, Dict, List
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -30,6 +30,8 @@ class JaxRDDLCompiler:
         'real': REAL,
         'bool': bool
     }
+    
+    MODEL_PARAM_TAG_SEPARATOR = '___'
     
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
@@ -59,70 +61,71 @@ class JaxRDDLCompiler:
         tracer = RDDLObjectsTracer(rddl, logger=self.logger)
         self.traced = tracer.trace()
         
-        # basic operations        
+        # basic operations
+        self.NEGATIVE = lambda x, param: jnp.negative(x)  
         self.ARITHMETIC_OPS = {
-            '+': jnp.add,
-            '-': jnp.subtract,
-            '*': jnp.multiply,
-            '/': jnp.divide
+            '+': lambda x, y, param: jnp.add(x, y),
+            '-': lambda x, y, param: jnp.subtract(x, y),
+            '*': lambda x, y, param: jnp.multiply(x, y),
+            '/': lambda x, y, param: jnp.divide(x, y)
         }    
         self.RELATIONAL_OPS = {
-            '>=': jnp.greater_equal,
-            '<=': jnp.less_equal,
-            '<': jnp.less,
-            '>': jnp.greater,
-            '==': jnp.equal,
-            '~=': jnp.not_equal
+            '>=': lambda x, y, param: jnp.greater_equal(x, y),
+            '<=': lambda x, y, param: jnp.less_equal(x, y),
+            '<': lambda x, y, param: jnp.less(x, y),
+            '>': lambda x, y, param: jnp.greater(x, y),
+            '==': lambda x, y, param: jnp.equal(x, y),
+            '~=': lambda x, y, param: jnp.not_equal(x, y)
         }
-        self.LOGICAL_NOT = jnp.logical_not
+        self.LOGICAL_NOT = lambda x, param: jnp.logical_not(x)
         self.LOGICAL_OPS = {
-            '^': jnp.logical_and,
-            '&': jnp.logical_and,
-            '|': jnp.logical_or,
-            '~': jnp.logical_xor,
-            '=>': lambda e1, e2: jnp.logical_or(jnp.logical_not(e1), e2),
-            '<=>': jnp.equal
+            '^': lambda x, y, param: jnp.logical_and(x, y),
+            '&': lambda x, y, param: jnp.logical_and(x, y),
+            '|': lambda x, y, param: jnp.logical_or(x, y),
+            '~': lambda x, y, param: jnp.logical_xor(x, y),
+            '=>': lambda x, y, param: jnp.logical_or(jnp.logical_not(x), y),
+            '<=>': lambda x, y, param: jnp.equal(x, y)
         }
         self.AGGREGATION_OPS = {
-            'sum': jnp.sum,
-            'avg': jnp.mean,
-            'prod': jnp.prod,
-            'minimum': jnp.min,
-            'maximum': jnp.max,
-            'forall': jnp.all,
-            'exists': jnp.any,
-            'argmin': jnp.argmin,
-            'argmax': jnp.argmax
+            'sum': lambda x, axis, param: jnp.sum(x, axis=axis),
+            'avg': lambda x, axis, param: jnp.mean(x, axis=axis),
+            'prod': lambda x, axis, param: jnp.prod(x, axis=axis),
+            'minimum': lambda x, axis, param: jnp.min(x, axis=axis),
+            'maximum': lambda x, axis, param: jnp.max(x, axis=axis),
+            'forall': lambda x, axis, param: jnp.all(x, axis=axis),
+            'exists': lambda x, axis, param: jnp.any(x, axis=axis),
+            'argmin': lambda x, axis, param: jnp.argmin(x, axis=axis),
+            'argmax': lambda x, axis, param: jnp.argmax(x, axis=axis)
         }
         self.KNOWN_UNARY = {        
-            'abs': jnp.abs,
-            'sgn': jnp.sign,
-            'round': jnp.round,
-            'floor': jnp.floor,
-            'ceil': jnp.ceil,
-            'cos': jnp.cos,
-            'sin': jnp.sin,
-            'tan': jnp.tan,
-            'acos': jnp.arccos,
-            'asin': jnp.arcsin,
-            'atan': jnp.arctan,
-            'cosh': jnp.cosh,
-            'sinh': jnp.sinh,
-            'tanh': jnp.tanh,
-            'exp': jnp.exp,
-            'ln': jnp.log,
-            'sqrt': jnp.sqrt,
-            'lngamma': scipy.special.gammaln,
-            'gamma': lambda x: jnp.exp(scipy.special.gammaln(x))
+            'abs': lambda x, param: jnp.abs(x),
+            'sgn': lambda x, param: jnp.sign(x),
+            'round': lambda x, param: jnp.round(x),
+            'floor': lambda x, param: jnp.floor(x),
+            'ceil': lambda x, param: jnp.ceil(x),
+            'cos': lambda x, param: jnp.cos(x),
+            'sin': lambda x, param: jnp.sin(x),
+            'tan': lambda x, param: jnp.tan(x),
+            'acos': lambda x, param: jnp.arccos(x),
+            'asin': lambda x, param: jnp.arcsin(x),
+            'atan': lambda x, param: jnp.arctan(x),
+            'cosh': lambda x, param: jnp.cosh(x),
+            'sinh': lambda x, param: jnp.sinh(x),
+            'tanh': lambda x, param: jnp.tanh(x),
+            'exp': lambda x, param: jnp.exp(x),
+            'ln': lambda x, param: jnp.log(x),
+            'sqrt': lambda x, param: jnp.sqrt(x),
+            'lngamma': lambda x, param: scipy.special.gammaln(x),
+            'gamma': lambda x, param: jnp.exp(scipy.special.gammaln(x))
         }        
         self.KNOWN_BINARY = {
-            'div': jnp.floor_divide,
-            'mod': jnp.mod,
-            'min': jnp.minimum,
-            'max': jnp.maximum,
-            'pow': jnp.power,
-            'log': lambda x, y: jnp.log(x) / jnp.log(y),
-            'hypot': jnp.hypot
+            'div': lambda x, y, param: jnp.floor_divide(x, y),
+            'mod': lambda x, y, param: jnp.mod(x, y),
+            'min': lambda x, y, param: jnp.minimum(x, y),
+            'max': lambda x, y, param: jnp.maximum(x, y),
+            'pow': lambda x, y, param: jnp.power(x, y),
+            'log': lambda x, y, param: jnp.log(x) / jnp.log(y),
+            'hypot': lambda x, y, param: jnp.hypot(x, y)
         }
         
     # ===========================================================================
@@ -135,11 +138,13 @@ class JaxRDDLCompiler:
         :param log_jax_expr: whether to pretty-print the compiled Jax functions
         to the log file
         '''
-        self.invariants = self._compile_constraints(self.rddl.invariants)
-        self.preconditions = self._compile_constraints(self.rddl.preconditions)
-        self.termination = self._compile_constraints(self.rddl.terminals)
-        self.cpfs = self._compile_cpfs()
-        self.reward = self._compile_reward()
+        info = {}
+        self.invariants = self._compile_constraints(self.rddl.invariants, info)
+        self.preconditions = self._compile_constraints(self.rddl.preconditions, info)
+        self.termination = self._compile_constraints(self.rddl.terminals, info)
+        self.cpfs = self._compile_cpfs(info)
+        self.reward = self._compile_reward(info)
+        self.model_params = info
         
         if log_jax_expr and self.logger is not None:
             printed = self.print_jax()
@@ -149,36 +154,42 @@ class JaxRDDLCompiler:
             printed_invariants = '\n\n'.join(v for v in printed['invariants'])
             printed_preconds = '\n\n'.join(v for v in printed['preconditions'])
             printed_terminals = '\n\n'.join(v for v in printed['terminations'])
-            message = (f'compiled JAX CPFs:\n\n'
-                       f'{printed_cpfs}\n\n'
-                       f'compiled JAX reward:\n\n'
-                       f'{printed_reward}\n\n'
-                       f'compiled JAX invariants:\n\n'
-                       f'{printed_invariants}\n\n'
-                       f'compiled JAX preconditions:\n\n'
-                       f'{printed_preconds}\n\n'
-                       f'compiled JAX terminations:\n\n'
-                       f'{printed_terminals}\n')
+            printed_params = '\n'.join(f'{k}: {v}' for (k, v) in info.items())
+            message = (
+                f'compiled JAX CPFs:\n\n'
+                f'{printed_cpfs}\n\n'
+                f'compiled JAX reward:\n\n'
+                f'{printed_reward}\n\n'
+                f'compiled JAX invariants:\n\n'
+                f'{printed_invariants}\n\n'
+                f'compiled JAX preconditions:\n\n'
+                f'{printed_preconds}\n\n'
+                f'compiled JAX terminations:\n\n'
+                f'{printed_terminals}\n'
+                f'model parameters:\n'
+                f'{printed_params}\n'
+            )
             self.logger.log(message)
     
-    def _compile_constraints(self, constraints):
-        return [self._jax(expr, dtype=bool) for expr in constraints]
+    def _compile_constraints(self, constraints, info):
+        return [self._jax(expr, info, dtype=bool) for expr in constraints]
         
-    def _compile_cpfs(self):
+    def _compile_cpfs(self, info):
         jax_cpfs = {}
         for cpfs in self.levels.values():
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
                 prange = self.rddl.variable_ranges[cpf]
                 dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, JaxRDDLCompiler.INT)
-                jax_cpfs[cpf] = self._jax(expr, dtype=dtype)
+                jax_cpfs[cpf] = self._jax(expr, info, dtype=dtype)
         return jax_cpfs
     
-    def _compile_reward(self):
-        return self._jax(self.rddl.reward, dtype=JaxRDDLCompiler.REAL)
+    def _compile_reward(self, info):
+        return self._jax(self.rddl.reward, info, dtype=JaxRDDLCompiler.REAL)
     
-    def compile_rollouts(self, policy: Callable, 
-                         n_steps: int, n_batch: int,
+    def compile_rollouts(self, policy: Callable,
+                         n_steps: int, 
+                         n_batch: int,
                          check_constraints: bool=False):
         '''Compiles the current RDDL into a wrapped function that samples multiple
         rollouts (state trajectories) in batched form for the given policy. The
@@ -201,7 +212,7 @@ class JaxRDDLCompiler:
             self.preconditions, self.invariants, self.termination
         
         # do a single step update from the RDDL model
-        def _jax_wrapped_single_step(key, params, step, subs):
+        def _jax_wrapped_single_step(key, policy_params, step, subs, model_params):
             errors = NORMAL
             
             # compute action
@@ -209,24 +220,24 @@ class JaxRDDLCompiler:
             states = {var: values 
                       for (var, values) in subs.items()
                       if rddl.variable_types[var] == 'state-fluent'}
-            actions = policy(subkey, params, step, states)
+            actions = policy(subkey, policy_params, step, states)
             subs.update(actions)
             
             # check action preconditions
             precond_check = True
             if check_constraints:
                 for precond in preconds:
-                    sample, key, err = precond(subs, key)
+                    sample, key, err = precond(subs, model_params, key)
                     precond_check = jnp.logical_and(precond_check, sample)
                     errors |= err
             
             # calculate CPFs in topological order
             for (name, cpf) in cpfs.items():
-                subs[name], key, err = cpf(subs, key)
+                subs[name], key, err = cpf(subs, model_params, key)
                 errors |= err                
                 
             # calculate the immediate reward
-            reward, key, err = reward_fn(subs, key)
+            reward, key, err = reward_fn(subs, model_params, key)
             errors |= err
             
             # set the next state to the current state
@@ -237,7 +248,7 @@ class JaxRDDLCompiler:
             invariant_check = True
             if check_constraints:
                 for invariant in invariants:
-                    sample, key, err = invariant(subs, key)
+                    sample, key, err = invariant(subs, model_params, key)
                     invariant_check = jnp.logical_and(invariant_check, sample)
                     errors |= err
             
@@ -245,7 +256,7 @@ class JaxRDDLCompiler:
             terminated_check = False
             if check_constraints:
                 for terminal in terminals:
-                    sample, key, err = terminal(subs, key)
+                    sample, key, err = terminal(subs, model_params, key)
                     terminated_check = jnp.logical_or(terminated_check, sample)
                     errors |= err
             
@@ -262,18 +273,20 @@ class JaxRDDLCompiler:
         
         # do a batched step update from the RDDL model
         def _jax_wrapped_batched_step(carry, step):
-            key, params, subs = carry  
+            key, policy_params, subs, model_params = carry  
             key, *subkeys = random.split(key, num=1 + n_batch)
             batched_step = jax.vmap(
-                _jax_wrapped_single_step, in_axes=(0, None, None, 0)
+                _jax_wrapped_single_step,
+                in_axes=(0, None, None, 0, None)
             ) 
-            log, subs = batched_step(jnp.asarray(subkeys), params, step, subs)            
-            carry = (key, params, subs)
+            keys = jnp.asarray(subkeys)
+            log, subs = batched_step(keys, policy_params, step, subs, model_params)            
+            carry = (key, policy_params, subs, model_params)
             return carry, log            
             
         # do a batched roll-out from the RDDL model
-        def _jax_wrapped_batched_rollout(key, params, subs):
-            start = (key, params, subs)
+        def _jax_wrapped_batched_rollout(key, policy_params, subs, model_params):
+            start = (key, policy_params, subs, model_params)
             steps = jnp.arange(n_steps)
             _, log = jax.lax.scan(_jax_wrapped_batched_step, start, steps)
             log = jax.tree_map(partial(jnp.swapaxes, axis1=0, axis2=1), log)
@@ -285,21 +298,22 @@ class JaxRDDLCompiler:
     # error checks
     # ===========================================================================
     
-    def print_jax(self) -> Dict:
+    def print_jax(self) -> Dict[str, object]:
         '''Returns a dictionary containing the string representations of all 
         Jax compiled expressions from the RDDL file.
         '''
         subs = self.init_values
+        params = self.model_params
         key = jax.random.PRNGKey(42)
         printed = {}
-        printed['cpfs'] = {name: str(jax.make_jaxpr(expr)(subs, key))
+        printed['cpfs'] = {name: str(jax.make_jaxpr(expr)(subs, params, key))
                            for (name, expr) in self.cpfs.items()}
-        printed['reward'] = str(jax.make_jaxpr(self.reward)(subs, key))
-        printed['invariants'] = [str(jax.make_jaxpr(expr)(subs, key))
+        printed['reward'] = str(jax.make_jaxpr(self.reward)(subs, params, key))
+        printed['invariants'] = [str(jax.make_jaxpr(expr)(subs, params, key))
                                  for expr in self.invariants]
-        printed['preconditions'] = [str(jax.make_jaxpr(expr)(subs, key))
+        printed['preconditions'] = [str(jax.make_jaxpr(expr)(subs, params, key))
                                     for expr in self.preconditions]
-        printed['terminations'] = [str(jax.make_jaxpr(expr)(subs, key))
+        printed['terminations'] = [str(jax.make_jaxpr(expr)(subs, params, key))
                                    for expr in self.termination]
         return printed
         
@@ -310,7 +324,8 @@ class JaxRDDLCompiler:
             valid_op_str = ','.join(valid_ops.keys())
             raise RDDLNotImplementedError(
                 f'{etype} operator {op} is not supported: '
-                f'must be in {valid_op_str}.\n' + print_stack_trace(expr))
+                f'must be in {valid_op_str}.\n' + 
+                print_stack_trace(expr))
     
     @staticmethod
     def _check_num_args(expr, required_args):
@@ -319,7 +334,8 @@ class JaxRDDLCompiler:
             etype, op = expr.etype
             raise RDDLInvalidNumberOfArgumentsError(
                 f'{etype} operator {op} requires {required_args} arguments, '
-                f'got {actual_args}.\n' + print_stack_trace(expr))
+                f'got {actual_args}.\n' + 
+                print_stack_trace(expr))
         
     ERROR_CODES = {
         'NORMAL': 0,
@@ -397,33 +413,60 @@ class JaxRDDLCompiler:
         return messages
     
     # ===========================================================================
+    # handling of auxiliary data (e.g. model tuning parameters)
+    # ===========================================================================
+    
+    def _unwrap(self, op, expr_id, info):
+        sep = JaxRDDLCompiler.MODEL_PARAM_TAG_SEPARATOR
+        jax_op, name = op, None
+        if isinstance(op, tuple):
+            jax_op, param = op
+            if param is not None:
+                tags, values = param
+                if isinstance(tags, tuple):
+                    name = sep.join(tags)
+                else:
+                    name = str(tags)
+                name = f'{name}{sep}{expr_id}'
+                if name in info:
+                    raise Exception(f'Model parameter {name} is already defined.')
+                info[name] = values
+        return jax_op, name
+    
+    def get_ids_of_parameterized_expressions(self) -> List[int]:
+        '''Returns a list of expression IDs that have tuning parameters.'''
+        sep = JaxRDDLCompiler.MODEL_PARAM_TAG_SEPARATOR
+        ids = [int(key.split(sep)[-1]) for key in self.model_params] 
+        return ids
+    
+    # ===========================================================================
     # expression compilation
     # ===========================================================================
     
-    def _jax(self, expr, dtype=None):
+    def _jax(self, expr, info, dtype=None):
         etype, _ = expr.etype
         if etype == 'constant':
-            jax_expr = self._jax_constant(expr)
+            jax_expr = self._jax_constant(expr, info)
         elif etype == 'pvar':
-            jax_expr = self._jax_pvar(expr)
+            jax_expr = self._jax_pvar(expr, info)
         elif etype == 'arithmetic':
-            jax_expr = self._jax_arithmetic(expr)
+            jax_expr = self._jax_arithmetic(expr, info)
         elif etype == 'relational':
-            jax_expr = self._jax_relational(expr)
+            jax_expr = self._jax_relational(expr, info)
         elif etype == 'boolean':
-            jax_expr = self._jax_logical(expr)
+            jax_expr = self._jax_logical(expr, info)
         elif etype == 'aggregation':
-            jax_expr = self._jax_aggregation(expr)
+            jax_expr = self._jax_aggregation(expr, info)
         elif etype == 'func':
-            jax_expr = self._jax_functional(expr)
+            jax_expr = self._jax_functional(expr, info)
         elif etype == 'control':
-            jax_expr = self._jax_control(expr)
+            jax_expr = self._jax_control(expr, info)
         elif etype == 'randomvar':
-            jax_expr = self._jax_random(expr)
+            jax_expr = self._jax_random(expr, info)
         elif etype == 'randomvector':
-            jax_expr = self._jax_random_vector(expr)
+            jax_expr = self._jax_random_vector(expr, info)
         elif etype == 'matrix':
-            jax_expr = self._jax_matrix(expr)
+            jax_expr = self._jax_matrix(expr, info)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {expr} is not supported.\n' + 
@@ -437,8 +480,8 @@ class JaxRDDLCompiler:
     def _jax_cast(self, jax_expr, dtype):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        def _jax_wrapped_cast(x, key):
-            val, key, err = jax_expr(x, key)
+        def _jax_wrapped_cast(x, params, key):
+            val, key, err = jax_expr(x, params, key)
             sample = jnp.asarray(val, dtype=dtype)
             invalid_cast = jnp.logical_and(
                 jnp.logical_not(jnp.can_cast(val, dtype)),
@@ -452,11 +495,11 @@ class JaxRDDLCompiler:
     # leaves
     # ===========================================================================
     
-    def _jax_constant(self, expr):
+    def _jax_constant(self, expr, info):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         cached_value = self.traced.cached_sim_info(expr)
         
-        def _jax_wrapped_constant(_, key):
+        def _jax_wrapped_constant(x, params, key):
             sample = jnp.asarray(cached_value)
             return sample, key, NORMAL
 
@@ -465,12 +508,12 @@ class JaxRDDLCompiler:
     def _jax_pvar_slice(self, _slice):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         
-        def _jax_wrapped_pvar_slice(x, key):
+        def _jax_wrapped_pvar_slice(x, params, key):
             return _slice, key, NORMAL
         
         return _jax_wrapped_pvar_slice
             
-    def _jax_pvar(self, expr):
+    def _jax_pvar(self, expr, info):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         var, pvars = expr.args  
         is_value, cached_info = self.traced.cached_sim_info(expr)
@@ -480,7 +523,7 @@ class JaxRDDLCompiler:
         if is_value:
             cached_value = cached_info
 
-            def _jax_wrapped_object(_, key):
+            def _jax_wrapped_object(x, params, key):
                 sample = jnp.asarray(cached_value)
                 return sample, key, NORMAL
             
@@ -489,7 +532,7 @@ class JaxRDDLCompiler:
         # boundary case: no shape information (e.g. scalar pvar)
         elif cached_info is None:
             
-            def _jax_wrapped_pvar_scalar(x, key):
+            def _jax_wrapped_pvar_scalar(x, params, key):
                 sample = jnp.asarray(x[var])
                 return sample, key, NORMAL
             
@@ -502,17 +545,17 @@ class JaxRDDLCompiler:
             # compile nested expressions
             if slices and op_code == RDDLObjectsTracer.NUMPY_OP_CODE.NESTED_SLICE:
                 
-                jax_nested_expr = [(self._jax(arg) 
+                jax_nested_expr = [(self._jax(arg, info) 
                                     if _slice is None 
                                     else self._jax_pvar_slice(_slice))
                                    for (arg, _slice) in zip(pvars, slices)]    
                 
-                def _jax_wrapped_pvar_tensor_nested(x, key):
+                def _jax_wrapped_pvar_tensor_nested(x, params, key):
                     error = NORMAL
                     sample = jnp.asarray(x[var])
                     new_slices = [None] * len(jax_nested_expr)
                     for (i, jax_expr) in enumerate(jax_nested_expr):
-                        new_slices[i], key, err = jax_expr(x, key)
+                        new_slices[i], key, err = jax_expr(x, params, key)
                         error |= err
                     new_slices = tuple(new_slices)
                     sample = sample[new_slices]
@@ -523,7 +566,7 @@ class JaxRDDLCompiler:
             # tensor variable but no nesting  
             else:
     
-                def _jax_wrapped_pvar_tensor_non_nested(x, key):
+                def _jax_wrapped_pvar_tensor_non_nested(x, params, key):
                     sample = jnp.asarray(x[var])
                     if slices:
                         sample = sample[slices]
@@ -542,15 +585,16 @@ class JaxRDDLCompiler:
     # mathematical
     # ===========================================================================
     
-    @staticmethod
-    def _jax_unary(jax_expr, jax_op, at_least_int=False, check_dtype=None):
+    def _jax_unary(self, jax_expr, jax_op, jax_param,
+                   at_least_int=False, check_dtype=None):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
-        
-        def _jax_wrapped_unary_op(x, key):
-            sample, key, err = jax_expr(x, key)
+
+        def _jax_wrapped_unary_op(x, params, key):
+            sample, key, err = jax_expr(x, params, key)
             if at_least_int:
                 sample = 1 * sample
-            sample = jax_op(sample)
+            param = params.get(jax_param, None)
+            sample = jax_op(sample, param)
             if check_dtype is not None:
                 invalid_cast = jnp.logical_not(jnp.can_cast(sample, check_dtype))
                 err |= (invalid_cast * ERR)
@@ -558,17 +602,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_unary_op
     
-    @staticmethod
-    def _jax_binary(jax_lhs, jax_rhs, jax_op, at_least_int=False, check_dtype=None):
+    def _jax_binary(self, jax_lhs, jax_rhs, jax_op, jax_param,
+                    at_least_int=False, check_dtype=None):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
-        def _jax_wrapped_binary_op(x, key):
-            sample1, key, err1 = jax_lhs(x, key)
-            sample2, key, err2 = jax_rhs(x, key)
+        def _jax_wrapped_binary_op(x, params, key):
+            sample1, key, err1 = jax_lhs(x, params, key)
+            sample2, key, err2 = jax_rhs(x, params, key)
             if at_least_int:
                 sample1 = 1 * sample1
                 sample2 = 1 * sample2
-            sample = jax_op(sample1, sample2)
+            param = params.get(jax_param, None)
+            sample = jax_op(sample1, sample2, param)
             err = err1 | err2
             if check_dtype is not None:
                 invalid_cast = jnp.logical_not(jnp.logical_and(
@@ -578,8 +623,8 @@ class JaxRDDLCompiler:
             return sample, key, err
         
         return _jax_wrapped_binary_op
-        
-    def _jax_arithmetic(self, expr):
+    
+    def _jax_arithmetic(self, expr, info):
         _, op = expr.etype
         valid_ops = self.ARITHMETIC_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
@@ -589,34 +634,34 @@ class JaxRDDLCompiler:
         
         if n == 1 and op == '-':
             arg, = args
-            jax_expr = self._jax(arg)
-            return JaxRDDLCompiler._jax_unary(
-                jax_expr, jnp.negative, at_least_int=True)
+            jax_expr = self._jax(arg, info)
+            jax_op, jax_param = self._unwrap(self.NEGATIVE, expr.id, info)
+            return self._jax_unary(jax_expr, jax_op, jax_param, at_least_int=True)
                     
         elif n == 2:
             lhs, rhs = args
-            jax_lhs = self._jax(lhs)
-            jax_rhs = self._jax(rhs)
-            jax_op = valid_ops[op]
-            return JaxRDDLCompiler._jax_binary(
-                jax_lhs, jax_rhs, jax_op, at_least_int=True)
+            jax_lhs = self._jax(lhs, info)
+            jax_rhs = self._jax(rhs, info)
+            jax_op, jax_param = self._unwrap(valid_ops[op], expr.id, info)
+            return self._jax_binary(
+                jax_lhs, jax_rhs, jax_op, jax_param, at_least_int=True)
         
         JaxRDDLCompiler._check_num_args(expr, 2)
     
-    def _jax_relational(self, expr):
+    def _jax_relational(self, expr, info):
         _, op = expr.etype
         valid_ops = self.RELATIONAL_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         lhs, rhs = expr.args
-        jax_lhs = self._jax(lhs)
-        jax_rhs = self._jax(rhs)
-        jax_op = valid_ops[op]
-        return JaxRDDLCompiler._jax_binary(
-            jax_lhs, jax_rhs, jax_op, at_least_int=True)
+        jax_lhs = self._jax(lhs, info)
+        jax_rhs = self._jax(rhs, info)
+        jax_op, jax_param = self._unwrap(valid_ops[op], expr.id, info)
+        return self._jax_binary(
+            jax_lhs, jax_rhs, jax_op, jax_param, at_least_int=True)
            
-    def _jax_logical(self, expr):
+    def _jax_logical(self, expr, info):
         _, op = expr.etype
         valid_ops = self.LOGICAL_OPS    
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
@@ -626,21 +671,21 @@ class JaxRDDLCompiler:
         
         if n == 1 and op == '~':
             arg, = args
-            jax_expr = self._jax(arg)
-            return JaxRDDLCompiler._jax_unary(
-                jax_expr, self.LOGICAL_NOT, check_dtype=bool)
+            jax_expr = self._jax(arg, info)
+            jax_op, jax_param = self._unwrap(self.LOGICAL_NOT, expr.id, info)
+            return self._jax_unary(jax_expr, jax_op, jax_param, check_dtype=bool)
         
         elif n == 2:
             lhs, rhs = args
-            jax_lhs = self._jax(lhs)
-            jax_rhs = self._jax(rhs)
-            jax_op = valid_ops[op]
-            return JaxRDDLCompiler._jax_binary(
-                jax_lhs, jax_rhs, jax_op, check_dtype=bool)
+            jax_lhs = self._jax(lhs, info)
+            jax_rhs = self._jax(rhs, info)
+            jax_op, jax_param = self._unwrap(valid_ops[op], expr.id, info)
+            return self._jax_binary(
+                jax_lhs, jax_rhs, jax_op, jax_param, check_dtype=bool)
         
         JaxRDDLCompiler._check_num_args(expr, 2)
     
-    def _jax_aggregation(self, expr):
+    def _jax_aggregation(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         
         _, op = expr.etype
@@ -651,79 +696,85 @@ class JaxRDDLCompiler:
         * _, arg = expr.args  
         _, axes = self.traced.cached_sim_info(expr)
         
-        jax_expr = self._jax(arg)
-        jax_op = valid_ops[op]        
+        jax_expr = self._jax(arg, info)
+        jax_op, jax_param = self._unwrap(valid_ops[op], expr.id, info)
         
-        def _jax_wrapped_aggregation(x, key):
-            sample, key, err = jax_expr(x, key)
+        def _jax_wrapped_aggregation(x, params, key):
+            sample, key, err = jax_expr(x, params, key)
             if is_floating:
                 sample = 1 * sample
             else:
                 invalid_cast = jnp.logical_not(jnp.can_cast(sample, bool))
                 err |= (invalid_cast * ERR)
-            sample = jax_op(sample, axis=axes)
+            param = params.get(jax_param, None)
+            sample = jax_op(sample, axis=axes, param=param)
             return sample, key, err
         
         return _jax_wrapped_aggregation
                
-    def _jax_functional(self, expr):
+    def _jax_functional(self, expr, info):
         _, op = expr.etype
         
         # unary function
         if op in self.KNOWN_UNARY:
             JaxRDDLCompiler._check_num_args(expr, 1)                            
             arg, = expr.args
-            jax_expr = self._jax(arg)
-            jax_op = self.KNOWN_UNARY[op]
-            return JaxRDDLCompiler._jax_unary(
-                jax_expr, jax_op, at_least_int=True)
+            jax_expr = self._jax(arg, info)
+            jax_op, jax_param = self._unwrap(self.KNOWN_UNARY[op], expr.id, info)
+            return self._jax_unary(jax_expr, jax_op, jax_param, at_least_int=True)
             
         # binary function
         elif op in self.KNOWN_BINARY:
             JaxRDDLCompiler._check_num_args(expr, 2)                
             lhs, rhs = expr.args
-            jax_lhs = self._jax(lhs)
-            jax_rhs = self._jax(rhs)
-            jax_op = self.KNOWN_BINARY[op]
-            return JaxRDDLCompiler._jax_binary(
-                jax_lhs, jax_rhs, jax_op, at_least_int=True)
+            jax_lhs = self._jax(lhs, info)
+            jax_rhs = self._jax(rhs, info)
+            jax_op, jax_param = self._unwrap(self.KNOWN_BINARY[op], expr.id, info)
+            return self._jax_binary(
+                jax_lhs, jax_rhs, jax_op, jax_param, at_least_int=True)
         
         raise RDDLNotImplementedError(
-                f'Function {op} is not supported.\n' + print_stack_trace(expr))   
+            f'Function {op} is not supported.\n' + 
+            print_stack_trace(expr))   
     
     # ===========================================================================
     # control flow
     # ===========================================================================
     
-    def _jax_control(self, expr):
+    def _jax_control(self, expr, info):
         _, op = expr.etype        
         if op == 'if':
-            return self._jax_if(expr)
+            return self._jax_if(expr, info)
         elif op == 'switch':
-            return self._jax_switch(expr)
+            return self._jax_switch(expr, info)
         
         raise RDDLNotImplementedError(
-                f'Control operator {op} is not supported.\n' + 
-                print_stack_trace(expr))   
+            f'Control operator {op} is not supported.\n' + 
+            print_stack_trace(expr))   
     
     def _jax_if_helper(self):
-        return jnp.where
+        
+        def _jax_wrapped_if_calc_exact(c, a, b, param):
+            return jnp.where(c, a, b)
+        
+        return _jax_wrapped_if_calc_exact
     
-    def _jax_if(self, expr):
+    def _jax_if(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']
         JaxRDDLCompiler._check_num_args(expr, 3)
-        jax_if = self._jax_if_helper()
+        jax_if, jax_param = self._unwrap(self._jax_if_helper(), expr.id, info)
         
         pred, if_true, if_false = expr.args        
-        jax_pred = self._jax(pred)
-        jax_true = self._jax(if_true)
-        jax_false = self._jax(if_false)
+        jax_pred = self._jax(pred, info)
+        jax_true = self._jax(if_true, info)
+        jax_false = self._jax(if_false, info)
         
-        def _jax_wrapped_if_then_else(x, key):
-            sample1, key, err1 = jax_pred(x, key)
-            sample2, key, err2 = jax_true(x, key)
-            sample3, key, err3 = jax_false(x, key)
-            sample = jax_if(sample1, sample2, sample3)
+        def _jax_wrapped_if_then_else(x, params, key):
+            sample1, key, err1 = jax_pred(x, params, key)
+            sample2, key, err2 = jax_true(x, params, key)
+            sample3, key, err3 = jax_false(x, params, key)
+            param = params.get(jax_param, None)
+            sample = jax_if(sample1, sample2, sample3, param)
             err = err1 | err2 | err3
             invalid_cast = jnp.logical_not(jnp.can_cast(sample1, bool))
             err |= (invalid_cast * ERR)
@@ -733,39 +784,41 @@ class JaxRDDLCompiler:
     
     def _jax_switch_helper(self):
         
-        def _jax_switch_calc_exact(pred, cases):
+        def _jax_wrapped_switch_calc_exact(pred, cases, param):
             pred = pred[jnp.newaxis, ...]
             sample = jnp.take_along_axis(cases, pred, axis=0)
             assert sample.shape[0] == 1
             return sample[0, ...]
 
-        return _jax_switch_calc_exact
+        return _jax_wrapped_switch_calc_exact
         
-    def _jax_switch(self, expr):
+    def _jax_switch(self, expr, info):
         pred, *_ = expr.args             
-        jax_pred = self._jax(pred)
-        jax_switch = self._jax_switch_helper()
+        jax_pred = self._jax(pred, info)
+        jax_switch, jax_param = self._unwrap(
+            self._jax_switch_helper(), expr.id, info)
         
         # wrap cases as JAX expressions
         cases, default = self.traced.cached_sim_info(expr) 
-        jax_default = None if default is None else self._jax(default)
-        jax_cases = [(jax_default if _case is None else self._jax(_case))
+        jax_default = None if default is None else self._jax(default, info)
+        jax_cases = [(jax_default if _case is None else self._jax(_case, info))
                      for _case in cases]
                     
-        def _jax_wrapped_switch(x, key):
+        def _jax_wrapped_switch(x, params, key):
             
             # sample predicate
-            sample_pred, key, err = jax_pred(x, key) 
+            sample_pred, key, err = jax_pred(x, params, key) 
             
             # sample cases
             sample_cases = [None] * len(jax_cases)
             for (i, jax_case) in enumerate(jax_cases):
-                sample_cases[i], key, err_case = jax_case(x, key)
+                sample_cases[i], key, err_case = jax_case(x, params, key)
                 err |= err_case                
             sample_cases = jnp.asarray(sample_cases)
             
             # predicate (enum) is an integer - use it to extract from case array
-            sample = jax_switch(sample_pred, sample_cases)
+            param = params.get(jax_param, None)
+            sample = jax_switch(sample_pred, sample_cases, param)
             return sample, key, err    
         
         return _jax_wrapped_switch
@@ -802,72 +855,72 @@ class JaxRDDLCompiler:
     # Geometric: (implement safe floor)
     # Student: (no reparameterization)
     
-    def _jax_random(self, expr):
+    def _jax_random(self, expr, info):
         _, name = expr.etype
         if name == 'KronDelta':
-            return self._jax_kron(expr)        
+            return self._jax_kron(expr, info)        
         elif name == 'DiracDelta':
-            return self._jax_dirac(expr)
+            return self._jax_dirac(expr, info)
         elif name == 'Uniform':
-            return self._jax_uniform(expr)
+            return self._jax_uniform(expr, info)
         elif name == 'Bernoulli':
-            return self._jax_bernoulli(expr)
+            return self._jax_bernoulli(expr, info)
         elif name == 'Normal':
-            return self._jax_normal(expr)  
+            return self._jax_normal(expr, info)  
         elif name == 'Poisson':
-            return self._jax_poisson(expr)
+            return self._jax_poisson(expr, info)
         elif name == 'Exponential':
-            return self._jax_exponential(expr)
+            return self._jax_exponential(expr, info)
         elif name == 'Weibull':
-            return self._jax_weibull(expr) 
+            return self._jax_weibull(expr, info) 
         elif name == 'Gamma':
-            return self._jax_gamma(expr)
+            return self._jax_gamma(expr, info)
         elif name == 'Binomial':
-            return self._jax_binomial(expr)
+            return self._jax_binomial(expr, info)
         elif name == 'NegativeBinomial':
-            return self._jax_negative_binomial(expr)
+            return self._jax_negative_binomial(expr, info)
         elif name == 'Beta':
-            return self._jax_beta(expr)
+            return self._jax_beta(expr, info)
         elif name == 'Geometric':
-            return self._jax_geometric(expr)
+            return self._jax_geometric(expr, info)
         elif name == 'Pareto':
-            return self._jax_pareto(expr)
+            return self._jax_pareto(expr, info)
         elif name == 'Student':
-            return self._jax_student(expr)
+            return self._jax_student(expr, info)
         elif name == 'Gumbel':
-            return self._jax_gumbel(expr)
+            return self._jax_gumbel(expr, info)
         elif name == 'Laplace':
-            return self._jax_laplace(expr)
+            return self._jax_laplace(expr, info)
         elif name == 'Cauchy':
-            return self._jax_cauchy(expr)
+            return self._jax_cauchy(expr, info)
         elif name == 'Gompertz':
-            return self._jax_gompertz(expr)
+            return self._jax_gompertz(expr, info)
         elif name == 'ChiSquare':
-            return self._jax_chisquare(expr)
+            return self._jax_chisquare(expr, info)
         elif name == 'Kumaraswamy':
-            return self._jax_kumaraswamy(expr)
+            return self._jax_kumaraswamy(expr, info)
         elif name == 'Discrete':
-            return self._jax_discrete(expr, unnorm=False)
+            return self._jax_discrete(expr, info, unnorm=False)
         elif name == 'UnnormDiscrete':
-            return self._jax_discrete(expr, unnorm=True)
+            return self._jax_discrete(expr, info, unnorm=True)
         elif name == 'Discrete(p)':
-            return self._jax_discrete_pvar(expr, unnorm=False)
+            return self._jax_discrete_pvar(expr, info, unnorm=False)
         elif name == 'UnnormDiscrete(p)':
-            return self._jax_discrete_pvar(expr, unnorm=True)
+            return self._jax_discrete_pvar(expr, info, unnorm=True)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
                 print_stack_trace(expr))
         
-    def _jax_kron(self, expr):
+    def _jax_kron(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_KRON_DELTA']
         JaxRDDLCompiler._check_num_args(expr, 1)
         arg, = expr.args
-        arg = self._jax(arg)
+        arg = self._jax(arg, info)
         
         # just check that the sample can be cast to int
-        def _jax_wrapped_distribution_kron(x, key):
-            sample, key, err = arg(x, key)
+        def _jax_wrapped_distribution_kron(x, params, key):
+            sample, key, err = arg(x, params, key)
             invalid_cast = jnp.logical_not(
                 jnp.can_cast(sample, JaxRDDLCompiler.INT))
             err |= (invalid_cast * ERR)
@@ -875,24 +928,24 @@ class JaxRDDLCompiler:
                         
         return _jax_wrapped_distribution_kron
     
-    def _jax_dirac(self, expr):
+    def _jax_dirac(self, expr, info):
         JaxRDDLCompiler._check_num_args(expr, 1)
         arg, = expr.args
-        arg = self._jax(arg, dtype=JaxRDDLCompiler.REAL)
+        arg = self._jax(arg, info, dtype=JaxRDDLCompiler.REAL)
         return arg
     
-    def _jax_uniform(self, expr):
+    def _jax_uniform(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_UNIFORM']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_lb, arg_ub = expr.args
-        jax_lb = self._jax(arg_lb)
-        jax_ub = self._jax(arg_ub)
+        jax_lb = self._jax(arg_lb, info)
+        jax_ub = self._jax(arg_ub, info)
         
         # reparameterization trick U(a, b) = a + (b - a) * U(0, 1)
-        def _jax_wrapped_distribution_uniform(x, key):
-            lb, key, err1 = jax_lb(x, key)
-            ub, key, err2 = jax_ub(x, key)
+        def _jax_wrapped_distribution_uniform(x, params, key):
+            lb, key, err1 = jax_lb(x, params, key)
+            ub, key, err2 = jax_ub(x, params, key)
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(lb), dtype=JaxRDDLCompiler.REAL)
@@ -903,18 +956,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_uniform
     
-    def _jax_normal(self, expr):
+    def _jax_normal(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_NORMAL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_var = expr.args
-        jax_mean = self._jax(arg_mean)
-        jax_var = self._jax(arg_var)
+        jax_mean = self._jax(arg_mean, info)
+        jax_var = self._jax(arg_var, info)
         
         # reparameterization trick N(m, s^2) = m + s * N(0, 1)
-        def _jax_wrapped_distribution_normal(x, key):
-            mean, key, err1 = jax_mean(x, key)
-            var, key, err2 = jax_var(x, key)
+        def _jax_wrapped_distribution_normal(x, params, key):
+            mean, key, err1 = jax_mean(x, params, key)
+            var, key, err2 = jax_var(x, params, key)
             std = jnp.sqrt(var)
             key, subkey = random.split(key)
             Z = random.normal(
@@ -926,16 +979,16 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_normal
     
-    def _jax_exponential(self, expr):
+    def _jax_exponential(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_EXPONENTIAL']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_scale, = expr.args
-        jax_scale = self._jax(arg_scale)
+        jax_scale = self._jax(arg_scale, info)
         
         # reparameterization trick Exp(s) = s * Exp(1)
-        def _jax_wrapped_distribution_exp(x, key):
-            scale, key, err = jax_scale(x, key)
+        def _jax_wrapped_distribution_exp(x, params, key):
+            scale, key, err = jax_scale(x, params, key)
             key, subkey = random.split(key)
             Exp1 = random.exponential(
                 key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
@@ -946,18 +999,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_exp
     
-    def _jax_weibull(self, expr):
+    def _jax_weibull(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_WEIBULL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape)
-        jax_scale = self._jax(arg_scale)
+        jax_shape = self._jax(arg_shape, info)
+        jax_scale = self._jax(arg_scale, info)
         
         # reparameterization trick W(s, r) = r * (-ln(1 - U(0, 1))) ** (1 / s)
-        def _jax_wrapped_distribution_weibull(x, key):
-            shape, key, err1 = jax_shape(x, key)
-            scale, key, err2 = jax_scale(x, key)
+        def _jax_wrapped_distribution_weibull(x, params, key):
+            shape, key, err1 = jax_shape(x, params, key)
+            scale, key, err2 = jax_scale(x, params, key)
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
@@ -969,37 +1022,43 @@ class JaxRDDLCompiler:
         return _jax_wrapped_distribution_weibull
     
     def _jax_bernoulli_helper(self):
-        return random.bernoulli
         
-    def _jax_bernoulli(self, expr):
+        def _jax_wrapped_calc_bernoulli_exact(key, prob, param):
+            return random.bernoulli(key, prob)
+        
+        return _jax_wrapped_calc_bernoulli_exact
+        
+    def _jax_bernoulli(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BERNOULLI']
         JaxRDDLCompiler._check_num_args(expr, 1)
-        bernoulli = self._jax_bernoulli_helper()
+        jax_bern, jax_param = self._unwrap(
+            self._jax_bernoulli_helper(), expr.id, info)
         
         arg_prob, = expr.args
-        jax_prob = self._jax(arg_prob)
+        jax_prob = self._jax(arg_prob, info)
         
         # uses the implicit JAX subroutine
-        def _jax_wrapped_distribution_bernoulli(x, key):
-            prob, key, err = jax_prob(x, key)
+        def _jax_wrapped_distribution_bernoulli(x, params, key):
+            prob, key, err = jax_prob(x, params, key)
             key, subkey = random.split(key)
-            sample = bernoulli(subkey, prob)
+            param = params.get(jax_param, None)
+            sample = jax_bern(subkey, prob, param)
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_bernoulli
     
-    def _jax_poisson(self, expr):
+    def _jax_poisson(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_POISSON']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_rate, = expr.args
-        jax_rate = self._jax(arg_rate)
+        jax_rate = self._jax(arg_rate, info)
         
         # uses the implicit JAX subroutine
-        def _jax_wrapped_distribution_poisson(x, key):
-            rate, key, err = jax_rate(x, key)
+        def _jax_wrapped_distribution_poisson(x, params, key):
+            rate, key, err = jax_rate(x, params, key)
             key, subkey = random.split(key)
             sample = random.poisson(
                 key=subkey, lam=rate, dtype=JaxRDDLCompiler.INT)
@@ -1009,19 +1068,19 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_poisson
     
-    def _jax_gamma(self, expr):
+    def _jax_gamma(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GAMMA']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape)
-        jax_scale = self._jax(arg_scale)
+        jax_shape = self._jax(arg_shape, info)
+        jax_scale = self._jax(arg_scale, info)
         
         # partial reparameterization trick Gamma(s, r) = r * Gamma(s, 1)
         # uses the implicit JAX subroutine for Gamma(s, 1) 
-        def _jax_wrapped_distribution_gamma(x, key):
-            shape, key, err1 = jax_shape(x, key)
-            scale, key, err2 = jax_scale(x, key)
+        def _jax_wrapped_distribution_gamma(x, params, key):
+            shape, key, err1 = jax_shape(x, params, key)
+            scale, key, err2 = jax_scale(x, params, key)
             key, subkey = random.split(key)
             Gamma = random.gamma(key=subkey, a=shape, dtype=JaxRDDLCompiler.REAL)
             sample = scale * Gamma
@@ -1031,18 +1090,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gamma
     
-    def _jax_binomial(self, expr):
+    def _jax_binomial(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BINOMIAL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_trials, arg_prob = expr.args
-        jax_trials = self._jax(arg_trials)
-        jax_prob = self._jax(arg_prob)
+        jax_trials = self._jax(arg_trials, info)
+        jax_prob = self._jax(arg_prob, info)
         
         # uses the JAX substrate of tensorflow-probability
-        def _jax_wrapped_distribution_binomial(x, key):
-            trials, key, err2 = jax_trials(x, key)       
-            prob, key, err1 = jax_prob(x, key)
+        def _jax_wrapped_distribution_binomial(x, params, key):
+            trials, key, err2 = jax_trials(x, params, key)       
+            prob, key, err1 = jax_prob(x, params, key)
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             key, subkey = random.split(key)
@@ -1055,18 +1114,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_binomial
     
-    def _jax_negative_binomial(self, expr):
+    def _jax_negative_binomial(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_NEGATIVE_BINOMIAL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_trials, arg_prob = expr.args
-        jax_trials = self._jax(arg_trials)
-        jax_prob = self._jax(arg_prob)
+        jax_trials = self._jax(arg_trials, info)
+        jax_prob = self._jax(arg_prob, info)
         
         # uses the JAX substrate of tensorflow-probability
-        def _jax_wrapped_distribution_negative_binomial(x, key):
-            trials, key, err2 = jax_trials(x, key)       
-            prob, key, err1 = jax_prob(x, key)
+        def _jax_wrapped_distribution_negative_binomial(x, params, key):
+            trials, key, err2 = jax_trials(x, params, key)       
+            prob, key, err1 = jax_prob(x, params, key)
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             key, subkey = random.split(key)
@@ -1080,18 +1139,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_negative_binomial    
         
-    def _jax_beta(self, expr):
+    def _jax_beta(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_BETA']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_rate = expr.args
-        jax_shape = self._jax(arg_shape)
-        jax_rate = self._jax(arg_rate)
+        jax_shape = self._jax(arg_shape, info)
+        jax_rate = self._jax(arg_rate, info)
         
         # uses the implicit JAX subroutine
-        def _jax_wrapped_distribution_beta(x, key):
-            shape, key, err1 = jax_shape(x, key)
-            rate, key, err2 = jax_rate(x, key)
+        def _jax_wrapped_distribution_beta(x, params, key):
+            shape, key, err1 = jax_shape(x, params, key)
+            rate, key, err2 = jax_rate(x, params, key)
             key, subkey = random.split(key)
             sample = random.beta(key=subkey, a=shape, b=rate)
             out_of_bounds = jnp.logical_not(jnp.all((shape > 0) & (rate > 0)))
@@ -1100,40 +1159,42 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_beta
     
-    def _jax_geometric(self, expr):
+    def _jax_geometric(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GEOMETRIC']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_prob, = expr.args
-        jax_prob = self._jax(arg_prob)
-        floor_op = self.KNOWN_UNARY['floor']
+        jax_prob = self._jax(arg_prob, info)
+        floor_op, jax_param = self._unwrap(
+            self.KNOWN_UNARY['floor'], expr.id, info)
         
         # reparameterization trick Geom(p) = floor(ln(U(0, 1)) / ln(p)) + 1
-        def _jax_wrapped_distribution_geometric(x, key):
-            prob, key, err = jax_prob(x, key)
+        def _jax_wrapped_distribution_geometric(x, params, key):
+            prob, key, err = jax_prob(x, params, key)
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(prob), dtype=JaxRDDLCompiler.REAL)
-            sample = floor_op(jnp.log1p(-U) / jnp.log1p(-prob)) + 1
+            param = params.get(jax_param, None)
+            sample = floor_op(jnp.log1p(-U) / jnp.log1p(-prob), param) + 1
             out_of_bounds = jnp.logical_not(jnp.all((prob >= 0) & (prob <= 1)))
             err |= (out_of_bounds * ERR)
             return sample, key, err
         
         return _jax_wrapped_distribution_geometric
     
-    def _jax_pareto(self, expr):
+    def _jax_pareto(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_PARETO']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape)
-        jax_scale = self._jax(arg_scale)
+        jax_shape = self._jax(arg_shape, info)
+        jax_scale = self._jax(arg_scale, info)
         
         # partial reparameterization trick Pareto(s, r) = r * Pareto(s, 1)
         # uses the implicit JAX subroutine for Pareto(s, 1) 
-        def _jax_wrapped_distribution_pareto(x, key):
-            shape, key, err1 = jax_shape(x, key)
-            scale, key, err2 = jax_scale(x, key)
+        def _jax_wrapped_distribution_pareto(x, params, key):
+            shape, key, err1 = jax_shape(x, params, key)
+            scale, key, err2 = jax_scale(x, params, key)
             key, subkey = random.split(key)
             sample = scale * random.pareto(key=subkey, b=shape)
             out_of_bounds = jnp.logical_not(jnp.all((shape > 0) & (scale > 0)))
@@ -1142,16 +1203,16 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_pareto
     
-    def _jax_student(self, expr):
+    def _jax_student(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_STUDENT']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_df, = expr.args
-        jax_df = self._jax(arg_df)
+        jax_df = self._jax(arg_df, info)
         
         # uses the implicit JAX subroutine for student(df)
-        def _jax_wrapped_distribution_t(x, key):
-            df, key, err = jax_df(x, key)
+        def _jax_wrapped_distribution_t(x, params, key):
+            df, key, err = jax_df(x, params, key)
             key, subkey = random.split(key)
             sample = random.t(key=subkey, df=df)
             out_of_bounds = jnp.logical_not(jnp.all(df > 0))
@@ -1160,18 +1221,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_t
     
-    def _jax_gumbel(self, expr):
+    def _jax_gumbel(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GUMBEL']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_scale = expr.args
-        jax_mean = self._jax(arg_mean)
-        jax_scale = self._jax(arg_scale)
+        jax_mean = self._jax(arg_mean, info)
+        jax_scale = self._jax(arg_scale, info)
         
         # reparameterization trick Gumbel(m, s) = m + s * Gumbel(0, 1)
-        def _jax_wrapped_distribution_gumbel(x, key):
-            mean, key, err1 = jax_mean(x, key)
-            scale, key, err2 = jax_scale(x, key)
+        def _jax_wrapped_distribution_gumbel(x, params, key):
+            mean, key, err1 = jax_mean(x, params, key)
+            scale, key, err2 = jax_scale(x, params, key)
             key, subkey = random.split(key)
             Gumbel01 = random.gumbel(
                 key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
@@ -1182,18 +1243,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gumbel
     
-    def _jax_laplace(self, expr):
+    def _jax_laplace(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_LAPLACE']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_scale = expr.args
-        jax_mean = self._jax(arg_mean)
-        jax_scale = self._jax(arg_scale)
+        jax_mean = self._jax(arg_mean, info)
+        jax_scale = self._jax(arg_scale, info)
         
         # reparameterization trick Laplace(m, s) = m + s * Laplace(0, 1)
-        def _jax_wrapped_distribution_laplace(x, key):
-            mean, key, err1 = jax_mean(x, key)
-            scale, key, err2 = jax_scale(x, key)
+        def _jax_wrapped_distribution_laplace(x, params, key):
+            mean, key, err1 = jax_mean(x, params, key)
+            scale, key, err2 = jax_scale(x, params, key)
             key, subkey = random.split(key)
             Laplace01 = random.laplace(
                 key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
@@ -1204,18 +1265,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_laplace
     
-    def _jax_cauchy(self, expr):
+    def _jax_cauchy(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_CAUCHY']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_mean, arg_scale = expr.args
-        jax_mean = self._jax(arg_mean)
-        jax_scale = self._jax(arg_scale)
+        jax_mean = self._jax(arg_mean, info)
+        jax_scale = self._jax(arg_scale, info)
         
         # reparameterization trick Cauchy(m, s) = m + s * Cauchy(0, 1)
-        def _jax_wrapped_distribution_cauchy(x, key):
-            mean, key, err1 = jax_mean(x, key)
-            scale, key, err2 = jax_scale(x, key)
+        def _jax_wrapped_distribution_cauchy(x, params, key):
+            mean, key, err1 = jax_mean(x, params, key)
+            scale, key, err2 = jax_scale(x, params, key)
             key, subkey = random.split(key)
             Cauchy01 = random.cauchy(
                 key=subkey, shape=jnp.shape(mean), dtype=JaxRDDLCompiler.REAL)
@@ -1226,18 +1287,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_cauchy
     
-    def _jax_gompertz(self, expr):
+    def _jax_gompertz(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_GOMPERTZ']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_shape, arg_scale = expr.args
-        jax_shape = self._jax(arg_shape)
-        jax_scale = self._jax(arg_scale)
+        jax_shape = self._jax(arg_shape, info)
+        jax_scale = self._jax(arg_scale, info)
         
         # reparameterization trick Gompertz(s, r) = ln(1 - log(U(0, 1)) / s) / r
-        def _jax_wrapped_distribution_gompertz(x, key):
-            shape, key, err1 = jax_shape(x, key)
-            scale, key, err2 = jax_scale(x, key)
+        def _jax_wrapped_distribution_gompertz(x, params, key):
+            shape, key, err1 = jax_shape(x, params, key)
+            scale, key, err2 = jax_scale(x, params, key)
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(scale), dtype=JaxRDDLCompiler.REAL)
@@ -1248,16 +1309,16 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_gompertz
     
-    def _jax_chisquare(self, expr):
+    def _jax_chisquare(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_CHISQUARE']
         JaxRDDLCompiler._check_num_args(expr, 1)
         
         arg_df, = expr.args
-        jax_df = self._jax(arg_df)
+        jax_df = self._jax(arg_df, info)
         
         # use the fact that ChiSquare(df) = Gamma(df/2, 2)
-        def _jax_wrapped_distribution_chisquare(x, key):
-            df, key, err1 = jax_df(x, key)
+        def _jax_wrapped_distribution_chisquare(x, params, key):
+            df, key, err1 = jax_df(x, params, key)
             key, subkey = random.split(key)
             shape = df / 2.0
             Gamma = random.gamma(key=subkey, a=shape, dtype=JaxRDDLCompiler.REAL)
@@ -1268,18 +1329,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_chisquare
     
-    def _jax_kumaraswamy(self, expr):
+    def _jax_kumaraswamy(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_KUMARASWAMY']
         JaxRDDLCompiler._check_num_args(expr, 2)
         
         arg_a, arg_b = expr.args
-        jax_a = self._jax(arg_a)
-        jax_b = self._jax(arg_b)
+        jax_a = self._jax(arg_a, info)
+        jax_b = self._jax(arg_b, info)
         
         # uses the reparameterization K(a, b) = (1 - (1 - U(0, 1))^{1/b})^{1/a}
-        def _jax_wrapped_distribution_kumaraswamy(x, key):
-            a, key, err1 = jax_a(x, key)
-            b, key, err2 = jax_b(x, key)
+        def _jax_wrapped_distribution_kumaraswamy(x, params, key):
+            a, key, err1 = jax_a(x, params, key)
+            b, key, err2 = jax_b(x, params, key)
             key, subkey = random.split(key)
             U = random.uniform(
                 key=subkey, shape=jnp.shape(a), dtype=JaxRDDLCompiler.REAL)            
@@ -1296,7 +1357,7 @@ class JaxRDDLCompiler:
     
     def _jax_discrete_helper(self):
         
-        def _jax_discrete_calc_exact(key, prob):
+        def _jax_wrapped_discrete_calc_exact(key, prob, param):
             logits = jnp.log(prob)
             sample = random.categorical(key=key, logits=logits, axis=-1)
             out_of_bounds = jnp.logical_not(jnp.logical_and(
@@ -1304,23 +1365,24 @@ class JaxRDDLCompiler:
                 jnp.allclose(jnp.sum(prob, axis=-1), 1.0)))
             return sample, out_of_bounds
         
-        return _jax_discrete_calc_exact
+        return _jax_wrapped_discrete_calc_exact
             
-    def _jax_discrete(self, expr, unnorm):
+    def _jax_discrete(self, expr, info, unnorm):
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
-        jax_discrete = self._jax_discrete_helper()
+        jax_discrete, jax_param = self._unwrap(
+            self._jax_discrete_helper(), expr.id, info)
         
         ordered_args = self.traced.cached_sim_info(expr)
-        jax_probs = [self._jax(arg) for arg in ordered_args]
+        jax_probs = [self._jax(arg, info) for arg in ordered_args]
         
-        def _jax_wrapped_distribution_discrete(x, key):
+        def _jax_wrapped_distribution_discrete(x, params, key):
             
             # sample case probabilities and normalize as needed
             error = NORMAL
             prob = [None] * len(jax_probs)
             for (i, jax_prob) in enumerate(jax_probs):
-                prob[i], key, error_pdf = jax_prob(x, key)
+                prob[i], key, error_pdf = jax_prob(x, params, key)
                 error |= error_pdf
             prob = jnp.stack(prob, axis=-1)
             if unnorm:
@@ -1329,32 +1391,35 @@ class JaxRDDLCompiler:
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample, out_of_bounds = jax_discrete(subkey, prob)
+            param = params.get(jax_param, None)
+            sample, out_of_bounds = jax_discrete(subkey, prob, param)
             error |= (out_of_bounds * ERR)
             return sample, key, error
         
         return _jax_wrapped_distribution_discrete
     
-    def _jax_discrete_pvar(self, expr, unnorm):
+    def _jax_discrete_pvar(self, expr, info, unnorm):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DISCRETE']
         JaxRDDLCompiler._check_num_args(expr, 1)
-        jax_discrete = self._jax_discrete_helper()
+        jax_discrete, jax_param = self._unwrap(
+            self._jax_discrete_helper(), expr.id, info)
         
         _, args = expr.args
         arg, = args
-        jax_probs = self._jax(arg)
+        jax_probs = self._jax(arg, info)
 
-        def _jax_wrapped_distribution_discrete_pvar(x, key):
+        def _jax_wrapped_distribution_discrete_pvar(x, params, key):
             
             # sample probabilities
-            prob, key, error = jax_probs(x, key)
+            prob, key, error = jax_probs(x, params, key)
             if unnorm:
                 normalizer = jnp.sum(prob, axis=-1, keepdims=True)
                 prob = prob / normalizer
             
             # dispatch to sampling subroutine
             key, subkey = random.split(key)
-            sample, out_of_bounds = jax_discrete(subkey, prob)
+            param = params.get(jax_param, None)
+            sample, out_of_bounds = jax_discrete(subkey, prob, param)
             error |= (out_of_bounds * ERR)
             return sample, key, error
         
@@ -1364,34 +1429,34 @@ class JaxRDDLCompiler:
     # random vectors
     # ===========================================================================
     
-    def _jax_random_vector(self, expr):
+    def _jax_random_vector(self, expr, info):
         _, name = expr.etype
         if name == 'MultivariateNormal':
-            return self._jax_multivariate_normal(expr)   
+            return self._jax_multivariate_normal(expr, info)   
         elif name == 'MultivariateStudent':
-            return self._jax_multivariate_student(expr)  
+            return self._jax_multivariate_student(expr, info)  
         elif name == 'Dirichlet':
-            return self._jax_dirichlet(expr)
+            return self._jax_dirichlet(expr, info)
         elif name == 'Multinomial':
-            return self._jax_multinomial(expr)
+            return self._jax_multinomial(expr, info)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + 
                 print_stack_trace(expr))
     
-    def _jax_multivariate_normal(self, expr): 
+    def _jax_multivariate_normal(self, expr, info): 
         _, args = expr.args
         mean, cov = args
-        jax_mean = self._jax(mean)
-        jax_cov = self._jax(cov)
+        jax_mean = self._jax(mean, info)
+        jax_cov = self._jax(cov, info)
         index, = self.traced.cached_sim_info(expr)
         
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ Normal(0, 1)
-        def _jax_wrapped_distribution_multivariate_normal(x, key):
+        def _jax_wrapped_distribution_multivariate_normal(x, params, key):
             
             # sample the mean and covariance
-            sample_mean, key, err1 = jax_mean(x, key)
-            sample_cov, key, err2 = jax_cov(x, key)
+            sample_mean, key, err1 = jax_mean(x, params, key)
+            sample_cov, key, err2 = jax_cov(x, params, key)
             
             # sample Normal(0, 1)
             key, subkey = random.split(key)
@@ -1409,23 +1474,23 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_multivariate_normal
     
-    def _jax_multivariate_student(self, expr):
+    def _jax_multivariate_student(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_MULTIVARIATE_STUDENT']
         
         _, args = expr.args
         mean, cov, df = args
-        jax_mean = self._jax(mean)
-        jax_cov = self._jax(cov)
-        jax_df = self._jax(df)
+        jax_mean = self._jax(mean, info)
+        jax_cov = self._jax(cov, info)
+        jax_df = self._jax(df, info)
         index, = self.traced.cached_sim_info(expr)
         
         # reparameterization trick MN(m, LL') = LZ + m, where Z ~ StudentT(0, 1)
-        def _jax_wrapped_distribution_multivariate_student(x, key):
+        def _jax_wrapped_distribution_multivariate_student(x, params, key):
             
             # sample the mean and covariance and degrees of freedom
-            sample_mean, key, err1 = jax_mean(x, key)
-            sample_cov, key, err2 = jax_cov(x, key)
-            sample_df, key, err3 = jax_df(x, key)
+            sample_mean, key, err1 = jax_mean(x, params, key)
+            sample_cov, key, err2 = jax_cov(x, params, key)
+            sample_df, key, err3 = jax_df(x, params, key)
             out_of_bounds = jnp.logical_not(jnp.all(sample_df > 0))
             
             # sample StudentT(0, 1, df) -- broadcast df to same shape as cov
@@ -1444,17 +1509,17 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_multivariate_student
     
-    def _jax_dirichlet(self, expr):
+    def _jax_dirichlet(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_DIRICHLET']
         
         _, args = expr.args
         alpha, = args
-        jax_alpha = self._jax(alpha)
+        jax_alpha = self._jax(alpha, info)
         index, = self.traced.cached_sim_info(expr)
         
         # sample Gamma(alpha_i, 1) and normalize across i
-        def _jax_wrapped_distribution_dirichlet(x, key):
-            alpha, key, error = jax_alpha(x, key)
+        def _jax_wrapped_distribution_dirichlet(x, params, key):
+            alpha, key, error = jax_alpha(x, params, key)
             out_of_bounds = jnp.logical_not(jnp.all(alpha > 0))
             error |= (out_of_bounds * ERR)
             key, subkey = random.split(key)
@@ -1465,18 +1530,18 @@ class JaxRDDLCompiler:
         
         return _jax_wrapped_distribution_dirichlet
     
-    def _jax_multinomial(self, expr):
+    def _jax_multinomial(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_PARAM_MULTINOMIAL']
         
         _, args = expr.args
         trials, prob = args
-        jax_trials = self._jax(trials)
-        jax_prob = self._jax(prob)
+        jax_trials = self._jax(trials, info)
+        jax_prob = self._jax(prob, info)
         index, = self.traced.cached_sim_info(expr)
         
-        def _jax_wrapped_distribution_multinomial(x, key):
-            trials, key, err1 = jax_trials(x, key)
-            prob, key, err2 = jax_prob(x, key)
+        def _jax_wrapped_distribution_multinomial(x, params, key):
+            trials, key, err1 = jax_trials(x, params, key)
+            prob, key, err2 = jax_prob(x, params, key)
             trials = jnp.asarray(trials, JaxRDDLCompiler.REAL)
             prob = jnp.asarray(prob, JaxRDDLCompiler.REAL)
             key, subkey = random.split(key)
@@ -1484,9 +1549,9 @@ class JaxRDDLCompiler:
             sample = dist.sample(seed=subkey).astype(JaxRDDLCompiler.INT)
             sample = jnp.moveaxis(sample, source=-1, destination=index)
             out_of_bounds = jnp.logical_not(jnp.all(
-                (prob >= 0) & 
-                jnp.allclose(jnp.sum(prob, axis=-1), 1.0) & 
-                (trials >= 0)))
+                (prob >= 0)
+                & jnp.allclose(jnp.sum(prob, axis=-1), 1.0)
+                & (trials >= 0)))
             error = err1 | err2 | (out_of_bounds * ERR)
             return sample, key, error            
         
@@ -1496,38 +1561,38 @@ class JaxRDDLCompiler:
     # matrix algebra
     # ===========================================================================
     
-    def _jax_matrix(self, expr):
+    def _jax_matrix(self, expr, info):
         _, op = expr.etype
         if op == 'det':
-            return self._jax_matrix_det(expr)
+            return self._jax_matrix_det(expr, info)
         elif op == 'inverse':
-            return self._jax_matrix_inv(expr, pseudo=False)
+            return self._jax_matrix_inv(expr, info, pseudo=False)
         elif op == 'pinverse':
-            return self._jax_matrix_inv(expr, pseudo=True)
+            return self._jax_matrix_inv(expr, info, pseudo=True)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operation {op} is not supported.\n' + 
                 print_stack_trace(expr))
     
-    def _jax_matrix_det(self, expr):
+    def _jax_matrix_det(self, expr, info):
         * _, arg = expr.args
-        jax_arg = self._jax(arg)
+        jax_arg = self._jax(arg, info)
         
-        def _jax_wrapped_matrix_operation_det(x, key):
-            sample_arg, key, error = jax_arg(x, key)
+        def _jax_wrapped_matrix_operation_det(x, params, key):
+            sample_arg, key, error = jax_arg(x, params, key)
             sample = jnp.linalg.det(sample_arg)
             return sample, key, error
         
         return _jax_wrapped_matrix_operation_det
     
-    def _jax_matrix_inv(self, expr, pseudo):
+    def _jax_matrix_inv(self, expr, info, pseudo):
         _, arg = expr.args
-        jax_arg = self._jax(arg)
+        jax_arg = self._jax(arg, info)
         indices = self.traced.cached_sim_info(expr)
         op = jnp.linalg.pinv if pseudo else jnp.linalg.inv
         
-        def _jax_wrapped_matrix_operation_inv(x, key):
-            sample_arg, key, error = jax_arg(x, key)
+        def _jax_wrapped_matrix_operation_inv(x, params, key):
+            sample_arg, key, error = jax_arg(x, params, key)
             sample = op(sample_arg)
             sample = jnp.moveaxis(sample, source=(-2, -1), destination=indices)
             return sample, key, error

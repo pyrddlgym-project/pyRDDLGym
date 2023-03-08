@@ -22,6 +22,7 @@ class RDDLTracedObjects:
         self._cached_objects_in_scope = []
         self._cached_enum_type = []
         self._cached_sim_info = []
+        self._expr_from_id = {}
         
     def _append(self, expr, objects, enum_type, info) -> None:
         expr.id = self._current_id
@@ -30,6 +31,7 @@ class RDDLTracedObjects:
         self._cached_objects_in_scope.append(objects)
         self._cached_enum_type.append(enum_type)
         self._cached_sim_info.append(info)
+        self._expr_from_id[expr.id] = expr
         
     def cached_objects_in_scope(self, expr: Expression):
         '''Returns the free variables/parameters in the scope of expression.'''
@@ -42,6 +44,11 @@ class RDDLTracedObjects:
     def cached_sim_info(self, expr: Expression) -> object:
         '''Returns compiled info that is specific to the expression.'''
         return self._cached_sim_info[expr.id]
+    
+    def lookup(self, identifier: int) -> Expression:
+        '''Returns the expression with given identifier, or None if does not 
+        exist.'''
+        return self._expr_from_id.get(identifier, None)
 
 
 def py_enum(**enums):
@@ -721,7 +728,7 @@ class RDDLObjectsTracer:
         # no duplicate cases are allowed
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default case(s).\n' +
+                f'Duplicated literal or default case(s).\n' + 
                 print_stack_trace(expr))
         
         # no default cases are allowed
