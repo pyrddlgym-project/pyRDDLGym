@@ -62,7 +62,7 @@ domain BLX_model {
         // simulation time step in seconds
         Ts                                                     :  { non-fluent, int, default = 1 };
         // average vehicle length in meters
-        Lv                                                     :  { non-fluent, real, default = 5 };
+        Lv                                                     :  { non-fluent, real, default = 6.0 };
 
 
         // number of lanes in link
@@ -72,7 +72,7 @@ domain BLX_model {
         Vl(link)                                               :  { non-fluent, real, default = 13.8 };
 
         // link length
-        Dl(link)                                               :  { non-fluent, real, default = 150 };
+        Dl(link)                                               :  { non-fluent, real, default = 150.0 };
 
         // does the link end at the intersection?
         LINK-TO(link, intersection)                            :  { non-fluent, bool, default = false };
@@ -106,10 +106,10 @@ domain BLX_model {
         SINK(link)                                             :  { non-fluent, bool, default = false };
 
         // arrival rate at sources in veh/s - the mean for a uniform distribution
-        SOURCE-ARRIVAL-RATE(link)                              :  { non-fluent, real, default = 0.67 };
+        SOURCE-ARRIVAL-RATE(link)                              :  { non-fluent, real, default = 0.3 };
 
         // saturation flow rate from a source in veh/s
-        SOURCE-MU(link)                                        :  { non-fluent, real, default = 2.0 };
+        SOURCE-MU(link)                                        :  { non-fluent, real, default = 0.4 };
 
 
         // time ordering for time-delayed queues
@@ -124,13 +124,13 @@ domain BLX_model {
         // time object to actual time delay index
         TIME-VAL(time)                                         :  { non-fluent, int, default = 1 };
 
-        // cartesian coordinates
-        X(intersection)                                        :  { non-fluent, real, default = 0 };
-        Y(intersection)                                        :  { non-fluent, real, default = 0 };
-        SOURCE-X(link)                                         :  { non-fluent, real, default = 0 };
-        SOURCE-Y(link)                                         :  { non-fluent, real, default = 0 };
-        SINK-X(link)                                           :  { non-fluent, real, default = 0 };
-        SINK-Y(link)                                           :  { non-fluent, real, default = 0 };
+        // cartesian coordinates (used for rendering)
+        X(intersection)                                        :  { non-fluent, real, default = 0.0 };
+        Y(intersection)                                        :  { non-fluent, real, default = 0.0 };
+        SOURCE-X(link)                                         :  { non-fluent, real, default = 0.0 };
+        SOURCE-Y(link)                                         :  { non-fluent, real, default = 0.0 };
+        SINK-X(link)                                           :  { non-fluent, real, default = 0.0 };
+        SINK-Y(link)                                           :  { non-fluent, real, default = 0.0 };
 
 
 
@@ -182,22 +182,22 @@ domain BLX_model {
         //////////////////////////////
 
         // flow of vehicles along a link, indexed by the number of time-steps before arrival to the end of queue
-        flow-on-link(link, time)                           :  { state-fluent, real, default = 0 };
+        flow-on-link(link, time)                           :  { state-fluent, real, default = 0.0 };
 
         // queue length in link0 waiting to turn to link1
-        q(link, link)                                      :  { state-fluent, real, default = 0 };
+        q(link, link)                                      :  { state-fluent, real, default = 0.0 };
 
         // number of vehicles in link
-        Nc(link)                                           :  { state-fluent, real, default = 0 };
+        Nc(link)                                           :  { state-fluent, real, default = 0.0 };
 
         //virtual queue at source (i.e. vehicles held outside of the network)
-        virtual-q(link)                                    :  { state-fluent, real, default = 0 };
+        virtual-q(link)                                    :  { state-fluent, real, default = 0.0 };
 
         // current phase
         signal(intersection)                               :  { state-fluent, signal-phase, default = @ALL-RED};
 
         // current phase time
-        signal-t(intersection)                             :  { state-fluent, real, default = 0 };
+        signal-t(intersection)                             :  { state-fluent, real, default = 0.0 };
 
 
         //////////////////////////////
@@ -323,6 +323,9 @@ domain BLX_model {
     // minus number of cars in the network
     // minus all virtual queues at source links
     reward = - ( sum_{?u : link} [ (Nc(?u) + SOURCE(?u)*virtual-q(?u)) * Ts ] );
+
+    // -sum of local intersection delays:
+    //reward = -( sum_{?u : link, ?d : link} [ q(?u,?d)  ] );
 
     state-invariants {
         1 <= Ts;
