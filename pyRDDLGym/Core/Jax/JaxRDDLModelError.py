@@ -145,46 +145,96 @@ class JaxRDDLModelError:
             
     def sensitivity(self, key: random.PRNGKey,
                     policy_params: Dict,
-                    param_ranges=np.linspace(1.0, 1000.0, num=100),
+                    param_ranges=[1., 5., 10., 50., 100., 500., 1000.],
+                    bars=100,
+                    epochs=5,
                     subs: Dict=None,
-                    figsize: Tuple[int, int]=(6, 4)) -> None:
+                    figsize: Tuple[int, int]=(4, 2)) -> None:
         if subs is None:
             subs = self.test_compiled.init_values
         test_params = self.test_compiled.model_params
         
-        # draw the error curves
-        curves = {}
+        # subplots
+        param_ranges = list(param_ranges)
+        num_rows = len(param_ranges)
+        num_cols = epochs
+        w, h = figsize
+        
+        # collect data
+        train_dicts, test_dicts = [], []
         for weight in param_ranges:
             model_params = {name: weight 
                             for name in self.train_compiled.model_params}
             key, subkey = random.split(key)
             train_fluents, test_fluents = self.simulation(
-                subkey, policy_params, subs, model_params, test_params)            
-            for name in train_fluents:
-                train_value = np.asarray(train_fluents[name], dtype=np.float64)
-                test_value = np.asarray(test_fluents[name], dtype=np.float64)
-                errors = np.mean(np.abs(train_value - test_value), axis=0)
-                errors = np.sum(errors, axis=0)  # sum across time
-                errors = np.ravel(errors, order='C')
-                curves.setdefault(name, []).append(errors)
+                subkey, policy_params, subs, model_params, test_params)  
+            train_fluents = {k: np.asarray(v, dtype=np.float64).reshape(
+                                (v.shape[0], v.shape[1], -1))
+                             for (k, v) in train_fluents.items()}
+            test_fluents = {k: np.asarray(v, dtype=np.float64).reshape(
+                                (v.shape[0], v.shape[1], -1))
+                            for (k, v) in test_fluents.items()}
+            train_dicts.append(train_fluents)
+            test_dicts.append(test_fluents)
         
-        # plot each fluent component
-        subplots = Subplots(len(curves), figsize)
-        for (name, curve) in curves.items():
-            curve = np.asarray(curve)
-            grounded_names = self.rddl.grounded_names.get(name, ['reward'])
-            axis = subplots.current_axis()
-            for j in range(curve.shape[1]):
-                axis.plot(param_ranges, curve[:, j],
-                          label=grounded_names[j],
-                          linewidth=1)
-                axis.set_xlabel('model parameter')
-                axis.set_ylabel(f'{name} error')
-            subplots.next_axis()
-        subplots.blank_unused_axes()
+        # select epochs as equally spaced as possible including 0 and T - 1
+        num_epochs = train_fluents['reward'].shape[1]
+        iepochs = np.round(np.linspace(0, num_epochs - 1, epochs)).astype(int)
+        
+        # plot for cumulative reward
+        fig, axes = plt.subplots(
+            nrows=num_rows, ncols=1, figsize=(w * 1.5, h * num_rows),
+            sharex='col')      
+        for (row, weight) in enumerate(param_ranges):
+            train_data = train_dicts[row]['reward'][:,:, ...]
+            test_data = test_dicts[row]['reward'][:,:, ...]
+            train = np.ravel(np.sum(train_data, axis=1))
+            test = np.ravel(np.sum(test_data, axis=1))
+            xmin = min(np.min(train), np.min(test))
+            xmax = max(np.max(train), np.max(test))
+            bins = np.linspace(xmin, xmax, bars)
+            axis = axes[row]
+            axis.hist(train, bins=bins, alpha=0.5, label='train', histtype='step')
+            axis.hist(test, bins=bins, alpha=0.5, label='test', histtype='step')
+            axis.legend()
+            axis.set_xlabel(f'cuml reward')
+            axis.set_ylabel(f'weight {weight}')
         plt.tight_layout()
-        subplots.figure.savefig('sensitivity.pdf')
-        subplots.close()
+        fig.savefig(f'sensitivity_cuml_reward.pdf')
+        plt.clf()
+        plt.close(fig)
+        
+        # each plot per grounded fluent, rows weights, columns epochs
+        for name in train_fluents:
+            grounded_names = list(self.rddl.ground_names(
+                name, self.rddl.param_types.get(name, [])))
+            for (iname, gname) in enumerate(grounded_names):
+                fig, axes = plt.subplots(
+                    nrows=num_rows, ncols=num_cols,
+                    figsize=(w * num_cols, h * num_rows), sharex='col')            
+                for (row, weight) in enumerate(param_ranges):
+                    train_data = train_dicts[row][name][:,:, iname]
+                    test_data = test_dicts[row][name][:,:, iname]
+                    for (col, epoch) in enumerate(iepochs):
+                        train = train_data[:, epoch]
+                        test = test_data[:, epoch]
+                        xmin = min(np.min(train), np.min(test))
+                        xmax = max(np.max(train), np.max(test))
+                        bins = np.linspace(xmin, xmax, bars)
+                        axis = axes[row, col]
+                        axis.hist(train, bins=bins, 
+                                  alpha=0.5, label='train', histtype='step')
+                        axis.hist(test, bins=bins, 
+                                  alpha=0.5, label='test', histtype='step')
+                        axis.set_xlabel(f'epoch {epoch}')
+                        axis.set_ylabel(f'weight {weight}')
+                        if row == 0 and col == 0:
+                            axis.legend()
+                print(f'ploting fluent {gname}...')
+                plt.tight_layout()
+                fig.savefig(f'sensitivity_{gname}.pdf')
+                plt.clf()
+                plt.close(fig)
     
     def summarize(self, key: random.PRNGKey,
                   policy_params: Dict,

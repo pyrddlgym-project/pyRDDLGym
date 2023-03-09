@@ -180,7 +180,7 @@ class JaxPlan:
 class JaxStraightLinePlan(JaxPlan):
     '''A straight line plan implementation in JAX'''
     
-    def __init__(self, initializer: initializers.Initializer=initializers.zeros) -> None:
+    def __init__(self, initializer: initializers.Initializer=initializers.normal()) -> None:
         '''Creates a new straight line plan in JAX.
         
         :param initializer: a Jax Initializer for setting the initial actions
