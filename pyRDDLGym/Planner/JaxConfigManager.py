@@ -24,9 +24,20 @@ def get(path: str) -> Dict[str, object]:
     
     # read the environment settings
     env_args = {k: args[k] for (k, v) in config.items('Environment')}
-    EnvInfo = ExampleManager.GetEnvInfo(env_args['domain'])
+    
+    # try to read from rddlrepository
+    try:
+        from rddlrepository.Manager.RDDLRepoManager import RDDLRepoManager
+        manager = RDDLRepoManager()
+        EnvInfo = manager.get_problem(env_args['domain'])
+        print('reading domain from rddlrepository...')
+    except:
+        EnvInfo = ExampleManager.GetEnvInfo(env_args['domain'])
+        print('reading domain from Examples...')
+        
     env_args['domain'] = EnvInfo.get_domain()
     env_args['instance'] = EnvInfo.get_instance(env_args['instance'])
+        
     myEnv = RDDLEnv(**env_args)
     myEnv.set_visualizer(EnvInfo.get_visualizer())
     
