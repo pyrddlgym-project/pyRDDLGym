@@ -23,6 +23,10 @@ domain cart_pole_continuous {
 		CART-MASS : { non-fluent, real, default = 1.0 };        // mass of the cart
 		POLE-MASS : { non-fluent, real, default = 0.1 };		// mass of the pole
 		POLE-LEN  : { non-fluent, real, default = 0.5 }; 		// half of the pole length
+		CART-FRICTION : { non-fluent, real, default = 0.0};     // friction of the cart
+		POLE-FRICTION : { non-fluent, real, default = 0.0};     // friction of the pole
+		IMPULSE-VAR : { non-fluent, real, default = 0.0};       // variance of noise added to force
+		ANGLE-VAR : { non-fluent, real, default = 0.0};         // variance of noise added to cart angle sensor
 		
 		// other constants
 		TIME-STEP : { non-fluent, real, default = 0.02 }; 		// seconds between state updates
@@ -30,6 +34,7 @@ domain cart_pole_continuous {
 		ANG-LIMIT : { non-fluent, real, default = 0.2094395 };	// limit of pole angle
 	
 		// interm & derived fluents
+		corrupted-force : { interm-fluent, real };          // force applied to the cart after noise
 		temp : { interm-fluent, real };						// temporary variable
 		acc : { interm-fluent, real };							// position acceleration
 		ang-acc : { interm-fluent, real };						// angular acceleration
@@ -45,10 +50,15 @@ domain cart_pole_continuous {
     };
 
     cpfs {
+	
+	    // compute force
+		corrupted-force = max[min[force + Normal(0.0, IMPULSE-VAR), FORCE-MAX], -FORCE-MAX];
 		
 		// compute the pole angular acceleration
-		temp = (force + POLE-LEN * POLE-MASS * pow[ang-vel, 2] * sin[ang-pos]) / (CART-MASS + POLE-MASS);
-		ang-acc = (GRAVITY * sin[ang-pos] - cos[ang-pos] * temp) / (
+		temp = (corrupted-force + POLE-LEN * POLE-MASS * pow[ang-vel, 2] * sin[ang-pos] - 
+		       (CART-FRICTION * sgn[vel])) / (CART-MASS + POLE-MASS);
+		ang-acc = (GRAVITY * sin[ang-pos] - cos[ang-pos] * temp - 
+					(POLE-FRICTION * ang-vel / (POLE-LEN * POLE-MASS))) / (
             POLE-LEN * ((4.0 / 3.0) - (POLE-MASS * pow[cos[ang-pos], 2] / (CART-MASS + POLE-MASS))));
 		
 		// compute the cart acceleration
@@ -56,7 +66,7 @@ domain cart_pole_continuous {
 
 		// Euler integration formula
 		pos' = pos + TIME-STEP * vel;
-		ang-pos' = ang-pos + TIME-STEP * ang-vel;
+		ang-pos' = ang-pos + TIME-STEP * ang-vel + Normal(0.0, ANGLE-VAR);
 		vel' = vel + TIME-STEP * acc;
 		ang-vel' = ang-vel + TIME-STEP * ang-acc;
     };
