@@ -25,51 +25,53 @@ class PowerGenInstanceGenerator(InstanceGenerator):
         # five generators, lower variance
         elif instance == 2:
             plants = ['p1', 'p2', 'p3', 'p4', 'p5']
-            TEMP_VARIANCE = 4.0
+            TEMP_VARIANCE = 6.0
             PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [10.0] * len(plants)
-            EXP_COEFF = 0.01
+            PROD_UNITS_MAX = [15.0] * len(plants)
+            EXP_COEFF = 0.015
             MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 2.0
+            MIN_CONSUMPTION = 2.5
             temperature = 10.
             horizon = 40
         
         # ten generators, mid variance
         elif instance == 3:
             plants = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10']
-            TEMP_VARIANCE = 6.0
+            TEMP_VARIANCE = 8.0
             PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [10.0] * len(plants)
-            EXP_COEFF = 0.015
-            MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 2.0
-            temperature = 10.
-            horizon = 40
-        
-        # fifteen generators, mid variance
-        elif instance == 4:
-            plants = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10',
-                      'p11', 'p12', 'p13', 'p14', 'p15']
-            TEMP_VARIANCE = 6.0
-            PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [10.0] * len(plants)
+            PROD_UNITS_MAX = [20.0] * len(plants)
             EXP_COEFF = 0.02
             MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 2.0
+            MIN_CONSUMPTION = 3.0
             temperature = 10.
             horizon = 40
         
-        # twenty generators, high variance
-        elif instance == 5:
+        # twenty generators, mid variance
+        elif instance == 4:
             plants = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10',
                       'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 
                       'p19', 'p20']
-            TEMP_VARIANCE = 8.0
+            TEMP_VARIANCE = 10.0
             PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [10.0] * len(plants)
-            EXP_COEFF = 0.02
+            PROD_UNITS_MAX = [25.0] * len(plants)
+            EXP_COEFF = 0.025
             MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 2.0
+            MIN_CONSUMPTION = 3.5
+            temperature = 10.
+            horizon = 40
+        
+        # thirty generators, high variance
+        elif instance == 5:
+            plants = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10',
+                      'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 
+                      'p19', 'p20', 'p21', 'p22', 'p23', 'p24', 'p25', 'p26', 
+                      'p27', 'p28', 'p29', 'p30']
+            TEMP_VARIANCE = 12.0
+            PROD_UNITS_MIN = [0.0] * len(plants)
+            PROD_UNITS_MAX = [30.0] * len(plants)
+            EXP_COEFF = 0.03
+            MIN_DEMAND_TEMP = 11.7
+            MIN_CONSUMPTION = 4.0
             temperature = 10.
             horizon = 40
         
