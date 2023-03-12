@@ -1,87 +1,65 @@
 import os
+from typing import Dict
 
 from pyRDDLGym.Examples.InstanceGenerator import InstanceGenerator
 
 
 class CartPoleInstanceGenerator(InstanceGenerator):
     
-    def get_env_name(self) -> str:
+    def get_env_path(self) -> str:
         return os.path.join('CartPole', 'Continuous')
     
-    def generate_instance(self, instance: int) -> str:
+    def get_domain_name(self) -> str:
+        return 'cart_pole_continuous'
+    
+    def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]:
+        nonfluent_keys = ['GRAVITY', 'CART-MASS', 'POLE-MASS', 'POLE-LEN',
+                          'CART-FRICTION', 'POLE-FRICTION',
+                          'IMPULSE-VAR', 'ANGLE-VAR']
+        state_keys = ['pos', 'vel', 'ang-pos', 'ang-vel']
         
-        # regular cart-pole
-        if instance == 1:
-            nonfluents = {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1,
-                          'POLE-LEN': 0.5, 'CART-FRICTION': 0.0, 'POLE-FRICTION': 0.0,
-                          'IMPULSE-VAR': 0.0, 'ANGLE-VAR': 0.0}
-            state = {'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel': -0.02}
-            horizon = 200
-        
-        # cart-pole with long pole + reduced cart mass
-        elif instance == 2:
-            nonfluents = {'GRAVITY': 9.8, 'CART-MASS': 0.5, 'POLE-MASS': 0.1,
-                          'POLE-LEN': 3.0, 'CART-FRICTION': 0.0, 
-                          'POLE-FRICTION': 0.0, 
-                          'IMPULSE-VAR': 0.0, 'ANGLE-VAR': 0.0}
-            state = {'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel': -0.02}
-            horizon = 200
-            
-        # cart-pole with friction + impulse noise
-        elif instance == 3:
-            nonfluents = {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1,
-                          'POLE-LEN': 0.5, 'CART-FRICTION': 0.0005, 
-                          'POLE-FRICTION': 0.000002, 
-                          'IMPULSE-VAR': 16.0, 'ANGLE-VAR': 0.0}
-            state = {'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel': -0.02}
-            horizon = 200
-            
-        # cart-pole with friction + sensor noise
-        elif instance == 4:
-            nonfluents = {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1,
-                          'POLE-LEN': 0.5, 'CART-FRICTION': 0.0005, 
-                          'POLE-FRICTION': 0.000002, 
-                          'IMPULSE-VAR': 0.0, 'ANGLE-VAR': 0.001}
-            state = {'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel': -0.02}
-            horizon = 200
-        
-        # cart-pole with friction + sensor noise + impulse noise
-        elif instance == 5:
-            nonfluents = {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1,
-                          'POLE-LEN': 0.5, 'CART-FRICTION': 0.0005, 
-                          'POLE-FRICTION': 0.000002, 
-                          'IMPULSE-VAR': 16.0, 'ANGLE-VAR': 0.001}
-            state = {'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel': -0.02}
-            horizon = 200
-        
-        else:
-            raise Exception(f'Invalid instance {instance} for CartPole.')
-        
-        value = f'non-fluents cart_pole_{instance}' + ' {'
-        value += '\n' + 'domain = cart_pole_continuous;'
-        value += '\n' + 'non-fluents {' + '\n\t'
-        nfs = []
-        for (name, nfvalue) in nonfluents.items():
-            nfvalue = '{:.10f}'.format(nfvalue)
-            nfs.append(f'{name} = {nfvalue};')
-        value += '\n\t'.join(nfs)
-        value += '\n\t' + '};'
-        value += '\n' + '}'
-        
-        value += '\n' + f'instance inst_cart_pole_{instance}' + ' {'
-        value += '\n' + 'domain = cart_pole_continuous;'
-        value += '\n' + f'non-fluents = cart_pole_{instance};'
-        value += '\n' + 'init-state {'
-        for (name, statevalue) in state.items():
-            statevalue = '{:.10f}'.format(statevalue)
-            value += '\n\t' + f'{name} = {statevalue};'
-        value += '\n' + '};'
-        value += '\n' + 'max-nondef-actions = pos-inf;'
-        value += '\n' + f'horizon = {horizon};'
-        value += '\n' + f'discount = 1.0;'
-        value += '\n' + '}'
-        return value
-            
+        return {
+            'objects': {},
+            'non-fluents': {key: params[key] for key in nonfluent_keys if key in params},
+            'init-states': {key: params[key] for key in state_keys if key in params},
+            'horizon': 200,
+            'discount': 1.0,
+            'max-nondef-actions': 'pos-inf'
+        }
 
+
+params = [
+    
+    # regular cart-pole
+    {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1, 'POLE-LEN': 0.5,
+     'CART-FRICTION': 0.0, 'POLE-FRICTION': 0.0,
+     'IMPULSE-VAR': 0.0, 'ANGLE-VAR': 0.0,
+     'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel':-0.02},
+    
+    # cart-pole with long pole + reduced cart mass
+    {'GRAVITY': 9.8, 'CART-MASS': 0.5, 'POLE-MASS': 0.1,
+     'POLE-LEN': 3.0, 'CART-FRICTION': 0.0, 'POLE-FRICTION': 0.0,
+     'IMPULSE-VAR': 0.0, 'ANGLE-VAR': 0.0,
+     'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel':-0.02},
+    
+    # cart-pole with friction + impulse noise
+    {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1,
+     'POLE-LEN': 0.5, 'CART-FRICTION': 0.0005, 'POLE-FRICTION': 0.000002,
+     'IMPULSE-VAR': 16.0, 'ANGLE-VAR': 0.0,
+     'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel':-0.02},
+    
+    # cart-pole with friction + sensor noise
+    {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1,
+     'POLE-LEN': 0.5, 'CART-FRICTION': 0.0005, 'POLE-FRICTION': 0.000002,
+     'IMPULSE-VAR': 0.0, 'ANGLE-VAR': 0.001,
+     'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel':-0.02},
+    
+    # cart-pole with friction + sensor noise + impulse noise
+    {'GRAVITY': 9.8, 'CART-MASS': 1.0, 'POLE-MASS': 0.1,
+     'POLE-LEN': 0.5, 'CART-FRICTION': 0.0005, 'POLE-FRICTION': 0.000002,
+     'IMPULSE-VAR': 16.0, 'ANGLE-VAR': 0.001,
+     'pos': 0.0, 'vel': 0.05, 'ang-pos': 0.0, 'ang-vel':-0.02}
+]
+        
 inst = CartPoleInstanceGenerator()
-inst.save_instances(5)
+inst.save_instances(params)
