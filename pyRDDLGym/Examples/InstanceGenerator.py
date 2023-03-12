@@ -19,3 +19,7 @@ class InstanceGenerator(metaclass=ABCMeta):
         with open(path, 'w') as text_file:
             text_file.write(rddl)
         print(f'saved RDDL file to {path}.')
+        
+    def save_instances(self, num_instances: int) -> None:
+        for instance in range(1, num_instances + 1):
+            self.save_instance(instance)
