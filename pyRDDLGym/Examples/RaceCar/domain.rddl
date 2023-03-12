@@ -5,6 +5,10 @@
 // The goal is to bring the car to within a fixed distance to a fixed 
 // goal location. The car must remain within boundaries defined as 
 // line segments connected between points (X1, Y1) and (X2, Y2).
+// 
+// Obstacles are defined as shapes (including the track), which the car
+// must avoid and is reset to its initial state if it comes into contact
+// with one.
 //
 ////////////////////////////////////////////////////////////////////
 domain racecar {
@@ -14,16 +18,17 @@ domain racecar {
     };
 	
 	types {
-		b: object;		// boundary of the race track that cannot be crossed by the car
+		shape: object;          // each shape in the world map, including the track and any obstacles within
+		boundary: object;		// boundary of each object given as line segments
 	};
 	
     pvariables {
 		
 		// non-fluents
-		X1(b) 	: { non-fluent, real, default = 0 };	 	// boundary is the line segment (X1, Y1) -> (X2, Y2)
-		Y1(b) 	: { non-fluent, real, default = 0 };	
-		X2(b) 	: { non-fluent, real, default = 1 };
-		Y2(b) 	: { non-fluent, real, default = 1 };
+		X1(shape, boundary) 	: { non-fluent, real, default = 0 };	 	// boundary is the line segment (X1, Y1) -> (X2, Y2)
+		Y1(shape, boundary) 	: { non-fluent, real, default = 0 };	
+		X2(shape, boundary) 	: { non-fluent, real, default = 1 };
+		Y2(shape, boundary) 	: { non-fluent, real, default = 1 };
 		
 		X0		: { non-fluent, real, default = 0.01 };		// starting x position of car
 		Y0 		: { non-fluent, real, default = 0.01 };		// starting y position of car
@@ -44,12 +49,12 @@ domain racecar {
 		dx				: { interm-fluent, real };			// x displacement of car
 		dy				: { interm-fluent, real };			// y displacement of car
 		
-		o1(b)			: { interm-fluent, int }; 			// orientations of line segments	
-		o2(b)			: { interm-fluent, int }; 			
-		o3(b)			: { interm-fluent, int }; 			
-		o4(b)			: { interm-fluent, int }; 					
-		intersect(b)	: { interm-fluent, bool }; 			// whether car intersects boundary
-		violation		: { interm-fluent, bool };			// whether car intersects any boundary
+		o1(shape, boundary)			: { interm-fluent, int }; 			// orientations of line segments	
+		o2(shape, boundary)			: { interm-fluent, int }; 			
+		o3(shape, boundary)			: { interm-fluent, int }; 			
+		o4(shape, boundary)			: { interm-fluent, int }; 					
+		intersect(shape, boundary)	: { interm-fluent, bool }; 			// whether car crosses boundary of given shape
+		violation		: { interm-fluent, bool };			// whether car crosses any boundary of any shape
 		
 		// states
        	x    	: { state-fluent, real, default = 0 };      // x position of car
@@ -72,22 +77,22 @@ domain racecar {
 				 
 		// detect intersect with boundaries
 		// ref: https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
-		o1(?b) = sgn[(dy * (X1(?b) - (x + dx))) - (dx * (Y1(?b) - (y + dy)))];
-		o2(?b) = sgn[(dy * (X2(?b) - (x + dx))) - (dx * (Y2(?b) - (y + dy)))];
-		o3(?b) = sgn[((Y2(?b) - Y1(?b)) * (x - X2(?b))) - ((X2(?b) - X1(?b)) * (y - Y2(?b)))];
-		o4(?b) = sgn[((Y2(?b) - Y1(?b)) * ((x + dx) - X2(?b))) - ((X2(?b) - X1(?b)) * ((y + dy) - Y2(?b)))];
+		o1(?s, ?b) = sgn[(dy * (X1(?s, ?b) - (x + dx))) - (dx * (Y1(?s, ?b) - (y + dy)))];
+		o2(?s, ?b) = sgn[(dy * (X2(?s, ?b) - (x + dx))) - (dx * (Y2(?s, ?b) - (y + dy)))];
+		o3(?s, ?b) = sgn[((Y2(?s, ?b) - Y1(?s, ?b)) * (x - X2(?s, ?b))) - ((X2(?s, ?b) - X1(?s, ?b)) * (y - Y2(?s, ?b)))];
+		o4(?s, ?b) = sgn[((Y2(?s, ?b) - Y1(?s, ?b)) * ((x + dx) - X2(?s, ?b))) - ((X2(?s, ?b) - X1(?s, ?b)) * ((y + dy) - Y2(?s, ?b)))];
 		
-		intersect(?b) = ((o1(?b) ~= o2(?b)) ^ (o3(?b) ~= o4(?b))) | 
-						((o1(?b) == 0) ^ ((X1(?b) <= max[x, (x + dx)]) ^ (X1(?b) >= min[x, (x + dx)]) ^ 
-										  (Y1(?b) <= max[y, (y + dy)]) ^ (Y1(?b) >= min[y, (y + dy)]))) | 
-						((o2(?b) == 0) ^ ((X2(?b) <= max[x, (x + dx)]) ^ (X2(?b) >= min[x, (x + dx)]) ^ 
-										  (Y2(?b) <= max[y, (y + dy)]) ^ (Y2(?b) >= min[y, (y + dy)]))) | 
-						((o3(?b) == 0) ^ ((x <= max[X1(?b), X2(?b)]) ^ (x >= min[X1(?b), X2(?b)]) ^ 
-										  (y <= max[Y1(?b), Y2(?b)]) ^ (y >= min[Y1(?b), Y2(?b)]))) | 
-						((o4(?b) == 0) ^ (((x + dx) <= max[X1(?b), X2(?b)]) ^ ((x + dx) >= min[X1(?b), X2(?b)]) ^ 
-										  ((y + dy) <= max[Y1(?b), Y2(?b)]) ^ ((y + dy) >= min[Y1(?b), Y2(?b)])));
+		intersect(?s, ?b) = ((o1(?s, ?b) ~= o2(?s, ?b)) ^ (o3(?s, ?b) ~= o4(?s, ?b))) | 
+							((o1(?s, ?b) == 0) ^ ((X1(?s, ?b) <= max[x, (x + dx)]) ^ (X1(?s, ?b) >= min[x, (x + dx)]) ^ 
+												 (Y1(?s, ?b) <= max[y, (y + dy)]) ^ (Y1(?s, ?b) >= min[y, (y + dy)]))) | 
+							((o2(?s, ?b) == 0) ^ ((X2(?s, ?b) <= max[x, (x + dx)]) ^ (X2(?s, ?b) >= min[x, (x + dx)]) ^ 
+												 (Y2(?s, ?b) <= max[y, (y + dy)]) ^ (Y2(?s, ?b) >= min[y, (y + dy)]))) | 
+						    ((o3(?s, ?b) == 0) ^ ((x <= max[X1(?s, ?b), X2(?s, ?b)]) ^ (x >= min[X1(?s, ?b), X2(?s, ?b)]) ^ 
+										         (y <= max[Y1(?s, ?b), Y2(?s, ?b)]) ^ (y >= min[Y1(?s, ?b), Y2(?s, ?b)]))) | 
+						    ((o4(?s, ?b) == 0) ^ (((x + dx) <= max[X1(?s, ?b), X2(?s, ?b)]) ^ ((x + dx) >= min[X1(?s, ?b), X2(?s, ?b)]) ^ 
+										         ((y + dy) <= max[Y1(?s, ?b), Y2(?s, ?b)]) ^ ((y + dy) >= min[Y1(?s, ?b), Y2(?s, ?b)])));
 		
-		violation = exists_{?b : b} [intersect(?b)];
+		violation = exists_{?s: shape, ?b : boundary} [intersect(?s, ?b)];
 		
 		// compute new position and velocity
 		x' = if(violation) 
