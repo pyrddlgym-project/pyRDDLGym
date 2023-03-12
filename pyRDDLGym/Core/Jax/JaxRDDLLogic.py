@@ -176,12 +176,25 @@ class FuzzyLogic:
                 sample += jax.lax.stop_gradient(hard_sample - sample)
             return sample
         
-        tags = ('weight', 'greater')
+        tags = ('weight', 'greaterEqual')
         new_param = (tags, self.weight)
         return _jax_wrapped_calc_geq_approx, new_param
     
     def greater(self):
-        return self.greaterEqual()
+        warnings.warn('Using the replacement rule: '
+                      'a > b --> sigmoid(a - b)', stacklevel=2)
+        debias = 'greater' in self.debias
+        
+        def _jax_wrapped_calc_gre_approx(a, b, param):
+            sample = jax.nn.sigmoid(param * (a - b))
+            if debias:
+                hard_sample = jnp.greater(a, b)
+                sample += jax.lax.stop_gradient(hard_sample - sample)
+            return sample
+        
+        tags = ('weight', 'greater')
+        new_param = (tags, self.weight)
+        return _jax_wrapped_calc_gre_approx, new_param
     
     def lessEqual(self):
         jax_geq, jax_param = self.greaterEqual()
@@ -192,7 +205,7 @@ class FuzzyLogic:
         return _jax_wrapped_calc_leq_approx, jax_param
     
     def less(self):
-        jax_gre, jax_param = self.greaterEqual()
+        jax_gre, jax_param = self.greater()
 
         def _jax_wrapped_calc_less_approx(a, b, param):
             return jax_gre(-a, -b, param)
