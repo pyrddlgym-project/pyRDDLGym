@@ -1,114 +1,74 @@
 import os
+from typing import Dict
 
 from pyRDDLGym.Examples.InstanceGenerator import InstanceGenerator
 
 
 class PowerGenInstanceGenerator(InstanceGenerator):
     
-    def get_env_name(self) -> str:
+    def get_env_path(self) -> str:
         return os.path.join('PowerGen', 'Continuous')
     
-    def generate_instance(self, instance: int) -> str:
-        
-        # three generators, lower variance
-        if instance == 1:
-            plants = ['p1', 'p2', 'p3']
-            TEMP_VARIANCE = 4.0
-            PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [10.0] * len(plants)
-            EXP_COEFF = 0.01
-            MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 2.0
-            temperature = 10.
-            horizon = 40
-        
-        # five generators, lower variance
-        elif instance == 2:
-            plants = ['p1', 'p2', 'p3', 'p4', 'p5']
-            TEMP_VARIANCE = 6.0
-            PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [15.0] * len(plants)
-            EXP_COEFF = 0.015
-            MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 2.5
-            temperature = 10.
-            horizon = 40
-        
-        # ten generators, mid variance
-        elif instance == 3:
-            plants = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10']
-            TEMP_VARIANCE = 8.0
-            PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [20.0] * len(plants)
-            EXP_COEFF = 0.02
-            MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 3.0
-            temperature = 10.
-            horizon = 40
-        
-        # twenty generators, mid variance
-        elif instance == 4:
-            plants = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10',
-                      'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 
-                      'p19', 'p20']
-            TEMP_VARIANCE = 10.0
-            PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [25.0] * len(plants)
-            EXP_COEFF = 0.025
-            MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 3.5
-            temperature = 10.
-            horizon = 40
-        
-        # thirty generators, high variance
-        elif instance == 5:
-            plants = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10',
-                      'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 
-                      'p19', 'p20', 'p21', 'p22', 'p23', 'p24', 'p25', 'p26', 
-                      'p27', 'p28', 'p29', 'p30']
-            TEMP_VARIANCE = 12.0
-            PROD_UNITS_MIN = [0.0] * len(plants)
-            PROD_UNITS_MAX = [30.0] * len(plants)
-            EXP_COEFF = 0.03
-            MIN_DEMAND_TEMP = 11.7
-            MIN_CONSUMPTION = 4.0
-            temperature = 10.
-            horizon = 40
-        
-        else:
-            raise Exception(f'Invalid instance {instance} for PowerGen.')
-        
-        value = f'non-fluents power_gen_{instance}' + ' {'
-        value += '\n' + 'domain = power_gen;'
-        value += '\n' + 'objects {'
-        value += '\n\t' + 'plant : {' + ','.join(plants) + '};'
-        value += '\n' + '};'
-        value += '\n' + 'non-fluents {' + '\n\t'
-        nfs = []
-        for (node, minl) in zip(plants, PROD_UNITS_MIN):
-            nfs.append(f'PROD-UNITS-MIN({node}) = {minl};')
-        for (node, maxl) in zip(plants, PROD_UNITS_MAX):
-            nfs.append(f'PROD-UNITS-MAX({node}) = {maxl};')
-        nfs.append(f'TEMP-VARIANCE = {TEMP_VARIANCE};')
-        nfs.append(f'DEMAND-EXP-COEF = {EXP_COEFF};')
-        nfs.append(f'MIN-DEMAND-TEMP = {MIN_DEMAND_TEMP};')
-        nfs.append(f'MIN-CONSUMPTION = {MIN_CONSUMPTION};')
-        value += '\n\t'.join(nfs)
-        value += '\n\t' + '};'
-        value += '\n' + '}'
-        
-        value += '\n' + f'instance inst_power_gen_{instance}' + ' {'
-        value += '\n' + 'domain = power_gen;'
-        value += '\n' + f'non-fluents = power_gen_{instance};'
-        value += '\n' + 'init-state {'
-        value += '\n\t' + f'temperature = {temperature};'
-        value += '\n' + '};'
-        value += '\n' + 'max-nondef-actions = pos-inf;'
-        value += '\n' + f'horizon = {horizon};'
-        value += '\n' + f'discount = 1.0;'
-        value += '\n' + '}'
-        return value
+    def get_domain_name(self) -> str:
+        return 'power_gen'
     
+    def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]:
+        plants = [f'p{i + 1}' for i in range(params['plants'])]
+        
+        nonfluent_keys = ['TEMP-VARIANCE', 'DEMAND-EXP-COEF',
+                          'MIN-DEMAND-TEMP', 'MIN-CONSUMPTION']
+        nonfluents = {key: params[key] for key in nonfluent_keys if key in params}
+        if 'PROD-UNITS-MIN' in params:
+            for (i, p) in enumerate(plants):
+                nonfluents[f'PROD-UNITS-MIN({p})'] = params['PROD-UNITS-MIN'][i]
+        if 'PROD-UNITS-MAX' in params:
+            for (i, p) in enumerate(plants):
+                nonfluents[f'PROD-UNITS-MAX({p})'] = params['PROD-UNITS-MAX'][i]
+                
+        state_keys = ['temperature']
+        
+        return {
+            'objects': {'plant': plants},
+            'non-fluents': nonfluents,
+            'init-states': {key: params[key] for key in state_keys if key in params},
+            'horizon': 40,
+            'discount': 1.0,
+            'max-nondef-actions': 'pos-inf'
+        }
 
+
+params = [
+    
+    # three generators, lower variance
+    {'plants': 3, 'TEMP-VARIANCE': 4.0,
+     'PROD-UNITS-MIN': [0.0] * 3, 'PROD-UNITS-MAX': [10.0] * 3,
+     'DEMAND-EXP-COEF': 0.01, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.0,
+     'temperature': 10.0},
+    
+    # five generators, lower variance
+    {'plants': 5, 'TEMP-VARIANCE': 6.0,
+     'PROD-UNITS-MIN': [0.0] * 5, 'PROD-UNITS-MAX': [15.0] * 5,
+     'DEMAND-EXP-COEF': 0.015, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.5,
+     'temperature': 10.0},
+    
+    # ten generators, mid variance
+    {'plants': 10, 'TEMP-VARIANCE': 8.0,
+     'PROD-UNITS-MIN': [0.0] * 10, 'PROD-UNITS-MAX': [20.0] * 10,
+     'DEMAND-EXP-COEF': 0.02, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.0,
+     'temperature': 10.0},
+    
+    # twenty generators, mid variance
+    {'plants': 20, 'TEMP-VARIANCE': 10.0,
+     'PROD-UNITS-MIN': [0.0] * 20, 'PROD-UNITS-MAX': [25.0] * 20,
+     'DEMAND-EXP-COEF': 0.025, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.5,
+     'temperature': 10.0},
+    
+    # thirty generators, high variance
+    {'plants': 30, 'TEMP-VARIANCE': 12.0,
+     'PROD-UNITS-MIN': [0.0] * 30, 'PROD-UNITS-MAX': [30.0] * 30,
+     'DEMAND-EXP-COEF': 0.03, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 4.0,
+     'temperature': 10.0}
+]
+              
 inst = PowerGenInstanceGenerator()
-inst.save_instance(5)
+inst.save_instances(params)

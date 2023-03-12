@@ -1,133 +1,113 @@
 import numpy as np
+from typing import Dict
 
 from pyRDDLGym.Examples.InstanceGenerator import InstanceGenerator
 
 
 class RaceCarInstanceGenerator(InstanceGenerator):
     
-    def get_env_name(self) -> str:
+    def get_env_path(self) -> str:
         return 'RaceCar'
     
-    def generate_instance(self, instance: int) -> str:
+    def get_domain_name(self) -> str:
+        return 'racecar'
+    
+    def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]: 
+        nonfluent_keys = ['RADIUS', 'X0', 'Y0', 'GX', 'GY']
+        nonfluents = {key: params[key] for key in nonfluent_keys if key in params}
+        boundaries = []
+        for (obs_type, obs_kwargs) in params['obstacles']:
+            if obs_type == 'circle':
+                boundaries += self._draw_circle(**obs_kwargs)
+            elif obs_type == 'box':
+                boundaries += self._draw_box(**obs_kwargs)
         
-        # square track with no obstacles
-        if instance == 1:
-            nonfluents = self._draw_box((-1., -1.), (1., 1.))
-            X0 = -0.8
-            Y0 = -0.8
-            GX = 0.8
-            GY = 0.8
-            RADIUS = 0.05
-            horizon = 100
+        bounds = [f'b{i + 1}' for i in range(len(boundaries))]
         
-        # circular track with no obstacles
-        elif instance == 2:
-            nonfluents = self._draw_circle(36, (0., 0.), 1.0)
-            X0 = -0.7
-            Y0 = 0.0
-            GX = 0.7
-            GY = 0.0
-            RADIUS = 0.05
-            horizon = 100
+        for (i, (X1, Y1, X2, Y2)) in enumerate(boundaries):
+            nonfluents[f'X1({bounds[i]})'] = X1
+            nonfluents[f'Y1({bounds[i]})'] = Y1
+            nonfluents[f'X2({bounds[i]})'] = X2
+            nonfluents[f'Y2({bounds[i]})'] = Y2
         
-        # circular track with central circular obstacle
-        elif instance == 3:
-            nonfluents = self._draw_circle(36, (0., 0.), 1.0) + \
-                         self._draw_circle(18, (0., 0.), 0.3)
-            X0 = -0.7
-            Y0 = 0.0
-            GX = 0.7
-            GY = 0.0
-            RADIUS = 0.05
-            horizon = 100
+        states = {}
+        if 'X0' in params:
+            states['x'] = params['X0']
+        if 'Y0' in params:
+            states['y'] = params['Y0']
+        states['vx'] = 0.0
+        states['vy'] = 0.0
+        
+        return {
+            'objects': {'b': bounds},
+            'non-fluents': nonfluents,
+            'init-states': states,
+            'horizon': 200,
+            'discount': 1.0,
+            'max-nondef-actions': 'pos-inf'
+        }
             
-        # large square track with two obstacles
-        elif instance == 4:
-            nonfluents = self._draw_box((-2., -2.), (2., 2.)) + \
-                         self._draw_circle(18, (-1., -1.), 0.25) + \
-                         self._draw_circle(18, (1., 1.), 0.25)
-            X0 = -1.7
-            Y0 = -1.7
-            GX = 1.7
-            GY = 1.7
-            RADIUS = 0.05
-            horizon = 200
-            
-        # large square track with five obstacles
-        elif instance == 5:
-            nonfluents = self._draw_box((-2., -2.), (2., 2.)) + \
-                         self._draw_circle(18, (-1., -1.), 0.25) + \
-                         self._draw_circle(18, (1., 1.), 0.25) + \
-                         self._draw_circle(18, (0., 0.), 0.4) + \
-                         self._draw_circle(18, (-1., 1.), 0.3) + \
-                         self._draw_circle(18, (1., -1.), 0.3)
-            X0 = -1.7
-            Y0 = -1.7
-            GX = 1.7
-            GY = 1.7
-            RADIUS = 0.05
-            horizon = 200
-            
-        else:
-            raise Exception(f'Invalid instance {instance} for RaceCar.')
-        
-        value = f'non-fluents racecar_{instance}' + ' {'
-        value += '\n' + 'domain = racecar;'
-        value += '\n' + 'objects {'
-        value += '\n\t' + 'b : {' + ','.join(
-            f'b{i + 1}' for i in range(len(nonfluents))) + '};'
-        value += '\n' + '};'
-        value += '\n' + 'non-fluents {' + '\n\t'
-        nfs = []
-        for (i, (X1, Y1, X2, Y2)) in enumerate(nonfluents):
-            X1 = '{:.20f}'.format(X1)
-            Y1 = '{:.20f}'.format(Y1)
-            X2 = '{:.20f}'.format(X2)
-            Y2 = '{:.20f}'.format(Y2)            
-            nfs.append(f'X1(b{i + 1}) = {X1};')
-            nfs.append(f'Y1(b{i + 1}) = {Y1};')
-            nfs.append(f'X2(b{i + 1}) = {X2};')
-            nfs.append(f'Y2(b{i + 1}) = {Y2};')
-        nfs.append(f'X0 = {X0};')
-        nfs.append(f'Y0 = {Y0};')
-        nfs.append(f'GX = {GX};')
-        nfs.append(f'GY = {GY};')
-        nfs.append(f'RADIUS = {RADIUS};')
-        value += '\n\t'.join(nfs)
-        value += '\n\t' + '};'
-        value += '\n' + '}'
-        
-        value += '\n' + f'instance inst_racecar_{instance}' + ' {'
-        value += '\n' + 'domain = racecar;'
-        value += '\n' + f'non-fluents = racecar_{instance};'
-        value += '\n' + 'init-state {'
-        value += '\n\t' + f'x = {X0};'
-        value += '\n\t' + f'y = {Y0};'
-        value += '\n\t' + 'vx = 0.0;'
-        value += '\n\t' + 'vy = 0.0;'
-        value += '\n' + '};'
-        
-        value += '\n' + 'max-nondef-actions = pos-inf;'
-        value += '\n' + f'horizon = {horizon};'
-        value += '\n' + f'discount = 1.0;'
-        value += '\n' + '}'
-        return value
-        
-    def _draw_circle(self, num_pt, center, radius):
+    def _draw_circle(self, center, radius, num_points):
         cx, cy = center
-        angles = np.linspace(0.0, 2.0 * np.pi, num_pt)
+        angles = np.linspace(0.0, 2.0 * np.pi, num_points)
         xs = radius * np.cos(angles) + cx
         ys = radius * np.sin(angles) + cy
         X1, Y1 = xs[:-1], ys[:-1]
         X2, Y2 = xs[1:], ys[1:]
         return list(zip(X1, Y1, X2, Y2))
     
-    def _draw_box(self, topleft, bottomright):
-        x1, y1 = topleft
-        x2, y2 = bottomright
+    def _draw_box(self, top_left, bottom_right):
+        x1, y1 = top_left
+        x2, y2 = bottom_right
         return [(x1, y1, x2, y1), (x2, y1, x2, y2),
                 (x2, y2, x1, y2), (x1, y2, x1, y1)]
 
-
+          
+params = [
+    
+    # square track with no obstacles
+    {'RADIUS': 0.05, 'X0':-0.8, 'Y0':-0.8, 'GX': 0.8, 'GY': 0.8,
+     'obstacles': [
+         ('box', {'top_left': (-1., -1.), 'bottom_right': (1., 1.)})
+     ]
+    },
+    
+    # circular track with no obstacles
+    {'RADIUS': 0.05, 'X0':-0.7, 'Y0': 0.0, 'GX': 0.7, 'GY': 0.0,
+     'obstacles': [
+         ('circle', {'center': (0., 0.), 'radius': 1.0, 'num_points': 36})
+     ]
+    },
+    
+    # circular track with central circular obstacle
+    {'RADIUS': 0.05, 'X0':-0.7, 'Y0': 0.0, 'GX': 0.7, 'GY': 0.0,
+     'obstacles': [
+         ('circle', {'center': (0., 0.), 'radius': 1.0, 'num_points': 36}),
+         ('circle', {'center': (0., 0.), 'radius': 0.3, 'num_points': 18})
+     ]
+    },
+    
+    # large square track with two obstacles
+    {'RADIUS': 0.05, 'X0':-1.7, 'Y0':-1.7, 'GX': 1.7, 'GY': 1.7,
+     'obstacles': [
+         ('box', {'top_left': (-2., -2.), 'bottom_right': (2., 2.)}),
+         ('circle', {'center': (-1., -1.), 'radius': 0.25, 'num_points': 18}),
+         ('circle', {'center': (1., 1.), 'radius': 0.25, 'num_points': 18})
+     ]
+    },
+    
+    # large square track with five obstacles
+    {'RADIUS': 0.05, 'X0':-1.7, 'Y0':-1.7, 'GX': 1.7, 'GY': 1.7,
+     'obstacles': [
+         ('box', {'top_left': (-2., -2.), 'bottom_right': (2., 2.)}),
+         ('circle', {'center': (-1., -1.), 'radius': 0.25, 'num_points': 18}),
+         ('circle', {'center': (1., 1.), 'radius': 0.25, 'num_points': 18}),
+         ('circle', {'center': (0., 0.), 'radius': 0.4, 'num_points': 18}),
+         ('circle', {'center': (-1., 1.), 'radius': 0.3, 'num_points': 18}),
+         ('circle', {'center': (1., -1.), 'radius': 0.3, 'num_points': 18})
+     ]
+    }
+]
+         
 inst = RaceCarInstanceGenerator()
-inst.save_instance(5)
+inst.save_instances(params)
