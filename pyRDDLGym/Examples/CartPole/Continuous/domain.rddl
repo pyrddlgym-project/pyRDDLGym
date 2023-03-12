@@ -6,6 +6,16 @@
 // left or right by applying a continuous valued force, in order to balance a 
 // pole balanced vertically in the center of the cart.
 //
+// Some modifications are made to this domain that deviate from the original:
+// 1. friction of the cart and pole are added that dampen acceleration
+// 2. Gaussian sensor noise is added to the angle of the cart
+// 3. Gaussian impulse noise is added to the force applied to the cart
+// and are derived from https://github.com/AadityaRavindran/gym-cartpolemod.
+//
+// For the RDDL translation:
+//
+// Author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
+// 
 ////////////////////////////////////////////////////////////////////
 domain cart_pole_continuous {
 
@@ -52,7 +62,7 @@ domain cart_pole_continuous {
     cpfs {
 	
 	    // compute force
-		corrupted-force = max[min[force + Normal(0.0, IMPULSE-VAR), FORCE-MAX], -FORCE-MAX];
+		corrupted-force = max[min[force * (1.0 + Normal(0.0, IMPULSE-VAR)), FORCE-MAX], -FORCE-MAX];
 		
 		// compute the pole angular acceleration
 		temp = (corrupted-force + POLE-LEN * POLE-MASS * pow[ang-vel, 2] * sin[ang-pos] - 
@@ -66,7 +76,7 @@ domain cart_pole_continuous {
 
 		// Euler integration formula
 		pos' = pos + TIME-STEP * vel;
-		ang-pos' = ang-pos + TIME-STEP * ang-vel + Normal(0.0, ANGLE-VAR);
+		ang-pos' = (ang-pos + TIME-STEP * ang-vel) * (1.0 + Normal(0.0, ANGLE-VAR));
 		vel' = vel + TIME-STEP * acc;
 		ang-vel' = ang-vel + TIME-STEP * ang-acc;
     };
