@@ -22,6 +22,8 @@ non-fluents racecar_circle {
 	};
 	
 	non-fluents {
+	
+		// outside boundary
 		X1(b1) = 1.000000000000;
 		Y1(b1) = 0.000000000000;
 		X2(b1) = 0.984807753012;
@@ -166,6 +168,8 @@ non-fluents racecar_circle {
 		Y1(b36) = -0.173648177667;
 		X2(b36) = 1.000000000000;
 		Y2(b36) = -0.000000000000;
+		
+		// inside boundary
 		X1(b37) = 0.300000000000;
 		Y1(b37) = 0.000000000000;
 		X2(b37) = 0.295442325904;
