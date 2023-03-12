@@ -62,7 +62,7 @@ domain cart_pole_continuous {
     cpfs {
 	
 	    // compute force
-		corrupted-force = max[min[force * (1.0 + Normal(0.0, IMPULSE-VAR)), FORCE-MAX], -FORCE-MAX];
+		corrupted-force = max[min[force + Normal(0.0, IMPULSE-VAR), FORCE-MAX], -FORCE-MAX];
 		
 		// compute the pole angular acceleration
 		temp = (corrupted-force + POLE-LEN * POLE-MASS * pow[ang-vel, 2] * sin[ang-pos] - 
@@ -76,7 +76,7 @@ domain cart_pole_continuous {
 
 		// Euler integration formula
 		pos' = pos + TIME-STEP * vel;
-		ang-pos' = (ang-pos + TIME-STEP * ang-vel) * (1.0 + Normal(0.0, ANGLE-VAR));
+		ang-pos' = (ang-pos + TIME-STEP * ang-vel) + Normal(0.0, ANGLE-VAR);
 		vel' = vel + TIME-STEP * acc;
 		ang-vel' = ang-vel + TIME-STEP * ang-acc;
     };
