@@ -44,8 +44,8 @@ class RaceCarInstanceGenerator(InstanceGenerator):
         # large square track with two obstacles
         elif instance == 4:
             nonfluents = self._draw_box((-2., -2.), (2., 2.)) + \
-                         self._draw_circle(18, (-1.1, -1.1), 0.2) + \
-                         self._draw_circle(18, (1.1, 1.1), 0.2)
+                         self._draw_circle(18, (-1., -1.), 0.25) + \
+                         self._draw_circle(18, (1., 1.), 0.25)
             X0 = -1.7
             Y0 = -1.7
             GX = 1.7
@@ -53,12 +53,14 @@ class RaceCarInstanceGenerator(InstanceGenerator):
             RADIUS = 0.05
             horizon = 200
             
-        # large square track with three obstacles
+        # large square track with five obstacles
         elif instance == 5:
             nonfluents = self._draw_box((-2., -2.), (2., 2.)) + \
-                         self._draw_circle(18, (-1.1, -1.1), 0.2) + \
-                         self._draw_circle(18, (1.1, 1.1), 0.2) + \
-                         self._draw_circle(18, (0., 0.), 0.3)
+                         self._draw_circle(18, (-1., -1.), 0.25) + \
+                         self._draw_circle(18, (1., 1.), 0.25) + \
+                         self._draw_circle(18, (0., 0.), 0.4) + \
+                         self._draw_circle(18, (-1., 1.), 0.3) + \
+                         self._draw_circle(18, (1., -1.), 0.3)
             X0 = -1.7
             Y0 = -1.7
             GX = 1.7
@@ -78,6 +80,10 @@ class RaceCarInstanceGenerator(InstanceGenerator):
         value += '\n' + 'non-fluents {' + '\n\t'
         nfs = []
         for (i, (X1, Y1, X2, Y2)) in enumerate(nonfluents):
+            X1 = '{:.20f}'.format(X1)
+            Y1 = '{:.20f}'.format(Y1)
+            X2 = '{:.20f}'.format(X2)
+            Y2 = '{:.20f}'.format(Y2)            
             nfs.append(f'X1(b{i + 1}) = {X1};')
             nfs.append(f'Y1(b{i + 1}) = {Y1};')
             nfs.append(f'X2(b{i + 1}) = {X2};')
@@ -124,4 +130,4 @@ class RaceCarInstanceGenerator(InstanceGenerator):
 
 
 inst = RaceCarInstanceGenerator()
-print(inst.generate_instance(5))
+inst.save_instance(5)
