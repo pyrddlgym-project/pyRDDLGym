@@ -28,17 +28,20 @@ class RacecarVisualizer(StateViz):
         
         # draw boundaries
         FLUENT_SEP = PlanningModel.FLUENT_SEP
-        obj = model.objects['b']
-        X1, X2, Y1, Y2 = [], [], [], []
-        for o in obj:
-            X1.append(self._nonfluents['X1' + FLUENT_SEP + o])
-            X2.append(self._nonfluents['X2' + FLUENT_SEP + o])
-            Y1.append(self._nonfluents['Y1' + FLUENT_SEP + o])
-            Y2.append(self._nonfluents['Y2' + FLUENT_SEP + o])
-        lines = [[(x1, y1), (x2, y2)] for x1, y1, x2, y2 in zip(X1, Y1, X2, Y2)]
-        lc = mc.LineCollection(lines, linewidths=2)
-        self.ax.add_collection(lc)
-        self.ax.autoscale()
+        OBJECT_SEP = PlanningModel.OBJECT_SEP
+        shape = model.objects['shape']
+        obj = model.objects['boundary']
+        for s in shape:
+            X1, X2, Y1, Y2 = [], [], [], []
+            for o in obj:
+                X1.append(self._nonfluents['X1' + FLUENT_SEP + s + OBJECT_SEP + o])
+                X2.append(self._nonfluents['X2' + FLUENT_SEP + s + OBJECT_SEP + o])
+                Y1.append(self._nonfluents['Y1' + FLUENT_SEP + s + OBJECT_SEP + o])
+                Y2.append(self._nonfluents['Y2' + FLUENT_SEP + s + OBJECT_SEP + o])
+            lines = [[(x1, y1), (x2, y2)] for x1, y1, x2, y2 in zip(X1, Y1, X2, Y2)]
+            lc = mc.LineCollection(lines, linewidths=2)
+            self.ax.add_collection(lc)
+            self.ax.autoscale()
         self.ax.margins(0.1)
         
         # draw goal        
