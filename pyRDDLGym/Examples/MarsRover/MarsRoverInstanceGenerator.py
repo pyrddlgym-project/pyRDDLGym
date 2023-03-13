@@ -73,13 +73,25 @@ params = [
      'pos': [(0., 0.), (3., 3.)],
      'vel': [(1., 1.), (2., 2.)]},
     
-    # three rover and five mineral
+    # three rover and four mineral
     {'minerals': [
         {'pos': (10., 3.), 'area': 3., 'value': 9.},
         {'pos': (3., 10.), 'area': 5., 'value': 5.},
-        {'pos': (0., 0.), 'area': 4., 'value': 2.},
-        {'pos': (-8., -8.), 'area': 3., 'value': 10.},
+        {'pos': (-8., -8.), 'area': 3., 'value': 8.},
         {'pos': (3., -8.), 'area': 4., 'value': 9.}
+    ],
+     'num_rovers': 3,
+     'pos': [(-3., 0.), (-1., 0.), (1., 1.)],
+     'vel': [(0., 0.), (0., 0.), (0., 0.)]},
+    
+    # three rover and six mineral
+    {'minerals': [
+        {'pos': (10., 3.), 'area': 3., 'value': 9.},
+        {'pos': (3., 10.), 'area': 5., 'value': 5.},
+        {'pos': (-8., -8.), 'area': 3., 'value': 8.},
+        {'pos': (3., -8.), 'area': 4., 'value': 9.},
+        {'pos': (15., 8.), 'area': 4., 'value': 16.},
+        {'pos': (-14., -9.), 'area': 5., 'value': 14.}
     ],
      'num_rovers': 3,
      'pos': [(-3., 0.), (-1., 0.), (1., 1.)],
