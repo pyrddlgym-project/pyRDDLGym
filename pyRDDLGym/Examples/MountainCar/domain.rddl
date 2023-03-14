@@ -11,7 +11,8 @@
 // A crucial deviation from the original problem above is that the valley
 // is no longer described by a simple smooth curve, but rather a piecewise
 // linear function whose points are fully configurable by the user.
-//
+// Gaussian noise can also be added to the force applied to the cart.
+
 // author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
 ////////////////////////////////////////////////////////////////////
 domain mountain_car {
@@ -30,6 +31,7 @@ domain mountain_car {
     	// physics constants
 		GRAVITY-MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
 		FORCE-MAG 	: { non-fluent, real, default = 0.001 };	    // force applied to the side of the cart
+		FORCE-NOISE-VAR : { non-fluent, real, default = 0.0 };      // variance of Gaussian noise applied to the force
 
 		// valley shape defined by piecewise linear with x in [-1.2, 0.6] and y in [0, 1]
 		X-START(segment) : { non-fluent, real, default = -1.2 };    // starting x-position of segment
@@ -47,6 +49,7 @@ domain mountain_car {
 		// interm fluents
 		in-segment(segment) : { interm-fluent, bool };              // is the cart currently in this segment
 		pos-slope           : { interm-fluent, real };              // slope of current line segment
+		force               : { interm-fluent, real };              // total force applied to the cart
 		
 		// states
        	pos    	: { state-fluent, real, default = -0.5 };          	// cart position
@@ -58,6 +61,9 @@ domain mountain_car {
 
     cpfs {
 		
+		// apply noise to the force
+		force = (action + Normal(0.0, FORCE-NOISE-VAR) - 1) * FORCE-MAG;
+		
 	    // get the slope of the segment the cart is currently in
 	    in-segment(?p) = (pos >= X-START(?p)) ^ (pos < X-END(?p));
 	    pos-slope = ( sum_{?p : segment} [ ((Y-END(?p) - Y-START(?p)) / (X-END(?p) - X-START(?p))) * in-segment(?p) ] );
@@ -66,7 +72,7 @@ domain mountain_car {
 	    pos' = max[min[pos + vel, MAX-POS], MIN-POS];
 		
 	    // update the velocity of the cart				
-	    vel' = [ max[min[vel + (action - 1) * FORCE-MAG + (-GRAVITY-MAG) * pos-slope, MAX-VEL], -MAX-VEL] ];
+	    vel' = [ max[min[vel + force + (-GRAVITY-MAG) * pos-slope, MAX-VEL], -MAX-VEL] ];
     };
 
     // R = 1 as long as the pole is upright and the cart is not out of bounds
@@ -95,8 +101,8 @@ domain mountain_car {
 		forall_{?p : segment} [X-END(?p) >= MIN-POS ^ X-END(?p) <= MAX-POS];
 		forall_{?p : segment} [X-END(?p) > X-START(?p)];
 		
-		forall_{?p : segment} [Y-START(?p) >= 0 ^ Y-START(?p) <= 1];
-		forall_{?p : segment} [Y-END(?p) >= 0 ^ Y-END(?p) <= 1];
+		//forall_{?p : segment} [Y-START(?p) >= 0 ^ Y-START(?p) <= 1];
+		//forall_{?p : segment} [Y-END(?p) >= 0 ^ Y-END(?p) <= 1];
     };
 
     action-preconditions {
