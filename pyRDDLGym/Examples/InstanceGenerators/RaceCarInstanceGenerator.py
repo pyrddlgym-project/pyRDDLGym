@@ -13,7 +13,7 @@ class RaceCarInstanceGenerator(InstanceGenerator):
         return 'racecar'
     
     def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]: 
-        nonfluent_keys = ['RADIUS', 'X0', 'Y0', 'GX', 'GY']
+        nonfluent_keys = ['X0', 'Y0', 'GX', 'GY']
         nonfluents = {key: params[key] for key in nonfluent_keys if key in params}
         boundaries = []
         for (obs_type, obs_kwargs) in params['obstacles']:
@@ -66,21 +66,21 @@ class RaceCarInstanceGenerator(InstanceGenerator):
 params = [
     
     # square track with no obstacles
-    {'RADIUS': 0.05, 'X0':-0.8, 'Y0':-0.8, 'GX': 0.8, 'GY': 0.8,
+    {'X0':-0.8, 'Y0':-0.8, 'GX': 0.8, 'GY': 0.8,
      'obstacles': [
          ('box', {'top_left': (-1., -1.), 'bottom_right': (1., 1.)})
      ]
     },
     
     # circular track with no obstacles
-    {'RADIUS': 0.05, 'X0':-0.7, 'Y0': 0.0, 'GX': 0.7, 'GY': 0.0,
+    {'X0':-0.7, 'Y0': 0.0, 'GX': 0.7, 'GY': 0.0,
      'obstacles': [
          ('circle', {'center': (0., 0.), 'radius': 1.0, 'num_points': 36})
      ]
     },
     
     # circular track with central circular obstacle
-    {'RADIUS': 0.05, 'X0':-0.7, 'Y0': 0.0, 'GX': 0.7, 'GY': 0.0,
+    {'X0':-0.7, 'Y0': 0.0, 'GX': 0.7, 'GY': 0.0,
      'obstacles': [
          ('circle', {'center': (0., 0.), 'radius': 1.0, 'num_points': 36}),
          ('circle', {'center': (0., 0.), 'radius': 0.3, 'num_points': 18})
@@ -88,7 +88,7 @@ params = [
     },
     
     # large square track with two obstacles
-    {'RADIUS': 0.05, 'X0':-1.7, 'Y0':-1.7, 'GX': 1.7, 'GY': 1.7,
+    {'X0':-1.7, 'Y0':-1.7, 'GX': 1.7, 'GY': 1.7,
      'obstacles': [
          ('box', {'top_left': (-2., -2.), 'bottom_right': (2., 2.)}),
          ('circle', {'center': (-1., -1.), 'radius': 0.25, 'num_points': 18}),
@@ -97,7 +97,7 @@ params = [
     },
     
     # large square track with five obstacles
-    {'RADIUS': 0.05, 'X0':-1.7, 'Y0':-1.7, 'GX': 1.7, 'GY': 1.7,
+    {'X0':-1.7, 'Y0':-1.7, 'GX': 1.7, 'GY': 1.7,
      'obstacles': [
          ('box', {'top_left': (-2., -2.), 'bottom_right': (2., 2.)}),
          ('circle', {'center': (-1., -1.), 'radius': 0.25, 'num_points': 18}),
