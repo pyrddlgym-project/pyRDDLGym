@@ -42,32 +42,27 @@ params = [
     # three generators, lower variance
     {'plants': 3, 'TEMP-VARIANCE': 4.0,
      'PROD-UNITS-MIN': [0.0] * 3, 'PROD-UNITS-MAX': [10.0] * 3,
-     'DEMAND-EXP-COEF': 0.01, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.0,
-     'temperature': 10.0},
+     'DEMAND-EXP-COEF': 0.01, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.0},
     
     # five generators, lower variance
     {'plants': 5, 'TEMP-VARIANCE': 6.0,
      'PROD-UNITS-MIN': [0.0] * 5, 'PROD-UNITS-MAX': [15.0] * 5,
-     'DEMAND-EXP-COEF': 0.015, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.5,
-     'temperature': 10.0},
+     'DEMAND-EXP-COEF': 0.015, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.5},
     
     # ten generators, mid variance
     {'plants': 10, 'TEMP-VARIANCE': 8.0,
      'PROD-UNITS-MIN': [0.0] * 10, 'PROD-UNITS-MAX': [20.0] * 10,
-     'DEMAND-EXP-COEF': 0.02, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.0,
-     'temperature': 10.0},
+     'DEMAND-EXP-COEF': 0.02, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.0},
     
     # twenty generators, mid variance
     {'plants': 20, 'TEMP-VARIANCE': 10.0,
      'PROD-UNITS-MIN': [0.0] * 20, 'PROD-UNITS-MAX': [25.0] * 20,
-     'DEMAND-EXP-COEF': 0.025, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.5,
-     'temperature': 10.0},
+     'DEMAND-EXP-COEF': 0.025, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.5},
     
     # thirty generators, high variance
     {'plants': 30, 'TEMP-VARIANCE': 12.0,
      'PROD-UNITS-MIN': [0.0] * 30, 'PROD-UNITS-MAX': [30.0] * 30,
-     'DEMAND-EXP-COEF': 0.03, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 4.0,
-     'temperature': 10.0}
+     'DEMAND-EXP-COEF': 0.03, 'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 4.0}
 ]
               
 inst = PowerGenInstanceGenerator()
