@@ -1,3 +1,4 @@
+import random
 from typing import Dict
 
 from pyRDDLGym.Examples.InstanceGenerator import InstanceGenerator
@@ -11,26 +12,33 @@ class HVACInstanceGenerator(InstanceGenerator):
     def get_domain_name(self) -> str:
         return 'hvac'
     
-    def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]: 
-        zones, heaters, adj_zone, adj_heater = self.generate_dag(
-            params['ADJ-ZONES'], params['ADJ-HEATER'])
+    def sample_instance(self, params: Dict[str, object]) -> Dict[str, object]:
+        nh = params['num_heaters']
+        nz = params['num_zones']
+        density = params['density']
+        heaters, zones = self._generate_structure(nh, nz, density)
+        
+        obj_heaters = [f'h{i + 1}' for i in range(nh)]
+        obj_zones = [f'z{i + 1}' for i in range(nz)]
         
         nonfluents = {}
-        for (z1, z2) in adj_zone:
-            nonfluents[f'ADJ-ZONES({z1}, {z2})'] = True
-        for (h1, z2) in adj_heater:
-            nonfluents[f'ADJ-HEATER({h1}, {z2})'] = True
+        for h, h2z in zip(obj_heaters, heaters):
+            for z in h2z:
+                nonfluents[f'ADJ-HEATER({h}, {obj_zones[z]})'] = True
+        for z, z2z in zip(obj_zones, zones):
+            for z2 in z2z:
+                nonfluents[f'ADJ-ZONES({z}, {obj_zones[z2]})'] = True
         
         states = {}
-        if 'temp-zone' in params:
-            for (z, val) in zip(zones, params['temp-zone']):
-                states[f'temp-zone({z})'] = val
-        if 'temp-heater' in params:
-            for (h, val) in zip(heaters, params['temp-heater']):
-                states[f'temp-heater({h})'] = val
-        
+        for i, z in enumerate(obj_zones):
+            states[f'temp-zone({z})'] = random.uniform(
+                params['temp-zone-min'], params['temp-zone-max'])
+        for i, h in enumerate(obj_heaters):
+            states[f'temp-heater({h})'] = random.uniform(
+                params['temp-heater-min'], params['temp-heater-max'])
+                
         return {
-            'objects': {'zone': zones, 'heater': heaters},
+            'objects': {'zone': obj_zones, 'heater': obj_heaters},
             'non-fluents': nonfluents,
             'init-states': states,
             'horizon': 120,
@@ -38,39 +46,62 @@ class HVACInstanceGenerator(InstanceGenerator):
             'max-nondef-actions': 'pos-inf'
         }
             
-    def generate_dag(self, zone_connected, heater_connected):
-        zones = sorted({i for tup in zone_connected for i in tup}.union(
-                       {i for (_, i) in heater_connected}))
-        zones = [f'z{zone}' for zone in zones]
-        heaters = sorted({i for (i, _) in heater_connected})
-        heaters = [f'h{heater}' for heater in heaters]
-        
-        adj_zone = [(f'z{z1}', f'z{z2}') for (z1, z2) in zone_connected]
-        adj_heater = [(f'h{h1}', f'z{z2}') for (h1, z2) in heater_connected]
-        return zones, heaters, adj_zone, adj_heater
-
+    def _generate_structure(self, nh, nz, density):
+        heaters = [set() for _ in range(nh)]
+        zones = [set() for _ in range(nz)]
+    
+        # Each heater must be connected to at least one zone
+        for h in range(nh):
+            z = random.randrange(nz)
+            heaters[h].add(z)
+            zones[z].add(h)
+    
+        # Each zone must be connected to at least one heater
+        for z in range(nz):
+            if not zones[z]:
+                h = random.randrange(nh)
+                zones[z].add(h)
+                heaters[h].add(z)
+    
+        # Zones can be interconnected
+        for z1 in range(nz):
+            for z2 in range(z1 + 1, nz):
+                if random.random() < density:
+                    h = random.choice(list(zones[z1] | zones[z2]))
+                    zones[z1].add(h)
+                    zones[z2].add(h)
+                    heaters[h].update([z1, z2])
+        return heaters, zones
+    
     
 params = [
     
     # one zone, one heater
-    {'ADJ-ZONES': [],
-     'ADJ-HEATER': [(1, 1)],
-     'temp-zone': [5.], 'temp-heater': [0.]
-    },
+    {'num_heaters': 1, 'num_zones': 1, 'density': 0., 
+     'temp-zone-min': 0., 'temp-zone-max': 30., 
+     'temp-heater-min': 0., 'temp-heater-max': 30.},
     
-    # two zone, two heater
-    {'ADJ-ZONES': [],
-     'ADJ-HEATER': [(1, 1), (2, 2)],
-     'temp-zone': [5., 1.], 'temp-heater': [0., 1.]
-    },
+    # five zones, three heaters
+    {'num_heaters': 3, 'num_zones': 5, 'density': 0.2, 
+     'temp-zone-min': 0., 'temp-zone-max': 30., 
+     'temp-heater-min': 0., 'temp-heater-max': 30.},
     
-    # three zone, two heater
-    {'ADJ-ZONES': [(1, 3)],
-     'ADJ-HEATER': [(1, 1), (2, 2), (2, 3)],
-     'temp-zone': [5., 1., 1.], 'temp-heater': [0., 1., 1.]
-    }
+    # ten zones, five heaters
+    {'num_heaters': 5, 'num_zones': 10, 'density': 0.25, 
+     'temp-zone-min': 0., 'temp-zone-max': 30., 
+     'temp-heater-min': 0., 'temp-heater-max': 30.},
+    
+    # twenty zones, ten heaters
+    {'num_heaters': 10, 'num_zones': 20, 'density': 0.3, 
+     'temp-zone-min': 0., 'temp-zone-max': 30., 
+     'temp-heater-min': 0., 'temp-heater-max': 30.},
+    
+    # fifty zones, twenty heater
+    {'num_heaters': 20, 'num_zones': 50, 'density': 0.4, 
+     'temp-zone-min': 0., 'temp-zone-max': 30., 
+     'temp-heater-min': 0., 'temp-heater-max': 30.}
 ]
 
 inst = HVACInstanceGenerator()
-inst.save_instances(params)
-        
+for i, param in enumerate(params):
+    inst.save_instance(i + 1, param)
