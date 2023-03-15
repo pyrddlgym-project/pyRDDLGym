@@ -41,8 +41,8 @@ class HVACInstanceGenerator(InstanceGenerator):
             'objects': {'zone': obj_zones, 'heater': obj_heaters},
             'non-fluents': nonfluents,
             'init-states': states,
-            'horizon': 120,
-            'discount': 1.0,
+            'horizon': params['horizon'],
+            'discount': params['discount'],
             'max-nondef-actions': 'pos-inf'
         }
             
@@ -79,27 +79,32 @@ params = [
     # 1 zone, 1 heater
     {'num_heaters': 1, 'num_zones': 1, 'density': 0., 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.},
+     'temp-heater-min': 0., 'temp-heater-max': 30.,
+     'horizon': 120, 'discount': 1.0},
     
     # 5 zones, 3 heaters
     {'num_heaters': 3, 'num_zones': 5, 'density': 0.1, 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.},
+     'temp-heater-min': 0., 'temp-heater-max': 30.,
+     'horizon': 120, 'discount': 1.0},
     
     # 10 zones, 7 heaters
     {'num_heaters': 7, 'num_zones': 10, 'density': 0.05, 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.},
+     'temp-heater-min': 0., 'temp-heater-max': 30.,
+     'horizon': 120, 'discount': 1.0},
     
     # 50 zones, 40 heaters
     {'num_heaters': 40, 'num_zones': 50, 'density': 0.025, 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.},
+     'temp-heater-min': 0., 'temp-heater-max': 30.,
+     'horizon': 120, 'discount': 1.0},
     
     # 100 zones, 100 heater
     {'num_heaters': 75, 'num_zones': 100, 'density': 0.01, 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.}
+     'temp-heater-min': 0., 'temp-heater-max': 30.,
+     'horizon': 120, 'discount': 1.0}
 ]
 
 inst = HVACInstanceGenerator()
