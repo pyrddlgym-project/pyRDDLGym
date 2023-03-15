@@ -16,7 +16,9 @@ class RaceCarInstanceGenerator(InstanceGenerator):
         
         # generate random obstacles as boxes
         # two additional rectangles are generated to bound origin and goal
-        boundaries = self._generate_rectangles(params['num_blocks'] + 2)
+        boundaries = self._generate_rectangles(params['num_blocks'] + 2,
+                                               params['min_block_size'],
+                                               params['max_block_size'])
         boundaries.insert(0, (0., 0., 1., 1.))
         boundaries = [tuple(2 * xi - 1 for xi in pt) for pt in boundaries]
         nonfluents = {}
@@ -44,7 +46,7 @@ class RaceCarInstanceGenerator(InstanceGenerator):
         states['y'] = nonfluents['Y0'] = Y0
         nonfluents['GX'] = GX
         nonfluents['GY'] = GY
-        nonfluents['RADIUS'] = 0.05
+        nonfluents['RADIUS'] = params['goal_radius']
         states['vx'] = 0.0
         states['vy'] = 0.0
         
@@ -52,8 +54,8 @@ class RaceCarInstanceGenerator(InstanceGenerator):
             'objects': {'b': objects},
             'non-fluents': nonfluents,
             'init-states': states,
-            'horizon': 200,
-            'discount': 1.0,
+            'horizon': params['horizon'],
+            'discount': params['discount'],
             'max-nondef-actions': 'pos-inf'
         }
             
@@ -61,12 +63,12 @@ class RaceCarInstanceGenerator(InstanceGenerator):
         return [(x1, y1, x2, y1), (x2, y1, x2, y2),
                 (x2, y2, x1, y2), (x1, y2, x1, y1)]
 
-    def _generate_rectangles(self, n):
+    def _generate_rectangles(self, n, minw, maxw):
         rectangles = []
         for _ in range(n):
             while True:
-                width = random.uniform(0., 0.7)
-                height = random.uniform(0., 0.7)
+                width = random.uniform(minw, maxw)
+                height = random.uniform(minw, maxw)
                 x = random.uniform(0, 1 - width)
                 y = random.uniform(0, 1 - height)
                 new_rect = (x, y, x + width, y + height)
@@ -87,11 +89,11 @@ class RaceCarInstanceGenerator(InstanceGenerator):
                     rect1[1] >= rect2[3])  # bottom edge of rect1 is above top edge of rect2
 
 params = [
-    {'num_blocks': 1},
-    {'num_blocks': 2},
-    {'num_blocks': 3},
-    {'num_blocks': 4},
-    {'num_blocks': 5}    
+    {'num_blocks': 1, 'min_block_size': 0.05, 'max_block_size': 0.5, 'goal_radius': 0.05, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 2, 'min_block_size': 0.05, 'max_block_size': 0.45, 'goal_radius': 0.05, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 3, 'min_block_size': 0.05, 'max_block_size': 0.4, 'goal_radius': 0.04, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 4, 'min_block_size': 0.05, 'max_block_size': 0.35, 'goal_radius': 0.03, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 5, 'min_block_size': 0.05, 'max_block_size': 0.3, 'goal_radius': 0.02, 'horizon': 200, 'discount': 1.0}    
 ]
 
 inst = RaceCarInstanceGenerator()
