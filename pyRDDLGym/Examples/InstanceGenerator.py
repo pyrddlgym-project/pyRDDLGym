@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 import os
-from typing import Dict, Iterable
+from typing import Dict
 
 
 class InstanceGenerator(metaclass=ABCMeta):
@@ -8,24 +8,25 @@ class InstanceGenerator(metaclass=ABCMeta):
     @abstractmethod
     def get_env_path(self) -> str:
         pass
-    
+
     @abstractmethod
     def get_domain_name(self) -> str:
         pass
-    
+
     @abstractmethod
-    def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]:
+    def sample_instance(self, params: Dict[str, object]) -> Dict[str, object]:
         pass
     
-    def generate_instance(self, instance: int, params: Dict[str, object]) -> str:
-        name = self.get_domain_name()
-        params = self.generate_rddl_variables(params)
-        objects = params['objects']
-        nonfluents = params['non-fluents']
-        states = params['init-states']
-        horizon = params['horizon']
-        discount = params['discount']
-        actions = params['max-nondef-actions']
+    def generate_instance(self, inst_name: str, params: Dict[str, object]) -> str:
+        instance = self.sample_instance(params)
+        objects = instance['objects']
+        nonfluents = instance['non-fluents']
+        states = instance['init-states']
+        horizon = instance['horizon']
+        discount = instance['discount']
+        actions = instance['max-nondef-actions']
+        
+        domain_name = self.get_domain_name()
         
         # object lists
         objects_lines = [f'{key} : {{{", ".join(val)}}};' 
@@ -53,15 +54,15 @@ class InstanceGenerator(metaclass=ABCMeta):
                     states_lines.append(f'{key};')
                 else:
                     states_lines.append(f'~{key};')
-            else:                
+            else: 
                 valstr = f'{val}'
                 if 'e' in valstr or 'E' in valstr:
                     valstr = '{:.15f}'.format(val)
                 states_lines.append(f'{key} = {valstr};')
         
         # generate non-fluents block
-        value = f'non-fluents nf_{name}_{instance}' + ' {'
-        value += '\n\t' + f'domain = {name};'
+        value = f'non-fluents nf_{domain_name}_{inst_name}' + ' {'
+        value += '\n\t' + f'domain = {domain_name};'
         if objects_lines:
             value += '\n\t' + 'objects {' + '\n\t\t'
             value += '\n\t\t'.join(objects_lines)
@@ -73,9 +74,9 @@ class InstanceGenerator(metaclass=ABCMeta):
         value += '\n' + '}'
         
         # generate instance block
-        value += '\n' + f'instance inst_{name}_{instance}' + ' {'
-        value += '\n\t' + f'domain = {name};'
-        value += '\n\t' + f'non-fluents = nf_{name}_{instance};'
+        value += '\n' + f'instance inst_{domain_name}_{inst_name}' + ' {'
+        value += '\n\t' + f'domain = {domain_name};'
+        value += '\n\t' + f'non-fluents = nf_{domain_name}_{inst_name};'
         if states_lines:
             value += '\n\t' + 'init-state {' + '\n\t\t'
             value += '\n\t\t'.join(states_lines)
@@ -95,6 +96,3 @@ class InstanceGenerator(metaclass=ABCMeta):
             text_file.write(rddl)
         print(f'saved RDDL file to {path}.')
         
-    def save_instances(self, params: Iterable[Dict[str, object]]) -> None:
-        for (instance, param) in enumerate(params):
-            self.save_instance(instance + 1, param)
