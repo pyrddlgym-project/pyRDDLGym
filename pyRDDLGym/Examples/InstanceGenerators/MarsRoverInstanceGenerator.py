@@ -1,3 +1,4 @@
+import random
 from typing import Dict
 
 from pyRDDLGym.Examples.InstanceGenerator import InstanceGenerator
@@ -11,93 +12,71 @@ class MarsRoverInstanceGenerator(InstanceGenerator):
     def get_domain_name(self) -> str:
         return 'mars_rover_science_mission'
     
-    def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]: 
-        minerals = [f'm{i + 1}' for i in range(len(params['minerals']))]
-        rovers = [f'd{i + 1}' for i in range(params['num_rovers'])]
+    
+    def sample_instance(self, params: Dict[str, object]) -> Dict[str, object]:
+        nm = params['num_minerals']
+        nr = params['num_rovers']
+        x1, x2 = params['location_bounds']
+        y1, y2 = x1, x2
+        a1, a2 = params['area_bounds']
+        v1, v2 = params['value_bounds']
+        
+        minerals = [f'm{i + 1}' for i in range(nm)]
+        rovers = [f'd{i + 1}' for i in range(nr)]
         
         nonfluents = {}
-        for (m, mineral_args) in zip(minerals, params['minerals']):
-            x, y = mineral_args['pos']
-            area = mineral_args['area']
-            value = mineral_args['value']
-            nonfluents[f'MINERAL-POS-X({m})'] = x
-            nonfluents[f'MINERAL-POS-Y({m})'] = y
-            nonfluents[f'MINERAL-AREA({m})'] = area
-            nonfluents[f'MINERAL-VALUE({m})'] = value
-            
+        for m in minerals:
+            nonfluents[f'MINERAL-POS-X({m})'] = random.uniform(x1, x2)
+            nonfluents[f'MINERAL-POS-X({m})'] = random.uniform(y1, y2)
+            nonfluents[f'MINERAL-AREA({m})'] = random.uniform(a1, a2)
+            nonfluents[f'MINERAL-VALUE({m})'] = random.uniform(v1, v2)
+        
         states = {}
-        if 'pos' in params:
-            for (r, (x, y)) in zip(rovers, params['pos']):
-                states[f'pos-x({r})'] = x
-                states[f'pos-y({r})'] = y
-        if 'vel' in params:
-            for (r, (x, y)) in zip(rovers, params['vel']):
-                states[f'vel-x({r})'] = x
-                states[f'vel-y({r})'] = y
+        for r in rovers:
+            states[f'pos-x({r})'] = random.uniform(x1, x2)
+            states[f'pos-y({r})'] = random.uniform(y1, y2)
+            states[f'vel-x({r})'] = 0.
+            states[f'vel-y({r})'] = 0.
         
         return {
             'objects': {'mineral': minerals, 'rover': rovers},
             'non-fluents': nonfluents,
             'init-states': states,
-            'horizon': 100,
-            'discount': 1.0,
+            'horizon': params['horizon'],
+            'discount': params['discount'],
             'max-nondef-actions': 'pos-inf'
         }
             
     
 params = [
     
-    # one rover and one mineral
-    {'minerals': [
-        {'pos': (5., 5.), 'area': 6., 'value': 8.}
-    ],
-     'num_rovers': 1,
-     'pos': [(0., 0.)],
-     'vel': [(1., 1.)]},
+    # 2 rover and 2 mineral
+    {'num_minerals': 2, 'num_rovers': 2, 'location_bounds': (-10., 10.),
+     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'horizon': 200, 'discount': 1.0},
     
-    # one rover and two mineral
-    {'minerals': [
-        {'pos': (7., 7.), 'area': 4., 'value': 8.},
-        {'pos': (-5., -5.), 'area': 4., 'value': 1.}
-    ],
-     'num_rovers': 1,
-     'pos': [(0., 0.)],
-     'vel': [(1., 0.)]},
+    # 5 rover and 6 mineral
+    {'num_minerals': 6, 'num_rovers': 5, 'location_bounds': (-10., 10.),
+     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'horizon': 200, 'discount': 1.0},
     
-    # two rover and two mineral
-    {'minerals': [
-        {'pos': (5., 5.), 'area': 6., 'value': 8.},
-        {'pos': (-8., -8.), 'area': 8., 'value': 5.}
-    ],
-     'num_rovers': 2,
-     'pos': [(0., 0.), (3., 3.)],
-     'vel': [(1., 1.), (2., 2.)]},
+    # 10 rover and 15 mineral
+    {'num_minerals': 15, 'num_rovers': 10, 'location_bounds': (-10., 10.),
+     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'horizon': 200, 'discount': 1.0},
     
-    # three rover and four mineral
-    {'minerals': [
-        {'pos': (10., 3.), 'area': 3., 'value': 9.},
-        {'pos': (3., 10.), 'area': 5., 'value': 5.},
-        {'pos': (-8., -8.), 'area': 3., 'value': 8.},
-        {'pos': (3., -8.), 'area': 4., 'value': 9.}
-    ],
-     'num_rovers': 3,
-     'pos': [(-3., 0.), (-1., 0.), (1., 1.)],
-     'vel': [(0., 0.), (0., 0.), (0., 0.)]},
+    # 25 rover and 50 mineral
+    {'num_minerals': 50, 'num_rovers': 25, 'location_bounds': (-10., 10.),
+     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'horizon': 200, 'discount': 1.0},
     
-    # three rover and six mineral
-    {'minerals': [
-        {'pos': (10., 3.), 'area': 3., 'value': 9.},
-        {'pos': (3., 10.), 'area': 5., 'value': 5.},
-        {'pos': (-8., -8.), 'area': 3., 'value': 8.},
-        {'pos': (3., -8.), 'area': 4., 'value': 9.},
-        {'pos': (15., 8.), 'area': 4., 'value': 16.},
-        {'pos': (-14., -9.), 'area': 5., 'value': 14.}
-    ],
-     'num_rovers': 3,
-     'pos': [(-3., 0.), (-1., 0.), (1., 1.)],
-     'vel': [(0., 0.), (0., 0.), (0., 0.)]}
+    # 50 rover and 100 mineral
+    {'num_minerals': 100, 'num_rovers': 50, 'location_bounds': (-10., 10.),
+     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'horizon': 200, 'discount': 1.0}
 ]
 
 inst = MarsRoverInstanceGenerator()
-inst.save_instances(params)
+for i, param in enumerate(params):
+    inst.save_instance(i + 1, param)
         
