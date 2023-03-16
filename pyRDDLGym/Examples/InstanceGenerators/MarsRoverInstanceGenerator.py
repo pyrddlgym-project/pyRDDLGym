@@ -12,7 +12,6 @@ class MarsRoverInstanceGenerator(InstanceGenerator):
     def get_domain_name(self) -> str:
         return 'mars_rover_science_mission'
     
-    
     def sample_instance(self, params: Dict[str, object]) -> Dict[str, object]:
         nm = params['num_minerals']
         nr = params['num_rovers']
@@ -51,22 +50,22 @@ class MarsRoverInstanceGenerator(InstanceGenerator):
 params = [
     
     {'num_minerals': 2, 'num_rovers': 2, 'location_bounds': (-10., 10.),
-     'area_bounds': (3., 7.), 'value_bounds': (-10., 10.), 
+     'area_bounds': (3., 7.), 'value_bounds': (10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 10, 'num_rovers': 10, 'location_bounds': (-20., 20.),
-     'area_bounds': (3., 6.), 'value_bounds': (-10., 10.), 
+    {'num_minerals': 5, 'num_rovers': 3, 'location_bounds': (-15., 15.),
+     'area_bounds': (3., 6.), 'value_bounds': (5., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 50, 'num_rovers': 50, 'location_bounds': (-30., 30.),
-     'area_bounds': (2., 5.), 'value_bounds': (-10., 10.), 
+    {'num_minerals': 10, 'num_rovers': 5, 'location_bounds': (-20., 20.),
+     'area_bounds': (2., 5.), 'value_bounds': (0., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 100, 'num_rovers': 50, 'location_bounds': (-40., 40.),
-     'area_bounds': (2., 4.), 'value_bounds': (-10., 10.), 
+    {'num_minerals': 15, 'num_rovers': 20, 'location_bounds': (-25., 25.),
+     'area_bounds': (2., 4.), 'value_bounds': (-5., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 100, 'num_rovers': 200, 'location_bounds': (-50., 50.),
+    {'num_minerals': 25, 'num_rovers': 50, 'location_bounds': (-30., 30.),
      'area_bounds': (1., 3.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0}
 ]
