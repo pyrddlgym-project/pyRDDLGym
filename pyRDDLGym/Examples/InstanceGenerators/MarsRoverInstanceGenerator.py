@@ -52,27 +52,27 @@ params = [
     
     # 2 rover and 2 mineral
     {'num_minerals': 2, 'num_rovers': 2, 'location_bounds': (-10., 10.),
-     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'area_bounds': (3., 7.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
     # 5 rover and 6 mineral
     {'num_minerals': 6, 'num_rovers': 5, 'location_bounds': (-10., 10.),
-     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'area_bounds': (3., 6.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
     # 10 rover and 15 mineral
     {'num_minerals': 15, 'num_rovers': 10, 'location_bounds': (-10., 10.),
-     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'area_bounds': (2., 5.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
     # 25 rover and 50 mineral
     {'num_minerals': 50, 'num_rovers': 25, 'location_bounds': (-10., 10.),
-     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'area_bounds': (2., 4.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
     # 50 rover and 100 mineral
     {'num_minerals': 100, 'num_rovers': 50, 'location_bounds': (-10., 10.),
-     'area_bounds': (1., 7.), 'value_bounds': (1., 10.), 
+     'area_bounds': (1., 3.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0}
 ]
 
