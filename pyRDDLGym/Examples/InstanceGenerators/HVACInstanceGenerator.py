@@ -22,8 +22,6 @@ class HVACInstanceGenerator(InstanceGenerator):
         
         nonfluents = {}
         for h, h2z in zip(obj_heaters, heaters):
-            nonfluents[f'HEAT-COST({h})'] = \
-                10 ** random.randint(*params['heat-cost-range'])
             for z in h2z:
                 nonfluents[f'ADJ-HEATER({h}, {obj_zones[z]})'] = True
         for z, z2z in zip(obj_zones, zones):
@@ -73,38 +71,33 @@ class HVACInstanceGenerator(InstanceGenerator):
 params = [
     
     # 3 zones, 2 heaters
-    {'num_heaters': 2, 'num_zones': 3, 'density': 0.05, 
-     'heat-cost-range': (-3, -3), 
-     'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.,
+    {'num_heaters': 2, 'num_zones': 3, 'density': 0.2,
+     'temp-zone-min': 0., 'temp-zone-max': 10., 
+     'temp-heater-min': 0., 'temp-heater-max': 10.,
      'horizon': 120, 'discount': 1.0},
     
     # 10 zones, 10 heaters
-    {'num_heaters': 10, 'num_zones': 10, 'density': 0.05, 
-     'heat-cost-range': (-3, -3), 
-     'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.,
+    {'num_heaters': 10, 'num_zones': 10, 'density': 0.2, 
+     'temp-zone-min': 0., 'temp-zone-max': 10., 
+     'temp-heater-min': 0., 'temp-heater-max': 10.,
      'horizon': 120, 'discount': 1.0},
     
-    # 25 zones, 30 heaters
-    {'num_heaters': 30, 'num_zones': 25, 'density': 0.05, 
-     'heat-cost-range': (-4, -3), 
-     'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.,
+    # 25 zones, 25 heaters
+    {'num_heaters': 30, 'num_zones': 25, 'density': 0.2, 
+     'temp-zone-min': 0., 'temp-zone-max': 10., 
+     'temp-heater-min': 0., 'temp-heater-max': 10.,
      'horizon': 120, 'discount': 1.0},
     
-    # 100 zones, 80 heaters
-    {'num_heaters': 80, 'num_zones': 100, 'density': 0.05, 
-     'heat-cost-range': (-4, -3), 
-     'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.,
+    # 50 zones, 50 heaters
+    {'num_heaters': 50, 'num_zones': 50, 'density': 0.2, 
+     'temp-zone-min': 0., 'temp-zone-max': 10., 
+     'temp-heater-min': 0., 'temp-heater-max': 10.,
      'horizon': 120, 'discount': 1.0},
     
-    # 200 zones, 150 heater
-    {'num_heaters': 150, 'num_zones': 200, 'density': 0.05, 
-     'heat-cost-range': (-4, -2), 
-     'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.,
+    # 100 zones, 100 heater
+    {'num_heaters': 100, 'num_zones': 100, 'density': 0.2, 
+     'temp-zone-min': 0., 'temp-zone-max': 10., 
+     'temp-heater-min': 0., 'temp-heater-max': 10.,
      'horizon': 120, 'discount': 1.0}
 ]
 
