@@ -15,14 +15,15 @@ class HVACInstanceGenerator(InstanceGenerator):
     def sample_instance(self, params: Dict[str, object]) -> Dict[str, object]:
         nh = params['num_heaters']
         nz = params['num_zones']
-        density = params['density']
-        heaters, zones = self._generate_structure(nh, nz, density)
+        heaters, zones = self._generate_layout(nh, nz, params['density'])
         
         obj_heaters = [f'h{i + 1}' for i in range(nh)]
         obj_zones = [f'z{i + 1}' for i in range(nz)]
         
         nonfluents = {}
         for h, h2z in zip(obj_heaters, heaters):
+            nonfluents[f'HEAT-COST({h})'] = \
+                10 ** random.randint(*params['heat-cost-range'])
             for z in h2z:
                 nonfluents[f'ADJ-HEATER({h}, {obj_zones[z]})'] = True
         for z, z2z in zip(obj_zones, zones):
@@ -46,7 +47,7 @@ class HVACInstanceGenerator(InstanceGenerator):
             'max-nondef-actions': 'pos-inf'
         }
             
-    def _generate_structure(self, nh, nz, density):
+    def _generate_layout(self, nh, nz, density):
         heaters = [set() for _ in range(nh)]
         zones = [set() for _ in range(nz)]
     
@@ -54,54 +55,54 @@ class HVACInstanceGenerator(InstanceGenerator):
         for h in range(nh):
             z = random.randrange(nz)
             heaters[h].add(z)
-            zones[z].add(h)
     
         # Each zone must be connected to at least one heater
         for z in range(nz):
-            if not zones[z]:
+            if not any((z in htz) for htz in heaters):
                 h = random.randrange(nh)
-                zones[z].add(h)
                 heaters[h].add(z)
     
         # Zones can be interconnected
         for z1 in range(nz):
             for z2 in range(z1 + 1, nz):
                 if random.random() < density:
-                    h = random.choice(list(zones[z1] | zones[z2]))
-                    zones[z1].add(h)
-                    zones[z2].add(h)
-                    heaters[h].update([z1, z2])
+                    zones[z1].add(z2)
         return heaters, zones
     
     
 params = [
     
-    # 1 zone, 1 heater
-    {'num_heaters': 1, 'num_zones': 1, 'density': 0., 
-     'temp-zone-min': 0., 'temp-zone-max': 30., 
-     'temp-heater-min': 0., 'temp-heater-max': 30.,
-     'horizon': 120, 'discount': 1.0},
-    
-    # 5 zones, 3 heaters
-    {'num_heaters': 3, 'num_zones': 5, 'density': 0.1, 
+    # 3 zones, 2 heaters
+    {'num_heaters': 2, 'num_zones': 3, 'density': 0.05, 
+     'heat-cost-range': (-3, -3), 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
      'temp-heater-min': 0., 'temp-heater-max': 30.,
      'horizon': 120, 'discount': 1.0},
     
     # 10 zones, 10 heaters
     {'num_heaters': 10, 'num_zones': 10, 'density': 0.05, 
+     'heat-cost-range': (-3, -3), 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
      'temp-heater-min': 0., 'temp-heater-max': 30.,
      'horizon': 120, 'discount': 1.0},
     
-    # 50 zones, 50 heaters
-    {'num_heaters': 50, 'num_zones': 50, 'density': 0.025, 
+    # 25 zones, 30 heaters
+    {'num_heaters': 30, 'num_zones': 25, 'density': 0.05, 
+     'heat-cost-range': (-4, -3), 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
      'temp-heater-min': 0., 'temp-heater-max': 30.,
      'horizon': 120, 'discount': 1.0},
     
-    # 100 zones, 90 heater
-    {'num_heaters': 90, 'num_zones': 100, 'density': 0.01, 
+    # 100 zones, 75 heaters
+    {'num_heaters': 75, 'num_zones': 100, 'density': 0.05, 
+     'heat-cost-range': (-4, -3), 
+     'temp-zone-min': 0., 'temp-zone-max': 30., 
+     'temp-heater-min': 0., 'temp-heater-max': 30.,
+     'horizon': 120, 'discount': 1.0},
+    
+    # 200 zones, 100 heater
+    {'num_heaters': 100, 'num_zones': 200, 'density': 0.05, 
+     'heat-cost-range': (-4, -2), 
      'temp-zone-min': 0., 'temp-zone-max': 30., 
      'temp-heater-min': 0., 'temp-heater-max': 30.,
      'horizon': 120, 'discount': 1.0}

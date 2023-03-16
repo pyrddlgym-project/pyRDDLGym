@@ -16,7 +16,7 @@ domain hvac{
 		TEMP-OUT				: { non-fluent, real, default = 25 };			// outside temperature
 		ADJ-HEATER(heater, zone): { non-fluent, bool, default = false }; 		// is a heater connected to a zone
 		AIR-COST				: { non-fluent, real, default = 0.01 };			// air cost
-		HEAT-COST				: { non-fluent, real, default = 0.001 };		// heat cost
+		HEAT-COST(heater)    	: { non-fluent, real, default = 0.001 };		// heat cost
 		ZONE-DISCOMFORT-PENALTY	: { non-fluent, real, default = 10.0 };			// zone temperature out of range discomfort penalty
 		TEMP-ZONE-MIN			: { non-fluent, real, default = 10 };			// minimum zone comfort temperature
 		TEMP-ZONE-MAX			: { non-fluent, real, default = 15 };			// maximum zone comfort temperature
@@ -80,7 +80,7 @@ domain hvac{
 
 	};
 
-	reward = - HEAT-COST * (sum_{?h : heater}[pow[heat-input(?h), 2]])
+	reward = - (sum_{?h : heater}[HEAT-COST(?h) * pow[heat-input(?h), 2]])
 	         - AIR-COST * (sum_{?z : zone}[pow[fan-in(?z), 2]])
 			 - ZONE-DISCOMFORT-PENALTY * (sum_{?z1 : zone}[ 
 				if (temp-zone(?z1) < TEMP-ZONE-MIN)
