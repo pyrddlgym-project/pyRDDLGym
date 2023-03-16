@@ -37,8 +37,11 @@ def test_xadd(
     if save_graph:
         Path(f'tmp/{env_name}').mkdir(parents=True, exist_ok=True)
         
-    if cpf is not None:
-        expr = xadd_model.cpfs.get(f"{cpf}'")
+    if cpf is not None or cpf == 'reward':
+        if cpf == 'reward':
+            expr = xadd_model.reward
+        else:
+            expr = xadd_model.cpfs.get(f"{cpf}'")
         if expr is None:
             raise AttributeError(f"Cannot retrieve {cpf}' from 'model.cpfs'")
         print(f"cpf {cpf}':", end='\n')

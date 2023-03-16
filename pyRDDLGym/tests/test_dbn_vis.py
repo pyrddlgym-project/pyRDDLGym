@@ -6,7 +6,8 @@ def test_dbn_visualization():
         'cartpole discrete', 'cartpole continuous', 'marsrover', 
         # 'mountaincar',    # Takes too long to create DBN graph for this
         'powergen', 'racecar', 'uavcontinuous', 
-        'uavdiscrete', 'uavmixed', 'wildfire', 'supplychain'
+        'uavdiscrete', 'uavmixed', 'wildfire', 'supplychain', 
+        'propdbn'
     ]
     
     for domain in domains:
