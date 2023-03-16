@@ -62,29 +62,27 @@ class ReservoirInstanceGenerator(InstanceGenerator):
     
 params = [
     
-    # 2 reservoirs
+    # the number of reservoirs, amount of interdependence between them,
+    # the rain variance and the narrowing of the target water level ranges all
+    # contribute to difficulty
     {'num_reservoirs': 2, 'max_edges': 1,
      'top_range': (100., 200.), 'target_range': (0.4, 0.8), 'rain_var': 5.,
      'horizon': 100, 'discount': 1.0},
     
-    # 5 reservoirs
     {'num_reservoirs': 5, 'max_edges': 2,
-     'top_range': (200., 400.), 'target_range': (0.3, 0.7), 'rain_var': 8.,
+     'top_range': (100., 300.), 'target_range': (0.3, 0.7), 'rain_var': 10.,
      'horizon': 100, 'discount': 1.0},
     
-    # 10 reservoirs
-    {'num_reservoirs': 10, 'max_edges': 4,
-     'top_range': (300., 500.), 'target_range': (0.3, 0.6), 'rain_var': 10.,
+    {'num_reservoirs': 10, 'max_edges': 5,
+     'top_range': (100., 400.), 'target_range': (0.3, 0.6), 'rain_var': 20.,
      'horizon': 100, 'discount': 1.0},
     
-    # 25 reservoirs
-    {'num_reservoirs': 25, 'max_edges': 10,
-     'top_range': (400., 600.), 'target_range': (0.2, 0.5), 'rain_var': 20.,
+    {'num_reservoirs': 25, 'max_edges': 15,
+     'top_range': (100., 500.), 'target_range': (0.2, 0.5), 'rain_var': 40.,
      'horizon': 100, 'discount': 1.0},
     
-    # 50 reservoirs
-    {'num_reservoirs': 50, 'max_edges': 30,
-     'top_range': (500., 700.), 'target_range': (0.1, 0.3), 'rain_var': 30.,
+    {'num_reservoirs': 50, 'max_edges': 40,
+     'top_range': (100., 600.), 'target_range': (0.1, 0.4), 'rain_var': 80.,
      'horizon': 100, 'discount': 1.0}
 ]
 
