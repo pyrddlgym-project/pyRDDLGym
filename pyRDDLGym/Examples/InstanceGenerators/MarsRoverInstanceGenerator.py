@@ -54,15 +54,15 @@ params = [
      'area_bounds': (3., 7.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 6, 'num_rovers': 6, 'location_bounds': (-10., 10.),
+    {'num_minerals': 10, 'num_rovers': 10, 'location_bounds': (-10., 10.),
      'area_bounds': (3., 6.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 15, 'num_rovers': 10, 'location_bounds': (-10., 10.),
+    {'num_minerals': 50, 'num_rovers': 50, 'location_bounds': (-10., 10.),
      'area_bounds': (2., 5.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 50, 'num_rovers': 40, 'location_bounds': (-10., 10.),
+    {'num_minerals': 100, 'num_rovers': 50, 'location_bounds': (-10., 10.),
      'area_bounds': (2., 4.), 'value_bounds': (-10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
