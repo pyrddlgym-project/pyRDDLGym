@@ -37,7 +37,7 @@ domain power_gen {
 	pvariables {
 
 		// Constants
-		PROD-UNITS-MIN(plant)      : { non-fluent, real, default = 1   };
+		PROD-UNITS-MIN(plant)      : { non-fluent, real, default = 0   };
 		PROD-UNITS-MAX(plant)      : { non-fluent, real, default = 10  };
 		PROD-CHANGE-PENALTY(plant) : { non-fluent, real, default = 1.0 };
 		TURN-ON-COST(plant)        : { non-fluent, real, default = 0.0 };
@@ -53,23 +53,22 @@ domain power_gen {
 		
     	// Action - int
 		curProd(plant) : { action-fluent, real, default = 0 };
+		curOn(plant)   : { action-fluent, bool, default = false };
 
 		// State - int and real
 		prevProd(plant) : { state-fluent, real, default = 0 };
-		prevOn(plant) : { state-fluent, bool, default = false };
+		prevOn(plant)   : { state-fluent, bool, default = false };
 		temperature     : { state-fluent, real, default = 20 };
 
 		// Derived and intermediate
 		demand          : { interm-fluent, real };
 		fulfilledDemand : { interm-fluent, real };
 		effectiveProd(plant) : { interm-fluent, real };
-		curOn(plant) : { interm-fluent, bool };
 	};
 
 	cpfs {
 
 		// State - now prod is zeroed if not on
-		curOn(?p) = (curProd(?p) >= PROD-UNITS-MIN(?p));
 		effectiveProd(?p) = if (curOn(?p)) 
 			then max[min[curProd(?p) + Weibull(PROD-SHAPE(?p), PROD-SCALE(?p)), 
 				PROD-UNITS-MAX(?p)], PROD-UNITS-MIN(?p)]
@@ -96,7 +95,7 @@ domain power_gen {
 	action-preconditions {
 
 		// Production amounts within bounds
-		forall_{?p : plant} [ curProd(?p) >= 0.0 ];
+		forall_{?p : plant} [ curProd(?p) >= PROD-UNITS-MIN(?p) ];
 		forall_{?p : plant} [ curProd(?p) <= PROD-UNITS-MAX(?p) ];
 	};
 }
