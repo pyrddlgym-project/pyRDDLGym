@@ -212,7 +212,8 @@ class JaxRDDLCompiler:
             self.preconditions, self.invariants, self.termination
         
         # do a single step update from the RDDL model
-        def _jax_wrapped_single_step(key, policy_params, step, subs, model_params):
+        def _jax_wrapped_single_step(key, policy_params, hyperparams, 
+                                     step, subs, model_params):
             errors = NORMAL
             
             # compute action
@@ -220,7 +221,7 @@ class JaxRDDLCompiler:
             states = {var: values 
                       for (var, values) in subs.items()
                       if rddl.variable_types[var] == 'state-fluent'}
-            actions = policy(subkey, policy_params, step, states)
+            actions = policy(subkey, policy_params, hyperparams, step, states)
             subs.update(actions)
             
             # check action preconditions
@@ -273,20 +274,26 @@ class JaxRDDLCompiler:
         
         # do a batched step update from the RDDL model
         def _jax_wrapped_batched_step(carry, step):
-            key, policy_params, subs, model_params = carry  
+            key, policy_params, hyperparams, subs, model_params = carry  
             key, *subkeys = random.split(key, num=1 + n_batch)
+            keys = jnp.asarray(subkeys)
             batched_step = jax.vmap(
                 _jax_wrapped_single_step,
-                in_axes=(0, None, None, 0, None)
+                in_axes=(0, None, None, None, 0, None)
             ) 
-            keys = jnp.asarray(subkeys)
-            log, subs = batched_step(keys, policy_params, step, subs, model_params)            
-            carry = (key, policy_params, subs, model_params)
+            log, subs = batched_step(
+                keys, 
+                policy_params, hyperparams, 
+                step, subs, 
+                model_params
+            )            
+            carry = (key, policy_params, hyperparams, subs, model_params)
             return carry, log            
             
         # do a batched roll-out from the RDDL model
-        def _jax_wrapped_batched_rollout(key, policy_params, subs, model_params):
-            start = (key, policy_params, subs, model_params)
+        def _jax_wrapped_batched_rollout(key, policy_params, hyperparams, 
+                                         subs, model_params):
+            start = (key, policy_params, hyperparams, subs, model_params)
             steps = jnp.arange(n_steps)
             _, log = jax.lax.scan(_jax_wrapped_batched_step, start, steps)
             log = jax.tree_map(partial(jnp.swapaxes, axis1=0, axis2=1), log)
