@@ -515,6 +515,7 @@ class JaxRDDLBackpropPlanner:
             grad, log = grad_fn(key, policy_params, hyperparams, subs, model_params)            
             log['grad'] = grad
             updates, opt_state = optimizer.update(grad, opt_state)
+            log['updates'] = updates
             policy_params = optax.apply_updates(policy_params, updates)
             policy_params = projection(policy_params)
             return policy_params, opt_state, log
@@ -608,6 +609,7 @@ class JaxRDDLBackpropPlanner:
                     'params': policy_params,
                     'best_params': best_params,
                     'grad': train_log['grad'],
+                    'updates': train_log['updates'],
                     **log
                 }
                 yield callback
