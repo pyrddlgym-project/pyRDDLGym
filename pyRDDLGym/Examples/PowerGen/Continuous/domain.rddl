@@ -24,6 +24,9 @@
 //
 // Author: Scott Sanner (ssanner@gmail.com)
 //
+// Changes to continuous problem by Ayal Taitler and commitment
+// added by Mike Gimelfarb.
+//
 ////////////////////////////////////////////////////////////////////
 domain power_gen {
 
@@ -34,9 +37,10 @@ domain power_gen {
 	pvariables {
 
 		// Constants
-		PROD-UNITS-MIN(plant)      : { non-fluent, int,  default = 0   };
-		PROD-UNITS-MAX(plant)      : { non-fluent, int,  default = 10  };
+		PROD-UNITS-MIN(plant)      : { non-fluent, real, default = 0   };
+		PROD-UNITS-MAX(plant)      : { non-fluent, real, default = 10  };
 		PROD-CHANGE-PENALTY(plant) : { non-fluent, real, default = 1.0 };
+		TURN-ON-COST(plant)        : { non-fluent, real, default = 0.0 };
 		COST-PER-UNIT(plant)       : { non-fluent, real, default = 5.0 };
 		INCOME-PER-UNIT            : { non-fluent, real, default = 8.0 };
 		TEMP-VARIANCE              : { non-fluent, real, default = 5.0 };
@@ -44,39 +48,49 @@ domain power_gen {
 		MIN-DEMAND-TEMP            : { non-fluent, real, default = 11.7 };
 		MIN-CONSUMPTION            : { non-fluent, real, default = 2 };
 		UNFULFILLED-DEMAND-PENALTY : { non-fluent, real, default = 1000.0 };
-
+		PROD-SHAPE(plant)    : { non-fluent, real, default = 1.0 };
+		PROD-SCALE(plant)    : { non-fluent, real, default = 0.0000001 };
+		
     	// Action - int
 		curProd(plant) : { action-fluent, real, default = 0 };
+		curOn(plant)   : { action-fluent, bool, default = false };
 
 		// State - int and real
 		prevProd(plant) : { state-fluent, real, default = 0 };
+		prevOn(plant)   : { state-fluent, bool, default = false };
 		temperature     : { state-fluent, real, default = 20 };
 
 		// Derived and intermediate
 		demand          : { interm-fluent, real };
-		fulfilledDemand : { interm-fluent,  real };
-
+		fulfilledDemand : { interm-fluent, real };
+		effectiveProd(plant) : { interm-fluent, real };
 	};
 
 	cpfs {
 
-		// State
-		prevProd'(?p) = curProd(?p);
+		// State - now prod is zeroed if not on
+		effectiveProd(?p) = if (curOn(?p)) 
+			then max[min[curProd(?p) + Weibull(PROD-SHAPE(?p), PROD-SCALE(?p)), 
+				PROD-UNITS-MAX(?p)], PROD-UNITS-MIN(?p)]
+			else 0.0;
+		prevProd'(?p) = effectiveProd(?p);
+		prevOn'(?p) = curOn(?p);
 		temperature'  = Normal(temperature, TEMP-VARIANCE);
 
 		// Demand -- a function of the current temperature,
 		//           empirically a U-shaped function with a minimum
 		//           at 11.7 C, here we use a simple quadratic model.
 		demand = MIN-CONSUMPTION + DEMAND-EXP-COEF * pow[ temperature - MIN-DEMAND-TEMP , 2 ];
-		fulfilledDemand = min[ demand, (sum_{?p : plant} curProd(?p)) ];
-
+		fulfilledDemand = min[ demand, (sum_{?p : plant} effectiveProd(?p)) ];
 	};
 
 	// cost of supply per plant, demand income, demand exceeds supply penalty, steady-state penalties
-	reward = [-(sum_{?p : plant} curProd(?p) * COST-PER-UNIT(?p))]
+	// now includes cost of turning on a plant 
+	reward = [-(sum_{?p : plant} effectiveProd(?p) * COST-PER-UNIT(?p))]
 		     + (fulfilledDemand * INCOME-PER-UNIT)
 		     - (if (demand > fulfilledDemand) then UNFULFILLED-DEMAND-PENALTY else 0.0 )
-		     + (sum_{?p : plant} abs[ curProd(?p) - prevProd(?p) ] * PROD-CHANGE-PENALTY(?p) );
+		     + (sum_{?p : plant} abs[ effectiveProd(?p) - prevProd(?p) ] * PROD-CHANGE-PENALTY(?p) )
+			 - (sum_{?p : plant} [if (~prevOn(?p) ^ curOn(?p)) then TURN-ON-COST(?p) else 0.0] );
 
 	action-preconditions {
 
