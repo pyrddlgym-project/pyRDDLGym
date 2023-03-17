@@ -108,15 +108,15 @@ params = [
      'demand_scale': 2.0, 'temp_variance': 6.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
     
-    {'num_gas': 2, 'num_nuclear': 1, 'num_solar': 3,
+    {'num_gas': 2, 'num_nuclear': 2, 'num_solar': 0,
      'demand_scale': 3.0, 'temp_variance': 7.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
     
-    {'num_gas': 3, 'num_nuclear': 2, 'num_solar': 2,
+    {'num_gas': 2, 'num_nuclear': 2, 'num_solar': 3,
      'demand_scale': 4.0, 'temp_variance': 8.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
     
-    {'num_gas': 3, 'num_nuclear': 3, 'num_solar': 4,
+    {'num_gas': 2, 'num_nuclear': 3, 'num_solar': 4,
      'demand_scale': 5.0, 'temp_variance': 9.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
 ]
