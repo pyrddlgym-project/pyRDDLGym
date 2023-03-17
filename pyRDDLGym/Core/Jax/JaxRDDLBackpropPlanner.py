@@ -523,12 +523,12 @@ class JaxRDDLBackpropPlanner:
         def _jax_wrapped_plan_update(key, policy_params, hyperparams, 
                                      subs, model_params, opt_state):
             grad_fn = jax.grad(loss, argnums=1, has_aux=True)
-            grad, log = grad_fn(key, policy_params, hyperparams, subs, model_params)            
-            log['grad'] = grad
-            updates, opt_state = optimizer.update(grad, opt_state)
-            log['updates'] = updates
+            grad, log = grad_fn(key, policy_params, hyperparams, subs, model_params)  
+            updates, opt_state = optimizer.update(grad, opt_state) 
             policy_params = optax.apply_updates(policy_params, updates)
-            policy_params = projection(policy_params)
+            policy_params = projection(policy_params)         
+            log['grad'] = grad
+            log['updates'] = updates
             return policy_params, opt_state, log
         
         return _jax_wrapped_plan_update
