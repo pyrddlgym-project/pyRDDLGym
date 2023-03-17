@@ -327,6 +327,8 @@ class JaxStraightLinePlan(JaxPlan):
                             reduced_param = jnp.maximum(reduced_param, 0.0)
                         new_params[var] = jnp.where(
                             param <= largest_to_reduce, reduced_param, param) 
+                    else:
+                        new_params[var] = param
                 return new_params
             
             def _jax_wrapped_sogbofa_project(params):
