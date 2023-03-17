@@ -20,7 +20,7 @@ class RaceCarInstanceGenerator(InstanceGenerator):
                                                params['min_block_size'],
                                                params['max_block_size'])
         boundaries.insert(0, (0., 0., 1., 1.))
-        boundaries = [tuple(2 * xi - 1 for xi in pt) for pt in boundaries]
+        boundaries = [tuple(xi * params['scale'] for xi in pt) for pt in boundaries]
         nonfluents = {}
         objects = []
         i = 0
@@ -63,20 +63,21 @@ class RaceCarInstanceGenerator(InstanceGenerator):
         return [(x1, y1, x2, y1), (x2, y1, x2, y2),
                 (x2, y2, x1, y2), (x1, y2, x1, y1)]
 
-    def _generate_rectangles(self, n, minw, maxw):
+    def _generate_rectangles(self, n, minw, maxw, dist_to_goal=0.7):
         rectangles = []
-        for _ in range(n):
+        for i in range(n):
             while True:
                 width = random.uniform(minw, maxw)
                 height = random.uniform(minw, maxw)
                 x = random.uniform(0, 1 - width)
                 y = random.uniform(0, 1 - height)
                 new_rect = (x, y, x + width, y + height)
-                overlap = False
-                for rect in rectangles:
-                    if self._intersect(rect, new_rect):
+                overlap = any(self._intersect(rect, new_rect) for rect in rectangles)
+                if i == n - 1:
+                    x0, y0, *_ = rectangles[-1]
+                    dist2 = (x0 - x) ** 2 + (y0 - y) ** 2
+                    if dist2 < dist_to_goal ** 2:
                         overlap = True
-                        break
                 if not overlap:
                     rectangles.append(new_rect)
                     break
@@ -88,16 +89,20 @@ class RaceCarInstanceGenerator(InstanceGenerator):
                     rect1[3] <= rect2[1] or  # top edge of rect1 is below bottom edge of rect2
                     rect1[1] >= rect2[3])  # bottom edge of rect1 is above top edge of rect2
 
+
 params = [
-    {'num_blocks': 1, 'min_block_size': 0.05, 'max_block_size': 0.5, 
+    
+    # difficulty is controlled by the number of obstacles, as well as the radius
+    # of the goal region, which is shrinking
+    {'num_blocks': 1, 'min_block_size': 0.05, 'max_block_size': 0.5, 'scale': 1.0,
      'goal_radius': 0.06, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 2, 'min_block_size': 0.05, 'max_block_size': 0.45, 
+    {'num_blocks': 2, 'min_block_size': 0.05, 'max_block_size': 0.45, 'scale': 1.25,
      'goal_radius': 0.05, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 3, 'min_block_size': 0.05, 'max_block_size': 0.4, 
+    {'num_blocks': 3, 'min_block_size': 0.05, 'max_block_size': 0.4, 'scale': 1.5,
      'goal_radius': 0.04, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 4, 'min_block_size': 0.05, 'max_block_size': 0.35, 
+    {'num_blocks': 4, 'min_block_size': 0.05, 'max_block_size': 0.35, 'scale': 1.75,
      'goal_radius': 0.03, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 5, 'min_block_size': 0.05, 'max_block_size': 0.3, 
+    {'num_blocks': 5, 'min_block_size': 0.05, 'max_block_size': 0.3, 'scale': 2.0,
      'goal_radius': 0.02, 'horizon': 200, 'discount': 1.0}    
 ]
 
