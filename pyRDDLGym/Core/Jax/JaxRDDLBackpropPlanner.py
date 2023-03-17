@@ -301,6 +301,11 @@ class JaxStraightLinePlan(JaxPlan):
             # reduce the values of all boolean action parameters except the 
             # largest rddl.max_allowed_actions, such that they will predict False
             def _jax_wrapped_sogbofa_reduce(params):
+                
+                # find "max_allowed_actions" + 1-st largest parameter
+                # we only call this subroutine if there is a surplus, so this
+                # value is currently predicting True; we want it and others below
+                # to now predict False
                 params_flat = []
                 for (var, param) in params.items():
                     if rddl.variable_ranges[var] == 'bool':
@@ -308,13 +313,17 @@ class JaxStraightLinePlan(JaxPlan):
                 params_flat = jnp.concatenate(params_flat)
                 large_to_small = jnp.sort(params_flat)[::-1]
                 largest_to_reduce = large_to_small[rddl.max_allowed_actions]
+                
+                # determine how much all values smaller than this should reduce
                 threshold = 0.0 if wrap_sigmoid else 0.5
                 reduction = largest_to_reduce - threshold
+                
+                # switch off all these smaller values to False
                 new_params = {}
                 for (var, param) in params.items():
                     if rddl.variable_ranges[var] == 'bool':
                         reduced_param = param - reduction
-                        if wrap_sigmoid:
+                        if not wrap_sigmoid:
                             reduced_param = jnp.maximum(reduced_param, 0.0)
                         new_params[var] = jnp.where(
                             param <= largest_to_reduce, reduced_param, param) 
