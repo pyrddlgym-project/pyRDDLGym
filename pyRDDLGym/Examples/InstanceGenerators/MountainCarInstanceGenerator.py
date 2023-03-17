@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from typing import Dict
 
@@ -12,36 +13,69 @@ class MountainCarInstanceGenerator(InstanceGenerator):
     def get_domain_name(self) -> str:
         return 'mountain_car'
     
-    def generate_rddl_variables(self, params: Dict[str, object]) -> Dict[str, object]:
-        points = self.generate_terrain_points(params['terrain'])
+    def sample_instance(self, params: Dict[str, object]) -> Dict[str, object]:
+        fx, xrange = self.generate_hills(params['terrain_xleft'], 
+                                         params['terrain_widths'],
+                                         params['terrain_heights'])
         
+        points = self.generate_terrain_points(fx, params['num_points'], *xrange)
         segments = [f's{i + 1}' for i in range(len(points))]
         
         nonfluents = {}
+        nonfluents['MIN-POS'] = xrange[0]
+        nonfluents['MAX-POS'] = xrange[1]
+        nonfluents['GOAL-MIN'] = params['goal-min']
         for (i, (x1, y1, x2, y2)) in enumerate(points):
             nonfluents[f'X-START({segments[i]})'] = x1
             nonfluents[f'Y-START({segments[i]})'] = y1
             nonfluents[f'X-END({segments[i]})'] = x2
             nonfluents[f'Y-END({segments[i]})'] = y2
-        if 'FORCE-NOISE-VAR' in params:
-            nonfluents['FORCE-NOISE-VAR'] = params['FORCE-NOISE-VAR']
         
         states = {}
-        if 'pos' in params:
-            states['pos'] = params['pos']
-        if 'vel' in params:
-            states['vel'] = params['vel']
+        states['pos'] = params['pos']
+        states['vel'] = params['vel']
         
         return {
             'objects': {'segment': segments},
             'non-fluents': nonfluents,
             'init-states': states,
-            'horizon': 200,
-            'discount': 1.0,
+            'horizon': params['horizon'],
+            'discount': params['discount'],
             'max-nondef-actions': 'pos-inf'
         }
     
-    def generate_terrain_points(self, fx, num_points=80, xmin=-1.2, xmax=0.6):
+    def generate_hill(self, x1, x2, h, o1, o2):
+        slope = (o2 - o1) / (x2 - x1)
+        intercept = o1 - slope * x1
+        curve = lambda x: h * (np.sin(slope * x + intercept) + 1.0) / 2.
+        return curve
+    
+    def generate_hills(self, x0, widths, heights):
+        x1 = x0
+        curves, ranges = [], []
+        for i, (w, h) in enumerate(zip(widths, heights)):
+            x2 = x1 + w
+            if i == 0:
+                curve = self.generate_hill(x1, x2, h, o1=-3 * math.pi / 2 * 0.7, o2=-math.pi / 2)
+            elif i == len(widths) - 1:
+                curve = self.generate_hill(x1, x2, h, o1=-math.pi / 2, o2=math.pi / 2 * 1.2)
+            else:
+                curve = self.generate_hill(x1, x2, h, o1=-math.pi / 2, o2=3 * math.pi / 2)
+            curves.append(curve)
+            ranges.append((x1, x2))
+            x1 = x2
+    
+        def piecewise(x):
+            for i, (a, b) in enumerate(ranges):
+                if x >= a and x < b:
+                    return curves[i](x)
+            return curves[-1](x)
+        
+        xrange = (ranges[0][0], ranges[-1][1])
+        
+        return piecewise, xrange
+    
+    def generate_terrain_points(self, fx, num_points, xmin, xmax):
         xs = np.linspace(xmin, xmax, num_points)
         ys = np.asarray([fx(x) for x in xs])
         xstart = xs[:-1]
@@ -53,26 +87,29 @@ class MountainCarInstanceGenerator(InstanceGenerator):
 
 params = [
     
-    # easy terrain
-    {'terrain': (lambda x: np.sin(3 * x) * 0.3 + 0.4),
-     'FORCE-NOISE-VAR': 0.0},
+    # difficulty is controlled by the number of valleys
+    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 1.1], 'terrain_heights': [0.9, 0.9], 
+     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 0.5,
+     'horizon': 200, 'discount': 1.0},
     
-    # normal terrain
-    {'terrain': (lambda x: np.sin(3 * x) * 0.45 + 0.55),
-     'FORCE-NOISE-VAR': 0.0},
+    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 1.1], 'terrain_heights': [0.9, 0.8, 1.1], 
+     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 2.8,
+     'horizon': 200, 'discount': 1.0},
     
-    # hard terrain
-    {'terrain': (lambda x: np.sin(3 * x) * 0.6 + 0.7),
-     'FORCE-NOISE-VAR': 0.0},
+    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 2.1, 1.1], 'terrain_heights': [0.9, 0.8, 0.7, 1.0], 
+     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 4.9,
+     'horizon': 300, 'discount': 1.0},
     
-    # normal terrain with small noise
-    {'terrain': (lambda x: np.sin(3 * x) * 0.45 + 0.55),
-     'FORCE-NOISE-VAR': 0.05},
+    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 2.1, 0.3, 1.1], 'terrain_heights': [0.9, 0.8, 1.0, 0.0, 1.1], 
+     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 5.2,
+     'horizon': 300, 'discount': 1.0},
     
-    # hard terrain with large noise
-    {'terrain': (lambda x: np.sin(3 * x) * 0.6 + 0.7),
-     'FORCE-NOISE-VAR': 0.1}
+    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 2.2, 2.1, 1.1], 'terrain_heights': [0.7, 0.8, 0.9, 1.0, 1.1], 
+     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 7.1,
+     'horizon': 300, 'discount': 1.0},
+    
 ]
               
 inst = MountainCarInstanceGenerator()
-inst.save_instances(params)
+for i, param in enumerate(params):
+    inst.save_instance(i + 1, param)
