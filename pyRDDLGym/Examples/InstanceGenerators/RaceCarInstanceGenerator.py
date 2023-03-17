@@ -89,11 +89,16 @@ class RaceCarInstanceGenerator(InstanceGenerator):
                     rect1[1] >= rect2[3])  # bottom edge of rect1 is above top edge of rect2
 
 params = [
-    {'num_blocks': 1, 'min_block_size': 0.05, 'max_block_size': 0.5, 'goal_radius': 0.05, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 2, 'min_block_size': 0.05, 'max_block_size': 0.45, 'goal_radius': 0.05, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 3, 'min_block_size': 0.05, 'max_block_size': 0.4, 'goal_radius': 0.04, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 4, 'min_block_size': 0.05, 'max_block_size': 0.35, 'goal_radius': 0.03, 'horizon': 200, 'discount': 1.0},
-    {'num_blocks': 5, 'min_block_size': 0.05, 'max_block_size': 0.3, 'goal_radius': 0.02, 'horizon': 200, 'discount': 1.0}    
+    {'num_blocks': 1, 'min_block_size': 0.05, 'max_block_size': 0.5, 
+     'goal_radius': 0.06, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 2, 'min_block_size': 0.05, 'max_block_size': 0.45, 
+     'goal_radius': 0.05, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 3, 'min_block_size': 0.05, 'max_block_size': 0.4, 
+     'goal_radius': 0.04, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 4, 'min_block_size': 0.05, 'max_block_size': 0.35, 
+     'goal_radius': 0.03, 'horizon': 200, 'discount': 1.0},
+    {'num_blocks': 5, 'min_block_size': 0.05, 'max_block_size': 0.3, 
+     'goal_radius': 0.02, 'horizon': 200, 'discount': 1.0}    
 ]
 
 inst = RaceCarInstanceGenerator()

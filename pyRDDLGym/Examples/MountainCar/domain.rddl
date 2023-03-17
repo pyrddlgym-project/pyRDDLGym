@@ -11,8 +11,7 @@
 // A crucial deviation from the original problem above is that the valley
 // is no longer described by a simple smooth curve, but rather a piecewise
 // linear function whose points are fully configurable by the user.
-// Gaussian noise can also be added to the force applied to the cart.
-
+//
 // author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
 ////////////////////////////////////////////////////////////////////
 domain mountain_car {
@@ -31,7 +30,6 @@ domain mountain_car {
     	// physics constants
 		GRAVITY-MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
 		FORCE-MAG 	: { non-fluent, real, default = 0.001 };	    // force applied to the side of the cart
-		FORCE-NOISE-VAR : { non-fluent, real, default = 0.0 };      // variance of Gaussian noise applied to the force
 
 		// valley shape defined by piecewise linear with x in [-1.2, 0.6] and y in [0, 1]
 		X-START(segment) : { non-fluent, real, default = -1.2 };    // starting x-position of segment
@@ -61,8 +59,8 @@ domain mountain_car {
 
     cpfs {
 		
-		// apply noise to the force
-		force = (action + Normal(0.0, FORCE-NOISE-VAR) - 1) * FORCE-MAG;
+		// total force
+		force = (action - 1) * FORCE-MAG;
 		
 	    // get the slope of the segment the cart is currently in
 	    in-segment(?p) = (pos >= X-START(?p)) ^ (pos < X-END(?p));

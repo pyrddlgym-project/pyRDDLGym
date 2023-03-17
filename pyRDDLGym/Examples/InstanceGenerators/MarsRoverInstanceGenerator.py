@@ -69,7 +69,7 @@ params = [
      'area_bounds': (2., 4.), 'value_bounds': (2.5, 17.5), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 100, 'num_rovers': 20, 'location_bounds': (-40., 40.),
+    {'num_minerals': 100, 'num_rovers': 25, 'location_bounds': (-40., 40.),
      'area_bounds': (1., 3.), 'value_bounds': (0., 20.), 
      'horizon': 200, 'discount': 1.0}
 ]
