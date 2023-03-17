@@ -14,17 +14,34 @@ class PowerGenInstanceGenerator(InstanceGenerator):
         return 'power_gen'
     
     def sample_instance(self, params: Dict[str, object]) -> Dict[str, object]:
-        plants = [f'p{i + 1}' for i in range(params['num_plants'])]
+        num_gas = params['num_gas']
+        num_nuclear = params['num_nuclear']
+        num_solar = params['num_solar']
+        num_plants = num_gas + num_nuclear + num_solar
         
-        nonfluent_keys = ['TEMP-VARIANCE', 'DEMAND-EXP-COEF', 
-                          'MIN-DEMAND-TEMP', 'MIN-CONSUMPTION']
-        nonfluents = {key: params[key] for key in nonfluent_keys if key in params}
-        for p in plants:
-            nonfluents[f'PROD-UNITS-MIN({p})'] = 0.0
-            nonfluents[f'PROD-UNITS-MAX({p})'] = 20.0
+        plants = [f'p{i + 1}' for i in range(num_plants)]        
+        plant_types = ['gas'] * num_gas + ['nuclear'] * num_nuclear + ['solar'] * num_solar
+        plant_params = [self._sample_plant(t) for t in plant_types]
         
-        states = {'temperature': random.uniform(
-            params['temp_min'], params['temp_max'])}
+        nonfluents = {}
+        nonfluents[f'MIN-CONSUMPTION'] = 2.0 * params['demand_scale']
+        nonfluents[f'DEMAND-EXP-COEF'] = 0.01 * params['demand_scale']
+        
+        able_demand = 0.0
+        nonfluents[f'TEMP-VARIANCE'] = params['temp_variance']
+        for plant, param in zip(plants, plant_params):
+            able_demand += param['PROD-UNITS-MAX']
+            for key, value in param.items():
+                nonfluents[f'{key}({plant})'] = value
+        
+        def demand(t):
+            return nonfluents[f'MIN-CONSUMPTION'] + nonfluents[f'DEMAND-EXP-COEF'] * (t - 11.7) ** 2
+        
+        max_demand = max(demand(-30.0), demand(+40.0))
+        print(f'max demand = {max_demand}, capacity = {able_demand}')
+        
+        states = {}
+        states[f'temperature'] = random.uniform(*params['temp_range'])
         
         return {
             'objects': {'plant': plants},
@@ -34,44 +51,74 @@ class PowerGenInstanceGenerator(InstanceGenerator):
             'discount': params['discount'],
             'max-nondef-actions': 'pos-inf'
         }
+    
+    def _sample_plant(self, plant_type):
+        if plant_type == 'gas':
+            return self._sample_gas_fired_plant()
+        elif plant_type == 'nuclear':
+            return self._sample_nuclear_plant()
+        elif plant_type == 'solar':
+            return self._sample_solar_plant()
+        else:
+            raise Exception(f'Invalid plant type {plant_type}.')
+        
+    def _sample_gas_fired_plant(self):
+        return {
+            'PROD-UNITS-MIN': 1.0,
+            'PROD-UNITS-MAX': 10.0,
+            'TURN-ON-COST': 6.0,
+            'PROD-CHANGE-PENALTY': 1.0,
+            'COST-PER-UNIT': 4.0,
+            'PROD-SHAPE': 1.0,
+            'PROD-SCALE': 1e-7
+        }
+    
+    def _sample_nuclear_plant(self):
+        return {
+            'PROD-UNITS-MIN': 2.0,
+            'PROD-UNITS-MAX': 20.0,
+            'TURN-ON-COST': 15.0,
+            'PROD-CHANGE-PENALTY': 1.0,
+            'COST-PER-UNIT': 1.0,
+            'PROD-SHAPE': 1.0,
+            'PROD-SCALE': 1e-3
+        }
+        
+    def _sample_solar_plant(self):
+        return {
+            'PROD-UNITS-MIN': 1.0,
+            'PROD-UNITS-MAX': 5.0,
+            'TURN-ON-COST': 4.0,
+            'PROD-CHANGE-PENALTY': 0.5,
+            'COST-PER-UNIT': 3.0,
+            'PROD-SHAPE': 1.0,
+            'PROD-SCALE': 1.0
+        }
 
 
 params = [
     
-    # 3 generators, lower variance
-    {'num_plants': 3, 
-     'TEMP-VARIANCE': 4.0, 'DEMAND-EXP-COEF': 0.01, 
-     'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.0,
-     'temp_min': 0.0, 'temp_max': 30.0,
+    # difficulty is controlled by number and diversity of plant types, many of 
+    # which progressively require unit commitment
+    {'num_gas': 2, 'num_nuclear': 0, 'num_solar': 0,
+     'demand_scale': 1.0, 'temp_variance': 5.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
     
-    # 5 generators, lower variance
-    {'num_plants': 5, 
-     'TEMP-VARIANCE': 6.0, 'DEMAND-EXP-COEF': 0.015, 
-     'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 2.5,
-     'temp_min': 0.0, 'temp_max': 30.0,
+    {'num_gas': 2, 'num_nuclear': 1, 'num_solar': 0,
+     'demand_scale': 2.0, 'temp_variance': 6.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
     
-    # 10 generators, mid variance
-    {'num_plants': 10, 
-     'TEMP-VARIANCE': 8.0, 'DEMAND-EXP-COEF': 0.02, 
-     'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.0,
-     'temp_min': 0.0, 'temp_max': 30.0,
+    {'num_gas': 2, 'num_nuclear': 1, 'num_solar': 3,
+     'demand_scale': 3.0, 'temp_variance': 7.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
     
-    # 25 generators, mid variance
-    {'num_plants': 25, 
-     'TEMP-VARIANCE': 10.0, 'DEMAND-EXP-COEF': 0.025, 
-     'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 3.5,
-     'temp_min': 0.0, 'temp_max': 30.0,
+    {'num_gas': 3, 'num_nuclear': 2, 'num_solar': 2,
+     'demand_scale': 4.0, 'temp_variance': 8.0, 'temp_range': (-10.0, 30.0),
      'horizon': 100, 'discount': 1.0},
     
-    # 50 generators, high variance
-    {'num_plants': 50, 
-     'TEMP-VARIANCE': 12.0, 'DEMAND-EXP-COEF': 0.03, 
-     'MIN-DEMAND-TEMP': 11.7, 'MIN-CONSUMPTION': 4.0,
-     'temp_min': 0.0, 'temp_max': 30.0,
-     'horizon': 100, 'discount': 1.0}
+    {'num_gas': 3, 'num_nuclear': 3, 'num_solar': 4,
+     'demand_scale': 5.0, 'temp_variance': 9.0, 'temp_range': (-10.0, 30.0),
+     'horizon': 100, 'discount': 1.0},
 ]
               
 inst = PowerGenInstanceGenerator()

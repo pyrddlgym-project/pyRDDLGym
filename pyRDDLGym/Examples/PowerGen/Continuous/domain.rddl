@@ -44,8 +44,8 @@ domain power_gen {
 		COST-PER-UNIT(plant)       : { non-fluent, real, default = 5.0 };
 		INCOME-PER-UNIT            : { non-fluent, real, default = 8.0 };
 		TEMP-VARIANCE              : { non-fluent, real, default = 5.0 };
-		TEMP-MIN                   : { non-fluent, real, default = -40.0 };
-		TEMP-MAX                   : { non-fluent, real, default = 50.0 };
+		TEMP-MIN                   : { non-fluent, real, default = -30.0 };
+		TEMP-MAX                   : { non-fluent, real, default = 40.0 };
 		DEMAND-EXP-COEF            : { non-fluent, real, default = 0.01 };
 		MIN-DEMAND-TEMP            : { non-fluent, real, default = 11.7 };
 		MIN-CONSUMPTION            : { non-fluent, real, default = 2 };
