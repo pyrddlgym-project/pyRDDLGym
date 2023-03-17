@@ -44,6 +44,8 @@ domain power_gen {
 		COST-PER-UNIT(plant)       : { non-fluent, real, default = 5.0 };
 		INCOME-PER-UNIT            : { non-fluent, real, default = 8.0 };
 		TEMP-VARIANCE              : { non-fluent, real, default = 5.0 };
+		TEMP-MIN                   : { non-fluent, real, default = -40.0 };
+		TEMP-MAX                   : { non-fluent, real, default = 50.0 };
 		DEMAND-EXP-COEF            : { non-fluent, real, default = 0.01 };
 		MIN-DEMAND-TEMP            : { non-fluent, real, default = 11.7 };
 		MIN-CONSUMPTION            : { non-fluent, real, default = 2 };
@@ -76,7 +78,7 @@ domain power_gen {
 			else 0.0;
 		prevProd'(?p) = effectiveProd(?p);
 		prevOn'(?p) = curOn(?p);
-		temperature'  = Normal(temperature, TEMP-VARIANCE);
+		temperature'  = max[min[Normal(temperature, TEMP-VARIANCE), TEMP-MAX], TEMP-MIN];
 
 		// Demand -- a function of the current temperature,
 		//           empirically a U-shaped function with a minimum
