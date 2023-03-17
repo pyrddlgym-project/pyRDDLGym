@@ -65,7 +65,7 @@ class PowerGenInstanceGenerator(InstanceGenerator):
     def _sample_gas_fired_plant(self):
         return {
             'PROD-UNITS-MIN': 1.0,
-            'PROD-UNITS-MAX': 10.0,
+            'PROD-UNITS-MAX': 6.0,
             'TURN-ON-COST': 6.0,
             'PROD-CHANGE-PENALTY': 1.0,
             'COST-PER-UNIT': 4.0,
@@ -77,8 +77,8 @@ class PowerGenInstanceGenerator(InstanceGenerator):
         return {
             'PROD-UNITS-MIN': 2.0,
             'PROD-UNITS-MAX': 20.0,
-            'TURN-ON-COST': 15.0,
-            'PROD-CHANGE-PENALTY': 1.0,
+            'TURN-ON-COST': 60.0,
+            'PROD-CHANGE-PENALTY': 2.0,
             'COST-PER-UNIT': 1.0,
             'PROD-SHAPE': 1.0,
             'PROD-SCALE': 1e-3
@@ -87,7 +87,7 @@ class PowerGenInstanceGenerator(InstanceGenerator):
     def _sample_solar_plant(self):
         return {
             'PROD-UNITS-MIN': 1.0,
-            'PROD-UNITS-MAX': 5.0,
+            'PROD-UNITS-MAX': 4.0,
             'TURN-ON-COST': 4.0,
             'PROD-CHANGE-PENALTY': 0.5,
             'COST-PER-UNIT': 3.0,
@@ -101,23 +101,23 @@ params = [
     # difficulty is controlled by number and diversity of plant types, many of 
     # which progressively require unit commitment
     {'num_gas': 2, 'num_nuclear': 0, 'num_solar': 0,
-     'demand_scale': 1.0, 'temp_variance': 5.0, 'temp_range': (-10.0, 30.0),
+     'demand_scale': 1.0, 'temp_variance': 5.0, 'temp_range': (-30.0, 40.0),
      'horizon': 100, 'discount': 1.0},
     
     {'num_gas': 2, 'num_nuclear': 1, 'num_solar': 0,
-     'demand_scale': 2.0, 'temp_variance': 6.0, 'temp_range': (-10.0, 30.0),
+     'demand_scale': 2.0, 'temp_variance': 6.0, 'temp_range': (-30.0, 40.0),
      'horizon': 100, 'discount': 1.0},
     
     {'num_gas': 2, 'num_nuclear': 2, 'num_solar': 0,
-     'demand_scale': 3.0, 'temp_variance': 7.0, 'temp_range': (-10.0, 30.0),
+     'demand_scale': 3.0, 'temp_variance': 7.0, 'temp_range': (-30.0, 40.0),
      'horizon': 100, 'discount': 1.0},
     
     {'num_gas': 2, 'num_nuclear': 2, 'num_solar': 3,
-     'demand_scale': 4.0, 'temp_variance': 8.0, 'temp_range': (-10.0, 30.0),
+     'demand_scale': 4.0, 'temp_variance': 8.0, 'temp_range': (-30.0, 40.0),
      'horizon': 100, 'discount': 1.0},
     
-    {'num_gas': 2, 'num_nuclear': 3, 'num_solar': 4,
-     'demand_scale': 5.0, 'temp_variance': 9.0, 'temp_range': (-10.0, 30.0),
+    {'num_gas': 2, 'num_nuclear': 3, 'num_solar': 3,
+     'demand_scale': 5.0, 'temp_variance': 9.0, 'temp_range': (-30.0, 40.0),
      'horizon': 100, 'discount': 1.0},
 ]
               
