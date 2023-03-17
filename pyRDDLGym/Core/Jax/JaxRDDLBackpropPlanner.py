@@ -198,6 +198,7 @@ class JaxStraightLinePlan(JaxPlan):
         rddl = compiled.rddl
         init = self._initializer
         wrap_sigmoid = self._wrap_sigmoid
+        bool_threshold = 0.0 if wrap_sigmoid else 0.5
         
         # calculate the correct action box bounds
         shapes, bounds = {}, {}
@@ -262,8 +263,7 @@ class JaxStraightLinePlan(JaxPlan):
                 if prange == 'int':
                     action = jnp.round(action).astype(JaxRDDLCompiler.INT)
                 elif prange == 'bool':
-                    threshold = 0.0 if wrap_sigmoid else 0.5
-                    action = action > threshold
+                    action = action > bool_threshold
                 actions[var] = action
             return actions
         
@@ -293,8 +293,7 @@ class JaxStraightLinePlan(JaxPlan):
                 num_true = 0
                 for (var, param) in params.items():
                     if rddl.variable_ranges[var] == 'bool':
-                        threshold = 0.0 if wrap_sigmoid else 0.5
-                        num_true += jnp.sum(param > threshold)
+                        num_true += jnp.sum(param > bool_threshold)
                 surplus = jnp.maximum(num_true - rddl.max_allowed_actions, 0)
                 return surplus
             
@@ -315,8 +314,7 @@ class JaxStraightLinePlan(JaxPlan):
                 largest_to_reduce = large_to_small[rddl.max_allowed_actions]
                 
                 # determine how much all values smaller than this should reduce
-                threshold = 0.0 if wrap_sigmoid else 0.5
-                reduction = largest_to_reduce - threshold
+                reduction = largest_to_reduce - bool_threshold
                 
                 # switch off all these smaller values to False
                 new_params = {}
