@@ -181,23 +181,23 @@ class JaxStraightLinePlan(JaxPlan):
     '''A straight line plan implementation in JAX'''
     
     def __init__(self, initializer: initializers.Initializer=initializers.normal(),
-                 wrap_sigmoid_weight: float=None) -> None:
+                 wrap_sigmoid: bool=False) -> None:
         '''Creates a new straight line plan in JAX.
         
         :param initializer: a Jax Initializer for setting the initial actions
-        :param wrap_sigmoid_weight: weight to use for wrapping bool actions with
-        sigmoid (uses gradient clipping instead of sigmoid if None)
+        :param wrap_sigmoid: wrap bool actions with sigmoid 
+        (uses gradient clipping instead of sigmoid if None)
         '''
         super(JaxStraightLinePlan, self).__init__()
         self._initializer = initializer
-        self._wrap_sigmoid_weight = wrap_sigmoid_weight
+        self._wrap_sigmoid = wrap_sigmoid
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict,
                 horizon: int) -> None:
         rddl = compiled.rddl
         init = self._initializer
-        wrap_sigmoid_w = self._wrap_sigmoid_weight
+        wrap_sigmoid = self._wrap_sigmoid
         
         # calculate the correct action box bounds
         shapes, bounds = {}, {}
@@ -219,12 +219,14 @@ class JaxStraightLinePlan(JaxPlan):
                 
             # clip boolean to (0, 1) otherwise use the user action bounds
             if prange == 'bool':
-                if wrap_sigmoid_w:
+                if wrap_sigmoid:
                     bounds[name] = (-jnp.inf, jnp.inf)
                 else:
                     bounds[name] = (0.0, 1.0)
             else:
                 bounds[name] = _bounds.get(name, (-jnp.inf, jnp.inf))
+            warnings.warn(f'Bounds of action fluent <{name}> parameters '
+                          f'set to {bounds[name]}', stacklevel=2)
                 
         # initialize the parameters inside their valid ranges
         def _jax_wrapped_slp_init(key, subs):
@@ -240,18 +242,19 @@ class JaxStraightLinePlan(JaxPlan):
     
         # convert actions that are not smooth to real-valued
         # TODO: use a one-hot for integer actions
-        def _jax_wrapped_slp_predict_train(key, params, step, subs):
+        def _jax_wrapped_slp_predict_train(key, params, hyperparams, step, subs):
             actions = {}
             for (var, param) in params.items():
                 action = jnp.asarray(param[step, ...], dtype=JaxRDDLCompiler.REAL)
                 prange = rddl.variable_ranges[var]
-                if prange == 'bool' and wrap_sigmoid_w is not None:
-                    action = jax.nn.sigmoid(wrap_sigmoid_w * action)
+                if wrap_sigmoid and prange == 'bool':
+                    weight = hyperparams[var]
+                    action = jax.nn.sigmoid(weight * action)
                 actions[var] = action
             return actions
         
         # convert smooth actions back to discrete/boolean
-        def _jax_wrapped_slp_predict_test(key, params, step, subs):
+        def _jax_wrapped_slp_predict_test(key, params, hyperparams, step, subs):
             actions = {}
             for (var, param) in params.items():
                 action = jnp.asarray(param[step, ...])
@@ -259,7 +262,7 @@ class JaxStraightLinePlan(JaxPlan):
                 if prange == 'int':
                     action = jnp.round(action).astype(JaxRDDLCompiler.INT)
                 elif prange == 'bool':
-                    threshold = 0.5 if wrap_sigmoid_w is None else 0.0
+                    threshold = 0.0 if wrap_sigmoid else 0.5
                     action = action > threshold
                 actions[var] = action
             return actions
@@ -285,48 +288,46 @@ class JaxStraightLinePlan(JaxPlan):
                           f'{bool_action_count} > max_nondef_actions '
                           f'{rddl.max_allowed_actions}.', stacklevel=2)
             
-            # calculate the surplus of actions above max-nondef-actions
-            # if wrapping with sigmoid need to compute surplus after activation
+            # count the number of boolean actions that are True
             def _jax_wrapped_sogbofa_surplus(params):
-                sum_params, count = 0.0, 0
+                num_true = 0
                 for (var, param) in params.items():
                     if rddl.variable_ranges[var] == 'bool':
-                        sum_params += jnp.sum(param)
-                        count += jnp.sum(param > 0)
-                surplus = jnp.maximum(sum_params - rddl.max_allowed_actions, 0.0)
-                count = jnp.maximum(count, 1)
-                return surplus / count
-                
-            # return whether the surplus is positive
-            def _jax_wrapped_sogbofa_positive_surplus(values):
-                _, surplus = values
-                return surplus > 0
+                        threshold = 0.0 if wrap_sigmoid else 0.5
+                        num_true += jnp.sum(param > threshold)
+                surplus = jnp.maximum(num_true - rddl.max_allowed_actions, 0)
+                return surplus
             
-            # reduce all bool action values by the surplus clipping at zero
-            # if wrapping with sigmoid need to calculate desired change of param
-            # given desired change in output based on surplus
-            # (in this case we need to set a nonzero bound on desired output)
-            def _jax_wrapped_sogbofa_subtract_surplus(values):
-                params, surplus = values
+            # reduce the values of all boolean action parameters except the 
+            # largest rddl.max_allowed_actions, such that they will predict False
+            def _jax_wrapped_sogbofa_reduce(params):
+                params_flat = []
+                for (var, param) in params.items():
+                    if rddl.variable_ranges[var] == 'bool':
+                        params_flat.append(jnp.ravel(param))
+                params_flat = jnp.concatenate(params_flat)
+                large_to_small = jnp.sort(params_flat)[::-1]
+                largest_to_reduce = large_to_small[rddl.max_allowed_actions]
+                threshold = 0.0 if wrap_sigmoid else 0.5
+                reduction = largest_to_reduce - threshold
                 new_params = {}
                 for (var, param) in params.items():
                     if rddl.variable_ranges[var] == 'bool':
-                        new_param = jnp.maximum(param - surplus, 0.0)
-                    else:
-                        new_param = param
-                    new_params[var] = new_param
-                new_surplus = _jax_wrapped_sogbofa_surplus(new_params)
-                return new_params, new_surplus
+                        reduced_param = param - reduction
+                        if wrap_sigmoid:
+                            reduced_param = jnp.maximum(reduced_param, 0.0)
+                        new_params[var] = jnp.where(
+                            param <= largest_to_reduce, reduced_param, param) 
+                return new_params
             
-            # reduce bool action values by surplus until it becomes zero
             def _jax_wrapped_sogbofa_project(params):
                 surplus = _jax_wrapped_sogbofa_surplus(params)
-                params, _ = jax.lax.while_loop(
-                    cond_fun=_jax_wrapped_sogbofa_positive_surplus,
-                    body_fun=_jax_wrapped_sogbofa_subtract_surplus,
-                    init_val=(params, surplus)
+                return jax.lax.cond(
+                    surplus > 0, 
+                    _jax_wrapped_sogbofa_reduce,
+                    lambda p: p,
+                    params
                 )
-                return params
             
             # clip actions to valid bounds and satisfy constraint on max actions
             def _jax_wrapped_slp_project_to_max_constraint(params):
@@ -334,8 +335,7 @@ class JaxStraightLinePlan(JaxPlan):
                 project_over_horizon = jax.vmap(
                     _jax_wrapped_sogbofa_project, in_axes=0
                 )
-                params = project_over_horizon(params)
-                return params
+                return project_over_horizon(params)
             
             self.projection = _jax_wrapped_slp_project_to_max_constraint
             
@@ -350,7 +350,8 @@ class JaxStraightLinePlan(JaxPlan):
         return jnp.append(param[1:, ...], param[-1:, ...], axis=0)
 
     def guess_next_epoch(self, params: Dict) -> Dict:
-        return jax.tree_map(JaxStraightLinePlan._guess_next_epoch, params)
+        next_fn = JaxStraightLinePlan._guess_next_epoch
+        return jax.tree_map(next_fn, params)
 
             
 class JaxRDDLBackpropPlanner:
@@ -491,8 +492,9 @@ class JaxRDDLBackpropPlanner:
             return rewards
         
         # the loss is the average cumulative reward across all roll-outs
-        def _jax_wrapped_plan_loss(key, policy_params, subs, model_params):
-            log = rollouts(key, policy_params, subs, model_params)
+        def _jax_wrapped_plan_loss(key, policy_params, hyperparams, 
+                                   subs, model_params):
+            log = rollouts(key, policy_params, hyperparams, subs, model_params)
             rewards = log['reward']
             rewards = _jax_wrapped_scale_reward(rewards)
             returns = jnp.sum(rewards, axis=1)
@@ -507,12 +509,10 @@ class JaxRDDLBackpropPlanner:
         # calculate the plan gradient w.r.t. return loss and update optimizer
         # optionally does gradient normalization
         # also perform a projection step to satisfy constraints on actions
-        def _jax_wrapped_plan_update(
-                key, policy_params, subs, model_params, opt_state):
-            grad, log = jax.grad(
-                loss, argnums=1, has_aux=True
-            )(key, policy_params, subs, model_params)
-            
+        def _jax_wrapped_plan_update(key, policy_params, hyperparams, 
+                                     subs, model_params, opt_state):
+            grad_fn = jax.grad(loss, argnums=1, has_aux=True)
+            grad, log = grad_fn(key, policy_params, hyperparams, subs, model_params)            
             log['grad'] = grad
             updates, opt_state = optimizer.update(grad, opt_state)
             policy_params = optax.apply_updates(policy_params, updates)
@@ -544,6 +544,7 @@ class JaxRDDLBackpropPlanner:
     def optimize(self, key: random.PRNGKey,
                  epochs: int,
                  step: int=1,
+                 policy_hyperparams: Dict[str, object]=None,
                  subs: Dict[str, object]=None,
                  guess: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
         ''' Compute an optimal straight-line plan.
@@ -551,6 +552,8 @@ class JaxRDDLBackpropPlanner:
         :param key: JAX PRNG key
         :param epochs: the maximum number of steps of gradient descent
         :param step: frequency the callback is provided back to the user
+        :param policy_hyperparams: hyper-parameters for the policy/plan, such as
+        weights for sigmoid wrapping boolean actions
         :param subs: dictionary mapping initial state and non-fluents to 
         their values: if None initializes all variables from the RDDL instance
         :param guess: initial policy parameters: if None will use the initializer
@@ -580,11 +583,16 @@ class JaxRDDLBackpropPlanner:
             # update the parameters of the plan
             key, subkey1, subkey2, subkey3 = random.split(key, num=4)
             policy_params, opt_state, train_log = self.update(
-                subkey1, policy_params, train_subs, model_params, opt_state)
+                subkey1, policy_params, policy_hyperparams, 
+                train_subs, model_params, opt_state)
+            
+            # evaluate losses
             train_loss, _ = self.train_loss(
-                subkey2, policy_params, train_subs, model_params)
+                subkey2, policy_params, policy_hyperparams, 
+                train_subs, model_params)
             test_loss, log = self.test_loss(
-                subkey3, policy_params, test_subs, model_params_test)
+                subkey3, policy_params, policy_hyperparams, 
+                test_subs, model_params_test)
             
             # record the best plan so far
             if test_loss < best_loss:
@@ -607,16 +615,19 @@ class JaxRDDLBackpropPlanner:
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
                    step: int,
-                   subs: Dict) -> Dict[str, object]:
+                   subs: Dict,
+                   policy_hyperparams: Dict[str, object]=None) -> Dict[str, object]:
         '''Returns an action dictionary from the policy or plan with the given
         parameters.
         
         :param key: the JAX PRNG key
         :param params: the trainable parameter PyTree of the policy
         :param step: the time step at which decision is made
+        :param policy_hyperparams: hyper-parameters for the policy/plan, such as
+        weights for sigmoid wrapping boolean actions
         :param subs: the dict of pvariables
         '''
-        actions = self.test_policy(key, params, step, subs)
+        actions = self.test_policy(key, params, policy_hyperparams, step, subs)
         grounded_actions = {}
         for (var, action) in actions.items():
             for (ground_var, ground_act) in self.rddl.ground_values(var, action):
