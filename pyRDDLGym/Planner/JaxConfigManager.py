@@ -26,17 +26,19 @@ def get(path: str) -> Dict[str, object]:
     env_args = {k: args[k] for (k, v) in config.items('Environment')}
     
     # try to read from rddlrepository
+    domain_name = env_args['domain']
+    inst_name = env_args['instance']
     try:
         from rddlrepository.Manager.RDDLRepoManager import RDDLRepoManager
         manager = RDDLRepoManager()
-        EnvInfo = manager.get_problem(env_args['domain'])
-        print('reading domain from rddlrepository...')
+        EnvInfo = manager.get_problem(domain_name)
+        print(f'reading domain {domain_name} from rddlrepository...')
     except:
-        EnvInfo = ExampleManager.GetEnvInfo(env_args['domain'])
-        print('reading domain from Examples...')
-        
+        EnvInfo = ExampleManager.GetEnvInfo(domain_name)
+        print(f'reading domain {domain_name} from Examples...')
+    
     env_args['domain'] = EnvInfo.get_domain()
-    env_args['instance'] = EnvInfo.get_instance(env_args['instance'])
+    env_args['instance'] = EnvInfo.get_instance(inst_name)
         
     myEnv = RDDLEnv(**env_args)
     myEnv.set_visualizer(EnvInfo.get_visualizer())
@@ -61,6 +63,6 @@ def get(path: str) -> Dict[str, object]:
     train_args = {k: args[k] for (k, v) in config.items('Training')}
     train_args['key'] = jax.random.PRNGKey(train_args['key'])
     
-    return myEnv, optimizer, train_args
+    return myEnv, optimizer, train_args, (domain_name, inst_name)
 
     
