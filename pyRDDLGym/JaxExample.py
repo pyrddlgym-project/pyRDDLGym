@@ -1,9 +1,13 @@
 import jax
 import sys
+import time
+
 
 from pyRDDLGym.Planner import JaxConfigManager
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 # from pyRDDLGym.Core.Jax.JaxRDDLModelError import JaxRDDLModelError
+
+timeout = 60 * 5
 
 
 def print_parameterized_exprs(planner):
@@ -15,14 +19,25 @@ def print_parameterized_exprs(planner):
         print(f'\nid = {_id}:\n' + RDDLDecompiler().decompile_expr(expr))
     
     
-def slp_train(planner, **train_args):
-    # print_parameterized_exprs(planner)
+def slp_train(planner, budget, **train_args):
+    step = train_args['step']
+    del train_args['step']
     print('\n' + 'training plan:')
-    for callback in planner.optimize(**train_args):
-        print('step={} train_return={:.6f} test_return={:.6f}'.format(
-              str(callback['iteration']).rjust(4),
-              callback['train_return'],
-              callback['test_return']))
+    starttime = time.time()
+    for i, callback in enumerate(planner.optimize(**train_args, step=1)):
+        currtime = time.time()
+        elapsed = currtime - starttime
+        
+        if i % step == 0:
+            print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
+                elapsed,
+                str(callback['iteration']).rjust(4),
+                callback['train_return'],
+                callback['test_return']))
+        
+        if elapsed >= budget:
+            print('ran out of time!')
+            break
     params = callback['params']
     
     # key = jax.random.PRNGKey(42)
@@ -35,7 +50,7 @@ def slp_train(planner, **train_args):
 
 def slp_no_replan(env):
     myEnv, planner, train_args = JaxConfigManager.get(f'{env}.cfg')
-    params = slp_train(planner, **train_args)
+    params = slp_train(planner, timeout, **train_args)
     
     key = train_args['key']    
     total_reward = 0
@@ -64,20 +79,32 @@ def slp_replan(env):
     
     key = train_args['key']
     total_reward = 0
-    state = myEnv.reset()
+    state = myEnv.reset() 
+    starttime = time.time()
     for step in range(myEnv.horizon):
-        subs = myEnv.sampler.subs
-        params = slp_train(planner, subs=subs, **train_args)
-        key, subkey = jax.random.split(key)
-        action = planner.get_action(subkey, params, 0, subs)
+        currtime = time.time()
+        elapsed = currtime - starttime
+        
+        if elapsed < timeout:
+            subs = myEnv.sampler.subs
+            params = slp_train(planner, budget=timeout - elapsed, 
+                               subs=subs, **train_args)
+            key, subkey = jax.random.split(key)
+            action = planner.get_action(subkey, params, 0, subs)
+        else:
+            print('ran out of time!')
+            action = {}
+        
         next_state, reward, done, _ = myEnv.step(action)
         total_reward += reward 
+        
         print()
-        print('step       = {}'.format(step))
-        print('state      = {}'.format(state))
-        print('action     = {}'.format(action))
-        print('next state = {}'.format(next_state))
-        print('reward     = {}'.format(reward))
+        print(f'elapsed    = {elapsed} s')
+        print(f'step       = {step}')
+        print(f'state      = {state}')
+        print(f'action     = {action}')
+        print(f'next state = {next_state}')
+        print(f'reward     = {reward}')
         state = next_state
         if done: 
             break
@@ -94,7 +121,7 @@ def main(env, replan):
         
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        args = [sys.argv[0]] + ['Traffic']
+        args = [sys.argv[0]] + ['Wildfire replan']
     else:
         args = sys.argv
     env = args[1]
