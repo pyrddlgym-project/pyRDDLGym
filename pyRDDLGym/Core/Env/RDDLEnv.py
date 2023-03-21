@@ -3,6 +3,7 @@ import gym
 from gym.spaces import Discrete, Dict, Box
 import numpy as np
 import pygame
+import os
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -23,6 +24,7 @@ class RDDLEnv(gym.Env):
                  enforce_action_constraints: bool=False,
                  debug: bool=False,
                  log: bool=False,
+                 simlogname: str=None,
                  backend: object=RDDLSimulator):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
@@ -50,9 +52,20 @@ class RDDLEnv(gym.Env):
         
         # for logging
         ast = self.model._AST
-        fname = f'{ast.domain.name}_{ast.instance.name}'
-        logger = Logger(f'{fname}_debug.log') if debug else None
-        self.simlogger = SimLogger(f'{fname}_log.csv') if log else None
+        self.trial = 0
+        log_fname = f'{ast.domain.name}_{ast.instance.name}'
+        logger = Logger(f'{log_fname}_debug.log') if debug else None
+        self.simlogger = None
+        if log:
+            curpath = os.path.abspath(__file__)
+            for _ in range(3):
+                curpath = os.path.split(curpath)[0]
+            dir = os.path.join(curpath, 'Logs', simlogname, ast.domain.name)
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+            simlog_fname = os.path.join(dir, ast.instance.name)
+            self.simlogger = SimLogger(f'{simlog_fname}_log.csv')
+        # self.simlogger = SimLogger(f'{log_fname}_log.csv') if log else None
         if self.simlogger:
             self.simlogger.clear()
         
@@ -209,6 +222,15 @@ class RDDLEnv(gym.Env):
                 self._movies += 1
             self._movie_generator.save_frame(image)            
         self.image_size = image.size
+
+        # Logging
+        if self.simlogger:
+            self.trial += 1
+            text = '######################################################\n'
+            text += '\t\t Trial number: ' + str(self.trial) + '\n'
+            text += '######################################################\n'
+            self.simlogger.log_free(text)
+
         return obs
 
     def pilImageToSurface(self, pilImage):
