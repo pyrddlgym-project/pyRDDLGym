@@ -61,7 +61,10 @@ class SimLogger:
         self.iteration += 1
         if len(self.data) >= self.write_freq:
             self._write_data()
-    
+
+    def log_free(self, text) -> None:
+        self.data.append(text)
+
     def close(self):
         if self.data:
             self._write_data()
