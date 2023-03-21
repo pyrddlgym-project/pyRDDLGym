@@ -56,10 +56,11 @@ if __name__ == "__main__":
     args = sys.argv
     method_name = None
     episodes = 1
-    if len(args) < 3:
+    if len(args) < 4:
         env, inst = 'HVAC', '1'
-    elif len(args) < 6:
-        env, inst, method_name = args[1:3]
+    elif len(args) == 4:
+        env, inst, method_name = args[1:4]
     else:
         env, inst, method_name, episodes = args[1:5]
+        episodes = int(episodes)
     main(env, inst, method_name, episodes)
