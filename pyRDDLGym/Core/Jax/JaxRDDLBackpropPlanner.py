@@ -181,16 +181,20 @@ class JaxStraightLinePlan(JaxPlan):
     '''A straight line plan implementation in JAX'''
     
     def __init__(self, initializer: initializers.Initializer=initializers.normal(),
-                 wrap_sigmoid: bool=False) -> None:
+                 wrap_sigmoid: bool=True,
+                 projection_old: bool=False) -> None:
         '''Creates a new straight line plan in JAX.
         
         :param initializer: a Jax Initializer for setting the initial actions
         :param wrap_sigmoid: wrap bool actions with sigmoid 
         (uses gradient clipping instead of sigmoid if None)
+        :param projection_old: whether to use old (SOGBOFA) projection for bool
+        action constraints, or the new method
         '''
         super(JaxStraightLinePlan, self).__init__()
         self._initializer = initializer
         self._wrap_sigmoid = wrap_sigmoid
+        self._projection_old = projection_old
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict,
@@ -235,6 +239,8 @@ class JaxStraightLinePlan(JaxPlan):
             for (var, shape) in shapes.items():
                 key, subkey = random.split(key)
                 param = init(subkey, shape, dtype=JaxRDDLCompiler.REAL)
+                if rddl.variable_ranges[var] == 'bool':
+                    param = param + bool_threshold
                 param = jnp.clip(param, *bounds[var])
                 params[var] = param
             return params
@@ -247,8 +253,7 @@ class JaxStraightLinePlan(JaxPlan):
             actions = {}
             for (var, param) in params.items():
                 action = jnp.asarray(param[step, ...], dtype=JaxRDDLCompiler.REAL)
-                prange = rddl.variable_ranges[var]
-                if wrap_sigmoid and prange == 'bool':
+                if wrap_sigmoid and rddl.variable_ranges[var] == 'bool':
                     weight = hyperparams[var]
                     action = jax.nn.sigmoid(weight * action)
                 actions[var] = action
@@ -277,67 +282,112 @@ class JaxStraightLinePlan(JaxPlan):
             return params
             
         # find if action clipping is required for max-definite-actions < pos-inf
+        allowed_actions = rddl.max_allowed_actions
         bool_action_count = sum(np.size(values)
                                 for (var, values) in rddl.actions.items()
                                 if rddl.variable_ranges[var] == 'bool')
-        use_sogbofa_clip_trick = rddl.max_allowed_actions < bool_action_count
+        use_sogbofa_clip_trick = allowed_actions < bool_action_count
         
         if use_sogbofa_clip_trick: 
             warnings.warn(f'Using projected gradient trick to satisfy '
                           f'max_nondef_actions: total boolean actions '
                           f'{bool_action_count} > max_nondef_actions '
-                          f'{rddl.max_allowed_actions}.', stacklevel=2)
+                          f'{allowed_actions}.', stacklevel=2)
             
-            # count the number of boolean actions that are True
-            def _jax_wrapped_sogbofa_surplus(params):
-                num_true = 0
-                for (var, param) in params.items():
-                    if rddl.variable_ranges[var] == 'bool':
-                        num_true += jnp.sum(param > bool_threshold)
-                surplus = jnp.maximum(num_true - rddl.max_allowed_actions, 0)
-                return surplus
-            
-            # reduce the values of all boolean action parameters except the 
-            # largest rddl.max_allowed_actions, such that they will predict False
-            def _jax_wrapped_sogbofa_reduce(params):
+            if self._projection_old and not self._wrap_sigmoid:
                 
-                # find "max_allowed_actions" + 1-st largest parameter
-                # we only call this subroutine if there is a surplus, so this
-                # value is currently predicting True; we want it and others below
-                # to now predict False
-                params_flat = []
-                for (var, param) in params.items():
-                    if rddl.variable_ranges[var] == 'bool':
-                        params_flat.append(jnp.ravel(param))
-                params_flat = jnp.concatenate(params_flat)
-                large_to_small = jnp.sort(params_flat)[::-1]
-                largest_to_reduce = large_to_small[rddl.max_allowed_actions]
+                # calculate the surplus of actions above max-nondef-actions
+                # if wrapping sigmoid need to compute surplus after activation
+                def _jax_wrapped_sogbofa_surplus(params):
+                    sum_params, count = 0.0, 0
+                    for (var, param) in params.items():
+                        if rddl.variable_ranges[var] == 'bool':
+                            sum_params += jnp.sum(param)
+                            count += jnp.sum(param > 0)
+                    surplus = jnp.maximum(sum_params - allowed_actions, 0.0)
+                    count = jnp.maximum(count, 1)
+                    return surplus / count
                 
-                # determine how much all values smaller than this should reduce
-                reduction = largest_to_reduce - bool_threshold
+                # return whether the surplus is positive
+                def _jax_wrapped_sogbofa_positive_surplus(values):
+                    _, surplus = values
+                    return surplus > 0
                 
-                # switch off all these smaller values to False
-                new_params = {}
-                for (var, param) in params.items():
-                    if rddl.variable_ranges[var] == 'bool':
-                        reduced_param = param - reduction
-                        if not wrap_sigmoid:
-                            reduced_param = jnp.maximum(reduced_param, 0.0)
-                        new_params[var] = jnp.where(
-                            param <= largest_to_reduce, reduced_param, param) 
-                    else:
-                        new_params[var] = param
-                return new_params
-            
-            def _jax_wrapped_sogbofa_project(params):
-                surplus = _jax_wrapped_sogbofa_surplus(params)
-                return jax.lax.cond(
-                    surplus > 0, 
-                    _jax_wrapped_sogbofa_reduce,
-                    lambda p: p,
-                    params
-                )
-            
+                # reduce all bool action values by the surplus clipping at zero
+                # if wrap with sigmoid need to calculate desired change of param
+                # given desired change in output based on surplus
+                # (in this case we need to set a nonzero bound on desired output)
+                def _jax_wrapped_sogbofa_subtract_surplus(values):
+                    params, surplus = values
+                    new_params = {}
+                    for (var, param) in params.items():
+                        if rddl.variable_ranges[var] == 'bool':
+                            new_param = jnp.maximum(param - surplus, 0.0)
+                        else:
+                            new_param = param
+                        new_params[var] = new_param
+                    new_surplus = _jax_wrapped_sogbofa_surplus(new_params)
+                    return new_params, new_surplus
+                
+                # reduce bool action values by surplus until it becomes zero
+                def _jax_wrapped_sogbofa_project(params):
+                    surplus = _jax_wrapped_sogbofa_surplus(params)
+                    params, _ = jax.lax.while_loop(
+                        cond_fun=_jax_wrapped_sogbofa_positive_surplus,
+                        body_fun=_jax_wrapped_sogbofa_subtract_surplus,
+                        init_val=(params, surplus)
+                    )
+                    return params
+                
+            else:
+                
+                # count the number of boolean actions that are True
+                def _jax_wrapped_sogbofa_surplus(params):
+                    num_true = 0
+                    for (var, param) in params.items():
+                        if rddl.variable_ranges[var] == 'bool':
+                            num_true += jnp.sum(param > bool_threshold)
+                    surplus = jnp.maximum(num_true - allowed_actions, 0)
+                    return surplus
+                
+                # reduce the values of all boolean action parameters except the 
+                # largest rddl.max_allowed_actions, such that they predict False
+                def _jax_wrapped_sogbofa_reduce(params):
+                    
+                    # find "max_allowed_actions" + 1-st largest parameter
+                    params_flat = []
+                    for (var, param) in params.items():
+                        if rddl.variable_ranges[var] == 'bool':
+                            params_flat.append(jnp.ravel(param))
+                    params_flat = jnp.concatenate(params_flat)
+                    large_to_small = jnp.sort(params_flat)[::-1]
+                    largest_to_reduce = large_to_small[allowed_actions]
+                    
+                    # determine how much to reduce all values smaller than this
+                    reduction = largest_to_reduce - bool_threshold
+                    
+                    # switch off all these smaller values to False
+                    new_params = {}
+                    for (var, param) in params.items():
+                        if rddl.variable_ranges[var] == 'bool':
+                            reduced_param = param - reduction
+                            if not wrap_sigmoid:
+                                reduced_param = jnp.maximum(reduced_param, 0.0)
+                            new_params[var] = jnp.where(
+                                param <= largest_to_reduce, reduced_param, param) 
+                        else:
+                            new_params[var] = param
+                    return new_params
+                
+                def _jax_wrapped_sogbofa_project(params):
+                    surplus = _jax_wrapped_sogbofa_surplus(params)
+                    return jax.lax.cond(
+                        surplus > 0, 
+                        _jax_wrapped_sogbofa_reduce,
+                        lambda p: p,
+                        params
+                    )
+                
             # clip actions to valid bounds and satisfy constraint on max actions
             def _jax_wrapped_slp_project_to_max_constraint(params):
                 params = _jax_wrapped_slp_project_to_box(params)
@@ -516,7 +566,6 @@ class JaxRDDLBackpropPlanner:
     def _jax_update(self, loss, optimizer, projection):
         
         # calculate the plan gradient w.r.t. return loss and update optimizer
-        # optionally does gradient normalization
         # also perform a projection step to satisfy constraints on actions
         def _jax_wrapped_plan_update(key, policy_params, hyperparams, 
                                      subs, model_params, opt_state):
