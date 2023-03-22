@@ -33,7 +33,7 @@ non-fluents rover2 {
 }
 
 // Specify three power plants with default settings
-instance inst_mars_rover {
+instance inst_mars_rover_0 {
 
 	domain = mars_rover_science_mission;
 

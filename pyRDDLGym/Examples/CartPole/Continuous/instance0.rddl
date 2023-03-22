@@ -13,7 +13,7 @@ non-fluents cart_pole_con_0 {
 }
 
 // Specify cart pole with default settings
-instance inst_cart_pole_con {
+instance inst_cart_pole_con_0 {
 
 	domain = cart_pole_continuous;
 

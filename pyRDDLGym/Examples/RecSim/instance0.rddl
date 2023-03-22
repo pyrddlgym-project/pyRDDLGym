@@ -37,7 +37,7 @@ non-fluents nf_recsim_ecosystem_welfare__1 {
 	};
 }
 
-instance recsim_ecosystem_welfare__1 {
+instance recsim_ecosystem_welfare__0 {
 	domain = recsim_ecosystem_welfare;
 	non-fluents = nf_recsim_ecosystem_welfare__1;
 	init-state {
