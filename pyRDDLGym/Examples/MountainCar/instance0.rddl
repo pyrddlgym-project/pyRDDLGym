@@ -424,7 +424,7 @@ non-fluents mountain_car_vars {
 }
 
 // Specify cart pole with default settings
-instance inst_mountain_car {
+instance inst_mountain_car_0 {
 
 	domain = mountain_car;
 	

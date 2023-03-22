@@ -22,7 +22,7 @@ non-fluents Reservoir_10nf {
 	};
 }
 
-instance Reservoir_3 {
+instance Reservoir_cont_1 {
 	domain = reservoir_control_dis;
 	non-fluents = Reservoir_10nf;
 

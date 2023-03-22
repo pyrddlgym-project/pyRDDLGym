@@ -51,7 +51,7 @@ non-fluents nf_wildfire_inst_mdp__1 {
 	};
 }
 
-instance wildfire_inst_mdp__1 {
+instance wildfire_inst_mdp_0 {
 	domain = wildfire_mdp;
 	non-fluents = nf_wildfire_inst_mdp__1;
 	init-state {

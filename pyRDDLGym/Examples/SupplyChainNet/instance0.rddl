@@ -41,7 +41,7 @@ non-fluents supply_chain_network_6 {
 	};
 }
 
-instance inst_supply_chain_network {
+instance inst_supply_chain_network_0 {
 
 	domain = supply_chain_network;
 	
