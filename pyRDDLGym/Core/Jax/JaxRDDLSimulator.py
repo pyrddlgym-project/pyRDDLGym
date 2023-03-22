@@ -1,5 +1,6 @@
 import jax
 import numpy as np
+np.seterr(all='raise')
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
