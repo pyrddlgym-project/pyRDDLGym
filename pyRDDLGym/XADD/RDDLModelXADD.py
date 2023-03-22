@@ -22,10 +22,10 @@ EXPONENTIAL_VAR_NAME = '#_EXPONENTIAL_{num}'
 
 class RDDLModelWXADD(PlanningModel):
 
-    def __init__(self, model: RDDLGroundedModel):
+    def __init__(self, model: RDDLGroundedModel, context: XADD = None):
         super().__init__()
         self.model = model
-        self._context: XADD = XADD()
+        self._context: XADD = XADD() if context is None else context
         self._var_name_to_node_id = {}
         self._sympy_var_to_node_id = {}
         self._sympy_var_name_to_var_name = {}
