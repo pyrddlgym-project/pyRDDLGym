@@ -67,7 +67,7 @@ class RDDLEnv(gym.Env):
             self.simlogger = SimLogger(f'{simlog_fname}_log.csv')
         # self.simlogger = SimLogger(f'{log_fname}_log.csv') if log else None
         if self.simlogger:
-            self.simlogger.clear()
+            self.simlogger.clear(overwrite=False)
         
         # define the model sampler and bounds    
         self.sampler = backend(self.model, logger=logger)
@@ -227,8 +227,8 @@ class RDDLEnv(gym.Env):
         if self.simlogger:
             self.trial += 1
             text = '######################################################\n'
-            text += '\t\t Trial number: ' + str(self.trial) + '\n'
-            text += '######################################################\n'
+            text += 'New Trial number\n'
+            text += '######################################################'
             self.simlogger.log_free(text)
 
         return obs
