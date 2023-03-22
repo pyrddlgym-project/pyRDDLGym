@@ -227,7 +227,7 @@ class RDDLEnv(gym.Env):
         if self.simlogger:
             self.trial += 1
             text = '######################################################\n'
-            text += 'New Trial number\n'
+            text += 'New Trial\n'
             text += '######################################################'
             self.simlogger.log_free(text)
 
