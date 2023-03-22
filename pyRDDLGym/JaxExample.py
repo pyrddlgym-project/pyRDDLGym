@@ -7,10 +7,6 @@ from pyRDDLGym.Planner import JaxConfigManager
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
 # from pyRDDLGym.Core.Jax.JaxRDDLModelError import JaxRDDLModelError
 
-timeout = 60 * 3
-trials = 1
-save = False
-
 
 def print_parameterized_exprs(planner):
     model_params = planner.compiled.model_params
@@ -50,7 +46,7 @@ def slp_train(planner, budget, **train_args):
     return params
 
 
-def slp_no_replan(env):
+def slp_no_replan(env, trials, timeout, timeout_ps, save):
     myEnv, planner, train_args, (dom, inst) = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']    
     
@@ -86,7 +82,7 @@ def slp_no_replan(env):
         np.savetxt(f'{dom}_{inst}_slp.csv', rewards, delimiter=',')
 
     
-def slp_replan(env):
+def slp_replan(env, trials, timeout, timeout_ps, save):
     myEnv, planner, train_args, (dom, inst) = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']
     
@@ -102,8 +98,10 @@ def slp_replan(env):
             
             if elapsed < timeout:
                 subs = myEnv.sampler.subs
-                params = slp_train(planner, budget=timeout - elapsed,
-                                   subs=subs, **train_args)
+                params = slp_train(planner,
+                                   budget=min(timeout - elapsed, timeout_ps),
+                                   subs=subs,
+                                   **train_args)
                 key, subkey = jax.random.split(key)
                 action = planner.get_action(subkey, params, 0, subs)
             else:
@@ -131,19 +129,22 @@ def slp_replan(env):
         np.savetxt(f'{dom}_{inst}_mpc.csv', rewards, delimiter=',')
 
     
-def main(env, replan):
+def main(env, replan, trials, timeout, timeout_ps, save):
     if replan:
-        slp_replan(env)
+        slp_replan(env, trials, timeout, timeout_ps, save)
     else: 
-        slp_no_replan(env)
+        slp_no_replan(env, trials, timeout, timeout_ps, save)
     
         
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        args = [sys.argv[0]] + ['Wildfire replan']
+    if len(sys.argv) < 6:
+        env, trials, timeout, timeout_ps, save = 'Wildfire replan', 1, 60 * 2, 1, False
     else:
-        args = sys.argv
-    env = args[1]
+        env, trials, timeout, timeout_ps, save = sys.argv[1:6]
+        trials = int(trials)
+        timeout = int(timeout)
+        timeout_ps = int(timeout_ps)
+        save = save == 'True' or save == True
     replan = env.endswith('replan')
-    main(env, replan)
+    main(env, replan, trials, timeout, timeout_ps, save) 
     
