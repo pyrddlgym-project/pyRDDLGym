@@ -40,7 +40,7 @@ non-fluents racecar_straight {
 
 
 // Specify race car domain
-instance inst_racecar_circle {
+instance inst_racecar_circle_1 {
 
 	domain = racecar;
 

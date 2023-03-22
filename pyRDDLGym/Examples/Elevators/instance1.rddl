@@ -43,7 +43,7 @@ non-fluents elevators3 {
  	}; 
  }
  
-instance elevators_int_inst_mdp { 
+instance elevators_int_inst_mdp_1 {
 
 	domain = elevators_int_mdp; 
 

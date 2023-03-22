@@ -645,7 +645,7 @@ non-fluents grid_1x5_dominant_Eb {
     };
 }
 
-instance grid_1x5 {
+instance grid_1x5_1 {
     domain = BLX_model;
     non-fluents = grid_1x5_dominant_Eb;
     max-nondef-actions = 5;

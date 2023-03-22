@@ -34,7 +34,7 @@ non-fluents nf_simple_UAV_p0{
 	};
 }
 
-instance simple_UAV_p0 {
+instance simple_UAV_cont_0 {
 	domain = kinematic_UAVs_con;
 	non-fluents = nf_simple_UAV_p0;
 	

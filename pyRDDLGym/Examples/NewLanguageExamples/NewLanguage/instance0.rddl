@@ -14,7 +14,7 @@ non-fluents newsyntax_nf {
 	};
 }
 
-instance inst_newsyntax {
+instance inst_newsyntax_0 {
     domain = newsyntax;
     non-fluents = newsyntax_nf;
 	
