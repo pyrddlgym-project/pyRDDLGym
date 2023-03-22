@@ -164,19 +164,24 @@ class RDDLModelWXADD(PlanningModel):
             node_id = self._context.convert_to_xadd(sp.S(var_))
             self._var_name_to_node_id[var] = node_id            
         else:
-            var_ = self.ns.setdefault(
-                var,
-                sp.Symbol(
-                    var.replace('-', '_'),
-                    bool=var_type == 'bool'
-                )
-            )
-            node_id = self._context.convert_to_xadd(var_)
-            self._sympy_var_to_node_id[var_] = node_id
-            self._var_name_to_node_id[var] = node_id
-            self._sympy_var_name_to_var_name[str(var_)] = var
-            self._var_name_to_sympy_var_name[var] = str(var_)
+            var_ = self.add_sympy_var(var, var_type)
+            node_id = self._sympy_var_to_node_id[var_]
         return node_id
+
+    def add_sympy_var(self, var_name: str, var_type: str) -> sp.Symbol:
+        var_ = self.ns.setdefault(
+            var_name,
+            sp.Symbol(
+                var_name.replace('-', '_'),
+                bool=var_type == 'bool'
+            )
+        )
+        node_id = self._context.convert_to_xadd(var_)
+        self._sympy_var_to_node_id[var_] = node_id
+        self._var_name_to_node_id[var_name] = node_id
+        self._sympy_var_name_to_var_name[str(var_)] = var_name
+        self._var_name_to_sympy_var_name[var_name] = str(var_)
+        return var_
 
     def aggr_to_xadd(self, expr: Expression) -> int:
         """
