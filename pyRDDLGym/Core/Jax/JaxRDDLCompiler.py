@@ -31,6 +31,8 @@ class JaxRDDLCompiler:
         'bool': bool
     }
     
+    ONE = jnp.asarray(1, dtype=INT)
+    
     MODEL_PARAM_TAG_SEPARATOR = '___'
     
     def __init__(self, rddl: RDDLLiftedModel,
@@ -599,7 +601,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_unary_op(x, params, key):
             sample, key, err = jax_expr(x, params, key)
             if at_least_int:
-                sample = 1 * sample
+                sample = JaxRDDLCompiler.ONE * sample
             param = params.get(jax_param, None)
             sample = jax_op(sample, param)
             if check_dtype is not None:
@@ -617,8 +619,8 @@ class JaxRDDLCompiler:
             sample1, key, err1 = jax_lhs(x, params, key)
             sample2, key, err2 = jax_rhs(x, params, key)
             if at_least_int:
-                sample1 = 1 * sample1
-                sample2 = 1 * sample2
+                sample1 = JaxRDDLCompiler.ONE * sample1
+                sample2 = JaxRDDLCompiler.ONE * sample2
             param = params.get(jax_param, None)
             sample = jax_op(sample1, sample2, param)
             err = err1 | err2
@@ -709,7 +711,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_aggregation(x, params, key):
             sample, key, err = jax_expr(x, params, key)
             if is_floating:
-                sample = 1 * sample
+                sample = JaxRDDLCompiler.ONE * sample
             else:
                 invalid_cast = jnp.logical_not(jnp.can_cast(sample, bool))
                 err |= (invalid_cast * ERR)
