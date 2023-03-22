@@ -24,7 +24,7 @@ domain mars_rover_science_mission {
     pvariables {
 
         // rover constants
-        MAX-POWER(rover): { non-fluent, real, default = 0.05 };         // control norm constraint
+        MAX-POWER(rover): { non-fluent, real, default = 0.1 };         // control norm constraint
         SCALE-FACTOR    : { non-fluent, real, default = 0.1 };          // time scale factor for dynamic equations
 
         // minerals constants
@@ -76,7 +76,7 @@ domain mars_rover_science_mission {
     // R = -sum u-x^2 + u-y^2 + sum minerals harvested - sum harvest actions
     reward = [-sum_{?d : rover} [ pow[u-x(?d), 2] + pow[u-y(?d), 2]]] +
              [sum_{?m : mineral }[if (exists_{?d : rover}
-                        [(sqrt[pow[pos-x(?d) - MINERAL-POS-X(?m),2] + pow[pos-y(?d) - MINERAL-POS-Y(?m),2]] < MINERAL-AREA(?m)) ^ harvest(?d)])
+                        [(sqrt[pow[pos-x(?d) - MINERAL-POS-X(?m),2] + pow[pos-y(?d) - MINERAL-POS-Y(?m),2]] < MINERAL-AREA(?m)) ^ harvest(?d) ^ ~mineral-harvested(?m)])
                             then MINERAL-VALUE(?m)
                             else 0.0]]
              - [sum_{?d : rover} [harvest(?d)]];
