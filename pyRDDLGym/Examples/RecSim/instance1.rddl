@@ -375,7 +375,7 @@ non-fluents nf_recsim_ecosystem_welfare__2 {
 		MAX-AFFINITY = 50.0;
 	};
 }
-instance recsim_ecosystem_welfare__2 {
+instance recsim_ecosystem_welfare__1 {
 	domain = recsim_ecosystem_welfare;
 	non-fluents = nf_recsim_ecosystem_welfare__2;
 	init-state {

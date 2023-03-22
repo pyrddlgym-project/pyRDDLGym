@@ -35,7 +35,7 @@ non-fluents power_gen3 {
 }
 
 // Specify three power plants with default settings
-instance inst_power_gen {
+instance inst_power_gen_dis_0 {
 
 	domain = power_gen;
 	
