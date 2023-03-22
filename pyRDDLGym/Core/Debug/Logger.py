@@ -25,9 +25,12 @@ class SimLogger:
     def __init__(self, filename: str, write_freq: int=1000) -> None:
         self.filename = filename
         self.write_freq = write_freq
-    
-    def clear(self) -> None:
-        fp = open(self.filename, 'w')
+
+    def clear(self, overwrite: bool = True) -> None:
+        if overwrite:
+            fp = open(self.filename, 'w')
+        else:
+            fp = open(self.filename, 'a')
         fp.write('')
         fp.close()
         self.data = []
