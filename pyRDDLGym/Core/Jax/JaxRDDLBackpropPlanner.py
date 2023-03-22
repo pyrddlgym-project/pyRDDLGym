@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import jax.random as random
 import jax.nn.initializers as initializers
 import numpy as np
+np.seterr(all='raise')
 import optax
 from typing import Dict, Iterable, Set, Tuple
 import warnings

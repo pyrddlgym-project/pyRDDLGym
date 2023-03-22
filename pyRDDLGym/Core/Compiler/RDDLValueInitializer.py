@@ -89,7 +89,7 @@ class RDDLValueInitializer:
                     values = np.asarray(values, dtype=dtype)
                     values = np.reshape(values, newshape=shape, order='C')
                 else:
-                    values = np.full(shape=shape, fill_value=default)
+                    values = np.full(shape=shape, fill_value=default, dtype=dtype)
             else:
                 values = dtype(init_values.get(var, default))   
             np_init_values[var] = values
