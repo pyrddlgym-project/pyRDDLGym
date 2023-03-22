@@ -147,7 +147,7 @@ non-fluents isolated_intersection {
     };
 }
 
-instance isolated_intersection_inst {
+instance isolated_intersection_inst_0 {
     domain = BLX_model;
     non-fluents = isolated_intersection;
     max-nondef-actions = pos-inf;

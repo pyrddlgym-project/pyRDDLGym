@@ -12,7 +12,7 @@ non-fluents Reservoir_3nf {
 	};
 }
 
-instance Reservoir_3 {
+instance Reservoir_dis_0 {
 	domain = reservoir_control_dis;
 	non-fluents = Reservoir_3nf;
 

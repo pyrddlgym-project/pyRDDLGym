@@ -13,7 +13,7 @@ non-fluents cart_pole_disc_0 {
 }
 
 // Specify cart pole with default settings
-instance inst_cart_pole_disc {
+instance inst_cart_pole_disc_0 {
 
 	domain = cart_pole_discrete;
 

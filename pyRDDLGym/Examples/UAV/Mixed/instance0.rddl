@@ -26,7 +26,7 @@ non-fluents nf_simple_UAV_p0{
 	};
 }
 
-instance simple_UAV_p0 {
+instance simple_UAV_hyb_0 {
 	domain = kinematic_UAVs_mix;
 	non-fluents = nf_simple_UAV_p0;
 	

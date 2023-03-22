@@ -13,7 +13,7 @@ non-fluents HVAC_1nf {
 	};
 }
 
-instance HVAC_1 {
+instance HVAC_0 {
 	domain = hvac;
 	non-fluents = HVAC_1nf;
 
