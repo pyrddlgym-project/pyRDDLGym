@@ -1,9 +1,11 @@
 from ast import literal_eval
 import configparser
 import jax
+import jax.nn.initializers as initializers
 import optax
 import os
 from typing import Dict
+import warnings
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax import JaxRDDLBackpropPlanner
@@ -29,31 +31,49 @@ def get(path: str) -> Dict[str, object]:
     domain_name = env_args['domain']
     inst_name = env_args['instance']
     try:
+        print(f'reading domain {domain_name} from rddlrepository...')
         from rddlrepository.Manager.RDDLRepoManager import RDDLRepoManager
         manager = RDDLRepoManager()
         EnvInfo = manager.get_problem(domain_name)
-        print(f'reading domain {domain_name} from rddlrepository...')
     except:
+        print(f'failed to read from rddlrepository, '
+              f'reading domain {domain_name} from Examples...')
         EnvInfo = ExampleManager.GetEnvInfo(domain_name)
-        print(f'reading domain {domain_name} from Examples...')
     
     env_args['domain'] = EnvInfo.get_domain()
     env_args['instance'] = EnvInfo.get_instance(inst_name)
         
     myEnv = RDDLEnv(**env_args)
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
+    # myEnv.set_visualizer(EnvInfo.get_visualizer())
     
     # read the model settings
     model_args = {k: args[k] for (k, v) in config.items('Model')}
-    tnorm = getattr(JaxRDDLLogic, model_args['tnorm'])(**model_args['tnorm_kwargs'])
-    logic = getattr(JaxRDDLLogic, model_args['logic'])(tnorm=tnorm, **model_args['logic_kwargs'])
+    tnorm = getattr(JaxRDDLLogic, model_args['tnorm'])(
+        **model_args['tnorm_kwargs'])
+    logic = getattr(JaxRDDLLogic, model_args['logic'])(
+        tnorm=tnorm, **model_args['logic_kwargs'])
     
     # read the optimizer settings
     opt_args = {k: args[k] for (k, v) in config.items('Optimizer')}
     opt_args['rddl'] = myEnv.model
-    opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, opt_args['method'])(**opt_args['method_kwargs'])
-    opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(**opt_args['optimizer_kwargs'])
+    if 'method_kwargs' in opt_args and 'initializer' in opt_args['method_kwargs']:
+        init_method = opt_args['method_kwargs']['initializer']
+        initializer = getattr(initializers, init_method)
+        try:       
+            initializer = initializer(
+                **opt_args['method_kwargs']['initializer_kwargs'])
+        except:
+            warnings.warn(f'warning: initializer <{init_method}> '
+                          f'cannot take arguments, ignoring them.', stacklevel=2)
+        opt_args['method_kwargs']['initializer'] = initializer
+        if 'initializer_kwargs' in opt_args['method_kwargs']:
+            del opt_args['method_kwargs']['initializer_kwargs']
+    opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, opt_args['method'])(
+        **opt_args['method_kwargs'])
+    opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(
+        **opt_args['optimizer_kwargs'])    
     opt_args['logic'] = logic
+    
     del opt_args['method']
     del opt_args['method_kwargs']
     del opt_args['optimizer_kwargs']
