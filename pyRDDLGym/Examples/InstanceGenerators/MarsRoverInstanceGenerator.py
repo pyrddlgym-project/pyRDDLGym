@@ -57,20 +57,20 @@ params = [
      'area_bounds': (3., 7.), 'value_bounds': (10., 10.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 10, 'num_rovers': 5, 'location_bounds': (-15., 15.),
+    {'num_minerals': 10, 'num_rovers': 5, 'location_bounds': (-10., 10.),
      'area_bounds': (3., 6.), 'value_bounds': (7.5, 12.5), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 25, 'num_rovers': 10, 'location_bounds': (-20., 20.),
+    {'num_minerals': 25, 'num_rovers': 10, 'location_bounds': (-15., 15.),
      'area_bounds': (2., 5.), 'value_bounds': (5., 15.), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 50, 'num_rovers': 15, 'location_bounds': (-30., 30.),
+    {'num_minerals': 50, 'num_rovers': 15, 'location_bounds': (-15., 15.),
      'area_bounds': (2., 4.), 'value_bounds': (2.5, 17.5), 
      'horizon': 200, 'discount': 1.0},
     
-    {'num_minerals': 100, 'num_rovers': 25, 'location_bounds': (-40., 40.),
-     'area_bounds': (1., 3.), 'value_bounds': (0., 20.), 
+    {'num_minerals': 100, 'num_rovers': 25, 'location_bounds': (-20., 20.),
+     'area_bounds': (1., 3.), 'value_bounds': (0.0, 20.), 
      'horizon': 200, 'discount': 1.0}
 ]
 
