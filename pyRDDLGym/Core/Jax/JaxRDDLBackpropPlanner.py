@@ -11,7 +11,6 @@ import warnings
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 
@@ -47,8 +46,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         warnings.warn(f'Initial values of pvariables will be cast to real.',
                       stacklevel=2)   
         for (var, values) in self.init_values.items():
-            self.init_values[var] = np.asarray(
-                values, dtype=RDDLValueInitializer.REAL) 
+            self.init_values[var] = np.asarray(values, dtype=self.REAL) 
         
         # overwrite basic operations with fuzzy ones
         self.RELATIONAL_OPS = {
@@ -95,7 +93,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         for (_, cpfs) in self.levels.items():
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
-                jax_cpfs[cpf] = self._jax(expr, info, dtype=JaxRDDLCompiler.REAL)
+                jax_cpfs[cpf] = self._jax(expr, info, dtype=self.REAL)
                 if cpf in self.cpfs_without_grad:
                     warnings.warn(f'CPF <{cpf}> stops gradient.', stacklevel=2)      
                     jax_cpfs[cpf] = self._jax_stop_grad(jax_cpfs[cpf])
@@ -217,7 +215,7 @@ class JaxStraightLinePlan(JaxPlan):
             shapes[name] = (horizon,) + np.shape(compiled.init_values[name])
                 
             # the output type is valid for the action
-            valid_types = JaxRDDLCompiler.JAX_TYPES
+            valid_types = compiled.JAX_TYPES
             if prange not in valid_types:
                 raise RDDLTypeError(
                     f'Invalid range <{prange}. of action-fluent <{name}>, '
@@ -239,7 +237,7 @@ class JaxStraightLinePlan(JaxPlan):
             params = {}
             for (var, shape) in shapes.items():
                 key, subkey = random.split(key)
-                param = init(subkey, shape, dtype=JaxRDDLCompiler.REAL)
+                param = init(subkey, shape, dtype=compiled.REAL)
                 if rddl.variable_ranges[var] == 'bool':
                     param = param + bool_threshold
                 param = jnp.clip(param, *bounds[var])
@@ -253,7 +251,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_wrapped_slp_predict_train(key, params, hyperparams, step, subs):
             actions = {}
             for (var, param) in params.items():
-                action = jnp.asarray(param[step, ...], dtype=JaxRDDLCompiler.REAL)
+                action = jnp.asarray(param[step, ...], dtype=compiled.REAL)
                 if wrap_sigmoid and rddl.variable_ranges[var] == 'bool':
                     weight = hyperparams[var]
                     action = jax.nn.sigmoid(weight * action)
@@ -267,7 +265,7 @@ class JaxStraightLinePlan(JaxPlan):
                 action = jnp.asarray(param[step, ...])
                 prange = rddl.variable_ranges[var]
                 if prange == 'int':
-                    action = jnp.round(action).astype(JaxRDDLCompiler.INT)
+                    action = jnp.round(action).astype(compiled.INT)
                 elif prange == 'bool':
                     action = action > bool_threshold
                 actions[var] = action
@@ -423,6 +421,7 @@ class JaxRDDLBackpropPlanner:
                  batch_size_train: int,
                  batch_size_test: int=None,
                  rollout_horizon: int=None,
+                 use64bit: bool=True,
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  clip_grad: float=9999.,
@@ -442,6 +441,7 @@ class JaxRDDLBackpropPlanner:
         :param batch_size_test: how many rollouts to use to test the plan at each
         optimization step
         :param rollout_horizon: lookahead planning horizon: None uses the
+        :param use64bit: whether to perform arithmetic in 64 bit
         horizon parameter in the RDDL instance
         :param action_bounds: box constraints on actions
         :param optimizer: an Optax algorithm that specifies how gradient updates
@@ -466,6 +466,7 @@ class JaxRDDLBackpropPlanner:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
         self._action_bounds = action_bounds
+        self.use64bit = use64bit
         
         self.optimizer = optax.chain(
             optax.clip(clip_grad),
@@ -487,11 +488,14 @@ class JaxRDDLBackpropPlanner:
         self.compiled = JaxRDDLCompilerWithGrad(
             rddl=rddl,
             logic=self.logic,
+            use64bit=self.use64bit,
             cpfs_without_grad=self.cpfs_without_grad)
         self.compiled.compile()
         
         # Jax compilation of the exact RDDL for testing
-        self.test_compiled = JaxRDDLCompiler(rddl=rddl)
+        self.test_compiled = JaxRDDLCompiler(
+            rddl=rddl, 
+            use64bit=self.use64bit)
         self.test_compiled.compile()
     
         # calculate grounded no-op actions
@@ -590,7 +594,7 @@ class JaxRDDLBackpropPlanner:
         for (name, value) in subs.items():
             value = np.asarray(value)[np.newaxis, ...]
             train_value = np.repeat(value, repeats=n_train, axis=0)
-            train_value = train_value.astype(JaxRDDLCompiler.REAL)
+            train_value = train_value.astype(self.compiled.REAL)
             init_train[name] = train_value
             init_test[name] = np.repeat(value, repeats=n_test, axis=0)
         

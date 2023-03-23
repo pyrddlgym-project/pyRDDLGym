@@ -70,7 +70,7 @@ class JaxRDDLSimulator(RDDLSimulator):
             for cpf in cpfs:
                 expr = jax_cpfs[cpf]
                 prange = rddl.variable_ranges[cpf]
-                dtype = JaxRDDLCompiler.JAX_TYPES.get(prange, JaxRDDLCompiler.INT)
+                dtype = compiled.JAX_TYPES.get(prange, compiled.INT)
                 self.cpfs.append((cpf, expr, dtype))
         
         # initialize all fluent and non-fluent values    

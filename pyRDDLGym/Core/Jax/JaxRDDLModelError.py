@@ -95,7 +95,7 @@ class JaxRDDLModelError:
         def _jax_wrapped_train_policy(key, policy_params, step, subs):
             test_actions = test_policy(key, policy_params, step, subs)
             train_actions = jax.tree_map(
-                lambda x: x.astype(JaxRDDLCompiler.REAL),
+                lambda x: x.astype(self.test_compiled.REAL),
                 test_actions)
             return train_actions
         
@@ -115,7 +115,7 @@ class JaxRDDLModelError:
             for (name, value) in subs.items():
                 value = jnp.asarray(value)[jnp.newaxis, ...]
                 train_value = jnp.repeat(value, repeats=n_batch, axis=0)
-                train_value = train_value.astype(JaxRDDLCompiler.REAL)
+                train_value = train_value.astype(self.test_compiled.REAL)
                 train_subs[name] = train_value
                 test_subs[name] = jnp.repeat(value, repeats=n_batch, axis=0)
             for (state, next_state) in rddl.next_state.items():
