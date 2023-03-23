@@ -46,8 +46,8 @@ class FuzzyLogic:
     def __init__(self, tnorm: TNorm=ProductTNorm(),
                  complement: Complement=StandardComplement(),
                  weight: float=10.0,
-                 debias: Set[str]={'argmax', 'Switch'},
-                 eps: float=1e-12):
+                 debias: Set[str]={},
+                 eps: float=1e-10):
         '''Creates a new fuzzy logic in Jax.
         
         :param tnorm: fuzzy operator for logical AND
@@ -469,6 +469,7 @@ w = 100.0
 
 
 def _test_logical():
+    print('testing logical')
     _and, _ = logic.And()
     _not, _ = logic.Not()
     _gre, _ = logic.greater()
@@ -489,6 +490,7 @@ def _test_logical():
 
 
 def _test_indexing():
+    print('testing indexing')
     _argmax, _ = logic.argmax()
     _argmin, _ = logic.argmax()
 
@@ -504,6 +506,7 @@ def _test_indexing():
 
 
 def _test_control():
+    print('testing control')
     _switch, _ = logic.Switch()
     
     pred = jnp.asarray(jnp.linspace(0, 2, 10))
@@ -515,6 +518,7 @@ def _test_control():
 
 
 def _test_random():
+    print('testing random')
     key = random.PRNGKey(42)
     _bernoulli, _ = logic.bernoulli()
     
@@ -528,6 +532,7 @@ def _test_random():
 
 
 def _test_rounding():
+    print('testing rounding')
     _floor, _ = logic.floor()
     _ceil, _ = logic.ceil()
     _mod, _ = logic.mod()
