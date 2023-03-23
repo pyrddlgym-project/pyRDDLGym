@@ -421,7 +421,7 @@ class JaxRDDLBackpropPlanner:
                  batch_size_train: int,
                  batch_size_test: int=None,
                  rollout_horizon: int=None,
-                 use64bit: bool=True,
+                 use64bit: bool=False,
                  action_bounds: Dict[str, Tuple[float, float]]={},
                  optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
                  clip_grad: float=9999.,
