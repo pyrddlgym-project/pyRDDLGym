@@ -73,6 +73,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
                  delta: float,
                  c: float=1.0 / math.sqrt(2.0),
                  action_sample=(lambda s: {}),
+                 max_sgd_updates: int=1,
                  **sgd_kwargs) -> None:
         '''Creates a new hybrid backprop + UCT-MCTS planner.
         
@@ -89,6 +90,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
         :param action_sample: action sampling distribution if actions is None
         :param **sgd_kwargs: keywords arguments to initialize backprop planner:
         will not use backprop if none are specified 
+        :param max_sgd_updates: max number of SGD updates for backprop planner
         '''
         self.sim = JaxRDDLSimulator(rddl)  # TODO (mike): no need to compile twice
         self.actions = actions
@@ -98,6 +100,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
         self.delta = delta
         self.c = c
         self.action_sample = action_sample     
+        self.max_sgd_updates = max_sgd_updates
         
         # use progressive widening for action nodes if action space not specified
         self.use_pw_action = self.actions is None
@@ -216,16 +219,21 @@ class JaxRDDLHybridBackpropUCTPlanner:
         model_params = sgd.compiled.model_params
         params = guess
         opt_state = sgd.optimizer.init(params)        
-        for _ in range(1):
+        for epoch in range(self.max_sgd_updates):
             key, subkey = jax.random.split(key)
             params, opt_state, _ = sgd.update(
                 subkey, params, None, train_subs, model_params, opt_state)
-        
+            
+            # stop once the actions diverge by delta
+            max_delta = 0.0
+            for var in action_names:
+                delta = np.linalg.norm(params[var] - guess[var])
+                max_delta = max(max_delta, delta)
+            if max_delta >= self.delta:
+                break
+            
         # clip action within trust region delta of guess
-        max_delta = 0.0
         for var in action_names:
-            delta = np.linalg.norm(params[var] - guess[var])
-            max_delta = max(max_delta, delta)
             params[var] = np.clip(
                 params[var], guess[var] - self.delta, guess[var] + self.delta)
             
@@ -237,7 +245,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
                 action[var] = sgd.noop_actions[var]
             vCs[step].action = action   
                    
-        return max_delta  
+        return max_delta, epoch + 1
         
     def search(self, key: jax.random.PRNGKey,
                s0: Dict,
@@ -269,7 +277,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
             max_delta = np.nan
             if sgd is not None:
                 key, subkey = jax.random.split(key)
-                max_delta = self._jax_sgd(subkey, train_subs, vCs)                
+                max_delta, num_updates = self._jax_sgd(subkey, train_subs, vCs)                
             
             # callback
             if it % steps == 0 or it == epochs - 1:
@@ -281,7 +289,8 @@ class JaxRDDLHybridBackpropUCTPlanner:
                     'best': best,
                     'iter': it,
                     'c': R0,
-                    'delta': max_delta
+                    'max_delta': max_delta,
+                    'sgd_updates': num_updates,
                 }
 
 
@@ -320,7 +329,8 @@ for step in range(200):
               f'reward={callback["return"]}, '
               f'action={callback["action"]}, '
               f'c={callback["c"]}, '
-              f'delta={callback["delta"]}')
+              f'delta={callback["max_delta"]}, '
+              f'updates={callback["sgd_updates"]}')
     print(f'final action {callback["action"]}')
     
     _, reward, done = world.step(callback["action"])
