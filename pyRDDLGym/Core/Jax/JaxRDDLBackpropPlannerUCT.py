@@ -59,6 +59,11 @@ class DecisionNode:
             if score > bestscore:
                 best, bestscore = i, score
         return best
+    
+    def update(self, i: int, R: float) -> None:
+        self.N += 1
+        self.Nc[i] += 1
+        self.Qc[i] += (R - self.Qc[i]) / self.Nc[i]
 
 
 class JaxRDDLHybridBackpropUCTPlanner:
@@ -201,9 +206,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
         
         # update decision node statistics
         R = r + R1
-        vD.N += 1
-        vD.Nc[ivC] += 1
-        vD.Qc[ivC] += (R - vD.Qc[ivC]) / vD.Nc[ivC]
+        vD.update(ivC, R)        
         return R
         
     def _jax_sgd(self, key, train_subs, vCs): 
