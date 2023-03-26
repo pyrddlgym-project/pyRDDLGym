@@ -12,13 +12,44 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 
 
 class JaxParameterTuning:
+    '''A general-purpose class for tuning a Jax planner.'''
     
     def __init__(self, env, action_bounds,
-                 max_train_epochs, timeout_episode, timeout_epoch, 
+                 max_train_epochs, timeout_episode, timeout_epoch,
                  gp_iterations, initial_stddevs, learning_rates, model_weights,
-                 planning_horizons, eval_horizon=None, 
-                 init_num_points=1, batch_size_train=32, print_step=None, 
+                 planning_horizons, eval_horizon=None,
+                 init_num_points=1, batch_size_train=32, print_step=None,
                  verbose=False) -> None:
+        '''Creates a new instance for tuning hyper-parameters for Jax planners
+        on the given RDDL domain and instance.
+        
+        :param env: the RDDLEnv describing the MDP to optimize
+        :param action_bounds: the bounds on the actions
+        :param max_train_epochs: the maximum number of iterations of SGD per 
+        step or trial
+        :param timeout_episode: the maximum amount of time to spend training per
+        trial (in seconds)
+        :param timeout_epoch: the maximum amount of time to spend training per
+        decision epoch (in seconds, for MPC only)
+        :param gp_iterations: maximum number of steps of Bayesian optimization
+        :param initial_stddevs: set of initializer standard deviations for the 
+        policy or plan parameters (uses Gaussian noise) to tune: this can either
+        be specified as a list enumerating all choices, or a range of possible
+        continuous values as a tuple, e.g. (a, b)
+        :param learning_rates: set of learning rates for SGD (uses rmsprop by 
+        default) to tune
+        :param model_weights: set of model weight parameters for continuous 
+        relaxation to tune
+        :param planning_horizons: set of possible lookahead horizons for MPC to
+        tune
+        :param eval_horizon: maximum number of decision epochs to evaluate (also
+        applies for training if using straight-line planning)
+        :param init_num_points: number of iterations to seed Bayesian optimizer
+        (these are used as initial guess to build loss surrogate model)
+        :param batch_size_train: training batch size for planner
+        :param print_step: how often to print training callback
+        :parma verbose: whether to print intermediate results of tuning
+        '''
         self.env = env
         self.action_bounds = action_bounds
         self.max_train_epochs = max_train_epochs
@@ -56,10 +87,10 @@ class JaxParameterTuning:
     def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout): 
         starttime = None
         for (it, callback) in enumerate(planner.optimize(
-            key=key, 
-            epochs=self.max_train_epochs, 
-            step=1, 
-            policy_hyperparams=policy_hyperparams, 
+            key=key,
+            epochs=self.max_train_epochs,
+            step=1,
+            policy_hyperparams=policy_hyperparams,
             subs=subs
         )):
             if starttime is None:
@@ -77,6 +108,8 @@ class JaxParameterTuning:
         return callback
     
     def tune_slp(self):
+        '''Tunes the hyper-parameters for Jax planner using straight-line 
+        planning approach.'''
         env = self.env
         timeout_episode = self.timeout_episode
 
@@ -124,6 +157,8 @@ class JaxParameterTuning:
         myBopt.plot_convergence('gp_slp_conv.pdf')
         
     def tune_mpc(self):
+        '''Tunes the hyper-parameters for Jax planner using MPC/receding horizon
+        planning approach.'''
         env = self.env
         timeout_episode = self.timeout_episode
         timeout_epoch = self.timeout_epoch
