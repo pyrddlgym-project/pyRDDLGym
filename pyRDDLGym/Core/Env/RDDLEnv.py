@@ -39,7 +39,11 @@ class RDDLEnv(gym.Env):
         '''
         super(RDDLEnv, self).__init__()
         self.enforce_action_constraints = enforce_action_constraints
-        
+
+        # time budget for applications limiting time on episodes.
+        # hardcoded so cannot be changed externally.
+        self.budget = 120
+
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
         domain = reader.rddltxt
@@ -276,3 +280,7 @@ class RDDLEnv(gym.Env):
     @property
     def non_fluents(self):
         return self.model.groundnonfluents()
+
+    @property
+    def Budget(self):
+        return self.budget
