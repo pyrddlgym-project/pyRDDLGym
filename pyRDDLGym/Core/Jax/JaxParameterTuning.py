@@ -27,7 +27,8 @@ class JaxParameterTuning:
                  model_weights: Union[Tuple[float, float], List[float]],
                  planning_horizons: Union[Tuple[float, float], List[float]],
                  key: int=42,
-                 eval_horizon: int=None,
+                 eval_horizon: int=None, 
+                 eval_trials: int=5,
                  init_num_points: int=1,
                  batch_size_train: int=32,
                  print_step: int=None,
@@ -59,6 +60,8 @@ class JaxParameterTuning:
         :param key: seed for JAX PRNG key
         :param eval_horizon: maximum number of decision epochs to evaluate (also
         applies for training if using straight-line planning)
+        :param eval_trials: how many trials to perform for MPC (batch size has
+        the same effect for non-MPC)
         :param init_num_points: number of iterations to seed Bayesian optimizer
         (these are used as initial guess to build loss surrogate model)
         :param batch_size_train: training batch size for planner
@@ -76,6 +79,7 @@ class JaxParameterTuning:
         self.evaluation_horizon = eval_horizon
         if eval_horizon is None:
             self.evaluation_horizon = env.horizon
+        self.evaluation_trials = eval_trials
         self.gp_iterations = gp_iterations
         self.init_num_points = init_num_points
         self.batch_size_train = batch_size_train
@@ -215,31 +219,36 @@ class JaxParameterTuning:
             policy_hyperparams = {name: w for name in self.action_bounds}
             
             # perform training and collect rewards
-            total_reward = 0.0
-            env.reset() 
-            starttime = time.time()
-            for step in range(self.evaluation_horizon):
-                currtime = time.time()
-                elapsed = currtime - starttime            
-                if elapsed < timeout_episode:
-                    subs = env.sampler.subs
-                    timeout = min(timeout_episode - elapsed, timeout_epoch)
-                    callback = self._train_epoch(
-                        key, policy_hyperparams, subs, planner, timeout)
-                    params = callback['best_params']
-                    key, subkey = jax.random.split(key)
-                    action = planner.get_action(subkey, params, 0, subs)
-                else:
-                    action = {}            
-                _, reward, done, _ = env.step(action)
-                total_reward += reward 
+            average_reward = 0.0
+            for trial in range(self.evaluation_trials):
                 if self.verbose:
-                    print(f'step={step}, reward={reward}')
-                if done: 
-                    break  
-            if self.verbose:
-                print(f'total reward={total_reward}\n')
-            return total_reward
+                    print('\n' + f'starting trial {trial + 1}...')
+                total_reward = 0.0
+                env.reset() 
+                starttime = time.time()
+                for step in range(self.evaluation_horizon):
+                    currtime = time.time()
+                    elapsed = currtime - starttime            
+                    if elapsed < timeout_episode:
+                        subs = env.sampler.subs
+                        timeout = min(timeout_episode - elapsed, timeout_epoch)
+                        callback = self._train_epoch(
+                            key, policy_hyperparams, subs, planner, timeout)
+                        params = callback['best_params']
+                        key, subkey = jax.random.split(key)
+                        action = planner.get_action(subkey, params, 0, subs)
+                    else:
+                        action = {}            
+                    _, reward, done, _ = env.step(action)
+                    total_reward += reward 
+                    if self.verbose:
+                        print(f'step={step}, reward={reward}')
+                    if done: 
+                        break  
+                if self.verbose:
+                    print(f'total reward={total_reward}\n')
+                average_reward += total_reward / self.evaluation_trials
+            return average_reward
         
         # run Bayesian optimization
         self._bayes_optimize(objective, 'gp_mpc')
