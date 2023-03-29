@@ -25,16 +25,18 @@ class JaxParameterTuning:
                  initial_stddevs: Union[Tuple[float, float], List[float]],
                  learning_rates: Union[Tuple[float, float], List[float]],
                  model_weights: Union[Tuple[float, float], List[float]],
+                 action_weights: Union[Tuple[float, float], List[float]],
                  planning_horizons: Union[Tuple[float, float], List[float]],
+                 gp_batch_size: int=1,
+                 gp_kwargs: Dict={},
                  key: int=42,
                  eval_horizon: int=None, 
                  eval_trials: int=5,
-                 init_num_points: int=1,
                  batch_size_train: int=32,
                  print_step: int=None,
                  verbose: bool=True,
                  wrap_sigmoid: bool=True,
-                 **planner_kwargs) -> None:
+                 planner_kwargs: Dict={}) -> None:
         '''Creates a new instance for tuning hyper-parameters for Jax planners
         on the given RDDL domain and instance.
         
@@ -55,15 +57,16 @@ class JaxParameterTuning:
         default) to tune
         :param model_weights: set of model weight parameters for continuous 
         relaxation to tune
+        :param action_weights: sigmoid weights for boolean actions to tune
         :param planning_horizons: set of possible lookahead horizons for MPC to
         tune
+        :param gp_batch_size: how many evaluations to perform in parallel for GP
+        :param gp_kwargs: dictionary of parameters to pass to Bayesian optimizer
         :param key: seed for JAX PRNG key
         :param eval_horizon: maximum number of decision epochs to evaluate (also
         applies for training if using straight-line planning)
         :param eval_trials: how many trials to perform for MPC (batch size has
         the same effect for non-MPC)
-        :param init_num_points: number of iterations to seed Bayesian optimizer
-        (these are used as initial guess to build loss surrogate model)
         :param batch_size_train: training batch size for planner
         :param print_step: how often to print training callback
         :param verbose: whether to print intermediate results of tuning
@@ -81,7 +84,8 @@ class JaxParameterTuning:
             self.evaluation_horizon = env.horizon
         self.evaluation_trials = eval_trials
         self.gp_iterations = gp_iterations
-        self.init_num_points = init_num_points
+        self.gp_batch_size = gp_batch_size
+        self.gp_kwargs = gp_kwargs
         self.batch_size_train = batch_size_train
         self.print_step = print_step
         self.verbose = verbose
@@ -90,12 +94,13 @@ class JaxParameterTuning:
         
         # set up bounds for parameter search
         self.bounds = self._get_bounds(
-            initial_stddevs, learning_rates, model_weights, planning_horizons)
+            initial_stddevs, learning_rates, model_weights, action_weights,
+            planning_horizons)
             
     def _get_bounds(self, initial_stddevs, learning_rates, model_weights,
-                    planning_horizons=None):
-        ranges = [initial_stddevs, learning_rates, model_weights]
-        names = ['init', 'lr', 'w']
+                    action_weights, planning_horizons=None):
+        ranges = [initial_stddevs, learning_rates, model_weights, action_weights]
+        names = ['init', 'lr', 'w', 'wa']
         if planning_horizons is not None:
             ranges.append(planning_horizons)
             names.append('T')
@@ -136,11 +141,27 @@ class JaxParameterTuning:
         return callback
     
     def _bayes_optimize(self, objective, name):
-        myBopt = GPyOpt.methods.BayesianOptimization(
-            f=objective,
-            domain=self.bounds,
-            initial_design_numdata=self.init_num_points,
-            maximize=True)
+        if self.gp_batch_size is not None and self.gp_batch_size > 1:
+            
+            # parallel GP process
+            myBopt = GPyOpt.methods.BayesianOptimization(
+                f=objective,
+                domain=self.bounds,
+                maximize=True,
+                batch_size=self.gp_batch_size,
+                num_cores=self.gp_batch_size,
+                **self.gp_kwargs
+            )
+        else:
+            
+            # sequential GP process
+            myBopt = GPyOpt.methods.BayesianOptimization(
+                f=objective,
+                domain=self.bounds,
+                maximize=True,
+                **self.gp_kwargs
+            )
+            
         myBopt.run_optimization(
             self.gp_iterations,
             verbosity=self.verbose,
@@ -159,9 +180,10 @@ class JaxParameterTuning:
 
         def objective(x):
             x = np.ravel(x)
-            std, lr, w = x[0], x[1], x[2]
+            std, lr, w, wa = x[0], x[1], x[2], x[3]
             if self.verbose:
-                print('\n' + f'optimizing SLP with std={std}, lr={lr}, w={w}...')
+                print('\n' + 'optimizing SLP with ' + 
+                      f'std={std}, lr={lr}, w={w}, wa={wa}...')
             
             # initialize planner
             key = jax.random.PRNGKey(self.key)
@@ -176,7 +198,7 @@ class JaxParameterTuning:
                 optimizer=optax.rmsprop(lr),
                 logic=FuzzyLogic(weight=w),
                 **self.planner_kwargs)
-            policy_hyperparams = {name: w for name in self.action_bounds}
+            policy_hyperparams = {name: wa for name in self.action_bounds}
             
             # perform training
             callback = self._train_epoch(
@@ -198,10 +220,11 @@ class JaxParameterTuning:
         
         def objective(x):
             x = np.ravel(x)
-            std, lr, w, T = x[0], x[1], x[2], x[3]
+            std, lr, w, wa, T = x[0], x[1], x[2], x[3], x[4]
             T = int(T)
             if self.verbose:
-                print('\n' + f'optimizing MPC with std={std}, lr={lr}, w={w}, T={T}...')
+                print('\n' + 'optimizing MPC with ' + 
+                      f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
             
             # initialize planner
             key = jax.random.PRNGKey(self.key)
@@ -216,7 +239,7 @@ class JaxParameterTuning:
                 optimizer=optax.rmsprop(lr),
                 logic=FuzzyLogic(weight=w),
                 **self.planner_kwargs)
-            policy_hyperparams = {name: w for name in self.action_bounds}
+            policy_hyperparams = {name: wa for name in self.action_bounds}
             
             # perform training and collect rewards
             average_reward = 0.0
@@ -264,13 +287,14 @@ if __name__ == '__main__':
         timeout_episode=300,
         timeout_epoch=None,
         gp_iterations=20,
+        gp_kwargs={'initial_design_numdata': 2},
         initial_stddevs=(0., 1.),
         learning_rates=[1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1],
-        model_weights=(0., 200.),
+        model_weights=(1., 200.),
+        action_weights=(1., 100.),
         planning_horizons=None,
         eval_horizon=300,
         batch_size_train=8,
         print_step=100,
-        use64bit=True,
-        clip_grad=1.0)
+        planner_kwargs={'use64bit': True, 'clip_grad': 1.0})
     tuning.tune_slp()
