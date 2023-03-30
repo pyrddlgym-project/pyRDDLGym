@@ -44,6 +44,9 @@ domain mountain_car {
 		GOAL-MIN : { non-fluent, real, default = 0.5 };	            // desired x position of cart
 		VEL-MIN  : { non-fluent, real, default = 0.0 };             // desired velocity of the cart
 		
+		// reward const
+		ACTION_PENALTY_CONST : { non-fluent, real, default = 0.01 };   // action penalty multiplier for reward function
+		
 		// interm fluents
 		in-segment(segment) : { interm-fluent, bool };              // is the cart currently in this segment
 		pos-slope           : { interm-fluent, real };              // slope of current line segment
@@ -69,11 +72,11 @@ domain mountain_car {
 	    vel' = [ max[min[vel + (action - 1) * FORCE-MAG + (-GRAVITY-MAG) * pos-slope, MAX-VEL], -MAX-VEL] ];
     };
 
-    // R = 1 as long as the pole is upright and the cart is not out of bounds
-    reward = if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN))
-			    then 1.0
-			    else 0.0;
-	
+        // R = 100 only when the cart reaches the goal and the velocity is higher than the desired velocity
+	reward = if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN))
+		then 100.0 - (ACTION_PENALTY_CONST * pow[action,2])
+		else 0.0 - (ACTION_PENALTY_CONST * pow[action,2]);
+		
 	termination {
 		(pos >= GOAL-MIN) ^ (vel >= VEL-MIN);
 	};
