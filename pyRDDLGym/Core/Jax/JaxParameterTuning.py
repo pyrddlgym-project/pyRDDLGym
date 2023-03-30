@@ -132,7 +132,7 @@ class JaxParameterTuning:
             best_target = -np.inf
             best_curve = []
             for i, res in enumerate(optimizer.res):
-                if res and 'params' in res and 'target' in res:
+                if 'params' in res and 'target' in res:
                     params = {
                         'std': self.stddev_space[2](res['params']['std']),
                         'lr': self.lr_space[2](res['params']['lr']),
@@ -148,7 +148,7 @@ class JaxParameterTuning:
                     best_curve.append(best_target)
                 
             res = optimizer.max
-            if res and 'params' in res and 'target' in res:
+            if 'params' in res and 'target' in res:
                 params = {
                     'std': self.stddev_space[2](res['params']['std']),
                     'lr': self.lr_space[2](res['params']['lr']),
