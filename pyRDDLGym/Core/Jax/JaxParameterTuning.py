@@ -37,7 +37,7 @@ class JaxParameterTuning:
                  lr_space: Tuple[float, float, Callable]=(-5., 0., (lambda x: 10 ** x)),
                  model_weight_space: Tuple[float, float, Callable]=(0., 100., (lambda x: x)),
                  action_weight_space: Tuple[float, float, Callable]=(0., 100., (lambda x: x)),
-                 lookahead_space: Tuple[float, float]=(None, None, (lambda x: int(x))),
+                 lookahead_space: Tuple[float, float]=(1, 100, (lambda x: int(x))),
                  gp_kwargs: Dict={'n_iter': 25},
                  eval_horizon: int=None,
                  eval_trials: int=5,
@@ -111,7 +111,7 @@ class JaxParameterTuning:
                 starttime = time.time()
             currtime = time.time()  
             elapsed = currtime - starttime    
-            if self.print_step is not None and it % self.print_step == 0:
+            if self.print_step is not None and it % self.print_step == 0 and it > 0:
                 print(f'|------ {color}' 
                       '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
                           elapsed,
@@ -127,7 +127,7 @@ class JaxParameterTuning:
                 break
         return callback
     
-    def _save_results(self, optimizer, name):         
+    def _save_results(self, optimizer, name): 
         with open(f'{name}_iterations.txt', 'w') as iter_file:
             best_target = -np.inf
             best_curve = []
@@ -163,7 +163,7 @@ class JaxParameterTuning:
                 iter_file.write('Targets:\n')
                 iter_file.write('\n'.join(map(str, best_curve)))
 
-    def _bayes_optimize(self, key, objective, name):
+    def _bayes_optimize(self, key, objective, name, read_T):
         self.key = key
         
         # set the bounds on variables
@@ -171,8 +171,7 @@ class JaxParameterTuning:
                    'lr': self.lr_space[:2],
                    'w': self.model_weight_space[:2],
                    'wa': self.action_weight_space[:2]}
-        if self.lookahead_space[0] is not None \
-        and self.lookahead_space[1] is not None:
+        if read_T:
             pbounds['T'] = self.lookahead_space[:2]
         
         # run optimizer
@@ -227,7 +226,7 @@ class JaxParameterTuning:
     def tune_slp(self, key: jax.random.PRNGKey) -> None:
         '''Tunes the hyper-parameters for Jax planner using straight-line 
         planning approach.'''
-        self._bayes_optimize(key, self._objective_slp(), 'gp_slp')
+        self._bayes_optimize(key, self._objective_slp(), 'gp_slp', False)
     
     def _objective_mpc(self):
         
@@ -294,10 +293,12 @@ class JaxParameterTuning:
                       f'average reward={average_reward}{Style.RESET_ALL}')
             return average_reward
         
+        return objective
+        
     def tune_mpc(self, key: jax.random.PRNGKey) -> None:
         '''Tunes the hyper-parameters for Jax planner using MPC/receding horizon
         planning approach.'''
-        self._bayes_optimize(key, self._objective_mpc(), 'gp_mpc')
+        self._bayes_optimize(key, self._objective_mpc(), 'gp_mpc', True)
 
 
 class JaxParameterTuningParallel(JaxParameterTuning):
@@ -311,7 +312,7 @@ class JaxParameterTuningParallel(JaxParameterTuning):
                        Fore.LIGHTMAGENTA_EX, Fore.LIGHTRED_EX, Fore.LIGHTYELLOW_EX,
                        Fore.LIGHTGREEN_EX, Fore.LIGHTCYAN_EX, Fore.LIGHTBLUE_EX]
         
-    def _bayes_optimize(self, key, objective, name): 
+    def _bayes_optimize(self, key, objective, name, read_T): 
         self.key = key
         
         # set the bounds on variables
@@ -319,8 +320,7 @@ class JaxParameterTuningParallel(JaxParameterTuning):
                    'lr': self.lr_space[:2],
                    'w': self.model_weight_space[:2],
                    'wa': self.action_weight_space[:2]}
-        if self.lookahead_space[0] is not None \
-        and self.lookahead_space[1] is not None:
+        if read_T:
             pbounds['T'] = self.lookahead_space[:2]
         
         # create optimizer
@@ -396,12 +396,12 @@ if __name__ == '__main__':
     EnvInfo = ExampleManager.GetEnvInfo('HVAC')
     env = RDDLEnv.RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(2))
     tuning = JaxParameterTuningParallel(
-        num_workers=10,
-        gp_kwargs={'n_iter': 5},
+        num_workers=4,
+        gp_kwargs={'n_iter': 10},
         env=env,
         action_bounds={'fan-in': (0.05, None), 'heat-input': (0., 1000.)},
         max_train_epochs=9999,
-        timeout_episode=20,
+        timeout_episode=30,
         timeout_epoch=None,
         print_step=500)
     tuning.tune_slp(jax.random.PRNGKey(42))
