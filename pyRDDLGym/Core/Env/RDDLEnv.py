@@ -38,6 +38,8 @@ class RDDLEnv(gym.Env):
         simulation (currently supports numpy and Jax)
         '''
         super(RDDLEnv, self).__init__()
+        self.domain_text = domain
+        self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
 
         # time budget for applications limiting time on episodes.
