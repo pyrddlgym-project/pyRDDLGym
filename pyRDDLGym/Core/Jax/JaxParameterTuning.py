@@ -18,7 +18,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from pyRDDLGym import ExampleManager
-from pyRDDLGym import RDDLEnv
+from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
@@ -241,7 +241,7 @@ class JaxParameterTuning:
             if self.verbose:
                 print(f'| {color}optimizing MPC with PRNG key={self.key}, ' 
                       f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...{Style.RESET_ALL}')
-                
+            
             # initialize planner
             planner = JaxRDDLBackpropPlanner(
                 rddl=self.env.model,
@@ -256,6 +256,11 @@ class JaxParameterTuning:
                 **self.planner_kwargs)
             policy_hyperparams = {name: wa for name in self.action_bounds}
             
+            # initialize env for evaluation (need fresh copy to avoid concurrency)
+            env = RDDLEnv(domain=self.env.domain_text, 
+                          instance=self.env.instance_text, 
+                          enforce_action_constraints=True)
+                
             # perform training and collect rewards
             average_reward = 0.0
             for trial in range(self.evaluation_trials):
@@ -265,7 +270,7 @@ class JaxParameterTuning:
                 total_reward = 0.0
                 env.reset() 
                 starttime = time.time()
-                for _ in range(self.evaluation_horizon):
+                for step in range(self.evaluation_horizon):
                     currtime = time.time()
                     elapsed = currtime - starttime            
                     if elapsed < self.timeout_episode:
@@ -282,6 +287,9 @@ class JaxParameterTuning:
                         action = {}            
                     _, reward, done, _ = env.step(action)
                     total_reward += reward 
+                    if self.verbose and color == Fore.RESET:
+                        print(f'|------ {color}step={step}, '
+                              f'reward={reward}{Style.RESET_ALL}')
                     if done: 
                         break  
                 if self.verbose:
@@ -394,14 +402,14 @@ class JaxParameterTuningParallel(JaxParameterTuning):
 
 if __name__ == '__main__':
     EnvInfo = ExampleManager.GetEnvInfo('HVAC')
-    env = RDDLEnv.RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(2))
+    world = RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(2))
     tuning = JaxParameterTuningParallel(
         num_workers=4,
         gp_kwargs={'n_iter': 10},
-        env=env,
+        env=world,
         action_bounds={'fan-in': (0.05, None), 'heat-input': (0., 1000.)},
         max_train_epochs=9999,
         timeout_episode=30,
-        timeout_epoch=None,
+        timeout_epoch=9999,
         print_step=500)
     tuning.tune_slp(jax.random.PRNGKey(42))
