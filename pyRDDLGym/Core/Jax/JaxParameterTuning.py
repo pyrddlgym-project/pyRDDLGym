@@ -161,7 +161,7 @@ class JaxParameterTuning:
                     'w': self.model_weight_space[2](res['params']['w']),
                     'wa': self.action_weight_space[2](res['params']['wa'])
                 }
-                if 'T' in res:
+                if 'T' in res['params']:
                     params['T'] = self.lookahead_space[2](res['params']['T'])
                 params = {'target': res['target'], 'params': params}
                 iter_file.write(f'Best: {params}\n\n')
