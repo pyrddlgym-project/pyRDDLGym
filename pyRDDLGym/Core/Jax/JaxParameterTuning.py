@@ -45,6 +45,7 @@ class JaxParameterTuning:
                  print_step: int=None,
                  verbose: bool=True,
                  wrap_sigmoid: bool=True,
+                 use_guess_last_epoch: bool=True,
                  planner_kwargs: Dict={}) -> None:
         '''Creates a new instance for tuning hyper-parameters for Jax planners
         on the given RDDL domain and instance.
@@ -75,6 +76,8 @@ class JaxParameterTuning:
         :param print_step: how often to print training callback
         :param verbose: whether to print intermediate results of tuning
         :param wrap_sigmoid: whether to wrap bool action-fluents with sigmoid
+        :param use_guess_last_epoch: for MPC approach, use the trained parameters
+        from previous epoch to seed next epoch actions
         :param planner_kwargs: additional arguments to feed to the planner
         '''
         self.env = env
@@ -96,16 +99,19 @@ class JaxParameterTuning:
         self.print_step = print_step
         self.verbose = verbose
         self.wrap_sigmoid = wrap_sigmoid
+        self.use_guess_last_epoch = use_guess_last_epoch
         self.planner_kwargs = planner_kwargs
             
-    def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout, color): 
+    def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout, color,
+                     guess=None): 
         starttime = None
         for (it, callback) in enumerate(planner.optimize(
             key=key,
             epochs=self.max_train_epochs,
             step=1,
             policy_hyperparams=policy_hyperparams,
-            subs=subs
+            subs=subs,
+            guess=guess
         )):
             if starttime is None:
                 starttime = time.time()
@@ -260,7 +266,8 @@ class JaxParameterTuning:
             env = RDDLEnv(domain=self.env.domain_text, 
                           instance=self.env.instance_text, 
                           enforce_action_constraints=True)
-                
+            print_each_step = not issubclass(type(self), JaxParameterTuning)
+            
             # perform training and collect rewards
             average_reward = 0.0
             for trial in range(self.evaluation_trials):
@@ -268,6 +275,7 @@ class JaxParameterTuning:
                     print(f'|--- {color}starting trial {trial + 1} '
                           f'with PRNG key={self.key}...{Style.RESET_ALL}')
                 total_reward = 0.0
+                guess = None
                 env.reset() 
                 starttime = time.time()
                 for step in range(self.evaluation_horizon):
@@ -280,14 +288,16 @@ class JaxParameterTuning:
                         self.key, subkey1, subkey2 = jax.random.split(self.key, num=3)
                         callback = self._train_epoch(
                             subkey1, policy_hyperparams, subs, planner, timeout,
-                            color)
+                            color, guess)
                         params = callback['best_params']
                         action = planner.get_action(subkey2, params, 0, subs)
+                        if self.use_guess_last_epoch:
+                            guess = planner.plan.guess_next_epoch(params)
                     else:
                         action = {}            
                     _, reward, done, _ = env.step(action)
                     total_reward += reward 
-                    if self.verbose and color == Fore.RESET:
+                    if self.verbose and print_each_step:
                         print(f'|------ {color}step={step}, '
                               f'reward={reward}{Style.RESET_ALL}')
                     if done: 
