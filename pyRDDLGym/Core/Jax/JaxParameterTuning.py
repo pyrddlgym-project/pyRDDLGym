@@ -1,9 +1,21 @@
-import GPyOpt
+import asyncio
+from bayes_opt import BayesianOptimization
+from bayes_opt.util import UtilityFunction
+from colorama import init as colorama_init, Fore, Style
+colorama_init()
 import jax
+import json
 import numpy as np
 import optax
+import requests
+import threading
 import time
-from typing import Dict, List, Tuple, Union
+import tornado.ioloop
+import tornado.httpserver
+from tornado.web import RequestHandler
+from typing import Callable, Dict, Tuple
+import warnings
+warnings.filterwarnings("ignore")
 
 from pyRDDLGym import ExampleManager
 from pyRDDLGym import RDDLEnv
@@ -21,15 +33,13 @@ class JaxParameterTuning:
                  max_train_epochs: int,
                  timeout_episode: float,
                  timeout_epoch: float,
-                 gp_iterations: int,
-                 initial_stddevs: Union[Tuple[float, float], List[float]],
-                 learning_rates: Union[Tuple[float, float], List[float]],
-                 model_weights: Union[Tuple[float, float], List[float]],
-                 action_weights: Union[Tuple[float, float], List[float]],
-                 planning_horizons: Union[Tuple[float, float], List[float]],
-                 gp_batch_size: int=1,
-                 gp_kwargs: Dict={},
-                 eval_horizon: int=None, 
+                 stddev_space: Tuple[float, float, Callable]=(-5., 0., (lambda x: 10 ** x)),
+                 lr_space: Tuple[float, float, Callable]=(-5., 0., (lambda x: 10 ** x)),
+                 model_weight_space: Tuple[float, float, Callable]=(0., 100., (lambda x: x)),
+                 action_weight_space: Tuple[float, float, Callable]=(0., 100., (lambda x: x)),
+                 lookahead_space: Tuple[float, float]=(None, None, (lambda x: int(x))),
+                 gp_kwargs: Dict={'n_iter': 25},
+                 eval_horizon: int=None,
                  eval_trials: int=5,
                  batch_size_train: int=32,
                  print_step: int=None,
@@ -47,19 +57,15 @@ class JaxParameterTuning:
         trial (in seconds)
         :param timeout_epoch: the maximum amount of time to spend training per
         decision epoch (in seconds, for MPC only)
-        :param gp_iterations: maximum number of steps of Bayesian optimization
-        :param initial_stddevs: set of initializer standard deviations for the 
-        policy or plan parameters (uses Gaussian noise) to tune: this can either
-        be specified as a list enumerating all choices, or a range of possible
-        continuous values as a tuple, e.g. (a, b)
-        :param learning_rates: set of learning rates for SGD (uses rmsprop by 
+        :param stddev_space: set of initializer standard deviations for the 
+        policy or plan parameters (uses Gaussian noise) to tune
+        :param lr_space: set of learning rates for SGD (uses rmsprop by 
         default) to tune
-        :param model_weights: set of model weight parameters for continuous 
+        :param model_weight_space: set of model weight parameters for continuous 
         relaxation to tune
-        :param action_weights: sigmoid weights for boolean actions to tune
-        :param planning_horizons: set of possible lookahead horizons for MPC to
+        :param action_weight_space: sigmoid weights for boolean actions to tune
+        :param lookahead_space: set of possible lookahead horizons for MPC to
         tune
-        :param gp_batch_size: how many evaluations to perform in parallel for GP
         :param gp_kwargs: dictionary of parameters to pass to Bayesian optimizer
         :param eval_horizon: maximum number of decision epochs to evaluate (also
         applies for training if using straight-line planning)
@@ -80,37 +86,19 @@ class JaxParameterTuning:
         if eval_horizon is None:
             self.evaluation_horizon = env.horizon
         self.evaluation_trials = eval_trials
-        self.gp_iterations = gp_iterations
-        self.gp_batch_size = gp_batch_size
+        self.stddev_space = stddev_space
+        self.lr_space = lr_space
+        self.model_weight_space = model_weight_space
+        self.action_weight_space = action_weight_space
+        self.lookahead_space = lookahead_space
         self.gp_kwargs = gp_kwargs
         self.batch_size_train = batch_size_train
         self.print_step = print_step
         self.verbose = verbose
         self.wrap_sigmoid = wrap_sigmoid
         self.planner_kwargs = planner_kwargs
-        
-        # set up bounds for parameter search
-        self.bounds = self._get_bounds(
-            initial_stddevs, learning_rates, model_weights, action_weights,
-            planning_horizons)
             
-    def _get_bounds(self, initial_stddevs, learning_rates, model_weights,
-                    action_weights, planning_horizons=None):
-        ranges = [initial_stddevs, learning_rates, model_weights, action_weights]
-        names = ['init', 'lr', 'w', 'wa']
-        if planning_horizons is not None:
-            ranges.append(planning_horizons)
-            names.append('T')
-        bounds = []
-        for name, bound in zip(names, ranges):
-            if isinstance(bound, tuple) and len(bound) == 2:
-                vtype = 'continuous'
-            else:
-                vtype = 'discrete'
-            bounds.append({'name': name, 'type': vtype, 'domain': bound})
-        return bounds
-    
-    def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout): 
+    def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout, color): 
         starttime = None
         for (it, callback) in enumerate(planner.optimize(
             key=key,
@@ -124,69 +112,94 @@ class JaxParameterTuning:
             currtime = time.time()  
             elapsed = currtime - starttime    
             if self.print_step is not None and it % self.print_step == 0:
-                print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
-                    elapsed,
-                    str(callback['iteration']).rjust(4),
-                    callback['train_return'],
-                    callback['test_return']))
+                print(f'|------ {color}' 
+                      '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
+                          elapsed,
+                          str(callback['iteration']).rjust(4),
+                          callback['train_return'],
+                          callback['test_return']) + 
+                      f'{Style.RESET_ALL}')
             if not np.isfinite(callback['train_return']):
                 if self.verbose:
-                    print('aborting due to NaN or inf value')
+                    print(f'|------ {color}aborting due to NaN or inf value!{Style.RESET_ALL}')
                 break
             if elapsed >= timeout:
                 break
         return callback
     
-    def _bayes_optimize(self, objective, name):
-        if self.gp_batch_size is not None and self.gp_batch_size > 1:
+    def _save_results(self, optimizer, name):         
+        with open(f'{name}_iterations.txt', 'w') as iter_file:
+            best_target = -np.inf
+            best_curve = []
+            for i, res in enumerate(optimizer.res):
+                if res and 'params' in res and 'target' in res:
+                    params = {
+                        'std': self.stddev_space[2](res['params']['std']),
+                        'lr': self.lr_space[2](res['params']['lr']),
+                        'w': self.model_weight_space[2](res['params']['w']),
+                        'wa': self.action_weight_space[2](res['params']['wa'])
+                    }
+                    if 'T' in res['params']:
+                        params['T'] = self.lookahead_space[2](res['params']['T'])
+                    params = {'target': res['target'], 'params': params}
+                    iter_file.write(f'Iteration {i}: \n\t{params}\n')
+                    
+                    best_target = max(best_target, res['target'])
+                    best_curve.append(best_target)
+                
+            res = optimizer.max
+            if res and 'params' in res and 'target' in res:
+                params = {
+                    'std': self.stddev_space[2](res['params']['std']),
+                    'lr': self.lr_space[2](res['params']['lr']),
+                    'w': self.model_weight_space[2](res['params']['w']),
+                    'wa': self.action_weight_space[2](res['params']['wa'])
+                }
+                if 'T' in res:
+                    params['T'] = self.lookahead_space[2](res['params']['T'])
+                params = {'target': res['target'], 'params': params}
+                iter_file.write(f'Best: {params}\n\n')
             
-            # parallel GP process
-            myBopt = GPyOpt.methods.BayesianOptimization(
-                f=objective,
-                domain=self.bounds,
-                maximize=True,
-                batch_size=self.gp_batch_size,
-                num_cores=self.gp_batch_size,
-                **self.gp_kwargs
-            )
-        else:
-            
-            # sequential GP process
-            myBopt = GPyOpt.methods.BayesianOptimization(
-                f=objective,
-                domain=self.bounds,
-                maximize=True,
-                **self.gp_kwargs
-            )
-            
-        myBopt.run_optimization(
-            self.gp_iterations,
-            verbosity=self.verbose,
-            save_models_parameters=True,
-            report_file=f'{name}_report.txt',
-            evaluations_file=f'{name}_eval.txt',
-            models_file=f'{name}_models.txt')
-        myBopt.plot_acquisition(f'{name}_acq.pdf')
-        myBopt.plot_convergence(f'{name}_conv.pdf')
+                iter_file.write('Targets:\n')
+                iter_file.write('\n'.join(map(str, best_curve)))
 
-    def tune_slp(self, key: jax.random.PRNGKey) -> None:
-        '''Tunes the hyper-parameters for Jax planner using straight-line 
-        planning approach.'''
-        env = self.env
-        timeout_episode = self.timeout_episode
+    def _bayes_optimize(self, key, objective, name):
         self.key = key
-
-        def objective(x):
-            x = np.ravel(x)
-            std, lr, w, wa = x[0], x[1], x[2], x[3]
+        
+        # set the bounds on variables
+        pbounds = {'std': self.stddev_space[:2],
+                   'lr': self.lr_space[:2],
+                   'w': self.model_weight_space[:2],
+                   'wa': self.action_weight_space[:2]}
+        if self.lookahead_space[0] is not None \
+        and self.lookahead_space[1] is not None:
+            pbounds['T'] = self.lookahead_space[:2]
+        
+        # run optimizer
+        optimizer = BayesianOptimization(
+            f=objective,
+            pbounds=pbounds,
+            verbose=0
+        )
+        optimizer.maximize(**self.gp_kwargs)
+        self._save_results(optimizer, name)
+    
+    def _objective_slp(self):
+        
+        def objective(std, lr, w, wa, color=Fore.RESET):
+            
+            # transform hyper-parameters to natural space
+            std = self.stddev_space[2](std)
+            lr = self.lr_space[2](lr)
+            w = self.model_weight_space[2](w)
+            wa = self.action_weight_space[2](wa)            
             if self.verbose:
-                print('\n'
-                      f'optimizing SLP with PRNG key={self.key}, ' 
-                      f'std={std}, lr={lr}, w={w}, wa={wa}...')
+                print(f'| {color}optimizing SLP with PRNG key={self.key}, ' 
+                      f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
             
             # initialize planner
             planner = JaxRDDLBackpropPlanner(
-                rddl=env.model,
+                rddl=self.env.model,
                 plan=JaxStraightLinePlan(
                     initializer=jax.nn.initializers.normal(std),
                     wrap_sigmoid=self.wrap_sigmoid),
@@ -201,35 +214,38 @@ class JaxParameterTuning:
             # perform training
             self.key, subkey = jax.random.split(self.key)
             callback = self._train_epoch(
-                subkey, policy_hyperparams, None, planner, timeout_episode)
-            total_reward = callback['best_return']
+                subkey, policy_hyperparams, None, planner, self.timeout_episode,
+                color)
+            total_reward = float(callback['best_return'])
             if self.verbose:
-                print(f'total reward={total_reward}\n')
+                print(f'| {color}done optimizing SLP, '
+                      f'total reward={total_reward}{Style.RESET_ALL}')
             return total_reward
         
-        # run Bayesian optimization
-        self._bayes_optimize(objective, 'gp_slp')
+        return objective
         
-    def tune_mpc(self, key: jax.random.PRNGKey) -> None:
-        '''Tunes the hyper-parameters for Jax planner using MPC/receding horizon
+    def tune_slp(self, key: jax.random.PRNGKey) -> None:
+        '''Tunes the hyper-parameters for Jax planner using straight-line 
         planning approach.'''
-        env = self.env
-        timeout_episode = self.timeout_episode
-        timeout_epoch = self.timeout_epoch
-        self.key = key
+        self._bayes_optimize(key, self._objective_slp(), 'gp_slp')
+    
+    def _objective_mpc(self):
         
-        def objective(x):
-            x = np.ravel(x)
-            std, lr, w, wa, T = x[0], x[1], x[2], x[3], x[4]
-            T = int(T)
-            if self.verbose:
-                print('\n'
-                      f'optimizing MPC with PRNG key={self.key}, ' 
-                      f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
+        def objective(std, lr, w, wa, T, color=Fore.RESET):
             
+            # transform hyper-parameters to natural space
+            std = self.stddev_space[2](std)
+            lr = self.lr_space[2](lr)
+            w = self.model_weight_space[2](w)
+            wa = self.action_weight_space[2](wa)
+            T = self.lookahead_space[2](T)            
+            if self.verbose:
+                print(f'| {color}optimizing MPC with PRNG key={self.key}, ' 
+                      f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...{Style.RESET_ALL}')
+                
             # initialize planner
             planner = JaxRDDLBackpropPlanner(
-                rddl=env.model,
+                rddl=self.env.model,
                 plan=JaxStraightLinePlan(
                     initializer=jax.nn.initializers.normal(std),
                     wrap_sigmoid=self.wrap_sigmoid),
@@ -245,54 +261,147 @@ class JaxParameterTuning:
             average_reward = 0.0
             for trial in range(self.evaluation_trials):
                 if self.verbose:
-                    print('\n' + 
-                          f'starting trial {trial + 1} with PRNG key={self.key}...')
+                    print(f'|--- {color}starting trial {trial + 1} '
+                          f'with PRNG key={self.key}...{Style.RESET_ALL}')
                 total_reward = 0.0
                 env.reset() 
                 starttime = time.time()
-                for step in range(self.evaluation_horizon):
+                for _ in range(self.evaluation_horizon):
                     currtime = time.time()
                     elapsed = currtime - starttime            
-                    if elapsed < timeout_episode:
+                    if elapsed < self.timeout_episode:
                         subs = env.sampler.subs
-                        timeout = min(timeout_episode - elapsed, timeout_epoch)
+                        timeout = min(self.timeout_episode - elapsed,
+                                      self.timeout_epoch)
                         self.key, subkey1, subkey2 = jax.random.split(self.key, num=3)
                         callback = self._train_epoch(
-                            subkey1, policy_hyperparams, subs, planner, timeout)
+                            subkey1, policy_hyperparams, subs, planner, timeout,
+                            color)
                         params = callback['best_params']
                         action = planner.get_action(subkey2, params, 0, subs)
                     else:
                         action = {}            
                     _, reward, done, _ = env.step(action)
                     total_reward += reward 
-                    if self.verbose:
-                        print(f'step={step}, reward={reward}')
                     if done: 
                         break  
                 if self.verbose:
-                    print(f'total reward={total_reward}\n')
+                    print(f'|--- {color}done trial {trial + 1}, '
+                          f'total reward={total_reward}{Style.RESET_ALL}')
                 average_reward += total_reward / self.evaluation_trials
+            if self.verbose:
+                print(f'| {color}done optimizing MPC, '
+                      f'average reward={average_reward}{Style.RESET_ALL}')
             return average_reward
         
-        # run Bayesian optimization
-        self._bayes_optimize(objective, 'gp_mpc')
+    def tune_mpc(self, key: jax.random.PRNGKey) -> None:
+        '''Tunes the hyper-parameters for Jax planner using MPC/receding horizon
+        planning approach.'''
+        self._bayes_optimize(key, self._objective_mpc(), 'gp_mpc')
+
+
+class JaxParameterTuningParallel(JaxParameterTuning):
+    
+    def __init__(self, *args, num_workers: int, **kwargs): 
+        super(JaxParameterTuningParallel, self).__init__(*args, **kwargs)
+        
+        self.num_workers = min(num_workers, 12)
+        self.colors = [Fore.MAGENTA, Fore.RED, Fore.YELLOW,
+                       Fore.GREEN, Fore.CYAN, Fore.BLUE, Fore.RESET,
+                       Fore.LIGHTMAGENTA_EX, Fore.LIGHTRED_EX, Fore.LIGHTYELLOW_EX,
+                       Fore.LIGHTGREEN_EX, Fore.LIGHTCYAN_EX, Fore.LIGHTBLUE_EX]
+        
+    def _bayes_optimize(self, key, objective, name): 
+        self.key = key
+        
+        # set the bounds on variables
+        pbounds = {'std': self.stddev_space[:2],
+                   'lr': self.lr_space[:2],
+                   'w': self.model_weight_space[:2],
+                   'wa': self.action_weight_space[:2]}
+        if self.lookahead_space[0] is not None \
+        and self.lookahead_space[1] is not None:
+            pbounds['T'] = self.lookahead_space[:2]
+        
+        # create optimizer
+        optimizer = BayesianOptimization(
+            f=objective,
+            pbounds=pbounds,
+            allow_duplicate_points=True
+        )
+        utility = self.gp_kwargs.get(
+            'acquisition_function', UtilityFunction(kind='ucb', kappa=3, xi=1))
+        
+        # class for processing requests (i.e. hyper-parameters)
+        class BayesianOptimizationHandler(RequestHandler):
+            
+            def post(self):
+                body = tornado.escape.json_decode(self.request.body)        
+                try: 
+                    optimizer.register(params=body['params'], target=body['target'])
+                except KeyError: 
+                    pass
+                finally: 
+                    params = optimizer.suggest(utility)
+                self.write(json.dumps(params))
+        
+        # manages threads
+        def run_optimization_app():
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            handlers = [(r"/jax_tuning", BayesianOptimizationHandler)]
+            server = tornado.httpserver.HTTPServer(tornado.web.Application(handlers))
+            server.listen(9009)
+            tornado.ioloop.IOLoop.instance().start()
+        
+        optimizers_config = [
+            {'name': f'optimizer {i + 1}', 'color': self.colors[i]}
+            for i in range(self.num_workers)
+        ]
+        
+        # worker
+        def run_optimizer():
+            config = optimizers_config.pop()
+            color = config['color']
+            register_data = {}
+            max_target = None
+            for _ in range(self.gp_kwargs.get('n_iter', 25)): 
+                params = requests.post(
+                    url='http://localhost:9009/jax_tuning',
+                    json=register_data,
+                ).json()
+                target = objective(**params, color=color)
+                if max_target is None or target > max_target:
+                    max_target = target
+                register_data = {'params': params, 'target': target}
+        
+        # create multi-threading instance, assign jobs, run etc.
+        ioloop = tornado.ioloop.IOLoop.instance()        
+        app_thread = threading.Thread(target=run_optimization_app)
+        app_thread.daemon = True
+        app_thread.start()
+        
+        optimizer_threads = []
+        for _ in range(self.num_workers):
+            optimizer_threads.append(threading.Thread(target=run_optimizer))
+            optimizer_threads[-1].daemon = True
+            optimizer_threads[-1].start()    
+        for optimizer_thread in optimizer_threads:
+            optimizer_thread.join()    
+        ioloop.stop()
+    
+        self._save_results(optimizer, name)
 
 
 if __name__ == '__main__':
     EnvInfo = ExampleManager.GetEnvInfo('HVAC')
     env = RDDLEnv.RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(2))
-    tuning = JaxParameterTuning(
+    tuning = JaxParameterTuningParallel(
+        num_workers=10,
+        gp_kwargs={'n_iter': 5},
         env=env,
         action_bounds={'fan-in': (0.05, None), 'heat-input': (0., 1000.)},
         max_train_epochs=9999,
-        timeout_episode=5,
+        timeout_episode=20,
         timeout_epoch=None,
-        gp_iterations=30,
-        gp_kwargs={'initial_design_numdata': 3},
-        initial_stddevs=(0., 1.),
-        learning_rates=[1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1],
-        model_weights=(1., 200.),
-        action_weights=(1., 100.),
-        planning_horizons=None,
-        print_step=1000)
-    tuning.tune_slp( jax.random.PRNGKey(42))
+        print_step=500)
+    tuning.tune_slp(jax.random.PRNGKey(42))
