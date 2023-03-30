@@ -29,7 +29,6 @@ class JaxParameterTuning:
                  planning_horizons: Union[Tuple[float, float], List[float]],
                  gp_batch_size: int=1,
                  gp_kwargs: Dict={},
-                 key: int=42,
                  eval_horizon: int=None, 
                  eval_trials: int=5,
                  batch_size_train: int=32,
@@ -62,7 +61,6 @@ class JaxParameterTuning:
         tune
         :param gp_batch_size: how many evaluations to perform in parallel for GP
         :param gp_kwargs: dictionary of parameters to pass to Bayesian optimizer
-        :param key: seed for JAX PRNG key
         :param eval_horizon: maximum number of decision epochs to evaluate (also
         applies for training if using straight-line planning)
         :param eval_trials: how many trials to perform for MPC (batch size has
@@ -78,7 +76,6 @@ class JaxParameterTuning:
         self.max_train_epochs = max_train_epochs
         self.timeout_episode = timeout_episode
         self.timeout_epoch = timeout_epoch
-        self.key = key
         self.evaluation_horizon = eval_horizon
         if eval_horizon is None:
             self.evaluation_horizon = env.horizon
@@ -172,21 +169,22 @@ class JaxParameterTuning:
         myBopt.plot_acquisition(f'{name}_acq.pdf')
         myBopt.plot_convergence(f'{name}_conv.pdf')
 
-    def tune_slp(self):
+    def tune_slp(self, key: jax.random.PRNGKey) -> None:
         '''Tunes the hyper-parameters for Jax planner using straight-line 
         planning approach.'''
         env = self.env
         timeout_episode = self.timeout_episode
+        self.key = key
 
         def objective(x):
             x = np.ravel(x)
             std, lr, w, wa = x[0], x[1], x[2], x[3]
             if self.verbose:
-                print('\n' + 'optimizing SLP with ' + 
+                print('\n'
+                      f'optimizing SLP with PRNG key={self.key}, ' 
                       f'std={std}, lr={lr}, w={w}, wa={wa}...')
             
             # initialize planner
-            key = jax.random.PRNGKey(self.key)
             planner = JaxRDDLBackpropPlanner(
                 rddl=env.model,
                 plan=JaxStraightLinePlan(
@@ -201,8 +199,9 @@ class JaxParameterTuning:
             policy_hyperparams = {name: wa for name in self.action_bounds}
             
             # perform training
+            self.key, subkey = jax.random.split(self.key)
             callback = self._train_epoch(
-                key, policy_hyperparams, None, planner, timeout_episode)
+                subkey, policy_hyperparams, None, planner, timeout_episode)
             total_reward = callback['best_return']
             if self.verbose:
                 print(f'total reward={total_reward}\n')
@@ -211,23 +210,24 @@ class JaxParameterTuning:
         # run Bayesian optimization
         self._bayes_optimize(objective, 'gp_slp')
         
-    def tune_mpc(self):
+    def tune_mpc(self, key: jax.random.PRNGKey) -> None:
         '''Tunes the hyper-parameters for Jax planner using MPC/receding horizon
         planning approach.'''
         env = self.env
         timeout_episode = self.timeout_episode
         timeout_epoch = self.timeout_epoch
+        self.key = key
         
         def objective(x):
             x = np.ravel(x)
             std, lr, w, wa, T = x[0], x[1], x[2], x[3], x[4]
             T = int(T)
             if self.verbose:
-                print('\n' + 'optimizing MPC with ' + 
+                print('\n'
+                      f'optimizing MPC with PRNG key={self.key}, ' 
                       f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
             
             # initialize planner
-            key = jax.random.PRNGKey(self.key)
             planner = JaxRDDLBackpropPlanner(
                 rddl=env.model,
                 plan=JaxStraightLinePlan(
@@ -245,7 +245,8 @@ class JaxParameterTuning:
             average_reward = 0.0
             for trial in range(self.evaluation_trials):
                 if self.verbose:
-                    print('\n' + f'starting trial {trial + 1}...')
+                    print('\n' + 
+                          f'starting trial {trial + 1} with PRNG key={self.key}...')
                 total_reward = 0.0
                 env.reset() 
                 starttime = time.time()
@@ -255,11 +256,11 @@ class JaxParameterTuning:
                     if elapsed < timeout_episode:
                         subs = env.sampler.subs
                         timeout = min(timeout_episode - elapsed, timeout_epoch)
+                        self.key, subkey1, subkey2 = jax.random.split(self.key, num=3)
                         callback = self._train_epoch(
-                            key, policy_hyperparams, subs, planner, timeout)
+                            subkey1, policy_hyperparams, subs, planner, timeout)
                         params = callback['best_params']
-                        key, subkey = jax.random.split(key)
-                        action = planner.get_action(subkey, params, 0, subs)
+                        action = planner.get_action(subkey2, params, 0, subs)
                     else:
                         action = {}            
                     _, reward, done, _ = env.step(action)
@@ -278,23 +279,20 @@ class JaxParameterTuning:
 
 
 if __name__ == '__main__':
-    EnvInfo = ExampleManager.GetEnvInfo('Traffic')
-    env = RDDLEnv.RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(0))
+    EnvInfo = ExampleManager.GetEnvInfo('HVAC')
+    env = RDDLEnv.RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(2))
     tuning = JaxParameterTuning(
         env=env,
-        action_bounds={'advance': (0., 1.)},
-        max_train_epochs=1000,
-        timeout_episode=300,
+        action_bounds={'fan-in': (0.05, None), 'heat-input': (0., 1000.)},
+        max_train_epochs=9999,
+        timeout_episode=5,
         timeout_epoch=None,
-        gp_iterations=20,
-        gp_kwargs={'initial_design_numdata': 2},
+        gp_iterations=30,
+        gp_kwargs={'initial_design_numdata': 3},
         initial_stddevs=(0., 1.),
         learning_rates=[1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1],
         model_weights=(1., 200.),
         action_weights=(1., 100.),
         planning_horizons=None,
-        eval_horizon=300,
-        batch_size_train=8,
-        print_step=100,
-        planner_kwargs={'use64bit': True, 'clip_grad': 1.0})
-    tuning.tune_slp()
+        print_step=1000)
+    tuning.tune_slp( jax.random.PRNGKey(42))
