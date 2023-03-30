@@ -314,11 +314,11 @@ class JaxParameterTuningParallel(JaxParameterTuning):
     def __init__(self, *args, num_workers: int, **kwargs): 
         super(JaxParameterTuningParallel, self).__init__(*args, **kwargs)
         
-        self.num_workers = min(num_workers, 12)
         self.colors = [Fore.MAGENTA, Fore.RED, Fore.YELLOW,
                        Fore.GREEN, Fore.CYAN, Fore.BLUE, Fore.RESET,
                        Fore.LIGHTMAGENTA_EX, Fore.LIGHTRED_EX, Fore.LIGHTYELLOW_EX,
                        Fore.LIGHTGREEN_EX, Fore.LIGHTCYAN_EX, Fore.LIGHTBLUE_EX]
+        self.num_workers = min(num_workers, len(self.colors))
         
     def _bayes_optimize(self, key, objective, name, read_T): 
         self.key = key
