@@ -1,7 +1,7 @@
 import asyncio
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import UtilityFunction
-from colorama import init as colorama_init, Fore, Style
+from colorama import init as colorama_init, Back, Fore, Style
 colorama_init()
 import jax
 import json
@@ -317,7 +317,11 @@ class JaxParameterTuningParallel(JaxParameterTuning):
         self.colors = [Fore.MAGENTA, Fore.RED, Fore.YELLOW,
                        Fore.GREEN, Fore.CYAN, Fore.BLUE, Fore.RESET,
                        Fore.LIGHTMAGENTA_EX, Fore.LIGHTRED_EX, Fore.LIGHTYELLOW_EX,
-                       Fore.LIGHTGREEN_EX, Fore.LIGHTCYAN_EX, Fore.LIGHTBLUE_EX]
+                       Fore.LIGHTGREEN_EX, Fore.LIGHTCYAN_EX, Fore.LIGHTBLUE_EX,
+                       Back.MAGENTA, Back.RED, Back.YELLOW,
+                       Back.GREEN, Back.CYAN, Back.BLUE, 
+                       Back.LIGHTMAGENTA_EX, Back.LIGHTRED_EX, Back.LIGHTYELLOW_EX,
+                       Back.LIGHTGREEN_EX, Back.LIGHTCYAN_EX, Back.LIGHTBLUE_EX]
         self.num_workers = min(num_workers, len(self.colors))
         
     def _bayes_optimize(self, key, objective, name, read_T): 
@@ -410,6 +414,6 @@ if __name__ == '__main__':
         action_bounds={'fan-in': (0.05, None), 'heat-input': (0., 1000.)},
         max_train_epochs=9999,
         timeout_episode=30,
-        timeout_epoch=9999,
-        print_step=500)
+        timeout_epoch=None,
+        print_step=200)
     tuning.tune_slp(jax.random.PRNGKey(42))
