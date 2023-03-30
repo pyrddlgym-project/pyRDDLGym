@@ -29,8 +29,10 @@ domain mountain_car {
 
     	// physics constants
 		GRAVITY-MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
-		FORCE-MAG 	: { non-fluent, real, default = 0.001 };	    // force applied to the side of the cart
-
+		FORCE-MAG 	: { non-fluent, real, default = 0.0015 };	    // force applied to the side of the cart
+		GOAL-REWARD : { non-fluent, real, default = 100.0 };        // goal reward
+		ACTION-COST : { non-fluent, real, default = 0.1 };          // proportional cost of an action
+		
 		// valley shape defined by piecewise linear with x in [-1.2, 0.6] and y in [0, 1]
 		X-START(segment) : { non-fluent, real, default = -1.2 };    // starting x-position of segment
 		Y-START(segment) : { non-fluent, real, default = 0 };       // starting y-position of segment
@@ -54,17 +56,18 @@ domain mountain_car {
        	vel   	: { state-fluent, real, default = 0 };              // cart velocity
 
        	// actions
-       	action : { action-fluent, real, default = 1 };              // whether to accelerate left (0), none (1) or right (2)
+       	action : { action-fluent, real, default = 0 };              // whether to accelerate left (-1) or right (1)
     };
 
     cpfs {
 		
 		// total force
-		force = (action - 1) * FORCE-MAG;
+		force = action * FORCE-MAG;
 		
 	    // get the slope of the segment the cart is currently in
 	    in-segment(?p) = (pos >= X-START(?p)) ^ (pos < X-END(?p));
-	    pos-slope = ( sum_{?p : segment} [ ((Y-END(?p) - Y-START(?p)) / (X-END(?p) - X-START(?p))) * in-segment(?p) ] );
+	    pos-slope = ( sum_{?p : segment} [ ((Y-END(?p) - Y-START(?p)) / (X-END(?p) - X-START(?p))) 
+						* in-segment(?p) ] );
 		
 	    // update the position of the cart
 	    pos' = max[min[pos + vel, MAX-POS], MIN-POS];
@@ -73,10 +76,9 @@ domain mountain_car {
 	    vel' = [ max[min[vel + force + (-GRAVITY-MAG) * pos-slope, MAX-VEL], -MAX-VEL] ];
     };
 
-    // R = 1 as long as the pole is upright and the cart is not out of bounds
-    reward = if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN))
-			    then 1.0
-			    else 0.0;
+    // reward is 100 for reaching goal, minus action penalty
+    reward = [if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN)) then GOAL-REWARD else 0.0]
+				- ACTION-COST * pow[action, 2];
 	
 	termination {
 		(pos >= GOAL-MIN) ^ (vel >= VEL-MIN);
@@ -104,8 +106,8 @@ domain mountain_car {
     };
 
     action-preconditions {
-        action >= 0;
-        action <= 2;
+        action >= -1;
+        action <= 1;
     };
 
 }
