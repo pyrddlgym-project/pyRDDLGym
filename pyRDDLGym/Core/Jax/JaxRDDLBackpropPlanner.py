@@ -231,7 +231,8 @@ class JaxStraightLinePlan(JaxPlan):
                 bounds[name] = _bounds.get(name, (-jnp.inf, jnp.inf))
             warnings.warn(f'Bounds of action fluent <{name}> parameters '
                           f'set to {bounds[name]}', stacklevel=2)
-                
+        self.bounds = bounds
+        
         # initialize the parameters inside their valid ranges
         def _jax_wrapped_slp_init(key, subs):
             params = {}
@@ -467,6 +468,7 @@ class JaxRDDLBackpropPlanner:
         self.horizon = rollout_horizon
         self._action_bounds = action_bounds
         self.use64bit = use64bit
+        self.clip_grad = clip_grad
         
         self.optimizer = optax.chain(
             optax.clip(clip_grad),
