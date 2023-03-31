@@ -97,7 +97,7 @@ class JaxParameterTuning:
         self.wrap_sigmoid = wrap_sigmoid
         self.use_guess_last_epoch = use_guess_last_epoch
         self.planner_kwargs = planner_kwargs
-            
+        
     def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout, color,
                      guess=None): 
         starttime = None
@@ -130,7 +130,13 @@ class JaxParameterTuning:
         return callback
     
     def _save_results(self, optimizer, name): 
-        with open(f'{name}_iterations.txt', 'w') as iter_file:
+        domainName = self.env.model.domainName()
+        instName = self.env.model.instanceName()
+        domainName = ''.join(c for c in domainName if c.isalnum() or c == '_')
+        instName = ''.join(c for c in instName if c.isalnum() or c == '_')
+        filename = f'{name}_{domainName}_{instName}_iterations.txt'
+        
+        with open(filename, 'w') as iter_file:
             best_target = -np.inf
             best_curve = []
             for i, res in enumerate(optimizer.res):
@@ -362,11 +368,12 @@ class JaxParameterTuningParallel(JaxParameterTuning):
                 self.write(json.dumps(params))
         
         # manages threads
+        port = 9009
         def run_optimization_app():
             asyncio.set_event_loop(asyncio.new_event_loop())
             handlers = [(r"/jax_tuning", BayesianOptimizationHandler)]
             server = tornado.httpserver.HTTPServer(tornado.web.Application(handlers))
-            server.listen(9009)
+            server.listen(port)
             tornado.ioloop.IOLoop.instance().start()
         
         optimizers_config = [
@@ -382,7 +389,7 @@ class JaxParameterTuningParallel(JaxParameterTuning):
             max_target = None
             for _ in range(self.gp_kwargs.get('n_iter', 25)): 
                 params = requests.post(
-                    url='http://localhost:9009/jax_tuning',
+                    url=f'http://localhost:{port}/jax_tuning',
                     json=register_data,
                 ).json()
                 target = objective(**params, color=color)
