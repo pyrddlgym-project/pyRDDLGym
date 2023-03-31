@@ -36,7 +36,7 @@ def slp_train(planner, budget, **train_args):
         if elapsed >= budget:
             print('ran out of time!')
             break
-    params = callback['params']
+    params = callback['best_params']
     
     # key = jax.random.PRNGKey(42)
     # error = JaxRDDLModelError(planner.rddl, planner.test_policy, 
@@ -92,6 +92,7 @@ def slp_replan(env, trials, timeout, timeout_ps, save):
         total_reward = 0
         state = myEnv.reset() 
         starttime = time.time()
+        train_args['guess'] = None
         for step in range(myEnv.horizon):
             currtime = time.time()
             elapsed = currtime - starttime
@@ -104,6 +105,7 @@ def slp_replan(env, trials, timeout, timeout_ps, save):
                                    **train_args)
                 key, subkey = jax.random.split(key)
                 action = planner.get_action(subkey, params, 0, subs)
+                train_args['guess'] = planner.plan.guess_next_epoch(params)
             else:
                 print('ran out of time!')
                 action = {}
