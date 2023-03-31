@@ -53,10 +53,10 @@ Last, setting up the dedicated visualizer for the example is done via
 
 Interacting with the Environment
 ----------------------------
-pyRDDLGym is build on Gym as so implements the classic “agent-environment loop”. The infrastructure comes with two simple agents:
+pyRDDLGym is build on Gym as so implements the classic agent-environment loop. The infrastructure comes with two simple agents:
 
 - **NoOpAgent** - which allows the environment to evolve according to the default behavior as specified in the RDDL file.
-- **RandomAgent** - which sends a rendom action according to the env.action_space and the maximum number of allowed concurrent actions as specified in the RDDL file.
+- **RandomAgent** - which sends a random action according to the env.action_space and the maximum number of allowed concurrent actions as specified in the RDDL file.
 
 Using a pre existing agent, or using of of your own is as simple as:
 
@@ -83,7 +83,7 @@ If the ``env.render()`` function will be used we will also see a window pop up r
     # set up the environment visualizer
     myEnv.set_visualizer(EnvInfo.get_visualizer())
 
-    # set up an aget
+    # set up an agent
     agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
 
     total_reward = 0
@@ -104,18 +104,16 @@ State/action spaces are of type ``gym.spaces.Dict``, where each key-value pair w
 
 Thus, RDDL types are converted to ``gym.spaces`` with the appropriate bounds as specified in the RDDL ``action-preconditions`` and ``state-invariants`` fields. The conversion is as following:
 
-- real -> Box with bounds as specified in action-preconditions, or with np.inf and symetric bounds.
-- int -> Discrete with bounds as specified in action-preconditions, or with np.inf and symetric bounds.
+- real -> Box with bounds as specified in action-preconditions, or with np.inf and symmetric bounds.
+- int -> Discrete with bounds as specified in action-preconditions, or with np.inf and symmetric bounds.
 - bool -> Discrete(2)
 
 There is no need in pyRDDLGym to specify the values of all the existing action in the RDDL domain description, only thus the agent wishes to assign non-default values, the infrastructure will construct the full action vector as necessary with the default action values according to the RDDL description.
 
-Note: enum types are not supported by pyRDDLGym at this stage.
-
 Constants
 ---------
 
-RDDL allows for the constants of the problem instead of being hardcoded, to be specified and in the non-fluent block of the instance.
+RDDL allows for the constants of the problem instead of being hard-coded, to be specified and in the non-fluent block of the instance.
 Meaning every instance can have different constants, e.g., different bounds on action, different static object location, etc.
 
 While these constants are not available through the state of the problem, it is possible to access them through gym (or directly through the RDDL description) with a dedicated API: ``env.non_fluents``.
@@ -163,6 +161,15 @@ Replacing the built is TextViz is simple as calling the environment method ``env
 
     # set up the environment visualizer
     myEnv.set_visualizer(EnvInfo.get_visualizer())
+
+For many visualizers, the default visualizer is often the TextViz, which can make visualization difficult for high-dimensional problems.
+In this case, pyRDDLGym also provides a graph-based alternative similar to control charts. To activate the ``ChartVisualizer``, simply change the last line of the above example as follows:
+
+.. code-block:: python
+
+    from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
+    ...
+    myEnv.set_visualizer(ChartVisualizer)
 
 In order to build custom visualizations (for new user defined domains),
 one just need to inherit the class ``Visualizer.StateViz.StateViz()`` and return in the ``visualizer.render()`` method a PIL image for the gym to render to the screen.
