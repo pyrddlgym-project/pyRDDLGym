@@ -17,7 +17,6 @@ from typing import Callable, Dict, Tuple
 import warnings
 warnings.filterwarnings("ignore")
 
-from pyRDDLGym import ExampleManager
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
@@ -41,7 +40,6 @@ class JaxParameterTuning:
                  gp_kwargs: Dict={'n_iter': 25},
                  eval_horizon: int=None,
                  eval_trials: int=5,
-                 batch_size_train: int=32,
                  print_step: int=None,
                  verbose: bool=True,
                  wrap_sigmoid: bool=True,
@@ -72,7 +70,6 @@ class JaxParameterTuning:
         applies for training if using straight-line planning)
         :param eval_trials: how many trials to perform for MPC (batch size has
         the same effect for non-MPC)
-        :param batch_size_train: training batch size for planner
         :param print_step: how often to print training callback
         :param verbose: whether to print intermediate results of tuning
         :param wrap_sigmoid: whether to wrap bool action-fluents with sigmoid
@@ -95,7 +92,6 @@ class JaxParameterTuning:
         self.action_weight_space = action_weight_space
         self.lookahead_space = lookahead_space
         self.gp_kwargs = gp_kwargs
-        self.batch_size_train = batch_size_train
         self.print_step = print_step
         self.verbose = verbose
         self.wrap_sigmoid = wrap_sigmoid
@@ -208,7 +204,6 @@ class JaxParameterTuning:
                 plan=JaxStraightLinePlan(
                     initializer=jax.nn.initializers.normal(std),
                     wrap_sigmoid=self.wrap_sigmoid),
-                batch_size_train=self.batch_size_train,
                 rollout_horizon=self.evaluation_horizon,
                 action_bounds=self.action_bounds,
                 optimizer=optax.rmsprop(lr),
@@ -254,7 +249,6 @@ class JaxParameterTuning:
                 plan=JaxStraightLinePlan(
                     initializer=jax.nn.initializers.normal(std),
                     wrap_sigmoid=self.wrap_sigmoid),
-                batch_size_train=self.batch_size_train,
                 rollout_horizon=T,
                 action_bounds=self.action_bounds,
                 optimizer=optax.rmsprop(lr),
@@ -263,8 +257,8 @@ class JaxParameterTuning:
             policy_hyperparams = {name: wa for name in self.action_bounds}
             
             # initialize env for evaluation (need fresh copy to avoid concurrency)
-            env = RDDLEnv(domain=self.env.domain_text, 
-                          instance=self.env.instance_text, 
+            env = RDDLEnv(domain=self.env.domain_text,
+                          instance=self.env.instance_text,
                           enforce_action_constraints=True)
             print_each_step = not issubclass(type(self), JaxParameterTuning)
             
@@ -329,7 +323,7 @@ class JaxParameterTuningParallel(JaxParameterTuning):
                        Fore.LIGHTMAGENTA_EX, Fore.LIGHTRED_EX, Fore.LIGHTYELLOW_EX,
                        Fore.LIGHTGREEN_EX, Fore.LIGHTCYAN_EX, Fore.LIGHTBLUE_EX,
                        Back.MAGENTA, Back.RED, Back.YELLOW,
-                       Back.GREEN, Back.CYAN, Back.BLUE, 
+                       Back.GREEN, Back.CYAN, Back.BLUE,
                        Back.LIGHTMAGENTA_EX, Back.LIGHTRED_EX, Back.LIGHTYELLOW_EX,
                        Back.LIGHTGREEN_EX, Back.LIGHTCYAN_EX, Back.LIGHTBLUE_EX]
         self.num_workers = min(num_workers, len(self.colors))
@@ -413,17 +407,3 @@ class JaxParameterTuningParallel(JaxParameterTuning):
     
         self._save_results(optimizer, name)
 
-
-if __name__ == '__main__':
-    EnvInfo = ExampleManager.GetEnvInfo('HVAC')
-    world = RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(2))
-    tuning = JaxParameterTuningParallel(
-        num_workers=4,
-        gp_kwargs={'n_iter': 10},
-        env=world,
-        action_bounds={'fan-in': (0.05, None), 'heat-input': (0., 1000.)},
-        max_train_epochs=9999,
-        timeout_episode=30,
-        timeout_epoch=None,
-        print_step=200)
-    tuning.tune_slp(jax.random.PRNGKey(42))
