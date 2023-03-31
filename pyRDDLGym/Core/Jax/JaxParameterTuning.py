@@ -8,7 +8,7 @@ import json
 import numpy as np
 import optax
 import requests
-import threading
+from threading import Thread
 import time
 import tornado.ioloop
 import tornado.httpserver
@@ -113,7 +113,8 @@ class JaxParameterTuning:
                 starttime = time.time()
             currtime = time.time()  
             elapsed = currtime - starttime    
-            if self.print_step is not None and it % self.print_step == 0 and it > 0:
+            if self.verbose and self.print_step is not None \
+            and it > 0 and it % self.print_step == 0:
                 print(f'|------ {color}' 
                       '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
                           elapsed,
@@ -369,6 +370,7 @@ class JaxParameterTuningParallel(JaxParameterTuning):
         
         # manages threads
         port = 9009
+
         def run_optimization_app():
             asyncio.set_event_loop(asyncio.new_event_loop())
             handlers = [(r"/jax_tuning", BayesianOptimizationHandler)]
@@ -399,13 +401,13 @@ class JaxParameterTuningParallel(JaxParameterTuning):
         
         # create multi-threading instance, assign jobs, run etc.
         ioloop = tornado.ioloop.IOLoop.instance()        
-        app_thread = threading.Thread(target=run_optimization_app)
+        app_thread = Thread(target=run_optimization_app)
         app_thread.daemon = True
         app_thread.start()
         
         optimizer_threads = []
         for _ in range(self.num_workers):
-            optimizer_threads.append(threading.Thread(target=run_optimizer))
+            optimizer_threads.append(Thread(target=run_optimizer))
             optimizer_threads[-1].daemon = True
             optimizer_threads[-1].start()    
         for optimizer_thread in optimizer_threads:
