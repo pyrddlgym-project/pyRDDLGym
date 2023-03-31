@@ -64,7 +64,19 @@ class PlanningModel(metaclass=ABCMeta):
     
     def SetAST(self, AST):
         self._AST = AST
-
+    
+    def domainName(self):
+        if self._AST is None:
+            return None
+        else:
+            return self._AST.domain.name
+    
+    def instanceName(self):
+        if self._AST is None:
+            return None
+        else:
+            return self._AST.instance.name
+        
     @property
     def objects(self):
         return self._objects
