@@ -3,12 +3,13 @@ from bayes_opt import BayesianOptimization
 from bayes_opt.util import UtilityFunction
 from colorama import init as colorama_init, Back, Fore, Style
 colorama_init()
+import csv
 import jax
 import json
 import numpy as np
 import optax
 import requests
-from threading import Thread
+from threading import Thread, Lock
 import time
 import tornado.ioloop
 import tornado.httpserver
@@ -98,6 +99,12 @@ class JaxParameterTuning:
         self.use_guess_last_epoch = use_guess_last_epoch
         self.planner_kwargs = planner_kwargs
         
+        self._map = {'std': stddev_space[2],
+                     'lr': lr_space[2],
+                     'w': model_weight_space[2],
+                     'wa': action_weight_space[2],
+                     'T': lookahead_space[2]}
+        
     def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout, color,
                      guess=None): 
         starttime = None
@@ -124,53 +131,35 @@ class JaxParameterTuning:
                       f'{Style.RESET_ALL}')
             if not np.isfinite(callback['train_return']):
                 if self.verbose:
-                    print(f'|------ {color}aborting due to NaN or inf value!{Style.RESET_ALL}')
+                    print(f'|------ {color}aborting due to NaN or inf value!'
+                          f'{Style.RESET_ALL}')
                 break
             if elapsed >= timeout:
                 break
         return callback
     
-    def _save_results(self, optimizer, name): 
+    def _filename(self, name):
         domainName = self.env.model.domainName()
         instName = self.env.model.instanceName()
         domainName = ''.join(c for c in domainName if c.isalnum() or c == '_')
         instName = ''.join(c for c in instName if c.isalnum() or c == '_')
-        filename = f'{name}_{domainName}_{instName}_iterations.txt'
-        
-        with open(filename, 'w') as iter_file:
-            best_target = -np.inf
-            best_curve = []
-            for i, res in enumerate(optimizer.res):
+        filename = f'{name}_{domainName}_{instName}.csv'
+        return filename
+    
+    def _save_results(self, optimizer, name):     
+        with open(self._filename(name), 'w', newline='') as file:
+            writer = csv.writer(file)
+            has_header = False
+            keys = None
+            for (i, res) in enumerate(optimizer.res):
                 if 'params' in res and 'target' in res:
-                    params = {
-                        'std': self.stddev_space[2](res['params']['std']),
-                        'lr': self.lr_space[2](res['params']['lr']),
-                        'w': self.model_weight_space[2](res['params']['w']),
-                        'wa': self.action_weight_space[2](res['params']['wa'])
-                    }
-                    if 'T' in res['params']:
-                        params['T'] = self.lookahead_space[2](res['params']['T'])
-                    params = {'target': res['target'], 'params': params}
-                    iter_file.write(f'Iteration {i}: \n\t{params}\n')
-                    
-                    best_target = max(best_target, res['target'])
-                    best_curve.append(best_target)
-                
-            res = optimizer.max
-            if 'params' in res and 'target' in res:
-                params = {
-                    'std': self.stddev_space[2](res['params']['std']),
-                    'lr': self.lr_space[2](res['params']['lr']),
-                    'w': self.model_weight_space[2](res['params']['w']),
-                    'wa': self.action_weight_space[2](res['params']['wa'])
-                }
-                if 'T' in res['params']:
-                    params['T'] = self.lookahead_space[2](res['params']['T'])
-                params = {'target': res['target'], 'params': params}
-                iter_file.write(f'Best: {params}\n\n')
-            
-                iter_file.write('Targets:\n')
-                iter_file.write('\n'.join(map(str, best_curve)))
+                    target, params = res['target'], res['params']
+                    if not has_header:
+                        keys = list(params.keys())
+                        writer.writerow(['iteration', 'target'] + keys)
+                        has_header = True
+                    writer.writerow(
+                        [i, target] + [self._map[k](params[k]) for k in keys])  
 
     def _bayes_optimize(self, key, objective, name, read_T):
         self.key = key
@@ -355,13 +344,29 @@ class JaxParameterTuningParallel(JaxParameterTuning):
         utility = self.gp_kwargs.get(
             'acquisition_function', UtilityFunction(kind='ucb', kappa=3, xi=1))
         
+        # lock for saving to file
+        keys = list(pbounds.keys())
+        filename = self._filename(name)
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['worker', 'iteration', 'target'] + keys)
+        lock = Lock()
+        file = open(filename, 'a', newline='')
+        writer = csv.writer(file)
+        params_map = self._map
+        
         # class for processing requests (i.e. hyper-parameters)
         class BayesianOptimizationHandler(RequestHandler):
             
             def post(self):
                 body = tornado.escape.json_decode(self.request.body)        
                 try: 
-                    optimizer.register(params=body['params'], target=body['target'])
+                    worker, it = body['worker'], body['iter']
+                    target, params = body['target'], body['params']
+                    optimizer.register(params=params, target=target)  
+                    with lock:
+                        writer.writerow([worker, it, target] + \
+                                        [params_map[k](params[k]) for k in keys])
                 except KeyError: 
                     pass
                 finally: 
@@ -389,7 +394,7 @@ class JaxParameterTuningParallel(JaxParameterTuning):
             color = config['color']
             register_data = {}
             max_target = None
-            for _ in range(self.gp_kwargs.get('n_iter', 25)): 
+            for it in range(self.gp_kwargs.get('n_iter', 25)): 
                 params = requests.post(
                     url=f'http://localhost:{port}/jax_tuning',
                     json=register_data,
@@ -397,7 +402,8 @@ class JaxParameterTuningParallel(JaxParameterTuning):
                 target = objective(**params, color=color)
                 if max_target is None or target > max_target:
                     max_target = target
-                register_data = {'params': params, 'target': target}
+                register_data = {'worker': config['name'], 'iter': it,
+                                 'params': params, 'target': target}
         
         # create multi-threading instance, assign jobs, run etc.
         ioloop = tornado.ioloop.IOLoop.instance()        
@@ -413,6 +419,5 @@ class JaxParameterTuningParallel(JaxParameterTuning):
         for optimizer_thread in optimizer_threads:
             optimizer_thread.join()    
         ioloop.stop()
-    
-        self._save_results(optimizer, name)
+        file.close()
 
