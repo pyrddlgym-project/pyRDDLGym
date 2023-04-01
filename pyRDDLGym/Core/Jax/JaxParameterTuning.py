@@ -107,6 +107,7 @@ class JaxParameterTuning:
         
     def _train_epoch(self, key, policy_hyperparams, subs, planner, timeout, color,
                      guess=None): 
+        colorstr = f'{color[0]}{color[1]}'
         starttime = None
         for (it, callback) in enumerate(planner.optimize(
             key=key,
@@ -122,7 +123,7 @@ class JaxParameterTuning:
             elapsed = currtime - starttime    
             if self.verbose and self.print_step is not None \
             and it > 0 and it % self.print_step == 0:
-                print(f'|------ {color}' 
+                print(f'|------ {colorstr}' 
                       '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
                           elapsed,
                           str(callback['iteration']).rjust(4),
@@ -131,7 +132,8 @@ class JaxParameterTuning:
                       f'{Style.RESET_ALL}')
             if not np.isfinite(callback['train_return']):
                 if self.verbose:
-                    print(f'|------ {color}aborting due to NaN or inf value!'
+                    print(f'|------ {colorstr}'
+                          f'aborting due to NaN or inf value!'
                           f'{Style.RESET_ALL}')
                 break
             if elapsed >= timeout:
@@ -146,7 +148,7 @@ class JaxParameterTuning:
         filename = f'{name}_{domainName}_{instName}.csv'
         return filename
     
-    def _save_results(self, optimizer, name):     
+    def _save_results(self, optimizer, name): 
         with open(self._filename(name), 'w', newline='') as file:
             writer = csv.writer(file)
             has_header = False
@@ -183,7 +185,7 @@ class JaxParameterTuning:
     
     def _objective_slp(self):
         
-        def objective(std, lr, w, wa, color=Fore.RESET):
+        def objective(std, lr, w, wa, color=(Fore.RESET, Back.RESET)):
             
             # transform hyper-parameters to natural space
             std = self.stddev_space[2](std)
@@ -191,7 +193,9 @@ class JaxParameterTuning:
             w = self.model_weight_space[2](w)
             wa = self.action_weight_space[2](wa)            
             if self.verbose:
-                print(f'| {color}optimizing SLP with PRNG key={self.key}, ' 
+                colorstr = f'{color[0]}{color[1]}'
+                print(f'| {colorstr}'
+                      f'optimizing SLP with PRNG key={self.key}, ' 
                       f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
             
             # initialize planner
@@ -214,7 +218,8 @@ class JaxParameterTuning:
                 color)
             total_reward = float(callback['best_return'])
             if self.verbose:
-                print(f'| {color}done optimizing SLP, '
+                print(f'| {colorstr}'
+                      f'done optimizing SLP, '
                       f'total reward={total_reward}{Style.RESET_ALL}')
             return total_reward
         
@@ -227,7 +232,7 @@ class JaxParameterTuning:
     
     def _objective_mpc(self):
         
-        def objective(std, lr, w, wa, T, color=Fore.RESET):
+        def objective(std, lr, w, wa, T, color=(Fore.RESET, Back.RESET)):
             
             # transform hyper-parameters to natural space
             std = self.stddev_space[2](std)
@@ -236,8 +241,11 @@ class JaxParameterTuning:
             wa = self.action_weight_space[2](wa)
             T = self.lookahead_space[2](T)            
             if self.verbose:
-                print(f'| {color}optimizing MPC with PRNG key={self.key}, ' 
-                      f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...{Style.RESET_ALL}')
+                colorstr = f'{color[0]}{color[1]}'
+                print(f'| {colorstr}'
+                      f'optimizing MPC with PRNG key={self.key}, ' 
+                      f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...'
+                      f'{Style.RESET_ALL}')
             
             # initialize planner
             planner = JaxRDDLBackpropPlanner(
@@ -262,7 +270,8 @@ class JaxParameterTuning:
             average_reward = 0.0
             for trial in range(self.evaluation_trials):
                 if self.verbose:
-                    print(f'|--- {color}starting trial {trial + 1} '
+                    print(f'|--- {colorstr}'
+                          f'starting trial {trial + 1} '
                           f'with PRNG key={self.key}...{Style.RESET_ALL}')
                 total_reward = 0.0
                 guess = None
@@ -288,16 +297,19 @@ class JaxParameterTuning:
                     _, reward, done, _ = env.step(action)
                     total_reward += reward 
                     if self.verbose and print_each_step:
-                        print(f'|------ {color}step={step}, '
+                        print(f'|------ {colorstr}'
+                              f'step={step}, '
                               f'reward={reward}{Style.RESET_ALL}')
                     if done: 
                         break  
                 if self.verbose:
-                    print(f'|--- {color}done trial {trial + 1}, '
+                    print(f'|--- {colorstr}'
+                          f'done trial {trial + 1}, '
                           f'total reward={total_reward}{Style.RESET_ALL}')
                 average_reward += total_reward / self.evaluation_trials
             if self.verbose:
-                print(f'| {color}done optimizing MPC, '
+                print(f'| {colorstr}'
+                      f'done optimizing MPC, '
                       f'average reward={average_reward}{Style.RESET_ALL}')
             return average_reward
         
@@ -314,14 +326,16 @@ class JaxParameterTuningParallel(JaxParameterTuning):
     def __init__(self, *args, num_workers: int, **kwargs): 
         super(JaxParameterTuningParallel, self).__init__(*args, **kwargs)
         
-        self.colors = [Fore.MAGENTA, Fore.RED, Fore.YELLOW,
-                       Fore.GREEN, Fore.CYAN, Fore.BLUE, Fore.RESET,
-                       Fore.LIGHTMAGENTA_EX, Fore.LIGHTRED_EX, Fore.LIGHTYELLOW_EX,
-                       Fore.LIGHTGREEN_EX, Fore.LIGHTCYAN_EX, Fore.LIGHTBLUE_EX,
-                       Back.MAGENTA, Back.RED, Back.YELLOW,
-                       Back.GREEN, Back.CYAN, Back.BLUE,
-                       Back.LIGHTMAGENTA_EX, Back.LIGHTRED_EX, Back.LIGHTYELLOW_EX,
-                       Back.LIGHTGREEN_EX, Back.LIGHTCYAN_EX, Back.LIGHTBLUE_EX]
+        # yields 36 valid format variations
+        foreground = [Fore.BLUE, Fore.CYAN, Fore.GREEN,
+                      Fore.MAGENTA, Fore.RED, Fore.YELLOW]
+        background = [Back.RESET, Back.BLUE, Back.CYAN, Back.GREEN,
+                      Back.MAGENTA, Back.RED, Back.YELLOW]
+        self.colors = []
+        for back in background:
+            for fore in foreground:
+                if int(back[2:-1]) - int(fore[2:-1]) != 10:
+                    self.colors.append((fore, back))
         self.num_workers = min(num_workers, len(self.colors))
         
     def _bayes_optimize(self, key, objective, name, read_T): 
