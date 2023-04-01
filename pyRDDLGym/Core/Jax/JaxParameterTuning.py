@@ -16,7 +16,7 @@ import tornado.httpserver
 from tornado.web import RequestHandler
 from typing import Callable, Dict, Tuple
 import warnings
-warnings.filterwarnings("ignore")
+warnings.filterwarnings('ignore')
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
@@ -140,16 +140,16 @@ class JaxParameterTuning:
                 break
         return callback
     
-    def _filename(self, name):
+    def _filename(self, name, ext):
         domainName = self.env.model.domainName()
         instName = self.env.model.instanceName()
         domainName = ''.join(c for c in domainName if c.isalnum() or c == '_')
         instName = ''.join(c for c in instName if c.isalnum() or c == '_')
-        filename = f'{name}_{domainName}_{instName}.csv'
+        filename = f'{name}_{domainName}_{instName}.{ext}'
         return filename
     
     def _save_results(self, optimizer, name): 
-        with open(self._filename(name), 'w', newline='') as file:
+        with open(self._filename(name, 'csv'), 'w', newline='') as file:
             writer = csv.writer(file)
             has_header = False
             keys = None
@@ -162,7 +162,33 @@ class JaxParameterTuning:
                         has_header = True
                     writer.writerow(
                         [i, target] + [self._map[k](params[k]) for k in keys])  
-
+        self._save_plot(name)
+        
+    def _save_plot(self, name):
+        try:
+            import matplotlib.pyplot as plt
+            from sklearn.manifold import MDS
+            filename = self._filename(name, 'csv')
+        except Exception as e:
+            print('failed to import packages for plotting search space:')
+            print(e)
+            print('aborting plot of search space')
+        else:
+            data = np.loadtxt(filename, delimiter=',', dtype=object)
+            data, target = data[1:, 3:], data[1:, 2]
+            data = data.astype(np.float64)
+            target = target.astype(np.float64)
+            target = (target - np.min(target)) / (np.max(target) - np.min(target))
+            embedding = MDS(n_components=2, normalized_stress='auto')
+            data1 = embedding.fit_transform(data)
+            sc = plt.scatter(data1[:, 0], data1[:, 1], c=target, s=4.,
+                             cmap='seismic', edgecolor='gray',
+                             linewidth=0.01, alpha=0.4)
+            plt.colorbar(sc)
+            plt.savefig(self._filename('gp_points', 'pdf'))
+            plt.clf()
+            plt.close()
+        
     def _bayes_optimize(self, key, objective, name, read_T):
         self.key = key
         
@@ -360,7 +386,7 @@ class JaxParameterTuningParallel(JaxParameterTuning):
         
         # lock for saving to file
         keys = list(pbounds.keys())
-        filename = self._filename(name)
+        filename = self._filename(name, 'csv')
         with open(filename, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(['worker', 'iteration', 'target'] + keys)
@@ -433,5 +459,8 @@ class JaxParameterTuningParallel(JaxParameterTuning):
         for optimizer_thread in optimizer_threads:
             optimizer_thread.join()    
         ioloop.stop()
+        
+        # close file stream, save plot
         file.close()
+        self._save_plot(name)
 
