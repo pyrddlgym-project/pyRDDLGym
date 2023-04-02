@@ -12,20 +12,24 @@ Please see our `paper <https://arxiv.org/abs/2211.05939>`_ describing pyRDDLGym.
 Status
 ------
 
-As we support a large subset of RDDL, we list what we do not support:
+The following components and structures have been added to the language to increase expressiveness, and to accommodate learning interaction type:
 
-- state-action-constraints -- deprecated in favor of state-invariants and action-preconditions (RDDL2.0).
-- action-preconditions are not enforced by the environment, and should be incorporated into the cpfs definitions.
-- action-preconditions of structure of action <=/>= deterministic-function (can be of constants or non-fluents), are supported for the purpose of gym spaces definitions.
-- enums
-- the Discrete distribution
-
-We have extended the RDDL language and also support the following:
-
-- Automatic reasoning of levels. Levels are no longer required (and ignored by the infrastructure).
+- ``object`` (instance-defined) and ``enum`` (domain-defined) types can be used interchangeably in expressions such as aggregations. Exceptions are switch statements that explicitly reference objects of a type in the domain, and are valid for enum objects only.
 - Terminal states can now be explicitly defined. The termination block has been added to the language.
+- Action-preconditions are implemented according to the original language description.
+- Direct Inquiry of variable (states/action) domains is supported through the standard action_space and state_space properties of the environment. 
+- Parameter inequality is supported for lifted types, i.e., the following expression ``?p == ?r`` can be evaluated to ``True`` or ``False``.
+- Nested indexing is now supported, e.g., ``fluent'(?p,?q) = NEXT(fluent(?p, ?q))``.
+- Additional probability distributions are implemented (please see RDDL Language Description section for details)
+- Vectorized distributions such as Multivariate normal, Student, Dirichlet, and Multinomial are now supported.
+- Basic matrix algebra such as determinant and inverse operation are supported for two appropriate fluents.
+- ``argmax`` and ``argmin`` are supported over enumerated types (enums).
 
-All other features of RDDL are supported according to the language definition.
+The following components are omitted (or marked as deprecated) from the language variant implemented in pyRDDLGym:
+
+- Derived-fluents are supported by the framework as described in the language description. However, they are considered deprecated and will be removed from future versions.
+- Fluent levels are deprecated and are reasoned automatically by the framework, specifying levels explicitly is not required.
+- State-action-constraints are not implemented and are considered deprecated in the language to avoid ambiguity. 
 
 Several RDDL environments are included as examples with pyRDDLGym:
 
