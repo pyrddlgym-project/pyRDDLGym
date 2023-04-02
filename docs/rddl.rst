@@ -174,6 +174,7 @@ This argument can be one of the following four options:
 * ``int``: integer valued variable (i.e., 1, 2, 3, 10, 100 ...)
 * ``real``: real valued variable (i.e., 0.1, 0.25, 1.414, 2.718, 3.142 ...)
 * ``<enumerable>``: an enumerated value defined by the user in the ``types`` section
+* ``<object>``: an object type defined in the ``types`` section whose objects are specified in the instance (this is a new feature of pyRDDLGym)
 
 The last argument sets a default value to the declared variable. 
 If the variable is a non-fluent or state-fluent and is not specified to have a 
