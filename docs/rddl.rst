@@ -174,12 +174,13 @@ Fluent variables in RDDL have a strict dependency structure, as outlined in the 
     :alt: Dependencies between fluents in RDDL documents
  
 In summary:
-- non fluents can be used in any expression
-- state invariants and termination block are checked in each state, so they are expressed using unprimed state variables
-- action preconditions are checked for each state-action pair, so they are also expressed using unprimed state variables
-- derived fluents are deprecated and should be replaced by interm fluents
-- next state and interm fluents are allowed to depend on other next state and interm fluents by default, unless `allow_synchronous_state = False`
-- cyclic dependencies (e.g. a fluent expression depends on the value of that fluent) are not allowed.
+
+* a ``non-fluent`` can be used in any expression
+* state invariants and termination block are checked in each state, so they are expressed using unprimed state variables
+* action preconditions are checked for each state-action pair, so they are also expressed using unprimed state variables
+* ``derived-fluent`` is deprecated and should be replaced by ``interm-fluent``
+* primed ``state-fluent`` and ``interm-fluent`` can depend on other primed ``state-fluent`` and ``interm-fluent``, unless `allow_synchronous_state = False`
+* cyclic dependencies (e.g. a fluent expression depends on the value of that fluent) are not allowed.
 
 The ``<type_value>`` argument specifies the values the declared variable can take on. 
 This argument can be one of the following four options:
