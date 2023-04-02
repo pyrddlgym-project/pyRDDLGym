@@ -167,6 +167,20 @@ This argument can take one of the following five values:
 * ``observ-fluent``: or observation variable, variable used as a conditional observation probability in partially observable Markov decision process (POMDP).
 * ``action-fluent``: or action variable, variable that represents the action of a simulation, often used to describe if a transition between two different states is happening.
 
+Fluent variables in RDDL have a strict dependency structure, as outlined in the schematic below:
+
+.. image:: rddlgraph.png
+    :width: 400
+    :alt: Dependencies between fluents in RDDL documents
+ 
+In summary:
+- non fluents can be used in any expression
+- state invariants and termination block are checked in each state, so they are expressed using unprimed state variables
+- action preconditions are checked for each state-action pair, so they are also expressed using unprimed state variables
+- derived fluents are deprecated and should be replaced by interm fluents
+- next state and interm fluents are allowed to depend on other next state and interm fluents by default, unless `allow_synchronous_state = False`
+- cyclic dependencies (e.g. a fluent expression depends on the value of that fluent) are not allowed.
+
 The ``<type_value>`` argument specifies the values the declared variable can take on. 
 This argument can be one of the following four options:
 
