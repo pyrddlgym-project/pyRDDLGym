@@ -170,7 +170,7 @@ This argument can take one of the following five values:
 Fluent variables in RDDL have a strict dependency structure, as outlined in the schematic below:
 
 .. image:: rddlgraph.png
-    :width: 500
+    :width: 600
     :alt: Dependencies between fluents in RDDL documents
  
 In summary:
