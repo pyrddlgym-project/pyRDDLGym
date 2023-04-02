@@ -167,21 +167,6 @@ This argument can take one of the following five values:
 * ``observ-fluent``: or observation variable, variable used as a conditional observation probability in partially observable Markov decision process (POMDP).
 * ``action-fluent``: or action variable, variable that represents the action of a simulation, often used to describe if a transition between two different states is happening.
 
-Fluent variables in RDDL have a strict dependency structure, as outlined in the schematic below:
-
-.. image:: rddlgraph.png
-    :width: 600
-    :alt: Dependencies between fluents in RDDL documents
- 
-In summary:
-
-* a ``non-fluent`` can be used in any expression
-* state invariants and termination block are checked in each state, so they are expressed using unprimed state variables
-* action preconditions are checked for each state-action pair, so they are also expressed using unprimed state variables
-* ``derived-fluent`` is deprecated and should be replaced by ``interm-fluent``
-* primed ``state-fluent`` and ``interm-fluent`` can depend on other primed ``state-fluent`` and ``interm-fluent``, unless `allow_synchronous_state = False`
-* cyclic dependencies (e.g. a fluent expression depends on the value of that fluent) are not allowed.
-
 The ``<type_value>`` argument specifies the values the declared variable can take on. 
 This argument can be one of the following four options:
 
@@ -338,6 +323,24 @@ The termination block has the following syntax:
 where ``<terminal_condition#>`` are boolean formulas.
 The termination decision is a disjunction of all the conditions in the block 
 (termination if at least one is True).
+
+Valid Dependencies
+^^^^^^^^^^^^^^^^^^^
+
+Fluent variables in RDDL have a strict dependency structure, as outlined in the schematic below:
+
+.. image:: rddlgraph.png
+    :width: 600
+    :alt: Dependencies between fluents in RDDL documents
+ 
+In summary:
+
+* a ``non-fluent`` can be used in any expression
+* state invariants and termination block are checked in each state, so they are expressed using unprimed state variables
+* action preconditions are checked for each state-action pair, so they are also expressed using unprimed state variables
+* ``derived-fluent`` is deprecated and should be replaced by ``interm-fluent``
+* primed ``state-fluent`` and ``interm-fluent`` can depend on other primed ``state-fluent`` and ``interm-fluent``, unless `allow_synchronous_state = False`
+* cyclic dependencies (e.g. a fluent expression depends on the value of that fluent) are not allowed.
 
 Non-fluents Block
 ^^^^^^^^^^^^^^^^^^^
