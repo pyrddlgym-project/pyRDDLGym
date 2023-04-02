@@ -14,7 +14,7 @@ Status
 
 The following components and structures have been added to the language to increase expressiveness, and to accommodate learning interaction type:
 
-- ``object`` (instance-defined) and ``enum`` (domain-defined) types can be used interchangeably in expressions such as aggregations. Exceptions are switch statements that explicitly reference objects of a type in the domain, and are valid for enum objects only.
+- ``object`` (instance-defined) and ``enum`` (domain-defined) types can be used interchangeably in expressions such as aggregations, and both used as values for p-variables. Exceptions are switch statements that explicitly reference objects of a type in the domain, and are valid for enum objects only.
 - Terminal states can now be explicitly defined. The termination block has been added to the language.
 - Action-preconditions are implemented according to the original language description.
 - Direct Inquiry of variable (states/action) domains is supported through the standard action_space and state_space properties of the environment. 
