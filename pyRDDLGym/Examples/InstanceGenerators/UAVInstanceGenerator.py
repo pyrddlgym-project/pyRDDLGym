@@ -24,6 +24,8 @@ class UAVInstanceGenerator(InstanceGenerator):
             nonfluents[f'GOAL-X({ac})'] = random.uniform(*xrange)
             nonfluents[f'GOAL-Y({ac})'] = random.uniform(*yrange)
             nonfluents[f'GOAL-Z({ac})'] = random.uniform(*zrange)
+            nonfluents[f'MIN-ACC({ac})'] = -10.0
+            nonfluents[f'MAX-ACC({ac})'] = 10.0            
         nonfluents['RANDOM-WALK-COEFF'] = params['variance']
         
         crafts = list(range(len(aircraft)))
@@ -54,25 +56,25 @@ params = [
     # the difficulty of this problem is the noise of uncontrollable aircraft,
     # so the difficulty is controlled by number of such craft (relative to controlled),
     # the total number of craft (scale) and the variance of the uncontrolled state
-    {'num_aircraft': 2, 'num_control': 2, 'variance': 0.1,
-     'xrange': (-100., 100.), 'yrange': (-100., 100.), 'zrange': (0., 200.),
-     'horizon': 300, 'discount': 1.0},
+    {'num_aircraft': 2, 'num_control': 2, 'variance': 1.0,
+     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
+     'horizon': 100, 'discount': 1.0},
     
-    {'num_aircraft': 4, 'num_control': 3, 'variance': 0.15,
-     'xrange': (-100., 100.), 'yrange': (-100., 100.), 'zrange': (0., 200.),
-     'horizon': 300, 'discount': 1.0},
+    {'num_aircraft': 4, 'num_control': 3, 'variance': 2.0,
+     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
+     'horizon': 100, 'discount': 1.0},
     
-    {'num_aircraft': 9, 'num_control': 6, 'variance': 0.2,
-     'xrange': (-100., 100.), 'yrange': (-100., 100.), 'zrange': (0., 200.),
-     'horizon': 300, 'discount': 1.0},
+    {'num_aircraft': 10, 'num_control': 6, 'variance': 4.0,
+     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
+     'horizon': 100, 'discount': 1.0},
     
-    {'num_aircraft': 20, 'num_control': 10, 'variance': 0.25,
-     'xrange': (-100., 100.), 'yrange': (-100., 100.), 'zrange': (0., 200.),
-     'horizon': 300, 'discount': 1.0},
+    {'num_aircraft': 20, 'num_control': 10, 'variance': 5.0,
+     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
+     'horizon': 100, 'discount': 1.0},
     
-    {'num_aircraft': 40, 'num_control': 10, 'variance': 0.3,
-     'xrange': (-100., 100.), 'yrange': (-100., 100.), 'zrange': (0., 200.),
-     'horizon': 300, 'discount': 1.0}
+    {'num_aircraft': 40, 'num_control': 10, 'variance': 10.0,
+     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
+     'horizon': 100, 'discount': 1.0}
 ]
 
 inst = UAVInstanceGenerator()
