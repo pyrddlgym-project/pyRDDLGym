@@ -77,12 +77,12 @@ params = [
      'top_range': (100., 400.), 'target_range': (0.2, 0.5), 'rain_var': 20.,
      'horizon': 100, 'discount': 1.0},
     
-    {'num_reservoirs': 25, 'max_edges': 15,
-     'top_range': (100., 500.), 'target_range': (0.1, 0.4), 'rain_var': 40.,
+    {'num_reservoirs': 15, 'max_edges': 10,
+     'top_range': (100., 500.), 'target_range': (0.1, 0.3), 'rain_var': 50.,
      'horizon': 100, 'discount': 1.0},
     
-    {'num_reservoirs': 50, 'max_edges': 40,
-     'top_range': (100., 600.), 'target_range': (0.1, 0.2), 'rain_var': 60.,
+    {'num_reservoirs': 30, 'max_edges': 25,
+     'top_range': (100., 600.), 'target_range': (0.1, 0.2), 'rain_var': 100.,
      'horizon': 100, 'discount': 1.0}
 ]
 
