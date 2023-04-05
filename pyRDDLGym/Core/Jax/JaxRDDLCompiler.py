@@ -960,8 +960,7 @@ class JaxRDDLCompiler:
             lb, key, err1 = jax_lb(x, params, key)
             ub, key, err2 = jax_ub(x, params, key)
             key, subkey = random.split(key)
-            U = random.uniform(
-                key=subkey, shape=jnp.shape(lb), dtype=self.REAL)
+            U = random.uniform(key=subkey, shape=jnp.shape(lb), dtype=self.REAL)
             sample = lb + (ub - lb) * U
             out_of_bounds = jnp.logical_not(jnp.all(lb <= ub))
             err = err1 | err2 | (out_of_bounds * ERR)
@@ -1223,7 +1222,7 @@ class JaxRDDLCompiler:
         def _jax_wrapped_distribution_t(x, params, key):
             df, key, err = jax_df(x, params, key)
             key, subkey = random.split(key)
-            sample = random.t(key=subkey, df=df)
+            sample = random.t(key=subkey, df=df, shape=jnp.shape(df))
             out_of_bounds = jnp.logical_not(jnp.all(df > 0))
             err |= (out_of_bounds * ERR)
             return sample, key, err
@@ -1504,7 +1503,7 @@ class JaxRDDLCompiler:
             sample_df = sample_df[..., jnp.newaxis, jnp.newaxis]
             sample_df = jnp.broadcast_to(sample_df, shape=sample_mean.shape + (1,))
             key, subkey = random.split(key)
-            Z = random.t(key=subkey, df=sample_df, shape=sample_df.shape,
+            Z = random.t(key=subkey, df=sample_df, shape=jnp.shape(sample_df),
                          dtype=self.REAL)   
             
             # compute L s.t. cov = L * L' and reparameterize
