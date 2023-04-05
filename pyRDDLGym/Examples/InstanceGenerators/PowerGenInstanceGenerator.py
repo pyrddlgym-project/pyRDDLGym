@@ -116,8 +116,8 @@ params = [
      'demand_scale': 4.0, 'temp_variance': 8.0, 'temp_range': (-30.0, 40.0),
      'horizon': 100, 'discount': 1.0},
     
-    {'num_gas': 2, 'num_nuclear': 3, 'num_solar': 3,
-     'demand_scale': 5.0, 'temp_variance': 9.0, 'temp_range': (-30.0, 40.0),
+    {'num_gas': 3, 'num_nuclear': 4, 'num_solar': 4,
+     'demand_scale': 6.0, 'temp_variance': 9.0, 'temp_range': (-30.0, 40.0),
      'horizon': 100, 'discount': 1.0},
 ]
               
