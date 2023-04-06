@@ -1,6 +1,6 @@
 // based on the paper "NONLINEAR OPTIMAL CONTROL OF HVAC SYSTEMS"
 // by Ti{\u{g}}rek, T{\^u}ba and Dasgupta, Soura and Smith, Theodore F.
-
+// added an occupancy to enforce learning an efficient policy
 
 domain hvac{
 
@@ -26,6 +26,7 @@ domain hvac{
 		K						: { non-fluent, real, default = 1195.95 };		// rho * C_p - air density and constant pressure specific heat of air respectivlly
 		DELTA-T					: { non-fluent, real, default = 0.1 };			// control time period
 		SIGMA(zone)				: { non-fluent, real, default = 0.1 };			// heat conductivity of room's walls
+		P-SWITCH(zone)          : { non-fluent, real, default = 0.0 };          // occupancy switch probability per period per zone
 
 		// interm fluents
 		temp-1(heater) : { interm-fluent, real };					// the temperature before the heater, from outside and circulated air
@@ -33,6 +34,7 @@ domain hvac{
 		// states
 		temp-zone(zone) : { state-fluent, real, default = 1 };
 		temp-heater(heater) : { state-fluent, real, default = 1 };
+		occupied(zone)      : { state-fluent, bool, default = true };
 
 		// actions
 		fan-in(zone) : {action-fluent, real, default = 1 };
@@ -41,6 +43,9 @@ domain hvac{
 	};
 
 	cpfs {
+	
+		// occupation switch
+		occupied'(?z) = if (Bernoulli(P-SWITCH(?z))) then ~occupied(?z) else occupied(?z);
 
 		// derived air temperature before each heater
 		temp-1(?h) = if ((sum_{?z : zone}[ADJ-HEATER(?h, ?z)]) > 0)
@@ -83,9 +88,9 @@ domain hvac{
 	reward = -(sum_{?h : heater}[HEAT-COST(?h) * pow[heat-input(?h), 2]])
 	         - AIR-COST * (sum_{?z : zone}[pow[fan-in(?z), 2]])
 			 - ZONE-DISCOMFORT-PENALTY * (sum_{?z1 : zone}[ 
-				if (temp-zone(?z1) < TEMP-ZONE-MIN)
+				if (occupied(?z1) ^ (temp-zone(?z1) < TEMP-ZONE-MIN))
 				   then pow[temp-zone(?z1) - TEMP-ZONE-MIN, 2]
-				else if (temp-zone(?z1) > TEMP-ZONE-MAX)
+				else if (occupied(?z1) ^ (temp-zone(?z1) > TEMP-ZONE-MAX))
 				   then pow[temp-zone(?z1) - TEMP-ZONE-MAX, 2]
 				else 0.0]);
 			 //- ZONE-DISCOMFORT-PENALTY * (sum_{?z1 : zone}[ (temp-zone(?z1) < TEMP-ZONE-MIN) | (temp-zone(?z1) > TEMP-ZONE-MAX)]);
