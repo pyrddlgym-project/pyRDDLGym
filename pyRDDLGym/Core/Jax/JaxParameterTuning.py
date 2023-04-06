@@ -65,7 +65,8 @@ def objective_slp(std, lr, w, wa, key, std_space, lr_space, w_space, wa_space,
     std = std_space[2](std)
     lr = lr_space[2](lr)
     w = w_space[2](w)
-    wa = wa_space[2](wa)            
+    if wa is not None:
+        wa = wa_space[2](wa)            
     if verbose:
         colorstr = f'{color[0]}{color[1]}'
         print(f'| {colorstr}'
@@ -116,7 +117,8 @@ def objective_mpc(std, lr, w, wa, T, key, std_space, lr_space, w_space, wa_space
     std = std_space[2](std)
     lr = lr_space[2](lr)
     w = w_space[2](w)
-    wa = wa_space[2](wa)
+    if wa is not None:
+        wa = wa_space[2](wa)
     T = T_space[2](T)        
         
     if verbose:
@@ -207,6 +209,15 @@ def power_ten(x):
     return 10.0 ** x
 
 
+def annealing_utility(n_samples, n_delay_samples=0, kappa1=10.0, kappa2=1.0):
+    return UtilityFunction(
+        kind='ucb',
+        kappa=kappa1,
+        kappa_decay=(kappa2 / kappa1) ** (1.0 / (n_samples - n_delay_samples)),
+        kappa_decay_delay=n_delay_samples
+    )
+    
+    
 class JaxParameterTuning:
     '''A general-purpose class for tuning a Jax planner.'''
     
@@ -222,7 +233,7 @@ class JaxParameterTuning:
                  lookahead_space: Tuple[float, float]=(1, 100, int),
                  num_workers: int=1,
                  gp_iters: int=25,
-                 acquisition=UtilityFunction(kind='ucb', kappa=3, xi=1),
+                 acquisition=None,
                  gp_params: Dict={'n_restarts_optimizer': 10},
                  eval_horizon: int=None,
                  eval_trials: int=5,
@@ -281,7 +292,6 @@ class JaxParameterTuning:
         self.action_weight_space = action_weight_space
         self.lookahead_space = lookahead_space
         self.gp_iters = gp_iters
-        self.acquisition = acquisition
         self.gp_params = gp_params
         self.print_step = print_step
         self.verbose = verbose
@@ -289,6 +299,15 @@ class JaxParameterTuning:
         self.use_guess_last_epoch = use_guess_last_epoch
         self.planner_kwargs = planner_kwargs
         
+        # check if action parameters are required
+        self.use_wa_param = False
+        if self.wrap_sigmoid:
+            for var in self.env.model.actions:
+                if self.env.model.variable_ranges[var] == 'bool':
+                    self.use_wa_param = True
+                    break
+        
+        # project search space back to parameter space
         self._map = {'std': stddev_space[2],
                      'lr': lr_space[2],
                      'w': model_weight_space[2],
@@ -307,6 +326,10 @@ class JaxParameterTuning:
                     self.colors.append((fore, back))
         self.num_workers = min(num_workers, len(self.colors))
     
+        if acquisition is None:
+            acquisition = annealing_utility(self.gp_iters * self.num_workers)
+        self.acquisition = acquisition
+
     def _filename(self, name, ext):
         domainName = self.env.model.domainName()
         instName = self.env.model.instanceName()
@@ -345,8 +368,13 @@ class JaxParameterTuning:
         # set the bounds on variables
         pbounds = {'std': self.stddev_space[:2],
                    'lr': self.lr_space[:2],
-                   'w': self.model_weight_space[:2],
-                   'wa': self.action_weight_space[:2]}
+                   'w': self.model_weight_space[:2]}
+        if self.use_wa_param:
+            pbounds['wa'] = self.action_weight_space[:2]
+        if mpc:
+            pbounds['T'] = self.lookahead_space[:2]
+            
+        # set non changing variables
         kwargs = {'std_space': self.stddev_space,
                   'lr_space': self.lr_space,
                   'w_space': self.model_weight_space,
@@ -360,20 +388,16 @@ class JaxParameterTuning:
                   'max_train_epochs': self.max_train_epochs,
                   'verbose': self.verbose,
                   'print_step': self.print_step}  
-        
-        # for MPC need to fill additional information
+        if not self.use_wa_param:
+            kwargs['wa'] = None
         if mpc:
-            pbounds['T'] = self.lookahead_space[:2]
             kwargs['T_space'] = self.lookahead_space
             kwargs['domain'] = self.env.domain_text
             kwargs['instance'] = self.env.instance_text
             kwargs['eval_trials'] = self.evaluation_trials
             kwargs['use_guess_last_epoch'] = self.use_guess_last_epoch
             kwargs['timeout_epoch'] = self.timeout_epoch
-            static_args = (objective_mpc, kwargs)
-        else:
-            static_args = (objective_slp, kwargs)
-        
+                
         # create optimizer
         optimizer = BayesianOptimization(
             f=None,  # probe() is not called
@@ -384,43 +408,64 @@ class JaxParameterTuning:
         optimizer.set_gp_params(**self.gp_params)
         utility = self.acquisition
         
+        # suggest initial parameters to evaluate
+        num_workers = self.num_workers
+        suggested = []
+        for _ in range(num_workers):
+            utility.update_params()
+            suggested.append(optimizer.suggest(utility))            
+        
         # saving to file
         keys = list(pbounds.keys())
         filename = self._filename(name, 'csv')
         with open(filename, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(
-                ['pid', 'worker', 'iteration', 'target', 'best_target'] + keys)
+                ['pid', 'worker', 'iteration',
+                 'target', 'best_target', 'kappa'] + keys)
         file = open(filename, 'a', newline='')
         writer = csv.writer(file)        
-        
-        # seed optimizer with initial points  
-        num_workers = self.num_workers
-        suggested = [optimizer.suggest(utility) for _ in range(num_workers)]
+        lock = multiprocessing.Manager().Lock()
         
         # continue with multi-process evaluation
+        objective = objective_mpc if mpc else objective_slp
         best_target = -np.inf
         colors = self.colors[:num_workers]
-        lock = multiprocessing.Manager().Lock()
+        
         for it in range(self.gp_iters): 
-            print('\n' + '*' * 20 + 
+            print('\n' + '*' * 25 + 
                   '\n' + f'starting iteration {it}' + 
-                  '\n' + '*' * 20)
+                  '\n' + '*' * 25)
             key, *subkeys = jax.random.split(key, num=num_workers + 1)
+            
+            # create worker pool: note each iteration must wait for all workers
+            # to finish before moving to the next
             with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                
+                # each worker evaluates planner for a suggested parameter dict
                 jobs = [
-                    executor.submit(evaluate, tuple(worker_args) + static_args) 
+                    executor.submit(
+                        evaluate, tuple(worker_args) + (objective, kwargs)) 
                     for worker_args in zip(
                         suggested, range(num_workers), subkeys, colors)
                 ]
+                
+                # on completion of each job...
                 for job in as_completed(jobs):
+                    
+                    # extract and register the new evaluation
                     pid, index, params, target = job.result()
-                    optimizer.register(params, target)  
-                    suggested[index] = optimizer.suggest(utility)   
+                    optimizer.register(params, target)
+                    
+                    # update acquisition function and suggest a new point
+                    utility.update_params()  
+                    suggested[index] = optimizer.suggest(utility)
                     best_target = max(best_target, target)
+                    
+                    # write progress to file in real time
                     with lock:
                         writer.writerow(
-                            [pid, index, it, target, best_target] + \
+                            [pid, index, it, target, best_target, utility.kappa] + \
                             [self._map[k](params[k]) for k in keys]
                         )
                 
