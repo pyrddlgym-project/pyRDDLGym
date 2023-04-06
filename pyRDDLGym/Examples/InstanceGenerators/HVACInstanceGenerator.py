@@ -23,8 +23,11 @@ class HVACInstanceGenerator(InstanceGenerator):
         nonfluents = {}
         nonfluents['TEMP-ZONE-MIN'] = params['TEMP-ZONE-MIN']
         nonfluents['TEMP-ZONE-MAX'] = params['TEMP-ZONE-MAX']
-        for i, z in enumerate(obj_zones):
-            nonfluents[f'P-SWITCH({z})'] = params['P-SWITCH'][i]
+        zones_to_switch = list(range(nz))
+        random.shuffle(zones_to_switch)
+        for i in zones_to_switch[:params['p-switch-number']]:
+            z = obj_zones[i]
+            nonfluents[f'P-SWITCH({z})'] = params['p-switch-prob']
         for h, h2z in zip(obj_heaters, heaters):
             for z in h2z:
                 nonfluents[f'ADJ-HEATER({h}, {obj_zones[z]})'] = True
@@ -72,29 +75,37 @@ class HVACInstanceGenerator(InstanceGenerator):
     
 params = [
     
-    {'num_heaters': 3, 'num_zones': 2, 'density': 0.2,
-     'temp-zone-range-init': (0., 10.), 'temp-heater-range-init': (0., 10.),
-     'TEMP-ZONE-MIN': 20.0, 'TEMP-ZONE-MAX': 27.0, 'P-SWITCH': [0.0] * 2, 
+    # difficulty is controlled by the number of zones + heaters (e.g. scale)
+    # the number of zones relative to heaters is reduced, and the switching
+    # of occupancy affects more zones (so there are more cost cutting opportunities)
+    {'num_heaters': 3, 'num_zones': 2, 'density': 0.3,
+     'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
+     'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
+     'p-switch-number': 0, 'p-switch-prob': 0.01, 
      'horizon': 100, 'discount': 1.0},
     
-    {'num_heaters': 5, 'num_zones': 5, 'density': 0.25, 
-     'temp-zone-range-init': (0., 10.), 'temp-heater-range-init': (0., 10.),
-     'TEMP-ZONE-MIN': 21.0, 'TEMP-ZONE-MAX': 26.0, 'P-SWITCH': [0.01] * 5, 
+    {'num_heaters': 5, 'num_zones': 5, 'density': 0.3, 
+     'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
+     'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
+     'p-switch-number': 1, 'p-switch-prob': 0.01, 
      'horizon': 100, 'discount': 1.0},
     
     {'num_heaters': 8, 'num_zones': 10, 'density': 0.3, 
-     'temp-zone-range-init': (0., 10.), 'temp-heater-range-init': (0., 10.),
-     'TEMP-ZONE-MIN': 21.0, 'TEMP-ZONE-MAX': 26.0, 'P-SWITCH': [0.025] * 10, 
+     'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
+     'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
+     'p-switch-number': 3, 'p-switch-prob': 0.01, 
      'horizon': 100, 'discount': 1.0},
     
-    {'num_heaters': 15, 'num_zones': 20, 'density': 0.4, 
-     'temp-zone-range-init': (0., 10.), 'temp-heater-range-init': (0., 10.),
-     'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 'P-SWITCH': [0.05] * 20, 
+    {'num_heaters': 15, 'num_zones': 20, 'density': 0.3, 
+     'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
+     'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
+     'p-switch-number': 8, 'p-switch-prob': 0.01, 
      'horizon': 100, 'discount': 1.0},
     
-    {'num_heaters': 20, 'num_zones': 40, 'density': 0.5, 
-     'temp-zone-range-init': (0., 10.), 'temp-heater-range-init': (0., 10.),
-     'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 'P-SWITCH': [0.1] * 40, 
+    {'num_heaters': 20, 'num_zones': 40, 'density': 0.3, 
+     'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
+     'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
+     'p-switch-number': 20, 'p-switch-prob': 0.01, 
      'horizon': 100, 'discount': 1.0}
 ]
 

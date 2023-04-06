@@ -16,8 +16,8 @@ domain hvac{
 		TEMP-OUT				: { non-fluent, real, default = 25 };			// outside temperature
 		ADJ-HEATER(heater, zone): { non-fluent, bool, default = false }; 		// is a heater connected to a zone
 		AIR-COST				: { non-fluent, real, default = 0.01 };			// air cost
-		HEAT-COST(heater)    	: { non-fluent, real, default = 0.001 };		// heat cost
-		ZONE-DISCOMFORT-PENALTY	: { non-fluent, real, default = 10.0 };			// zone temperature out of range discomfort penalty
+		HEAT-COST(heater)    	: { non-fluent, real, default = 0.5 };		    // heat cost
+		ZONE-DISCOMFORT-PENALTY	: { non-fluent, real, default = 100.0 };		// zone temperature out of range discomfort penalty
 		TEMP-ZONE-MIN			: { non-fluent, real, default = 10 };			// minimum zone comfort temperature
 		TEMP-ZONE-MAX			: { non-fluent, real, default = 15 };			// maximum zone comfort temperature
 		OUT-AIR-FLOW			: { non-fluent, real, default = 0.05 };			// incoming vav from out flow (>0)
