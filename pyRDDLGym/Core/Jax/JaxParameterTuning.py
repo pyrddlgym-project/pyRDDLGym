@@ -221,7 +221,9 @@ class JaxParameterTuning:
                  action_weight_space: Tuple[float, float, Callable]=(0., 5., power_ten),
                  lookahead_space: Tuple[float, float]=(1, 100, int),
                  num_workers: int=1,
-                 gp_kwargs: Dict={'n_iter': 25},
+                 gp_iters: int=25,
+                 acquisition=UtilityFunction(kind='ucb', kappa=3, xi=1),
+                 gp_params: Dict={'n_restarts_optimizer': 10},
                  eval_horizon: int=None,
                  eval_trials: int=5,
                  print_step: int=None,
@@ -250,7 +252,9 @@ class JaxParameterTuning:
         :param lookahead_space: set of possible lookahead horizons for MPC to
         tune
         :param num_workers: how many points to evaluate in parallel
-        :param gp_kwargs: dictionary of parameters to pass to Bayesian optimizer
+        :param gp_iters: number of iterations of optimization
+        :param acquisition: acquisition function for Bayesian optimizer
+        :param gp_params: additional parameters to feed to Bayesian optimizer
         :param eval_horizon: maximum number of decision epochs to evaluate (also
         applies for training if using straight-line planning)
         :param eval_trials: how many trials to perform for MPC (batch size has
@@ -276,7 +280,9 @@ class JaxParameterTuning:
         self.model_weight_space = model_weight_space
         self.action_weight_space = action_weight_space
         self.lookahead_space = lookahead_space
-        self.gp_kwargs = gp_kwargs
+        self.gp_iters = gp_iters
+        self.acquisition = acquisition
+        self.gp_params = gp_params
         self.print_step = print_step
         self.verbose = verbose
         self.wrap_sigmoid = wrap_sigmoid
@@ -375,10 +381,8 @@ class JaxParameterTuning:
             allow_duplicate_points=True,  # to avoid crash
             random_state=np.random.RandomState(key)
         )
-        utility = self.gp_kwargs.get(
-            'acquisition_function',
-            UtilityFunction(kind='ucb', kappa=3, xi=1)
-        )
+        optimizer.set_gp_params(**self.gp_params)
+        utility = self.acquisition
         
         # saving to file
         keys = list(pbounds.keys())
@@ -398,7 +402,7 @@ class JaxParameterTuning:
         best_target = -np.inf
         colors = self.colors[:num_workers]
         lock = multiprocessing.Manager().Lock()
-        for it in range(self.gp_kwargs.get('n_iter', 25)): 
+        for it in range(self.gp_iters): 
             print('\n' + '*' * 20 + 
                   '\n' + f'starting iteration {it}' + 
                   '\n' + '*' * 20)
