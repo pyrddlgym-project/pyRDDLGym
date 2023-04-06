@@ -410,10 +410,11 @@ class JaxParameterTuning:
         
         # suggest initial parameters to evaluate
         num_workers = self.num_workers
-        suggested = []
+        suggested, kappas = [], []
         for _ in range(num_workers):
             utility.update_params()
-            suggested.append(optimizer.suggest(utility))            
+            suggested.append(optimizer.suggest(utility))  
+            kappas.append(utility.kappa)          
         
         # saving to file
         keys = list(pbounds.keys())
@@ -460,12 +461,14 @@ class JaxParameterTuning:
                     # update acquisition function and suggest a new point
                     utility.update_params()  
                     suggested[index] = optimizer.suggest(utility)
+                    old_kappa = kappas[index]
+                    kappas[index] = utility.kappa
                     best_target = max(best_target, target)
                     
                     # write progress to file in real time
                     with lock:
                         writer.writerow(
-                            [pid, index, it, target, best_target, utility.kappa] + \
+                            [pid, index, it, target, best_target, old_kappa] + \
                             [self._map[k](params[k]) for k in keys]
                         )
                 
