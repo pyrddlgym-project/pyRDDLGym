@@ -372,7 +372,8 @@ class JaxParameterTuning:
         optimizer = BayesianOptimization(
             f=None,  # probe() is not called
             pbounds=pbounds,
-            allow_duplicate_points=True  # to avoid crash
+            allow_duplicate_points=True,  # to avoid crash
+            random_state=np.random.RandomState(key)
         )
         utility = self.gp_kwargs.get(
             'acquisition_function',
