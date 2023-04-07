@@ -84,32 +84,3 @@ class MountainCarInstanceGenerator(InstanceGenerator):
         yend = ys[1:]
         return list(zip(xstart, ystart, xend, yend))
         
-
-params = [
-    
-    # difficulty is controlled by the number of valleys
-    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 1.1], 'terrain_heights': [0.9, 0.9], 
-     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 0.5,
-     'horizon': 200, 'discount': 1.0},
-    
-    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 1.1], 'terrain_heights': [0.9, 0.8, 1.1], 
-     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 2.8,
-     'horizon': 200, 'discount': 1.0},
-    
-    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 2.1, 1.1], 'terrain_heights': [0.9, 0.8, 0.7, 1.0], 
-     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 4.9,
-     'horizon': 300, 'discount': 1.0},
-    
-    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 2.1, 0.3, 1.1], 'terrain_heights': [0.9, 0.8, 1.0, 0.0, 1.1], 
-     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 5.2,
-     'horizon': 300, 'discount': 1.0},
-    
-    {'terrain_xleft': -1.2, 'terrain_widths': [0.7, 2.3, 2.2, 2.1, 1.1], 'terrain_heights': [0.7, 0.8, 0.9, 1.0, 1.1], 
-     'num_points': 100, 'pos': -0.6, 'vel': 0.01, 'goal-min': 7.1,
-     'horizon': 300, 'discount': 1.0},
-    
-]
-              
-inst = MountainCarInstanceGenerator()
-for i, param in enumerate(params):
-    inst.save_instance(i + 1, param)

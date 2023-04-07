@@ -45,38 +45,3 @@ class MarsRoverInstanceGenerator(InstanceGenerator):
             'discount': params['discount'],
             'max-nondef-actions': 'pos-inf'
         }
-    
-    
-params = [
-    
-    # the difficulty here is modulated by increasing number of minerals relative
-    # to the number of rovers, and making some minerals much more inferior to 
-    # others, the agent is forced to delay some small immediate reward for taking
-    # some additional time steps and fuel to accept a much larger reward in future.
-    {'num_minerals': 2, 'num_rovers': 4, 'location_bounds': (-10., 10.),
-     'area_bounds': (3., 6.), 'value_bounds': (0., 20.), 
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_minerals': 5, 'num_rovers': 6, 'location_bounds': (-10., 10.),
-     'area_bounds': (2., 6.), 'value_bounds': (0., 20.), 
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_minerals': 8, 'num_rovers': 8, 'location_bounds': (-10., 10.),
-     'area_bounds': (2., 5.), 'value_bounds': (0., 20.), 
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_minerals': 12, 'num_rovers': 9, 'location_bounds': (-10., 10.),
-     'area_bounds': (1., 4.), 'value_bounds': (0., 20.), 
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_minerals': 20, 'num_rovers': 10, 'location_bounds': (-10., 10.),
-     'area_bounds': (1., 3.), 'value_bounds': (0., 20.), 
-     'horizon': 100, 'discount': 1.0}
-]
-
-
-inst = MarsRoverInstanceGenerator()
-for i, param in enumerate(params):
-    inst.save_instance(i + 1, param)
-        
-
