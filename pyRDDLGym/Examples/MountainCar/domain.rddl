@@ -29,7 +29,7 @@ domain mountain_car {
 
     	// physics constants
 		GRAVITY-MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
-		FORCE-MAG 	: { non-fluent, real, default = 0.001 };	    // force applied to the side of the cart
+		FORCE-MAG 	: { non-fluent, real, default = 0.0015 };	    // force applied to the side of the cart
 
 		// valley shape defined by piecewise linear with x in [-1.2, 0.6] and y in [0, 1]
 		X-START(segment) : { non-fluent, real, default = -1.2 };    // starting x-position of segment
@@ -45,7 +45,8 @@ domain mountain_car {
 		VEL-MIN  : { non-fluent, real, default = 0.0 };             // desired velocity of the cart
 		
 		// reward const
-		ACTION_PENALTY_CONST : { non-fluent, real, default = 0.01 };   // action penalty multiplier for reward function
+		GOAL-REWARD : { non-fluent, real, default = 100.0 };        // goal reward
+		ACTION-PENALTY : { non-fluent, real, default = 0.1 };       // action penalty multiplier for reward function
 		
 		// interm fluents
 		in-segment(segment) : { interm-fluent, bool };              // is the cart currently in this segment
@@ -56,7 +57,7 @@ domain mountain_car {
        	vel   	: { state-fluent, real, default = 0 };              // cart velocity
 
        	// actions
-       	action : { action-fluent, real, default = 1 };              // whether to accelerate left (0), none (1) or right (2)
+       	action : { action-fluent, real, default = 0 };              // whether to accelerate left (-1) or right (1)
     };
 
     cpfs {
@@ -69,13 +70,12 @@ domain mountain_car {
 	    pos' = max[min[pos + vel, MAX-POS], MIN-POS];
 		
 	    // update the velocity of the cart				
-	    vel' = [ max[min[vel + (action - 1) * FORCE-MAG + (-GRAVITY-MAG) * pos-slope, MAX-VEL], -MAX-VEL] ];
+	    vel' = [ max[min[vel + action * FORCE-MAG + (-GRAVITY-MAG) * pos-slope, MAX-VEL], -MAX-VEL] ];
     };
 
-        // R = 100 only when the cart reaches the goal and the velocity is higher than the desired velocity
-	reward = if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN))
-		then 100.0 - (ACTION_PENALTY_CONST * pow[action,2])
-		else 0.0 - (ACTION_PENALTY_CONST * pow[action,2]);
+    // R = 100 only when the cart reaches the goal and the velocity is higher than the desired velocity
+	reward = (if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN)) then GOAL-REWARD else 0.0)
+	          - (ACTION-PENALTY * pow[action, 2]);
 		
 	termination {
 		(pos >= GOAL-MIN) ^ (vel >= VEL-MIN);
@@ -103,8 +103,8 @@ domain mountain_car {
     };
 
     action-preconditions {
-        action >= 0;
-        action <= 2;
+        action >= -1;
+        action <= 1;
     };
 
 }

@@ -1,4 +1,3 @@
-import math
 import numpy as np
 from PIL import Image
 import pygame
@@ -17,7 +16,11 @@ class MountainCarVisualizer(StateViz):
         self._wait_time = wait_time
         
         self._nonfluents = model.nonfluents
-    
+        
+        self.xs = np.linspace(self._nonfluents['MIN-POS'],
+                              self._nonfluents['MAX-POS'], 100)
+        self.heights = np.asarray([self.height(pos) for pos in self.xs])
+        
     def init_canvas(self, figure_size):
         screen = pygame.Surface(figure_size)
         surf = pygame.Surface(figure_size)
@@ -28,6 +31,35 @@ class MountainCarVisualizer(StateViz):
         img = Image.fromarray(data)
         return img
     
+    def height(self, pos):
+        XSTART = np.asarray(self._nonfluents['X-START'])
+        XEND = np.asarray(self._nonfluents['X-END'])
+        insegment = (XSTART <= pos) & (XEND > pos)
+        if not np.any(insegment):
+            insegment[-1] = True
+        xstart = XSTART[insegment]
+        xend = XEND[insegment]
+        ystart = np.asarray(self._nonfluents['Y-START'])[insegment]
+        yend = np.asarray(self._nonfluents['Y-END'])[insegment]
+        slope = (yend - ystart) / (xend - xstart)
+        yfinal = ystart + slope * (pos - xstart)
+        yfinal = yfinal.item()
+        return yfinal 
+    
+    def slope(self, pos):
+        XSTART = np.asarray(self._nonfluents['X-START'])
+        XEND = np.asarray(self._nonfluents['X-END'])
+        insegment = (XSTART <= pos) & (XEND > pos)
+        if not np.any(insegment):
+            insegment[-1] = True
+        xstart = XSTART[insegment]
+        xend = XEND[insegment]
+        ystart = np.asarray(self._nonfluents['Y-START'])[insegment]
+        yend = np.asarray(self._nonfluents['Y-END'])[insegment]
+        slope = (yend - ystart) / (xend - xstart)
+        slope = slope.item()
+        return slope
+    
     def render(self, state):
         screen, surf = self.init_canvas(self._figure_size)
         
@@ -37,21 +69,20 @@ class MountainCarVisualizer(StateViz):
         carheight = 20
         
         surf.fill((255, 255, 255))
-        xs = np.linspace(self._nonfluents['MIN-POS'],
-                         self._nonfluents['MAX-POS'], 100)
-        ys = np.sin(3 * xs) * 0.45 + (1. - 0.45)
-        xys = list(zip((xs - self._nonfluents['MIN-POS']) * scale, ys * scale))
+        
+        xys = list(zip((self.xs - self._nonfluents['MIN-POS']) * scale, 
+                       self.heights * scale))
         pygame.draw.aalines(surf, points=xys, closed=False, color=(0, 0, 0))
         
         clearance = 10
         l, r, t, b = -carwidth / 2, carwidth / 2, carheight, 0
         coords = []
         for c in [(l, b), (l, t), (r, t), (r, b)]:
-            c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * state['pos']))
+            c = pygame.math.Vector2(c).rotate_rad(self.slope(state['pos']))
             coords.append(
                 (
                     c[0] + (state['pos'] - self._nonfluents['MIN-POS']) * scale,
-                    c[1] + clearance + (np.sin(3 * state['pos']) * 0.45 + 0.55) * scale,
+                    c[1] + clearance + self.height(state['pos']) * scale,
                 )
             )
 
@@ -59,10 +90,10 @@ class MountainCarVisualizer(StateViz):
         gfxdraw.filled_polygon(surf, coords, (0, 0, 0))
         
         for c in [(carwidth / 4, 0), (-carwidth / 4, 0)]:
-            c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * state['pos']))
+            c = pygame.math.Vector2(c).rotate_rad(self.slope(state['pos']))
             wheel = (
                 int(c[0] + (state['pos'] - self._nonfluents['MIN-POS']) * scale),
-                int(c[1] + clearance + (np.sin(3 * state['pos']) * 0.45 + 0.55) * scale),
+                int(c[1] + clearance + self.height(state['pos']) * scale),
             )
             gfxdraw.aacircle(
                 surf, wheel[0], wheel[1], int(carheight / 2.5), (128, 128, 128)
@@ -72,7 +103,7 @@ class MountainCarVisualizer(StateViz):
             )
             
         flagx = int((self._nonfluents['GOAL-MIN'] - self._nonfluents['MIN-POS']) * scale)
-        flagy1 = int((np.sin(3 * self._nonfluents['GOAL-MIN']) * 0.45 + 0.55) * scale)
+        flagy1 = int(self.height(self._nonfluents['GOAL-MIN']) * scale)
         flagy2 = flagy1 + 50
         gfxdraw.vline(surf, flagx, flagy1, flagy2, (0, 0, 0))
         
