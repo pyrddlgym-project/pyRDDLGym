@@ -341,9 +341,13 @@ class JaxStraightLinePlan(JaxPlan):
             def _jax_wrapped_sorting_project(params, hyperparams):
                 
                 # find the amount to shift action parameters
-                params_flat = [jnp.ravel((1.0 - param) if noop[var] else param) 
-                               for (var, param) in params.items()
-                               if rddl.variable_ranges[var] == 'bool']
+                params_flat = []
+                for (var, param) in params.items():
+                    if rddl.variable_ranges[var] == 'bool':
+                        param = jnp.ravel(param)
+                        if noop[var]:
+                            param = (-param) if wrap_sigmoid else 1.0 - param
+                        params_flat.append(param)
                 params_flat = jnp.concatenate(params_flat)
                 descending = jnp.sort(params_flat)[::-1]
                 kplus1st_greatest = descending[allowed_actions]
