@@ -116,31 +116,3 @@ class RecSimInstanceGenerator(InstanceGenerator):
     }
 
 
-params = [
-    # Difficulty is controlled by horizon and number and diversity users
-    # and providers.
-    {
-        'provider_dispersion': 64.0,
-        'provider_fan_out': 2,
-        'num_provider_clusters': 8,
-        'num_users': 100,
-        'docs_per_cluster': 5,
-        'user_stddev': 20.0,
-        'horizon': 100,
-        'discount': 1.0,
-    },
-    {
-        'provider_dispersion': 64.0,
-        'provider_fan_out': 2,
-        'num_provider_clusters': 25,
-        'num_users': 500,
-        'docs_per_cluster': 5,
-        'user_stddev': 20.0,
-        'horizon': 200,
-        'discount': 1.0,
-    },
-]
-
-inst = RecSimInstanceGenerator()
-for i, param in enumerate(params):
-  inst.save_instance(i + 1, param)

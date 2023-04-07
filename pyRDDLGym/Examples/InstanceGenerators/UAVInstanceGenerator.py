@@ -49,35 +49,4 @@ class UAVInstanceGenerator(InstanceGenerator):
             'discount': params['discount'],
             'max-nondef-actions': 'pos-inf'
         }
-            
-    
-params = [
-    
-    # the difficulty of this problem is the noise of uncontrollable aircraft,
-    # so the difficulty is controlled by number of such craft (relative to controlled),
-    # the total number of craft (scale) and the variance of the uncontrolled state
-    {'num_aircraft': 2, 'num_control': 2, 'variance': 1.0,
-     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_aircraft': 4, 'num_control': 3, 'variance': 2.0,
-     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_aircraft': 10, 'num_control': 6, 'variance': 4.0,
-     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_aircraft': 20, 'num_control': 10, 'variance': 5.0,
-     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
-     'horizon': 100, 'discount': 1.0},
-    
-    {'num_aircraft': 40, 'num_control': 10, 'variance': 10.0,
-     'xrange': (-50., 50.), 'yrange': (-50., 50.), 'zrange': (0., 100.),
-     'horizon': 100, 'discount': 1.0}
-]
 
-inst = UAVInstanceGenerator()
-for i, param in enumerate(params):
-    inst.save_instance(i + 1, param)
-        
