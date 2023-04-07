@@ -76,36 +76,36 @@ class HVACInstanceGenerator(InstanceGenerator):
 params = [
     
     # difficulty is controlled by the number of zones + heaters (e.g. scale)
-    # the number of zones relative to heaters is reduced, and the switching
-    # of occupancy affects more zones (so there are more cost cutting opportunities)
-    {'num_heaters': 3, 'num_zones': 2, 'density': 0.3,
+    # and the switching of occupancy affects more zones (this should make it 
+    # difficult for determinization methods)
+    {'num_heaters': 3, 'num_zones': 2, 'density': 0.2,
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 0, 'p-switch-prob': 0.01, 
+     'p-switch-number': 0, 'p-switch-prob': 0.025, 
      'horizon': 100, 'discount': 1.0},
     
-    {'num_heaters': 5, 'num_zones': 5, 'density': 0.3, 
+    {'num_heaters': 5, 'num_zones': 5, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 1, 'p-switch-prob': 0.01, 
+     'p-switch-number': 2, 'p-switch-prob': 0.025, 
      'horizon': 100, 'discount': 1.0},
     
-    {'num_heaters': 8, 'num_zones': 10, 'density': 0.3, 
+    {'num_heaters': 8, 'num_zones': 10, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 3, 'p-switch-prob': 0.01, 
+     'p-switch-number': 5, 'p-switch-prob': 0.025, 
      'horizon': 100, 'discount': 1.0},
     
-    {'num_heaters': 15, 'num_zones': 20, 'density': 0.3, 
+    {'num_heaters': 15, 'num_zones': 20, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 8, 'p-switch-prob': 0.01, 
+     'p-switch-number': 15, 'p-switch-prob': 0.025, 
      'horizon': 100, 'discount': 1.0},
     
-    {'num_heaters': 20, 'num_zones': 40, 'density': 0.3, 
+    {'num_heaters': 30, 'num_zones': 40, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 20, 'p-switch-prob': 0.01, 
+     'p-switch-number': 40, 'p-switch-prob': 0.025, 
      'horizon': 100, 'discount': 1.0}
 ]
 
