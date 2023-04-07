@@ -181,7 +181,8 @@ class JaxStraightLinePlan(JaxPlan):
     
     def __init__(self, initializer: initializers.Initializer=initializers.normal(),
                  wrap_sigmoid: bool=True,
-                 min_action_prob: float=0.0,
+                 min_action_prob: float=0.001,
+                 use_new_projection: bool=True,
                  max_constraint_iter: int=999) -> None:
         '''Creates a new straight line plan in JAX.
         
@@ -189,16 +190,20 @@ class JaxStraightLinePlan(JaxPlan):
         :param wrap_sigmoid: wrap bool actions with sigmoid 
         (uses gradient clipping instead of sigmoid if None)
         :param min_action_prob: minimum value a soft boolean action can take
-        (maximum is 1 - min_action_prob); required to be positive when wrap_sigmoid
-        is True
+        (maximum is 1 - min_action_prob); required positive if wrap_sigmoid = True
+        :param use_new_projection: whether to use non-iterative (e.g. sort-based)
+        projection method, or modified SOGBOFA projection method to satisfy
+        action concurrency constraint
         :param max_constraint_iter: max iterations of projected 
-        gradient for ensuring actions satisfy constraints 
+        gradient for ensuring actions satisfy constraints, only required if 
+        use_new_projection = True
         '''
         super(JaxStraightLinePlan, self).__init__()
         self._initializer = initializer
         self._wrap_sigmoid = wrap_sigmoid
         self._min_action_prob = min_action_prob
         self._max_constraint_iter = max_constraint_iter
+        self._use_new_projection = use_new_projection
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict,
@@ -238,6 +243,7 @@ class JaxStraightLinePlan(JaxPlan):
                 bounds[name] = _bounds.get(name, (-jnp.inf, jnp.inf))
             warnings.warn(f'Bounds of action fluent <{name}> parameters '
                           f'set to {bounds[name]}', stacklevel=2)
+        self.bounds = bounds
         
         # these define the mapping from action parameter to action and vice versa
         def _jax_param_to_action(var, param, hyperparams):
@@ -325,6 +331,48 @@ class JaxStraightLinePlan(JaxPlan):
                           f'{allowed_actions}.', stacklevel=2)
             noop = {var: (values if isinstance(values, bool) else values[0])
                     for (var, values) in rddl.actions.items()}
+        
+        # use SOGBOFA projection method...
+        if use_sogbofa_clip_trick and self._use_new_projection:
+            
+            # shift the boolean actions uniformly, clipping at the min/max values
+            # the amount to move is such that only top allowed_actions actions
+            # are still active (e.g. not equal to noop) after the shift
+            def _jax_wrapped_sorting_project(params, hyperparams):
+                
+                # find the amount to shift action parameters
+                params_flat = [jnp.ravel((1.0 - param) if noop[var] else param) 
+                               for (var, param) in params.items()
+                               if rddl.variable_ranges[var] == 'bool']
+                params_flat = jnp.concatenate(params_flat)
+                descending = jnp.sort(params_flat)[::-1]
+                kplus1st_greatest = descending[allowed_actions]
+                surplus = jnp.maximum(kplus1st_greatest - bool_threshold, 0.0)
+                    
+                # perform the shift
+                new_params = {}
+                for (var, param) in params.items():
+                    if rddl.variable_ranges[var] == 'bool':
+                        new_param = param + (surplus if noop[var] else -surplus)
+                        lower, upper = _jax_wrapped_projection_bounds(var, hyperparams)
+                        new_param = jnp.clip(new_param, lower, upper)
+                    else:
+                        new_param = param
+                    new_params[var] = new_param
+                return new_params, True
+                
+            # clip actions to valid bounds and satisfy constraint on max actions
+            def _jax_wrapped_sorting_project_to_max_constraint(params, hyperparams):
+                params, _ = _jax_wrapped_slp_project_to_box(params, hyperparams)
+                project_over_horizon = jax.vmap(
+                    _jax_wrapped_sorting_project, in_axes=(0, None)
+                )(params, hyperparams)
+                return project_over_horizon
+            
+            self.projection = _jax_wrapped_sorting_project_to_max_constraint
+        
+        # use new (simplified) projection method...
+        elif use_sogbofa_clip_trick and not self._use_new_projection:
             
             # calculate the surplus of actions above max-nondef-actions
             def _jax_wrapped_sogbofa_surplus(params, hyperparams):
@@ -378,17 +426,17 @@ class JaxStraightLinePlan(JaxPlan):
                 return params, converged
                 
             # clip actions to valid bounds and satisfy constraint on max actions
-            def _jax_wrapped_slp_project_to_max_constraint(params, hyperparams):
+            def _jax_wrapped_sogbofa_project_to_max_constraint(params, hyperparams):
                 params, _ = _jax_wrapped_slp_project_to_box(params, hyperparams)
                 project_over_horizon = jax.vmap(
                     _jax_wrapped_sogbofa_project, in_axes=(0, None)
                 )(params, hyperparams)
                 return project_over_horizon
             
-            self.projection = _jax_wrapped_slp_project_to_max_constraint
-            
-        else:
-            
+            self.projection = _jax_wrapped_sogbofa_project_to_max_constraint
+        
+        # just project to box constraints
+        else: 
             self.projection = _jax_wrapped_slp_project_to_box
     
     @staticmethod
@@ -457,6 +505,7 @@ class JaxRDDLBackpropPlanner:
         self.horizon = rollout_horizon
         self._action_bounds = action_bounds
         self.use64bit = use64bit
+        self.clip_grad = clip_grad
         
         if clip_grad is None:
             self.optimizer = optimizer
@@ -487,7 +536,7 @@ class JaxRDDLBackpropPlanner:
         
         # Jax compilation of the exact RDDL for testing
         self.test_compiled = JaxRDDLCompiler(
-            rddl=rddl, 
+            rddl=rddl,
             use64bit=self.use64bit)
         self.test_compiled.compile()
     
@@ -549,7 +598,7 @@ class JaxRDDLBackpropPlanner:
             return rewards
         
         # the loss is the average cumulative reward across all roll-outs
-        def _jax_wrapped_plan_loss(key, policy_params, hyperparams, 
+        def _jax_wrapped_plan_loss(key, policy_params, hyperparams,
                                    subs, model_params):
             log = rollouts(key, policy_params, hyperparams, subs, model_params)
             rewards = log['reward']
@@ -565,7 +614,7 @@ class JaxRDDLBackpropPlanner:
         
         # calculate the plan gradient w.r.t. return loss and update optimizer
         # also perform a projection step to satisfy constraints on actions
-        def _jax_wrapped_plan_update(key, policy_params, hyperparams, 
+        def _jax_wrapped_plan_update(key, policy_params, hyperparams,
                                      subs, model_params, opt_state):
             grad_fn = jax.grad(loss, argnums=1, has_aux=True)
             grad, log = grad_fn(key, policy_params, hyperparams, subs, model_params)  
@@ -641,21 +690,20 @@ class JaxRDDLBackpropPlanner:
             # update the parameters of the plan
             key, subkey1, subkey2, subkey3 = random.split(key, num=4)
             policy_params, converged, opt_state, train_log = self.update(
-                subkey1, policy_params, policy_hyperparams, 
+                subkey1, policy_params, policy_hyperparams,
                 train_subs, model_params, opt_state)
             if not np.all(converged):
                 warnings.warn(
-                    f'Projected gradient calculation for satisfying action constraint '
-                    f'reached the iteration limit, action sequence possibly '
-                    f'invalid for current instance: try increasing max_constraint_iter '
-                    f'or reducing min_action_prob.', stacklevel=2)
+                    f'Projected gradient method for satisfying action concurrency '
+                    f'constraints reached the iteration limit: plan is possibly '
+                    f'invalid for the current instance.', stacklevel=2)
             
             # evaluate losses
             train_loss, _ = self.train_loss(
-                subkey2, policy_params, policy_hyperparams, 
+                subkey2, policy_params, policy_hyperparams,
                 train_subs, model_params)
             test_loss, log = self.test_loss(
-                subkey3, policy_params, policy_hyperparams, 
+                subkey3, policy_params, policy_hyperparams,
                 test_subs, model_params_test)
             
             # record the best plan so far
