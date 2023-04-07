@@ -87,9 +87,11 @@ class InstanceGenerator(metaclass=ABCMeta):
         value += '\n' + '}'
         return value
         
-    def save_instance(self, instance: int, params: Dict[str, object]) -> None:
-        path = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(path, self.get_env_path())
+    def save_instance(self, instance: int, params: Dict[str, object], path=None) -> None:
+        if path == None:
+            path = os.path.dirname(os.path.abspath(__file__))
+            path = os.path.join(path, self.get_env_path())
+
         path = os.path.join(path, f'instance{instance}.rddl')
         rddl = self.generate_instance(instance, params)
         with open(path, 'w') as text_file:
