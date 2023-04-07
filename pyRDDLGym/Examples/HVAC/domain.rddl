@@ -23,7 +23,9 @@ domain hvac{
 		OUT-AIR-FLOW			: { non-fluent, real, default = 0.05 };			// incoming vav from out flow (>0)
 		ZONE-VOL(zone)			: { non-fluent, real, default = 255 };			// zone air capacity
 		HEATER-VOL(heater)		: { non-fluent, real, default = 25.5 };			// heater air capacity
-		K						: { non-fluent, real, default = 1195.95 };		// rho * C_p - air density and constant pressure specific heat of air respectivlly
+		K						: { non-fluent, real, default = 1195.95 };		// rho * C_p - air density and constant pressure specific heat of air respectively
+		K-dz                    : { non-fluent, real, default = 0.001 };         // temperature drop rate inside zone to the adj infinite reservoir temp (outside)
+		K-dh                    : { non-fluent, real, default = 0.003 };         // heater cooling down rate
 		DELTA-T					: { non-fluent, real, default = 0.1 };			// control time period
 		SIGMA(zone)				: { non-fluent, real, default = 0.1 };			// heat conductivity of room's walls
 		P-SWITCH(zone)          : { non-fluent, real, default = 0.0 };          // occupancy switch probability per period per zone
@@ -54,6 +56,7 @@ domain hvac{
 
 		// heater's new output air temperature
 		temp-heater'(?h) =
+		                - K-dh * pow[temp-heater(?h) , 2] +
                         if ((sum_{?z : zone}[ADJ-HEATER(?h, ?z)]) > 0)
                         then temp-heater(?h)
 					         + DELTA-T / HEATER-VOL(?h) * (sum_{?z : zone} [ADJ-HEATER(?h, ?z)*fan-in(?z)]) / (sum_{?z : zone} [ADJ-HEATER(?h, ?z)]) * (temp-1(?h) - TEMP-OUT)
@@ -63,6 +66,7 @@ domain hvac{
 
 		// zone's new inner temperature
 		temp-zone'(?z) =
+		                - K-dz * pow[temp-zone(?z) - TEMP-OUT, 2] +
     		            if ((sum_{?h : heater}[ADJ-HEATER(?h, ?z)]) > 0)
     		            then temp-zone(?z)
     		                 + DELTA-T / (ZONE-VOL(?z) * (sum_{?h : heater}[ADJ-HEATER(?h, ?z)])) * fan-in(?z) * (sum_{?h : heater}[(temp-heater(?h) - temp-zone(?z)) * ADJ-HEATER(?h, ?z)])
