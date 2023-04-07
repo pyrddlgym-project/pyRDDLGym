@@ -67,5 +67,5 @@ if __name__ == "__main__":
         try:
             episodes = int(episodes)
         except:
-            raise ValueError('episodes argument must be an integer, reveived:' + episodes)
+            raise ValueError('episodes argument must be an integer, received:' + episodes)
     main(env, inst, method_name, episodes)

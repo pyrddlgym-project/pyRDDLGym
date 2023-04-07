@@ -4,8 +4,9 @@ import os
 import re
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEnvironmentNotExist, RDDLInstanceNotExist
+# from pyRDDLGym.Examples.InstanceGenerators.UAVInstanceGenerator import UAVInstanceGenerator
 
-HEADER = ['name', 'description', 'location', 'instances', 'viz']
+HEADER = ['name', 'description', 'location', 'instances', 'viz', 'generator']
 
 
 def rebuild():
@@ -31,12 +32,13 @@ def rebuild():
                 name = general.get('name', None)
                 desc = general.get('description', None)
                 viz = general.get('viz', None)
+                generator=general.get('generator', None)
                 loc = dirpath[len(path):]
                 loc = loc.replace('\\', '/') + '/'
                 instances = [fname[8:-5] for fname in filenames 
                              if fname.startswith('instance') and fname.endswith('.rddl')]
                 instances = ','.join(instances)
-                writer.writerow([name, desc, loc, instances, viz])
+                writer.writerow([name, desc, loc, instances, viz, generator])
 
 
 def load():
@@ -107,6 +109,27 @@ class ExampleManager:
             viz_package = __import__(viz_package_name, {}, {}, viz_class_name)
             viz = getattr(viz_package, viz_class_name)
         return viz
+
+    def generate_instance(self, name, params, path=None):
+        if path is None:
+            path = self.path_to_env
+
+        generator_info = ExampleManager.EXP_DICT[self.env]['generator']
+        if generator_info == '':
+            return None
+
+        module, generator_class_name = generator_info.strip().split('.')
+        generator_package_name = 'pyRDDLGym.Examples.InstanceGenerators.' + module
+        generator_package = __import__(generator_package_name, {}, {}, generator_class_name)
+        generator = getattr(generator_package, generator_class_name)
+
+        generator = generator()
+        generator.save_instance(name, params, path)
+        return os.path.join(path, f'instance{name}.rddl')
+
+
+
+
 
     @staticmethod
     def ListExamples():

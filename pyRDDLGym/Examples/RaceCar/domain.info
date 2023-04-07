@@ -2,3 +2,4 @@
 name=RaceCar
 description=A simple continuous MDP for the racecar problem.
 viz=RacecarViz.RacecarVisualizer
+generator=RaceCarInstanceGenerator.RaceCarInstanceGenerator
