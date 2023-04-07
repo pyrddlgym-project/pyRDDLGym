@@ -81,31 +81,31 @@ params = [
     {'num_heaters': 3, 'num_zones': 2, 'density': 0.2,
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 0, 'p-switch-prob': 0.025, 
+     'p-switch-number': 0, 'p-switch-prob': 0.02, 
      'horizon': 100, 'discount': 1.0},
     
     {'num_heaters': 5, 'num_zones': 5, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 2, 'p-switch-prob': 0.025, 
+     'p-switch-number': 2, 'p-switch-prob': 0.02, 
      'horizon': 100, 'discount': 1.0},
     
     {'num_heaters': 8, 'num_zones': 10, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 5, 'p-switch-prob': 0.025, 
+     'p-switch-number': 5, 'p-switch-prob': 0.02, 
      'horizon': 100, 'discount': 1.0},
     
     {'num_heaters': 15, 'num_zones': 20, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 15, 'p-switch-prob': 0.025, 
+     'p-switch-number': 15, 'p-switch-prob': 0.02, 
      'horizon': 100, 'discount': 1.0},
     
     {'num_heaters': 30, 'num_zones': 40, 'density': 0.2, 
      'temp-zone-range-init': (0., 15.), 'temp-heater-range-init': (0., 10.),
      'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0, 
-     'p-switch-number': 40, 'p-switch-prob': 0.025, 
+     'p-switch-number': 40, 'p-switch-prob': 0.02, 
      'horizon': 100, 'discount': 1.0}
 ]
 
