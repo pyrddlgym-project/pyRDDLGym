@@ -1,6 +1,6 @@
 import sys
 
-from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningParallel
+from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuning
 from pyRDDLGym.Planner import JaxConfigManager
 
 
@@ -8,9 +8,9 @@ def tune(env, replan, trials, timeout, timeout_ps, iters, workers):
     myEnv, planner, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']    
     
-    tuning = JaxParameterTuningParallel(
+    tuning = JaxParameterTuning(
         num_workers=workers,
-        gp_kwargs={'n_iter': iters},
+        gp_iters=iters,
         env=myEnv,
         action_bounds=planner.plan.bounds,
         max_train_epochs=train_args['epochs'],
@@ -34,7 +34,7 @@ def tune(env, replan, trials, timeout, timeout_ps, iters, workers):
 
 if __name__ == "__main__":
     if len(sys.argv) < 7:
-        env, trials, timeout, timeout_ps, iters, workers = 'Wildfire', 1, 60, 1, 25, 4
+        env, trials, timeout, timeout_ps, iters, workers = 'MountainCar', 1, 10, 1, 20, 4
     else:
         env, trials, timeout, timeout_ps, iters, workers = sys.argv[1:7]
         trials = int(trials)
