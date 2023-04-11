@@ -149,7 +149,7 @@ Users can visualize the current state of the simulation by calling ``env.render(
 The standard visualizer that comes out of the box with every pyRDDLGym domain (even used defined domain will have it without explicitly doing anything) is the TextViz.
 TextViz just renders an image with textual description of the states and their current values.
 
-Replacing the built is TextViz is simple as calling the environment method ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object.
+Setting a visualizer for an environment can be done by calling the environment method ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object.
 
 .. code-block:: python
 
@@ -162,7 +162,7 @@ Replacing the built is TextViz is simple as calling the environment method ``env
     # set up the environment visualizer
     myEnv.set_visualizer(EnvInfo.get_visualizer())
 
-For many visualizers, the default visualizer is often the TextViz, which can make visualization difficult for high-dimensional problems.
+The default visualizer can sometimes make it difficult to keep track of the state in high-dimensional problems across time.
 In this case, pyRDDLGym also provides a graph-based alternative similar to control charts. To activate the ``ChartVisualizer``, simply change the last line of the above example as follows:
 
 .. code-block:: python
