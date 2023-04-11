@@ -13,7 +13,7 @@ from pyRDDLGym.Core.Jax import JaxRDDLLogic
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 
-def get(path: str) -> Dict[str, object]:
+def get(path: str, **optional_args) -> Dict[str, object]:
     
     # read the config file
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
@@ -26,11 +26,16 @@ def get(path: str) -> Dict[str, object]:
     
     # read the environment settings
     env_args = {k: args[k] for (k, v) in config.items('Environment')}
+    use_repo = env_args.get('check_rddlrepository', False)
+    if 'check_rddlrepository' in env_args:
+        del env_args['check_rddlrepository']
     
     # try to read from rddlrepository
     domain_name = env_args['domain']
     inst_name = env_args['instance']
     try:
+        if not use_repo:
+            raise Exception
         print(f'reading domain {domain_name} from rddlrepository...')
         from rddlrepository.Manager.RDDLRepoManager import RDDLRepoManager
         manager = RDDLRepoManager()
@@ -77,6 +82,9 @@ def get(path: str) -> Dict[str, object]:
     del opt_args['method']
     del opt_args['method_kwargs']
     del opt_args['optimizer_kwargs']
+    if optional_args is not None:
+        for name, value in optional_args.items():
+            opt_args[name] = value
     optimizer = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**opt_args)
     
     # read the train/test arguments
