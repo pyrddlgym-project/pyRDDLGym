@@ -20,6 +20,7 @@ non-fluents mountain_car_vars {
 	};
 	
 	non-fluents {
+		ACTION-PENALTY = 0.0;
 		X-START(s1) = -1.2;
 		X-START(s2) = -1.182;
 		X-START(s3) = -1.164;
