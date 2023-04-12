@@ -182,6 +182,7 @@ class JaxStraightLinePlan(JaxPlan):
     def __init__(self, initializer: initializers.Initializer=initializers.normal(),
                  wrap_sigmoid: bool=True,
                  min_action_prob: float=0.001,
+                 wrap_non_bool: bool=False,
                  use_new_projection: bool=True,
                  max_constraint_iter: int=999) -> None:
         '''Creates a new straight line plan in JAX.
@@ -191,6 +192,8 @@ class JaxStraightLinePlan(JaxPlan):
         (uses gradient clipping instead of sigmoid if None)
         :param min_action_prob: minimum value a soft boolean action can take
         (maximum is 1 - min_action_prob); required positive if wrap_sigmoid = True
+        :param wrap_non_bool: whether to wrap real or int action fluent parameters
+        with non-linearity (e.g. sigmoid or ELU) to satisfy box constraints
         :param use_new_projection: whether to use non-iterative (e.g. sort-based)
         projection method, or modified SOGBOFA projection method to satisfy
         action concurrency constraint
@@ -202,6 +205,7 @@ class JaxStraightLinePlan(JaxPlan):
         self._initializer = initializer
         self._wrap_sigmoid = wrap_sigmoid
         self._min_action_prob = min_action_prob
+        self._wrap_non_bool = wrap_non_bool
         self._max_constraint_iter = max_constraint_iter
         self._use_new_projection = use_new_projection
         
@@ -214,6 +218,7 @@ class JaxStraightLinePlan(JaxPlan):
         max_action = 1.0 - min_action
         wrap_sigmoid = self._wrap_sigmoid
         bool_threshold = 0.0 if wrap_sigmoid else 0.5
+        wrap_non_bool = self._wrap_non_bool
         max_constraint_iter = self._max_constraint_iter
         
         # calculate the correct action box bounds
@@ -265,6 +270,21 @@ class JaxStraightLinePlan(JaxPlan):
                 return (-1.0 / weight) * jnp.log(1.0 / action - 1.0)
             else:
                 return action
+            
+        def _jax_non_bool_param_to_action(var, param, hyperparams):
+            if wrap_non_bool:
+                lower, upper = bounds[var]
+                if lower > -jnp.inf and upper < jnp.inf:
+                    action = lower + (upper - lower) * jax.nn.sigmoid(param)
+                elif lower > -jnp.inf:
+                    action = lower + jax.nn.elu(param, alpha=1.0) + 1.0
+                elif upper < jnp.inf:
+                    action = upper - (jax.nn.elu(-param, alpha=1.0) + 1.0)
+                else:
+                    action = param
+            else:
+                action = param
+            return action
         
         # handle box constraints    
         def _jax_project_bool_to_box(var, param, hyperparams):
@@ -278,6 +298,8 @@ class JaxStraightLinePlan(JaxPlan):
             for (var, param) in params.items():
                 if ranges[var] == 'bool':
                     new_params[var] = _jax_project_bool_to_box(var, param, hyperparams)
+                elif wrap_non_bool:
+                    new_params[var] = param
                 else:
                     new_params[var] = jnp.clip(param, *bounds[var])
             return new_params, True
@@ -304,6 +326,8 @@ class JaxStraightLinePlan(JaxPlan):
                 action = jnp.asarray(param[step, ...], dtype=compiled.REAL)
                 if ranges[var] == 'bool':
                     action = _jax_bool_param_to_action(var, action, hyperparams)
+                else:
+                    action = _jax_non_bool_param_to_action(var, action, hyperparams)
                 actions[var] = action
             return actions
         
@@ -313,10 +337,12 @@ class JaxStraightLinePlan(JaxPlan):
             for (var, param) in params.items():
                 action = jnp.asarray(param[step, ...])
                 prange = ranges[var]
-                if prange == 'int':
-                    action = jnp.round(action).astype(compiled.INT)
-                elif prange == 'bool':
+                if prange == 'bool':
                     action = action > bool_threshold
+                else:
+                    action = _jax_non_bool_param_to_action(var, action, hyperparams)
+                    if prange == 'int':
+                        action = jnp.round(action).astype(compiled.INT)
                 actions[var] = action
             return actions
         
