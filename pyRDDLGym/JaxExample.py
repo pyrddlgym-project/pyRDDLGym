@@ -21,10 +21,12 @@ def slp_train(planner, budget, **train_args):
     step = train_args['step']
     del train_args['step']
     print('\n' + 'training plan:')
-    starttime = time.time()
     for i, callback in enumerate(planner.optimize(**train_args, step=1)):
-        currtime = time.time()
-        elapsed = currtime - starttime
+        if i == 0:
+            elapsed = 0
+            starttime = time.time()
+        else:
+            elapsed = time.time() - starttime
         
         if i % step == 0:
             print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
