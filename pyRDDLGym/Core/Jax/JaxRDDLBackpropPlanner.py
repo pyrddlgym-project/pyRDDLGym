@@ -663,8 +663,7 @@ class JaxRDDLBackpropPlanner:
             grad, log = grad_fn(key, policy_params, hyperparams, subs, model_params)  
             updates, opt_state = optimizer.update(grad, opt_state) 
             policy_params = optax.apply_updates(policy_params, updates)
-            policy_params, converged = jax.lax.stop_gradient(
-                projection(policy_params, hyperparams))     
+            policy_params, converged = projection(policy_params, hyperparams)
             log['grad'] = grad
             log['updates'] = updates
             return policy_params, converged, opt_state, log
