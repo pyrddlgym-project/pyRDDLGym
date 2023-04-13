@@ -602,12 +602,7 @@ class JaxRDDLBackpropPlanner:
             n_batch=self.batch_size_test)
         
         # initialization
-        def _jax_wrapped_init_policy(key, hyperparams, subs):
-            params = self.plan.initializer(key, hyperparams, subs)
-            opt_state = self.optimizer.init(params)
-            return params, opt_state
-        
-        self.initialize = jax.jit(_jax_wrapped_init_policy)
+        self.initialize = jax.jit(self._jax_init())
         
         # losses
         train_loss = self._jax_loss(train_rollouts, use_symlog=self.use_symlog_reward)
@@ -615,9 +610,8 @@ class JaxRDDLBackpropPlanner:
         self.test_loss = jax.jit(self._jax_loss(test_rollouts, use_symlog=False))
         
         # optimization
-        self.update = jax.jit(self._jax_update(
-            train_loss, self.optimizer, self.plan.projection))
-        
+        self.update = jax.jit(self._jax_update(train_loss))
+    
     def _jax_loss(self, rollouts, use_symlog=False):
         gamma = self.rddl.discount
         utility_fn = self.utility
@@ -646,7 +640,20 @@ class JaxRDDLBackpropPlanner:
         
         return _jax_wrapped_plan_loss
     
-    def _jax_update(self, loss, optimizer, projection):
+    def _jax_init(self):
+        init = self.plan.initializer
+        optimizer = self.optimizer
+        
+        def _jax_wrapped_init_policy(key, hyperparams, subs):
+            policy_params = init(key, hyperparams, subs)
+            opt_state = optimizer.init(policy_params)
+            return policy_params, opt_state
+        
+        return _jax_wrapped_init_policy
+        
+    def _jax_update(self, loss):
+        optimizer = self.optimizer
+        projection = self.plan.projection
         
         # calculate the plan gradient w.r.t. return loss and update optimizer
         # also perform a projection step to satisfy constraints on actions
@@ -656,7 +663,8 @@ class JaxRDDLBackpropPlanner:
             grad, log = grad_fn(key, policy_params, hyperparams, subs, model_params)  
             updates, opt_state = optimizer.update(grad, opt_state) 
             policy_params = optax.apply_updates(policy_params, updates)
-            policy_params, converged = projection(policy_params, hyperparams)         
+            policy_params, converged = jax.lax.stop_gradient(
+                projection(policy_params, hyperparams))     
             log['grad'] = grad
             log['updates'] = updates
             return policy_params, converged, opt_state, log

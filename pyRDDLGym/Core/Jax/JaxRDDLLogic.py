@@ -59,7 +59,7 @@ class FuzzyLogic:
         '''
         self.tnorm = tnorm
         self.complement = complement
-        self.weight = weight
+        self.weight = float(weight)
         self.debias = debias
         self.eps = eps
         
