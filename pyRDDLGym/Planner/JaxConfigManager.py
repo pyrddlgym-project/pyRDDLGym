@@ -85,7 +85,7 @@ def get(path: str, **optional_args) -> Dict[str, object]:
     if optional_args is not None:
         for name, value in optional_args.items():
             opt_args[name] = value
-    optimizer = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**opt_args)
+    optimizer = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlannerMeta(**opt_args)
     
     # read the train/test arguments
     train_args = {k: args[k] for (k, v) in config.items('Training')}

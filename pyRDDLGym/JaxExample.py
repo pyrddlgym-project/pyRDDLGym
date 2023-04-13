@@ -29,11 +29,13 @@ def slp_train(planner, budget, **train_args):
             elapsed = time.time() - starttime
         
         if i % step == 0:
-            print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
+            params = np.hstack(callback['model_params'].values())
+            print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} model_params={}'.format(
                 elapsed,
                 str(callback['iteration']).rjust(4),
                 callback['train_return'],
-                callback['test_return']))
+                callback['test_return'],
+                params))
         
         if elapsed >= budget:
             print('ran out of time!')
@@ -142,7 +144,7 @@ def main(env, replan, trials, timeout, timeout_ps, save):
         
 if __name__ == "__main__":
     if len(sys.argv) < 6:
-        env, trials, timeout, timeout_ps, save = 'Wildfire replan', 1, 60 * 2, 1, False
+        env, trials, timeout, timeout_ps, save = 'Wildfire', 1, 60 * 2, 1, False
     else:
         env, trials, timeout, timeout_ps, save = sys.argv[1:6]
         trials = int(trials)
