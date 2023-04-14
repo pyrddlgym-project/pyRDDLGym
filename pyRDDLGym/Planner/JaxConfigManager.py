@@ -75,13 +75,11 @@ def get(path: str, **optional_args) -> Dict[str, object]:
             del opt_args['method_kwargs']['initializer_kwargs']
     opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, opt_args['method'])(
         **opt_args['method_kwargs'])
-    opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])(
-        **opt_args['optimizer_kwargs'])    
+    opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])
     opt_args['logic'] = logic
     
     del opt_args['method']
     del opt_args['method_kwargs']
-    del opt_args['optimizer_kwargs']
     if optional_args is not None:
         for name, value in optional_args.items():
             opt_args[name] = value
