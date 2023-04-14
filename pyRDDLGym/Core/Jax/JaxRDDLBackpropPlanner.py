@@ -731,6 +731,7 @@ class JaxRDDLBackpropPlanner:
             policy_params = guess
             opt_state = self.optimizer.init(policy_params)
         best_params, best_loss = policy_params, jnp.inf
+        last_iter_improve = 0
         
         for it in range(epochs):
             
@@ -756,6 +757,7 @@ class JaxRDDLBackpropPlanner:
             # record the best plan so far
             if test_loss < best_loss:
                 best_params, best_loss = policy_params, test_loss
+                last_iter_improve = it
             
             # periodically return a callback
             if it % step == 0 or it == epochs - 1:
@@ -766,6 +768,7 @@ class JaxRDDLBackpropPlanner:
                     'best_return':-best_loss,
                     'params': policy_params,
                     'best_params': best_params,
+                    'last_iteration_improved': last_iter_improve,
                     'grad': train_log['grad'],
                     'updates': train_log['updates'],
                     **log
