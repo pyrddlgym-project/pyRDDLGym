@@ -795,7 +795,7 @@ class JaxRDDLBackpropPlanner:
 class JaxRDDLBackpropPlannerMeta(JaxRDDLBackpropPlanner):
     
     def __init__(self, *args,
-                 meta_optimizer: optax.GradientTransformation=optax.adam(0.01),
+                 meta_optimizer: optax.GradientTransformation=optax.adam(0.1),
                  **kwargs):
         self.meta_optimizer = meta_optimizer
         super(JaxRDDLBackpropPlannerMeta, self).__init__(*args, **kwargs)
@@ -808,7 +808,10 @@ class JaxRDDLBackpropPlannerMeta(JaxRDDLBackpropPlanner):
         def _jax_wrapped_init_policy(key, hyperparams, subs, model_params):
             policy_params = init(key, hyperparams, subs)
             opt_state = optimizer.init(policy_params)
-            meta_state = meta_optimizer.init((hyperparams, model_params))
+            if hyperparams is None:
+                meta_state = meta_optimizer.init(model_params)
+            else:
+                meta_state = meta_optimizer.init((hyperparams, model_params))
             new_params = (policy_params, hyperparams, model_params)
             new_state = (opt_state, meta_state)
             return new_params, new_state
@@ -833,16 +836,24 @@ class JaxRDDLBackpropPlannerMeta(JaxRDDLBackpropPlanner):
         def _jax_wrapped_meta_update(key, policy_params, hyperparams,
                                      subs, model_params, opt_state, meta_state,
                                      ref_model_params, ref_hyperparams):
-            meta_grad_fn = jax.grad(
-                _jax_wrapped_meta_loss, argnums=(2, 4), has_aux=True)
+            if hyperparams is None:                
+                meta_grad_fn = jax.grad(
+                    _jax_wrapped_meta_loss, argnums=4, has_aux=True)
+            else:
+                meta_grad_fn = jax.grad(
+                    _jax_wrapped_meta_loss, argnums=(2, 4), has_aux=True)
             meta_grad, grad_result = meta_grad_fn(
                 key, policy_params, hyperparams, subs, model_params, opt_state, 
                 ref_model_params, ref_hyperparams)
             meta_updates, meta_state = meta_optimizer.update(meta_grad, meta_state) 
-            hyperparams, model_params = optax.apply_updates(
-                (hyperparams, model_params), meta_updates)
-            hyperparams = {name: jnp.clip(value, 1e-6) 
-                           for (name, value) in hyperparams.items()}
+            if hyperparams is None:
+                model_params = optax.apply_updates(model_params, meta_updates)
+            else:
+                hyperparams, model_params = optax.apply_updates(
+                    (hyperparams, model_params), meta_updates)
+            if hyperparams is not None:
+                hyperparams = {name: jnp.clip(value, 1e-6) 
+                               for (name, value) in hyperparams.items()}
             model_params = {name: jnp.clip(value, 1e-6) 
                             for (name, value) in model_params.items()}
             policy_params, converged, opt_state, log = grad_result
@@ -868,7 +879,10 @@ class JaxRDDLBackpropPlannerMeta(JaxRDDLBackpropPlanner):
         model_params = self.compiled.model_params
         model_params_test = self.test_compiled.model_params
         ref_model_params = {name: 100.0 for name in model_params}
-        ref_hyperparams = {name: 10.0 for name in policy_hyperparams}
+        if policy_hyperparams is None:
+            ref_hyperparams = None
+        else:
+            ref_hyperparams = {name: 100.0 for name in policy_hyperparams}
         
         # initialize policy parameters
         if guess is None:
