@@ -30,7 +30,9 @@ def slp_train(planner, budget, **train_args):
         
         if i % step == 0:
             params = np.hstack(callback['model_params'].values())
-            hparams = np.hstack(callback['hyperparams'].values())
+            hparams = callback['hyperparams']
+            if hparams is not None:
+                hparams = np.hstack(hparams.values())
             print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} hyperparams={} model_params={}'.format(
                 elapsed,
                 str(callback['iteration']).rjust(4),
@@ -145,7 +147,7 @@ def main(env, replan, trials, timeout, timeout_ps, save):
         
 if __name__ == "__main__":
     if len(sys.argv) < 6:
-        env, trials, timeout, timeout_ps, save = 'Wildfire', 1, 60 * 2, 1, False
+        env, trials, timeout, timeout_ps, save = 'MountainCar', 1, 60 * 2, 1, False
     else:
         env, trials, timeout, timeout_ps, save = sys.argv[1:6]
         trials = int(trials)
