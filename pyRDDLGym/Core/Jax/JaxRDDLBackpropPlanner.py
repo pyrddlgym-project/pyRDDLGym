@@ -1001,11 +1001,11 @@ class JaxRDDLBackpropPlannerMetaWithRegularization(JaxRDDLBackpropPlanner):
                 key, policy_params, hyperparams, subs, model_params, opt_state, 
                 ref_model_params, ref_hyperparams)
 
-            # Apply L2 regularization
+            # Apply L1 temperature regularization
             for k in hyperparams:
-                meta_grad[0][k] -= self.reg_param * (1/hyperparams[k])
+                meta_grad[0][k] += self.reg_param * (1/(hyperparams[k]*hyperparams[k]))
             for k in model_params:
-                meta_grad[1][k] -= self.reg_param * (1/model_params[k])
+                meta_grad[1][k] += self.reg_param * (1/(model_params[k]*model_params[k]))
 
 
             meta_updates, meta_state = meta_optimizer.update(meta_grad, meta_state) 
