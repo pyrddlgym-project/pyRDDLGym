@@ -323,7 +323,10 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_wrapped_slp_predict_train(key, params, hyperparams, step, subs):
             actions = {}
             for (var, param) in params.items():
-                action = jnp.asarray(param[step, ...], dtype=compiled.REAL)
+                if step is None:
+                    action = jnp.asarray(param, dtype=compiled.REAL)
+                else:
+                    action = jnp.asarray(param[step, ...], dtype=compiled.REAL)
                 if ranges[var] == 'bool':
                     action = _jax_bool_param_to_action(var, action, hyperparams)
                 else:
@@ -335,7 +338,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_wrapped_slp_predict_test(key, params, hyperparams, step, subs):
             actions = {}
             for (var, param) in params.items():
-                action = jnp.asarray(param[step, ...])
+                action = jnp.asarray(param if step is None else param[step, ...])
                 prange = ranges[var]
                 if prange == 'bool':
                     action = action > bool_threshold
@@ -592,6 +595,7 @@ class JaxRDDLBackpropPlanner:
         self.plan.compile(self.compiled,
                           _bounds=self._action_bounds,
                           horizon=self.horizon)
+        self.train_policy = jax.jit(self.plan.train_policy)
         self.test_policy = jax.jit(self.plan.test_policy)
         
         # roll-outs
@@ -696,7 +700,8 @@ class JaxRDDLBackpropPlanner:
     
     def optimize(self, key: random.PRNGKey,
                  epochs: int,
-                 step: int=1,
+                 step: int=1, 
+                 plot_step: int=None,
                  policy_hyperparams: Dict[str, object]=None,
                  subs: Dict[str, object]=None,
                  guess: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
@@ -705,6 +710,7 @@ class JaxRDDLBackpropPlanner:
         :param key: JAX PRNG key
         :param epochs: the maximum number of steps of gradient descent
         :param step: frequency the callback is provided back to the user
+        :param plot_step: frequency to plot the plan and save result to disk
         :param policy_hyperparams: hyper-parameters for the policy/plan, such as
         weights for sigmoid wrapping boolean actions
         :param subs: dictionary mapping initial state and non-fluents to 
@@ -759,6 +765,10 @@ class JaxRDDLBackpropPlanner:
                 best_params, best_loss = policy_params, test_loss
                 last_iter_improve = it
             
+            # save the plan figure
+            if plot_step is not None and it % plot_step == 0:
+                self._plot_actions(key, policy_params, policy_hyperparams, subs, it)
+                
             # periodically return a callback
             if it % step == 0 or it == epochs - 1:
                 callback = {
@@ -797,6 +807,28 @@ class JaxRDDLBackpropPlanner:
                 if ground_act != self.noop_actions[ground_var]:
                     grounded_actions[ground_var] = ground_act
         return grounded_actions
+
+    def _plot_actions(self, key, params, policy_hyperparams, subs, step):
+        try:
+            import matplotlib.pyplot as plt
+        except Exception as _:
+            print('matplotlib is not installed, aborting plot...')
+        else:
+            actions = self.train_policy(key, params, policy_hyperparams, None, subs)
+            fig, axs = plt.subplots(nrows=len(actions), constrained_layout=True)
+            for (ax, name) in zip(axs, actions):
+                values = np.asarray(actions[name], dtype=float)
+                values = np.reshape(values, newshape=(values.shape[0], -1))
+                values = np.transpose(values)
+                img = ax.imshow(values, cmap='seismic', aspect='auto')
+                ax.set_xlabel('time')
+                ax.set_ylabel(name)
+                plt.colorbar(img, ax=ax)
+            domain = self.rddl.domainName()
+            inst = self.rddl.instanceName()
+            plt.savefig(f'plan_{domain}_{inst}_{step}.pdf', bbox_inches='tight')
+            plt.clf()
+            plt.close(fig)
 
 
 class JaxRDDLBackpropPlannerMeta(JaxRDDLBackpropPlanner):
