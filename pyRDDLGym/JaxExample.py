@@ -29,15 +29,11 @@ def slp_train(planner, budget, **train_args):
             elapsed = time.time() - starttime
         
         if i % step == 0:
-            params = np.hstack(callback['model_params'].values())
-            hparams = np.hstack(callback['hyperparams'].values())
-            print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} hyperparams={} model_params={}'.format(
+            print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
                 elapsed,
                 str(callback['iteration']).rjust(4),
                 callback['train_return'],
-                callback['test_return'],
-                hparams, params))
-
+                callback['test_return']))
         if elapsed >= budget:
             print('ran out of time!')
             break
