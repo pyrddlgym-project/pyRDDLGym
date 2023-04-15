@@ -5,7 +5,7 @@ import jax.nn.initializers as initializers
 import numpy as np
 np.seterr(all='raise')
 import optax
-from typing import Callable, Dict, Iterable, Set, Tuple
+from typing import Callable, Dict, Iterable, Set, Tuple, Optional
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -899,6 +899,158 @@ class JaxRDDLBackpropPlannerMeta(JaxRDDLBackpropPlanner):
                 subkey1, policy_params, policy_hyperparams,
                 train_subs, model_params, opt_state, meta_state, ref_model_params,
                 ref_hyperparams)
+            
+            if not np.all(converged):
+                warnings.warn(
+                    f'Projected gradient method for satisfying action concurrency '
+                    f'constraints reached the iteration limit: plan is possibly '
+                    f'invalid for the current instance.', stacklevel=2)
+            
+            # evaluate losses
+            train_loss, _ = self.train_loss(
+                subkey2, policy_params, policy_hyperparams, 
+                train_subs, model_params)
+            test_loss, log = self.test_loss(
+                subkey3, policy_params, policy_hyperparams,
+                test_subs, model_params_test)
+            
+            # record the best plan so far
+            if test_loss < best_loss:
+                best_params, best_loss = policy_params, test_loss
+            
+            # periodically return a callback
+            if it % step == 0 or it == epochs - 1:
+                callback = {
+                    'iteration': it,
+                    'train_return':-train_loss,
+                    'test_return':-test_loss,
+                    'best_return':-best_loss,
+                    'params': policy_params,
+                    'best_params': best_params,
+                    'hyperparams': hyperparams,
+                    'model_params': model_params,
+                    'grad': train_log['grad'],
+                    'updates': train_log['updates'],
+                    **log
+                }
+                yield callback
+
+
+
+
+class JaxRDDLBackpropPlannerMetaWithRegularization(JaxRDDLBackpropPlanner):
+    """ WIP """
+    def __init__(self, *args,
+                 meta_optimizer: optax.GradientTransformation=optax.adam(0.01),
+                 reg_param: float=0.,
+                 **kwargs):
+        self.meta_optimizer = meta_optimizer
+        self.reg_param = reg_param
+        super(JaxRDDLBackpropPlannerMetaWithRegularization, self).__init__(*args, **kwargs)
+        
+    def _jax_init(self):
+        init = self.plan.initializer
+        optimizer = self.optimizer
+        meta_optimizer = self.meta_optimizer
+        
+        def _jax_wrapped_init_policy(key, hyperparams, subs, model_params):
+            policy_params = init(key, hyperparams, subs)
+            opt_state = optimizer.init(policy_params)
+            meta_state = meta_optimizer.init((hyperparams, model_params))
+            new_params = (policy_params, hyperparams, model_params)
+            new_state = (opt_state, meta_state)
+            return new_params, new_state
+        
+        return _jax_wrapped_init_policy
+        
+    def _jax_update(self, loss):
+        plan_update_fn = super(JaxRDDLBackpropPlannerMetaWithRegularization, self)._jax_update(loss)
+        meta_optimizer = self.meta_optimizer
+        
+        def _jax_wrapped_meta_loss(key, policy_params, hyperparams,
+                                   subs, model_params, opt_state, 
+                                   ref_model_params, ref_hyperparams):
+            result = plan_update_fn(
+                key, policy_params, hyperparams, subs, model_params, opt_state)
+            policy_params, *_ = result
+            key, subkey = random.split(key)
+            meta_loss, _ = loss(
+                subkey, policy_params, ref_hyperparams, subs, ref_model_params)
+            return meta_loss, result
+        
+        def _jax_wrapped_meta_update(key, policy_params, hyperparams,
+                                     subs, model_params, opt_state, meta_state,
+                                     ref_model_params, ref_hyperparams):
+            meta_grad_fn = jax.grad(
+                _jax_wrapped_meta_loss, argnums=(2, 4), has_aux=True)
+            meta_grad, grad_result = meta_grad_fn(
+                key, policy_params, hyperparams, subs, model_params, opt_state, 
+                ref_model_params, ref_hyperparams)
+
+            # Apply L2 regularization
+            for k in hyperparams:
+                meta_grad[0][k] -= self.reg_param * (1/hyperparams[k])
+            for k in model_params:
+                meta_grad[1][k] -= self.reg_param * (1/model_params[k])
+
+
+            meta_updates, meta_state = meta_optimizer.update(meta_grad, meta_state) 
+            hyperparams, model_params = optax.apply_updates(
+                (hyperparams, model_params), meta_updates)
+            hyperparams = {name: jnp.clip(value, 1e-6) 
+                           for (name, value) in hyperparams.items()}
+            model_params = {name: jnp.clip(value, 1e-6) 
+                            for (name, value) in model_params.items()}
+
+            policy_params, converged, opt_state, log = grad_result
+            new_params = (policy_params, hyperparams, model_params)
+            new_state = (opt_state, meta_state)
+            return new_params, converged, new_state, log
+        
+        return _jax_wrapped_meta_update
+
+    def optimize(self, key: random.PRNGKey,
+                 epochs: int,
+                 step: int=1,
+                 policy_hyperparams: Dict[str, object]=None,
+                 subs: Dict[str, object]=None,
+                 guess: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
+        
+        # compute a batched version of the initial values
+        if subs is None:
+            subs = self.test_compiled.init_values
+        train_subs, test_subs = self._batched_init_subs(subs)
+        
+        # initialize model parameters
+        model_params = self.compiled.model_params
+        model_params_test = self.test_compiled.model_params
+        ref_model_params = {name: 100.0 for name in model_params}
+        ref_hyperparams = {name: 10.0 for name in policy_hyperparams}
+        
+        # initialize policy parameters
+        if guess is None:
+            key, subkey = random.split(key)
+            (policy_params, hyperparams, model_params), \
+            (opt_state, meta_state) = self.initialize(
+                subkey, policy_hyperparams, train_subs, model_params)
+        else:
+            policy_params = guess
+            hyperparams = policy_hyperparams
+            opt_state = self.optimizer.init(policy_params)
+            meta_state = self.meta_optimizer.init((hyperparams, model_params))
+        best_params, best_loss = policy_params, jnp.inf
+        
+        for it in range(epochs):
+            
+            # update the parameters of the plan and the model_params
+            key, subkey1, subkey2, subkey3 = random.split(key, num=4)
+            (policy_params, hyperparams, model_params), converged, \
+            (opt_state, meta_state), train_log = self.update(
+                subkey1, policy_params, policy_hyperparams,
+#                train_subs, model_params, opt_state, meta_state, ref_model_params,
+#                ref_hyperparams)
+                train_subs, model_params, opt_state, meta_state, model_params,
+                hyperparams)
             
             if not np.all(converged):
                 warnings.warn(
