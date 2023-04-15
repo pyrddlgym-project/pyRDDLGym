@@ -5,7 +5,7 @@ import jax.nn.initializers as initializers
 import numpy as np
 np.seterr(all='raise')
 import optax
-from typing import Dict, Iterable, Set, Tuple
+from typing import Callable, Dict, Iterable, Set, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -497,7 +497,8 @@ class JaxRDDLBackpropPlanner:
                  rollout_horizon: int=None,
                  use64bit: bool=False,
                  action_bounds: Dict[str, Tuple[float, float]]={},
-                 optimizer: optax.GradientTransformation=optax.rmsprop(0.1),
+                 optimizer: Callable[..., optax.GradientTransformation]=optax.rmsprop,
+                 optimizer_kwargs: Dict[str, object]={'learning_rate': 0.1},
                  clip_grad: float=None,
                  logic: FuzzyLogic=FuzzyLogic(),
                  use_symlog_reward: bool=False,
@@ -518,8 +519,9 @@ class JaxRDDLBackpropPlanner:
         :param use64bit: whether to perform arithmetic in 64 bit
         horizon parameter in the RDDL instance
         :param action_bounds: box constraints on actions
-        :param optimizer: an Optax algorithm that specifies how gradient updates
-        are performed
+        :param optimizer: a factory for an optax SGD algorithm
+        :param optimizer_kwargs: a dictionary of parameters to pass to the SGD
+        factory (e.g. which parameters are controllable externally)
         :param clip_grad: maximum magnitude of gradient updates
         :param logic: a subclass of FuzzyLogic for mapping exact mathematical
         operations to their differentiable counterparts 
@@ -543,6 +545,8 @@ class JaxRDDLBackpropPlanner:
         self.use64bit = use64bit
         self.clip_grad = clip_grad
         
+        # set optimizer
+        optimizer = optax.inject_hyperparams(optimizer)(**optimizer_kwargs)
         if clip_grad is None:
             self.optimizer = optimizer
         else:
@@ -727,6 +731,7 @@ class JaxRDDLBackpropPlanner:
             policy_params = guess
             opt_state = self.optimizer.init(policy_params)
         best_params, best_loss = policy_params, jnp.inf
+        last_iter_improve = 0
         
         for it in range(epochs):
             
@@ -752,6 +757,7 @@ class JaxRDDLBackpropPlanner:
             # record the best plan so far
             if test_loss < best_loss:
                 best_params, best_loss = policy_params, test_loss
+                last_iter_improve = it
             
             # periodically return a callback
             if it % step == 0 or it == epochs - 1:
@@ -762,6 +768,7 @@ class JaxRDDLBackpropPlanner:
                     'best_return':-best_loss,
                     'params': policy_params,
                     'best_params': best_params,
+                    'last_iteration_improved': last_iter_improve,
                     'grad': train_log['grad'],
                     'updates': train_log['updates'],
                     **log
