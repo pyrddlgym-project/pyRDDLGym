@@ -820,6 +820,12 @@ class JaxRDDLBackpropPlanner:
                 values = np.asarray(actions[name], dtype=float)
                 values = np.reshape(values, newshape=(values.shape[0], -1))
                 values = np.transpose(values)
+                if self.rddl.variable_ranges[name] == 'bool':
+                    vmin, vmax = 0.0, 1.0
+                else:
+                    vmin, vmax = None, None                
+                img = ax.imshow(values, vmin=vmin, vmax=vmax, 
+                                cmap='seismic', aspect='auto')
                 img = ax.imshow(values, cmap='seismic', aspect='auto')
                 ax.set_xlabel('time')
                 ax.set_ylabel(name)
