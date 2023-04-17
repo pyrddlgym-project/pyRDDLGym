@@ -105,6 +105,8 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
               callback['train_return'],
               callback['test_return']))
 
+The ``policy_hyperparams`` argument is required whenever the policy or plan representation takes additional hyper-parameters. 
+Further details are provided in the "Box Constraints" section below.
 The final action sequence can then be easily extracted from the final callback.
 
 .. code-block:: python
@@ -310,11 +312,13 @@ The parameters of jax logic expressions can be modified at run-time (e.g. during
 
 During training, these values can be modified before passing to other subroutines in the planner, such as ``update``. 
 
-Constraints on Action Fluents
+Box Constraints on Action Fluents
 -------------------
 
-Currently, the JAX planner supports two different kind of actions constraints. 
-Box constraints can be specified by passing a dictionary that maps action-fluent names to box bounds to the ``action_bounds`` keyword argument, as illustrated in the introductory example for mountain car.
+Currently, the JAX planner supports two different kind of actions constraints: box constraints and concurrency constraints. 
+
+Box constraints are useful for bounding each action-fluent independently into some range during optimization.
+Box constraints can be specified by passing a dictionary that maps action-fluent names to box bounds into the ``action_bounds`` keyword argument, as illustrated in the introductory example for mountain car.
 The syntax for specifying box constraints is written as follows:
 
 .. code-block:: python
@@ -324,9 +328,29 @@ The syntax for specifying box constraints is written as follows:
 where ``lower#`` and ``upper#`` can be any floating point value, including positive and negative infinity.
 
 .. note::
-   Boolean actions are automatically clipped to (0, 1), even if not specified in ``action_bounds``.
+   Boolean actions are automatically clipped to (0, 1), regardless whether they are specified in ``action_bounds``.
 
-The JAX planner also supports constraints on the maximum number of action-fluents that can be set at any given time.
+By default, boolean actions are wrapped using the sigmoid function:
+
+.. math::
+    
+    a = \frac{1}{1 + e^{-w \theta}},
+
+where :math:`\theta` denotes the tunable action parameters, and :math:`w` denotes a hyperparameter that controls the sharpness of the actions.
+
+.. note::
+   If ``wrap_sigmoid = True``, then the weights as defined above must be specified in ``policy_hyperparams`` for each action whenever interfacing with the planner methods.
+   
+At test time, the action is aliased by evaluating the expression :math:`a > 0.5`, or equivalently :math:`\theta > 0`.
+The use of sigmoid can be controlled by setting ``wrap_sigmoid`` in ``JaxStraightLinePlan``.
+Non-boolean action-fluents can also be wrapped in this way, instead of setting ``action_bounds``, by setting ``wrap_non_bool = True``.
+The details of the projection used for non-boolean actions is detailed further in `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
+   
+Concurrency Constraints on Action Fluents
+-------------------
+
+The JAX planner also supports constraints on the maximum number of action-fluents that can be set at any given time. 
+This is given mathematically as a constraint of the form :math:`\sum_i a_i \leq B` for some constant :math:`B`.
 Specifically, if the ``max-nondef-actions`` property in the RDDL instance is less than the total number of boolean action fluents, then ``JaxRDDLBackpropPlanner`` will automatically apply a projected gradient technique to ensure ``max_nondef_actions`` is satisfied at each optimization step.
 Two methods are provided to ensure constraint satisfaction: the exact implementation details of the original method are provided `in this paper <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_
 
@@ -346,6 +370,29 @@ Mathematically, symlog is defined as
 
 which compresses the magnitudes of large positive and negative outcomes.
 The use of symlog can be enabled by the ``use_symlog_reward`` argument in ``JaxBackpropPlanner``.
+
+Utility Optimization
+-------------------
+
+By default, the Jax planner will optimize the expected sum of future reward. In settings that entail risk, this may not always be desirable.
+Following the framework `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_, it is possible to optimize some non-linear utility of the return instead.
+For example, the entropic utility for risk-aversion parameter :math:`\beta` can be written mathematically as
+
+.. math::
+    
+    U(a_1, \dots a_T) = -\frac{1}{\beta} \log \mathbb{E}\left[e^{-\beta \sum_t R(s_t, a_t)} \right]
+
+In JAX, this can be passed to the planner as follows:
+
+.. code-block:: python
+
+    import jax.numpy as jnp
+    
+    def entropic(x, beta=0.00001):
+        return (-1.0 / beta) * jnp.log(jnp.mean(jnp.exp(-beta * x)) + 1e-12)
+       
+    planner = JaxRDDLBackpropPlanner(..., utility=entropic)
+    ...
 
 Limitations
 -------------------
