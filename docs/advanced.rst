@@ -293,7 +293,7 @@ For example, the RDDL operation :math:`a \text{ ^ } b` can be replaced with a us
             def jax_and_operation(a, b, param):
                 ...
             
-            new_parameter = (('weight', 'greaterEqual') 
+            new_parameter = (('weight', 'logical_and') 
             
             return jax_and_operation, new_parameter
 
