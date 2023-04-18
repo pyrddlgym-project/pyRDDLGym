@@ -1,3 +1,4 @@
+import haiku as hk
 import jax
 import jax.numpy as jnp
 import jax.random as random
@@ -5,7 +6,7 @@ import jax.nn.initializers as initializers
 import numpy as np
 np.seterr(all='raise')
 import optax
-from typing import Callable, Dict, Iterable, Set, Tuple
+from typing import Callable, Dict, Iterable, Set, Sequence, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -174,7 +175,34 @@ class JaxPlan:
     @projection.setter
     def projection(self, value):
         self._projection = value
-        
+    
+    def _calculate_action_info(self, compiled: JaxRDDLCompilerWithGrad,
+                               user_bounds: Dict, horizon: int):
+        shapes, bounds = {}, {}
+        for (name, prange) in compiled.rddl.variable_ranges.items():
+            if compiled.rddl.variable_types[name] != 'action-fluent':
+                continue
+            
+            if prange not in compiled.JAX_TYPES:
+                raise RDDLTypeError(
+                    f'Invalid range <{prange}. of action-fluent <{name}>, '
+                    f'must be one of {set(compiled.JAX_TYPES.keys())}.')
+                
+            # clip boolean to (0, 1), otherwise use the user action bounds
+            shapes[name] = (horizon,) + np.shape(compiled.init_values[name])
+            if prange == 'bool':
+                bounds[name] = None
+            else:
+                lower, upper = user_bounds.get(name, (-jnp.inf, jnp.inf))
+                if lower is None: 
+                    lower = -jnp.inf
+                if upper is None: 
+                    upper = jnp.inf
+                bounds[name] = (lower, upper)
+            warnings.warn(f'Bounds of action fluent <{name}> set to '
+                          f'{bounds[name]}', stacklevel=2)
+        return shapes, bounds
+    
     
 class JaxStraightLinePlan(JaxPlan):
     '''A straight line plan implementation in JAX'''
@@ -210,53 +238,18 @@ class JaxStraightLinePlan(JaxPlan):
         self._use_new_projection = use_new_projection
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
-                _bounds: Dict,
-                horizon: int) -> None:
+                _bounds: Dict, horizon: int) -> None:
         rddl = compiled.rddl
-        init = self._initializer
-        min_action = self._min_action_prob
-        max_action = 1.0 - min_action
-        wrap_sigmoid = self._wrap_sigmoid
-        bool_threshold = 0.0 if wrap_sigmoid else 0.5
-        wrap_non_bool = self._wrap_non_bool
-        max_constraint_iter = self._max_constraint_iter
+        ranges = rddl.variable_ranges
         
         # calculate the correct action box bounds
-        shapes, bounds = {}, {}
-        ranges = rddl.variable_ranges
-        for (name, prange) in ranges.items():
-            
-            # make sure variable is an action fluent (what we are optimizing)
-            if rddl.variable_types[name] != 'action-fluent':
-                continue
-            
-            # prepend the rollout dimension to the action tensor shape
-            shapes[name] = (horizon,) + np.shape(compiled.init_values[name])
-                
-            # the output type is valid for the action
-            valid_types = compiled.JAX_TYPES
-            if prange not in valid_types:
-                raise RDDLTypeError(
-                    f'Invalid range <{prange}. of action-fluent <{name}>, '
-                    f'must be one of {set(valid_types.keys())}.')
-                
-            # clip boolean to (0, 1) otherwise use the user action bounds
-            # for boolean, the bounds depend on min_action_prob and action weight
-            # if wrap_sigmoid = True
-            if prange == 'bool':
-                bounds[name] = None
-            else:
-                lower, upper = _bounds.get(name, (-jnp.inf, jnp.inf))
-                if lower is None: 
-                    lower = -jnp.inf
-                if upper is None: 
-                    upper = jnp.inf
-                bounds[name] = (lower, upper)
-            warnings.warn(f'Bounds of action fluent <{name}> parameters '
-                          f'set to {bounds[name]}', stacklevel=2)
+        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
         self.bounds = bounds
         
         # define the mapping between trainable parameter and action
+        wrap_sigmoid = self._wrap_sigmoid
+        bool_threshold = 0.0 if wrap_sigmoid else 0.5
+        
         def _jax_bool_param_to_action(var, param, hyperparams):
             if wrap_sigmoid:
                 weight = hyperparams[var]
@@ -271,15 +264,17 @@ class JaxStraightLinePlan(JaxPlan):
             else:
                 return action
             
+        wrap_non_bool = self._wrap_non_bool
+        
         def _jax_non_bool_param_to_action(var, param, hyperparams):
             if wrap_non_bool:
                 lower, upper = bounds[var]
                 if lower > -jnp.inf and upper < jnp.inf:
                     action = lower + (upper - lower) * jax.nn.sigmoid(param)
                 elif lower > -jnp.inf:
-                    action = lower + jax.nn.elu(param, alpha=1.0) + 1.0
+                    action = lower + (jax.nn.elu(param) + 1.0)
                 elif upper < jnp.inf:
-                    action = upper - (jax.nn.elu(-param, alpha=1.0) + 1.0)
+                    action = upper - (jax.nn.elu(-param) + 1.0)
                 else:
                     action = param
             else:
@@ -287,6 +282,9 @@ class JaxStraightLinePlan(JaxPlan):
             return action
         
         # handle box constraints    
+        min_action = self._min_action_prob
+        max_action = 1.0 - min_action
+        
         def _jax_project_bool_to_box(var, param, hyperparams):
             lower = _jax_bool_action_to_param(var, min_action, hyperparams)
             upper = _jax_bool_action_to_param(var, max_action, hyperparams)
@@ -305,6 +303,8 @@ class JaxStraightLinePlan(JaxPlan):
             return new_params, True
             
         # initialize the parameters inside their valid ranges
+        init = self._initializer
+        
         def _jax_wrapped_slp_init(key, hyperparams, subs):
             params = {}
             for (var, shape) in shapes.items():
@@ -323,10 +323,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_wrapped_slp_predict_train(key, params, hyperparams, step, subs):
             actions = {}
             for (var, param) in params.items():
-                if step is None:
-                    action = jnp.asarray(param, dtype=compiled.REAL)
-                else:
-                    action = jnp.asarray(param[step, ...], dtype=compiled.REAL)
+                action = jnp.asarray(param[step, ...], dtype=compiled.REAL)
                 if ranges[var] == 'bool':
                     action = _jax_bool_param_to_action(var, action, hyperparams)
                 else:
@@ -338,7 +335,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_wrapped_slp_predict_test(key, params, hyperparams, step, subs):
             actions = {}
             for (var, param) in params.items():
-                action = jnp.asarray(param if step is None else param[step, ...])
+                action = jnp.asarray(param[step, ...])
                 prange = ranges[var]
                 if prange == 'bool':
                     action = action > bool_threshold
@@ -430,6 +427,8 @@ class JaxStraightLinePlan(JaxPlan):
                 return surplus / count
                 
             # return whether the surplus is positive or reached compute limit
+            max_constraint_iter = self._max_constraint_iter
+        
             def _jax_wrapped_sogbofa_continue(values):
                 it, _, _, surplus = values
                 return jnp.logical_and(it < max_constraint_iter, surplus > 0)
@@ -488,7 +487,130 @@ class JaxStraightLinePlan(JaxPlan):
         next_fn = JaxStraightLinePlan._guess_next_epoch
         return jax.tree_map(next_fn, params)
 
+
+class JaxDeepReactivePolicy(JaxPlan):
+    '''A deep reactive policy network implementation in JAX.'''
+    
+    def __init__(self, topology: Sequence[int],
+                 activation: Callable=jax.nn.relu,
+                 initializer: hk.initializers.Initializer=hk.initializers.VarianceScaling(scale=2.0),
+                 normalize: bool=True) -> None:
+        '''Creates a new deep reactive policy in JAX.
+        
+        :param neurons: sequence consisting of the number of neurons in each
+        layer of the policy
+        :param activation: function to apply after each layer of the policy
+        :param initializer: weight initialization
+        :param normalize: whether to apply layer norm to the inputs
+        '''
+        super(JaxDeepReactivePolicy, self).__init__()
+        self._topology = topology
+        self._activations = [activation for _ in topology]
+        self._initializer = initializer
+        self._normalize = normalize
+        
+    def compile(self, compiled: JaxRDDLCompilerWithGrad,
+                _bounds: Dict, horizon: int) -> None:
+        
+        # calculate the correct action box bounds
+        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
+        shapes = {var: value[1:] for (var, value) in shapes.items()}
+        self.bounds = bounds
+        
+        # state processing
+        state_vars = compiled.rddl.states
+        
+        def _jax_wrapped_subs_to_state(subs):
+            subs = {var: value
+                    for (var, value) in subs.items()
+                    if var in state_vars}
+            flat_subs = jax.tree_map(jnp.ravel, subs) 
+            states = list(flat_subs.values())
+            state = jnp.concatenate(states)
+            return state
+        
+        # predict actions from the policy network for current state
+        normalize = self._normalize
+        init = self._initializer
+        layers = list(enumerate(zip(self._topology, self._activations)))
+        layer_sizes = {var: np.prod(shape, dtype=int) 
+                       for (var, shape) in shapes.items()}
+        layer_names = {var: f'output_{var}'.replace('-', '_') for var in shapes}
+        
+        def _jax_wrapped_policy_network_predict(state):
             
+            # apply layer norm
+            if normalize:
+                normalizer = hk.LayerNorm(
+                    axis=-1, param_axis=-1,
+                    create_offset=True, create_scale=True,
+                    name='input_norm')
+                state = normalizer(state)
+            
+            # feed state vector through hidden layers
+            hidden = state
+            for (i, (num_neuron, activation)) in layers:
+                linear = hk.Linear(num_neuron, name=f'hidden_{i}', w_init=init)
+                hidden = activation(linear(hidden))
+            
+            # each output is a linear layer reshaped to original lifted shape
+            actions = {}
+            for (var, size) in layer_sizes.items():
+                linear = hk.Linear(size, name=layer_names[var], w_init=init)
+                reshape = hk.Reshape(shapes[var], name=f'reshape_{layer_names[var]}')
+                output = reshape(linear(hidden))
+                
+                # project action output to valid box constraints 
+                lower, upper = bounds[var]
+                if lower > -jnp.inf and upper < jnp.inf:
+                    action = lower + (upper - lower) * jax.nn.sigmoid(output)
+                elif lower > -jnp.inf:
+                    action = lower + (jax.nn.elu(output) + 1.0)
+                elif upper < jnp.inf:
+                    action = upper - (jax.nn.elu(-output) + 1.0)
+                else:
+                    action = output
+                actions[var] = action
+            return actions
+        
+        predict_fn = hk.transform(_jax_wrapped_policy_network_predict)
+        predict_fn = hk.without_apply_rng(predict_fn)            
+        
+        def _jax_wrapped_drp_predict_train(key, params, hyperparams, step, subs):
+            state = _jax_wrapped_subs_to_state(subs)
+            actions = predict_fn.apply(params, state)
+            return actions
+        
+        def _jax_wrapped_drp_predict_test(key, params, hyperparams, step, subs):
+            state = _jax_wrapped_subs_to_state(subs)
+            actions = predict_fn.apply(params, state)
+            return actions
+        
+        self.train_policy = _jax_wrapped_drp_predict_train
+        self.test_policy = _jax_wrapped_drp_predict_test
+        
+        # initialize the parameters of the policy network
+        
+        def _jax_wrapped_drp_init(key, hyperparams, subs):
+            subs = {var: value[0, ...] 
+                    for (var, value) in subs.items()
+                    if var in state_vars}
+            state = _jax_wrapped_subs_to_state(subs)
+            params = predict_fn.init(key, state)
+            return params
+        
+        self.initializer = _jax_wrapped_drp_init
+        
+        # no projection is applied
+        def _jax_wrapped_drp_no_projection(params, hyperparams):
+            return params, True
+        
+        self.projection = _jax_wrapped_drp_no_projection
+    
+    def guess_next_epoch(self, params: Dict) -> Dict:
+        return params
+
+    
 class JaxRDDLBackpropPlanner:
     '''A class for optimizing an action sequence in the given RDDL MDP using 
     gradient descent.'''
@@ -608,6 +730,7 @@ class JaxRDDLBackpropPlanner:
             policy=self.plan.test_policy,
             n_steps=self.horizon,
             n_batch=self.batch_size_test)
+        self.test_rollouts = jax.jit(test_rollouts)
         
         # initialization
         self.initialize = jax.jit(self._jax_init())
@@ -640,8 +763,8 @@ class JaxRDDLBackpropPlanner:
                                    subs, model_params):
             log = rollouts(key, policy_params, hyperparams, subs, model_params)
             rewards = log['reward']
-            rewards = _jax_wrapped_scale_reward(rewards)
             returns = jnp.sum(rewards, axis=1)
+            returns = _jax_wrapped_scale_reward(returns)
             utility = utility_fn(returns)
             loss = -utility
             return loss, log
@@ -695,12 +818,12 @@ class JaxRDDLBackpropPlanner:
         for (state, next_state) in rddl.next_state.items():
             init_train[next_state] = init_train[state]
             init_test[next_state] = init_test[state]
-                        
+        
         return init_train, init_test
     
     def optimize(self, key: random.PRNGKey,
                  epochs: int,
-                 step: int=1, 
+                 step: int=1,
                  plot_step: int=None,
                  policy_hyperparams: Dict[str, object]=None,
                  subs: Dict[str, object]=None,
@@ -767,7 +890,8 @@ class JaxRDDLBackpropPlanner:
             
             # save the plan figure
             if plot_step is not None and it % plot_step == 0:
-                self._plot_actions(key, policy_params, policy_hyperparams, subs, it)
+                self._plot_actions(
+                    key, policy_params, policy_hyperparams, test_subs, it)
                 
             # periodically return a callback
             if it % step == 0 or it == epochs - 1:
@@ -808,31 +932,35 @@ class JaxRDDLBackpropPlanner:
                     grounded_actions[ground_var] = ground_act
         return grounded_actions
 
-    def _plot_actions(self, key, params, policy_hyperparams, subs, step):
+    def _plot_actions(self, key, params, hyperparams, subs, it):
+        rddl = self.rddl
         try:
             import matplotlib.pyplot as plt
-        except Exception as _:
+        except Exception:
             print('matplotlib is not installed, aborting plot...')
-        else:
-            actions = self.train_policy(key, params, policy_hyperparams, None, subs)
-            fig, axs = plt.subplots(nrows=len(actions), constrained_layout=True)
-            for (ax, name) in zip(axs, actions):
-                values = np.asarray(actions[name], dtype=float)
-                values = np.reshape(values, newshape=(values.shape[0], -1))
-                values = np.transpose(values)
-                if self.rddl.variable_ranges[name] == 'bool':
-                    vmin, vmax = 0.0, 1.0
-                else:
-                    vmin, vmax = None, None                
-                img = ax.imshow(values, vmin=vmin, vmax=vmax, 
-                                cmap='seismic', aspect='auto')
-                img = ax.imshow(values, cmap='seismic', aspect='auto')
-                ax.set_xlabel('time')
-                ax.set_ylabel(name)
-                plt.colorbar(img, ax=ax)
-            domain = self.rddl.domainName()
-            inst = self.rddl.instanceName()
-            plt.savefig(f'plan_{domain}_{inst}_{step}.pdf', bbox_inches='tight')
-            plt.clf()
-            plt.close(fig)
+            return
+            
+        # predict actions from the trained policy or plan
+        actions = self.test_rollouts(key, params, hyperparams, subs, {})['action']
+            
+        # plot the action sequences as color maps
+        fig, axs = plt.subplots(nrows=len(actions), constrained_layout=True)
+        for (ax, name) in zip(axs, actions):
+            action = np.mean(actions[name], axis=0, dtype=float)
+            action = np.reshape(action, newshape=(action.shape[0], -1)).T
+            if rddl.variable_ranges[name] == 'bool':
+                vmin, vmax = 0.0, 1.0
+            else:
+                vmin, vmax = None, None                
+            img = ax.imshow(
+                action, vmin=vmin, vmax=vmax, cmap='seismic', aspect='auto')
+            ax.set_xlabel('time')
+            ax.set_ylabel(name)
+            plt.colorbar(img, ax=ax)
+            
+        # write plot to disk
+        plt.savefig(f'plan_{rddl.domainName()}_{rddl.instanceName()}_{it}.pdf',
+                    bbox_inches='tight')
+        plt.clf()
+        plt.close(fig)
 
