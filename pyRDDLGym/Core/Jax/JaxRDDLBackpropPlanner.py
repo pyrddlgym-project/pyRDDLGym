@@ -511,6 +511,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict, horizon: int) -> None:
+        rddl = compiled.rddl
         
         # calculate the correct action box bounds
         shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
@@ -518,7 +519,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         self.bounds = bounds
         
         # state processing
-        state_vars = compiled.rddl.states
+        state_vars = rddl.states
         
         def _jax_wrapped_subs_to_state(subs):
             subs = {var: value
@@ -530,6 +531,7 @@ class JaxDeepReactivePolicy(JaxPlan):
             return state
         
         # predict actions from the policy network for current state
+        ranges = rddl.variable_ranges
         normalize = self._normalize
         init = self._initializer
         layers = list(enumerate(zip(self._topology, self._activations)))
@@ -559,10 +561,14 @@ class JaxDeepReactivePolicy(JaxPlan):
                 linear = hk.Linear(size, name=layer_names[var], w_init=init)
                 reshape = hk.Reshape(shapes[var], name=f'reshape_{layer_names[var]}')
                 output = reshape(linear(hidden))
+                if not shapes[var]:
+                    output = jnp.squeeze(output)
                 
                 # project action output to valid box constraints 
                 lower, upper = bounds[var]
-                if lower > -jnp.inf and upper < jnp.inf:
+                if ranges[var] == 'bool':
+                    action = jax.nn.sigmoid(output)
+                elif lower > -jnp.inf and upper < jnp.inf:
                     action = lower + (upper - lower) * jax.nn.sigmoid(output)
                 elif lower > -jnp.inf:
                     action = lower + (jax.nn.elu(output) + 1.0)
@@ -584,13 +590,22 @@ class JaxDeepReactivePolicy(JaxPlan):
         def _jax_wrapped_drp_predict_test(key, params, hyperparams, step, subs):
             state = _jax_wrapped_subs_to_state(subs)
             actions = predict_fn.apply(params, state)
-            return actions
+            new_actions = {}
+            for (var, action) in actions.items():
+                prange = ranges[var]
+                if prange == 'bool':
+                    new_action = action > 0.5
+                elif prange == 'int':
+                    new_action = jnp.round(action).astype(compiled.INT)
+                else:
+                    new_action = action
+                new_actions[var] = new_action
+            return new_actions
         
         self.train_policy = _jax_wrapped_drp_predict_train
         self.test_policy = _jax_wrapped_drp_predict_test
         
         # initialize the parameters of the policy network
-        
         def _jax_wrapped_drp_init(key, hyperparams, subs):
             subs = {var: value[0, ...] 
                     for (var, value) in subs.items()
