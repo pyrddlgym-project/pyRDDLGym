@@ -26,116 +26,102 @@ def sample_directions(dim, loc=0.0, scale=1.0):
     return dir1, dir2        
 
 
-def loss_surface(problem, timeout, w=None, wa=None, solve=False):
-    
-    # solve the planning problem to get center for the plot
-    if solve:
-        _, planner, train_args, _ = JaxConfigManager.get(f'{problem}.cfg')
-        sol_params = slp_train(planner, timeout, **train_args)
-    
-    # create the planning problem but non-aggregated return
-    myEnv, planner, train_args, _ = JaxConfigManager.get(
-        f'{problem}.cfg', utility=(lambda x: x))
-    rddl = myEnv.model
-    key = train_args['key']
-    subs = planner.test_compiled.init_values
-    train_subs, _ = planner._batched_init_subs(subs)
-    hyperparams = train_args.get('policy_hyperparams', {})
-    model_params = planner.compiled.model_params
-    
-    if w is not None:
-        model_params = {name: w for name in model_params}
-    if wa is not None:
-        hyperparams = {name: wa for name in hyperparams}
-    
-    # how to slice action vector to dict 
+def _shape_info(planner):
     shapes, starts, sizes = {}, {}, {}
     istart = 0
-    for name in rddl.actions:
+    for name in planner.compiled.rddl.actions:
         shapes[name] = (planner.horizon,) + \
             np.shape(planner.compiled.init_values[name])
         starts[name] = istart
         sizes[name] = np.prod(shapes[name], dtype=int)
         istart += sizes[name]    
     count_entries = sum(sizes.values())
-    print(f'total actions = {count_entries}')
+    return shapes, starts, sizes, count_entries
+
     
-    # convert solution to action vector
-    center = None
-    if solve:
-        center = np.zeros((count_entries))
-        for name, value in sol_params.items():
-            start = starts[name]
-            center[start:start + sizes[name]] = np.ravel(value)
+def loss_surface(problem, w=None, wa=None, train=True):
     
-    # loss surface
+    # create the planning problem but non-aggregated return
+    _, planner, train_args, _ = JaxConfigManager.get(
+        f'{problem}.cfg')
+    
+    model_params = planner.compiled.model_params
+    if w is not None:
+        model_params = {name: w for name in model_params}
+        
+    hyperparams = train_args.get('policy_hyperparams', {})
+    if wa is not None:
+        hyperparams = {name: wa for name in hyperparams}
+    
+    # plan vector
+    shapes, starts, sizes, _ = _shape_info(planner)
+    
     def unravel_params(params):
         policy_params = {}
-        for name in rddl.actions:
+        for name in planner.compiled.rddl.actions:
             start = starts[name]
             policy_params[name] = jnp.reshape(
                 params[start:start + sizes[name]], newshape=shapes[name])
         return policy_params
     
+    # loss surface
+    key = train_args['key']
+    train_subs, test_subs = planner._batched_init_subs(
+        planner.compiled.init_values if train else planner.test_compiled.init_values)
+    subs = train_subs if train else test_subs
+    loss_fn = planner.train_loss if train else planner.test_loss
+    
     def loss_func(params):
-        policy_params = unravel_params(params)
-        loss_values, _ = planner.train_loss(
-            key, policy_params, hyperparams, train_subs, model_params)
-        mean_loss = jnp.mean(loss_values)
-        return mean_loss
-    
+        params = unravel_params(params)
+        loss, _ = loss_fn(key, params, hyperparams, subs, model_params)
+        return loss
+        
     def loss_func_batched(params):
-        loss_values = jax.vmap(loss_func)(params)
-        loss_values = jnp.ravel(loss_values)
-        return loss_values
+        return jnp.ravel(jax.vmap(loss_func)(params))
     
-    loss_func_jit = jax.jit(loss_func_batched)
-    
-    return loss_func_jit, count_entries, center
+    return jax.jit(loss_func_batched)
 
 
 def plot_surface(x, y, z, name):
     z = np.reshape(z, newshape=(x.size, y.size))
     fig = go.Figure(data=[go.Surface(z=z, x=x, y=y)])
-    fig.update_layout(title='Loss surface')
+    fig.update_layout(title='Loss surface', autosize=False, width=1000, height=1000)
     fig.write_html(f'{name}.html')
     fig.show()
 
 
 def run_experiment(problem, probname,
-                   xmax=20.0, n=500, iters=100, ws=[2, 20, 200], timeout=60):
-    x1min, x1max = -xmax, xmax
-    x2min, x2max = -xmax, xmax
+                   xmax=25.0, n=500, iters=100,
+                   ws=[(100.0, 5.0), (100.0, 5.0), (10000.0, 100.0)]):
+    
+    # solve with default parameters
+    _, planner, train_args, _ = JaxConfigManager.get(f'{problem}.cfg')
+    sol_params = slp_train(planner, 60, **train_args)
+    
+    # reshape to solution vector
+    _, starts, sizes, count_entries = _shape_info(planner)
+    center = np.zeros((count_entries,))
+    for name, value in sol_params.items():
+        start = starts[name]
+        center[start:start + sizes[name]] = np.ravel(value)
+    
+    # sample evaluation points and directions
     samples = n ** 2
     bs = samples // iters
+    d1, d2 = sample_directions(count_entries)
+    points, (x, y) = sample_points(center, d1, d2, -xmax, xmax, -xmax, xmax, n)
     
-    center, dir1, dir2, points, x, y = None, None, None, None, None, None
-    for i, w in enumerate(ws):
-        
-        # return the loss surface function
-        # if the first iteration, solve the problem and use result as plot center
-        loss_func, entries, solution = loss_surface(
-            problem, timeout, w=float(w), wa=float(w), solve=i == 0)
-        
-        # cache the first solution, direction vectors and compute samples
-        # of plans at which to evaluate loss surface
-        if i == 0:
-            center = solution
-            dir1, dir2 = sample_directions(entries)
-            points, (x, y) = sample_points(
-                center, dir1, dir2, x1min, x1max, x2min, x2max, n)
-        
-        # perform the batched evaluation of the loss surface
+    # evaluate loss surfaces
+    for i, (w, wa) in enumerate(ws):
+        loss_func = loss_surface(problem, w=w, wa=wa, train=i > 0)
         zbatches = []
-        for i in range(iters):
-            print(f'batch {i}')
-            batch = jnp.asarray(points[i * bs:i * bs + bs,:])
+        for j in range(iters):
+            print(f'batch {j}')
+            batch = jnp.asarray(points[j * bs:j * bs + bs,:])
             zbatch = np.asarray(loss_func(batch))
             zbatches.append(zbatch)
         z = np.concatenate(zbatches)
-        
-        # render the loss surface
-        plot_surface(x, y, z, f'surface_{w}_{probname}')
+        plot_surface(x, y, z, f'surface_{i}_{probname}')
 
 
 if __name__ == '__main__':
