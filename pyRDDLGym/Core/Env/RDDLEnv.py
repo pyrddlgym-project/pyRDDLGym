@@ -6,7 +6,7 @@ import pygame
 import os
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError, RDDLLogFolderError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Debug.Logger import Logger, SimLogger
@@ -68,7 +68,12 @@ class RDDLEnv(gym.Env):
                 curpath = os.path.split(curpath)[0]
             dir = os.path.join(curpath, 'Logs', simlogname, ast.domain.name)
             if not os.path.exists(dir):
-                os.makedirs(dir)
+                try:
+                    os.makedirs(dir)
+                except Exception as e:
+                    if not isinstance(e, FileExistsError):
+                        raise RDDLLogFolderError('Could not create log folder for domain ' + ast.domain.name + ' of method ' + simlogname + ' at path: ' + dir)
+
             simlog_fname = os.path.join(dir, ast.instance.name)
             self.simlogger = SimLogger(f'{simlog_fname}_log.csv')
         # self.simlogger = SimLogger(f'{log_fname}_log.csv') if log else None
