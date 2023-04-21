@@ -81,7 +81,8 @@ def objective_slp(std, lr, w, wa, key, std_space, lr_space, w_space, wa_space,
             wrap_sigmoid=wrap_sigmoid),
         rollout_horizon=eval_horizon,
         action_bounds=action_bounds,
-        optimizer=optax.rmsprop(lr),
+        optimizer=optax.rmsprop,
+        optimizer_kwargs={'learning_rate': lr},
         logic=FuzzyLogic(weight=w),
         **planner_kwargs)
     policy_hyperparams = {name: wa for name in action_bounds}
@@ -136,7 +137,8 @@ def objective_mpc(std, lr, w, wa, T, key, std_space, lr_space, w_space, wa_space
             wrap_sigmoid=wrap_sigmoid),
         rollout_horizon=T,
         action_bounds=action_bounds,
-        optimizer=optax.rmsprop(lr),
+        optimizer=optax.rmsprop,
+        optimizer_kwargs={'learning_rate': lr},
         logic=FuzzyLogic(weight=w),
         **planner_kwargs)
     policy_hyperparams = {name: wa for name in action_bounds}
