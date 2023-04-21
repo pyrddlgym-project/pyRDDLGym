@@ -9,6 +9,7 @@ import optax
 from typing import Callable, Dict, Iterable, Set, Sequence, Tuple
 import warnings
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
@@ -191,18 +192,25 @@ class JaxPlan:
             # clip boolean to (0, 1), otherwise use the user action bounds
             shapes[name] = (horizon,) + np.shape(compiled.init_values[name])
             if prange == 'bool':
-                bounds[name] = None
+                lower, upper = None, None
             else:
                 lower, upper = user_bounds.get(name, (-jnp.inf, jnp.inf))
                 if lower is None: 
                     lower = -jnp.inf
                 if upper is None: 
                     upper = jnp.inf
-                bounds[name] = (lower, upper)
+            bounds[name] = (lower, upper)
             warnings.warn(f'Bounds of action fluent <{name}> set to '
                           f'{bounds[name]}', stacklevel=2)
         return shapes, bounds
     
+    def _count_bool_actions(self, rddl: RDDLLiftedModel):
+        constraint = rddl.max_allowed_actions
+        num_bool_actions = sum(np.size(values)
+                               for (var, values) in rddl.actions.items()
+                               if rddl.variable_ranges[var] == 'bool')
+        return num_bool_actions, constraint
+
     
 class JaxStraightLinePlan(JaxPlan):
     '''A straight line plan implementation in JAX'''
@@ -350,13 +358,10 @@ class JaxStraightLinePlan(JaxPlan):
         self.test_policy = _jax_wrapped_slp_predict_test
              
         # find if action clipping is required for max-definite-actions < pos-inf
-        allowed_actions = rddl.max_allowed_actions
-        bool_action_count = sum(np.size(values)
-                                for (var, values) in rddl.actions.items()
-                                if ranges[var] == 'bool')
-        use_sogbofa_clip_trick = allowed_actions < bool_action_count
+        bool_action_count, allowed_actions  = self._count_bool_actions(rddl)
+        use_constraint_satisfaction = allowed_actions < bool_action_count
         
-        if use_sogbofa_clip_trick: 
+        if use_constraint_satisfaction: 
             warnings.warn(f'Using projected gradient trick to satisfy '
                           f'max_nondef_actions: total boolean actions '
                           f'{bool_action_count} > max_nondef_actions '
@@ -365,7 +370,7 @@ class JaxStraightLinePlan(JaxPlan):
                     for (var, values) in rddl.actions.items()}
         
         # use new projection method...
-        if use_sogbofa_clip_trick and self._use_new_projection:
+        if use_constraint_satisfaction and self._use_new_projection:
             
             # shift the boolean actions uniformly, clipping at the min/max values
             # the amount to move is such that only top allowed_actions actions
@@ -408,7 +413,7 @@ class JaxStraightLinePlan(JaxPlan):
             self.projection = _jax_wrapped_slp_project_to_max_constraint
         
         # use SOGBOFA projection method...
-        elif use_sogbofa_clip_trick and not self._use_new_projection:
+        elif use_constraint_satisfaction and not self._use_new_projection:
             
             # calculate the surplus of actions above max-nondef-actions
             def _jax_wrapped_sogbofa_surplus(params, hyperparams):
@@ -530,6 +535,19 @@ class JaxDeepReactivePolicy(JaxPlan):
             state = jnp.concatenate(states)
             return state
         
+        # action concurrency check - only allow one action non-noop for now
+        bool_action_count, allowed_actions  = self._count_bool_actions(rddl)
+        if 1 < allowed_actions < bool_action_count:
+            raise RDDLNotImplementedError(
+                f'Deep reactive policies currently do not support '
+                f'max-nondef-actions = {allowed_actions} > 1.')
+        use_constraint_satisfaction = allowed_actions < bool_action_count
+            
+        if use_constraint_satisfaction:
+            noop = {var: (values if isinstance(values, bool) else values[0])
+                    for (var, values) in rddl.actions.items()}                   
+            bool_key = 'bool__'
+        
         # predict actions from the policy network for current state
         ranges = rddl.variable_ranges
         normalize = self._normalize
@@ -565,31 +583,58 @@ class JaxDeepReactivePolicy(JaxPlan):
                     output = jnp.squeeze(output)
                 
                 # project action output to valid box constraints 
-                lower, upper = bounds[var]
                 if ranges[var] == 'bool':
-                    action = jax.nn.sigmoid(output)
-                elif lower > -jnp.inf and upper < jnp.inf:
-                    action = lower + (upper - lower) * jax.nn.sigmoid(output)
-                elif lower > -jnp.inf:
-                    action = lower + (jax.nn.elu(output) + 1.0)
-                elif upper < jnp.inf:
-                    action = upper - (jax.nn.elu(-output) + 1.0)
+                    if not use_constraint_satisfaction:
+                        actions[var] = jax.nn.sigmoid(output)
                 else:
-                    action = output
-                actions[var] = action
+                    lower, upper = bounds[var]
+                    if lower > -jnp.inf and upper < jnp.inf:
+                        action = lower + (upper - lower) * jax.nn.sigmoid(output)
+                    elif lower > -jnp.inf:
+                        action = lower + (jax.nn.elu(output) + 1.0)
+                    elif upper < jnp.inf:
+                        action = upper - (jax.nn.elu(-output) + 1.0)
+                    else:
+                        action = output
+                    actions[var] = action
+            
+            # for constraint satisfaction wrap bool actions with softmax
+            if use_constraint_satisfaction:
+                linear = hk.Linear(
+                    bool_action_count, name='output_bool', w_init=init)
+                output = jax.nn.softmax(linear(hidden))
+                actions[bool_key] = output
+             
             return actions
         
         predict_fn = hk.transform(_jax_wrapped_policy_network_predict)
         predict_fn = hk.without_apply_rng(predict_fn)            
         
+        def _jax_unstack_bool_from_softmax(output):
+            actions = {}
+            start = 0
+            for (name, size) in layer_sizes.items():
+                if ranges[name] == 'bool':
+                    action = output[..., start:start + size]
+                    action = jnp.reshape(action, newshape=shapes[name])
+                    if noop[name]:
+                        action = 1.0 - action
+                    actions[name] = action
+                    start += size
+            return actions
+        
         def _jax_wrapped_drp_predict_train(key, params, hyperparams, step, subs):
             state = _jax_wrapped_subs_to_state(subs)
             actions = predict_fn.apply(params, state)
+            if use_constraint_satisfaction:
+                bool_actions = _jax_unstack_bool_from_softmax(actions[bool_key])
+                actions.update(bool_actions)
+                del actions[bool_key]
             return actions
         
         def _jax_wrapped_drp_predict_test(key, params, hyperparams, step, subs):
-            state = _jax_wrapped_subs_to_state(subs)
-            actions = predict_fn.apply(params, state)
+            actions = _jax_wrapped_drp_predict_train(
+                key, params, hyperparams, step, subs)
             new_actions = {}
             for (var, action) in actions.items():
                 prange = ranges[var]
