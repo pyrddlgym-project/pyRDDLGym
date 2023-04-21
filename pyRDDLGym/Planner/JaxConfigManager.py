@@ -36,13 +36,15 @@ def get(path: str, **optional_args) -> Dict[str, object]:
     try:
         if not use_repo:
             raise Exception
-        print(f'reading domain {domain_name} from rddlrepository...')
+        warnings.warn(f'reading domain {domain_name} from rddlrepository...',
+                      stacklevel=2)
         from rddlrepository.Manager.RDDLRepoManager import RDDLRepoManager
         manager = RDDLRepoManager()
         EnvInfo = manager.get_problem(domain_name)
     except:
-        print(f'failed to read from rddlrepository, '
-              f'reading domain {domain_name} from Examples...')
+        warnings.warn(f'failed to read from rddlrepository, '
+                      f'reading domain {domain_name} from Examples...',
+                      stacklevel=2)
         EnvInfo = ExampleManager.GetEnvInfo(domain_name)
     
     env_args['domain'] = EnvInfo.get_domain()
