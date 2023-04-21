@@ -75,6 +75,11 @@ def get(path: str, **optional_args) -> Dict[str, object]:
         opt_args['method_kwargs']['initializer'] = initializer
         if 'initializer_kwargs' in opt_args['method_kwargs']:
             del opt_args['method_kwargs']['initializer_kwargs']
+            
+    if 'method_kwargs' in opt_args and 'activation' in opt_args['method_kwargs']:
+        opt_args['method_kwargs']['activation'] = getattr(
+            jax.nn, opt_args['method_kwargs']['activation'])
+        
     opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, opt_args['method'])(
         **opt_args['method_kwargs'])
     opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])
