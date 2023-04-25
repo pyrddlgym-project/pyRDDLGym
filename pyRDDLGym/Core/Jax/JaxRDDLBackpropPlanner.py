@@ -268,9 +268,9 @@ class JaxStraightLinePlan(JaxPlan):
                           f'{bool_action_count} > max_nondef_actions '
                           f'{allowed_actions}.', stacklevel=2)
             
-        bool_key = 'bool__'
-        noop = {var: (values if isinstance(values, bool) else values[0])
+        noop = {var: (values[0] if isinstance(values, list) else values)
                 for (var, values) in rddl.actions.items()}
+        bool_key = 'bool__'
         
         # ***********************************************************************
         # STRAIGHT-LINE PLAN
@@ -597,7 +597,7 @@ class JaxDeepReactivePolicy(JaxPlan):
                 f'max-nondef-actions = {allowed_actions} > 1.')
         use_constraint_satisfaction = allowed_actions < bool_action_count
             
-        noop = {var: (values if isinstance(values, bool) else values[0])
+        noop = {var: (values[0] if isinstance(values, list) else values)
                 for (var, values) in rddl.actions.items()}                   
         bool_key = 'bool__'
         
