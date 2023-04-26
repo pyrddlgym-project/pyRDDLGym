@@ -71,6 +71,7 @@ This approach is introduced and further described `in this paper <https://procee
 If the RDDL program is indeed differentiable (or a differentiable approximation exists), it is possible to estimate the optimal plan using a baseline method provided in pyRDDLGym:
 
 .. code-block:: python
+
     import jax
     import optax
     
@@ -227,8 +228,8 @@ The example below adapts the Wildfire experiment above to use a deep reactive po
 The use of a policy often produces better results than straight-line planning, as shown in the example above.
 
 .. note::
-   `JaxStraightlinePlan` and `JaxDeepReactivePolicy` are instances of the abstract class `JaxPlan`. 
-   Other agent representations could be defined by overriding the `JaxPlan` class and its methods `compile` and `guess_next_epoch`.
+   ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
+   Other agent representations could be defined by overriding the ``JaxPlan`` class and its methods `compile` and ``guess_next_epoch``.
    
 Details about the implementation of the deep reactive policy for planning are explained further `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
 
