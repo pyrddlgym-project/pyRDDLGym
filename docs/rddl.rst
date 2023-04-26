@@ -692,10 +692,10 @@ RDDL currently supports the following discrete (int, bool or enumerated values) 
      - Places all probability mass on its discrete argument ``v``
      - Yes
    * - ``Bernoulli(p)``
-     - Samples a boolean value with probability of true given by parameter ``p``, where ``0 <= p <= 1``
+     - Samples a boolean value with probability of true given by parameter ``p``
      - Yes
    * - ``Discrete(var, p)``
-     - Samples an enumerated value with probability vector ``p``, which must be non-negative and sum to 1
+     - Samples an enumerated value with probability vector ``p``
    	 - Yes
    * - ``UnnormDiscrete(var, p)``
      - Same as ``Discrete``, except ``p`` needs to be only non-negative   
@@ -704,10 +704,10 @@ RDDL currently supports the following discrete (int, bool or enumerated values) 
      - Samples an integer value from a Poisson distribution with given rate parameter   
      - No
    * - ``Binomial(trials, p)``
-     - Samples an integer value from a Binomial distribution with given number of trials and trial probability of success ``p``
+     - Samples an integer value from a Binomial distribution with given number of ``trials`` and trial probability of success ``p``
      - No
    * - ``NegativeBinomial(successes, p)``
-     - Samples an integer value from a Negative Binomial distribution with required number of successes and trial probability of success ``p``
+     - Samples an integer value from a Negative Binomial distribution with required number of ``successes`` and trial probability of success ``p``
      - No
    * - ``Geometric(p)``
      - Samples an integer value from a Geometric distribution with trial probability of success ``p``
