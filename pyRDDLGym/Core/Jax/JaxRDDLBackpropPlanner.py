@@ -811,7 +811,16 @@ class JaxRDDLBackpropPlanner:
         self.clip_grad = clip_grad
         
         # set optimizer
-        optimizer = optax.inject_hyperparams(optimizer)(**optimizer_kwargs)
+        try:
+            optimizer = optax.inject_hyperparams(optimizer)(**optimizer_kwargs)
+        except:
+            warnings.warn(
+                'Failed to inject hyperparameters into optax optimizer, '
+                'rolling back to safer method: please note that modification of '
+                'optimizer hyperparameters will not work, and it is '
+                'recommended to update your packages and Python distribution.',
+                stacklevel=2)
+            optimizer = optimizer(**optimizer_kwargs)     
         if clip_grad is None:
             self.optimizer = optimizer
         else:
