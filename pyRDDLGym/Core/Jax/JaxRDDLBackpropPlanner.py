@@ -887,24 +887,23 @@ class JaxRDDLBackpropPlanner:
         gamma = self.rddl.discount
         utility_fn = self.utility
         
-        # symlog transform sign(x) * ln(|x| + 1) and discounting
-        def _jax_wrapped_scale_reward(rewards):
-            if use_symlog:
-                rewards = jnp.sign(rewards) * jnp.log1p(jnp.abs(rewards))
+        # apply discounting of future reward and then optional symlog transform
+        def _jax_wrapped_returns(rewards):
             if gamma < 1:
                 horizon = rewards.shape[1]
                 discount = jnp.power(gamma, jnp.arange(horizon))
-                discount = discount[jnp.newaxis, ...]
-                rewards = rewards * discount
-            return rewards
+                rewards = rewards * discount[jnp.newaxis, ...]
+            returns = jnp.sum(rewards, axis=1)
+            if use_symlog:
+                returns = jnp.sign(returns) * jnp.log1p(jnp.abs(returns))
+            return returns
         
         # the loss is the average cumulative reward across all roll-outs
         def _jax_wrapped_plan_loss(key, policy_params, hyperparams,
                                    subs, model_params):
             log = rollouts(key, policy_params, hyperparams, subs, model_params)
             rewards = log['reward']
-            returns = jnp.sum(rewards, axis=1)
-            returns = _jax_wrapped_scale_reward(returns)
+            returns = _jax_wrapped_returns(rewards)
             utility = utility_fn(returns)
             loss = -utility
             return loss, log
