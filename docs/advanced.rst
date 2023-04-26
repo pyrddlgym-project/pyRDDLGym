@@ -138,7 +138,7 @@ However, some probability distributions, such as the Beta distribution, do not h
 For a small subset of them, like the Bernoulli and Discrete distribution, pyRDDLGym offers efficient approximations backed by the existing literature (see, e.g. the Gumbel-softmax discussion below). 
 
 .. warning::
-   For non-reparameterizable distributions, the result of the gradient calculation is fully dependent on the JAX implementation: it could return an erroneous gradient (such as zero) or raise an exception.
+   For non-reparameterizable distributions, the result of the gradient calculation is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
 The ``JaxRDDLBackpropPlanner`` makes it relatively easy to do re-planning in stochastic domains inside the usual simulation loop.
 To do this, the parameter ``rollout_horizon`` specifies how far ahead the planner will look during optimization at each time step. 
