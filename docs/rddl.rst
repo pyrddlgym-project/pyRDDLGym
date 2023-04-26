@@ -692,12 +692,12 @@ RDDL currently supports the following discrete (int, bool or enumerated values) 
      - Places all probability mass on its discrete argument ``v``
      - Yes
    * - ``Bernoulli(p)``
-     - Samples a boolean value with probability of true given by parameter ``p``; must have ``0 <= p <= 1``
+     - Samples a boolean value with probability of true given by parameter ``p``, where ``0 <= p <= 1``
      - Yes
-   * - ``Discrete(<var_name>, p)``
-     - Samples an enumerated value with probability vector ``p``; elements of ``p`` must be non-negative and sum to 1
+   * - ``Discrete(var, p)``
+     - Samples an enumerated value with probability vector ``p``, which must be non-negative and sum to 1
    	 - Yes
-   * - ``UnnormDiscrete(<var_name>, p)``
+   * - ``UnnormDiscrete(var, p)``
      - Same as ``Discrete``, except ``p`` needs to be only non-negative   
      - Yes
    * - ``Poisson(rate)``
