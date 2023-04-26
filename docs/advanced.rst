@@ -186,7 +186,7 @@ The optimizer can then be invoked at every decision step (or periodically), as s
 By executing this code, and comparing the realized return to the one obtained by the code in the previous section, 
 it is clear that re-planning can perform much better on average than straight-line planning.
 
-Policy Networks for Closed-Loop Planning with JAX and Haiku
+Policy Networks for Closed-Loop Planning
 -------------------
 
 An alternative approach to re-planning is to learn a policy network :math:`a_t \gets \pi_\theta(s_t)`, i.e. a feed-forward neural network with parameters :math:`\theta` mapping state to action.
