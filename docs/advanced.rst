@@ -42,7 +42,7 @@ Currently, the following information is written in the generated log file:
 * simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
 * for JAX compilation, also prints the JAX compiled expressions corresponding to CPFs, reward and constraint expressions.
 
-Planning in Deterministic Domains with JAX
+Open-Loop Planning with JAX
 -------------------
 
 In many applications, such as planning in continuous control problems, it is desirable to compute gradients of RDDL expressions using autodiff. 
@@ -71,7 +71,7 @@ This approach is introduced and further described `in this paper <https://procee
 If the RDDL program is indeed differentiable (or a differentiable approximation exists), it is possible to estimate the optimal plan using a baseline method provided in pyRDDLGym:
 
 .. code-block:: python
-	
+    import jax
     import optax
     
     from pyRDDLGym import ExampleManager
@@ -85,7 +85,6 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
     model = myEnv.model
     
     # initialize the planner
-    # note that actions should be constrained to [0, 2] for MountainCar
     planner = JaxRDDLBackpropPlanner(
         model,
         batch_size_train=32,
@@ -95,15 +94,15 @@ If the RDDL program is indeed differentiable (or a differentiable approximation 
     
     # train for 1000 epochs using gradient ascent - print progress every 50
     # note that boolean actions are wrapped with sigmoid by default, so the 
-    # policy_hyperparams dictionary must be filled with weights for those sigmoid
-    # functions
+    # policy_hyperparams dictionary must be filled with weights for them
     policy_weights = {'cut-out': 10.0, 'put-out': 10.0}
     for callback in planner.optimize(
         jax.random.PRNGKey(42), epochs=1000, step=10, policy_hyperparams=policy_weights):
-        print('step={} train_return={:.6f} test_return={:.6f}'.format(
+        print('step={} train_return={:.6f} test_return={:.6f} best_return={:.6f}'.format(
               str(callback['iteration']).rjust(4),
               callback['train_return'],
-              callback['test_return']))
+              callback['test_return'],
+              callback['best_return']))
 
 The ``policy_hyperparams`` argument is required whenever the policy or plan representation takes additional hyper-parameters. 
 Further details are provided in the "Box Constraints" section below.
@@ -114,7 +113,7 @@ The final action sequence can then be easily extracted from the final callback.
 	plan = planner.get_action(<PRNG key>, callback['params'], <step>, None, policy_weights)
 	
 
-Re-Planning: Planning in Stochastic Domains
+Open-Loop Planning with Periodic Revision
 -------------------
 
 In domains that have stochastic transitions, an open loop plan can be considerably sub-optimal.
@@ -185,6 +184,53 @@ The optimizer can then be invoked at every decision step (or periodically), as s
     
 By executing this code, and comparing the realized return to the one obtained by the code in the previous section, 
 it is clear that re-planning can perform much better on average than straight-line planning.
+
+Policy Networks for Closed-Loop Planning with JAX and Haiku
+-------------------
+
+An alternative approach to re-planning is to learn a policy network :math:`a_t \gets \pi_\theta(s_t)`, i.e. a feed-forward neural network with parameters :math:`\theta` mapping state to action.
+The example below adapts the Wildfire experiment above to use a deep reactive policy instead of a straight-line plan:
+
+.. code-block:: python
+
+    import optax
+    import jax
+    
+    from pyRDDLGym import ExampleManager
+    from pyRDDLGym import RDDLEnv
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
+    
+    # specify the model
+    EnvInfo = ExampleManager.GetEnvInfo('Wildfire')
+    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
+    model = myEnv.model
+    
+    # initialize the planner
+    # here we initialize a policy network with two hidden layers of size 128 and 64
+    planner = JaxRDDLBackpropPlanner(
+        model,
+        batch_size_train=32,
+        plan=JaxDeepReactivePolicy(topology=[128, 64]),
+        optimizer=optax.rmsprop,
+        optimizer_kwargs={'learning_rate': 0.001})
+    
+    # train for 1000 epochs using gradient ascent - print progress every 50
+    for callback in planner.optimize(
+        jax.random.PRNGKey(42), epochs=1000, step=10):
+        print('step={} train_return={:.6f} test_return={:.6f} best_return={:.6f}'.format(
+              str(callback['iteration']).rjust(4),
+              callback['train_return'],
+              callback['test_return'],
+              callback['best_return']))
+
+The use of a policy often produces better results than straight-line planning, as shown in the example above.
+
+.. note::
+   `JaxStraightlinePlan` and `JaxDeepReactivePolicy` are instances of the abstract class `JaxPlan`. 
+   Other agent representations could be defined by overriding the `JaxPlan` class and its methods `compile` and `guess_next_epoch`.
+   
+Details about the implementation of the deep reactive policy for planning are explained further `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
 
 Box Constraints on Action Fluents
 -------------------
