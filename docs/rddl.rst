@@ -692,25 +692,25 @@ RDDL currently supports the following discrete (int, bool or enumerated values) 
      - Places all probability mass on its discrete argument ``v``
      - Yes
    * - ``Bernoulli(p)``
-     - Samples a boolean value with probability of true given by parameter ``p``
+     - Samples a boolean value with given probability of success/true
      - Yes
    * - ``Discrete(var, p)``
-     - Samples an enumerated value with probability vector ``p``
+     - Samples an enumerated value with given probability distribution
    	 - Yes
    * - ``UnnormDiscrete(var, p)``
-     - Same as ``Discrete``, except ``p`` needs to be only non-negative   
+     - Same as ``Discrete`` but where ``p`` can be non-normalized (e.g. not sum to 1)
      - Yes
    * - ``Poisson(rate)``
      - Samples an integer value from a Poisson distribution with given rate parameter   
      - No
    * - ``Binomial(trials, p)``
-     - Samples an integer value from a Binomial distribution with given number of ``trials`` and trial probability of success ``p``
+     - Samples an integer value from a Binomial distribution with given number of trials and trial probability of success
      - No
    * - ``NegativeBinomial(successes, p)``
-     - Samples an integer value from a Negative Binomial distribution with required number of ``successes`` and trial probability of success ``p``
+     - Samples an integer value from a Negative Binomial distribution with required number of successes and trial probability of success
      - No
    * - ``Geometric(p)``
-     - Samples an integer value from a Geometric distribution with trial probability of success ``p``
+     - Samples an integer value from a Geometric distribution with given probability of success
      - Yes
 
 In a ``Discrete`` probability distribution, the probability vector assign a 
@@ -757,7 +757,7 @@ RDDL also currently supports the following continuous (real values) probability 
      - Samples a real value from a Uniform distribution with given lower and upper bounds
      - Yes
    * - ``Exponential(scale)``
-     - Samples a real value from an Exponential distribution with mean ``scale``
+     - Samples a real value from an Exponential distribution given scale
      - Yes
    * - ``Weibull(shape, scale)``
      - Samples a real value from a Weibull distribution with given shape and scale parameters
