@@ -21,15 +21,17 @@ class RDDLTracedObjects:
         self._current_id = 0
         self._cached_objects_in_scope = []
         self._cached_enum_type = []
+        self._cached_is_fluent = []
         self._cached_sim_info = []
         self._expr_from_id = {}
         
-    def _append(self, expr, objects, enum_type, info) -> None:
+    def _append(self, expr, objects, enum_type, is_fluent, info) -> None:
         expr.id = self._current_id
         self._current_id += 1
                 
         self._cached_objects_in_scope.append(objects)
         self._cached_enum_type.append(enum_type)
+        self._cached_is_fluent.append(is_fluent)
         self._cached_sim_info.append(info)
         self._expr_from_id[expr.id] = expr
         
@@ -40,6 +42,10 @@ class RDDLTracedObjects:
     def cached_enum_type(self, expr: Expression) -> Union[str, None]:
         '''Returns the returned enum type of expression or None if not an enum.'''
         return self._cached_enum_type[expr.id]
+    
+    def cached_is_fluent(self, expr: Expression) -> bool:
+        '''Returns whether the expression is fluent or non-fluent.'''
+        return self._cached_is_fluent[expr.id]
     
     def cached_sim_info(self, expr: Expression) -> object:
         '''Returns compiled info that is specific to the expression.'''
@@ -192,7 +198,7 @@ class RDDLObjectsTracer:
         else:
             cached_value = expr.args
             
-        out._append(expr, objects, None, cached_value)
+        out._append(expr, objects, None, False, cached_value)
         
     def _trace_pvar(self, expr, objects, out):
         var, pvars = expr.args   
@@ -222,7 +228,7 @@ class RDDLObjectsTracer:
             
             prange = ptypes[index_of_var]
             enum_type = prange if prange in rddl.enums else None
-            out._append(expr, objects, enum_type, cached_value)
+            out._append(expr, objects, enum_type, False, cached_value)
         
         # object can only be defined in domain - map to canonical index
         # first element True indicates value is to be returned directly by sim
@@ -245,23 +251,25 @@ class RDDLObjectsTracer:
                 cached_value = const            
             cached_value = (True, cached_value)
             
-            out._append(expr, objects, enum_type, cached_value)
+            out._append(expr, objects, enum_type, False, cached_value)
         
         # if the pvar has free variables (e.g., ?x)...
         else:
             
             # recursively trace nested pvariables
+            is_fluent = rddl.variable_types[var] != 'non-fluent'
             if pvars is not None: 
                 for arg in pvars:
                     if isinstance(arg, Expression):
                         self._trace(arg, objects, out)
+                        is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # find a way to map value tensor of expr to match objects
             cached_sim_info = (False, self._map(expr, objects, out))    
                
             prange = rddl.variable_ranges.get(var, None)
             enum_type = prange if prange in rddl.enums else None
-            out._append(expr, objects, enum_type, cached_sim_info)
+            out._append(expr, objects, enum_type, is_fluent, cached_sim_info)
         
     def _map(self, expr: Expression,
              objects: Union[List[Tuple[str, str]], None],
@@ -446,20 +454,24 @@ class RDDLObjectsTracer:
     # ===========================================================================
     
     def _trace_arithmetic(self, expr, objects, out): 
+        is_fluent = False
         for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
         
             # argument cannot be object type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, out, f'Argument {i + 1} of operator {expr.etype[1]}')  
               
-        out._append(expr, objects, None, None)
+        out._append(expr, objects, None, is_fluent, None)
         
     def _trace_relational(self, expr, objects, out):
         _, op = expr.etype
         args = expr.args
+        is_fluent = False
         for arg in args:
-            self._trace(arg, objects, out)            
+            self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)         
         
         # can not mix different object types or primitive and object types
         enum_types = set(map(out.cached_enum_type, args))
@@ -476,27 +488,31 @@ class RDDLObjectsTracer:
                 f'Relational operator {op} is not valid for comparing objects.\n' + 
                 print_stack_trace(expr))
         
-        out._append(expr, objects, None, None)
+        out._append(expr, objects, None, is_fluent, None)
     
     def _trace_logical(self, expr, objects, out):
+        is_fluent = False
         for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, out, f'Argument {i + 1} of operator {expr.etype[1]}')
         
-        out._append(expr, objects, None, None)
+        out._append(expr, objects, None, is_fluent, None)
     
     def _trace_func(self, expr, objects, out):
+        is_fluent = False
         for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, out, f'Argument {i + 1} of function {expr.etype[1]}') 
         
-        out._append(expr, objects, None, None)
+        out._append(expr, objects, None, is_fluent, None)
             
     # ===========================================================================
     # aggregation
@@ -557,12 +573,13 @@ class RDDLObjectsTracer:
         
         # trace the aggregated expression with the new objects
         self._trace(arg, new_objects, out)
+        is_fluent = out.cached_is_fluent(arg)
         
         # argument cannot be object type
         RDDLObjectsTracer._check_not_enum(
             arg, expr, out, f'Argument of aggregation {op}')     
         
-        out._append(expr, objects, enum_type, cached_sim_info)
+        out._append(expr, objects, enum_type, is_fluent, cached_sim_info)
         
         # log information about aggregation operation
         if self.logger is not None:
@@ -588,8 +605,10 @@ class RDDLObjectsTracer:
     def _trace_if(self, expr, objects, out):
         pred, *branches = expr.args
         self._trace(pred, objects, out)
+        is_fluent = out.cached_is_fluent(pred)
         for arg in branches:
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
         
         # can not mix different object types or primitive and object types
         enum_types = set(map(out.cached_enum_type, branches))
@@ -600,7 +619,7 @@ class RDDLObjectsTracer:
                 print_stack_trace(expr))     
     
         enum_type, = enum_types
-        out._append(expr, objects, enum_type, None)
+        out._append(expr, objects, enum_type, is_fluent, None)
         
     def _trace_switch(self, expr, objects, out):
         rddl = self.rddl
@@ -642,8 +661,10 @@ class RDDLObjectsTracer:
         
         # trace predicate and cases
         self._trace(pred, objects, out)
+        is_fluent = out.cached_is_fluent(pred)
         for arg in case_dict.values():
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
         
         # can not mix different object types or primitive and object types
         enum_types = set(map(out.cached_enum_type, case_dict.values()))
@@ -654,7 +675,7 @@ class RDDLObjectsTracer:
                 print_stack_trace(expr))    
                                 
         enum_type, = enum_types
-        out._append(expr, objects, enum_type, cached_sim_info)
+        out._append(expr, objects, enum_type, is_fluent, cached_sim_info)
         
     def _order_cases(self, enum_type, case_dict, expr): 
         rddl = self.rddl
@@ -741,14 +762,16 @@ class RDDLObjectsTracer:
         cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr)
     
         # trace each case expression
+        is_fluent = False
         for (i, arg) in enumerate(case_dict.values()):
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, out, f'Expression in case {i + 1} of Discrete') 
         
-        out._append(expr, objects, enum_type, cached_sim_info)
+        out._append(expr, objects, enum_type, is_fluent, cached_sim_info)
     
     def _trace_discrete_pvar(self, expr, objects, out):
         _, name = expr.etype
@@ -770,25 +793,29 @@ class RDDLObjectsTracer:
         new_objects = objects + iter_objects
         
         # trace the arguments
+        is_fluent = False
         for (i, arg) in enumerate(args):
             self._trace(arg, new_objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
                 
             # argument cannot be object type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, out, f'Argument {i + 1} of distribution {name}') 
 
         (_, (_, enum_type)), = pvars
-        out._append(expr, objects, enum_type, None)
+        out._append(expr, objects, enum_type, is_fluent, None)
 
     def _trace_random_other(self, expr, objects, out):
+        is_fluent = False
         for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
                 
             # argument cannot be object type
             RDDLObjectsTracer._check_not_enum(
                 arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}') 
         
-        out._append(expr, objects, None, None)
+        out._append(expr, objects, None, is_fluent, None)
         
     # ===========================================================================
     # random vector
@@ -836,6 +863,7 @@ class RDDLObjectsTracer:
          
         # trace all parameters
         enum_types = set()
+        is_fluent = False
         for (i, arg) in enumerate(args):
             
             # sample_pvars cannot be argument parameters
@@ -859,6 +887,7 @@ class RDDLObjectsTracer:
             
             # trace argument
             self._trace(arg, batch_objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_enum(
@@ -886,7 +915,7 @@ class RDDLObjectsTracer:
                     f'but destination variable <{pvar}> is of type <{ptype}>.\n' + 
                     print_stack_trace(expr))
              
-        out._append(expr, objects, None, sample_pvar_indices)
+        out._append(expr, objects, None, is_fluent, sample_pvar_indices)
 
     # ===========================================================================
     # matrix algebra
@@ -931,12 +960,13 @@ class RDDLObjectsTracer:
         
         # trace the matrix with the new objects
         self._trace(arg, new_objects, out)
+        is_fluent = out.cached_is_fluent(arg)
         
         # argument cannot be object type
         RDDLObjectsTracer._check_not_enum(
             arg, expr, out, f'Argument of matrix det')     
         
-        out._append(expr, objects, None, cached_sim_info)
+        out._append(expr, objects, None, is_fluent, cached_sim_info)
         
         # log information about matrix operation
         if self.logger is not None:
@@ -988,6 +1018,7 @@ class RDDLObjectsTracer:
         
         # trace the matrix expression
         self._trace(arg, new_objects, out)
+        is_fluent = out.cached_is_fluent(arg)
         
         # argument cannot be object type
         RDDLObjectsTracer._check_not_enum(
@@ -995,7 +1026,7 @@ class RDDLObjectsTracer:
         
         # save the location of the moved indices in objects
         pvar_indices = (index_pvar1, index_pvar2)
-        out._append(expr, objects, None, pvar_indices)
+        out._append(expr, objects, None, is_fluent, pvar_indices)
         
         # log information about matrix operation
         if self.logger is not None:
