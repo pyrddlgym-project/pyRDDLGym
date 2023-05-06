@@ -224,7 +224,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
         opt_state = sgd.optimizer.init(params)        
         for epoch in range(self.max_sgd_updates):
             key, subkey = jax.random.split(key)
-            params, opt_state, _ = sgd.update(
+            params, _, opt_state, _ = sgd.update(
                 subkey, params, None, train_subs, model_params, opt_state)
             
             # stop once the actions diverge by delta
