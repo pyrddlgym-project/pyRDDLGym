@@ -94,7 +94,6 @@ class JaxDeepReactivePolicy:
         self._activations = [activation for _ in topology]
         self._initializer = initializer
         self._normalize = normalize
-        self._eps = 1e-15
     
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict, horizon: int) -> None:
@@ -122,13 +121,13 @@ class JaxDeepReactivePolicy:
                     name='input_norm')
                 state = normalizer(state)
             
-            # compute network prediction
+            # compute network prediction without soft-max
             hidden = state
             for (i, (num, activation)) in layers:
                 linear = hk.Linear(num, name=f'hidden_{i + 1}', w_init=init)
                 hidden = activation(linear(hidden))
             linear = hk.Linear(num_actions, name='output', w_init=init)
-            return jax.nn.softmax(linear(hidden))
+            return linear(hidden)
         
         predict_fn = hk.transform(_jax_wrapped_policy_network_predict)
         predict_fn = hk.without_apply_rng(predict_fn)
@@ -139,7 +138,8 @@ class JaxDeepReactivePolicy:
                       for (var, value) in states.items() 
                       if var in rddl.states]
             states = jnp.concatenate(states, axis=-1)
-            return predict_fn.apply(params, states)
+            logits = predict_fn.apply(params, states)
+            return jax.nn.softmax(logits, axis=-1)
         
         self.action_dist = jax.jit(_jax_wrapped_action_dist)
         
@@ -147,21 +147,21 @@ class JaxDeepReactivePolicy:
         def _jax_wrapped_action_prob(params, states, actions):
             
             # flatten RDDL action dict into one-hot action vector
-            flat_actions = []
+            hard_actions = []
             for name in action_sizes:
                 action = actions[name]
                 action = jnp.reshape(action, newshape=action.shape[:2] + (-1,))
-                flat_actions.append(action)
-            flat_actions = jnp.concatenate(
-                flat_actions, axis=-1, dtype=compiled.REAL)
+                hard_actions.append(action)
+            hard_actions = jnp.concatenate(
+                hard_actions, axis=-1, dtype=compiled.REAL)
             
             # add option for setting all actions to false
-            noop = 1.0 - jnp.sum(flat_actions, axis=-1, keepdims=True)
-            flat_actions = jnp.concatenate([flat_actions, noop], axis=-1)
+            prob_noop = 1.0 - jnp.sum(hard_actions, axis=-1, keepdims=True)
+            hard_actions = jnp.concatenate([hard_actions, prob_noop], axis=-1)
             
             # compute probability of action sequence
             action_dist = _jax_wrapped_action_dist(params, states)
-            return jnp.sum(action_dist * flat_actions, axis=-1)
+            return jnp.sum(action_dist * hard_actions, axis=-1)
         
         self.action_prob = jax.jit(_jax_wrapped_action_prob)
         
@@ -176,12 +176,9 @@ class JaxDeepReactivePolicy:
         # sample from soft policy
         def _jax_wrapped_stochastic_policy(key, params, hyperparams, step, subs):
             
-            # compute action log-probability
-            states = _jax_subs_to_vec(subs)
-            action_prob = predict_fn.apply(params, states)
-            logits = jnp.log(action_prob + self._eps)
-            
             # sample one-hot actions from action distribution
+            states = _jax_subs_to_vec(subs)
+            logits = predict_fn.apply(params, states)
             sample = random.categorical(key=key, logits=logits, axis=-1)
             sample = sample[jnp.newaxis, ...]
             onehot = jax.nn.one_hot(sample, num_classes=logits.shape[-1], dtype=bool)
@@ -306,7 +303,7 @@ class JaxRDDLPolicyGradient:
         action_prob_fn = policy.action_prob
         
         def _jax_wrapped_loss(params, trajectory):
-            states, actions, returns = trajectory
+            states, actions, returns = jax.lax.stop_gradient(trajectory)
             action_prob = action_prob_fn(params, states, actions)
             logits = jnp.log(action_prob + self.eps)
             return jnp.mean(-returns * logits, axis=(0, 1))
