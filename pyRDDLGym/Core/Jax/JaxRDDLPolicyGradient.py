@@ -52,24 +52,21 @@ class JaxStraightLinePlan:
         # compute action probability of soft policy
         def _jax_wrapped_action_prob(params, states, actions):
             
-            # compute action probability with extra batch dim
-            action_prob = jax.nn.softmax(params['action'], axis=-1)
-            action_prob = action_prob[jnp.newaxis, ...]
-            
             # flatten RDDL action dict into one-hot action vector
             flat_actions = []
             for name in action_sizes:
                 action = actions[name]
                 action = jnp.reshape(action, newshape=action.shape[:2] + (-1,))
                 flat_actions.append(action)
-            flat_actions = jnp.concatenate(
-                flat_actions, axis=-1, dtype=compiled.REAL)
+            flat_actions = jnp.concatenate(flat_actions, axis=-1, dtype=compiled.REAL)
             
             # add option for setting all actions to false
             noop = 1.0 - jnp.sum(flat_actions, axis=-1, keepdims=True)
             flat_actions = jnp.concatenate([flat_actions, noop], axis=-1)
             
             # compute probability of action sequence
+            action_prob = jax.nn.softmax(params['action'], axis=-1)
+            action_prob = action_prob[jnp.newaxis, ...]
             return jnp.sum(action_prob * flat_actions, axis=-1)
         
         self.action_prob = jax.jit(_jax_wrapped_action_prob)
@@ -138,14 +135,10 @@ class JaxDeepReactivePolicy:
         
         # compute probability distribution over actions
         def _jax_wrapped_action_dist(params, states):
-            
-            # stack state variables into (batch, horizon, -1) shaped tensor
             states = [jnp.reshape(value, newshape=value.shape[:2] + (-1,)) 
                       for (var, value) in states.items() 
                       if var in rddl.states]
             states = jnp.concatenate(states, axis=-1)
-            
-            # predict the action probabilities from the policy net
             return predict_fn.apply(params, states)
         
         self.action_dist = jax.jit(_jax_wrapped_action_dist)
@@ -398,9 +391,6 @@ class JaxRDDLPolicyGradient:
                 if avg_return > best_return:
                     best_params, best_return = params, avg_return
                 
-                #s, *_ = exact_trajectory
-                #print(self.policy.action_dist(params, s)[0, ...])
-                    
                 yield {'params': params,
                        'avg_return': avg_return,
                        'best_params': best_params,
