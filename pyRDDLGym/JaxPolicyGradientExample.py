@@ -19,17 +19,19 @@ if __name__ == "__main__":
     trainer = JaxRDDLPolicyGradient(
         myEnv.model,
         policy=JaxStraightLinePlan(),
-        batch_size=16,
-        logic=FuzzyLogic(weight=500.),
+        batch_size=8,
+        batch_size_mean=256,
+        control_variate_coeff=0.0,
+        logic=FuzzyLogic(weight=100.),
         optimizer=optax.adam(0.1))
     traj = []
     for callback in trainer.optimize(
         key=jax.random.PRNGKey(np.random.randint(0, 2 ** 16 - 1)),
         epochs=1000, step=1):
-        print('avg={:.4f}, best={:.4f}'.format(
-            callback['avg_return'], callback['best_return']))
         traj.append(callback['avg_return'])
-    
+        print('avg={:.4f}, best={:.4f}, variance={:.4f}'.format(
+            callback['avg_return'], callback['best_return'], callback['variance']))
+        
     import matplotlib.pyplot as plt
     plt.plot(traj)
     plt.savefig('trajectory.pdf')
@@ -51,3 +53,4 @@ if __name__ == "__main__":
         avg_reward += total_reward / 50.0
         print(f'episode ended with reward {total_reward}')
     print(f'average reward {avg_reward}')
+    

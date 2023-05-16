@@ -211,7 +211,8 @@ class JaxRDDLPolicyGradient:
     def __init__(self, rddl: RDDLLiftedModel,
                  policy: JaxStraightLinePlan,
                  batch_size: int,
-                 covariate_coeff: float=0.0,
+                 batch_size_mean: int,
+                 control_variate_coeff: float=0.0,
                  rollout_horizon: int=None,
                  use64bit: bool=False,
                  optimizer: optax.GradientTransformation=optax.adam(0.001),
@@ -220,7 +221,8 @@ class JaxRDDLPolicyGradient:
         self.rddl = rddl
         self.policy = policy
         self.batch_size = batch_size
-        self.covariate_coeff = covariate_coeff
+        self.batch_size_mean = batch_size_mean
+        self.control_variate_coeff = control_variate_coeff
         if rollout_horizon is None:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
@@ -274,6 +276,11 @@ class JaxRDDLPolicyGradient:
             n_steps=self.horizon,
             n_batch=self.batch_size)
         
+        means_rollouts = self.approx_model.compile_rollouts(
+            policy=policy.stochastic_policy,
+            n_steps=self.horizon,
+            n_batch=self.batch_size_mean)
+        
         # compute trajectory from the stochastic policy
         gamma = rddl.discount
         
@@ -281,7 +288,7 @@ class JaxRDDLPolicyGradient:
             if gamma != 1:
                 discount = gamma ** jnp.arange(rewards.shape[1])
                 rewards = rewards * discount[jnp.newaxis, ...]
-            return jnp.cumsum(rewards[:,::-1], axis=1)[:,::-1]
+            return jnp.cumsum(rewards[...,::-1], axis=1)[...,::-1]
             
         def _jax_wrapped_exact_trajectory(key, params, hyperparams, subs, model_params):
             log = exact_rollouts(key, params, hyperparams, subs, model_params)
@@ -299,6 +306,14 @@ class JaxRDDLPolicyGradient:
         
         self.approx_trajectory = jax.jit(_jax_wrapped_approx_trajectory)
         
+        def _jax_wrapped_means_trajectory(key, params, hyperparams, subs, model_params):
+            log = means_rollouts(key, params, hyperparams, subs, model_params)
+            states, actions, rewards = log['pvar'], log['action'], log['reward']
+            returns = _jax_wrapped_returns(rewards)
+            return states, actions, returns
+        
+        self.means_trajectory = jax.jit(_jax_wrapped_means_trajectory)
+        
         # compute policy gradient
         action_prob_fn = policy.action_prob
         
@@ -306,18 +321,23 @@ class JaxRDDLPolicyGradient:
             states, actions, returns = jax.lax.stop_gradient(trajectory)
             action_prob = action_prob_fn(params, states, actions)
             logits = jnp.log(action_prob + self.eps)
-            return jnp.mean(-returns * logits, axis=(0, 1))
+            return -jnp.mean(returns * logits, axis=(0, 1))
             
         # optimization
         optimizer = self.optimizer
+        coeff = self.control_variate_coeff
         
-        def _jax_wrapped_policy_update(params, exact_tr, approx_tr, opt_state):
-            exact_pg = jax.jacobian(_jax_wrapped_loss)(params, exact_tr)
-            # TODO: put control variate code here
-            # approx_pg = jax.jacobian(_jax_wrapped_loss)(params, approx_tr)
-            updates, opt_state = optimizer.update(exact_pg, opt_state)
-            params = optax.apply_updates(params, updates)
-            return params, opt_state
+        def _jax_wrapped_policy_update(params, exact_tr, approx_tr, means_tr, opt_state):
+            grad_fn = jax.jacobian(_jax_wrapped_loss)
+            exact_pg = grad_fn(params, exact_tr)
+            approx_pg = grad_fn(params, approx_tr)
+            means_pg = grad_fn(params, means_tr)
+            policy_grad = jax.tree_map(
+                lambda e, a, m: e - coeff * (a - m), 
+                exact_pg, approx_pg, means_pg)
+            updates, opt_state = optimizer.update(policy_grad, opt_state)
+            params = optax.apply_updates(params, updates)            
+            return params, opt_state, policy_grad
         
         self.policy_update = jax.jit(_jax_wrapped_policy_update)
         
@@ -332,56 +352,81 @@ class JaxRDDLPolicyGradient:
         self.initializer = jax.jit(_jax_wrapped_init_policy)
         
     def _batched_init_subs(self, subs): 
-        init_approx, init_exact = {}, {}
+        init_approx, init_means, init_exact = {}, {}, {}
         for (name, value) in subs.items():
             value = np.asarray(value)[np.newaxis, ...]
             train_value = np.repeat(value, repeats=self.batch_size, axis=0)
+            train_means = np.repeat(value, repeats=self.batch_size_mean, axis=0)
             if name not in self.rddl.actions:
                 train_value = train_value.astype(self.approx_model.REAL)
+                train_means = train_means.astype(self.approx_model.REAL)
             init_approx[name] = train_value
+            init_means[name] = train_means
             init_exact[name] = np.repeat(value, repeats=self.batch_size, axis=0)
         
         # make sure next-state fluents are also set
         for (state, next_state) in self.rddl.next_state.items():
             init_approx[next_state] = init_approx[state]
+            init_means[next_state] = init_means[state]
             init_exact[next_state] = init_exact[state]
         
-        return init_approx, init_exact
+        return init_approx, init_means, init_exact
     
+    @staticmethod
+    def update_stats(stats, val):
+        count, mean, M2 = stats
+        count += 1
+        delta = val - mean
+        mean += delta / count
+        delta2 = val - mean
+        M2 += delta * delta2
+        return (count, mean, M2)
+        
     def optimize(self, key: random.PRNGKey, epochs: int, step: int=1,
-                 test_batches: int=20, hyperparams: Dict[str, object]=None):
+                 test_batches: int=10, hyperparams: Dict[str, object]=None):
         model_params = self.approx_model.model_params
         
         # compute a batched version of the initial values
         subs = self.exact_model.init_values
-        approx_subs, exact_subs = self._batched_init_subs(subs)
+        approx_subs, means_subs, exact_subs = self._batched_init_subs(subs)
 
         # initialize policy parameters
         key, subkey = random.split(key)
         params, opt_state = self.initializer(subkey, hyperparams, approx_subs)
         best_params, best_return = params, -jnp.inf
-
+        
+        # initialize statistics
+        stats = {name: (0, 0., 0.) for name in params}
+        
         # main training loop
         for it in range(epochs):
             
             # sample a batch of trajectories
-            key, subkey = random.split(key)
+            key, subkey1, subkey2 = random.split(key, num=3)
             exact_trajectory = self.exact_trajectory(
-                subkey, params, hyperparams, exact_subs, model_params)          
+                subkey1, params, hyperparams, exact_subs, model_params)
             approx_trajectory = self.approx_trajectory(
-                subkey, params, hyperparams, approx_subs, model_params)
+                subkey1, params, hyperparams, approx_subs, model_params)
+            means_trajectory = self.means_trajectory(
+                subkey2, params, hyperparams, means_subs, model_params)
             
             # do policy gradient updates
-            params, opt_state = self.policy_update(
-                params, exact_trajectory, approx_trajectory, opt_state)
+            params, opt_state, policy_grad = self.policy_update(
+                params, exact_trajectory, approx_trajectory, means_trajectory, 
+                opt_state)
+            
+            # cheap estimate of variance
+            stats = {name: self.update_stats(stats[name], policy_grad[name])
+                     for name in stats}
+            variance = sum([np.sum(m2 / c) for (c, _, m2) in stats.values()])
             
             # compute testing return
             if it % step == 0:
                 avg_return = 0.
-                for _ in range(test_batches):
-                    key, subkey = random.split(key)
+                key, *subkeys = random.split(key, num=1 + test_batches)
+                for ib in range(test_batches):
                     _, _, returns = self.exact_trajectory(
-                        subkey, params, hyperparams, exact_subs, model_params)
+                        subkeys[ib], params, hyperparams, exact_subs, model_params)
                     avg_return += np.mean(returns[:, 0]) / test_batches
                     
                 # record the best plan so far
@@ -391,7 +436,8 @@ class JaxRDDLPolicyGradient:
                 yield {'params': params,
                        'avg_return': avg_return,
                        'best_params': best_params,
-                       'best_return': best_return}
+                       'best_return': best_return, 
+                       'variance': variance}
                 
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
