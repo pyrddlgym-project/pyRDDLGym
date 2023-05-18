@@ -1112,3 +1112,115 @@ class JaxRDDLBackpropPlanner:
         plt.clf()
         plt.close(fig)
 
+
+class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
+    '''A class for optimizing an action sequence in the given RDDL MDP using 
+    Armijo linear search gradient descent.'''
+    
+    def __init__(self, *args,
+                 beta: float=0.8,
+                 c: float=0.1,
+                 lrmax: float=1.0,
+                 lrmin: float=1e-5,
+                 **kwargs) -> None:
+        '''Creates a new gradient-based algorithm for optimizing action sequences
+        (plan) in the given RDDL using Armijo line search. All arguments are the
+        same as in the parent class, except:
+        
+        :param beta: reduction factor of learning rate per line search iteration
+        :param c: coefficient in Armijo condition
+        :param lrmax: initial learning rate for line search
+        :param lrmin: minimum possible learning rate (line search halts)
+        '''
+        self.beta = beta
+        self.c = c
+        self.lrmax = lrmax
+        self.lrmin = lrmin
+        super(JaxRDDLArmijoLineSearchPlanner, self).__init__(*args, **kwargs)
+        
+    def _jax_init(self):
+        init = self.plan.initializer
+        
+        def _jax_wrapped_init_policy(key, hyperparams, subs):
+            policy_params = init(key, hyperparams, subs)
+            return policy_params, None
+        
+        return _jax_wrapped_init_policy
+        
+    def _jax_update(self, loss):
+        projection = self.plan.projection
+        beta, c, lrmax, lrmin = self.beta, self.c, self.lrmax, self.lrmin
+        
+        def _jax_wrapped_line_search_armijo_check(val):
+            old, new, *_ = val
+            _, old_f, _, norm2_g = old
+            _, new_f, lr = new
+            
+            # continue line search if Armijo condition not satisfied and learning
+            # rate can be further reduced
+            return jnp.logical_and(
+                new_f >= old_f - c * lr * norm2_g,
+                lr >= lrmin / beta)
+            
+        def _jax_wrapped_line_search_iteration(val):
+            old, new, best, aux = val
+            old_x, _, old_g, _ = old
+            _, _, lr = new
+            best_x, best_f, best_lr, iters = best
+            key, hyperparams, *other = aux
+            
+            # anneal learning rate and apply a gradient step
+            new_lr = beta * lr
+            updates = jax.tree_map(lambda g: -new_lr * g, old_g)
+            new_x = optax.apply_updates(old_x, updates)
+            new_x, _ = projection(new_x, hyperparams)
+            
+            # evaluate new loss and record best so far
+            new_f, _ = loss(key, new_x, hyperparams, *other)
+            new = (new_x, new_f, new_lr)
+            new_best = jax.lax.cond(
+                new_f < best_f,
+                lambda: (new_x, new_f, new_lr),
+                lambda: (best_x, best_f, best_lr)
+            )
+            best = (*new_best, iters + 1)
+            return old, new, best, aux
+            
+        def _jax_wrapped_plan_update(key, policy_params, hyperparams,
+                                     subs, model_params, opt_state):
+            
+            # calculate initial loss value, gradient and squared norm
+            old_x = policy_params
+            grad_fn = jax.value_and_grad(loss, argnums=1, has_aux=True)
+            (old_f, log), old_g = grad_fn(
+                key, old_x, hyperparams, subs, model_params)            
+            norm2_g = jnp.sum(jnp.asarray(
+                [jnp.sum(x ** 2) for x in old_g.values()]))
+            old = (old_x, old_f, old_g, norm2_g)
+            log['grad'] = old_g
+            
+            # initialize learning rate to maximum
+            lr = lrmax / beta
+            new = (old_x, old_f, lr)            
+            best = (old_x, jnp.inf, lr, 0)
+            aux = (key, hyperparams, subs, model_params)
+            
+            # do a single line search step with the initial learning rate
+            init_val = (old, new, best, aux)            
+            init_val = _jax_wrapped_line_search_iteration(init_val)
+            
+            # continue to anneal the learning rate until Armijo condition holds
+            # or the learning rate becomes too small, then use the best parameter
+            _, (*_, lr), (best_params, _, best_lr, iters), _ = \
+            jax.lax.while_loop(
+                cond_fun=_jax_wrapped_line_search_armijo_check,
+                body_fun=_jax_wrapped_line_search_iteration,
+                init_val=init_val
+            )
+            log['updates'] = None
+            log['line_searches'] = iters
+            log['learning_rate'] = best_lr
+            return best_params, True, opt_state, log
+            
+        return _jax_wrapped_plan_update
+            
