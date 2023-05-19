@@ -96,6 +96,12 @@ class GurobiRDDLCompiler:
             subs[action] = (var, vtype, lb, ub, True)
             self.action_variables[-1].append(var)
         
+        # check action preconditions
+        for precondition in rddl.preconditions:
+            indicator, *_, symb = self._gurobi(precondition, model, subs)
+            if symb:
+                model.addConstr(indicator == 1)
+        
         # evaluate CPFs
         for cpfs in self.levels.values():
             for cpf in cpfs:
@@ -108,7 +114,13 @@ class GurobiRDDLCompiler:
         # update state
         for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
-            
+        
+        # ensure state invariants hold
+        for invariant in rddl.invariants:
+            indicator, *_, symb = self._gurobi(invariant, model, subs)
+            if symb:
+                model.addConstr(indicator == 1)
+        
         return reward
     
     # ===========================================================================
@@ -398,23 +410,28 @@ class GurobiRDDLCompiler:
             elif op == '>=':
                 if symb:
                     res = self._add_bool_var(expr.id, model)
-                    model.addGenConstrIndicator(res, True, diff, GRB.GREATER_EQUAL, 0)
+                    model.addGenConstrIndicator(
+                        res, True, diff, GRB.GREATER_EQUAL, 0)
                 else:
                     res = glhs >= grhs
                 return res, GRB.BINARY, 0, 1, symb
             
             elif op == '~=':
                 if symb:
+                    equal = self._add_bool_var(expr.id, model)
+                    model.addGenConstrIndicator(equal, True, diff, GRB.EQUAL, 0)
                     res = self._add_bool_var(expr.id, model)
-                    model.addGenConstrIndicator(res, False, diff, GRB.EQUAL, 0)
+                    model.addConstr(res + equal == 1)
                 else: 
                     res = glhs != grhs
                 return res, GRB.BINARY, 0, 1, symb
             
             elif op == '>':
                 if symb:
+                    leq = self._add_bool_var(expr.id, model)
+                    model.addGenConstrIndicator(leq, True, diff, GRB.LESS_EQUAL, 0)
                     res = self._add_bool_var(expr.id, model)
-                    model.addGenConstrIndicator(res, False, diff, GRB.LESS_EQUAL, 0)
+                    model.addConstr(res + leq == 1)
                 else:
                     res = glhs > grhs
                 return res, GRB.BINARY, 0, 1, symb
@@ -731,5 +748,3 @@ class GurobiRDDLCompiler:
     
     def _gurobi_random_dirac(self, expr, model, subs):
         return self._gurobi(expr, model, subs)
-    
-    
