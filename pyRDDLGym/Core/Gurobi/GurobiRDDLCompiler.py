@@ -440,7 +440,17 @@ class GurobiRDDLCompiler:
         elif n >= 2:
             results = [self._gurobi(arg, model, subs) for arg in args]
             gterms = [result[0] for result in results]
-            symb = any(result[-1] for result in results)
+            symbs = [result[-1] for result in results]
+            symb = any(symbs)
+            
+            # any non-variables must be converted to variables
+            if symb:
+                for (i, gterm) in enumerate(gterms):
+                    if not symbs[i]:
+                        var = self._add_bool_var(model)
+                        model.addConstr(var == gterm)
+                        gterms[i] = var
+                        symbs[i] = True
             
             # unwrap AND to binary operations
             if op == '^':
@@ -489,8 +499,7 @@ class GurobiRDDLCompiler:
             gterm, vtype, lb, ub, symb = self._gurobi(arg, model, subs)
             vtype = GurobiRDDLCompiler._at_least_int(vtype)
             
-            if name == 'abs':
-                
+            if name == 'abs':                
                 if symb:
                     # assign abs to new variable
                     res = self._add_var(model, vtype, lb, ub)
@@ -694,3 +703,26 @@ class GurobiRDDLCompiler:
             f'Control flow {op} with {n} arguments is not '
             f'supported in Gurobi compiler.\n' + 
             print_stack_trace(expr))
+
+    # ===========================================================================
+    # random variables
+    # ===========================================================================
+    
+    def _gurobi_random(self, expr, model, subs):
+        _, name = expr.etype
+        if name == 'KronDelta':
+            return self._gurobi_random_kron(expr, model, subs)
+        elif name == 'DiracDelta':
+            return self._gurobi_random_dirac(expr, model, subs)
+        else:
+            raise RDDLNotImplementedError(
+                f'Distribution {name} is not supported in Gurobi compiler.\n' + 
+                print_stack_trace(expr))
+    
+    def _gurobi_random_kron(self, expr, model, subs):
+        return self._gurobi(expr, model, subs)
+    
+    def _gurobi_random_dirac(self, expr, model, subs):
+        return self._gurobi(expr, model, subs)
+    
+    
