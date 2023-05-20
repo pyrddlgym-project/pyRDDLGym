@@ -22,6 +22,7 @@ class RDDLEnv(gym.Env):
     def __init__(self, domain: str,
                  instance: str=None,
                  enforce_action_constraints: bool=False,
+                 enforce_action_count_non_bool: bool=True,
                  debug: bool=False,
                  log: bool=False,
                  simlogname: str=None,
@@ -32,6 +33,8 @@ class RDDLEnv(gym.Env):
         :param instance: the RDDL instance
         :param enforce_action_constraints: whether to raise an exception if the
         action constraints are violated
+        :param enforce_action_count_non_bool: whether to include non-bool actions
+        in check that number of nondef actions don't exceed max-nondef-actions
         :param debug: whether to log compilation information to a log file
         :param log: whether to log simulation data to file
         :param backend: the subclass of RDDLSimulator to use as backend for
@@ -41,6 +44,7 @@ class RDDLEnv(gym.Env):
         self.domain_text = domain
         self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
+        self.enforce_action_count_non_bool = enforce_action_count_non_bool
 
         # time budget for applications limiting time on episodes.
         # hardcoded so cannot be changed externally.
@@ -175,7 +179,15 @@ class RDDLEnv(gym.Env):
             return self.state, 0.0, self.done, {}
 
         # make sure the action length is of currect size
-        action_length = len(actions)
+        if self.enforce_action_count_non_bool:
+            action_length = len(actions)
+        else:
+            action_length = len([
+                action 
+                for action in actions 
+                if self.model.groundactionsranges()[action] == 'bool'
+            ])
+            print(action_length)
         if (action_length > self.max_allowed_actions):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Invalid action, expected at most '
