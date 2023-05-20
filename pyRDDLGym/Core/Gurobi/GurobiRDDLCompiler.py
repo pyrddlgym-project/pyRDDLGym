@@ -52,18 +52,34 @@ class GurobiRDDLCompiler:
         tracer = RDDLObjectsTracer(self.rddl, logger=self.logger)
         self.traced = tracer.trace()
     
+    def solve(self, init_values=None):
+        
+        # compile and solve the optimization problem
+        if init_values is None:
+            init_values = self.init_values
+        model = self.compile(init_values)
+        model.optimize()
+        
+        # read the optimal actions
+        optimal_plan = []
+        for actions in self.action_variables:
+            optimal_plan.append({})
+            for (name, var) in actions.items():
+                optimal_plan[-1][name] = var.x
+        return optimal_plan
+        
     # ===========================================================================
     # main compilation subroutines
     # ===========================================================================
      
-    def compile(self):
+    def compile(self, init_values):
         model = gurobipy.Model()
         self.variable_to_expr_id = {}
         self.action_variables = []
         
         # initial variable substitution table
         subs = {}
-        for (var, value) in self.init_values.items():
+        for (var, value) in init_values.items():
             prange = self.rddl.variable_ranges[var]
             vtype = self.GUROBI_TYPES[prange]
             lb, ub = GurobiRDDLCompiler._fix_bounds(value, value)
@@ -84,7 +100,7 @@ class GurobiRDDLCompiler:
         rddl = self.rddl
         
         # add action fluent variables to model
-        self.action_variables.append([])
+        self.action_variables.append({})
         for (action, prange) in rddl.actionsranges.items():
             name = f'{action}___{step}'
             if prange == 'bool':
@@ -94,7 +110,7 @@ class GurobiRDDLCompiler:
             vtype = self.GUROBI_TYPES[prange]
             var = self._add_var(name, model, vtype, lb, ub, name=name)
             subs[action] = (var, vtype, lb, ub, True)
-            self.action_variables[-1].append(var)
+            self.action_variables[-1][action] = var
         
         # check action preconditions
         for precondition in rddl.preconditions:
