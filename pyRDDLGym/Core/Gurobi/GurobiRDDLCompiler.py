@@ -1,6 +1,7 @@
 import gurobipy
 from gurobipy import GRB
 import math
+import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
@@ -62,10 +63,19 @@ class GurobiRDDLCompiler:
         
         # read the optimal actions
         optimal_plan = []
+        warn = False
         for actions in self.action_variables:
             optimal_plan.append({})
             for (name, var) in actions.items():
-                optimal_plan[-1][name] = var.x
+                try:
+                    optimal_plan[-1][name] = var.x
+                except:
+                    optimal_plan[-1][name] = self.rddl.actions[name]
+                    warn = True
+                    
+        if warn:
+            warnings.warn(
+                'Gurobi optimizer failed to find an optimal feasible action!')
         return optimal_plan
         
     # ===========================================================================
