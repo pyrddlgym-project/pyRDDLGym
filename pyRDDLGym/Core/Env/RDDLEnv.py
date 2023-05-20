@@ -187,7 +187,6 @@ class RDDLEnv(gym.Env):
                 for action in actions 
                 if self.model.groundactionsranges()[action] == 'bool'
             ])
-            print(action_length)
         if (action_length > self.max_allowed_actions):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Invalid action, expected at most '
