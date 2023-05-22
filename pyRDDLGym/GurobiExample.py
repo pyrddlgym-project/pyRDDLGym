@@ -9,7 +9,7 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 def slp_replan(domain, inst, trials):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     myEnv = RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(inst))
-    planner = GurobiRDDLCompiler(myEnv.model, rollout_horizon=4)
+    planner = GurobiRDDLCompiler(myEnv.model, rollout_horizon=5)
     
     rewards = np.zeros((myEnv.horizon, trials))
     for trial in range(trials):
