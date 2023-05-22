@@ -4,21 +4,24 @@ import sys
 from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 
 def slp_replan(domain, inst, trials):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
-    myEnv = RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(inst))
-    planner = GurobiRDDLCompiler(myEnv.model, rollout_horizon=5)
+    model = RDDLEnv(domain=EnvInfo.get_domain(), 
+                    instance=EnvInfo.get_instance(inst)).model
+    planner = GurobiRDDLCompiler(model, rollout_horizon=5)
     
-    rewards = np.zeros((myEnv.horizon, trials))
+    world = RDDLSimulator(planner.rddl)
+    rewards = np.zeros((planner.rddl.horizon, trials))
     for trial in range(trials):
         print('\n' + '*' * 30 + '\n' + f'starting trial {trial + 1}\n' + '*' * 30)
         total_reward = 0
-        state = myEnv.reset()
-        for step in range(myEnv.horizon):
-            actions = planner.solve(myEnv.sampler.subs)[0]
-            next_state, reward, done, _ = myEnv.step(actions)
+        state, _ = world.reset()
+        for step in range(planner.rddl.horizon):
+            actions = planner.solve(world.subs)[0]
+            next_state, reward, done = world.step(actions)
             total_reward += reward 
             rewards[step, trial] = reward
             
@@ -32,7 +35,6 @@ def slp_replan(domain, inst, trials):
             if done: 
                 break
         print(f'episode ended with reward {total_reward}')
-    myEnv.close()
 
             
 if __name__ == "__main__":
