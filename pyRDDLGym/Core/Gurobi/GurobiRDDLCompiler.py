@@ -83,12 +83,22 @@ class GurobiRDDLCompiler:
         for actions in self.action_variables:
             optimal_plan.append({})
             for (name, var) in actions.items():
+                
+                # extract the decision variable value, or default if failed
                 try:
-                    optimal_plan[-1][name] = var.x
+                    action = var.x
                 except:
-                    optimal_plan[-1][name] = self.rddl.actions[name]
+                    action = self.rddl.actions[name]
                     warn = True
-                    
+                
+                # cast action to the correct type
+                prange = self.rddl.actionsranges[name]
+                if prange == 'int':
+                    action = int(action)
+                elif prange == 'bool':
+                    action = (action > 0)
+                optimal_plan[-1][name] = action
+                 
         if warn:
             warnings.warn(
                 'Gurobi optimizer failed to find an optimal feasible action!')
@@ -196,6 +206,8 @@ class GurobiRDDLCompiler:
             return self._gurobi_function(expr, model, subs)
         elif etype == 'control':
             return self._gurobi_control(expr, model, subs)
+        elif etype == 'randomvar':
+            return self._gurobi_random(expr, model, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Expression type {etype} is not supported in Gurobi compiler.\n' + 
@@ -766,6 +778,8 @@ class GurobiRDDLCompiler:
             return self._gurobi_kron(expr, model, subs)
         elif name == 'DiracDelta':
             return self._gurobi_dirac(expr, model, subs)
+        elif name == 'Bernoulli':
+            return self._gurobi_bernoulli(expr, model, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported in Gurobi compiler.\n' + 
@@ -779,3 +793,16 @@ class GurobiRDDLCompiler:
         arg, = expr.args
         return self._gurobi(arg, model, subs)
     
+    def _gurobi_bernoulli(self, expr, model, subs):
+        arg, = expr.args
+        gterm, _, _, _, symb = self._gurobi(arg, model, subs)
+        
+        # determinize bernoulli as indicator of p > 0.5
+        if symb:
+            res = self._add_bool_var(expr.id, model)
+            model.addConstr((res == 1) >> (gterm >= 0.5 + self.epsilon))
+            model.addConstr((res == 0) >> (gterm <= 0.5))
+        else:
+            res = gterm > 0.5
+        return res, GRB.BINARY, 0, 1, symb
+        
