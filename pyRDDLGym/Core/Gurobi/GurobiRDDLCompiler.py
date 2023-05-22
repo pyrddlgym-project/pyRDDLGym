@@ -21,7 +21,7 @@ class GurobiRDDLCompiler:
                  allow_synchronous_state: bool=True,
                  rollout_horizon: int=None,
                  logger: Logger=None,
-                 epsilon: float=1e-12, piecewise_options=''):
+                 epsilon: float=1e-5, piecewise_options=''):
         if rollout_horizon is None:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
@@ -585,6 +585,30 @@ class GurobiRDDLCompiler:
                     lb, ub = res, res                    
                 return res, vtype, lb, ub, symb
             
+            elif name == 'floor':
+                if symb:
+                    lb, ub = GurobiRDDLCompiler._fix_bounds(
+                        math.floor(lb), math.floor(ub))
+                    res = self._add_int_var(expr.id, model, lb, ub)
+                    model.addConstr(res <= gterm)
+                    model.addConstr(res + 1 >= gterm + self.epsilon)                    
+                else:
+                    res = int(math.floor(gterm))
+                    lb, ub = res, res   
+                return res, GRB.INTEGER, lb, ub, symb
+            
+            elif name == 'ceil':
+                if symb:
+                    lb, ub = GurobiRDDLCompiler._fix_bounds(
+                        math.ceil(lb), math.ceil(ub))
+                    res = self._add_int_var(expr.id, model, lb, ub)
+                    model.addConstr(res >= gterm)
+                    model.addConstr(res + 1 <= gterm - self.epsilon)
+                else:
+                    res = int(math.ceil(gterm))
+                    lb, ub = res, res   
+                return res, GRB.INTEGER, lb, ub, symb
+                
             elif name == 'cos':
                 if symb:
                     lb, ub = -1.0, 1.0
