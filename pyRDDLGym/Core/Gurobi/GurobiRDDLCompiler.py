@@ -851,6 +851,10 @@ class GurobiRDDLCompiler:
             return self._gurobi_bernoulli(expr, model, subs)
         elif name == 'Normal':
             return self._gurobi_normal(expr, model, subs)
+        elif name == 'Poisson':
+            return self._gurobi_poisson(expr, model, subs)
+        elif name == 'Exponential':
+            return self._gurobi_exponential(expr, model, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported in Gurobi compiler.\n' + 
@@ -871,13 +875,14 @@ class GurobiRDDLCompiler:
         
         # determinize uniform as (lower + upper) / 2
         lb, ub = GurobiRDDLCompiler._fix_bounds(
-            (lb1 + lb2) / 2, (ub1 + ub2) / 2)
+            0.5 * (lb1 + lb2), 0.5 * (ub1 + ub2))
         symb = symb1 or symb2
+        midpoint = 0.5 * (gterm1 + gterm2)
         if symb:
             res = self._add_real_var(expr.id, model, lb, ub)
-            model.addConstr(res == 0.5 * (gterm1 + gterm2))
+            model.addConstr(res == midpoint)
         else:
-            res = (gterm1 + gterm2) / 2
+            res = midpoint
         return res, GRB.CONTINUOUS, lb, ub, symb
         
     def _gurobi_bernoulli(self, expr, model, subs):
@@ -899,4 +904,17 @@ class GurobiRDDLCompiler:
         
         # determinize Normal as mean
         return gterm, GRB.CONTINUOUS, lb, ub, symb
+    
+    def _gurobi_poisson(self, expr, model, subs):
+        rate, = expr.args
+        gterm, _, lb, ub, symb = self._gurobi(rate, model, subs)
         
+        # determinize Poisson as rate
+        return gterm, GRB.CONTINUOUS, lb, ub, symb
+    
+    def _gurobi_exponential(self, expr, model, subs):
+        scale, = expr.args
+        gterm, _, lb, ub, symb = self._gurobi(scale, model, subs)
+        
+        # determinize Exponential as scale
+        return gterm, GRB.CONTINUOUS, lb, ub, symb
