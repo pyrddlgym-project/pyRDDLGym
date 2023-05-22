@@ -1,6 +1,7 @@
 import gurobipy
 from gurobipy import GRB
 import math
+from typing import Dict, List, Tuple
 import warnings
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
@@ -20,15 +21,36 @@ class GurobiRDDLCompiler:
     def __init__(self, rddl: RDDLLiftedModel,
                  allow_synchronous_state: bool=True,
                  rollout_horizon: int=None,
-                 logger: Logger=None,
-                 epsilon: float=1e-5, piecewise_options=''):
+                 epsilon: float=1e-6,
+                 float_range: Tuple[float, float]=(1e-15, 1e15),
+                 piecewise_options: str='',
+                 logger: Logger=None) -> None:
+        '''Creates a new compiler from RDDL model to Gurobi problem.
+        
+        :param rddl: the RDDL model
+        :param allow_synchronous_state: whether state-fluent can be synchronous
+        :param rollout_horizon: length of the planning horizon (uses the RDDL
+        defined horizon if None)
+        :param epsilon: small positive constant used for comparing equality of
+        real numbers in Gurobi constraints
+        :param float_range: range of floating values that can be passed to 
+        Gurobi to initialize fluents and non-fluents (values outside this range
+        are clipped)
+        :param piecewise_options: a string of parameters to pass to Gurobi
+        "options" parameter when creating constraints that contain piecewise
+        linear approximations (e.g. cos, log, exp)
+        :param logger: to log information about compilation to file
+        '''
         if rollout_horizon is None:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
         self.allow_synchronous_state = allow_synchronous_state
         self.logger = logger
+        
+        # Gurobi-specific parameters
         self.epsilon = epsilon
-        self.piecewise_options = piecewise_options
+        self.float_range = float_range
+        self.pw_options = piecewise_options
         
         # type conversion to Gurobi
         self.GUROBI_TYPES = {
@@ -56,25 +78,35 @@ class GurobiRDDLCompiler:
         tracer = RDDLObjectsTracer(self.rddl, logger=self.logger)
         self.traced = tracer.trace()
     
-    def solve(self, init_values=None, underflow: float=1e-15, overflow: float=1e15):
-        
-        # compile initial values, control under and overflow
-        if init_values is None:
-            init_values = self.init_values
+    def _correct_underflow_and_overflow(self, init_values):
+        '''Underflow and overflow corrected init_values.'''
         gurobi_init_values = {}
+        smallest, largest = self.float_range
         for (name, value) in init_values.items():
-            if -underflow < value < underflow:
-                safe_value = 0.0
-            elif value > overflow:
-                safe_value = overflow
-            elif value < -overflow:
-                safe_value = -overflow
-            else:
-                safe_value = value
+            safe_value = value
+            if self.rddl.variable_ranges[name] == 'real':
+                if 0 < value < smallest:
+                    safe_value = smallest
+                elif -smallest < value < 0:
+                    safe_value = -smallest
+                elif value > largest:
+                    safe_value = largest
+                elif value < -largest:
+                    safe_value = -largest
             gurobi_init_values[name] = safe_value
+        return gurobi_init_values
+    
+    def solve(self, init_values=None) -> List[Dict[str, object]]:
+        '''Compiles the current RDDL domain into a Gurobi problem and solves the
+        problem. An optimal solution is returned in RDDL format.
+        
+        :param init_values: override the initial values of fluents and
+        non-fluents as defined in the RDDL file (if None, then the original
+        values defined in the RDDL domain + instance are used instead)
+        '''
         
         # compile and solve model
-        model = self.compile(gurobi_init_values)
+        model = self.compile(init_values)
         model.optimize()
         
         # read the optimal actions
@@ -108,7 +140,21 @@ class GurobiRDDLCompiler:
     # main compilation subroutines
     # ===========================================================================
      
-    def compile(self, init_values):
+    def compile(self, init_values=None) -> gurobipy.Model:
+        '''Compiles and returns the current RDDL domain as a Gurobi optimization
+        problem.
+        
+        :param init_values: override the initial values of fluents and
+        non-fluents as defined in the RDDL file (if None, then the original
+        values defined in the RDDL domain + instance are used instead)
+        '''
+        
+        # compile initial values, control under and overflow
+        if init_values is None:
+            init_values = self.init_values
+        init_values = self._correct_underflow_and_overflow(init_values)
+        
+        # create the Gurobi optimization problem
         model = gurobipy.Model()
         self.variable_to_expr_id = {}
         self.action_variables = []
@@ -133,6 +179,7 @@ class GurobiRDDLCompiler:
         return model
     
     def _compile_step(self, step, model, subs):
+        '''Compile a single epoch into the Gurobi model.'''
         rddl = self.rddl
         
         # add action fluent variables to model
@@ -169,24 +216,28 @@ class GurobiRDDLCompiler:
         
         return reward
     
-    # ===========================================================================
-    # start of compilation subroutines
-    # ===========================================================================
-    
     def _add_var(self, expr, model, vtype, lb, ub, name=''):
+        '''Add a generic variable to the Gurobi model.'''
         var = model.addVar(vtype=vtype, lb=lb, ub=ub, name=name)
         model.update()
         self.variable_to_expr_id[var.VarName] = expr
         return var
     
     def _add_bool_var(self, expr, model, name=''):
+        '''Add a BINARY variable to the Gurobi model.'''
         return self._add_var(expr, model, GRB.BINARY, 0, 1, name=name)
     
     def _add_real_var(self, expr, model, lb, ub, name=''):
+        '''Add a CONTINUOUS variable to the Gurobi model.'''
         return self._add_var(expr, model, GRB.CONTINUOUS, lb, ub, name=name)
     
     def _add_int_var(self, expr, model, lb, ub, name=''):
+        '''Add a INTEGER variable to the Gurobi model.'''
         return self._add_var(expr, model, GRB.INTEGER, lb, ub, name=name)
+    
+    # ===========================================================================
+    # start of compilation subroutines
+    # ===========================================================================
     
     # IMPORTANT: all helper methods below must return either a Gurobi variable
     # or a constant as the first argument
@@ -217,6 +268,13 @@ class GurobiRDDLCompiler:
     # leaves
     # ===========================================================================
     
+    @staticmethod
+    def _fix_bounds(lb, ub):
+        assert (ub >= lb)
+        lb = max(min(lb, GRB.INFINITY), -GRB.INFINITY)
+        ub = max(min(ub, GRB.INFINITY), -GRB.INFINITY)
+        return lb, ub
+        
     def _gurobi_constant(self, expr, model, subs):
         
         # get the cached value of this constant
@@ -275,13 +333,6 @@ class GurobiRDDLCompiler:
     def _at_least_int(vtype):
         return GurobiRDDLCompiler._promote_vtype(vtype, GRB.INTEGER)
     
-    @staticmethod
-    def _fix_bounds(lb, ub):
-        assert (ub >= lb)
-        lb = max(min(lb, GRB.INFINITY), -GRB.INFINITY)
-        ub = max(min(ub, GRB.INFINITY), -GRB.INFINITY)
-        return lb, ub
-        
     def _gurobi_arithmetic(self, expr, model, subs):
         _, op = expr.etype
         args = expr.args        
@@ -444,11 +495,11 @@ class GurobiRDDLCompiler:
             # assign comparison operator to binary variable
             diff = glhs - grhs
             symb = symb1 or symb2
-            if op == '==':
-                # TODO: fix this
+            if op == '==':                
+                # TODO
                 if symb:
-                    res = self._add_bool_var(expr.id, model)
-                    model.addConstr((res == 1) >> (diff == 0))
+                    raise RDDLNotImplementedError(
+                        f'== is not yet implemented in Gurobi compiler.')
                 else:
                     res = glhs == grhs
                 return res, GRB.BINARY, 0, 1, symb
@@ -463,12 +514,10 @@ class GurobiRDDLCompiler:
                 return res, GRB.BINARY, 0, 1, symb
             
             elif op == '~=':
-                # TODO: fix this
+                # TODO
                 if symb:
-                    equal = self._add_bool_var(expr.id, model)
-                    model.addConstr((res == 1) >> (equal == 0))
-                    res = self._add_bool_var(expr.id, model)
-                    model.addConstr(res + equal == 1)
+                    raise RDDLNotImplementedError(
+                        f'~= is not yet implemented in Gurobi compiler.')
                 else: 
                     res = glhs != grhs
                 return res, GRB.BINARY, 0, 1, symb
@@ -613,8 +662,7 @@ class GurobiRDDLCompiler:
                 if symb:
                     lb, ub = -1.0, 1.0
                     res = self._add_real_var(expr.id, model, -1.0, 1.0)
-                    model.addGenConstrCos(
-                        gterm, res, options=self.piecewise_options)
+                    model.addGenConstrCos(gterm, res, options=self.pw_options)
                 else:
                     res = math.cos(gterm)
                     lb, ub = res, res                    
@@ -624,8 +672,7 @@ class GurobiRDDLCompiler:
                 if symb:
                     lb, ub = -1.0, 1.0
                     res = self._add_real_var(expr.id, model, -1.0, 1.0)
-                    model.addGenConstrSin(
-                        gterm, res, options=self.piecewise_options)
+                    model.addGenConstrSin(gterm, res, options=self.pw_options)
                 else:
                     res = math.sin(gterm)
                     lb, ub = res, res                    
@@ -635,8 +682,7 @@ class GurobiRDDLCompiler:
                 if symb:
                     lb, ub = -GRB.INFINITY, GRB.INFINITY
                     res = self._add_real_var(expr.id, model, lb, ub)
-                    model.addGenConstrTan(
-                        gterm, res, options=self.piecewise_options)
+                    model.addGenConstrTan(gterm, res, options=self.pw_options)
                 else:
                     res = math.tan(gterm)
                     lb, ub = res, res                    
@@ -647,8 +693,7 @@ class GurobiRDDLCompiler:
                     lb, ub = GurobiRDDLCompiler._fix_bounds(
                         math.exp(lb), math.exp(ub))
                     res = self._add_real_var(expr.id, model, lb, ub)
-                    model.addGenConstrExp(
-                        gterm, res, options=self.piecewise_options)
+                    model.addGenConstrExp(gterm, res, options=self.pw_options)
                 else:
                     res = math.exp(gterm)
                     lb, ub = res, res                    
@@ -668,8 +713,7 @@ class GurobiRDDLCompiler:
                     
                     # assign ln to new variable
                     res = self._add_real_var(expr.id, model, lb, ub)
-                    model.addGenConstrLog(
-                        arg, res, options=self.piecewise_options)
+                    model.addGenConstrLog(arg, res, options=self.pw_options)
                 else:
                     res = math.log(gterm)
                     lb, ub = res, res                    
@@ -688,8 +732,7 @@ class GurobiRDDLCompiler:
                     
                     # assign sqrt to new variable
                     res = self._add_real_var(expr.id, model, lb, ub)
-                    model.addGenConstrPow(
-                        arg, res, 0.5, options=self.piecewise_options)
+                    model.addGenConstrPow(arg, res, 0.5, options=self.pw_options)
                 else:
                     res = math.sqrt(gterm)
                     lb, ub = res, res                    
@@ -745,7 +788,7 @@ class GurobiRDDLCompiler:
                     # assign pow to new variable
                     res = self._add_real_var(expr.id, model, lb, ub)
                     model.addGenConstrPow(
-                        base, res, gterm2, options=self.piecewise_options)
+                        base, res, gterm2, options=self.pw_options)
                 else:
                     res = math.pow(gterm1, gterm2)   
                     lb, ub = res, res                                
