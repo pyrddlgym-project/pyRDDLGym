@@ -495,7 +495,7 @@ class GurobiRDDLCompiler:
             # assign comparison operator to binary variable
             diff = glhs - grhs
             symb = symb1 or symb2
-            if op == '==':                
+            if op == '==': 
                 # TODO
                 if symb:
                     raise RDDLNotImplementedError(
@@ -845,8 +845,12 @@ class GurobiRDDLCompiler:
             return self._gurobi_kron(expr, model, subs)
         elif name == 'DiracDelta':
             return self._gurobi_dirac(expr, model, subs)
+        elif name == 'Uniform':
+            return self._gurobi_uniform(expr, model, subs)
         elif name == 'Bernoulli':
             return self._gurobi_bernoulli(expr, model, subs)
+        elif name == 'Normal':
+            return self._gurobi_normal(expr, model, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported in Gurobi compiler.\n' + 
@@ -860,6 +864,22 @@ class GurobiRDDLCompiler:
         arg, = expr.args
         return self._gurobi(arg, model, subs)
     
+    def _gurobi_uniform(self, expr, model, subs):
+        arg1, arg2 = expr.args
+        gterm1, _, lb1, ub1, symb1 = self._gurobi(arg1, model, subs)
+        gterm2, _, lb2, ub2, symb2 = self._gurobi(arg2, model, subs)
+        
+        # determinize uniform as (lower + upper) / 2
+        lb, ub = GurobiRDDLCompiler._fix_bounds(
+            (lb1 + lb2) / 2, (ub1 + ub2) / 2)
+        symb = symb1 or symb2
+        if symb:
+            res = self._add_real_var(expr.id, model, lb, ub)
+            model.addConstr(res == 0.5 * (gterm1 + gterm2))
+        else:
+            res = (gterm1 + gterm2) / 2
+        return res, GRB.CONTINUOUS, lb, ub, symb
+        
     def _gurobi_bernoulli(self, expr, model, subs):
         arg, = expr.args
         gterm, _, _, _, symb = self._gurobi(arg, model, subs)
@@ -872,4 +892,11 @@ class GurobiRDDLCompiler:
         else:
             res = gterm > 0.5
         return res, GRB.BINARY, 0, 1, symb
+        
+    def _gurobi_normal(self, expr, model, subs):
+        mean, _ = expr.args
+        gterm, _, lb, ub, symb = self._gurobi(mean, model, subs)
+        
+        # determinize Normal as mean
+        return gterm, GRB.CONTINUOUS, lb, ub, symb
         
