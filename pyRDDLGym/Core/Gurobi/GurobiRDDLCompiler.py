@@ -133,11 +133,10 @@ class GurobiRDDLCompiler:
                 elif prange == 'bool':
                     action = (action > 0)
                 optimal_plan[-1][name] = action
-                 
         if warn:
             warnings.warn(
                 'Gurobi optimizer failed to find an optimal feasible action!')
-        return optimal_plan
+        return optimal_plan, not warn
         
     # ===========================================================================
     # main compilation subroutines
@@ -370,7 +369,7 @@ class GurobiRDDLCompiler:
             return res, vtype, lb, ub, symb
         
         # binary operations
-        elif n >= 2:
+        elif n >= 1:
             
             # unwrap addition to binary operations
             if op == '+':
@@ -421,7 +420,7 @@ class GurobiRDDLCompiler:
                 return newres, vtype, lb, ub, symb
             
             # subtraction
-            elif op == '-' and n == 2:
+            elif n == 2 and op == '-':
                 arg1, arg2 = args
                 gterm1, vtype1, lb1, ub1, symb1 = self._gurobi(arg1, model, subs)
                 gterm2, vtype2, lb2, ub2, symb2 = self._gurobi(arg2, model, subs)
@@ -442,7 +441,7 @@ class GurobiRDDLCompiler:
                 return res, vtype, lb, ub, symb
             
             # quotient x / y
-            elif op == '/' and n == 2:
+            elif n == 2 and op == '/':
                 arg1, arg2 = args
                 gterm1, _, lb1, ub1, symb1 = self._gurobi(arg1, model, subs)
                 gterm2, _, lb2, ub2, symb2 = self._gurobi(arg2, model, subs)
@@ -570,7 +569,7 @@ class GurobiRDDLCompiler:
             return res, GRB.BINARY, 0, 1, symb
             
         # binary operations
-        elif n >= 2:
+        elif n >= 1:
             results = [self._gurobi(arg, model, subs) for arg in args]
             gterms = [result[0] for result in results]
             symbs = [result[-1] for result in results]
@@ -823,7 +822,7 @@ class GurobiRDDLCompiler:
         args = expr.args
         n = len(args)
         
-        if op == 'if' and n == 3:
+        if n == 3 and op == 'if':
             pred, arg1, arg2 = args
             gpred, *_, symbp = self._gurobi(pred, model, subs)
             gterm1, vtype1, lb1, ub1, symb1 = self._gurobi(arg1, model, subs)
