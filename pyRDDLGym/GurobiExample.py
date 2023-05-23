@@ -11,7 +11,7 @@ def slp_replan(domain, inst, trials):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(), 
                     instance=EnvInfo.get_instance(inst)).model
-    planner = GurobiRDDLCompiler(model, rollout_horizon=5)
+    planner = GurobiRDDLCompiler(model, rollout_horizon=5, verbose=False)
     
     world = RDDLSimulator(planner.rddl)
     rewards = np.zeros((planner.rddl.horizon, trials))
@@ -20,7 +20,11 @@ def slp_replan(domain, inst, trials):
         total_reward = 0
         state, _ = world.reset()
         for step in range(planner.rddl.horizon):
-            actions = planner.solve(world.subs)[0]
+            sol, succ = planner.solve(world.subs)
+            if not succ:
+                print(f'failed to find a feasible solution, exiting...')
+                return
+            actions = sol[0]
             next_state, reward, done = world.step(actions)
             total_reward += reward 
             rewards[step, trial] = reward
