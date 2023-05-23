@@ -23,7 +23,8 @@ class GurobiRDDLCompiler:
                  rollout_horizon: int=None,
                  epsilon: float=1e-6,
                  float_range: Tuple[float, float]=(1e-15, 1e15),
-                 piecewise_options: str='',
+                 piecewise_options: str='', 
+                 verbose: bool=True,
                  logger: Logger=None) -> None:
         '''Creates a new compiler from RDDL model to Gurobi problem.
         
@@ -39,6 +40,7 @@ class GurobiRDDLCompiler:
         :param piecewise_options: a string of parameters to pass to Gurobi
         "options" parameter when creating constraints that contain piecewise
         linear approximations (e.g. cos, log, exp)
+        :param verbose: whether to print output during Gurobi optimization
         :param logger: to log information about compilation to file
         '''
         if rollout_horizon is None:
@@ -51,6 +53,7 @@ class GurobiRDDLCompiler:
         self.epsilon = epsilon
         self.float_range = float_range
         self.pw_options = piecewise_options
+        self.verbose = verbose
         
         # type conversion to Gurobi
         self.GUROBI_TYPES = {
@@ -155,7 +158,10 @@ class GurobiRDDLCompiler:
         init_values = self._correct_underflow_and_overflow(init_values)
         
         # create the Gurobi optimization problem
-        model = gurobipy.Model()
+        env = gurobipy.Env(empty=True)
+        env.setParam('OutputFlag', self.verbose)
+        env.start()
+        model = gurobipy.Model(env=env)
         self.variable_to_expr_id = {}
         self.action_variables = []
         
