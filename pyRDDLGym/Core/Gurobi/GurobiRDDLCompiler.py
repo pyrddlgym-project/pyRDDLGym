@@ -190,6 +190,8 @@ class GurobiRDDLCompiler:
         
         # add action fluent variables to model
         self.action_variables.append({})
+        count_bool_vars = 0
+        sum_bool_vars = 0
         for (action, prange) in rddl.actionsranges.items():
             name = f'{action}___{step}'
             if prange == 'bool':
@@ -200,6 +202,13 @@ class GurobiRDDLCompiler:
             var = self._add_var(name, model, vtype, lb, ub, name=name)
             subs[action] = (var, vtype, lb, ub, True)
             self.action_variables[-1][action] = var
+            if prange == 'bool':
+                count_bool_vars += 1
+                sum_bool_vars += var
+        
+        # add capacity constraint
+        if rddl.max_allowed_actions < count_bool_vars:
+            model.addConstr(sum_bool_vars <= rddl.max_allowed_actions)
         
         # check action preconditions
         for precondition in rddl.preconditions:
@@ -861,6 +870,8 @@ class GurobiRDDLCompiler:
             return self._gurobi_poisson(expr, model, subs)
         elif name == 'Exponential':
             return self._gurobi_exponential(expr, model, subs)
+        elif name == 'Gamma':
+            return self._gurobi_gamma(expr, model, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported in Gurobi compiler.\n' + 
@@ -879,21 +890,22 @@ class GurobiRDDLCompiler:
         gterm1, _, lb1, ub1, symb1 = self._gurobi(arg1, model, subs)
         gterm2, _, lb2, ub2, symb2 = self._gurobi(arg2, model, subs)
         
-        # determinize uniform as (lower + upper) / 2
-        lb, ub = GurobiRDDLCompiler._fix_bounds(
-            0.5 * (lb1 + lb2), 0.5 * (ub1 + ub2))
+        # determinize uniform as (lower + upper) / 2        
         symb = symb1 or symb2
         midpoint = 0.5 * (gterm1 + gterm2)
         if symb:
+            lb, ub = GurobiRDDLCompiler._fix_bounds(
+                0.5 * (lb1 + lb2), 0.5 * (ub1 + ub2))
             res = self._add_real_var(expr.id, model, lb, ub)
-            model.addConstr(res == midpoint)
+            model.addConstr(res == midpoint)            
         else:
             res = midpoint
+            lb, ub = res, res
         return res, GRB.CONTINUOUS, lb, ub, symb
         
     def _gurobi_bernoulli(self, expr, model, subs):
         arg, = expr.args
-        gterm, _, _, _, symb = self._gurobi(arg, model, subs)
+        gterm, _, lb, ub, symb = self._gurobi(arg, model, subs)
         
         # determinize bernoulli as indicator of p > 0.5
         if symb:
@@ -902,7 +914,8 @@ class GurobiRDDLCompiler:
             model.addConstr((res == 0) >> (gterm <= 0.5))
         else:
             res = gterm > 0.5
-        return res, GRB.BINARY, 0, 1, symb
+            lb, ub = res, res
+        return res, GRB.BINARY, lb, ub, symb
         
     def _gurobi_normal(self, expr, model, subs):
         mean, _ = expr.args
@@ -924,3 +937,22 @@ class GurobiRDDLCompiler:
         
         # determinize Exponential as scale
         return gterm, GRB.CONTINUOUS, lb, ub, symb
+
+    def _gurobi_gamma(self, expr, model, subs):
+        shape, scale = expr.args
+        gterm1, _, lb1, ub1, symb1 = self._gurobi(shape, model, subs)
+        gterm2, _, lb2, ub2, symb2 = self._gurobi(scale, model, subs)
+        
+        # determinize gamma as shape * scale
+        symb = symb1 or symb2
+        if symb:
+            cross_lb_ub = (lb1 * lb2, lb1 * ub2, ub1 * lb2, ub1 * ub2)
+            lb, ub = GurobiRDDLCompiler._fix_bounds(
+                min(cross_lb_ub), max(cross_lb_ub))
+            res = self._add_real_var(expr.id, model, lb, ub)
+            model.addConstr(res == gterm1 * gterm2)
+        else:
+            res = gterm1 * gterm2
+            lb, ub = res, res                    
+        return res, GRB.CONTINUOUS, lb, ub, symb
+    
