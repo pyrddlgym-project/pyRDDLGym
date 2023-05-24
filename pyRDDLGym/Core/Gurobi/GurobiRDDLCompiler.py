@@ -24,6 +24,7 @@ class GurobiRDDLCompiler:
                  epsilon: float=1e-6,
                  float_range: Tuple[float, float]=(1e-15, 1e15),
                  piecewise_options: str='', 
+                 time_limit: float=GRB.INFINITY,
                  verbose: bool=True,
                  logger: Logger=None) -> None:
         '''Creates a new compiler from RDDL model to Gurobi problem.
@@ -40,6 +41,7 @@ class GurobiRDDLCompiler:
         :param piecewise_options: a string of parameters to pass to Gurobi
         "options" parameter when creating constraints that contain piecewise
         linear approximations (e.g. cos, log, exp)
+        :param time_limit: time limit allocated for computation in seconds
         :param verbose: whether to print output during Gurobi optimization
         :param logger: to log information about compilation to file
         '''
@@ -53,6 +55,7 @@ class GurobiRDDLCompiler:
         self.epsilon = epsilon
         self.float_range = float_range
         self.pw_options = piecewise_options
+        self.time_limit = time_limit
         self.verbose = verbose
         
         # type conversion to Gurobi
@@ -181,6 +184,7 @@ class GurobiRDDLCompiler:
         
         # set additional model settings here before optimization
         model.params.NonConvex = 2
+        model.params.TimeLimit = self.time_limit
         return model
     
     def _compile_step(self, step, model, subs):
