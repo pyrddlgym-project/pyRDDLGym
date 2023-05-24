@@ -138,7 +138,7 @@ class RecSimVisualizer(StateViz):
             self._user_plot = self._ax_scatter.scatter(
                 self._user_interests[:, 0],
                 self._user_interests[:, 1],
-                s=reward,
+                s=np.maximum(reward, 0.),
                 c=20 * np.sqrt(np.maximum(reward, 0.)),
                 cmap='plasma',
                 edgecolors='black')
