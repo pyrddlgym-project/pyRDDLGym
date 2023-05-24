@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import jax.random as random
 import jax.nn.initializers as initializers
 import numpy as np
+import math
 np.seterr(all='raise')
 import optax
 from typing import Callable, Dict, Iterable, Set, Sequence, Tuple
@@ -532,7 +533,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_wrapped_slp_init(key, hyperparams, subs):
             params = {}
             for (var, shape) in shapes.items():
-                if ranges[var] != 'bool' or not stack_bool_params:                    
+                if ranges[var] != 'bool' or not stack_bool_params: 
                     key, subkey = random.split(key)
                     param = init(subkey, shape, dtype=compiled.REAL)
                     if ranges[var] == 'bool':
@@ -1016,7 +1017,7 @@ class JaxRDDLBackpropPlanner:
             key, subkey1, subkey2, subkey3 = random.split(key, num=4)
             policy_params, converged, opt_state, train_log = self.update(
                 subkey1, policy_params, policy_hyperparams,
-                train_subs, model_params, opt_state)
+                train_subs, test_subs, model_params, opt_state)
             if not np.all(converged):
                 warnings.warn(
                     f'Projected gradient method for satisfying action concurrency '
@@ -1139,9 +1140,9 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
         self.lrmax = lrmax
         self.lrmin = lrmin
         super(JaxRDDLArmijoLineSearchPlanner, self).__init__(
-            *args, 
-            optimizer=optimizer, 
-            optimizer_kwargs=optimizer_kwargs, 
+            *args,
+            optimizer=optimizer,
+            optimizer_kwargs=optimizer_kwargs,
             **kwargs)
         
     def _jax_update(self, loss):
@@ -1152,7 +1153,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
         # continue line search if Armijo condition not satisfied and learning
         # rate can be further reduced
         def _jax_wrapped_line_search_armijo_check(val):
-            (_, old_f, _, old_norm_g2, _), ( _, new_f, lr, _), _, _ = val            
+            (_, old_f, _, old_norm_g2, _), (_, new_f, lr, _), _, _ = val            
             return jnp.logical_and(
                 new_f >= old_f - c * lr * old_norm_g2,
                 lr >= lrmin / beta)
@@ -1220,3 +1221,63 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             
         return _jax_wrapped_plan_update
             
+
+class JaxRDDLModelBasedLineSearch(JaxRDDLBackpropPlanner):
+    
+    def __init__(self, *args, min_weight: float=0.1, max_weight: float=1000.0,
+                 weight_step: float=2.0, **kwargs):
+        self.min_w = min_weight
+        self.max_w = max_weight
+        self.w_step = weight_step
+        super(JaxRDDLModelBasedLineSearch, self).__init__(*args, **kwargs)
+    
+    def _jax_update(self, loss):
+        optimizer = self.optimizer
+        projection = self.plan.projection
+        min_w, max_w, w_step = self.min_w, self.max_w, self.w_step
+        steps = int(math.log(max_w / min_w) / math.log(w_step))
+        test_loss = self.test_loss
+        
+        w_params = self.compiled.model_params
+        actions = self.rddl.actions
+        
+        def _jax_wrapped_plan_update_trial(wm, wa, key, policy_params, 
+                                          subs, test_subs, opt_state):            
+            model_params = {name: wm for name in w_params}
+            hyperparams = {name: wa for name in actions}
+            
+            grad_fn = jax.grad(loss, argnums=1, has_aux=True)
+            grad, _ = grad_fn(key, policy_params, hyperparams, subs, model_params)  
+            updates, _ = optimizer.update(grad, opt_state) 
+            new_params = optax.apply_updates(policy_params, updates)
+            new_params, _ = projection(new_params, hyperparams)
+            
+            loss_val, _ = test_loss(
+                key, new_params, hyperparams, test_subs, model_params)
+            return loss_val
+        
+        base_update_fn = super(JaxRDDLModelBasedLineSearch, self)._jax_update(loss)
+        
+        def _jax_wrapped_plan_update(key, policy_params, hyperparams,
+                                     subs, test_subs, model_params, opt_state):
+            ws = min_w * jnp.power(w_step, jnp.arange(steps))
+            loop_over_wa = jax.vmap(
+                _jax_wrapped_plan_update_trial, 
+                in_axes=(None, 0, None, None, None, None, None)
+            )
+            loop_over_wma = jax.vmap(
+                loop_over_wa,
+                in_axes=(0, None, None, None, None, None, None)
+            )
+            losses = loop_over_wma(
+                ws, ws, key, policy_params, subs, test_subs, opt_state)
+            
+            iwm, iwa = jnp.unravel_index(jnp.argmin(losses), losses.shape)
+            wm = min_w * w_step ** iwm
+            wa = min_w * w_step ** iwa
+            model_params = {name: wm for name in w_params}
+            hyperparams = {name: wa for name in actions}
+            return base_update_fn(key, policy_params, hyperparams, 
+                                  subs, model_params, opt_state)
+        
+        return _jax_wrapped_plan_update
