@@ -76,7 +76,7 @@ class RecSimInstanceGenerator(InstanceGenerator):
     # Objects.
     providers = [f'p{i+1}' for i in range(num_provider_clusters)]
     users = [f'c{i+1}' for i in range(num_users)]
-    features = ', '.join(['f1', 'f2'])
+    features = ['f1', 'f2']
     items = [f'i{i+1}' for i in range(num_docs)]
     # Non-fluents.
     nonfluents = {}
