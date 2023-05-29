@@ -85,10 +85,18 @@ def generate_4leg_intersection_through_only(i, Ein, Nout, Nin, Wout, Win, Sout, 
     nonfluents_str = newline_indent_str*2 + f'//intersection {i}'
     nonfluents_str += newline_indent_str + '//turns' + newline_indent_str
     nonfluents_str += newline_indent_str.join((
+        f'TURN({Ein},{Nout});',
         f'TURN({Ein},{Wout});',
+        f'TURN({Ein},{Sout});',
+        f'TURN({Nin},{Wout});',
         f'TURN({Nin},{Sout});',
+        f'TURN({Nin},{Eout});',
+        f'TURN({Win},{Sout});',
         f'TURN({Win},{Eout});',
+        f'TURN({Win},{Nout});',
+        f'TURN({Sin},{Eout});',
         f'TURN({Sin},{Nout});',
+        f'TURN({Sin},{Wout});',
          '//link-to',
         f'LINK-TO({Ein},{i});',
         f'LINK-TO({Nin},{i});',
@@ -287,7 +295,7 @@ def generate_green_wave_scenario(N,
     )
 
     snk_coords_str = newline_indent_str.join(('',
-        f'SINK_X(l0) = 0;    SINK-Y(l0) = {link_len};',
+        f'SINK-X(l0) = 0;    SINK-Y(l0) = {link_len};',
         f'SINK-X(l{2*N+1}) = {link_len*(N+1)};    SINK-Y(l{2*N+1}) = {link_len};')
         + tuple(
             f'SINK-X(l{2*(N+n)+1}) = {link_len*n};    SINK-Y(l{2*(N+n)+1}) = {2*link_len};' for n in range(1,N+1)
@@ -297,29 +305,16 @@ def generate_green_wave_scenario(N,
         )
     )
 
+    src_ids = ('l1', f'l{2*N}') + tuple(f'l{2*(N+n)}' for n in range(1,N+1)) + tuple(f'l{2*(2*N+n)+1}' for n in range(1,N+1))
+    snk_ids = ('l0', f'l{2*N+1}') + tuple(f'l{2*(N+n)+1}' for n in range(1,N+1)) + tuple(f'l{2*(2*N+n)}' for n in range(1,N+1))
+
     src_ids_str = 2*newline_indent_str + '// source links'
-    src_ids_str += newline_indent_str.join(('',
-        f'SOURCE(l1);',
-        f'SOURCE(l{2*N});')
-        + tuple(
-            f'SOURCE(l{2*(N+n)});' for n in range(1,N+1)
-        )
-        + tuple(
-            f'SOURCE(l{2*(2*N+n)+1});' for n in range(1,N+1)
-        )
-    )
+    src_ids_str += newline_indent_str.join(('',)
+        + tuple(f'SOURCE({id});' for id in src_ids))
 
     snk_ids_str = 2*newline_indent_str + '// sink links'
-    snk_ids_str += newline_indent_str.join(('',
-        f'SINK(l0);',
-        f'SINK(l{2*N+1});')
-        + tuple(
-            f'SINK(l{2*(N+n)+1});' for n in range(1,N+1)
-        )
-        + tuple(
-            f'SINK(l{2*(2*N+n)});' for n in range(1,N+1)
-        )
-    )
+    snk_ids_str += newline_indent_str.join(('',)
+        + tuple(f'SINK({id});' for id in snk_ids))
 
     instance_str = '\n'.join((
         f'non-fluents {instance_name} {{',
@@ -365,6 +360,11 @@ def generate_green_wave_scenario(N,
         dominant_flow_str = 2*newline_indent_str + '// west-east arrivals (dominant flow)'
         dominant_flow_str += newline_indent_str + f'SOURCE-ARRIVAL-RATE(l1) = {dominant_flow};'
 
+        other_flow_str = 2*newline_indent_str + '// other flows'
+        other_flow_str += newline_indent_str.join(('',)
+            + tuple(f'SOURCE-ARRIVAL-RATE({id}) = 0.0;' for id in src_ids[1:]))
+
+
         link_lens_str = 2*newline_indent_str + '// link lengths'
         link_lens_str += newline_indent_str.join(('',) + tuple(
             f'Dl(l{i}) = {link_len};' for i in range(6*N+2)
@@ -377,12 +377,13 @@ def generate_green_wave_scenario(N,
 
         turn_probs_str = 2*newline_indent_str + '// turn probabilities'
         turn_probs_str += newline_indent_str.join(('',)
-            + tuple(f'MU(l{2*n+1},l{2*(N+n+1)+1}) = 0.0;' for n in range(N))
-            + tuple(f'MU(l{2*n+1},l{2*(n+1)+1}) = 1.0;' for n in range(N))
-            + tuple(f'MU(l{2*n+1},l{2*(2*N+n+1)}) = 0.0;' for n in range(N))
+            + tuple(f'BETA(l{2*n+1},l{2*(N+n+1)+1}) = 0.0;' for n in range(N))
+            + tuple(f'BETA(l{2*n+1},l{2*(n+1)+1}) = 1.0;' for n in range(N))
+            + tuple(f'BETA(l{2*n+1},l{2*(2*N+n+1)}) = 0.0;' for n in range(N))
         )
 
         instance_str += (dominant_flow_str
+                         + other_flow_str
                          + link_lens_str
                          + satflow_rates_str
                          + turn_probs_str)

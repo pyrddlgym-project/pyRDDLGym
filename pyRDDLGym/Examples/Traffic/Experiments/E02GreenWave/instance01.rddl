@@ -1,0 +1,305 @@
+non-fluents green_wave_4_experiment {
+    domain = BLX_model;
+
+    objects {
+        intersection : {i0, i1, i2, i3};
+        link         : {l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15, l16, l17, l18, l19, l20, l21, l22, l23, l24, l25};
+        time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8};
+    };
+
+    //             | |                                          | |                     
+    //             | |                                          | |                     
+    //             | |                                          | |                     
+    //    l(2*(N+1)) l(2*(N+1)+1)   ...                    l(4*N) l(4*N+1)              
+    //             | |                                          | |                     
+    //             v ^                                          v ^                     
+    //             | |                                          | |                     
+    //             ____                                       ________                  
+    // --- l0 -<- | i0 | -<- l2 --- ... --- l(2*(N-1))   -<- | i(N-1) | -<- l(2*N)   ---
+    // --- l1 ->- |____| ->- l3 --- ... --- l(2*(N-1)+1) ->- |________| ->- l(2*N+1) ---
+    //             | |                                          | |                     
+    //             v ^                                          v ^                     
+    //             | |                                          | |                     
+    //   l(2*(2N+1)) l(2*(2N+1)+1)  ...                    l(6*N) l(6*N+1)              
+    //             | |                                          | |                     
+    //             | |                                          | |                     
+    //             | |                                          | |                     
+
+    non-fluents {
+        //cartesian coordinates
+        X(i0) = 100;    Y(i0) = 100;
+        X(i1) = 200;    Y(i1) = 100;
+        X(i2) = 300;    Y(i2) = 100;
+        X(i3) = 400;    Y(i3) = 100;
+        SOURCE-X(l1) = 0;    SOURCE-Y(l1) = 100;
+        SOURCE-X(l8) = 500;    SOURCE-Y(l8) = 100;
+        SOURCE-X(l10) = 100;    SOURCE-Y(l10) = 200;
+        SOURCE-X(l12) = 200;    SOURCE-Y(l12) = 200;
+        SOURCE-X(l14) = 300;    SOURCE-Y(l14) = 200;
+        SOURCE-X(l16) = 400;    SOURCE-Y(l16) = 200;
+        SOURCE-X(l19) = 100;    SOURCE-Y(l19) = 0;
+        SOURCE-X(l21) = 200;    SOURCE-Y(l21) = 0;
+        SOURCE-X(l23) = 300;    SOURCE-Y(l23) = 0;
+        SOURCE-X(l25) = 400;    SOURCE-Y(l25) = 0;
+        SINK-X(l0) = 0;    SINK-Y(l0) = 100;
+        SINK-X(l9) = 500;    SINK-Y(l9) = 100;
+        SINK-X(l11) = 100;    SINK-Y(l11) = 200;
+        SINK-X(l13) = 200;    SINK-Y(l13) = 200;
+        SINK-X(l15) = 300;    SINK-Y(l15) = 200;
+        SINK-X(l17) = 400;    SINK-Y(l17) = 200;
+        SINK-X(l18) = 100;    SINK-Y(l18) = 0;
+        SINK-X(l20) = 200;    SINK-Y(l20) = 0;
+        SINK-X(l22) = 300;    SINK-Y(l22) = 0;
+        SINK-X(l24) = 400;    SINK-Y(l24) = 0;
+        
+        // source links
+        SOURCE(l1);
+        SOURCE(l8);
+        SOURCE(l10);
+        SOURCE(l12);
+        SOURCE(l14);
+        SOURCE(l16);
+        SOURCE(l19);
+        SOURCE(l21);
+        SOURCE(l23);
+        SOURCE(l25);
+        
+        // sink links
+        SINK(l0);
+        SINK(l9);
+        SINK(l11);
+        SINK(l13);
+        SINK(l15);
+        SINK(l17);
+        SINK(l18);
+        SINK(l20);
+        SINK(l22);
+        SINK(l24);
+        
+        // west-east arrivals (dominant flow)
+        SOURCE-ARRIVAL-RATE(l1) = 0.7;
+        
+        // other flows
+        SOURCE-ARRIVAL-RATE(l8) = 0.0;
+        SOURCE-ARRIVAL-RATE(l10) = 0.0;
+        SOURCE-ARRIVAL-RATE(l12) = 0.0;
+        SOURCE-ARRIVAL-RATE(l14) = 0.0;
+        SOURCE-ARRIVAL-RATE(l16) = 0.0;
+        SOURCE-ARRIVAL-RATE(l19) = 0.0;
+        SOURCE-ARRIVAL-RATE(l21) = 0.0;
+        SOURCE-ARRIVAL-RATE(l23) = 0.0;
+        SOURCE-ARRIVAL-RATE(l25) = 0.0;
+        
+        // link lengths
+        Dl(l0) = 100;
+        Dl(l1) = 100;
+        Dl(l2) = 100;
+        Dl(l3) = 100;
+        Dl(l4) = 100;
+        Dl(l5) = 100;
+        Dl(l6) = 100;
+        Dl(l7) = 100;
+        Dl(l8) = 100;
+        Dl(l9) = 100;
+        Dl(l10) = 100;
+        Dl(l11) = 100;
+        Dl(l12) = 100;
+        Dl(l13) = 100;
+        Dl(l14) = 100;
+        Dl(l15) = 100;
+        Dl(l16) = 100;
+        Dl(l17) = 100;
+        Dl(l18) = 100;
+        Dl(l19) = 100;
+        Dl(l20) = 100;
+        Dl(l21) = 100;
+        Dl(l22) = 100;
+        Dl(l23) = 100;
+        Dl(l24) = 100;
+        Dl(l25) = 100;
+        
+        // satflow rates
+        MU(l1,l3) = 1.06;
+        MU(l3,l5) = 1.06;
+        MU(l5,l7) = 1.06;
+        MU(l7,l9) = 1.06;
+        
+        // turn probabilities
+        BETA(l1,l11) = 0.0;
+        BETA(l3,l13) = 0.0;
+        BETA(l5,l15) = 0.0;
+        BETA(l7,l17) = 0.0;
+        BETA(l1,l3) = 1.0;
+        BETA(l3,l5) = 1.0;
+        BETA(l5,l7) = 1.0;
+        BETA(l7,l9) = 1.0;
+        BETA(l1,l18) = 0.0;
+        BETA(l3,l20) = 0.0;
+        BETA(l5,l22) = 0.0;
+        BETA(l7,l24) = 0.0;
+        
+        //intersection i0
+        //turns
+        TURN(l2,l11);
+        TURN(l2,l0);
+        TURN(l2,l18);
+        TURN(l10,l0);
+        TURN(l10,l18);
+        TURN(l10,l3);
+        TURN(l1,l18);
+        TURN(l1,l3);
+        TURN(l1,l11);
+        TURN(l19,l3);
+        TURN(l19,l11);
+        TURN(l19,l0);
+        //link-to
+        LINK-TO(l2,i0);
+        LINK-TO(l10,i0);
+        LINK-TO(l1,i0);
+        LINK-TO(l19,i0);
+        //link-from
+        LINK-FROM(i0,l3);
+        LINK-FROM(i0,l11);
+        LINK-FROM(i0,l0);
+        LINK-FROM(i0,l18);
+        //phase properties
+        PHASE-MIN(i0) = 24;
+        PHASE-MAX(i0) = 60;
+        PHASE-ALL-RED-DUR(i0) = 4;
+        //green turns
+        GREEN(l2,l0,@WEST-EAST-THROUGH);
+        GREEN(l1,l3,@WEST-EAST-THROUGH);
+        GREEN(l10,l18,@NORTH-SOUTH-THROUGH);
+        GREEN(l19,l11,@NORTH-SOUTH-THROUGH);
+        
+        //intersection i1
+        //turns
+        TURN(l4,l13);
+        TURN(l4,l2);
+        TURN(l4,l20);
+        TURN(l12,l2);
+        TURN(l12,l20);
+        TURN(l12,l5);
+        TURN(l3,l20);
+        TURN(l3,l5);
+        TURN(l3,l13);
+        TURN(l21,l5);
+        TURN(l21,l13);
+        TURN(l21,l2);
+        //link-to
+        LINK-TO(l4,i1);
+        LINK-TO(l12,i1);
+        LINK-TO(l3,i1);
+        LINK-TO(l21,i1);
+        //link-from
+        LINK-FROM(i1,l5);
+        LINK-FROM(i1,l13);
+        LINK-FROM(i1,l2);
+        LINK-FROM(i1,l20);
+        //phase properties
+        PHASE-MIN(i1) = 24;
+        PHASE-MAX(i1) = 60;
+        PHASE-ALL-RED-DUR(i1) = 4;
+        //green turns
+        GREEN(l4,l2,@WEST-EAST-THROUGH);
+        GREEN(l3,l5,@WEST-EAST-THROUGH);
+        GREEN(l12,l20,@NORTH-SOUTH-THROUGH);
+        GREEN(l21,l13,@NORTH-SOUTH-THROUGH);
+        
+        //intersection i2
+        //turns
+        TURN(l6,l15);
+        TURN(l6,l4);
+        TURN(l6,l22);
+        TURN(l14,l4);
+        TURN(l14,l22);
+        TURN(l14,l7);
+        TURN(l5,l22);
+        TURN(l5,l7);
+        TURN(l5,l15);
+        TURN(l23,l7);
+        TURN(l23,l15);
+        TURN(l23,l4);
+        //link-to
+        LINK-TO(l6,i2);
+        LINK-TO(l14,i2);
+        LINK-TO(l5,i2);
+        LINK-TO(l23,i2);
+        //link-from
+        LINK-FROM(i2,l7);
+        LINK-FROM(i2,l15);
+        LINK-FROM(i2,l4);
+        LINK-FROM(i2,l22);
+        //phase properties
+        PHASE-MIN(i2) = 24;
+        PHASE-MAX(i2) = 60;
+        PHASE-ALL-RED-DUR(i2) = 4;
+        //green turns
+        GREEN(l6,l4,@WEST-EAST-THROUGH);
+        GREEN(l5,l7,@WEST-EAST-THROUGH);
+        GREEN(l14,l22,@NORTH-SOUTH-THROUGH);
+        GREEN(l23,l15,@NORTH-SOUTH-THROUGH);
+        
+        //intersection i3
+        //turns
+        TURN(l8,l17);
+        TURN(l8,l6);
+        TURN(l8,l24);
+        TURN(l16,l6);
+        TURN(l16,l24);
+        TURN(l16,l9);
+        TURN(l7,l24);
+        TURN(l7,l9);
+        TURN(l7,l17);
+        TURN(l25,l9);
+        TURN(l25,l17);
+        TURN(l25,l6);
+        //link-to
+        LINK-TO(l8,i3);
+        LINK-TO(l16,i3);
+        LINK-TO(l7,i3);
+        LINK-TO(l25,i3);
+        //link-from
+        LINK-FROM(i3,l9);
+        LINK-FROM(i3,l17);
+        LINK-FROM(i3,l6);
+        LINK-FROM(i3,l24);
+        //phase properties
+        PHASE-MIN(i3) = 24;
+        PHASE-MAX(i3) = 60;
+        PHASE-ALL-RED-DUR(i3) = 4;
+        //green turns
+        GREEN(l8,l6,@WEST-EAST-THROUGH);
+        GREEN(l7,l9,@WEST-EAST-THROUGH);
+        GREEN(l16,l24,@NORTH-SOUTH-THROUGH);
+        GREEN(l25,l17,@NORTH-SOUTH-THROUGH);
+        // time-delay properties
+        TIME-HEAD(t0);
+        TIME-TAIL(t8);
+        TIME-VAL(t0) = 0;
+        TIME-VAL(t1) = 1;
+        TIME-VAL(t2) = 2;
+        TIME-VAL(t3) = 3;
+        TIME-VAL(t4) = 4;
+        TIME-VAL(t5) = 5;
+        TIME-VAL(t6) = 6;
+        TIME-VAL(t7) = 7;
+        TIME-VAL(t8) = 8;
+        NEXT(t0,t1);
+        NEXT(t1,t2);
+        NEXT(t2,t3);
+        NEXT(t3,t4);
+        NEXT(t4,t5);
+        NEXT(t5,t6);
+        NEXT(t6,t7);
+        NEXT(t7,t8);
+    };
+}
+
+instance green_wave_4_experiment {
+    domain = BLX_model;
+    non-fluents = green_wave_4_experiment;
+    max-nondef-actions = 4;
+    horizon = 1024;
+    discount = 1.0;
+}
