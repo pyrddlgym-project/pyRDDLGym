@@ -85,10 +85,10 @@ def generate_4leg_intersection_through_only(i, Ein, Nout, Nin, Wout, Win, Sout, 
     nonfluents_str = newline_indent_str*2 + f'//intersection {i}'
     nonfluents_str += newline_indent_str + '//turns' + newline_indent_str
     nonfluents_str += newline_indent_str.join((
-        f'TURN({{Ein},{Wout});',
-        f'TURN({{Nin},{Sout});',
-        f'TURN({{Win},{Eout});',
-        f'TURN({{Sin},{Nout});',
+        f'TURN({Ein},{Wout});',
+        f'TURN({Nin},{Sout});',
+        f'TURN({Win},{Eout});',
+        f'TURN({Sin},{Nout});',
          '//link-to',
         f'LINK-TO({Ein},{i});',
         f'LINK-TO({Nin},{i});',
@@ -104,10 +104,10 @@ def generate_4leg_intersection_through_only(i, Ein, Nout, Nin, Wout, Win, Sout, 
         f'PHASE-MAX({i}) = {max};',
         f'PHASE-ALL-RED-DUR({i}) = {red};',
          '//green turns',
-        f'GREEN({{Ein},{Wout},@WEST-EAST-THROUGH);',
-        f'GREEN({{Win},{Eout},@WEST-EAST-THROUGH);',
-        f'GREEN({{Nin},{Sout},@NORTH-SOUTH-THROUGH);',
-        f'GREEN({{Sin},{Nout},@NORTH-SOUTH-THROUGH);',
+        f'GREEN({Ein},{Wout},@WEST-EAST-THROUGH);',
+        f'GREEN({Win},{Eout},@WEST-EAST-THROUGH);',
+        f'GREEN({Nin},{Sout},@NORTH-SOUTH-THROUGH);',
+        f'GREEN({Sin},{Nout},@NORTH-SOUTH-THROUGH);',
     ))
     return nonfluents_str
 
@@ -246,6 +246,180 @@ def generate_webster_scenario(d,
         f'}}' ))
     return instance_str
 
+
+def generate_green_wave_scenario(N,
+                                 dominant_flow=0.7,
+                                 link_len=100,
+                                 mu=0.53,
+                                 min_green=24,
+                                 max_green=60,
+                                 all_red=4,
+                                 through_only=True,
+                                 conflict_flow=0.,
+                                 instance_name=None,
+                                 horizon=1024,
+                                 discount=1.0):
+    """ Creates an instance that has a corridor with N traffic lights
+        and a dominant flow in the West->East direction. """
+    if instance_name is None:
+        instance_name = f'green_wave_{N}_experiment'
+
+    # Time-delay objects
+    num_ts = int(np.ceil(link_len/13.6))+1
+    t_names = (f't{t}' for t in range(num_ts))
+    L_names = (f'l{i}' for i in range(6*N+2))
+    i_names = (f'i{i}' for i in range(N))
+
+    i_xcoords = {f'i{i}': link_len*(i+1) for i in range(N)}
+    i_ycoord = link_len
+    i_coords_str = indent_str
+    i_coords_str += newline_indent_str.join(f'X({k}) = {v};    Y({k}) = {i_ycoord};' for k,v in i_xcoords.items())
+
+    src_coords_str = newline_indent_str.join(('',
+        f'SOURCE-X(l1) = 0;    SOURCE-Y(l1) = {link_len};',
+        f'SOURCE-X(l{2*N}) = {link_len*(N+1)};    SOURCE-Y(l{2*N}) = {link_len};')
+        + tuple(
+            f'SOURCE-X(l{2*(N+n)}) = {link_len*n};    SOURCE-Y(l{2*(N+n)}) = {2*link_len};' for n in range(1,N+1)
+        )
+        + tuple(
+            f'SOURCE-X(l{2*(2*N+n)+1}) = {link_len*n};    SOURCE-Y(l{2*(2*N+n)+1}) = 0;' for n in range(1,N+1)
+        )
+    )
+
+    snk_coords_str = newline_indent_str.join(('',
+        f'SINK_X(l0) = 0;    SINK-Y(l0) = {link_len};',
+        f'SINK-X(l{2*N+1}) = {link_len*(N+1)};    SINK-Y(l{2*N+1}) = {link_len};')
+        + tuple(
+            f'SINK-X(l{2*(N+n)+1}) = {link_len*n};    SINK-Y(l{2*(N+n)+1}) = {2*link_len};' for n in range(1,N+1)
+        )
+        + tuple(
+            f'SINK-X(l{2*(2*N+n)}) = {link_len*n};    SINK-Y(l{2*(2*N+n)}) = 0;' for n in range(1,N+1)
+        )
+    )
+
+    src_ids_str = 2*newline_indent_str + '// source links'
+    src_ids_str += newline_indent_str.join(('',
+        f'SOURCE(l1);',
+        f'SOURCE(l{2*N});')
+        + tuple(
+            f'SOURCE(l{2*(N+n)});' for n in range(1,N+1)
+        )
+        + tuple(
+            f'SOURCE(l{2*(2*N+n)+1});' for n in range(1,N+1)
+        )
+    )
+
+    snk_ids_str = 2*newline_indent_str + '// sink links'
+    snk_ids_str += newline_indent_str.join(('',
+        f'SINK(l0);',
+        f'SINK(l{2*N+1});')
+        + tuple(
+            f'SINK(l{2*(N+n)+1});' for n in range(1,N+1)
+        )
+        + tuple(
+            f'SINK(l{2*(2*N+n)});' for n in range(1,N+1)
+        )
+    )
+
+    instance_str = '\n'.join((
+        f'non-fluents {instance_name} {{',
+        f'    domain = BLX_model;',
+        f'',
+        f'    objects {{',
+        f'        intersection : {{{", ".join(i_names)}}};',
+        f'        link         : {{{", ".join(L_names)}}};',
+        f'        time         : {{{", ".join(t_names)}}};',
+        f'    }};',
+        f'',
+        f'    //             | |                                          | |                     ',
+        f'    //             | |                                          | |                     ',
+        f'    //             | |                                          | |                     ',
+        f'    //    l(2*(N+1)) l(2*(N+1)+1)   ...                    l(4*N) l(4*N+1)              ',
+        f'    //             | |                                          | |                     ',
+        f'    //             v ^                                          v ^                     ',
+        f'    //             | |                                          | |                     ',
+        f'    //             ____                                       ________                  ',
+        f'    // --- l0 -<- | i0 | -<- l2 --- ... --- l(2*(N-1))   -<- | i(N-1) | -<- l(2*N)   ---',
+        f'    // --- l1 ->- |____| ->- l3 --- ... --- l(2*(N-1)+1) ->- |________| ->- l(2*N+1) ---',
+        f'    //             | |                                          | |                     ',
+        f'    //             v ^                                          v ^                     ',
+        f'    //             | |                                          | |                     ',
+        f'    //   l(2*(2N+1)) l(2*(2N+1)+1)  ...                    l(6*N) l(6*N+1)              ',
+        f'    //             | |                                          | |                     ',
+        f'    //             | |                                          | |                     ',
+        f'    //             | |                                          | |                     ',
+        f'',
+        f'    non-fluents {{',
+        f'        //cartesian coordinates',
+        f''))
+
+    instance_str += (i_coords_str
+                     + src_coords_str
+                     + snk_coords_str
+                     + src_ids_str
+                     + snk_ids_str)
+
+    if through_only:
+        # Only allow through movements (no left or right turns)
+
+        dominant_flow_str = 2*newline_indent_str + '// west-east arrivals (dominant flow)'
+        dominant_flow_str += newline_indent_str + f'SOURCE-ARRIVAL-RATE(l1) = {dominant_flow};'
+
+        link_lens_str = 2*newline_indent_str + '// link lengths'
+        link_lens_str += newline_indent_str.join(('',) + tuple(
+            f'Dl(l{i}) = {link_len};' for i in range(6*N+2)
+        ))
+
+        satflow_rates_str = 2*newline_indent_str + '// satflow rates'
+        satflow_rates_str += newline_indent_str.join(('',) + tuple(
+            f'MU(l{2*n+1},l{2*(n+1)+1}) = {2*mu};' for n in range(N)
+        ))
+
+        turn_probs_str = 2*newline_indent_str + '// turn probabilities'
+        turn_probs_str += newline_indent_str.join(('',)
+            + tuple(f'MU(l{2*n+1},l{2*(N+n+1)+1}) = 0.0;' for n in range(N))
+            + tuple(f'MU(l{2*n+1},l{2*(n+1)+1}) = 1.0;' for n in range(N))
+            + tuple(f'MU(l{2*n+1},l{2*(2*N+n+1)}) = 0.0;' for n in range(N))
+        )
+
+        instance_str += (dominant_flow_str
+                         + link_lens_str
+                         + satflow_rates_str
+                         + turn_probs_str)
+
+        for i in range(N):
+            Ein = f'l{2*(i+1)}'
+            Nout = f'l{2*(N+i+1)+1}'
+            Nin = f'l{2*(N+i+1)}'
+            Wout = f'l{2*i}'
+            Win = f'l{2*i+1}'
+            Sout = f'l{2*(2*N+i+1)}'
+            Sin = f'l{2*(2*N+i+1)+1}'
+            Eout = f'l{2*(i+1)+1}'
+            instance_str += generate_4leg_intersection_through_only(f'i{i}', Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
+                                        min=min_green, max=max_green, red=all_red)
+    else:
+        raise NotImplementedError
+
+    instance_str += '\n        '.join(('', '// time-delay properties',
+       f'TIME-HEAD(t0);',
+       f'TIME-TAIL(t{num_ts-1});') +
+        tuple(f'TIME-VAL(t{i}) = {i};' for i in range(num_ts)) +
+        tuple(f'NEXT(t{i},t{i+1});' for i in range(num_ts-1)))
+
+    instance_str += '\n'
+    instance_str += '\n'.join((
+        f'    }};',
+        f'}}',
+        f'',
+        f'instance {instance_name} {{',
+        f'    domain = BLX_model;',
+        f'    non-fluents = {instance_name};',
+        f'    max-nondef-actions = {N};',
+        f'    horizon = {horizon};',
+        f'    discount = {discount};',
+        f'}}' ))
+    return instance_str
 
 
 def generate_grid(nrows,
