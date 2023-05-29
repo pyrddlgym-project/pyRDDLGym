@@ -11,7 +11,8 @@ def dist(p0, p1): return np.linalg.norm(p1-p0)
 
 def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
                                min, max, red, right_on_red=True):
-    """ Generates the non-fluents for a four-leg intersection """
+    """ Generates the non-fluents for a four-leg intersection,
+        with left, through, and right movements """
 
     nonfluents_str = newline_indent_str*2 + f'//intersection {i}'
     nonfluents_str += newline_indent_str + '//turns' + newline_indent_str
@@ -52,6 +53,7 @@ def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
         f'GREEN({Nin},{Sout},@NORTH-SOUTH-THROUGH);',
         f'GREEN({Sin},{Nout},@NORTH-SOUTH-THROUGH);'))
 
+    # Add right turns on green
     right_turn_pairs = ((Ein,Nout),
                         (Nin,Wout),
                         (Win,Sout),
@@ -65,6 +67,7 @@ def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
     nonfluents_str += newline_indent_str.join( (f'GREEN({i},{j},{p});'
                                                 for (i,j) in right_turn_pairs for p in phases) )
 
+    # Optionally, add right turns on red
     if right_on_red:
         red_phases = ('@ALL-RED',
                       '@ALL-RED2',
@@ -75,6 +78,38 @@ def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
                                                     for (i,j) in right_turn_pairs for p in red_phases) )
     return nonfluents_str
 
+def generate_4leg_intersection_through_only(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
+                                            min, max, red):
+    """ Generates the non-fluents for a four-leg intersection,
+        with through movements only """
+    nonfluents_str = newline_indent_str*2 + f'//intersection {i}'
+    nonfluents_str += newline_indent_str + '//turns' + newline_indent_str
+    nonfluents_str += newline_indent_str.join((
+        f'TURN({{Ein},{Wout});',
+        f'TURN({{Nin},{Sout});',
+        f'TURN({{Win},{Eout});',
+        f'TURN({{Sin},{Nout});',
+         '//link-to',
+        f'LINK-TO({Ein},{i});',
+        f'LINK-TO({Nin},{i});',
+        f'LINK-TO({Win},{i});',
+        f'LINK-TO({Sin},{i});',
+         '//link-from',
+        f'LINK-FROM({i},{Eout});',
+        f'LINK-FROM({i},{Nout});',
+        f'LINK-FROM({i},{Wout});',
+        f'LINK-FROM({i},{Sout});',
+         '//phase properties',
+        f'PHASE-MIN({i}) = {min};',
+        f'PHASE-MAX({i}) = {max};',
+        f'PHASE-ALL-RED-DUR({i}) = {red};',
+         '//green turns',
+        f'GREEN({{Ein},{Wout},@WEST-EAST-THROUGH);',
+        f'GREEN({{Win},{Eout},@WEST-EAST-THROUGH);',
+        f'GREEN({{Nin},{Sout},@NORTH-SOUTH-THROUGH);',
+        f'GREEN({{Sin},{Nout},@NORTH-SOUTH-THROUGH);',
+    ))
+    return nonfluents_str
 
 
 def generate_webster_scenario(d,
