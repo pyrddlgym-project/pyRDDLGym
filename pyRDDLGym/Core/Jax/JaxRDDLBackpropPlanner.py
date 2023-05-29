@@ -1054,6 +1054,8 @@ class JaxRDDLBackpropPlanner:
                     'last_iteration_improved': last_iter_improve,
                     'grad': train_log['grad'],
                     'updates': train_log['updates'],
+                    'best_w_model': train_log.get('best_w_model', None),
+                    'best_w_action': train_log.get('best_w_action', None),
                     **log
                 }
                 yield callback
@@ -1235,23 +1237,29 @@ class JaxRDDLModelBasedLineSearch(JaxRDDLBackpropPlanner):
         optimizer = self.optimizer
         projection = self.plan.projection
         min_w, max_w, w_step = self.min_w, self.max_w, self.w_step
-        steps = int(math.log(max_w / min_w) / math.log(w_step))
+        num_steps = int(math.log(max_w / min_w) / math.log(w_step))
         test_loss = self.test_loss
         
         w_params = self.compiled.model_params
         actions = self.rddl.actions
         
-        def _jax_wrapped_plan_update_trial(wm, wa, key, policy_params, 
-                                          subs, test_subs, opt_state):            
-            model_params = {name: wm for name in w_params}
-            hyperparams = {name: wa for name in actions}
+        def _jax_wrapped_plan_update_trial(w_model, w_action, key, policy_params, 
+                                           subs, test_subs, opt_state):
             
+            # set the model and action weights to constant values          
+            model_params = {name: w_model for name in w_params}
+            hyperparams = {name: w_action for name in actions}
+            
+            # do gradient descent update for current model and action weights
             grad_fn = jax.grad(loss, argnums=1, has_aux=True)
             grad, _ = grad_fn(key, policy_params, hyperparams, subs, model_params)  
             updates, _ = optimizer.update(grad, opt_state) 
             new_params = optax.apply_updates(policy_params, updates)
             new_params, _ = projection(new_params, hyperparams)
             
+            # calculate loss of new plan using the exact model and hard actions
+            # note, here we pass model and action weights, but they are unused
+            # in the test loss calculation
             loss_val, _ = test_loss(
                 key, new_params, hyperparams, test_subs, model_params)
             return loss_val
@@ -1260,24 +1268,35 @@ class JaxRDDLModelBasedLineSearch(JaxRDDLBackpropPlanner):
         
         def _jax_wrapped_plan_update(key, policy_params, hyperparams,
                                      subs, test_subs, model_params, opt_state):
-            ws = min_w * jnp.power(w_step, jnp.arange(steps))
-            loop_over_wa = jax.vmap(
+            
+            # set of possible weights are geometrically separated
+            w_set = min_w * jnp.power(w_step, jnp.arange(num_steps))
+            
+            # evaluate the test losses for different combinations of model and
+            # action weights
+            loop_over_w_action = jax.vmap(
                 _jax_wrapped_plan_update_trial, 
                 in_axes=(None, 0, None, None, None, None, None)
             )
-            loop_over_wma = jax.vmap(
-                loop_over_wa,
+            loop_over_w_model_w_action = jax.vmap(
+                loop_over_w_action,
                 in_axes=(0, None, None, None, None, None, None)
             )
-            losses = loop_over_wma(
-                ws, ws, key, policy_params, subs, test_subs, opt_state)
+            losses = loop_over_w_model_w_action(
+                w_set, w_set, key, policy_params, subs, test_subs, opt_state)
             
-            iwm, iwa = jnp.unravel_index(jnp.argmin(losses), losses.shape)
-            wm = min_w * w_step ** iwm
-            wa = min_w * w_step ** iwa
-            model_params = {name: wm for name in w_params}
-            hyperparams = {name: wa for name in actions}
-            return base_update_fn(key, policy_params, hyperparams, 
-                                  subs, model_params, opt_state)
+            # extract the model and action weights that give the least test loss
+            iw_model, iw_action = jnp.unravel_index(jnp.nanargmin(losses), losses.shape)
+            w_model = min_w * jnp.power(w_step, iw_model)
+            w_action = min_w * jnp.power(w_step, iw_action)
+            model_params = {name: w_model for name in w_params}
+            hyperparams = {name: w_action for name in actions}
+            
+            # do a regular plan update using the best weights found above
+            *result, log = base_update_fn(
+                key, policy_params, hyperparams, subs, model_params, opt_state)
+            log['best_w_model'] = w_model
+            log['best_w_action'] = w_action
+            return *result, log
         
         return _jax_wrapped_plan_update
