@@ -92,8 +92,13 @@ class InstanceGenerator(metaclass=ABCMeta):
             path = os.path.dirname(os.path.abspath(__file__))
             path = os.path.join(path, self.get_env_path())
 
+        dir = path
         path = os.path.join(path, f'instance{instance}.rddl')
         rddl = self.generate_instance(instance, params)
+        isExist = os.path.exists(dir)
+        if not isExist:
+            # Create a new directory because it does not exist
+            os.makedirs(dir)
         with open(path, 'w') as text_file:
             text_file.write(rddl)
         print(f'saved RDDL file to {path}.')
