@@ -1,0 +1,23 @@
+name,description,location,instances,viz
+powergen,A simple power generation problem loosely modeled on the problem of unit commitment.,/PowerGen/,0,PowerGenViz.PowerGenVisualizer
+supplychainnet,A supply chain network with factory and multiple warehouses.,/SupplyChainNet/,0,TextViz.TextVisualizer
+uavdiscrete,Discrete action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Discrete/,0,UAVsViz.UAVsVisualizer
+uavmixed,Mixed action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Mixed/,0,UAVsViz.UAVsVisualizer
+uavcontinuous,Continuous action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.,/UAV/Continuous/,"1,0",UAVsViz.UAVsVisualizer
+HVAC,Multi-zone and multi-heater HVAC control problem,/HVAC/,"1,2,0",HVACViz.HVACVisualizer
+wildfire,A boolean version of the wildfire fighting domain.,/Wildfire/,0,WildfireViz.WildfireVisualizer
+Reservoir discrete,Discrete version of management of the water level in interconnected reservoirs.,/Reservoir/Discrete/,"1,0",ReservoirViz.ReservoirVisualizer
+Reservoir continuous,Continuous action version of management of the water level in interconnected reservoirs.,/Reservoir/Continuous/,"1,0",ReservoirViz.ReservoirVisualizer
+newlanguage,Example with new language features.,/NewLanguageExamples/NewLanguage/,0,TextViz.TextVisualizer
+newtonzero,Example with Newton root-finding method.,/NewLanguageExamples/NewtonZero/,0,TextViz.TextVisualizer
+marsrover,"Multi Rover Navigation, where a group of agent needs to harvest mineral.",/MarsRover/,0,MarsRoverViz.MarsRoverVisualizer
+traffic2phase,BLX/QTM traffic model.,/Traffic/Traffic2Phase/,"1,0",TrafficViz.TrafficVisualizer
+traffic4phase,BLX/QTM traffic model.,/Traffic/Traffic4Phase/,"1,0",TrafficViz.TrafficVisualizer
+racecar,A simple continuous MDP for the racecar problem.,/RaceCar/,"1,0",RacecarViz.RacecarVisualizer
+supplychain,A supply chain with factory and multiple warehouses.,/SupplyChain/,0,TextViz.TextVisualizer
+cartpole discrete,"A simple continuous state MDP for the classical cart-pole system by Rich Sutton, with discrete actions that apply a constant force on either the left or right side of the cart.",/CartPole/Discrete/,0,CartPoleViz.CartPoleVisualizer
+cartpole continuous,"A simple continuous state-action MDP for the classical cart-pole system by Rich Sutton, with actions that describe the continuous force applied to the cart.",/CartPole/Continuous/,0,CartPoleViz.CartPoleVisualizer
+propdbn,Simple propositional DBN.,/PropDBN/,0,TextViz.TextVisualizer
+mountaincar,A simple continuous MDP for the classical mountain car control problem.,/MountainCar/,"0_old,0",MountainCarViz.MountainCarVisualizer
+recsim,"A problem of recommendation systems, with consumers and providers.",/RecSim/,"1,2,0",RecSimViz.RecSimVisualizer
+elevators,The Elevator domain models evening rush hours when people from different floors in a building want to go down to the bottom floor using elevators.,/Elevators/,"1,0",ElevatorViz.ElevatorVisualizer

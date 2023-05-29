@@ -1,0 +1,4 @@
+[General]
+name=Traffic4Phase
+description=BLX/QTM traffic model with four phases (two protected left, two through)
+viz=TrafficViz.TrafficVisualizer
