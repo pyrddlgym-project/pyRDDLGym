@@ -254,11 +254,12 @@ def train_epoch(key, policy_hyperparams, subs, planner, timeout,
         elapsed = currtime - starttime    
         if verbose and print_step is not None and it > 0 and it % print_step == 0:
             print(f'|------ {colorstr}' 
-                  '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f}'.format(
+                  '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} best_return={:.6f}'.format(
                       elapsed,
                       str(callback['iteration']).rjust(4),
                       callback['train_return'],
-                      callback['test_return']) + 
+                      callback['test_return'],
+                      callback['best_return']) + 
                   f'{Style.RESET_ALL}')
         if not np.isfinite(callback['train_return']):
             if verbose:
