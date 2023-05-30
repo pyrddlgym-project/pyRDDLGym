@@ -28,7 +28,7 @@ b_test = 1
 clip_grad = 1e-2
 wrap_sigmoid = True
 
-weight = 10
+weight = 30
 step = 100
 nepochs = 5000
 t_plan = myEnv.horizon
@@ -48,6 +48,7 @@ planner = JaxRDDLBackpropPlanner(
     batch_size_test=b_test,
     optimizer=optax.rmsprop,
     optimizer_kwargs={'learning_rate': lr, 'momentum': momentum},
+    use64bit=True,
     clip_grad=clip_grad,
     logic=FuzzyLogic(
         weight=weight,
