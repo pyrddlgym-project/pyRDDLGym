@@ -1,35 +1,46 @@
 import sys
 
-from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuning
+from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLP
+from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLPReplan
 from pyRDDLGym.Planner import JaxConfigManager
 
 
 def tune(env, replan, trials, timeout, timeout_ps, iters, workers):
-    myEnv, planner, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
+    myEnv, planner, opt_args, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']    
     
-    tuning = JaxParameterTuning(
-        num_workers=workers,
-        gp_iters=iters,
-        env=myEnv,
-        action_bounds=planner.plan.bounds,
-        max_train_epochs=train_args['epochs'],
-        timeout_episode=timeout,
-        timeout_epoch=timeout_ps,
-        eval_trials=trials,
-        print_step=train_args['step'],
-        wrap_sigmoid=planner.plan._wrap_sigmoid,
-        planner_kwargs={'batch_size_train': planner.batch_size_train,
-                        'batch_size_test': planner.batch_size_test,
-                        'use64bit': planner.use64bit,
-                        'clip_grad': planner.clip_grad,
-                        'use_symlog_reward': planner.use_symlog_reward,
-                        'utility': planner.utility,
-                        'cpfs_without_grad': planner.cpfs_without_grad})
+    opt_args.pop('rddl', None)
+    opt_args.pop('plan', None)
+    opt_args.pop('optimizer_kwargs', None)
+    opt_args.pop('logic', None)
+    opt_args.pop('rollout_horizon', None)
+    
     if replan:
-        tuning.tune_mpc(key)
+        tuning = JaxParameterTuningSLPReplan(
+            env=myEnv,
+            max_train_epochs=train_args['epochs'],
+            timeout_episode=timeout,
+            timeout_epoch=timeout_ps,
+            eval_trials=trials,
+            verbose=True,
+            print_step=train_args['step'],
+            planner_kwargs=opt_args,
+            num_workers=workers,
+            gp_iters=iters,
+            wrap_sigmoid=planner.plan._wrap_sigmoid)
+        tuning.tune(key, 'gp_replan')
     else:
-        tuning.tune_slp(key)
+        tuning = JaxParameterTuningSLP(
+            env=myEnv,
+            max_train_epochs=train_args['epochs'],
+            timeout_episode=timeout,
+            verbose=True,
+            print_step=train_args['step'],
+            planner_kwargs=opt_args,
+            num_workers=workers,
+            gp_iters=iters,
+            wrap_sigmoid=planner.plan._wrap_sigmoid)
+        tuning.tune(key, 'gp_slp')
 
 
 if __name__ == "__main__":
