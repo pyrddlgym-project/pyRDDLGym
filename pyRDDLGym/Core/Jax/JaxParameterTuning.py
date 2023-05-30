@@ -20,7 +20,18 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
 np.seterr(all='warn')
 
-       
+# ===============================================================================
+# 
+# GENERIC TUNING MODULE
+# 
+# Currently contains three implementations:
+# 1. straight line plan
+# 2. replanning
+# 3. deep reactive policies
+# 
+# ===============================================================================
+
+
 class JaxParameterTuning:
     '''A general-purpose class for tuning a Jax planner.'''
     
@@ -80,15 +91,15 @@ class JaxParameterTuning:
         # create acquisition function
         if acquisition is None:
             num_samples = self.gp_iters * self.num_workers
-            acquisition = JaxParameterTuning.annealing_utility(num_samples)
+            acquisition = JaxParameterTuning._annealing_utility(num_samples)
         self.acquisition = acquisition
         
         # create valid color variations for multiprocess output
-        self.colors = JaxParameterTuning.color_variations()
+        self.colors = JaxParameterTuning._color_variations()
         self.num_workers = min(num_workers, len(self.colors))
 
     @staticmethod
-    def color_variations():
+    def _color_variations():
         foreground = [Fore.BLUE, Fore.CYAN, Fore.GREEN,
                       Fore.MAGENTA, Fore.RED, Fore.YELLOW]
         background = [Back.RESET, Back.BLUE, Back.CYAN, Back.GREEN,
@@ -99,7 +110,7 @@ class JaxParameterTuning:
                 if int(back[2:-1]) - int(fore[2:-1]) != 10]
 
     @staticmethod
-    def annealing_utility(n_samples, n_delay_samples=0, kappa1=10.0, kappa2=1.0):
+    def _annealing_utility(n_samples, n_delay_samples=0, kappa1=10.0, kappa2=1.0):
         return UtilityFunction(
             kind='ucb',
             kappa=kappa1,
@@ -110,7 +121,7 @@ class JaxParameterTuning:
         raise NotImplementedError
     
     @staticmethod
-    def wrapped_evaluate(args):
+    def _wrapped_evaluate(args):
         index, params, key, color, func, kwargs = args
         target = func(params=params, kwargs=kwargs, key=key, color=color)
         pid = os.getpid()
@@ -154,7 +165,7 @@ class JaxParameterTuning:
         objective = self._pickleable_objective_with_kwargs()
         best_target = -np.inf
         colors = self.colors[:num_workers]
-        evaluate = JaxParameterTuning.wrapped_evaluate
+        evaluate = JaxParameterTuning._wrapped_evaluate
                 
         # start multi-process evaluation
         for it in range(self.gp_iters): 
@@ -234,6 +245,12 @@ class JaxParameterTuning:
             plt.savefig(self._filename('gp_points', 'pdf'))
             plt.clf()
             plt.close()
+
+# ===============================================================================
+# 
+# STRAIGHT LINE PLANNING
+#
+# ===============================================================================
 
 
 def train_epoch(key, policy_hyperparams, subs, planner, timeout,
@@ -379,6 +396,12 @@ class JaxParameterTuningSLP(JaxParameterTuning):
             'use_wa_param': self.use_wa_param
         }
         return objective_fn, kwargs
+
+# ===============================================================================
+# 
+# REPLANNING
+#
+# ===============================================================================
 
 
 def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
@@ -535,6 +558,12 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         }
         return objective_fn, kwargs
 
+# ===============================================================================
+# 
+# DEEP REACTIVE POLICIES
+#
+# ===============================================================================
+
 
 def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
                     
@@ -596,6 +625,15 @@ class JaxParameterTuningDRP(JaxParameterTuning):
                     'neurons': (1., 9., power_two_int)
                  },
                  **kwargs):
+        '''Creates a new tuning class for deep reactive policies.
+        
+        :param *args: arguments to pass to parent class
+        :param hyperparams_dict: same as parent class, but here must contain
+        learning rate (lr), model weight (w), number of hidden layers (layers) 
+        and number of neurons per hidden layer (neurons)
+        :param **kwargs: keyword arguments to pass to parent class
+        '''
+        
         super(JaxParameterTuningDRP, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
     
