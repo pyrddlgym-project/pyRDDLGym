@@ -51,7 +51,8 @@ def load_rddl_files(check_external, domain_name, inst_name):
     return domain, instance
 
 
-def get(path: str, new_env_kwargs={}, new_logic_kwargs={}, 
+def get(path: str, 
+        new_env_kwargs={}, new_logic_kwargs={}, 
         new_plan_kwargs={}, new_planner_kwargs={}) -> Dict[str, object]:
     
     # load the config file
@@ -99,10 +100,10 @@ def get(path: str, new_env_kwargs={}, new_logic_kwargs={},
     opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, plan_method)(**plan_kwargs)
     opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])
     opt_args.update(new_planner_kwargs)
-    optimizer = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**opt_args)
+    planner = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**opt_args)
     
     # read the training settings
     train_args['key'] = jax.random.PRNGKey(train_args['key'])
     
-    return myEnv, optimizer, train_args, (domain_name, inst_name)
+    return myEnv, planner, train_args, (domain_name, inst_name)
     
