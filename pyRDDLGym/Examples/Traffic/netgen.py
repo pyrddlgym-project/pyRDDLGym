@@ -262,6 +262,7 @@ def generate_green_wave_scenario(N,
                                  min_green=24,
                                  max_green=60,
                                  all_red=4,
+                                 simstep=1,
                                  through_only=True,
                                  conflict_flow=0.,
                                  instance_name=None,
@@ -273,7 +274,7 @@ def generate_green_wave_scenario(N,
         instance_name = f'green_wave_{N}_experiment'
 
     # Time-delay objects
-    num_ts = int(np.ceil(link_len/13.6))+1
+    num_ts = int(np.ceil(link_len/(13.6*simstep)))+1
     t_names = (f't{t}' for t in range(num_ts))
     L_names = (f'l{i}' for i in range(6*N+2))
     i_names = (f'i{i}' for i in range(N))
@@ -345,6 +346,8 @@ def generate_green_wave_scenario(N,
         f'    //             | |                                          | |                     ',
         f'',
         f'    non-fluents {{',
+        f'        Ts = {simstep};',
+        f'',
         f'        //cartesian coordinates',
         f''))
 
