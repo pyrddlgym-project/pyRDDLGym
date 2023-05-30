@@ -17,6 +17,7 @@ from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
 np.seterr(all='warn')
 
        
@@ -363,20 +364,6 @@ class JaxParameterTuningSLP(JaxParameterTuning):
         super(JaxParameterTuningSLP, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
         
-        # :param lookahead_space: set of possible lookahead horizons for MPC to
-        # tune
-        # :param eval_trials: how many trials to perform for MPC (batch size has
-        # the same effect for non-MPC)
-        # :param use_guess_last_epoch: for MPC approach, use the trained parameters
-        # from previous epoch to seed next epoch actions
-        # :param timeout_epoch: the maximum amount of time to spend training per
-        # decision epoch (in seconds, for MPC only)
-        
-        # self.timeout_epoch = timeout_epoch
-        # self.evaluation_trials = eval_trials
-        # self.lookahead_space = lookahead_space
-        # self.use_guess_last_epoch = use_guess_last_epoch
-        
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_slp
         kwargs = {
@@ -544,5 +531,82 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
             'eval_trials': self.eval_trials,
             'eval_horizon': self.env.horizon,
             'use_guess_last_epoch': self.use_guess_last_epoch
+        }
+        return objective_fn, kwargs
+
+
+def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
+                    
+    # transform hyper-parameters to natural space
+    param_values = [
+        pmap(params[name])
+        for (name, (*_, pmap)) in kwargs['hyperparams_dict'].items()
+    ]
+    
+    # unpack hyper-parameters
+    lr, w, layers, neurons = param_values
+                      
+    if kwargs['verbose']:
+        print(f'| {color[0]}{color[1]}'
+                f'optimizing DRP with PRNG key={key}, ' 
+                f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...{Style.RESET_ALL}')
+                    
+    # initialize planner
+    planner = JaxRDDLBackpropPlanner(
+        rddl=kwargs['rddl'],
+        plan=JaxDeepReactivePolicy(
+            topology=[neurons] * layers),
+        optimizer_kwargs={'learning_rate': lr},
+        logic=FuzzyLogic(weight=w),
+        **kwargs['planner_kwargs'])
+                    
+    # perform training
+    callback = train_epoch(
+        key=key,
+        policy_hyperparams={name: None for name in planner._action_bounds},
+        subs=None,
+        planner=planner,
+        timeout=kwargs['timeout_episode'],
+        max_train_epochs=kwargs['max_train_epochs'],
+        verbose=kwargs['verbose'],
+        print_step=kwargs['print_step'],
+        color=color,
+        guess=None)
+    total_reward = float(callback['best_return'])
+            
+    if kwargs['verbose']:
+        print(f'| {color[0]}{color[1]}'
+                f'done optimizing DRP, '
+                f'total reward={total_reward}{Style.RESET_ALL}')
+    return total_reward
+
+
+def power_two_int(x):
+    return 2 ** int(x)
+
+
+class JaxParameterTuningDRP(JaxParameterTuning):
+    
+    def __init__(self, *args,
+                 hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
+                    'lr': (-6., 0., power_ten),
+                    'w': (0., 5., power_ten),
+                    'layers': (1., 3., int),
+                    'neurons': (1., 9., power_two_int)
+                 },
+                 **kwargs):
+        super(JaxParameterTuningDRP, self).__init__(
+            *args, hyperparams_dict=hyperparams_dict, **kwargs)
+    
+    def _pickleable_objective_with_kwargs(self):
+        objective_fn = objective_drp
+        kwargs = {
+            'rddl': self.env.model,
+            'hyperparams_dict': self.hyperparams_dict,
+            'timeout_episode': self.timeout_episode,
+            'max_train_epochs': self.max_train_epochs,
+            'planner_kwargs': self.planner_kwargs,
+            'verbose': self.verbose,
+            'print_step': self.print_step
         }
         return objective_fn, kwargs
