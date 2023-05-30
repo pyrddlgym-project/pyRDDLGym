@@ -18,6 +18,8 @@ from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
+
+# do this after imports to prevent it from being overwritten
 np.seterr(all='warn')
 
 # ===============================================================================
@@ -78,16 +80,6 @@ class JaxParameterTuning:
         self.gp_iters = gp_iters
         self.gp_params = gp_params
         
-        # map parameters to RDDL equivalent
-        self.hyperparams_bounds = {
-            name: hparam[:2] 
-            for (name, hparam) in self.hyperparams_dict.items()
-        }
-        self.hyperparams_map = (lambda params: [
-            hparam[2](params[name])
-            for (name, hparam) in self.hyperparams_dict.items()
-        ])
-        
         # create acquisition function
         if acquisition is None:
             num_samples = self.gp_iters * self.num_workers
@@ -131,9 +123,13 @@ class JaxParameterTuning:
         '''Tunes the hyper-parameters for Jax planner'''
             
         # create optimizer
+        hyperparams_bounds = {
+            name: hparam[:2] 
+            for (name, hparam) in self.hyperparams_dict.items()
+        }
         optimizer = BayesianOptimization(
             f=None,  # probe() is not called
-            pbounds=self.hyperparams_bounds,
+            pbounds=hyperparams_bounds,
             allow_duplicate_points=True,  # to avoid crash
             random_state=np.random.RandomState(key)
         )
@@ -153,10 +149,10 @@ class JaxParameterTuning:
         filename = self._filename(filename, 'csv')
         with open(filename, 'w', newline='') as file:
             writer = csv.writer(file)
-            row = ['pid', 'worker', 'iteration',
-                   'target', 'best_target', 'kappa'] + \
-                   list(self.hyperparams_bounds.keys())
-            writer.writerow(row)
+            writer.writerow(
+                ['pid', 'worker', 'iteration', 'target', 'best_target', 'kappa'] + \
+                 list(hyperparams_bounds.keys())
+            )
         file = open(filename, 'a', newline='')
         writer = csv.writer(file)        
         lock = multiprocessing.Manager().Lock()
@@ -167,7 +163,7 @@ class JaxParameterTuning:
         colors = self.colors[:num_workers]
         evaluate = JaxParameterTuning._wrapped_evaluate
                 
-        # start multi-process evaluation
+        # start multiprocess evaluation
         for it in range(self.gp_iters): 
             print('\n' + '*' * 25 + 
                   '\n' + f'starting iteration {it}' + 
