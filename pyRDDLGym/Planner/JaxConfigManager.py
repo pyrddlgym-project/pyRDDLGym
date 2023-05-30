@@ -105,5 +105,5 @@ def get(path: str,
     # read the training settings
     train_args['key'] = jax.random.PRNGKey(train_args['key'])
     
-    return myEnv, planner, train_args, (domain_name, inst_name)
+    return myEnv, planner, opt_args, train_args, (domain_name, inst_name)
     
