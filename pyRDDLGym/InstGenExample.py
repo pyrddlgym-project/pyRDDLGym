@@ -7,7 +7,7 @@ from pyRDDLGym.Policies.Agents import RandomAgent
 ENVS = ['HVAC', 'RaceCar', 'UAV_continuous', 'MarsRover', 'PowerGen_continuous', 'MountainCar', 'RecSim', 'Reservoir_continuous']
 
 INST_NAMES = ['1e']     # example instance generation
-HVAC_PARAMS =[
+HVAC_PARAMS = [
     {'num_heaters': 1, 'num_zones': 1, 'density': 1.0, 'temp-zone-range-init': (0., 15.),
     'temp-heater-range-init': (0., 10.), 'TEMP-ZONE-MIN': 22.0, 'TEMP-ZONE-MAX': 25.0,
     'p-switch-number': 0, 'p-switch-prob': 0.02, 'horizon': 100,'discount': 1.0}
@@ -107,8 +107,8 @@ def main(env, params, name):
 
 
 if __name__ == "__main__":
-    inst_index = 0
-    env = ENVS[6]
+    inst_index = 4
+    env = ENVS[7]
     inst_name = INST_NAMES[inst_index]
     inst_params = INST_PARAMS[env][inst_index]
 
