@@ -14,6 +14,8 @@ from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from jax.config import config as jconfig
 jconfig.update('jax_debug_nans', True)
 
+
+
 try:
     weight = float(argv[1])
     step = int(argv[2])
@@ -26,7 +28,7 @@ except IndexError as e:
     raise e
 
 # specify the model
-EnvInfo = ExampleManager.GetEnvInfo('traffic')
+EnvInfo = ExampleManager.GetEnvInfo('traffic4phase')
 myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance='webster_exp_equal_split.rddl')
 model = myEnv.model
 
@@ -45,7 +47,6 @@ for wstep in range(t_warmup):
         raise RuntimeError('[jaxplan.py] Environment finished during warmup')
 
 init_state_subs = myEnv.sampler.subs
-
 
 # initialize the planner
 """ good settings for horizon=600 (with warmup 300)

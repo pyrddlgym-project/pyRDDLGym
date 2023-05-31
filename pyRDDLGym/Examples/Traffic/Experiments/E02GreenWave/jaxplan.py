@@ -1,6 +1,8 @@
 import jax
 import optax
 from math import inf
+import pickle
+import json
 from sys import argv
 import matplotlib.pyplot as plt
 from datetime import datetime
@@ -13,27 +15,30 @@ from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 
 from jax.config import config as jconfig
 jconfig.update('jax_debug_nans', True)
-#jconfig.update('jax_platform_name', 'cpu')
+jconfig.update('jax_platform_name', 'cpu')
 
 
 # specify the model
 EnvInfo = ExampleManager.GetEnvInfo('traffic2phase')
-myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance='instance01.rddl')
+myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance='instances/instance01.rddl')
 model = myEnv.model
 
+
+with open('subs.pckl', 'rb') as file:
+    init_state_subs = pickle.load(file)
 
 # initialize the planner
 b_train = 1 # Deterministic transitions -> No need for larger batches?
 b_test = 1
-clip_grad = 1e-2
+clip_grad = 1e-3
 wrap_sigmoid = True
 
-weight = 30
+weight = 20
 step = 100
-nepochs = 5000
+nepochs = 10000
 t_plan = myEnv.horizon
 lr = 1e-3
-momentum = 0.1
+momentum = 0.3
 
 #initialize the plan
 straight_line_plan = JaxStraightLinePlan(
@@ -70,6 +75,7 @@ gen = planner.optimize(
     epochs=nepochs,
     key=key,
     step=step,
+    subs=init_state_subs,
     policy_hyperparams={'advance': weight})
 for callback in gen:
     print('step={} train_return={:.6f} test_return={:.6f}'.format(
@@ -84,11 +90,23 @@ for callback in gen:
 
     if test_return[-1] > best_test_return:
         best_params, best_test_return = callback['params'], test_return[-1]
-        best_actions = callback['action']['advance'][:,:,0]
+        best_actions = callback['action']['advance']
 
-    grads.append(callback['updates']['advance'])
-    grads_min.append(jax.numpy.min(grads[-1]))
-    grads_max.append(jax.numpy.max(grads[-1]))
+    #grads.append(callback['updates']['advance'])
+    #grads_min.append(jax.numpy.min(grads[-1]))
+    #grads_max.append(jax.numpy.max(grads[-1]))
     #print(grads[-1])
     print(jax.numpy.sum(callback['action']['advance'][:,:,0], axis=1))
 
+
+now = datetime.now().strftime('%Y%m%d_%H%M%S')
+with open(f'actions/actions_dump_{now}.json', 'w') as file:
+    json.dump({'a': best_actions.tolist()}, file)
+
+fig, ax = plt.subplots()
+X = [step*n for n in range(len(train_return))]
+ax.plot(X, train_return, label='Train')
+ax.plot(X, test_return, label='Test')
+ax.legend()
+ax.grid(visible=True)
+plt.savefig(f'img/progress_w{weight}_lr{lr}_m{momentum}_{now}.png')
