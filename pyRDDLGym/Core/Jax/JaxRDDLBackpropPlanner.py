@@ -973,6 +973,7 @@ class JaxRDDLBackpropPlanner:
                  epochs: int,
                  step: int=1,
                  plot_step: int=None,
+                 model_params: Dict[str, object]=None,
                  policy_hyperparams: Dict[str, object]=None,
                  subs: Dict[str, object]=None,
                  guess: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
@@ -982,6 +983,7 @@ class JaxRDDLBackpropPlanner:
         :param epochs: the maximum number of steps of gradient descent
         :param step: frequency the callback is provided back to the user
         :param plot_step: frequency to plot the plan and save result to disk
+        :param model_params: optional model-parameters to override default
         :param policy_hyperparams: hyper-parameters for the policy/plan, such as
         weights for sigmoid wrapping boolean actions
         :param subs: dictionary mapping initial state and non-fluents to 
@@ -996,7 +998,8 @@ class JaxRDDLBackpropPlanner:
         train_subs, test_subs = self._batched_init_subs(subs)
         
         # initialize, model parameters
-        model_params = self.compiled.model_params
+        if model_params is None:
+            model_params = self.compiled.model_params
         model_params_test = self.test_compiled.model_params
         
         # initialize policy parameters

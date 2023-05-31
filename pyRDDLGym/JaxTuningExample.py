@@ -13,7 +13,6 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
     opt_args.pop('rddl', None)
     opt_args.pop('plan', None)
     opt_args.pop('optimizer_kwargs', None)
-    opt_args.pop('logic', None)
     opt_args.pop('rollout_horizon', None)
     opt_args.pop('topology', None)
     

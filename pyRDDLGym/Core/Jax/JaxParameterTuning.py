@@ -249,7 +249,7 @@ class JaxParameterTuning:
 # ===============================================================================
 
 
-def train_epoch(key, policy_hyperparams, subs, planner, timeout,
+def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
                  max_train_epochs, verbose, print_step, color, guess=None): 
     colorstr = f'{color[0]}{color[1]}'
     starttime = None
@@ -257,6 +257,7 @@ def train_epoch(key, policy_hyperparams, subs, planner, timeout,
         key=key,
         epochs=max_train_epochs,
         step=1,
+        model_params=model_params,
         policy_hyperparams=policy_hyperparams,
         subs=subs,
         guess=guess
@@ -312,12 +313,12 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
             initializer=jax.nn.initializers.normal(std),
             wrap_sigmoid=kwargs['wrap_sigmoid']),
         optimizer_kwargs={'learning_rate': lr},
-        logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
                     
     # perform training
     callback = train_epoch(
         key=key,
+        model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
         subs=None,
         planner=planner,
@@ -431,7 +432,8 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
     policy_hyperparams = {name: wa for name in kwargs['wrapped_bool_actions']}
-
+    model_params = {name: w for name in planner.compiled.model_params}
+    
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
@@ -461,6 +463,7 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
                 key, subkey1, subkey2 = jax.random.split(key, num=3)
                 callback = train_epoch(
                     key=subkey1,
+                    model_params=model_params,
                     policy_hyperparams=policy_hyperparams,
                     subs=subs,
                     planner=planner,
@@ -588,6 +591,7 @@ def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
     # perform training
     callback = train_epoch(
         key=key,
+        model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: None for name in planner._action_bounds},
         subs=None,
         planner=planner,
