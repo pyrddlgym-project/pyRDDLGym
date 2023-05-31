@@ -48,7 +48,7 @@ class RDDLEnv(gym.Env):
 
         # time budget for applications limiting time on episodes.
         # hardcoded so cannot be changed externally.
-        self.budget = 120
+        self.budget = 240
 
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
