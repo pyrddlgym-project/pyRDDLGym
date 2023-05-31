@@ -14,7 +14,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
@@ -429,7 +428,6 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
             wrap_sigmoid=kwargs['wrap_sigmoid']),
         rollout_horizon=T,
         optimizer_kwargs={'learning_rate': lr},
-        logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
     policy_hyperparams = {name: wa for name in kwargs['wrapped_bool_actions']}
     model_params = {name: w for name in planner.compiled.model_params}
@@ -585,7 +583,6 @@ def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         plan=JaxDeepReactivePolicy(
             topology=[neurons] * layers),
         optimizer_kwargs={'learning_rate': lr},
-        logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
                     
     # perform training
