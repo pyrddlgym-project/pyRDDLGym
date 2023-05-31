@@ -294,7 +294,7 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
     ]
     
     # unpack hyper-parameters
-    if kwargs['use_wa_param']:
+    if kwargs['wrapped_bool_actions']:
         std, lr, w, wa = param_values
     else:
         std, lr, w = param_values
@@ -318,7 +318,7 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
     # perform training
     callback = train_epoch(
         key=key,
-        policy_hyperparams={name: wa for name in planner._action_bounds},
+        policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
         subs=None,
         planner=planner,
         timeout=kwargs['timeout_episode'],
@@ -363,16 +363,15 @@ class JaxParameterTuningSLP(JaxParameterTuning):
         
         # action parameters required if wrap_sigmoid and boolean action exists
         self.wrap_sigmoid = wrap_sigmoid
-        self.use_wa_param = False
+        self.wrapped_bool_actions = []
         if self.wrap_sigmoid:
             env = kwargs.get('env', None)
             if env is None:
                 env = args[0]
             for var in env.model.actions:
                 if env.model.variable_ranges[var] == 'bool':
-                    self.use_wa_param = True
-                    break
-        if not self.use_wa_param:
+                    self.wrapped_bool_actions.append(var)
+        if not self.wrapped_bool_actions:
             hyperparams_dict.pop('wa', None)
         
         super(JaxParameterTuningSLP, self).__init__(
@@ -389,7 +388,7 @@ class JaxParameterTuningSLP(JaxParameterTuning):
             'verbose': self.verbose,
             'print_step': self.print_step,
             'wrap_sigmoid': self.wrap_sigmoid,
-            'use_wa_param': self.use_wa_param
+            'wrapped_bool_actions': self.wrapped_bool_actions
         }
         return objective_fn, kwargs
 
@@ -409,7 +408,7 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
     ]
     
     # unpack hyper-parameters
-    if kwargs['use_wa_param']:
+    if kwargs['wrapped_bool_actions']:
         std, lr, w, wa, T = param_values
     else:
         std, lr, w, T = param_values
@@ -431,7 +430,7 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         optimizer_kwargs={'learning_rate': lr},
         logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
-    policy_hyperparams = {name: wa for name in planner._action_bounds}
+    policy_hyperparams = {name: wa for name in kwargs['wrapped_bool_actions']}
 
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
@@ -546,7 +545,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
             'verbose': self.verbose,
             'print_step': self.print_step,
             'wrap_sigmoid': self.wrap_sigmoid,
-            'use_wa_param': self.use_wa_param,
+            'wrapped_bool_actions': self.wrapped_bool_actions,
             'timeout_epoch': self.timeout_epoch,
             'eval_trials': self.eval_trials,
             'eval_horizon': self.env.horizon,
