@@ -47,6 +47,7 @@ class JaxParameterTuning:
                  poll_frequency: float=0.05,
                  gp_iters: int=25,
                  acquisition=None,
+                 gp_init_kwargs: Dict={},
                  gp_params: Dict={'n_restarts_optimizer': 10}) -> None:
         '''Creates a new instance for tuning hyper-parameters for Jax planners
         on the given RDDL domain and instance.
@@ -69,7 +70,10 @@ class JaxParameterTuning:
         jobs, necessary if num_workers > 1
         :param gp_iters: number of iterations of optimization
         :param acquisition: acquisition function for Bayesian optimizer
-        :param gp_params: additional parameters to feed to Bayesian optimizer        
+        :parm gp_init_kwargs: additional parameters to feed to Bayesian 
+        during initialization  
+        :param gp_params: additional parameters to feed to Bayesian optimizer 
+        after initialization optimization
         '''
         
         self.env = env
@@ -83,6 +87,7 @@ class JaxParameterTuning:
         self.num_workers = num_workers
         self.poll_frequency = poll_frequency
         self.gp_iters = gp_iters
+        self.gp_init_kwargs = gp_init_kwargs
         self.gp_params = gp_params
         
         # create acquisition function
@@ -139,7 +144,8 @@ class JaxParameterTuning:
             f=None,  # probe() is not called
             pbounds=hyperparams_bounds,
             allow_duplicate_points=True,  # to avoid crash
-            random_state=np.random.RandomState(key)
+            random_state=np.random.RandomState(key),
+            **self.gp_init_kwargs
         )
         optimizer.set_gp_params(**self.gp_params)
         utility = self.acquisition
