@@ -1,11 +1,10 @@
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import UtilityFunction
 from colorama import init as colorama_init, Back, Fore, Style
-colorama_init()
-from concurrent.futures import as_completed, ProcessPoolExecutor      
+colorama_init()    
 import csv
 import jax
-import multiprocessing
+import multiprocess as mproc
 import numpy as np
 import os
 import time
@@ -112,8 +111,7 @@ class JaxParameterTuning:
         raise NotImplementedError
     
     @staticmethod
-    def _wrapped_evaluate(args):
-        index, params, key, color, func, kwargs = args
+    def _wrapped_evaluate(index, params, key, color, func, kwargs):
         target = func(params=params, kwargs=kwargs, key=key, color=color)
         pid = os.getpid()
         return index, pid, params, target
@@ -152,9 +150,6 @@ class JaxParameterTuning:
                 ['pid', 'worker', 'iteration', 'target', 'best_target', 'kappa'] + \
                  list(hyperparams_bounds.keys())
             )
-        file = open(filename, 'a', newline='')
-        writer = csv.writer(file)        
-        lock = multiprocessing.Manager().Lock()
         
         # objective function
         objective = self._pickleable_objective_with_kwargs()
@@ -168,45 +163,61 @@ class JaxParameterTuning:
                   '\n' + f'starting iteration {it}' + 
                   '\n' + '*' * 25)
             key, *subkeys = jax.random.split(key, num=num_workers + 1)
+            worker_ids = list(range(num_workers))
+            rows = [None] * num_workers
             
             # create worker pool: note each iteration must wait for all workers
             # to finish before moving to the next
-            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            with mproc.Pool(processes=num_workers) as pool:
                 
-                # each worker evaluates planner for a suggested parameter dict
-                worker_id = list(range(num_workers))
-                jobs = [
-                    executor.submit(evaluate, worker_args + objective) 
-                    for worker_args in zip(worker_id, suggested, subkeys, colors)
+                # assign jobs to worker pool
+                # - each trains on suggested parameters from the last iteration
+                # - this way, since each job finishes asynchronously, these
+                # parameters usually differ across jobs
+                results = [
+                    pool.apply_async(evaluate, worker_args + objective)
+                    for worker_args in zip(worker_ids, suggested, subkeys, colors)
                 ]
-                
-                # on completion of each job...
-                for job in as_completed(jobs):
+            
+                # wait for all workers to complete
+                while results:
+                    time.sleep(0.05)
                     
-                    # extract and register the new evaluation
-                    index, pid, params, target = job.result()
-                    optimizer.register(params, target)
+                    # determine which jobs have completed
+                    jobs_done = []
+                    for (i, candidate) in enumerate(results):
+                        if candidate.ready():
+                            jobs_done.append(i)
                     
-                    # update acquisition function and suggest a new point
-                    utility.update_params()  
-                    suggested[index] = optimizer.suggest(utility)
-                    old_kappa = kappas[index]
-                    kappas[index] = utility.kappa
-                    best_target = max(best_target, target)
-                    
-                    # write progress to file in real time
-                    rddl_params = [
-                        pmap(params[name])
-                        for (name, (*_, pmap)) in self.hyperparams_dict.items()
-                    ]
-                    with lock:
-                        writer.writerow(
-                            [pid, index, it, target, best_target, old_kappa] + \
-                            rddl_params
-                        )
-                
-        # close file stream, save plot
-        file.close()
+                    # get result from completed jobs
+                    for i in jobs_done[::-1]:
+                        
+                        # extract and register the new evaluation
+                        index, pid, params, target = results.pop(i).get()
+                        optimizer.register(params, target)
+                        
+                        # update acquisition function and suggest a new point
+                        utility.update_params()  
+                        suggested[index] = optimizer.suggest(utility)
+                        old_kappa = kappas[index]
+                        kappas[index] = utility.kappa
+                        best_target = max(best_target, target)
+                        
+                        # write progress to file in real time
+                        rddl_params = [
+                            pmap(params[name])
+                            for (name, (*_, pmap)) in self.hyperparams_dict.items()
+                        ]
+                        rows[index] = [
+                            pid, index, it, target, best_target, old_kappa
+                        ] + rddl_params
+                        
+            # write results of all processes in current iteration to file
+            with open(filename, 'a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerows(rows)
+            
+        # save plot
         self._save_plot(filename)
 
     def _filename(self, name, ext):
