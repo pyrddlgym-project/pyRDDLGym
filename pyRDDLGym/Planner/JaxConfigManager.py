@@ -27,9 +27,9 @@ def load_config_file(path: str):
 def read_config_sections(config, args):
     env_args = {k: args[k] for (k, _) in config.items('Environment')} 
     model_args = {k: args[k] for (k, _) in config.items('Model')}
-    opt_args = {k: args[k] for (k, _) in config.items('Optimizer')}
+    planner_args = {k: args[k] for (k, _) in config.items('Optimizer')}
     train_args = {k: args[k] for (k, _) in config.items('Training')}
-    return env_args, model_args, opt_args, train_args
+    return env_args, model_args, planner_args, train_args
 
 
 def load_rddl_files(check_external, domain_name, inst_name):
@@ -57,7 +57,7 @@ def get(path: str,
     
     # load the config file
     config, args = load_config_file(path)
-    env_args, model_args, opt_args, train_args = read_config_sections(config, args)
+    env_args, model_args, planner_args, train_args = read_config_sections(config, args)
     
     # read the environment settings
     check_external = env_args.pop('check_rddlrepository', False)
@@ -67,7 +67,7 @@ def get(path: str,
         check_external, domain_name, inst_name)
     env_args.update(new_env_kwargs)
     myEnv = RDDLEnv(**env_args)
-    opt_args['rddl'] = myEnv.model
+    planner_args['rddl'] = myEnv.model
     
     # read the model settings
     tnorm_name = model_args['tnorm']
@@ -76,11 +76,11 @@ def get(path: str,
     logic_kwargs = model_args['logic_kwargs']
     logic_kwargs['tnorm'] = getattr(JaxRDDLLogic, tnorm_name)(**tnorm_kwargs)
     logic_kwargs.update(new_logic_kwargs)
-    opt_args['logic'] = getattr(JaxRDDLLogic, logic_name)(**logic_kwargs)
+    planner_args['logic'] = getattr(JaxRDDLLogic, logic_name)(**logic_kwargs)
     
     # read the optimizer settings
-    plan_method = opt_args.pop('method')
-    plan_kwargs = opt_args.pop('method_kwargs', {})  
+    plan_method = planner_args.pop('method')
+    plan_kwargs = planner_args.pop('method_kwargs', {})  
     
     if 'initializer' in plan_kwargs:  # weight initialization
         init_name = plan_kwargs['initializer']
@@ -97,13 +97,14 @@ def get(path: str,
         plan_kwargs['activation'] = getattr(jax.nn, plan_kwargs['activation'])
     
     plan_kwargs.update(new_plan_kwargs)
-    opt_args['plan'] = getattr(JaxRDDLBackpropPlanner, plan_method)(**plan_kwargs)
-    opt_args['optimizer'] = getattr(optax, opt_args['optimizer'])
-    opt_args.update(new_planner_kwargs)
-    planner = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**opt_args)
+    planner_args['plan'] = getattr(JaxRDDLBackpropPlanner, plan_method)(**plan_kwargs)
+    planner_args['optimizer'] = getattr(optax, planner_args['optimizer'])
+    planner_args.update(new_planner_kwargs)
+    planner = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**planner_args)
     
     # read the training settings
     train_args['key'] = jax.random.PRNGKey(train_args['key'])
     
-    return myEnv, planner, opt_args, train_args, (domain_name, inst_name)
+    return myEnv, planner, planner_args, plan_kwargs, train_args, \
+        (domain_name, inst_name)
     
