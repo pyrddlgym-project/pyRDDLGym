@@ -999,7 +999,7 @@ class JaxRDDLBackpropPlanner:
             subs = self.test_compiled.init_values
         train_subs, test_subs = self._batched_init_subs(subs)
         
-        # initialize, model parameters
+        # initialize model parameters
         if model_params is None:
             model_params = self.compiled.model_params
         model_params_test = self.test_compiled.model_params
@@ -1012,8 +1012,14 @@ class JaxRDDLBackpropPlanner:
         else:
             policy_params = guess
             opt_state = self.optimizer.init(policy_params)
+        
+        # overwrite learning rate
         if lr is not None:
-            opt_state.hyperparams['learning_rate'] = lr
+            if isinstance(opt_state, tuple):
+                opt_state[1].hyperparams['learning_rate'] = lr
+            else:
+                opt_state.hyperparams['learning_rate'] = lr
+                
         best_params, best_loss = policy_params, jnp.inf
         last_iter_improve = 0
         
