@@ -4,7 +4,7 @@ from colorama import init as colorama_init, Back, Fore, Style
 colorama_init()    
 import csv
 import jax
-import multiprocess as mproc
+from multiprocess import Pool
 import numpy as np
 import os
 import time
@@ -42,7 +42,8 @@ class JaxParameterTuning:
                  verbose: bool=True,
                  print_step: int=None,
                  planner_kwargs: Dict={},
-                 num_workers: int=1,
+                 num_workers: int=1, 
+                 poll_frequency: float=0.05,
                  gp_iters: int=25,
                  acquisition=None,
                  gp_params: Dict={'n_restarts_optimizer': 10}) -> None:
@@ -62,6 +63,8 @@ class JaxParameterTuning:
         :param print_step: how often to print training callback
         :param planner_kwargs: additional arguments to feed to the planner
         :param num_workers: how many points to evaluate in parallel
+        :param poll_frequency: how often (in seconds) to poll for completed
+        jobs, necessary if num_workers > 1
         :param gp_iters: number of iterations of optimization
         :param acquisition: acquisition function for Bayesian optimizer
         :param gp_params: additional parameters to feed to Bayesian optimizer        
@@ -75,6 +78,7 @@ class JaxParameterTuning:
         self.print_step = print_step
         self.planner_kwargs = planner_kwargs
         self.num_workers = num_workers
+        self.poll_frequency = poll_frequency
         self.gp_iters = gp_iters
         self.gp_params = gp_params
         
@@ -118,6 +122,10 @@ class JaxParameterTuning:
 
     def tune(self, key: jax.random.PRNGKey, filename: str) -> None:
         '''Tunes the hyper-parameters for Jax planner'''
+        
+        # objective function
+        objective = self._pickleable_objective_with_kwargs()
+        evaluate = JaxParameterTuning._wrapped_evaluate
             
         # create optimizer
         hyperparams_bounds = {
@@ -142,7 +150,7 @@ class JaxParameterTuning:
             suggested.append(probe)  
             kappas.append(utility.kappa)
         
-        # saving to file
+        # clear and prepare output file
         filename = self._filename(filename, 'csv')
         with open(filename, 'w', newline='') as file:
             writer = csv.writer(file)
@@ -150,25 +158,22 @@ class JaxParameterTuning:
                 ['pid', 'worker', 'iteration', 'target', 'best_target', 'kappa'] + \
                  list(hyperparams_bounds.keys())
             )
-        
-        # objective function
-        objective = self._pickleable_objective_with_kwargs()
-        best_target = -np.inf
-        colors = self.colors[:num_workers]
-        evaluate = JaxParameterTuning._wrapped_evaluate
                 
         # start multiprocess evaluation
+        colors = self.colors[:num_workers]
+        worker_ids = list(range(num_workers))
+        best_target = -np.inf
+        
         for it in range(self.gp_iters): 
             print('\n' + '*' * 25 + 
                   '\n' + f'starting iteration {it}' + 
                   '\n' + '*' * 25)
             key, *subkeys = jax.random.split(key, num=num_workers + 1)
-            worker_ids = list(range(num_workers))
             rows = [None] * num_workers
             
             # create worker pool: note each iteration must wait for all workers
             # to finish before moving to the next
-            with mproc.Pool(processes=num_workers) as pool:
+            with Pool(processes=num_workers) as pool:
                 
                 # assign jobs to worker pool
                 # - each trains on suggested parameters from the last iteration
@@ -181,7 +186,7 @@ class JaxParameterTuning:
             
                 # wait for all workers to complete
                 while results:
-                    time.sleep(0.05)
+                    time.sleep(self.poll_frequency)
                     
                     # determine which jobs have completed
                     jobs_done = []
