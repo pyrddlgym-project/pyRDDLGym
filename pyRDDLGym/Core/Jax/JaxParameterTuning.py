@@ -324,23 +324,14 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
                 f'optimizing SLP with PRNG key={key}, ' 
                 f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
         
-    # duplicate planner and plan keyword arguments must be removed
-    plan_kwargs = kwargs['plan_kwargs'].copy()
-    plan_kwargs.pop('initializer', None)
-    
-    planner_kwargs = kwargs['planner_kwargs'].copy()
-    planner_kwargs.pop('rddl', None)
-    planner_kwargs.pop('plan', None)
-    planner_kwargs.pop('optimizer_kwargs', None)
-                    
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
-            **plan_kwargs),
+            **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
-        **planner_kwargs)
+        **kwargs['planner_kwargs'])
                     
     # perform training
     callback = train_epoch(
@@ -401,13 +392,23 @@ class JaxParameterTuningSLP(JaxParameterTuning):
         
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_slp
+        
+        # duplicate planner and plan keyword arguments must be removed
+        plan_kwargs = self.plan_kwargs.copy()
+        plan_kwargs.pop('initializer', None) 
+               
+        planner_kwargs = self.planner_kwargs.copy()
+        planner_kwargs.pop('rddl', None)
+        planner_kwargs.pop('plan', None)
+        planner_kwargs.pop('optimizer_kwargs', None)
+                    
         kwargs = {
             'rddl': self.env.model,
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
-            'planner_kwargs': self.planner_kwargs,
-            'plan_kwargs': self.plan_kwargs,
+            'planner_kwargs': planner_kwargs,
+            'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step,
             'wrapped_bool_actions': self.wrapped_bool_actions
@@ -442,25 +443,15 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
               f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...'
               f'{Style.RESET_ALL}')
 
-    # duplicate planner and plan keyword arguments must be removed
-    plan_kwargs = kwargs['plan_kwargs'].copy()
-    plan_kwargs.pop('initializer', None)
-    
-    planner_kwargs = kwargs['planner_kwargs'].copy()
-    planner_kwargs.pop('rddl', None)
-    planner_kwargs.pop('plan', None)
-    planner_kwargs.pop('rollout_horizon', None)
-    planner_kwargs.pop('optimizer_kwargs', None)
-                    
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
-            **plan_kwargs),
+            **kwargs['plan_kwargs']),
         rollout_horizon=T,
         optimizer_kwargs={'learning_rate': lr},
-        **planner_kwargs)
+        **kwargs['planner_kwargs'])
     policy_hyperparams = {name: wa for name in kwargs['wrapped_bool_actions']}
     model_params = {name: w for name in planner.compiled.model_params}
     
@@ -567,6 +558,17 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_replan
+            
+        # duplicate planner and plan keyword arguments must be removed
+        plan_kwargs = self.plan_kwargs.copy()
+        plan_kwargs.pop('initializer', None)
+        
+        planner_kwargs = self.planner_kwargs.copy()
+        planner_kwargs.pop('rddl', None)
+        planner_kwargs.pop('plan', None)
+        planner_kwargs.pop('rollout_horizon', None)
+        planner_kwargs.pop('optimizer_kwargs', None)
+                        
         kwargs = {
             'rddl': self.env.model,
             'domain': self.env.domain_text,
@@ -574,8 +576,8 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
-            'planner_kwargs': self.planner_kwargs,
-            'plan_kwargs': self.plan_kwargs,
+            'planner_kwargs': planner_kwargs,
+            'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step,
             'wrapped_bool_actions': self.wrapped_bool_actions,
@@ -608,24 +610,15 @@ def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         print(f'| {color[0]}{color[1]}'
                 f'optimizing DRP with PRNG key={key}, ' 
                 f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...{Style.RESET_ALL}')
-    
-    # duplicate planner and plan keyword arguments must be removed
-    plan_kwargs = kwargs['plan_kwargs'].copy()
-    plan_kwargs.pop('topology', None)
-    
-    planner_kwargs = kwargs['planner_kwargs'].copy()
-    planner_kwargs.pop('rddl', None)
-    planner_kwargs.pop('plan', None)
-    planner_kwargs.pop('optimizer_kwargs', None)
-                    
+           
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxDeepReactivePolicy(
             topology=[neurons] * layers,
-            **plan_kwargs),
+            **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
-        **planner_kwargs)
+        **kwargs['planner_kwargs'])
                     
     # perform training
     callback = train_epoch(
@@ -677,13 +670,23 @@ class JaxParameterTuningDRP(JaxParameterTuning):
     
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_drp
+        
+        # duplicate planner and plan keyword arguments must be removed
+        plan_kwargs = self.plan_kwargs.copy()
+        plan_kwargs.pop('topology', None)
+        
+        planner_kwargs = self.planner_kwargs.copy()
+        planner_kwargs.pop('rddl', None)
+        planner_kwargs.pop('plan', None)
+        planner_kwargs.pop('optimizer_kwargs', None)
+                     
         kwargs = {
             'rddl': self.env.model,
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
-            'planner_kwargs': self.planner_kwargs,
-            'plan_kwargs': self.plan_kwargs,
+            'planner_kwargs': planner_kwargs,
+            'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step
         }
