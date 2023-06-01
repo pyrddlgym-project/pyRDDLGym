@@ -7,14 +7,8 @@ from pyRDDLGym.Planner import JaxConfigManager
 
 
 def tune(env, method, trials, timeout, timeout_ps, iters, workers):
-    myEnv, planner, planner_args, _, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
+    myEnv, _, planner_args, plan_args, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']    
-    
-    planner_args.pop('rddl', None)
-    planner_args.pop('plan', None)
-    planner_args.pop('optimizer_kwargs', None)
-    planner_args.pop('rollout_horizon', None)
-    planner_args.pop('topology', None)
     
     if method == 'slp':
         tuning = JaxParameterTuningSLP(
@@ -24,10 +18,11 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             verbose=True,
             print_step=train_args['step'],
             planner_kwargs=planner_args,
+            plan_kwargs=plan_args,
             num_workers=workers,
-            gp_iters=iters,
-            wrap_sigmoid=planner.plan._wrap_sigmoid)
+            gp_iters=iters)
         tuning.tune(key, 'gp_slp')
+        
     elif method == 'replan':
         tuning = JaxParameterTuningSLPReplan(
             env=myEnv,
@@ -38,10 +33,11 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             verbose=True,
             print_step=train_args['step'],
             planner_kwargs=planner_args,
+            plan_kwargs=plan_args,
             num_workers=workers,
-            gp_iters=iters,
-            wrap_sigmoid=planner.plan._wrap_sigmoid)
+            gp_iters=iters)
         tuning.tune(key, 'gp_replan')
+        
     elif method == 'drp':
         tuning = JaxParameterTuningDRP(
             env=myEnv,
@@ -50,6 +46,7 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             verbose=True,
             print_step=train_args['step'],
             planner_kwargs=planner_args,
+            plan_kwargs=plan_args,
             num_workers=workers,
             gp_iters=iters)
         tuning.tune(key, 'gp_drp')
@@ -57,7 +54,7 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
 
 if __name__ == "__main__":
     if len(sys.argv) < 7:
-        env, trials, timeout, timeout_ps, iters, workers = 'CartPole_continuous_drp', 1, 10, 1, 20, 4
+        env, trials, timeout, timeout_ps, iters, workers = 'CartPole_continuous_replan', 1, 10, 1, 20, 4
     else:
         env, trials, timeout, timeout_ps, iters, workers = sys.argv[1:7]
         trials = int(trials)

@@ -42,6 +42,7 @@ class JaxParameterTuning:
                  verbose: bool=True,
                  print_step: int=None,
                  planner_kwargs: Dict={},
+                 plan_kwargs: Dict={},
                  num_workers: int=1, 
                  poll_frequency: float=0.05,
                  gp_iters: int=25,
@@ -62,6 +63,7 @@ class JaxParameterTuning:
         :param verbose: whether to print intermediate results of tuning
         :param print_step: how often to print training callback
         :param planner_kwargs: additional arguments to feed to the planner
+        :param plan_kwargs: additional arguments to feed to the plan/policy
         :param num_workers: how many points to evaluate in parallel
         :param poll_frequency: how often (in seconds) to poll for completed
         jobs, necessary if num_workers > 1
@@ -77,6 +79,7 @@ class JaxParameterTuning:
         self.verbose = verbose
         self.print_step = print_step
         self.planner_kwargs = planner_kwargs
+        self.plan_kwargs = plan_kwargs
         self.num_workers = num_workers
         self.poll_frequency = poll_frequency
         self.gp_iters = gp_iters
@@ -320,15 +323,24 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         print(f'| {color[0]}{color[1]}'
                 f'optimizing SLP with PRNG key={key}, ' 
                 f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
+        
+    # duplicate planner and plan keyword arguments must be removed
+    plan_kwargs = kwargs['plan_kwargs'].copy()
+    plan_kwargs.pop('initializer', None)
+    
+    planner_kwargs = kwargs['planner_kwargs'].copy()
+    planner_kwargs.pop('rddl', None)
+    planner_kwargs.pop('plan', None)
+    planner_kwargs.pop('optimizer_kwargs', None)
                     
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
-            wrap_sigmoid=kwargs['wrap_sigmoid']),
+            **plan_kwargs),
         optimizer_kwargs={'learning_rate': lr},
-        **kwargs['planner_kwargs'])
+        **planner_kwargs)
                     
     # perform training
     callback = train_epoch(
@@ -365,7 +377,6 @@ class JaxParameterTuningSLP(JaxParameterTuning):
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten)
                  },
-                 wrap_sigmoid: bool=True,
                  **kwargs):
         '''Creates a new tuning class for straight line planners.
         
@@ -373,25 +384,20 @@ class JaxParameterTuningSLP(JaxParameterTuning):
         :param hyperparams_dict: same as parent class, but here must contain
         weight initialization (std), learning rate (lr), model weight (w), and
         action weight (wa) if wrap_sigmoid and boolean action fluents exist
-        :param wrap_sigmoid: whether to wrap bool action-fluents with sigmoid
         :param **kwargs: keyword arguments to pass to parent class
         '''
         
-        # action parameters required if wrap_sigmoid and boolean action exists
-        self.wrap_sigmoid = wrap_sigmoid
-        self.wrapped_bool_actions = []
-        if self.wrap_sigmoid:
-            env = kwargs.get('env', None)
-            if env is None:
-                env = args[0]
-            for var in env.model.actions:
-                if env.model.variable_ranges[var] == 'bool':
-                    self.wrapped_bool_actions.append(var)
-        if not self.wrapped_bool_actions:
-            hyperparams_dict.pop('wa', None)
-        
         super(JaxParameterTuningSLP, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
+        
+        # action parameters required if wrap_sigmoid and boolean action exists
+        self.wrapped_bool_actions = []
+        if self.plan_kwargs.get('wrap_sigmoid', True):
+            for var in self.env.model.actions:
+                if self.env.model.variable_ranges[var] == 'bool':
+                    self.wrapped_bool_actions.append(var)
+        if not self.wrapped_bool_actions:
+            self.hyperparams_dict.pop('wa', None)
         
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_slp
@@ -401,9 +407,9 @@ class JaxParameterTuningSLP(JaxParameterTuning):
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
             'planner_kwargs': self.planner_kwargs,
+            'plan_kwargs': self.plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step,
-            'wrap_sigmoid': self.wrap_sigmoid,
             'wrapped_bool_actions': self.wrapped_bool_actions
         }
         return objective_fn, kwargs
@@ -436,15 +442,25 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
               f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...'
               f'{Style.RESET_ALL}')
 
+    # duplicate planner and plan keyword arguments must be removed
+    plan_kwargs = kwargs['plan_kwargs'].copy()
+    plan_kwargs.pop('initializer', None)
+    
+    planner_kwargs = kwargs['planner_kwargs'].copy()
+    planner_kwargs.pop('rddl', None)
+    planner_kwargs.pop('plan', None)
+    planner_kwargs.pop('rollout_horizon', None)
+    planner_kwargs.pop('optimizer_kwargs', None)
+                    
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
-            wrap_sigmoid=kwargs['wrap_sigmoid']),
+            **plan_kwargs),
         rollout_horizon=T,
         optimizer_kwargs={'learning_rate': lr},
-        **kwargs['planner_kwargs'])
+        **planner_kwargs)
     policy_hyperparams = {name: wa for name in kwargs['wrapped_bool_actions']}
     model_params = {name: w for name in planner.compiled.model_params}
     
@@ -559,9 +575,9 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
             'planner_kwargs': self.planner_kwargs,
+            'plan_kwargs': self.plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step,
-            'wrap_sigmoid': self.wrap_sigmoid,
             'wrapped_bool_actions': self.wrapped_bool_actions,
             'timeout_epoch': self.timeout_epoch,
             'eval_trials': self.eval_trials,
@@ -592,14 +608,24 @@ def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         print(f'| {color[0]}{color[1]}'
                 f'optimizing DRP with PRNG key={key}, ' 
                 f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...{Style.RESET_ALL}')
+    
+    # duplicate planner and plan keyword arguments must be removed
+    plan_kwargs = kwargs['plan_kwargs'].copy()
+    plan_kwargs.pop('topology', None)
+    
+    planner_kwargs = kwargs['planner_kwargs'].copy()
+    planner_kwargs.pop('rddl', None)
+    planner_kwargs.pop('plan', None)
+    planner_kwargs.pop('optimizer_kwargs', None)
                     
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxDeepReactivePolicy(
-            topology=[neurons] * layers),
+            topology=[neurons] * layers,
+            **plan_kwargs),
         optimizer_kwargs={'learning_rate': lr},
-        **kwargs['planner_kwargs'])
+        **planner_kwargs)
                     
     # perform training
     callback = train_epoch(
@@ -657,6 +683,7 @@ class JaxParameterTuningDRP(JaxParameterTuning):
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
             'planner_kwargs': self.planner_kwargs,
+            'plan_kwargs': self.plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step
         }
