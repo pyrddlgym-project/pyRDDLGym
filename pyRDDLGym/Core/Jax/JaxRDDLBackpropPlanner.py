@@ -976,8 +976,7 @@ class JaxRDDLBackpropPlanner:
                  model_params: Dict[str, object]=None,
                  policy_hyperparams: Dict[str, object]=None,
                  subs: Dict[str, object]=None,
-                 guess: Dict[str, object]=None,
-                 lr: float=None) -> Iterable[Dict[str, object]]:
+                 guess: Dict[str, object]=None) -> Iterable[Dict[str, object]]:
         ''' Compute an optimal straight-line plan.
         
         :param key: JAX PRNG key
@@ -991,7 +990,6 @@ class JaxRDDLBackpropPlanner:
         their values: if None initializes all variables from the RDDL instance
         :param guess: initial policy parameters: if None will use the initializer
         specified in this instance
-        :param lr: override optimizer's base learning rate
         '''
         
         # compute a batched version of the initial values
@@ -1012,8 +1010,6 @@ class JaxRDDLBackpropPlanner:
         else:
             policy_params = guess
             opt_state = self.optimizer.init(policy_params)
-        if lr is not None:
-            opt_state.hyperparams['learning_rate'] = lr
         best_params, best_loss = policy_params, jnp.inf
         last_iter_improve = 0
         
