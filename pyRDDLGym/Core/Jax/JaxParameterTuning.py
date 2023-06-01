@@ -4,7 +4,7 @@ from colorama import init as colorama_init, Back, Fore, Style
 colorama_init()    
 import csv
 import jax
-from multiprocess import Pool
+from multiprocessing import Pool
 import numpy as np
 import os
 import time
