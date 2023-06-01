@@ -21,7 +21,7 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             plan_kwargs=plan_args,
             num_workers=workers,
             gp_iters=iters)
-        tuning.tune(key, 'gp_slp')
+        best = tuning.tune(key, 'gp_slp')
         
     elif method == 'replan':
         tuning = JaxParameterTuningSLPReplan(
@@ -36,7 +36,7 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             plan_kwargs=plan_args,
             num_workers=workers,
             gp_iters=iters)
-        tuning.tune(key, 'gp_replan')
+        best = tuning.tune(key, 'gp_replan')
         
     elif method == 'drp':
         tuning = JaxParameterTuningDRP(
@@ -49,12 +49,14 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             plan_kwargs=plan_args,
             num_workers=workers,
             gp_iters=iters)
-        tuning.tune(key, 'gp_drp')
+        best = tuning.tune(key, 'gp_drp')
+    
+    print(f'best parameters found = {best}')
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 7:
-        env, trials, timeout, timeout_ps, iters, workers = 'CartPole_continuous_replan', 1, 10, 1, 20, 4
+        env, trials, timeout, timeout_ps, iters, workers = 'CartPole_continuous_drp', 1, 10, 1, 20, 4
     else:
         env, trials, timeout, timeout_ps, iters, workers = sys.argv[1:7]
         trials = int(trials)

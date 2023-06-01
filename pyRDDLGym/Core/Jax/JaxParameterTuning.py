@@ -123,8 +123,8 @@ class JaxParameterTuning:
         pid = os.getpid()
         return index, pid, params, target
 
-    def tune(self, key: jax.random.PRNGKey, filename: str) -> None:
-        '''Tunes the hyper-parameters for Jax planner'''
+    def tune(self, key: jax.random.PRNGKey, filename: str) -> Dict[str, object]:
+        '''Tunes the hyper-parameters for Jax planner, returns the best found.'''
         
         # objective function
         objective = self._pickleable_objective_with_kwargs()
@@ -165,7 +165,7 @@ class JaxParameterTuning:
         # start multiprocess evaluation
         colors = self.colors[:num_workers]
         worker_ids = list(range(num_workers))
-        best_target = -np.inf
+        best_params, best_target = None, -np.inf
         
         for it in range(self.gp_iters): 
             print('\n' + '*' * 25 + 
@@ -209,24 +209,29 @@ class JaxParameterTuning:
                         suggested[index] = optimizer.suggest(utility)
                         old_kappa = kappas[index]
                         kappas[index] = utility.kappa
-                        best_target = max(best_target, target)
+                        
+                        # transform suggestion back to natural space
+                        rddl_params = {
+                            name: pf(params[name])
+                            for (name, (*_, pf)) in self.hyperparams_dict.items()
+                        }
+                        
+                        # update the best suggestion so far
+                        if target > best_target:
+                            best_params, best_target = rddl_params, target
                         
                         # write progress to file in real time
-                        rddl_params = [
-                            pmap(params[name])
-                            for (name, (*_, pmap)) in self.hyperparams_dict.items()
-                        ]
                         rows[index] = [
                             pid, index, it, target, best_target, old_kappa
-                        ] + rddl_params
+                        ] + list(rddl_params.values())
                         
             # write results of all processes in current iteration to file
             with open(filename, 'a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerows(rows)
             
-        # save plot
         self._save_plot(filename)
+        return best_params
 
     def _filename(self, name, ext):
         domainName = self.env.model.domainName()
@@ -368,7 +373,7 @@ class JaxParameterTuningSLP(JaxParameterTuning):
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten)
                  },
-                 **kwargs):
+                 **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
         
         :param *args: arguments to pass to parent class
@@ -532,7 +537,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
                  },
                  eval_trials: int=5,
                  use_guess_last_epoch: bool=True,
-                 **kwargs):
+                 **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
         
         :param timeout_epoch: the maximum amount of time to spend training per
@@ -655,7 +660,7 @@ class JaxParameterTuningDRP(JaxParameterTuning):
                     'layers': (1., 3., int),
                     'neurons': (1., 9., power_two_int)
                  },
-                 **kwargs):
+                 **kwargs) -> None:
         '''Creates a new tuning class for deep reactive policies.
         
         :param *args: arguments to pass to parent class
