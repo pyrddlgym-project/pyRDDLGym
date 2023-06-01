@@ -7,14 +7,14 @@ from pyRDDLGym.Planner import JaxConfigManager
 
 
 def tune(env, method, trials, timeout, timeout_ps, iters, workers):
-    myEnv, planner, opt_args, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
+    myEnv, planner, planner_args, _, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']    
     
-    opt_args.pop('rddl', None)
-    opt_args.pop('plan', None)
-    opt_args.pop('optimizer_kwargs', None)
-    opt_args.pop('rollout_horizon', None)
-    opt_args.pop('topology', None)
+    planner_args.pop('rddl', None)
+    planner_args.pop('plan', None)
+    planner_args.pop('optimizer_kwargs', None)
+    planner_args.pop('rollout_horizon', None)
+    planner_args.pop('topology', None)
     
     if method == 'slp':
         tuning = JaxParameterTuningSLP(
@@ -23,7 +23,7 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             timeout_episode=timeout,
             verbose=True,
             print_step=train_args['step'],
-            planner_kwargs=opt_args,
+            planner_kwargs=planner_args,
             num_workers=workers,
             gp_iters=iters,
             wrap_sigmoid=planner.plan._wrap_sigmoid)
@@ -37,7 +37,7 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             eval_trials=trials,
             verbose=True,
             print_step=train_args['step'],
-            planner_kwargs=opt_args,
+            planner_kwargs=planner_args,
             num_workers=workers,
             gp_iters=iters,
             wrap_sigmoid=planner.plan._wrap_sigmoid)
@@ -49,7 +49,7 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             timeout_episode=timeout,
             verbose=True,
             print_step=train_args['step'],
-            planner_kwargs=opt_args,
+            planner_kwargs=planner_args,
             num_workers=workers,
             gp_iters=iters)
         tuning.tune(key, 'gp_drp')
