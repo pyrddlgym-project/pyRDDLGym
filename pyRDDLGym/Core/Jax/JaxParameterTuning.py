@@ -124,7 +124,7 @@ class JaxParameterTuning:
     
     @staticmethod
     def _wrapped_evaluate(index, params, key, color, func, kwargs):
-        target = func(params=params, kwargs=kwargs, key=key, color=color)
+        target = func(params=params, kwargs=kwargs, key=key, index=index, color=color)
         pid = os.getpid()
         return index, pid, params, target
 
@@ -279,7 +279,7 @@ class JaxParameterTuning:
 
 
 def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
-                 max_train_epochs, verbose, print_step, color, guess=None): 
+                 max_train_epochs, verbose, print_step, index, color, guess=None): 
     colorstr = f'{color[0]}{color[1]}'
     starttime = None
     for (it, callback) in enumerate(planner.optimize(
@@ -297,8 +297,9 @@ def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
         elapsed = currtime - starttime    
         if verbose and print_step is not None and print_step > 0 \
         and it > 0 and it % print_step == 0:
-            print(f'|------ {colorstr}' 
+            print(f'|------ [{index}] {colorstr}' 
                   '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} best_return={:.6f}'.format(
+                      index,
                       elapsed,
                       str(callback['iteration']).rjust(4),
                       callback['train_return'],
@@ -307,7 +308,7 @@ def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
                   f'{Style.RESET_ALL}')
         if not np.isfinite(callback['train_return']):
             if verbose:
-                print(f'|------ {colorstr}'
+                print(f'|------ [{index}] {colorstr}'
                       f'aborting due to NaN or inf value!'
                       f'{Style.RESET_ALL}')
             break
@@ -316,7 +317,7 @@ def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
     return callback
 
 
-def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
+def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
                     
     # transform hyper-parameters to natural space
     param_values = [
@@ -332,7 +333,7 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         wa = None
                       
     if kwargs['verbose']:
-        print(f'| {color[0]}{color[1]}'
+        print(f'| [{index}] {color[0]}{color[1]}'
                 f'optimizing SLP with PRNG key={key}, ' 
                 f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
         
@@ -356,12 +357,13 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         max_train_epochs=kwargs['max_train_epochs'],
         verbose=kwargs['verbose'],
         print_step=kwargs['print_step'],
+        index=index,
         color=color,
         guess=None)
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
-        print(f'| {color[0]}{color[1]}'
+        print(f'| [{index}] {color[0]}{color[1]}'
                 f'done optimizing SLP, '
                 f'total reward={total_reward}{Style.RESET_ALL}')
     return total_reward
@@ -434,7 +436,7 @@ class JaxParameterTuningSLP(JaxParameterTuning):
 # ===============================================================================
 
 
-def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
+def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
 
     # transform hyper-parameters to natural space
     param_values = [
@@ -450,7 +452,7 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         wa = None
         
     if kwargs['verbose']:
-        print(f'| {color[0]}{color[1]}'
+        print(f'| [{index}] {color[0]}{color[1]}'
               f'optimizing MPC with PRNG key={key}, ' 
               f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...'
               f'{Style.RESET_ALL}')
@@ -478,7 +480,7 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         
         # start the next trial
         if kwargs['verbose']:
-            print(f'|--- {color[0]}{color[1]}'
+            print(f'|--- [{index}] {color[0]}{color[1]}'
                   f'starting trial {trial + 1} '
                   f'with PRNG key={key}...{Style.RESET_ALL}')
             
@@ -504,6 +506,7 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
                     max_train_epochs=kwargs['max_train_epochs'],
                     verbose=kwargs['verbose'],
                     print_step=None,
+                    index=index,
                     color=color,
                     guess=guess)
                 params = callback['best_params']
@@ -519,13 +522,13 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
             
         # update average reward across trials
         if kwargs['verbose']:
-            print(f'|--- {color[0]}{color[1]}'
+            print(f'|--- [{index}] {color[0]}{color[1]}'
                   f'done trial {trial + 1}, '
                   f'total reward={total_reward}{Style.RESET_ALL}')
         average_reward += total_reward / kwargs['eval_trials']
         
     if kwargs['verbose']:
-        print(f'| {color[0]}{color[1]}'
+        print(f'| [{index}] {color[0]}{color[1]}'
               f'done optimizing MPC, '
               f'average reward={average_reward}{Style.RESET_ALL}')
     return average_reward
@@ -607,7 +610,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
 # ===============================================================================
 
 
-def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
+def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
                     
     # transform hyper-parameters to natural space
     param_values = [
@@ -619,7 +622,7 @@ def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
     lr, w, layers, neurons = param_values
                       
     if kwargs['verbose']:
-        print(f'| {color[0]}{color[1]}'
+        print(f'| [{index}] {color[0]}{color[1]}'
                 f'optimizing DRP with PRNG key={key}, ' 
                 f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...{Style.RESET_ALL}')
            
@@ -643,12 +646,13 @@ def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         max_train_epochs=kwargs['max_train_epochs'],
         verbose=kwargs['verbose'],
         print_step=kwargs['print_step'],
+        index=index,
         color=color,
         guess=None)
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
-        print(f'| {color[0]}{color[1]}'
+        print(f'| [{index}] {color[0]}{color[1]}'
                 f'done optimizing DRP, '
                 f'total reward={total_reward}{Style.RESET_ALL}')
     return total_reward
