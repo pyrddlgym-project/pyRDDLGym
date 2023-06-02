@@ -295,7 +295,8 @@ def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
             starttime = time.time()
         currtime = time.time()  
         elapsed = currtime - starttime    
-        if verbose and print_step is not None and it > 0 and it % print_step == 0:
+        if verbose and print_step is not None and print_step > 0 \
+        and it > 0 and it % print_step == 0:
             print(f'|------ {colorstr}' 
                   '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} best_return={:.6f}'.format(
                       elapsed,
