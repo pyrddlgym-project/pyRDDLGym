@@ -44,7 +44,7 @@ class JaxParameterTuning:
                  planner_kwargs: Dict={},
                  plan_kwargs: Dict={},
                  num_workers: int=1, 
-                 poll_frequency: float=0.05,
+                 poll_frequency: float=0.2,
                  gp_iters: int=25,
                  acquisition=None,
                  gp_init_kwargs: Dict={},
