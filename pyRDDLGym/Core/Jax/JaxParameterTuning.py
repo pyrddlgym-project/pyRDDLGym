@@ -4,7 +4,8 @@ from colorama import init as colorama_init, Back, Fore, Style
 colorama_init()    
 import csv
 import jax
-from multiprocessing import Pool
+from multiprocessing import get_context
+
 import numpy as np
 import os
 import time
@@ -182,7 +183,7 @@ class JaxParameterTuning:
             
             # create worker pool: note each iteration must wait for all workers
             # to finish before moving to the next
-            with Pool(processes=num_workers) as pool:
+            with get_context("spawn").Pool(processes=num_workers) as pool:
                 
                 # assign jobs to worker pool
                 # - each trains on suggested parameters from the last iteration
