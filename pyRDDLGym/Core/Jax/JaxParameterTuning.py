@@ -194,8 +194,11 @@ class JaxParameterTuning:
                 ]
             
                 # wait for all workers to complete
+                ticks_elapsed_status = 0
+                jobs_awaiting = [True] * num_workers
                 while results:
                     time.sleep(self.poll_frequency)
+                    ticks_elapsed_status += 1
                     
                     # determine which jobs have completed
                     jobs_done = []
@@ -203,12 +206,17 @@ class JaxParameterTuning:
                         if candidate.ready():
                             jobs_done.append(i)
                     
+                    if ticks_elapsed_status % 10 == 0:
+                        ticks_elapsed_status = 0
+                        print(f'DEBUG: jobs in progress: {jobs_awaiting}')
+                    
                     # get result from completed jobs
                     for i in jobs_done[::-1]:
                         
                         # extract and register the new evaluation
                         index, pid, params, target = results.pop(i).get()
                         optimizer.register(params, target)
+                        jobs_awaiting[i] = False
                         
                         # update acquisition function and suggest a new point
                         utility.update_params()  
@@ -280,6 +288,7 @@ class JaxParameterTuning:
 
 def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
                  max_train_epochs, verbose, print_step, index, color, guess=None): 
+    print(f'[{index}] starting train_epoch')
     colorstr = f'{color[0]}{color[1]}'
     starttime = None
     for (it, callback) in enumerate(planner.optimize(
@@ -314,6 +323,7 @@ def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
             break
         if elapsed >= timeout:
             break
+    print(f'[{index}] finished train_epoch')
     return callback
 
 
@@ -634,7 +644,9 @@ def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
             **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
         **kwargs['planner_kwargs'])
-                    
+    
+    print(f'[{index}] initialized JAX planner successfully') 
+    
     # perform training
     callback = train_epoch(
         key=key,
