@@ -7,15 +7,8 @@ from pyRDDLGym.Planner import JaxConfigManager
 
 
 def tune(env, method, trials, timeout, timeout_ps, iters, workers):
-    myEnv, planner, opt_args, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
+    myEnv, _, planner_args, plan_args, train_args, _ = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']    
-    
-    opt_args.pop('rddl', None)
-    opt_args.pop('plan', None)
-    opt_args.pop('optimizer_kwargs', None)
-    opt_args.pop('logic', None)
-    opt_args.pop('rollout_horizon', None)
-    opt_args.pop('topology', None)
     
     if method == 'slp':
         tuning = JaxParameterTuningSLP(
@@ -24,11 +17,12 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             timeout_episode=timeout,
             verbose=True,
             print_step=train_args['step'],
-            planner_kwargs=opt_args,
+            planner_kwargs=planner_args,
+            plan_kwargs=plan_args,
             num_workers=workers,
-            gp_iters=iters,
-            wrap_sigmoid=planner.plan._wrap_sigmoid)
-        tuning.tune(key, 'gp_slp')
+            gp_iters=iters)
+        best = tuning.tune(key, 'gp_slp')
+        
     elif method == 'replan':
         tuning = JaxParameterTuningSLPReplan(
             env=myEnv,
@@ -38,11 +32,12 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             eval_trials=trials,
             verbose=True,
             print_step=train_args['step'],
-            planner_kwargs=opt_args,
+            planner_kwargs=planner_args,
+            plan_kwargs=plan_args,
             num_workers=workers,
-            gp_iters=iters,
-            wrap_sigmoid=planner.plan._wrap_sigmoid)
-        tuning.tune(key, 'gp_replan')
+            gp_iters=iters)
+        best = tuning.tune(key, 'gp_replan')
+        
     elif method == 'drp':
         tuning = JaxParameterTuningDRP(
             env=myEnv,
@@ -50,10 +45,13 @@ def tune(env, method, trials, timeout, timeout_ps, iters, workers):
             timeout_episode=timeout,
             verbose=True,
             print_step=train_args['step'],
-            planner_kwargs=opt_args,
+            planner_kwargs=planner_args,
+            plan_kwargs=plan_args,
             num_workers=workers,
             gp_iters=iters)
-        tuning.tune(key, 'gp_drp')
+        best = tuning.tune(key, 'gp_drp')
+    
+    print(f'best parameters found = {best}')
 
 
 if __name__ == "__main__":

@@ -1,11 +1,10 @@
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import UtilityFunction
 from colorama import init as colorama_init, Back, Fore, Style
-colorama_init()
-from concurrent.futures import as_completed, ProcessPoolExecutor      
+colorama_init()    
 import csv
 import jax
-import multiprocessing
+from multiprocessing import Pool
 import numpy as np
 import os
 import time
@@ -14,7 +13,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
@@ -44,9 +42,12 @@ class JaxParameterTuning:
                  verbose: bool=True,
                  print_step: int=None,
                  planner_kwargs: Dict={},
-                 num_workers: int=1,
+                 plan_kwargs: Dict={},
+                 num_workers: int=1, 
+                 poll_frequency: float=0.05,
                  gp_iters: int=25,
                  acquisition=None,
+                 gp_init_kwargs: Dict={},
                  gp_params: Dict={'n_restarts_optimizer': 10}) -> None:
         '''Creates a new instance for tuning hyper-parameters for Jax planners
         on the given RDDL domain and instance.
@@ -63,10 +64,16 @@ class JaxParameterTuning:
         :param verbose: whether to print intermediate results of tuning
         :param print_step: how often to print training callback
         :param planner_kwargs: additional arguments to feed to the planner
+        :param plan_kwargs: additional arguments to feed to the plan/policy
         :param num_workers: how many points to evaluate in parallel
+        :param poll_frequency: how often (in seconds) to poll for completed
+        jobs, necessary if num_workers > 1
         :param gp_iters: number of iterations of optimization
         :param acquisition: acquisition function for Bayesian optimizer
-        :param gp_params: additional parameters to feed to Bayesian optimizer        
+        :parm gp_init_kwargs: additional parameters to feed to Bayesian 
+        during initialization  
+        :param gp_params: additional parameters to feed to Bayesian optimizer 
+        after initialization optimization
         '''
         
         self.env = env
@@ -76,8 +83,11 @@ class JaxParameterTuning:
         self.verbose = verbose
         self.print_step = print_step
         self.planner_kwargs = planner_kwargs
+        self.plan_kwargs = plan_kwargs
         self.num_workers = num_workers
+        self.poll_frequency = poll_frequency
         self.gp_iters = gp_iters
+        self.gp_init_kwargs = gp_init_kwargs
         self.gp_params = gp_params
         
         # create acquisition function
@@ -113,14 +123,17 @@ class JaxParameterTuning:
         raise NotImplementedError
     
     @staticmethod
-    def _wrapped_evaluate(args):
-        index, params, key, color, func, kwargs = args
+    def _wrapped_evaluate(index, params, key, color, func, kwargs):
         target = func(params=params, kwargs=kwargs, key=key, color=color)
         pid = os.getpid()
         return index, pid, params, target
 
-    def tune(self, key: jax.random.PRNGKey, filename: str) -> None:
-        '''Tunes the hyper-parameters for Jax planner'''
+    def tune(self, key: jax.random.PRNGKey, filename: str) -> Dict[str, object]:
+        '''Tunes the hyper-parameters for Jax planner, returns the best found.'''
+        
+        # objective function
+        objective = self._pickleable_objective_with_kwargs()
+        evaluate = JaxParameterTuning._wrapped_evaluate
             
         # create optimizer
         hyperparams_bounds = {
@@ -131,7 +144,8 @@ class JaxParameterTuning:
             f=None,  # probe() is not called
             pbounds=hyperparams_bounds,
             allow_duplicate_points=True,  # to avoid crash
-            random_state=np.random.RandomState(key)
+            random_state=np.random.RandomState(key),
+            **self.gp_init_kwargs
         )
         optimizer.set_gp_params(**self.gp_params)
         utility = self.acquisition
@@ -145,7 +159,7 @@ class JaxParameterTuning:
             suggested.append(probe)  
             kappas.append(utility.kappa)
         
-        # saving to file
+        # clear and prepare output file
         filename = self._filename(filename, 'csv')
         with open(filename, 'w', newline='') as file:
             writer = csv.writer(file)
@@ -153,62 +167,77 @@ class JaxParameterTuning:
                 ['pid', 'worker', 'iteration', 'target', 'best_target', 'kappa'] + \
                  list(hyperparams_bounds.keys())
             )
-        file = open(filename, 'a', newline='')
-        writer = csv.writer(file)        
-        lock = multiprocessing.Manager().Lock()
-        
-        # objective function
-        objective = self._pickleable_objective_with_kwargs()
-        best_target = -np.inf
-        colors = self.colors[:num_workers]
-        evaluate = JaxParameterTuning._wrapped_evaluate
                 
         # start multiprocess evaluation
+        colors = self.colors[:num_workers]
+        worker_ids = list(range(num_workers))
+        best_params, best_target = None, -np.inf
+        
         for it in range(self.gp_iters): 
             print('\n' + '*' * 25 + 
                   '\n' + f'starting iteration {it}' + 
                   '\n' + '*' * 25)
             key, *subkeys = jax.random.split(key, num=num_workers + 1)
+            rows = [None] * num_workers
             
             # create worker pool: note each iteration must wait for all workers
             # to finish before moving to the next
-            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            with Pool(processes=num_workers) as pool:
                 
-                # each worker evaluates planner for a suggested parameter dict
-                worker_id = list(range(num_workers))
-                jobs = [
-                    executor.submit(evaluate, worker_args + objective) 
-                    for worker_args in zip(worker_id, suggested, subkeys, colors)
+                # assign jobs to worker pool
+                # - each trains on suggested parameters from the last iteration
+                # - this way, since each job finishes asynchronously, these
+                # parameters usually differ across jobs
+                results = [
+                    pool.apply_async(evaluate, worker_args + objective)
+                    for worker_args in zip(worker_ids, suggested, subkeys, colors)
                 ]
-                
-                # on completion of each job...
-                for job in as_completed(jobs):
+            
+                # wait for all workers to complete
+                while results:
+                    time.sleep(self.poll_frequency)
                     
-                    # extract and register the new evaluation
-                    index, pid, params, target = job.result()
-                    optimizer.register(params, target)
+                    # determine which jobs have completed
+                    jobs_done = []
+                    for (i, candidate) in enumerate(results):
+                        if candidate.ready():
+                            jobs_done.append(i)
                     
-                    # update acquisition function and suggest a new point
-                    utility.update_params()  
-                    suggested[index] = optimizer.suggest(utility)
-                    old_kappa = kappas[index]
-                    kappas[index] = utility.kappa
-                    best_target = max(best_target, target)
-                    
-                    # write progress to file in real time
-                    rddl_params = [
-                        pmap(params[name])
-                        for (name, (*_, pmap)) in self.hyperparams_dict.items()
-                    ]
-                    with lock:
-                        writer.writerow(
-                            [pid, index, it, target, best_target, old_kappa] + \
-                            rddl_params
-                        )
-                
-        # close file stream, save plot
-        file.close()
+                    # get result from completed jobs
+                    for i in jobs_done[::-1]:
+                        
+                        # extract and register the new evaluation
+                        index, pid, params, target = results.pop(i).get()
+                        optimizer.register(params, target)
+                        
+                        # update acquisition function and suggest a new point
+                        utility.update_params()  
+                        suggested[index] = optimizer.suggest(utility)
+                        old_kappa = kappas[index]
+                        kappas[index] = utility.kappa
+                        
+                        # transform suggestion back to natural space
+                        rddl_params = {
+                            name: pf(params[name])
+                            for (name, (*_, pf)) in self.hyperparams_dict.items()
+                        }
+                        
+                        # update the best suggestion so far
+                        if target > best_target:
+                            best_params, best_target = rddl_params, target
+                        
+                        # write progress to file in real time
+                        rows[index] = [
+                            pid, index, it, target, best_target, old_kappa
+                        ] + list(rddl_params.values())
+                        
+            # write results of all processes in current iteration to file
+            with open(filename, 'a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerows(rows)
+            
         self._save_plot(filename)
+        return best_params
 
     def _filename(self, name, ext):
         domainName = self.env.model.domainName()
@@ -249,7 +278,7 @@ class JaxParameterTuning:
 # ===============================================================================
 
 
-def train_epoch(key, policy_hyperparams, subs, planner, timeout,
+def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
                  max_train_epochs, verbose, print_step, color, guess=None): 
     colorstr = f'{color[0]}{color[1]}'
     starttime = None
@@ -257,6 +286,7 @@ def train_epoch(key, policy_hyperparams, subs, planner, timeout,
         key=key,
         epochs=max_train_epochs,
         step=1,
+        model_params=model_params,
         policy_hyperparams=policy_hyperparams,
         subs=subs,
         guess=guess
@@ -304,20 +334,20 @@ def objective_slp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         print(f'| {color[0]}{color[1]}'
                 f'optimizing SLP with PRNG key={key}, ' 
                 f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
-                    
+        
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
-            wrap_sigmoid=kwargs['wrap_sigmoid']),
+            **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
-        logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
                     
     # perform training
     callback = train_epoch(
         key=key,
+        model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
         subs=None,
         planner=planner,
@@ -349,45 +379,49 @@ class JaxParameterTuningSLP(JaxParameterTuning):
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten)
                  },
-                 wrap_sigmoid: bool=True,
-                 **kwargs):
+                 **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
         
         :param *args: arguments to pass to parent class
         :param hyperparams_dict: same as parent class, but here must contain
         weight initialization (std), learning rate (lr), model weight (w), and
         action weight (wa) if wrap_sigmoid and boolean action fluents exist
-        :param wrap_sigmoid: whether to wrap bool action-fluents with sigmoid
         :param **kwargs: keyword arguments to pass to parent class
         '''
-        
-        # action parameters required if wrap_sigmoid and boolean action exists
-        self.wrap_sigmoid = wrap_sigmoid
-        self.wrapped_bool_actions = []
-        if self.wrap_sigmoid:
-            env = kwargs.get('env', None)
-            if env is None:
-                env = args[0]
-            for var in env.model.actions:
-                if env.model.variable_ranges[var] == 'bool':
-                    self.wrapped_bool_actions.append(var)
-        if not self.wrapped_bool_actions:
-            hyperparams_dict.pop('wa', None)
         
         super(JaxParameterTuningSLP, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
         
+        # action parameters required if wrap_sigmoid and boolean action exists
+        self.wrapped_bool_actions = []
+        if self.plan_kwargs.get('wrap_sigmoid', True):
+            for var in self.env.model.actions:
+                if self.env.model.variable_ranges[var] == 'bool':
+                    self.wrapped_bool_actions.append(var)
+        if not self.wrapped_bool_actions:
+            self.hyperparams_dict.pop('wa', None)
+        
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_slp
+        
+        # duplicate planner and plan keyword arguments must be removed
+        plan_kwargs = self.plan_kwargs.copy()
+        plan_kwargs.pop('initializer', None) 
+               
+        planner_kwargs = self.planner_kwargs.copy()
+        planner_kwargs.pop('rddl', None)
+        planner_kwargs.pop('plan', None)
+        planner_kwargs.pop('optimizer_kwargs', None)
+                    
         kwargs = {
             'rddl': self.env.model,
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
-            'planner_kwargs': self.planner_kwargs,
+            'planner_kwargs': planner_kwargs,
+            'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step,
-            'wrap_sigmoid': self.wrap_sigmoid,
             'wrapped_bool_actions': self.wrapped_bool_actions
         }
         return objective_fn, kwargs
@@ -425,13 +459,13 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
-            wrap_sigmoid=kwargs['wrap_sigmoid']),
+            **kwargs['plan_kwargs']),
         rollout_horizon=T,
         optimizer_kwargs={'learning_rate': lr},
-        logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
     policy_hyperparams = {name: wa for name in kwargs['wrapped_bool_actions']}
-
+    model_params = {name: w for name in planner.compiled.model_params}
+    
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
@@ -461,6 +495,7 @@ def objective_replan(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
                 key, subkey1, subkey2 = jax.random.split(key, num=3)
                 callback = train_epoch(
                     key=subkey1,
+                    model_params=model_params,
                     policy_hyperparams=policy_hyperparams,
                     subs=subs,
                     planner=planner,
@@ -508,7 +543,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
                  },
                  eval_trials: int=5,
                  use_guess_last_epoch: bool=True,
-                 **kwargs):
+                 **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
         
         :param timeout_epoch: the maximum amount of time to spend training per
@@ -534,6 +569,17 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_replan
+            
+        # duplicate planner and plan keyword arguments must be removed
+        plan_kwargs = self.plan_kwargs.copy()
+        plan_kwargs.pop('initializer', None)
+        
+        planner_kwargs = self.planner_kwargs.copy()
+        planner_kwargs.pop('rddl', None)
+        planner_kwargs.pop('plan', None)
+        planner_kwargs.pop('rollout_horizon', None)
+        planner_kwargs.pop('optimizer_kwargs', None)
+                        
         kwargs = {
             'rddl': self.env.model,
             'domain': self.env.domain_text,
@@ -541,10 +587,10 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
-            'planner_kwargs': self.planner_kwargs,
+            'planner_kwargs': planner_kwargs,
+            'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step,
-            'wrap_sigmoid': self.wrap_sigmoid,
             'wrapped_bool_actions': self.wrapped_bool_actions,
             'timeout_epoch': self.timeout_epoch,
             'eval_trials': self.eval_trials,
@@ -575,19 +621,20 @@ def objective_drp(params, kwargs, key, color=(Fore.RESET, Back.RESET)):
         print(f'| {color[0]}{color[1]}'
                 f'optimizing DRP with PRNG key={key}, ' 
                 f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...{Style.RESET_ALL}')
-                    
+           
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxDeepReactivePolicy(
-            topology=[neurons] * layers),
+            topology=[neurons] * layers,
+            **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
-        logic=FuzzyLogic(weight=w),
         **kwargs['planner_kwargs'])
                     
     # perform training
     callback = train_epoch(
         key=key,
+        model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: None for name in planner._action_bounds},
         subs=None,
         planner=planner,
@@ -619,7 +666,7 @@ class JaxParameterTuningDRP(JaxParameterTuning):
                     'layers': (1., 3., int),
                     'neurons': (1., 9., power_two_int)
                  },
-                 **kwargs):
+                 **kwargs) -> None:
         '''Creates a new tuning class for deep reactive policies.
         
         :param *args: arguments to pass to parent class
@@ -634,12 +681,23 @@ class JaxParameterTuningDRP(JaxParameterTuning):
     
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_drp
+        
+        # duplicate planner and plan keyword arguments must be removed
+        plan_kwargs = self.plan_kwargs.copy()
+        plan_kwargs.pop('topology', None)
+        
+        planner_kwargs = self.planner_kwargs.copy()
+        planner_kwargs.pop('rddl', None)
+        planner_kwargs.pop('plan', None)
+        planner_kwargs.pop('optimizer_kwargs', None)
+                     
         kwargs = {
             'rddl': self.env.model,
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_episode': self.timeout_episode,
             'max_train_epochs': self.max_train_epochs,
-            'planner_kwargs': self.planner_kwargs,
+            'planner_kwargs': planner_kwargs,
+            'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
             'print_step': self.print_step
         }

@@ -42,8 +42,7 @@ def _shape_info(planner):
 def loss_surface(problem, w=None, wa=None, train=True):
     
     # create the planning problem but non-aggregated return
-    _, planner, _, train_args, _ = JaxConfigManager.get(
-        f'{problem}.cfg')
+    _, planner, _, _, train_args, _ = JaxConfigManager.get(f'{problem}.cfg')
     
     model_params = planner.compiled.model_params
     if w is not None:
@@ -95,7 +94,7 @@ def run_experiment(problem, probname,
                    ws=[(100.0, 5.0), (100.0, 5.0), (10000.0, 100.0)]):
     
     # solve with default parameters
-    _, planner, _, train_args, _ = JaxConfigManager.get(f'{problem}.cfg')
+    _, planner, _, _, train_args, _ = JaxConfigManager.get(f'{problem}.cfg')
     sol_params = slp_train(planner, 60, **train_args)
     
     # reshape to solution vector
