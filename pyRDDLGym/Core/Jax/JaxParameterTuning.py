@@ -3,6 +3,7 @@ from bayes_opt.util import UtilityFunction
 from colorama import init as colorama_init, Back, Fore, Style
 colorama_init()    
 import csv
+import datetime
 import jax
 from multiprocessing import get_context
 import numpy as np
@@ -39,6 +40,7 @@ class JaxParameterTuning:
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]],
                  max_train_epochs: int,
                  timeout_episode: float,
+                 timeout_tuning: float=np.inf,
                  verbose: bool=True,
                  print_step: int=None,
                  planner_kwargs: Dict={},
@@ -62,6 +64,8 @@ class JaxParameterTuning:
         step or trial
         :param timeout_episode: the maximum amount of time to spend training per
         trial (in seconds)
+        :param timeout_tuning: the maximum amount of time to spend tuning 
+        hyperparameters in general (in seconds)
         :param verbose: whether to print intermediate results of tuning
         :param print_step: how often to print training callback
         :param planner_kwargs: additional arguments to feed to the planner
@@ -83,6 +87,7 @@ class JaxParameterTuning:
         self.hyperparams_dict = hyperparams_dict
         self.max_train_epochs = max_train_epochs
         self.timeout_episode = timeout_episode
+        self.timeout_tuning = timeout_tuning
         self.verbose = verbose
         self.print_step = print_step
         self.planner_kwargs = planner_kwargs
@@ -134,6 +139,7 @@ class JaxParameterTuning:
 
     def tune(self, key: jax.random.PRNGKey, filename: str) -> Dict[str, object]:
         '''Tunes the hyper-parameters for Jax planner, returns the best found.'''
+        starttime = time.time()
         
         # objective function
         objective = self._pickleable_objective_with_kwargs()
@@ -178,8 +184,18 @@ class JaxParameterTuning:
         best_params, best_target = None, -np.inf
         
         for it in range(self.gp_iters): 
+            
+            # check if there is enough time left for another iteration
+            currtime = time.time()  
+            elapsed = currtime - starttime
+            if elapsed > self.timeout_tuning - self.timeout_episode:
+                print(f'global time limit reached at iteration {it}, aborting')
+                break
+            
+            # continue with next iteration
             print('\n' + '*' * 25 + 
-                  '\n' + f'starting iteration {it}' + 
+                  '\n' + f'[{datetime.timedelta(seconds=elapsed)}] ' + 
+                  f'starting iteration {it}' + 
                   '\n' + '*' * 25)
             key, *subkeys = jax.random.split(key, num=num_workers + 1)
             rows = [None] * num_workers
