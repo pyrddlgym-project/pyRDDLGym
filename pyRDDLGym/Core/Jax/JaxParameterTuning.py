@@ -5,7 +5,6 @@ colorama_init()
 import csv
 import jax
 from multiprocessing import get_context
-
 import numpy as np
 import os
 import time
@@ -195,11 +194,8 @@ class JaxParameterTuning:
                 ]
             
                 # wait for all workers to complete
-                ticks_elapsed_status = 0
-                jobs_awaiting = [True] * num_workers
                 while results:
                     time.sleep(self.poll_frequency)
-                    ticks_elapsed_status += 1
                     
                     # determine which jobs have completed
                     jobs_done = []
@@ -207,17 +203,12 @@ class JaxParameterTuning:
                         if candidate.ready():
                             jobs_done.append(i)
                     
-                    if ticks_elapsed_status % 10 == 0:
-                        ticks_elapsed_status = 0
-                        print(f'DEBUG: jobs in progress: {jobs_awaiting}')
-                    
                     # get result from completed jobs
                     for i in jobs_done[::-1]:
                         
                         # extract and register the new evaluation
                         index, pid, params, target = results.pop(i).get()
                         optimizer.register(params, target)
-                        jobs_awaiting[i] = False
                         
                         # update acquisition function and suggest a new point
                         utility.update_params()  
@@ -261,9 +252,9 @@ class JaxParameterTuning:
             import matplotlib.pyplot as plt
             from sklearn.manifold import MDS
         except Exception as e:
-            print('failed to import packages for plotting search space:')
-            print(e)
-            print('aborting plot of search space')
+            warnings.warn(f'failed to import packages matplotlib or sklearn, '
+                          f'aborting plot of search space\n'
+                          f'{e}', stacklevel=2)
         else:
             data = np.loadtxt(filename, delimiter=',', dtype=object)
             data, target = data[1:, 3:], data[1:, 2]
@@ -289,7 +280,6 @@ class JaxParameterTuning:
 
 def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
                  max_train_epochs, verbose, print_step, index, color, guess=None): 
-    print(f'[{index}] starting train_epoch')
     colorstr = f'{color[0]}{color[1]}'
     starttime = None
     for (it, callback) in enumerate(planner.optimize(
@@ -319,12 +309,11 @@ def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
         if not np.isfinite(callback['train_return']):
             if verbose:
                 print(f'|------ [{index}] {colorstr}'
-                      f'aborting due to NaN or inf value!'
+                      f'warning: training aborted due to NaN or inf value'
                       f'{Style.RESET_ALL}')
             break
         if elapsed >= timeout:
             break
-    print(f'[{index}] finished train_epoch')
     return callback
 
 
@@ -645,8 +634,6 @@ def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
             **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
         **kwargs['planner_kwargs'])
-    
-    print(f'[{index}] initialized JAX planner successfully') 
     
     # perform training
     callback = train_epoch(
