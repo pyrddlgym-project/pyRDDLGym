@@ -43,6 +43,7 @@ class JaxParameterTuning:
                  print_step: int=None,
                  planner_kwargs: Dict={},
                  plan_kwargs: Dict={},
+                 pool_context: str='spawn',
                  num_workers: int=1, 
                  poll_frequency: float=0.2,
                  gp_iters: int=25,
@@ -65,6 +66,8 @@ class JaxParameterTuning:
         :param print_step: how often to print training callback
         :param planner_kwargs: additional arguments to feed to the planner
         :param plan_kwargs: additional arguments to feed to the plan/policy
+        :param pool_context: context for multiprocessing pool (defaults to 
+        "spawn")
         :param num_workers: how many points to evaluate in parallel
         :param poll_frequency: how often (in seconds) to poll for completed
         jobs, necessary if num_workers > 1
@@ -84,6 +87,7 @@ class JaxParameterTuning:
         self.print_step = print_step
         self.planner_kwargs = planner_kwargs
         self.plan_kwargs = plan_kwargs
+        self.pool_context = pool_context
         self.num_workers = num_workers
         self.poll_frequency = poll_frequency
         self.gp_iters = gp_iters
@@ -182,7 +186,7 @@ class JaxParameterTuning:
             
             # create worker pool: note each iteration must wait for all workers
             # to finish before moving to the next
-            with get_context("spawn").Pool(processes=num_workers) as pool:
+            with get_context(self.pool_context).Pool(processes=num_workers) as pool:
                 
                 # assign jobs to worker pool
                 # - each trains on suggested parameters from the last iteration
