@@ -46,6 +46,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         super(JaxRDDLSimulator, self).__init__(rddl, logger=logger)
     
     def seed(self, seed: int) -> None:
+        super(JaxRDDLSimulator, self).seed(seed)
         self.key = jax.random.PRNGKey(seed)
         
     def _compile(self):
