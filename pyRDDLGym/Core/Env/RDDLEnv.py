@@ -26,7 +26,7 @@ class RDDLEnv(gym.Env):
                  debug: bool=False,
                  log: bool=False,
                  simlogname: str=None,
-                 backend: object=RDDLSimulator,
+                 backend: RDDLSimulator=RDDLSimulator,
                  backend_kwargs: Dict={}):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
@@ -169,7 +169,12 @@ class RDDLEnv(gym.Env):
         self.window = None
         self.to_render = False
         self.image_size = None
-
+    
+    def seed(self, seed=None):
+        super(RDDLEnv, self).seed(seed)
+        self.sampler.seed(seed)
+        return [seed]
+    
     def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False, **viz_kwargs):
         self._visualizer = viz(self.model, **viz_kwargs)
         self._movie_generator = movie_gen
