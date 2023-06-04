@@ -45,6 +45,9 @@ class JaxRDDLSimulator(RDDLSimulator):
         # generate direct sampling with default numpy RNG and operations
         super(JaxRDDLSimulator, self).__init__(rddl, logger=logger)
     
+    def seed(self, seed: int) -> None:
+        self.key = jax.random.PRNGKey(seed)
+        
     def _compile(self):
         rddl = self.rddl
         

@@ -20,6 +20,7 @@ def main(env, inst, method_name=None, episodes=1):
                             debug=False,
                             log=log,
                             simlogname=method_name)
+    myEnv.seed(42)
     
     # set up the environment visualizer
     # frames_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Visualizer', 'Frames')
