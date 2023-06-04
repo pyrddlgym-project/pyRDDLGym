@@ -26,7 +26,8 @@ class RDDLEnv(gym.Env):
                  debug: bool=False,
                  log: bool=False,
                  simlogname: str=None,
-                 backend: object=RDDLSimulator):
+                 backend: object=RDDLSimulator,
+                 backend_kwargs: Dict={}):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -39,6 +40,8 @@ class RDDLEnv(gym.Env):
         :param log: whether to log simulation data to file
         :param backend: the subclass of RDDLSimulator to use as backend for
         simulation (currently supports numpy and Jax)
+        :param backend_kwargs: dictionary of additional named arguments to
+        pass to backend (must not include logger)
         '''
         super(RDDLEnv, self).__init__()
         self.domain_text = domain
@@ -85,7 +88,7 @@ class RDDLEnv(gym.Env):
             self.simlogger.clear(overwrite=False)
         
         # define the model sampler and bounds    
-        self.sampler = backend(self.model, logger=logger)
+        self.sampler = backend(self.model, logger=logger, **backend_kwargs)
         bounds = RDDLConstraints(self.sampler).bounds
 
         # set roll-out parameters
