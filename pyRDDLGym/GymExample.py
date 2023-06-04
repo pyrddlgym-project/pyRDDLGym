@@ -29,7 +29,8 @@ def main(env, inst, method_name=None, episodes=1):
     
     # set up an example aget
     agent = RandomAgent(action_space=myEnv.action_space, 
-                        num_actions=myEnv.numConcurrentActions)
+                        num_actions=myEnv.numConcurrentActions,
+                        seed=42)
 
     for episode in range(episodes):
         total_reward = 0
