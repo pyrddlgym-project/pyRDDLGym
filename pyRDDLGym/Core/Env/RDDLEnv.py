@@ -11,6 +11,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError, RDDLLogFol
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Debug.Logger import Logger, SimLogger
 from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
+from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeeder
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
@@ -27,7 +28,8 @@ class RDDLEnv(gym.Env):
                  log: bool=False,
                  simlogname: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
-                 backend_kwargs: Dict={}):
+                 backend_kwargs: Dict={},
+                 seeds: list=None):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -42,6 +44,7 @@ class RDDLEnv(gym.Env):
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
         pass to backend (must not include logger)
+        :param seeds: list of seeds for the cyclic iterator. Will be seeded in the reset function.
         '''
         super(RDDLEnv, self).__init__()
         self.domain_text = domain
@@ -50,8 +53,11 @@ class RDDLEnv(gym.Env):
         self.enforce_action_count_non_bool = enforce_action_count_non_bool
 
         # time budget for applications limiting time on episodes.
-        # hardcoded so cannot be changed externally.
+        # hardcoded so cannot be changed externally for the purpose of the competition.
+        # TODO: add it to the API after the competition
         self.budget = 240
+        # self.seeds = [list of seeds]
+        self.seeds = RDDLEnvSeeder(seed_list=seeds)
 
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
@@ -171,7 +177,7 @@ class RDDLEnv(gym.Env):
         self.image_size = None
     
     def seed(self, seed=None):
-        super(RDDLEnv, self).seed(seed)
+        # super(RDDLEnv, self).seed(seed)
         self.sampler.seed(seed)
         return [seed]
     
@@ -238,7 +244,7 @@ class RDDLEnv(gym.Env):
 
         return obs, reward, self.done, {}
 
-    def reset(self):
+    def reset(self, seed=None):
         self.total_reward = 0
         self.currentH = 0
         obs, self.done = self.sampler.reset()
@@ -260,6 +266,13 @@ class RDDLEnv(gym.Env):
             text += 'New Trial\n'
             text += '######################################################'
             self.simlogger.log_free(text)
+
+        if seed is not None:
+            self.seed(seed)
+        else:
+            seed = self.seeds.Next()
+            if seed is not None:
+                self.seed(seed)
 
         return obs
 
