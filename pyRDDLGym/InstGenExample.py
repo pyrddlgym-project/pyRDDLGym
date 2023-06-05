@@ -107,7 +107,7 @@ def main(env, params, name):
 
 
 if __name__ == "__main__":
-    inst_index = 4
+    inst_index = 0
     env = ENVS[7]
     inst_name = INST_NAMES[inst_index]
     inst_params = INST_PARAMS[env][inst_index]
