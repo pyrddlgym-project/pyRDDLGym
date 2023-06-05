@@ -9,7 +9,7 @@ ENVS = ['HVAC', 'RaceCar', 'UAV_continuous', 'MarsRover', 'PowerGen_continuous',
 ###################
 # Competition run instances
 ###################
-INST_NAMES = ['1c', '3c', '5c']
+INST_NAMES = ['0c', '3c', '5c']
 HVAC_PARAMS = [
     # difficulty is controlled by the number of zones + heaters (e.g. scale)
     # and the switching of occupancy affects more zones (this should make it
@@ -179,7 +179,7 @@ def main(env, params, name):
 
 if __name__ == "__main__":
     inst_index = 0
-    env = ENVS[7]
+    env = ENVS[5]
     inst_name = INST_NAMES[inst_index]
     inst_params = INST_PARAMS[env][inst_index]
 
