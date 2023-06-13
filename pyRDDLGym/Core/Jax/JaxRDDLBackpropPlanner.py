@@ -635,7 +635,8 @@ class JaxDeepReactivePolicy(JaxPlan):
             actions = {}
             for (var, size) in layer_sizes.items():
                 linear = hk.Linear(size, name=layer_names[var], w_init=init)
-                reshape = hk.Reshape(shapes[var], name=f'reshape_{layer_names[var]}')
+                reshape = hk.Reshape(output_shape=shapes[var], preserve_dims=-1,
+                                     name=f'reshape_{layer_names[var]}')
                 output = reshape(linear(hidden))
                 if not shapes[var]:
                     output = jnp.squeeze(output)
