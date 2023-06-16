@@ -25,7 +25,7 @@ class GurobiRDDLCompiler:
                  rollout_horizon: int=None,
                  epsilon: float=1e-6,
                  float_range: Tuple[float, float]=(1e-15, 1e15),
-                 piecewise_options: str='', 
+                 piecewise_options: str='',
                  time_limit: float=GRB.INFINITY,
                  verbose: bool=True,
                  logger: Logger=None) -> None:
@@ -148,7 +148,20 @@ class GurobiRDDLCompiler:
     # ===========================================================================
     # main compilation subroutines
     # ===========================================================================
-     
+    
+    def _create_model(self):
+        
+        # create the Gurobi optimization problem
+        env = gurobipy.Env(empty=True)
+        env.setParam('OutputFlag', self.verbose)
+        env.start()
+        model = gurobipy.Model(env=env)
+        
+        # set additional model settings here before optimization
+        model.params.NonConvex = 2
+        model.params.TimeLimit = self.time_limit
+        return model 
+        
     def compile(self, init_values=None) -> gurobipy.Model:
         '''Compiles and returns the current RDDL domain as a Gurobi optimization
         problem.
@@ -157,21 +170,16 @@ class GurobiRDDLCompiler:
         non-fluents as defined in the RDDL file (if None, then the original
         values defined in the RDDL domain + instance are used instead)
         '''
+        model = self._create_model()
         
         # compile initial values, control under and overflow
         if init_values is None:
             init_values = self.init_values
         init_values = self._correct_underflow_and_overflow(init_values)
         
-        # create the Gurobi optimization problem
-        env = gurobipy.Env(empty=True)
-        env.setParam('OutputFlag', self.verbose)
-        env.start()
-        model = gurobipy.Model(env=env)
+        # initial variable substitution table
         self.variable_to_expr_id = {}
         self.action_variables = []
-        
-        # initial variable substitution table
         subs = {}
         for (var, value) in init_values.items():
             prange = self.rddl.variable_ranges[var]
@@ -185,10 +193,6 @@ class GurobiRDDLCompiler:
             reward = self._compile_step(step, model, subs)
             objective += reward
         model.setObjective(objective, GRB.MAXIMIZE)
-        
-        # set additional model settings here before optimization
-        model.params.NonConvex = 2
-        model.params.TimeLimit = self.time_limit
         return model
     
     def _compile_step(self, step, model, subs):
