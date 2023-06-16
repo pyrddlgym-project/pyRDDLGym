@@ -2,6 +2,7 @@ import numpy as np
 import sys
 
 from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLStraightLinePlan
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
@@ -11,7 +12,8 @@ def slp_replan(domain, inst, trials):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(), 
                     instance=EnvInfo.get_instance(inst)).model
-    planner = GurobiRDDLCompiler(model, rollout_horizon=5, verbose=False)
+    plan = GurobiRDDLStraightLinePlan()
+    planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5, verbose=False)
     
     world = RDDLSimulator(planner.rddl)
     rewards = np.zeros((planner.rddl.horizon, trials))
@@ -43,7 +45,7 @@ def slp_replan(domain, inst, trials):
             
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        dom, inst, trials = 'CartPole continuous', 0, 1
+        dom, inst, trials = 'Wildfire', 0, 1
     else:
         dom, inst, trials = sys.argv[1:4]
         trials = int(trials)

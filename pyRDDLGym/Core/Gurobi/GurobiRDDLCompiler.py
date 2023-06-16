@@ -14,11 +14,13 @@ from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLPlan
 
 
 class GurobiRDDLCompiler:
     
     def __init__(self, rddl: RDDLLiftedModel,
+                 plan: GurobiRDDLPlan,
                  allow_synchronous_state: bool=True,
                  rollout_horizon: int=None,
                  epsilon: float=1e-6,
@@ -30,6 +32,7 @@ class GurobiRDDLCompiler:
         '''Creates a new compiler from RDDL model to Gurobi problem.
         
         :param rddl: the RDDL model
+        :param plan: the plan or policy to optimize
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rollout_horizon: length of the planning horizon (uses the RDDL
         defined horizon if None)
@@ -45,6 +48,7 @@ class GurobiRDDLCompiler:
         :param verbose: whether to print output during Gurobi optimization
         :param logger: to log information about compilation to file
         '''
+        self.plan = plan
         if rollout_horizon is None:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
@@ -192,26 +196,19 @@ class GurobiRDDLCompiler:
         rddl = self.rddl
         
         # add action fluent variables to model
-        self.action_variables.append({})
-        count_bool_vars = 0
-        sum_bool_vars = 0
-        for (action, prange) in rddl.actionsranges.items():
-            name = f'{action}___{step}'
-            if prange == 'bool':
-                lb, ub = 0, 1
-            else:
-                lb, ub = -GRB.INFINITY, +GRB.INFINITY
-            vtype = self.GUROBI_TYPES[prange]
-            var = self._add_var(name, model, vtype, lb, ub, name=name)
-            subs[action] = (var, vtype, lb, ub, True)
-            self.action_variables[-1][action] = var
-            if prange == 'bool':
-                count_bool_vars += 1
-                sum_bool_vars += var
+        action_vars = self.plan.action_vars(self, step, model, subs)
+        subs.update(action_vars)
+        self.action_variables.append(
+            {action: values[0] for (action, values) in action_vars.items()})
         
         # add capacity constraint
-        if rddl.max_allowed_actions < count_bool_vars:
-            model.addConstr(sum_bool_vars <= rddl.max_allowed_actions)
+        count_bool, sum_bool = 0, 0
+        for (action, prange) in rddl.actionsranges.items():
+            if prange == 'bool':
+                count_bool += 1
+                sum_bool += action_vars[action][0]
+        if rddl.max_allowed_actions < count_bool:
+            model.addConstr(sum_bool <= rddl.max_allowed_actions)
         
         # check action preconditions
         for precondition in rddl.preconditions:
