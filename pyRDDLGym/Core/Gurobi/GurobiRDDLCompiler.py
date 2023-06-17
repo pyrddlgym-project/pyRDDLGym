@@ -144,6 +144,24 @@ class GurobiRDDLCompiler:
             warnings.warn(
                 'Gurobi optimizer failed to find an optimal feasible action!')
         return optimal_plan, not warn
+    
+    def freeze_vars(self, variables: List[object]) -> None:
+        '''Freezes the values of the specified variables to their current values,
+        so they cannot be changed during optimization.
+        '''
+        self.frozen_vars = variables
+        self.frozen_bounds = []
+        for var in variables:
+            self.frozen_bounds.append((var.lb, var.ub))
+            var.lb = var.ub = var.x
+    
+    def unfreeze_vars(self) -> None:
+        '''Resets the bounds of all frozen variables, so they can be optimized.
+        '''
+        for (var, (lb, ub)) in zip(self.frozen_vars, self.frozen_bounds):
+            var.lb, var.ub = lb, ub
+        self.frozen_vars = []
+        self.frozen_bounds = []
         
     # ===========================================================================
     # main compilation subroutines
@@ -235,25 +253,6 @@ class GurobiRDDLCompiler:
         
         return reward
     
-    def _add_var(self, expr, model, vtype, lb, ub, name=''):
-        '''Add a generic variable to the Gurobi model.'''
-        var = model.addVar(vtype=vtype, lb=lb, ub=ub, name=name)
-        model.update()
-        self.variable_to_expr_id[var.VarName] = expr
-        return var
-    
-    def _add_bool_var(self, expr, model, name=''):
-        '''Add a BINARY variable to the Gurobi model.'''
-        return self._add_var(expr, model, GRB.BINARY, 0, 1, name=name)
-    
-    def _add_real_var(self, expr, model, lb, ub, name=''):
-        '''Add a CONTINUOUS variable to the Gurobi model.'''
-        return self._add_var(expr, model, GRB.CONTINUOUS, lb, ub, name=name)
-    
-    def _add_int_var(self, expr, model, lb, ub, name=''):
-        '''Add a INTEGER variable to the Gurobi model.'''
-        return self._add_var(expr, model, GRB.INTEGER, lb, ub, name=name)
-    
     # ===========================================================================
     # start of compilation subroutines
     # ===========================================================================
@@ -283,6 +282,25 @@ class GurobiRDDLCompiler:
                 f'Expression type {etype} is not supported in Gurobi compiler.\n' + 
                 print_stack_trace(expr))
             
+    def _add_var(self, expr, model, vtype, lb, ub, name=''):
+        '''Add a generic variable to the Gurobi model.'''
+        var = model.addVar(vtype=vtype, lb=lb, ub=ub, name=name)
+        model.update()
+        self.variable_to_expr_id[var.VarName] = expr
+        return var
+    
+    def _add_bool_var(self, expr, model, name=''):
+        '''Add a BINARY variable to the Gurobi model.'''
+        return self._add_var(expr, model, GRB.BINARY, 0, 1, name=name)
+    
+    def _add_real_var(self, expr, model, lb, ub, name=''):
+        '''Add a CONTINUOUS variable to the Gurobi model.'''
+        return self._add_var(expr, model, GRB.CONTINUOUS, lb, ub, name=name)
+    
+    def _add_int_var(self, expr, model, lb, ub, name=''):
+        '''Add a INTEGER variable to the Gurobi model.'''
+        return self._add_var(expr, model, GRB.INTEGER, lb, ub, name=name)
+    
     # ===========================================================================
     # leaves
     # ===========================================================================
