@@ -198,6 +198,7 @@ class GurobiRDDLCompiler:
         # initial variable substitution table
         self.variable_to_expr_id = {}
         self.action_variables = []
+        self.aux_variables = []
         subs = {}
         for (var, value) in init_values.items():
             prange = self.rddl.variable_ranges[var]
@@ -218,10 +219,11 @@ class GurobiRDDLCompiler:
         rddl = self.rddl
         
         # add action fluent variables to model
-        action_vars = self.plan.action_vars(self, step, model, subs)
+        action_vars, aux_vars = self.plan.action_vars(self, step, model, subs)
         subs.update(action_vars)
         self.action_variables.append(
             {action: values[0] for (action, values) in action_vars.items()})
+        self.aux_variables.append(aux_vars)
         
         # add capacity constraint
         count_bool, sum_bool = 0, 0
