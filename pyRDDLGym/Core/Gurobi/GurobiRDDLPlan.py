@@ -11,7 +11,8 @@ class GurobiRDDLPlan:
     def action_vars(self, compiled: 'GurobiRDDLCompiler',
                     step: int,
                     model: gurobipy.Model,
-                    subs: Dict[str, object]) -> Tuple[Dict[str, object], List[object]]:
+                    subs: Dict[str, object],
+                    init_values: Dict[str, object]) -> Tuple[Dict[str, object], List[object]]:
         '''Returns a tuple consisting of the action variables at the specified
         time step, along with a list of auxiliary variables of the plan/policy
         that are to be optimized.
@@ -21,6 +22,7 @@ class GurobiRDDLPlan:
         :param model: the gurobi model instance
         :param subs: the set of fluent and non-fluent variables available at the
         current step
+        :param init_values: the set of initial fluent and non-fluent values
         '''
         raise NotImplementedError
     
@@ -30,7 +32,8 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
     def action_vars(self, compiled: 'GurobiRDDLCompiler',
                     step: int,
                     model: gurobipy.Model,
-                    subs: Dict[str, object]) -> Tuple[Dict[str, object], List[object]]:
+                    subs: Dict[str, object],
+                    init_values: Dict[str, object]) -> Tuple[Dict[str, object], List[object]]:
         rddl = compiled.rddl
         variables = {}
         for (action, prange) in rddl.actionsranges.items():
