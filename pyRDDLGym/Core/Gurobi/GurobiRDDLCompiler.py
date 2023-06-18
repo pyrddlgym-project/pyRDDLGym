@@ -62,6 +62,9 @@ class GurobiRDDLCompiler:
         self.time_limit = time_limit
         self.verbose = verbose
         
+        self.frozen_vars = []
+        self.frozen_bounds = []
+        
         # type conversion to Gurobi
         self.GUROBI_TYPES = {
             'int': GRB.INTEGER,
@@ -149,8 +152,7 @@ class GurobiRDDLCompiler:
         '''Freezes the values of the specified variables to their current values,
         so they cannot be changed during optimization.
         '''
-        self.frozen_vars = variables
-        self.frozen_bounds = []
+        self.frozen_vars.extend(variables)
         for var in variables:
             self.frozen_bounds.append((var.lb, var.ub))
             var.lb = var.ub = var.x
@@ -194,11 +196,6 @@ class GurobiRDDLCompiler:
         if init_values is None:
             init_values = self.init_values
         init_values = self._correct_underflow_and_overflow(init_values)
-        
-        # initial variable substitution table
-        self.variable_to_expr_id = {}
-        self.action_variables = []
-        self.aux_variables = []
         subs = {}
         for (var, value) in init_values.items():
             prange = self.rddl.variable_ranges[var]
@@ -207,23 +204,30 @@ class GurobiRDDLCompiler:
             subs[var] = (value, vtype, lb, ub, False)
         
         # compile forward model and objective
+        self.variable_to_expr_id = {}
+        self.action_variables = []
+        self.aux_variables = []
+        self.frozen_vars = []
+        self.frozen_bounds = []
+        
         objective = 0
         for step in range(self.horizon):
-            reward = self._compile_step(step, model, subs)
+            reward, new_vars, aux_vars = self._compile_step(
+                self.plan, step, model, subs)
+            self.action_variables.append(new_vars)
+            self.aux_variables.append(aux_vars)
             objective += reward
         model.setObjective(objective, GRB.MAXIMIZE)
         return model
     
-    def _compile_step(self, step, model, subs):
+    def _compile_step(self, plan, step, model, subs):
         '''Compile a single epoch into the Gurobi model.'''
         rddl = self.rddl
         
         # add action fluent variables to model
-        action_vars, aux_vars = self.plan.action_vars(self, step, model, subs)
+        action_vars, aux_vars = plan.action_vars(self, step, model, subs)
         subs.update(action_vars)
-        self.action_variables.append(
-            {action: values[0] for (action, values) in action_vars.items()})
-        self.aux_variables.append(aux_vars)
+        new_vars = {action: values[0] for (action, values) in action_vars.items()}
         
         # add capacity constraint
         count_bool, sum_bool = 0, 0
@@ -253,7 +257,7 @@ class GurobiRDDLCompiler:
         for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
         
-        return reward
+        return reward, new_vars, aux_vars
     
     # ===========================================================================
     # start of compilation subroutines
@@ -980,3 +984,4 @@ class GurobiRDDLCompiler:
             lb, ub = res, res                    
         return res, GRB.CONTINUOUS, lb, ub, symb
     
+        
