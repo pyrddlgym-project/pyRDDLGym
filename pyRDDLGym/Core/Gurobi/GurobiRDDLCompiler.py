@@ -286,7 +286,7 @@ class GurobiRDDLCompiler:
                 f'Expression type {etype} is not supported in Gurobi compiler.\n' + 
                 print_stack_trace(expr))
             
-    def _add_var(self, expr, model, vtype, lb, ub, name=''):
+    def _add_var(self, expr, model, vtype, lb=-GRB.INFINITY, ub=GRB.INFINITY, name=''):
         '''Add a generic variable to the Gurobi model.'''
         var = model.addVar(vtype=vtype, lb=lb, ub=ub, name=name)
         model.update()
@@ -297,11 +297,11 @@ class GurobiRDDLCompiler:
         '''Add a BINARY variable to the Gurobi model.'''
         return self._add_var(expr, model, GRB.BINARY, 0, 1, name=name)
     
-    def _add_real_var(self, expr, model, lb, ub, name=''):
+    def _add_real_var(self, expr, model, lb=-GRB.INFINITY, ub=GRB.INFINITY, name=''):
         '''Add a CONTINUOUS variable to the Gurobi model.'''
         return self._add_var(expr, model, GRB.CONTINUOUS, lb, ub, name=name)
     
-    def _add_int_var(self, expr, model, lb, ub, name=''):
+    def _add_int_var(self, expr, model, lb=-GRB.INFINITY, ub=GRB.INFINITY, name=''):
         '''Add a INTEGER variable to the Gurobi model.'''
         return self._add_var(expr, model, GRB.INTEGER, lb, ub, name=name)
     
