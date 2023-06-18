@@ -107,7 +107,7 @@ class GurobiRDDLCompiler:
             gurobi_init_values[name] = safe_value
         return gurobi_init_values
     
-    def solve(self, init_values=None) -> List[Dict[str, object]]:
+    def solve(self, init_values: Dict[str, object]=None) -> List[Dict[str, object]]:
         '''Compiles the current RDDL domain into a Gurobi problem and solves the
         problem. An optimal solution is returned in RDDL format.
         
@@ -180,7 +180,7 @@ class GurobiRDDLCompiler:
         model.params.TimeLimit = self.time_limit
         return model 
         
-    def compile(self, init_values=None) -> gurobipy.Model:
+    def compile(self, init_values: Dict[str, object]=None) -> gurobipy.Model:
         '''Compiles and returns the current RDDL domain as a Gurobi optimization
         problem.
         
