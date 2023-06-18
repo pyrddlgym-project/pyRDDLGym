@@ -61,9 +61,7 @@ class GurobiRDDLCompiler:
         self.pw_options = piecewise_options
         self.time_limit = time_limit
         self.verbose = verbose
-        
         self.frozen_vars = []
-        self.frozen_bounds = []
         
         # type conversion to Gurobi
         self.GUROBI_TYPES = {
@@ -152,18 +150,16 @@ class GurobiRDDLCompiler:
         '''Freezes the values of the specified variables to their current values,
         so they cannot be changed during optimization.
         '''
-        self.frozen_vars.extend(variables)
         for var in variables:
-            self.frozen_bounds.append((var.lb, var.ub))
+            self.frozen_vars.append((var, (var.lb, var.ub)))
             var.lb = var.ub = var.x
     
     def unfreeze_vars(self) -> None:
         '''Resets the bounds of all frozen variables, so they can be optimized.
         '''
-        for (var, (lb, ub)) in zip(self.frozen_vars, self.frozen_bounds):
+        for (var, (lb, ub)) in self.frozen_vars:
             var.lb, var.ub = lb, ub
         self.frozen_vars = []
-        self.frozen_bounds = []
         
     # ===========================================================================
     # main compilation subroutines
@@ -208,7 +204,6 @@ class GurobiRDDLCompiler:
         self.action_variables = []
         self.aux_variables = []
         self.frozen_vars = []
-        self.frozen_bounds = []
         
         objective = 0
         for step in range(self.horizon):
