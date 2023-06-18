@@ -146,13 +146,15 @@ class GurobiRDDLCompiler:
                 'Gurobi optimizer failed to find an optimal feasible action!')
         return optimal_plan, not warn
     
-    def freeze_vars(self, variables: List[object]) -> None:
-        '''Freezes the values of the specified variables to their current values,
-        so they cannot be changed during optimization.
+    def freeze_vars(self, variables: List[object], values: List[object]=None) -> None:
+        '''Given a list of variables and values, freezes the values of the 
+        variables to the values so they cannot be changed during optimization.
         '''
-        for var in variables:
+        if values is None:
+            values = [None] * len(variables)
+        for (var, value) in zip(variables, values):
             self.frozen_vars.append((var, (var.lb, var.ub)))
-            var.lb = var.ub = var.x
+            var.lb = var.ub = (var.x if value is None else value)
     
     def unfreeze_vars(self) -> None:
         '''Resets the bounds of all frozen variables, so they can be optimized.
