@@ -87,24 +87,6 @@ class GurobiRDDLCompiler:
         tracer = RDDLObjectsTracer(self.rddl, logger=self.logger)
         self.traced = tracer.trace()
     
-    def _correct_underflow_and_overflow(self, init_values):
-        '''Underflow and overflow corrected init_values.'''
-        gurobi_init_values = {}
-        smallest, largest = self.float_range
-        for (name, value) in init_values.items():
-            safe_value = value
-            if self.rddl.variable_ranges[name] == 'real':
-                if 0 < value < smallest:
-                    safe_value = smallest
-                elif -smallest < value < 0:
-                    safe_value = -smallest
-                elif value > largest:
-                    safe_value = largest
-                elif value < -largest:
-                    safe_value = -largest
-            gurobi_init_values[name] = safe_value
-        return gurobi_init_values
-    
     def solve(self, init_values: Dict[str, object]=None) -> List[Dict[str, object]]:
         '''Compiles the current RDDL domain into a Gurobi problem and solves the
         problem. An optimal solution is returned in RDDL format.
@@ -113,17 +95,18 @@ class GurobiRDDLCompiler:
         non-fluents as defined in the RDDL file (if None, then the original
         values defined in the RDDL domain + instance are used instead)
         '''
+        rddl = self.rddl
         
         # compile and solve model
-        model = self.compile(init_values)
+        model, all_action_vars = self.compile(init_values)
         model.optimize()
         
         # read the optimal actions
         optimal_plan = []
-        for actions_vars in self.action_vars:
+        for actions_vars in all_action_vars:
             optimal_plan.append({})
             for (name, var) in actions_vars.items():
-                prange = self.rddl.actionsranges[name]
+                prange = rddl.actionsranges[name]
                 action = var.x
                 if prange == 'int':
                     action = int(action)
@@ -153,6 +136,49 @@ class GurobiRDDLCompiler:
     # main compilation subroutines
     # ===========================================================================
     
+    def compile(self, init_values: Dict[str, object]=None) -> gurobipy.Model:
+        '''Compiles and returns the current RDDL domain as a Gurobi optimization
+        problem. Also returns action variables 
+        
+        :param init_values: override the initial values of fluents and
+        non-fluents as defined in the RDDL file (if None, then the original
+        values defined in the RDDL domain + instance are used instead)
+        '''
+        rddl = self.rddl
+        
+        # compile forward model and objective  
+        self.frozen_vars = []    
+        model = self._create_model()
+        params = self.plan.initialize(self, model)
+        subs = self._compile_init_subs(init_values)  
+        all_action_vars = []
+        objective = 0
+        
+        for step in range(self.horizon):
+            
+            # add action fluent variables to model
+            action_vars = self.plan.predict(self, model, params, step, subs)
+            all_action_vars.append(action_vars)
+            
+            subs.update({name: (var, var.vtype, var.lb, var.ub, True) 
+                         for (name, var) in action_vars.items()})
+            
+            # add action constraints
+            self._compile_maxnondef_constraint(model, action_vars)
+            self._compile_action_preconditions(model, subs)
+            
+            # evaluate CPFs and reward
+            subs.update(self._compile_cpfs(model, subs))
+            reward = self._compile_reward(model, subs)
+            objective += reward
+            
+            # update state
+            for (state, next_state) in rddl.next_state.items():
+                subs[state] = subs[next_state]
+                
+        model.setObjective(objective, GRB.MAXIMIZE)
+        return model, all_action_vars
+    
     def _create_model(self):
         
         # create the Gurobi optimization problem
@@ -166,41 +192,29 @@ class GurobiRDDLCompiler:
         model.params.TimeLimit = self.time_limit
         return model 
         
-    def compile(self, init_values: Dict[str, object]=None) -> gurobipy.Model:
-        '''Compiles and returns the current RDDL domain as a Gurobi optimization
-        problem.
-        
-        :param init_values: override the initial values of fluents and
-        non-fluents as defined in the RDDL file (if None, then the original
-        values defined in the RDDL domain + instance are used instead)
-        '''
-        model = self._create_model()
-        
-        # compile initial values, control under and overflow
+    def _compile_init_subs(self, init_values=None):
         if init_values is None:
             init_values = self.init_values
-        init_values = self._correct_underflow_and_overflow(init_values)
+        rddl = self.rddl
+        smallest, largest = self.float_range
         subs = {}
         for (var, value) in init_values.items():
-            prange = self.rddl.variable_ranges[var]
+            prange = rddl.variable_ranges[var]
             vtype = self.GUROBI_TYPES[prange]
-            lb, ub = GurobiRDDLCompiler._fix_bounds(value, value)
-            subs[var] = (value, vtype, lb, ub, False)
+            safe_value = value
+            if rddl.variable_ranges[var] == 'real':
+                if 0 < value < smallest:
+                    safe_value = smallest
+                elif -smallest < value < 0:
+                    safe_value = -smallest
+                elif value > largest:
+                    safe_value = largest
+                elif value < -largest:
+                    safe_value = -largest
+            lb, ub = GurobiRDDLCompiler._fix_bounds(safe_value, safe_value)
+            subs[var] = (safe_value, vtype, lb, ub, False)
+        return subs
         
-        # compile forward model and objective
-        self.action_vars = []
-        self.frozen_vars = []
-        self.params = self.plan.initialize(self, model)
-        
-        objective = 0
-        for step in range(self.horizon):
-            reward, action_vars = self._compile_step(
-                model, self.plan, self.params, step, subs)
-            self.action_vars.append(action_vars)
-            objective += reward
-        model.setObjective(objective, GRB.MAXIMIZE)
-        return model
-    
     def _compile_action_preconditions(self, model, subs):
         for precondition in self.rddl.preconditions:
             indicator, *_, symb = self._gurobi(precondition, model, subs)
@@ -229,29 +243,6 @@ class GurobiRDDLCompiler:
     def _compile_reward(self, model, subs):
         reward, *_ = self._gurobi(self.rddl.reward, model, subs)
         return reward
-    
-    def _compile_step(self, model, plan, params, step, subs):
-        '''Compile a single epoch into the Gurobi model.'''
-        rddl = self.rddl
-        
-        # add action fluent variables to model
-        action_vars = plan.predict(self, model, params, step, subs)
-        subs.update({name: (var, var.vtype, var.lb, var.ub, True) 
-                     for (name, var) in action_vars.items()})
-        
-        # add action constraints
-        self._compile_maxnondef_constraint(model, action_vars)
-        self._compile_action_preconditions(model, subs)
-        
-        # evaluate CPFs and reward
-        subs.update(self._compile_cpfs(model, subs))
-        reward = self._compile_reward(model, subs)
-        
-        # update state
-        for (state, next_state) in rddl.next_state.items():
-            subs[state] = subs[next_state]
-        
-        return reward, action_vars
     
     # ===========================================================================
     # start of compilation subroutines
