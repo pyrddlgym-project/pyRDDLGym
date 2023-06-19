@@ -204,26 +204,24 @@ class GurobiRDDLCompiler:
         # compile forward model and objective
         self.variable_to_expr_id = {}
         self.action_variables = []
-        self.aux_variables = []
+        self.params = []
         self.frozen_vars = []
         
         objective = 0
         for step in range(self.horizon):
-            reward, new_vars, aux_vars = self._compile_step(
-                self.plan, step, model, subs, init_values)
+            reward, new_vars, params = self._compile_step(self.plan, step, model, subs)
             self.action_variables.append(new_vars)
-            self.aux_variables.append(aux_vars)
+            self.params.append(params)
             objective += reward
         model.setObjective(objective, GRB.MAXIMIZE)
         return model
     
-    def _compile_step(self, plan, step, model, subs, init_values):
+    def _compile_step(self, plan, step, model, subs):
         '''Compile a single epoch into the Gurobi model.'''
         rddl = self.rddl
         
         # add action fluent variables to model
-        action_vars, aux_vars = plan.action_vars(
-            self, step, model, subs, init_values)
+        action_vars, params = plan.action_vars(self, step, model, subs)
         subs.update(action_vars)
         new_vars = {action: values[0] for (action, values) in action_vars.items()}
         
@@ -255,7 +253,7 @@ class GurobiRDDLCompiler:
         for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
         
-        return reward, new_vars, aux_vars
+        return reward, new_vars, params
     
     # ===========================================================================
     # start of compilation subroutines
