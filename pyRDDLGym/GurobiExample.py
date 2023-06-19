@@ -22,10 +22,7 @@ def slp_replan(domain, inst, trials):
         total_reward = 0
         state, _ = world.reset()
         for step in range(planner.rddl.horizon):
-            sol, succ = planner.solve(world.subs)
-            if not succ:
-                print(f'failed to find a feasible solution, exiting...')
-                return
+            sol = planner.solve(world.subs)
             actions = sol[0]
             next_state, reward, done = world.step(actions)
             total_reward += reward 
