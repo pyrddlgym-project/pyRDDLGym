@@ -111,7 +111,7 @@ class GurobiRDDLCompiler:
                 if prange == 'int':
                     action = int(action)
                 elif prange == 'bool':
-                    action = (action > 0)
+                    action = (action > 0.5)
                 optimal_plan[-1][name] = action
         return optimal_plan
     
@@ -665,7 +665,7 @@ class GurobiRDDLCompiler:
             elif name == 'cos':
                 if symb:
                     lb, ub = -1.0, 1.0
-                    res = self._add_real_var(model, -1.0, 1.0)
+                    res = self._add_real_var(model, lb, ub)
                     model.addGenConstrCos(gterm, res, options=self.pw_options)
                 else:
                     res = math.cos(gterm)
@@ -675,7 +675,7 @@ class GurobiRDDLCompiler:
             elif name == 'sin':
                 if symb:
                     lb, ub = -1.0, 1.0
-                    res = self._add_real_var(model, -1.0, 1.0)
+                    res = self._add_real_var(model, lb, ub)
                     model.addGenConstrSin(gterm, res, options=self.pw_options)
                 else:
                     res = math.sin(gterm)
