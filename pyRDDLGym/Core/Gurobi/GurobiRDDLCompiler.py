@@ -254,9 +254,7 @@ class GurobiRDDLCompiler:
             
     def _add_var(self, model, vtype, lb=-GRB.INFINITY, ub=GRB.INFINITY, name=''):
         '''Add a generic variable to the Gurobi model.'''
-        var = model.addVar(vtype=vtype, lb=lb, ub=ub, name=name)
-        model.update()
-        return var
+        return model.addVar(vtype=vtype, lb=lb, ub=ub, name=name)
     
     def _add_bool_var(self, model, name=''):
         '''Add a BINARY variable to the Gurobi model.'''
