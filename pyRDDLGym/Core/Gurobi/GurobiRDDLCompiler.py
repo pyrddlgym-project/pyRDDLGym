@@ -786,8 +786,8 @@ class GurobiRDDLCompiler:
                     base = self._add_var(model, vtype, lb1, ub1)
                     model.addGenConstrMax(base, [gterm1], constant=0)
                     
-                    # TODO: compute bounds on pow
-                    lb, ub = -GRB.INFINITY, GRB.INFINITY
+                    # TODO: compute better bounds on pow
+                    lb, ub = 0.0, GRB.INFINITY
                     
                     # assign pow to new variable
                     res = self._add_real_var(model, lb, ub)
