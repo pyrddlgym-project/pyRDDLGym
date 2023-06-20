@@ -60,7 +60,6 @@ class GurobiRDDLCompiler:
         self.pw_options = piecewise_options
         self.time_limit = time_limit
         self.verbose = verbose
-        self.frozen_vars = []
         
         # type conversion to Gurobi
         self.GUROBI_TYPES = {
@@ -106,7 +105,7 @@ class GurobiRDDLCompiler:
         optimal_plan = []
         for actions_vars in all_action_vars:
             optimal_plan.append({})
-            for (name, var) in actions_vars.items():
+            for (name, (var, *_)) in actions_vars.items():
                 prange = rddl.actionsranges[name]
                 action = var.x
                 if prange == 'int':
@@ -116,23 +115,6 @@ class GurobiRDDLCompiler:
                 optimal_plan[-1][name] = action
         return optimal_plan
     
-    def freeze_vars(self, variables: List[object], values: List[object]=None) -> None:
-        '''Given a list of variables and values, freezes the values of the 
-        variables to the values so they cannot be changed during optimization.
-        '''
-        if values is None:
-            values = [None] * len(variables)
-        for (var, value) in zip(variables, values):
-            self.frozen_vars.append((var, (var.lb, var.ub)))
-            var.lb = var.ub = (var.x if value is None else value)
-    
-    def unfreeze_vars(self) -> None:
-        '''Resets the bounds of all frozen variables, so they can be optimized.
-        '''
-        for (var, (lb, ub)) in self.frozen_vars:
-            var.lb, var.ub = lb, ub
-        self.frozen_vars = []
-        
     # ===========================================================================
     # main compilation subroutines
     # ===========================================================================
@@ -145,11 +127,10 @@ class GurobiRDDLCompiler:
             # add action fluent variables to model
             action_vars = plan.predict(self, model, params, step, subs)
             all_action_vars.append(action_vars)
-            subs.update({name: (var, var.vtype, var.lb, var.ub, True) 
-                         for (name, var) in action_vars.items()})
+            subs.update(action_vars)
             
             # add action constraints
-            self._compile_maxnondef_constraint(model, action_vars)
+            self._compile_maxnondef_constraint(model, subs)
             self._compile_action_preconditions(model, subs)
             
             # evaluate CPFs and reward
@@ -220,13 +201,14 @@ class GurobiRDDLCompiler:
             if symb:
                 model.addConstr(indicator == 1)
     
-    def _compile_maxnondef_constraint(self, model, action_vars) -> None:
+    def _compile_maxnondef_constraint(self, model, subs) -> None:
         rddl = self.rddl
         num_bool, sum_bool = 0, 0
         for (action, prange) in rddl.actionsranges.items():
             if prange == 'bool':
+                var, *_ = subs[action]
                 num_bool += 1
-                sum_bool += action_vars[action]
+                sum_bool += var
         if rddl.max_allowed_actions < num_bool:
             model.addConstr(sum_bool <= rddl.max_allowed_actions)
             
