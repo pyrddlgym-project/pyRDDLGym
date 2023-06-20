@@ -8,8 +8,8 @@ if TYPE_CHECKING:
 
 class GurobiRDDLPlan:
     
-    def initialize(self, compiled: 'GurobiRDDLCompiler',
-                   model: gurobipy.Model) -> Dict[str, object]:
+    def parameterize(self, compiled: 'GurobiRDDLCompiler',
+                     model: gurobipy.Model) -> Dict[str, object]:
         '''Returns the parameters of this plan/policy to be optimized.
         
         :param compiled: A gurobi compiler where the current plan is initialized
@@ -33,11 +33,17 @@ class GurobiRDDLPlan:
         '''
         raise NotImplementedError
     
+    def init_params(self, compiled: 'GurobiRDDLCompiler',
+                    model: gurobipy.Model) -> Dict[str, object]:
+        '''Return initial parameter values for the current policy class.
+        '''
+        raise NotImplementedError
+
 
 class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
     
-    def initialize(self, compiled: 'GurobiRDDLCompiler',
-                   model: gurobipy.Model) -> Dict[str, object]:
+    def parameterize(self, compiled: 'GurobiRDDLCompiler',
+                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
         params = {}
         for (action, prange) in rddl.actionsranges.items():
@@ -48,7 +54,7 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
             vtype = compiled.GUROBI_TYPES[prange]
             for step in range(compiled.horizon):
                 name = f'{action}___{step}'
-                params[name] = compiled._add_var(model, vtype, lb, ub, name)
+                params[name] = compiled._add_var(model, vtype, lb, ub)
         return params
         
     def predict(self, compiled: 'GurobiRDDLCompiler',
@@ -60,3 +66,10 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                        for action in compiled.rddl.actions}
         return action_vars
     
+    def init_params(self, compiled: 'GurobiRDDLCompiler',
+                    model: gurobipy.Model) -> Dict[str, object]:
+        params = {}
+        for action in compiled.rddl.actions:
+            for step in range(compiled.horizon):
+                params[f'{action}___{step}'] = compiled.init_values[action]
+        return params
