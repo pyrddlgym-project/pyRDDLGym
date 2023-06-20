@@ -9,11 +9,13 @@ if TYPE_CHECKING:
 class GurobiRDDLPlan:
     
     def parameterize(self, compiled: 'GurobiRDDLCompiler',
-                     model: gurobipy.Model) -> Dict[str, object]:
+                     model: gurobipy.Model,
+                     values: Dict[str, object]=None) -> Dict[str, object]:
         '''Returns the parameters of this plan/policy to be optimized.
         
         :param compiled: A gurobi compiler where the current plan is initialized
         :param model: the gurobi model instance
+        :param values: if None, freeze policy parameters to these values
         '''
         raise NotImplementedError
         
@@ -43,7 +45,8 @@ class GurobiRDDLPlan:
 class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
     
     def parameterize(self, compiled: 'GurobiRDDLCompiler',
-                     model: gurobipy.Model) -> Dict[str, object]:
+                     model: gurobipy.Model,
+                     values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl
         params = {}
         for (action, prange) in rddl.actionsranges.items():
@@ -54,7 +57,12 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
             vtype = compiled.GUROBI_TYPES[prange]
             for step in range(compiled.horizon):
                 name = f'{action}___{step}'
-                params[name] = compiled._add_var(model, vtype, lb, ub)
+                if values is None:
+                    var = compiled._add_var(model, vtype, lb, ub)
+                    params[name] = (var, vtype, lb, ub, True)
+                else:
+                    value = values[name]
+                    params[name] = (value, vtype, value, value, False)
         return params
         
     def predict(self, compiled: 'GurobiRDDLCompiler',
