@@ -19,13 +19,14 @@ class GurobiRDDLBilevelOptimizer:
         self.policy = policy
         self.kwargs = compiler_kwargs
         
-        self.state_bounds = {var: state_bounds.get(rddl.parse(var)[0], None)
+        self.state_bounds = {var: state_bounds[rddl.parse(var)[0]]
                              for var in rddl.groundstates()}
     
     def solve(self, max_iters: int, tol: float=1e-4) -> None:
         compiler, outer_model, params = self._compile_outer_problem()       
         param_values = self.policy.init_params(compiler, outer_model)
         error = GRB.INFINITY
+        error_hist = []
         
         for it in range(max_iters):
             print('\n=========================================================')
@@ -41,11 +42,14 @@ class GurobiRDDLBilevelOptimizer:
             
             # check stopping condition
             new_error = outer_model.getVarByName('error').x
+            error_hist.append(new_error)
             if abs(new_error - error) < tol:
                 print(f'halting optimization with error {new_error}')
                 break
             else:
                 error = new_error
+                
+        return error_hist
 
     def _compile_outer_problem(self):
     
