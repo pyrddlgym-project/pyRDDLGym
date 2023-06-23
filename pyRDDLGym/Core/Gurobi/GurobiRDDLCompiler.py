@@ -24,9 +24,8 @@ class GurobiRDDLCompiler:
                  rollout_horizon: int=None,
                  epsilon: float=1e-6,
                  float_range: Tuple[float, float]=(1e-15, 1e15),
+                 model_params: Dict[str, object]={'NonConvex': 2},
                  piecewise_options: str='',
-                 time_limit: float=GRB.INFINITY,
-                 verbose: bool=True,
                  logger: Logger=None) -> None:
         '''Creates a new compiler from RDDL model to Gurobi problem.
         
@@ -40,11 +39,11 @@ class GurobiRDDLCompiler:
         :param float_range: range of floating values that can be passed to 
         Gurobi to initialize fluents and non-fluents (values outside this range
         are clipped)
+        :param model_params: dictionary of parameter name and values to
+        pass to Gurobi model after compilation
         :param piecewise_options: a string of parameters to pass to Gurobi
         "options" parameter when creating constraints that contain piecewise
         linear approximations (e.g. cos, log, exp)
-        :param time_limit: time limit allocated for computation in seconds
-        :param verbose: whether to print output during Gurobi optimization
         :param logger: to log information about compilation to file
         '''
         self.plan = plan
@@ -57,9 +56,8 @@ class GurobiRDDLCompiler:
         # Gurobi-specific parameters
         self.epsilon = epsilon
         self.float_range = float_range
+        self.model_params = model_params
         self.pw_options = piecewise_options
-        self.time_limit = time_limit
-        self.verbose = verbose
         
         # type conversion to Gurobi
         self.GUROBI_TYPES = {
@@ -163,13 +161,12 @@ class GurobiRDDLCompiler:
         
         # create the Gurobi optimization problem
         env = gurobipy.Env(empty=True)
-        env.setParam('OutputFlag', self.verbose)
         env.start()
         model = gurobipy.Model(env=env)
         
         # set additional model settings here before optimization
-        model.params.NonConvex = 2
-        model.params.TimeLimit = self.time_limit
+        for (name, value) in self.model_params.items():
+            model.setParam(name, value)
         return model 
         
     def _compile_init_subs(self, init_values=None) -> Dict[str, object]:

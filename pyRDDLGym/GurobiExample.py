@@ -13,7 +13,8 @@ def slp_replan(domain, inst, trials):
     model = RDDLEnv(domain=EnvInfo.get_domain(), 
                     instance=EnvInfo.get_instance(inst)).model
     plan = GurobiRDDLStraightLinePlan()
-    planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5, verbose=False)
+    planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5,
+                                 model_params={'NonConvex': 2, 'OutputFlag': 0})
     
     world = RDDLSimulator(planner.rddl)
     rewards = np.zeros((planner.rddl.horizon, trials))
