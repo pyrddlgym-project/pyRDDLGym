@@ -296,7 +296,7 @@ class GurobiRDDLCompiler:
         
         # bounds form a singleton set containing the cached value
         lb, ub = GurobiRDDLCompiler._fix_bounds(value, value)
-        return value, vtype, lb, ub, False
+        return lb, vtype, lb, ub, False
 
     def _gurobi_pvar(self, expr, model, subs):
         var, _ = expr.args
@@ -304,7 +304,8 @@ class GurobiRDDLCompiler:
         # domain object converted to canonical index
         is_value, value = self.traced.cached_sim_info(expr)
         if is_value:
-            return value, GRB.INTEGER, value, value, False
+            lb, ub = GurobiRDDLCompiler._fix_bounds(value, value)
+            return lb, GRB.INTEGER, lb, ub, False
         
         # extract variable value
         value = subs.get(var, None)
@@ -369,8 +370,6 @@ class GurobiRDDLCompiler:
                     gterm, vtype1, lb2, ub2, symb2 = self._gurobi(arg, model, subs)
                     res = res + gterm
                     vtype = GurobiRDDLCompiler._promote_vtype(vtype, vtype1)
-                    
-                    # update bounds for sum
                     lb, ub = GurobiRDDLCompiler._fix_bounds(lb + lb2, ub + ub2)
                     symb = symb or symb2
                 
@@ -394,9 +393,8 @@ class GurobiRDDLCompiler:
                     vtype = GurobiRDDLCompiler._promote_vtype(vtype, vtype1)
                     
                     # update bounds for product
-                    cross_lb_ub = (lb * lb2, lb * ub2, ub * lb2, ub * ub2)
-                    lb, ub = GurobiRDDLCompiler._fix_bounds(
-                        min(cross_lb_ub), max(cross_lb_ub))
+                    lbub = (lb * lb2, lb * ub2, ub * lb2, ub * ub2)
+                    lb, ub = GurobiRDDLCompiler._fix_bounds(min(lbub), max(lbub))
                     symb = symb or symb2
                     
                 # assign product to a new variable
@@ -417,11 +415,9 @@ class GurobiRDDLCompiler:
                 vtype = GurobiRDDLCompiler._at_least_int(vtype)
                 symb = symb1 or symb2
                 
+                # assign difference to a new variable
                 if symb:
-                    # compute bounds on the difference
                     lb, ub = GurobiRDDLCompiler._fix_bounds(lb1 - ub2, ub1 - lb2)
-                    
-                    # assign difference to a new variable
                     res = self._add_var(model, vtype, lb, ub)
                     model.addConstr(res == gterm1 - gterm2)
                 else:
@@ -459,9 +455,8 @@ class GurobiRDDLCompiler:
                 symb = symb1 or symb2
                 if symb:
                     # compute interval containing x / y
-                    cross_lb_ub = (lb1 * lb2, lb1 * ub2, ub1 * lb2, ub1 * ub2)
-                    lb, ub = GurobiRDDLCompiler._fix_bounds(
-                        min(cross_lb_ub), max(cross_lb_ub))
+                    lbub = (lb1 * lb2, lb1 * ub2, ub1 * lb2, ub1 * ub2)
+                    lb, ub = GurobiRDDLCompiler._fix_bounds(min(lbub), max(lbub))
                     
                     # finally compute x / y = x * (1 / y)
                     res = self._add_real_var(model, lb, ub)
@@ -620,10 +615,6 @@ class GurobiRDDLCompiler:
             
             if name == 'abs': 
                 if symb:
-                    # assign abs to new variable
-                    res = self._add_var(model, vtype, lb, ub)
-                    model.addGenConstrAbs(res, gterm)
-                    
                     # compute bounds for abs
                     if lb >= 0:
                         lb, ub = lb, ub
@@ -632,6 +623,9 @@ class GurobiRDDLCompiler:
                     else:
                         lb, ub = 0, max(abs(lb), abs(ub))
                     lb, ub = GurobiRDDLCompiler._fix_bounds(lb, ub)
+                    
+                    res = self._add_var(model, vtype, lb, ub)
+                    model.addGenConstrAbs(res, gterm)                    
                 else:
                     res = abs(gterm)
                     lb, ub = res, res                    
@@ -708,13 +702,10 @@ class GurobiRDDLCompiler:
                     lb, ub = max(lb, 0), max(ub, 0)
                     arg = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrMax(arg, [gterm], constant=0)
-                        
-                    # compute bounds on log
+                    
                     lb, ub = GurobiRDDLCompiler._fix_bounds(
                         GurobiRDDLCompiler.GRB_log(lb),
                         GurobiRDDLCompiler.GRB_log(ub))
-                    
-                    # assign ln to new variable
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrLog(arg, res, options=self.pw_options)
                 else:
@@ -729,11 +720,8 @@ class GurobiRDDLCompiler:
                     arg = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrMax(arg, [gterm], constant=0)
                     
-                    # compute bounds on sqrt
                     lb, ub = GurobiRDDLCompiler._fix_bounds(
                         math.sqrt(lb), math.sqrt(ub))
-                    
-                    # assign sqrt to new variable
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrPow(arg, res, 0.5, options=self.pw_options)
                 else:
@@ -752,11 +740,8 @@ class GurobiRDDLCompiler:
             
             if name == 'min': 
                 if symb: 
-                    # compute bounds on min
                     lb, ub = GurobiRDDLCompiler._fix_bounds(
                         min(lb1, lb2), min(ub1, ub2))
-                
-                    # assign min to new variable
                     res = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrMin(res, [gterm1, gterm2])
                 else:
@@ -766,11 +751,8 @@ class GurobiRDDLCompiler:
             
             elif name == 'max':
                 if symb:
-                    # compute bounds on max
                     lb, ub = GurobiRDDLCompiler._fix_bounds(
                         max(lb1, lb2), max(ub1, ub2))
-                    
-                    # assign max to new variable
                     res = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrMax(res, [gterm1, gterm2])
                 else:
