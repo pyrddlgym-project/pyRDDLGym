@@ -20,8 +20,10 @@ def slp_replan(domain, inst, trials):
     
     policy = GurobiLinearPolicy(feature)
     planner = GurobiRDDLBilevelOptimizer(
-        model, policy, state_bounds={'rlevel': (0, 100)},
-        rollout_horizon=10)
+        model, policy, 
+        state_bounds={'rlevel': (0, 100)},
+        rollout_horizon=10,
+        model_params={'NonConvex': 2})
     planner.solve(10)
     
             
