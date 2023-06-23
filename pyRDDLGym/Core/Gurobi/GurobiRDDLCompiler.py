@@ -271,6 +271,8 @@ class GurobiRDDLCompiler:
     
     @staticmethod
     def _fix_bounds(lb, ub):
+        assert (not math.isnan(lb))
+        assert (not math.isnan(ub))
         assert (ub >= lb)
         lb = max(min(lb, GRB.INFINITY), -GRB.INFINITY)
         ub = max(min(ub, GRB.INFINITY), -GRB.INFINITY)
@@ -783,8 +785,13 @@ class GurobiRDDLCompiler:
                     base = self._add_var(model, vtype, lb1, ub1)
                     model.addGenConstrMax(base, [gterm1], constant=0)
                     
-                    # TODO: compute better bounds on pow
-                    lb, ub = 0.0, GRB.INFINITY
+                    # compute bounds on pow
+                    loglb = -math.inf if lb1 == 0 else math.log(lb1)
+                    logub = -math.inf if ub1 == 0 else math.log(ub1)
+                    loglu = (loglb * lb2, loglb * ub2, logub * lb2, logub * ub2)
+                    logl, logu = min(loglu), max(loglu)
+                    lb, ub = GurobiRDDLCompiler._fix_bounds(
+                        math.exp(logl), math.exp(logu))
                     
                     # assign pow to new variable
                     res = self._add_real_var(model, lb, ub)
