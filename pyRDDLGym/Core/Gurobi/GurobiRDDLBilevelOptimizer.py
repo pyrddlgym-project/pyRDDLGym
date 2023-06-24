@@ -23,8 +23,9 @@ class GurobiRDDLBilevelOptimizer:
                              for var in rddl.groundstates()}
     
     def solve(self, max_iters: int, tol: float=1e-4) -> None:
-        compiler, outer_model, params = self._compile_outer_problem()       
-        param_values = self.policy.init_params(compiler, outer_model)
+        compiler, outer_model, params = self._compile_outer_problem()  
+        param_values = self.policy.init_params(compiler, outer_model)     
+        self.compiler, self.outer_model, self.params = compiler, outer_model, params
         error = GRB.INFINITY
         error_hist = []
         
@@ -39,6 +40,7 @@ class GurobiRDDLBilevelOptimizer:
             print('\nADDING CONSTRAINT AND SOLVING OUTER PROBLEM:\n')
             param_values, _ = self._resolve_outer_problem(
                 inner_model, outer_model, compiler, params)
+            inner_model.dispose()
             
             # check stopping condition
             new_error = outer_model.getVarByName('error').x
