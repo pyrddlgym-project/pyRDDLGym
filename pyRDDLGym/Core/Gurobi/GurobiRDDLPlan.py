@@ -36,6 +36,20 @@ class GurobiRDDLPlan:
         '''
         raise NotImplementedError
     
+    def evaluate(self, compiled: 'GurobiRDDLCompiler',
+                 params: Dict[str, object],
+                 step: int,
+                 subs: Dict[str, object]) -> Dict[str, object]:
+        '''Evaluates the current policy with state variables in subs.
+        
+        :param compiled: A gurobi compiler where the current plan is initialized
+        :param params: parameter variables of the plan/policy
+        :param step: the decision epoch
+        :param subs: the set of fluent and non-fluent variables available at the
+        current step
+        '''
+        raise NotImplementedError
+        
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
         '''Return initial parameter values for the current policy class.
@@ -59,7 +73,7 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
             for step in range(compiled.horizon):
                 name = f'{action}___{step}'
                 if values is None:
-                    var = compiled._add_var(model, vtype, lb, ub)
+                    var = compiled._add_var(model, vtype, lb, ub, name=name)
                     params[name] = (var, vtype, lb, ub, True)
                 else:
                     value = values[name]
@@ -75,6 +89,14 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                        for action in compiled.rddl.actions}
         return action_vars
     
+    def evaluate(self, compiled: 'GurobiRDDLCompiler',
+                 params: Dict[str, object],
+                 step: int,
+                 subs: Dict[str, object]) -> Dict[str, object]:
+        action_values = {params[f'{action}__{step}'].x
+                         for action in compiled.rddl.actions}
+        return action_values
+        
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
         params = {}
@@ -102,7 +124,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
             # bias
             name = f'bias_{action}'
             if values is None: 
-                var = compiled._add_real_var(model)
+                var = compiled._add_real_var(model, name=name)
                 params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
             else:
                 value = values[name]
@@ -113,7 +135,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
             for i in range(len(features)):
                 name = f'weight_{action}_{i}'
                 if values is None:
-                    var = compiled._add_real_var(model)
+                    var = compiled._add_real_var(model, name=name)
                     params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
                 else:
                     value = values[name]
@@ -134,12 +156,28 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
             for i, feature in enumerate(features):
                 param = params[f'weight_{action}_{i}'][0]
                 action_value += param * feature
-            action_var = compiled._add_real_var(model)
+            action_var = compiled._add_real_var(model, name=f'{action}__{step}')
             model.addConstr(action_var == action_value)
             action_vars[action] = (
                 action_var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
         return action_vars
     
+    def evaluate(self, compiled: 'GurobiRDDLCompiler',
+                 params: Dict[str, object],
+                 step: int,
+                 subs: Dict[str, object]) -> Dict[str, object]:
+        rddl = compiled.rddl
+        action_values = {}
+        for action in rddl.actions:
+            states = {name: subs[name] for name in rddl.states}
+            features = self.state_feature(action, states)
+            action_value = params[f'bias_{action}'][0].x
+            for i, feature in enumerate(features):
+                param = params[f'weight_{action}_{i}'][0].x
+                action_value += param * feature
+            action_values[action] = action_value
+        return action_values
+        
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
