@@ -188,3 +188,109 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
             for i in range(len(features)):
                 params[f'weight_{action}_{i}'] = np.random.normal(scale=self.noise)
         return params
+    
+    
+class GurobiLinearThresholdPolicy(GurobiRDDLPlan):
+    
+    def __init__(self, state_feature: Callable=None, 
+                 noise: float=0.01, epsilon: float=1e-6) -> None:
+        if state_feature is None:
+            state_feature = lambda action, states: states.values()
+        self.state_feature = state_feature
+        self.noise = noise
+        self.epsilon = epsilon
+    
+    def parameterize(self, compiled: 'GurobiRDDLCompiler',
+                     model: gurobipy.Model,
+                     values: Dict[str, object]=None) -> Dict[str, object]:
+        rddl = compiled.rddl
+        params = {}
+        for action in rddl.actions:
+            
+            # bias
+            name = f'bias_{action}'
+            if values is None: 
+                var = compiled._add_real_var(model, name=name)
+                params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+            else:
+                value = values[name]
+                params[name] = (value, GRB.CONTINUOUS, value, value, False)
+            
+            # feature weights
+            features = self.state_feature(action, rddl.states)
+            for i in range(len(features)):
+                name = f'weight_{action}_{i}'
+                if values is None:
+                    var = compiled._add_real_var(model, name=name)
+                    params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+                else:
+                    value = values[name]
+                    params[name] = (value, GRB.CONTINUOUS, value, value, False)
+            
+            # thresholds
+            c1 = compiled._add_real_var(model, name=f'c1_{action}')
+            c2 = compiled._add_real_var(model, name=f'c2_{action}')
+            params[f'c1_{action}'] = (c1, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+            params[f'c2_{action}'] = (c2, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+            
+        return params
+    
+    def predict(self, compiled: 'GurobiRDDLCompiler',
+                model: gurobipy.Model,
+                params: Dict[str, object],
+                step: int,
+                subs: Dict[str, object]) -> Dict[str, object]:
+        rddl = compiled.rddl
+        action_vars = {}
+        for action in rddl.actions:
+            states = {name: subs[name][0] for name in rddl.states}
+            features = self.state_feature(action, states)
+            linear_comb = params[f'bias_{action}'][0]
+            for i, feature in enumerate(features):
+                param = params[f'weight_{action}_{i}'][0]
+                linear_comb += param * feature
+            linear_var = compiled._add_real_var(model)
+            model.addConstr(linear_comb == linear_var)
+            which_side = compiled._add_bool_var(model)
+            model.addConstr((which_side == 1) >> (linear_var >= 0))
+            model.addConstr((which_side == 0) >> (linear_var <= -self.epsilon))
+            action_value = params[f'c1_{action}'][0] * which_side + \
+                            params[f'c2_{action}'][0] * (1 - which_side)
+            action_var = compiled._add_real_var(model, name=f'{action}__{step}')
+            model.addConstr(action_var == action_value)
+            action_vars[action] = (
+                action_var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+        return action_vars
+    
+    def evaluate(self, compiled: 'GurobiRDDLCompiler',
+                 params: Dict[str, object],
+                 step: int,
+                 subs: Dict[str, object]) -> Dict[str, object]:
+        rddl = compiled.rddl
+        action_values = {}
+        for action in rddl.actions:
+            states = {name: subs[name] for name in rddl.states}
+            features = self.state_feature(action, states)
+            linear_comb = params[f'bias_{action}'][0].x
+            for i, feature in enumerate(features):
+                param = params[f'weight_{action}_{i}'][0].x
+                linear_comb += param * feature
+            if linear_comb >= 0:
+                action_values[action] = params[f'c1_{action}'][0].x
+            else:
+                action_values[action] = params[f'c2_{action}'][0].x
+        return action_values
+        
+    def init_params(self, compiled: 'GurobiRDDLCompiler',
+                    model: gurobipy.Model) -> Dict[str, object]:
+        rddl = compiled.rddl
+        params = {}
+        for action in rddl.actions:
+            params[f'bias_{action}'] = 0.0
+            features = self.state_feature(action, rddl.states)
+            for i in range(len(features)):
+                params[f'weight_{action}_{i}'] = np.random.normal(scale=self.noise)
+            params[f'c1_{action}'] = 0.0
+            params[f'c2_{action}'] = 0.0            
+        return params
+    

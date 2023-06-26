@@ -1,6 +1,6 @@
 import sys
 
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiLinearPolicy
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiLinearThresholdPolicy
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 from pyRDDLGym.Core.Gurobi.GurobiRDDLBilevelOptimizer import GurobiRDDLBilevelOptimizer
@@ -20,19 +20,23 @@ def slp_replan(domain, inst, trials):
                 return [value]
         return None
     
-    policy = GurobiLinearPolicy(feature)
+    policy = GurobiLinearThresholdPolicy(feature)
     planner = GurobiRDDLBilevelOptimizer(
         model, policy,
         state_bounds={'rlevel': (0, 100)},
-        rollout_horizon=10,
-        model_params={'NonConvex': 2, 'OutputFlag': 1, 'MIPGap': 0.1})
-    planner.solve(10)
+        rollout_horizon=5,
+        model_params={'NonConvex': 2, 'OutputFlag': 1, 'MIPGap': 0.05})
+    hist = planner.solve(30)
+    
+    import matplotlib.pyplot as plt
+    plt.plot(hist)
+    plt.savefig('error.pdf')
     
     rddl = RDDLGrounder(model._AST).Ground()
     world = RDDLSimulator(rddl)
     state, _ = world.reset()
     total_reward = 0.0
-    for step in range(10):
+    for step in range(100):
         actions = policy.evaluate(planner.compiler, 
                                   planner.params, 
                                   step, world.subs)
