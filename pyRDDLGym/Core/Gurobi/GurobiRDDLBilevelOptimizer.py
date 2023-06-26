@@ -22,7 +22,7 @@ class GurobiRDDLBilevelOptimizer:
         self.state_bounds = {var: state_bounds[rddl.parse(var)[0]]
                              for var in rddl.groundstates()}
     
-    def solve(self, max_iters: int, tol: float=1e-4) -> None:
+    def solve(self, max_iters: int, tol: float=1e-3) -> None:
         compiler, outer_model, params = self._compile_outer_problem()  
         param_values = self.policy.init_params(compiler, outer_model)     
         self.compiler, self.outer_model, self.params = compiler, outer_model, params
