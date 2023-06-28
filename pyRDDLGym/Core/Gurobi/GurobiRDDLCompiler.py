@@ -482,8 +482,8 @@ class GurobiRDDLCompiler:
         
         if n == 2:
             lhs, rhs = args
-            glhs, *_, symb1 = self._gurobi(lhs, model, subs)
-            grhs, *_, symb2 = self._gurobi(rhs, model, subs)
+            glhs, _, lb1, ub1, symb1 = self._gurobi(lhs, model, subs)
+            grhs, _, lb2, ub2, symb2 = self._gurobi(rhs, model, subs)
             
             # convert <= to >=, < to >, etc.
             if op == '<=' or op == '<':
@@ -494,10 +494,22 @@ class GurobiRDDLCompiler:
             diff = glhs - grhs
             symb = symb1 or symb2
             if op == '==': 
-                # TODO
                 if symb:
-                    raise RDDLNotImplementedError(
-                        f'== is not yet implemented in Gurobi compiler.')
+                    # calculate absolute difference
+                    lb, ub = lb1 - ub2, ub1 - lb2
+                    if lb >= 0:
+                        lb, ub = lb, ub
+                    elif ub <= 0:
+                        lb, ub = -ub, -lb
+                    else:
+                        lb, ub = 0, max(abs(lb), abs(ub))
+                    lb, ub = GurobiRDDLCompiler._fix_bounds(lb, ub)
+                    abs_diff = self._add_real_var(model, lb=lb, ub=ub)
+                    model.addGenConstrAbs(abs_diff, diff)
+                    
+                    res = self._add_bool_var(model)
+                    model.addConstr((res == 1) >> (abs_diff <= +self.epsilon))
+                    model.addConstr((res == 0) >> (abs_diff >= 2 * self.epsilon))
                 else:
                     res = glhs == grhs
                 return res, GRB.BINARY, 0, 1, symb
@@ -512,10 +524,22 @@ class GurobiRDDLCompiler:
                 return res, GRB.BINARY, 0, 1, symb
             
             elif op == '~=':
-                # TODO
                 if symb:
-                    raise RDDLNotImplementedError(
-                        f'~= is not yet implemented in Gurobi compiler.')
+                    # calculate absolute difference
+                    lb, ub = lb1 - ub2, ub1 - lb2
+                    if lb >= 0:
+                        lb, ub = lb, ub
+                    elif ub <= 0:
+                        lb, ub = -ub, -lb
+                    else:
+                        lb, ub = 0, max(abs(lb), abs(ub))
+                    lb, ub = GurobiRDDLCompiler._fix_bounds(lb, ub)
+                    abs_diff = self._add_real_var(model, lb=lb, ub=ub)
+                    model.addGenConstrAbs(abs_diff, diff)
+                    
+                    res = self._add_bool_var(model)
+                    model.addConstr((res == 1) >> (abs_diff >= 2 * self.epsilon))
+                    model.addConstr((res == 0) >> (abs_diff <= +self.epsilon))
                 else: 
                     res = glhs != grhs
                 return res, GRB.BINARY, 0, 1, symb
