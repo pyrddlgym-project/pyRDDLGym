@@ -1,4 +1,5 @@
 from sys import argv
+import json
 from time import perf_counter as timer
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
@@ -12,6 +13,9 @@ try:
 except IndexError as e:
     print('argv: agent_id')
     raise e
+
+with open('actions/actions_dump_20230601_001617.json', 'r') as file:
+    learned_plan = json.load(file)['a'][0]
 
 EnvInfo = ExampleManager.GetEnvInfo('traffic2phase')
 
@@ -38,6 +42,8 @@ def sample_max_agent_action(t):
 def sample_offset_max_agent_action(t):
     base_plan = [False]*8*(N-1) + [True]*5 + [False]*60 + ([True]*32 + [False]*60)*5
     return {f'advance___i{n}': base_plan[t+8*(N-n-1)] for n in range(N)}
+def sample_trained_planner_action(t):
+    return {f'advance___i{n}': learned_plan[t][n] for n in range(N)}
 
 if agent_id == 'random':
     sample_agent_action = sample_random_agent_action
@@ -47,6 +53,8 @@ elif agent_id == 'max':
     sample_agent_action = sample_max_agent_action
 elif agent_id == 'offset_max':
     sample_agent_action = sample_offset_max_agent_action
+elif agent_id == 'trained_planner':
+    sample_agent_action = sample_trained_planner_action
 else:
     raise ValueError(f'GreenWave eval: Unrecognized agent id {agent_id}')
 
