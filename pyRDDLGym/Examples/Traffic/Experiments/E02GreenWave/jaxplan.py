@@ -13,9 +13,11 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 
+from warmup import warmup
+
 from jax.config import config as jconfig
 jconfig.update('jax_debug_nans', True)
-jconfig.update('jax_platform_name', 'cpu')
+jconfig.update('jax_platform_name', 'gpu')
 
 
 # specify the model
@@ -23,22 +25,20 @@ EnvInfo = ExampleManager.GetEnvInfo('traffic2phase')
 myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance='instances/instance01.rddl')
 model = myEnv.model
 
-
-with open('subs.pckl', 'rb') as file:
-    init_state_subs = pickle.load(file)
+init_state_subs, t_warmup = warmup(myEnv, EnvInfo)
 
 # initialize the planner
-b_train = 1 # Deterministic transitions -> No need for larger batches?
-b_test = 1
+b_train = 2 # Deterministic transitions -> No need for larger batches?
+b_test = 2
 clip_grad = 1e-3
 wrap_sigmoid = True
 
-weight = 20
+weight = 15
 step = 100
-nepochs = 10000
+nepochs = 20000
 t_plan = myEnv.horizon
-lr = 1e-3
-momentum = 0.3
+lr = 1e-2
+momentum = 0.1
 
 #initialize the plan
 straight_line_plan = JaxStraightLinePlan(
@@ -48,7 +48,7 @@ straight_line_plan = JaxStraightLinePlan(
 planner = JaxRDDLBackpropPlanner(
     model,
     plan=straight_line_plan,
-    rollout_horizon=t_plan,
+    rollout_horizon=t_plan-t_warmup,
     batch_size_train=b_train,
     batch_size_test=b_test,
     optimizer=optax.rmsprop,
@@ -98,6 +98,7 @@ for callback in gen:
     #print(grads[-1])
     print(jax.numpy.sum(callback['action']['advance'][:,:,0], axis=1))
 
+print('Best return=', best_test_return)
 
 now = datetime.now().strftime('%Y%m%d_%H%M%S')
 with open(f'actions/actions_dump_{now}.json', 'w') as file:
