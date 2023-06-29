@@ -71,9 +71,9 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                 lb, ub = -GRB.INFINITY, GRB.INFINITY
             vtype = compiled.GUROBI_TYPES[prange]
             for step in range(compiled.horizon):
-                name = f'{action}___{step}'
+                name = f'{action}__{step}'
                 if values is None:
-                    var = compiled._add_var(model, vtype, lb, ub, name=name)
+                    var = compiled._add_var(model, vtype, lb, ub)
                     params[name] = (var, vtype, lb, ub, True)
                 else:
                     value = values[name]
@@ -85,7 +85,7 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                 params: Dict[str, object],
                 step: int,
                 subs: Dict[str, object]) -> Dict[str, object]:
-        action_vars = {action: params[f'{action}___{step}'] 
+        action_vars = {action: params[f'{action}__{step}'] 
                        for action in compiled.rddl.actions}
         return action_vars
     
@@ -93,7 +93,7 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                  params: Dict[str, object],
                  step: int,
                  subs: Dict[str, object]) -> Dict[str, object]:
-        action_values = {params[f'{action}__{step}'].x
+        action_values = {action: params[f'{action}__{step}'][0].x
                          for action in compiled.rddl.actions}
         return action_values
         
@@ -102,7 +102,7 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
         params = {}
         for action in compiled.rddl.actions:
             for step in range(compiled.horizon):
-                params[f'{action}___{step}'] = compiled.init_values[action]
+                params[f'{action}__{step}'] = compiled.init_values[action]
         return params
 
 
@@ -124,7 +124,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
             # bias
             name = f'bias_{action}'
             if values is None: 
-                var = compiled._add_real_var(model, name=name)
+                var = compiled._add_real_var(model)
                 params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
             else:
                 value = values[name]
@@ -135,7 +135,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
             for i in range(len(features)):
                 name = f'weight_{action}_{i}'
                 if values is None:
-                    var = compiled._add_real_var(model, name=name)
+                    var = compiled._add_real_var(model)
                     params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
                 else:
                     value = values[name]
@@ -156,7 +156,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
             for i, feature in enumerate(features):
                 param = params[f'weight_{action}_{i}'][0]
                 action_value += param * feature
-            action_var = compiled._add_real_var(model, name=f'{action}__{step}')
+            action_var = compiled._add_real_var(model)
             model.addConstr(action_var == action_value)
             action_vars[action] = (
                 action_var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
@@ -192,7 +192,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
     
 class GurobiLinearThresholdPolicy(GurobiRDDLPlan):
     
-    def __init__(self, state_feature: Callable=None, 
+    def __init__(self, state_feature: Callable=None,
                  noise: float=0.01, epsilon: float=1e-6) -> None:
         if state_feature is None:
             state_feature = lambda action, states: states.values()
@@ -210,7 +210,7 @@ class GurobiLinearThresholdPolicy(GurobiRDDLPlan):
             # bias
             name = f'bias_{action}'
             if values is None: 
-                var = compiled._add_real_var(model, name=name)
+                var = compiled._add_real_var(model)
                 params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
             else:
                 value = values[name]
@@ -221,17 +221,23 @@ class GurobiLinearThresholdPolicy(GurobiRDDLPlan):
             for i in range(len(features)):
                 name = f'weight_{action}_{i}'
                 if values is None:
-                    var = compiled._add_real_var(model, name=name)
+                    var = compiled._add_real_var(model)
                     params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
                 else:
                     value = values[name]
                     params[name] = (value, GRB.CONTINUOUS, value, value, False)
             
             # thresholds
-            c1 = compiled._add_real_var(model, name=f'c1_{action}')
-            c2 = compiled._add_real_var(model, name=f'c2_{action}')
-            params[f'c1_{action}'] = (c1, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
-            params[f'c2_{action}'] = (c2, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+            if values is None:
+                c1 = compiled._add_real_var(model)
+                c2 = compiled._add_real_var(model)
+                params[f'c1_{action}'] = (c1, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+                params[f'c2_{action}'] = (c2, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+            else:
+                c1 = values[f'c1_{action}']
+                c2 = values[f'c2_{action}']
+                params[f'c1_{action}'] = (c1, GRB.CONTINUOUS, c1, c1, False)
+                params[f'c2_{action}'] = (c2, GRB.CONTINUOUS, c2, c2, False)
             
         return params
     
@@ -256,7 +262,7 @@ class GurobiLinearThresholdPolicy(GurobiRDDLPlan):
             model.addConstr((which_side == 0) >> (linear_var <= -self.epsilon))
             action_value = params[f'c1_{action}'][0] * which_side + \
                             params[f'c2_{action}'][0] * (1 - which_side)
-            action_var = compiled._add_real_var(model, name=f'{action}__{step}')
+            action_var = compiled._add_real_var(model)
             model.addConstr(action_var == action_value)
             action_vars[action] = (
                 action_var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
@@ -293,4 +299,93 @@ class GurobiLinearThresholdPolicy(GurobiRDDLPlan):
             params[f'c1_{action}'] = 0.0
             params[f'c2_{action}'] = 0.0            
         return params
+
+
+class GurobiCornersPolicy(GurobiRDDLPlan):
     
+    def __init__(self, epsilon: float=1e-6) -> None:
+        self.epsilon = epsilon
+        
+    def parameterize(self, compiled: 'GurobiRDDLCompiler',
+                     model: gurobipy.Model,
+                     values: Dict[str, object]=None) -> Dict[str, object]:
+        rddl = compiled.rddl
+        params = {}
+        for action in rddl.actions:
+            for state in rddl.states:
+                name = f'corner__{action}__{state}'
+                if values is None:
+                    var = compiled._add_real_var(model)
+                    params[name] = (var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+                else:
+                    value = values[name]
+                    params[name] = (value, GRB.CONTINUOUS, value, value, False)
+            
+            if values is None:
+                c1 = compiled._add_real_var(model)
+                c2 = compiled._add_real_var(model)
+                params[f'c1__{action}'] = (c1, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+                params[f'c2__{action}'] = (c2, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+            else:
+                c1 = values[f'c1__{action}']
+                c2 = values[f'c2__{action}']
+                params[f'c1__{action}'] = (c1, GRB.CONTINUOUS, c1, c1, False)
+                params[f'c2__{action}'] = (c2, GRB.CONTINUOUS, c2, c2, False)
+                
+        return params
+
+    def predict(self, compiled: 'GurobiRDDLCompiler',
+                model: gurobipy.Model,
+                params: Dict[str, object],
+                step: int,
+                subs: Dict[str, object]) -> Dict[str, object]:
+        rddl = compiled.rddl
+        action_vars = {}
+        for action in rddl.actions:
+            and_constrs = []
+            for state in rddl.states:
+                name = f'corner__{action}__{state}'
+                diff = subs[state][0] - params[name][0]
+                gre = compiled._add_bool_var(model)
+                model.addConstr((gre == 1) >> (diff >= +self.epsilon))
+                model.addConstr((gre == 0) >> (diff <= 0))
+                and_constrs.append(gre)
+            and_constr = compiled._add_bool_var(model)
+            model.addGenConstrAnd(and_constr, and_constrs)
+            
+            c1 = params[f'c1__{action}'][0]
+            c2 = params[f'c2__{action}'][0]
+            action_var = compiled._add_real_var(model)
+            model.addConstr((and_constr == 1) >> (action_var == c1))
+            model.addConstr((and_constr == 0) >> (action_var == c2))
+            action_vars[action] = (
+                action_var, GRB.CONTINUOUS, -GRB.INFINITY, GRB.INFINITY, True)
+        return action_vars
+    
+    def evaluate(self, compiled: 'GurobiRDDLCompiler',
+                 params: Dict[str, object],
+                 step: int,
+                 subs: Dict[str, object]) -> Dict[str, object]:
+        rddl = compiled.rddl
+        action_values = {}
+        for action in rddl.actions:
+            constr = True
+            for state in rddl.states:
+                name = f'corner__{action}__{state}'
+                constr = constr and (subs[state] > params[name][0].x)
+            if constr:
+                action_values[action] = params[f'c1__{action}'][0].x
+            else:
+                action_values[action] = params[f'c2__{action}'][0].x
+        return action_values
+    
+    def init_params(self, compiled: 'GurobiRDDLCompiler',
+                    model: gurobipy.Model) -> Dict[str, object]:
+        rddl = compiled.rddl
+        params = {}
+        for action in rddl.actions:
+            for state in rddl.states:
+                params[f'corner__{action}__{state}'] = 0.0
+            params[f'c1__{action}'] = 0.0
+            params[f'c2__{action}'] = 0.0
+        return params
