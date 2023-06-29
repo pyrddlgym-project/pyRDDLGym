@@ -1,6 +1,5 @@
 import jax
-import numpy as np
-np.seterr(all='raise')
+import time
 from typing import Dict
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
@@ -36,8 +35,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         :param **compiler_args: keyword arguments to pass to the Jax compiler
         '''
         if key is None:
-            seed = np.random.randint(0, 2 ** 31 - 1)
-            key = jax.random.PRNGKey(seed)
+            key = jax.random.PRNGKey(round(time.time() * 1000))
         self.key = key
         self.raise_error = raise_error
         self.compiler_args = compiler_args
@@ -45,6 +43,10 @@ class JaxRDDLSimulator(RDDLSimulator):
         # generate direct sampling with default numpy RNG and operations
         super(JaxRDDLSimulator, self).__init__(rddl, logger=logger)
     
+    def seed(self, seed: int) -> None:
+        super(JaxRDDLSimulator, self).seed(seed)
+        self.key = jax.random.PRNGKey(seed)
+        
     def _compile(self):
         rddl = self.rddl
         

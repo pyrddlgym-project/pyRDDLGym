@@ -109,6 +109,9 @@ class RDDLSimulator:
         self.CONTROL_OPS = {'if': np.where,
                             'switch': np.select}
     
+    def seed(self, seed: int) -> None:
+        self.rng = np.random.default_rng(seed)
+        
     def _compile(self):
         rddl = self.rddl
         

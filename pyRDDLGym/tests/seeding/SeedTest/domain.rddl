@@ -1,0 +1,31 @@
+domain seedtest {
+
+    requirements = {
+        reward-deterministic , // Reward is a deterministic function
+        integer-valued , // Uses integer variables
+        continuous , // Uses continuous variables
+        multivalued , // Uses enumerated variables
+        intermediate-nodes , // Uses intermediate nodes
+        partially-observed // Uses observation nodes
+    };
+
+    // User - defined types
+    types {
+		param : object;
+    };
+
+    pvariables {
+        MEAN    : { non-fluent , real , default = 0 };
+        VAR     : { non-fluent , real , default = 1 };
+
+        prob(param) : { state-fluent , real , default = false };
+		a       : { action-fluent , real , default = false };
+    };
+
+    cpfs {
+	    prob'(?p) = prob(?p) + Normal(MEAN, VAR);
+    };
+
+    reward = ( -sum_{?p : param} [prob(?p)] );
+
+}

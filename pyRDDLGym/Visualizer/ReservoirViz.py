@@ -221,7 +221,7 @@ class ReservoirVisualizer(StateViz):
         res_rect = plt.Rectangle((init_x, init_y), interval, interval, fc='lightgrey', alpha=0.5)
         # scale_rect = plt.Rectangle((init_x, init_y + interval), interval/2, interval/4, fc='deepskyblue', alpha=rain_scale/50)
         shape_rect = plt.Rectangle((init_x, init_y + interval), interval, interval / 4, fc='darkcyan',
-                                   alpha=rain_shape / 50)
+                                   alpha=np.clip(rain_shape / 50, 0, 1))
 
         ax.add_line(line_max)
         ax.add_line(line_up)
