@@ -22,7 +22,7 @@ class GurobiRDDLBilevelOptimizer:
         self.state_bounds = {var: state_bounds[rddl.parse(var)[0]]
                              for var in rddl.groundstates()}
     
-    def solve(self, max_iters: int, tol: float=1e-3) -> None:
+    def solve(self, max_iters: int, tol: float=1e-4) -> None:
         compiler, outer_model, params = self._compile_outer_problem()  
         param_values = self.policy.init_params(compiler, outer_model)     
         self.compiler, self.outer_model, self.params = compiler, outer_model, params
@@ -45,7 +45,7 @@ class GurobiRDDLBilevelOptimizer:
             # check stopping condition
             new_error = outer_model.getVarByName('error').x
             error_hist.append(new_error)
-            if abs(new_error - error) < tol:
+            if abs(new_error - error) < tol * abs(error):
                 print(f'halting optimization with error {new_error}')
                 break
             else:
@@ -91,7 +91,7 @@ class GurobiRDDLBilevelOptimizer:
         # roll out from s using a_1, ... a_T
         slp_params = slp.parameterize(compiler, model)
         value_slp, _ = compiler._rollout(model, slp, slp_params, subs.copy())
-        value_slp_var = compiler._add_real_var(model, name='value_slp')
+        value_slp_var = compiler._add_real_var(model, name='value')
         model.addConstr(value_slp_var == value_slp)
         
         # roll out from s using a_t = policy(s_t), t = 1, 2, ... T
@@ -114,7 +114,7 @@ class GurobiRDDLBilevelOptimizer:
         grounded_rddl = compiler.rddl
         
         # get Value(a_1, ... a_T, s) from the solution to the inner problem
-        value_slp = inner_model.getVarByName('value_slp').x
+        value_slp = inner_model.getVarByName('value').x
         
         # get initial state s from the solution to the inner problem
         state_values = {}
