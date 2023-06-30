@@ -1,0 +1,35 @@
+non-fluents nf_power_gen_1c {
+	domain = power_gen;
+	objects {
+		plant : {p1, p2};
+	};
+	non-fluents {
+		MIN-CONSUMPTION = 2.0;
+		DEMAND-EXP-COEF = 0.01;
+		TEMP-VARIANCE = 5.0;
+		PROD-UNITS-MIN(p1) = 1.0;
+		PROD-UNITS-MAX(p1) = 6.0;
+		TURN-ON-COST(p1) = 6.0;
+		PROD-CHANGE-PENALTY(p1) = 1.0;
+		COST-PER-UNIT(p1) = 4.0;
+		PROD-SHAPE(p1) = 1.0;
+		PROD-SCALE(p1) = 0.000000100000000;
+		PROD-UNITS-MIN(p2) = 1.0;
+		PROD-UNITS-MAX(p2) = 6.0;
+		TURN-ON-COST(p2) = 6.0;
+		PROD-CHANGE-PENALTY(p2) = 1.0;
+		COST-PER-UNIT(p2) = 4.0;
+		PROD-SHAPE(p2) = 1.0;
+		PROD-SCALE(p2) = 0.000000100000000;
+	};
+}
+instance inst_power_gen_1c {
+	domain = power_gen;
+	non-fluents = nf_power_gen_1c;
+	init-state {
+		temperature = -10.085981614814536;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}

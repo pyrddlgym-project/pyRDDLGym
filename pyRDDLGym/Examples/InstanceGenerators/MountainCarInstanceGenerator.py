@@ -22,6 +22,7 @@ class MountainCarInstanceGenerator(InstanceGenerator):
         segments = [f's{i + 1}' for i in range(len(points))]
         
         nonfluents = {}
+        nonfluents['ACTION-PENALTY'] = 0.0
         nonfluents['MIN-POS'] = xrange[0]
         nonfluents['MAX-POS'] = xrange[1]
         nonfluents['GOAL-MIN'] = params['goal-min']

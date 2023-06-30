@@ -11,7 +11,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError, RDDLLogFol
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Debug.Logger import Logger, SimLogger
 from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
-from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeeder
+from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeederFibonacci as RDDLSeeder
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
@@ -56,8 +56,7 @@ class RDDLEnv(gym.Env):
         # hardcoded so cannot be changed externally for the purpose of the competition.
         # TODO: add it to the API after the competition
         self.budget = 240
-        # self.seeds = [list of seeds]
-        self.seeds = RDDLEnvSeeder(seed_list=seeds)
+        self.seeds = RDDLSeeder(a1=1)
 
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
@@ -259,20 +258,23 @@ class RDDLEnv(gym.Env):
             self._movie_generator.save_frame(image)            
         self.image_size = image.size
 
-        # Logging
-        if self.simlogger:
-            self.trial += 1
-            text = '######################################################\n'
-            text += 'New Trial\n'
-            text += '######################################################'
-            self.simlogger.log_free(text)
-
         if seed is not None:
             self.seed(seed)
         else:
             seed = self.seeds.Next()
             if seed is not None:
                 self.seed(seed)
+
+        # Logging
+        if self.simlogger:
+            self.trial += 1
+            text = '######################################################\n'
+            if seed is not None:
+                text += f'New Trial, seed={seed}\n'
+            else:
+                text += f'New Trial\n'
+            text += '######################################################'
+            self.simlogger.log_free(text)
 
         return obs
 

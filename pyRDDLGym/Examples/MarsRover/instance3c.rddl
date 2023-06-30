@@ -1,0 +1,70 @@
+non-fluents nf_mars_rover_science_mission_3c {
+	domain = mars_rover_science_mission;
+	objects {
+		mineral : {m1, m2, m3, m4, m5, m6, m7};
+		rover : {d1, d2, d3, d4, d5, d6};
+	};
+	non-fluents {
+		MINERAL-POS-X(m1) = -2.877408261177024;
+		MINERAL-POS-Y(m1) = -8.889954041131269;
+		MINERAL-AREA(m1) = 1.887388265299027;
+		MINERAL-VALUE(m1) = 8.701907471630431;
+		MINERAL-POS-X(m2) = 7.169667247794884;
+		MINERAL-POS-Y(m2) = -5.6026339715800555;
+		MINERAL-AREA(m2) = 1.2011046919295223;
+		MINERAL-VALUE(m2) = 17.94192376337854;
+		MINERAL-POS-X(m3) = 1.1304908222792278;
+		MINERAL-POS-Y(m3) = -1.9185667585385744;
+		MINERAL-AREA(m3) = 1.0085832408601552;
+		MINERAL-VALUE(m3) = 14.407062346673566;
+		MINERAL-POS-X(m4) = 0.349005890646934;
+		MINERAL-POS-Y(m4) = -2.2319741367427115;
+		MINERAL-AREA(m4) = 1.7164179988045132;
+		MINERAL-VALUE(m4) = 12.896468197325623;
+		MINERAL-POS-X(m5) = -0.7157361981685249;
+		MINERAL-POS-Y(m5) = -0.426371418551188;
+		MINERAL-AREA(m5) = 2.754433299174444;
+		MINERAL-VALUE(m5) = 12.903718901551768;
+		MINERAL-POS-X(m6) = 3.9106300567499233;
+		MINERAL-POS-Y(m6) = -5.507614183842671;
+		MINERAL-AREA(m6) = 1.964447002328153;
+		MINERAL-VALUE(m6) = 4.551323836410228;
+		MINERAL-POS-X(m7) = -3.881986596566289;
+		MINERAL-POS-Y(m7) = -3.665545294443233;
+		MINERAL-AREA(m7) = 1.615109076050517;
+		MINERAL-VALUE(m7) = 0.9399034223799907;
+	};
+}
+instance inst_mars_rover_science_mission_3c {
+	domain = mars_rover_science_mission;
+	non-fluents = nf_mars_rover_science_mission_3c;
+	init-state {
+		pos-x(d1) = -3.3685770908115558;
+		pos-y(d1) = 5.590001235168355;
+		vel-x(d1) = 0.0;
+		vel-y(d1) = 0.0;
+		pos-x(d2) = 9.326933444838168;
+		pos-y(d2) = 6.812946344066546;
+		vel-x(d2) = 0.0;
+		vel-y(d2) = 0.0;
+		pos-x(d3) = 4.8524738468308986;
+		pos-y(d3) = -8.691259076864386;
+		vel-x(d3) = 0.0;
+		vel-y(d3) = 0.0;
+		pos-x(d4) = 2.4050271039506814;
+		pos-y(d4) = -2.2131007250633594;
+		vel-x(d4) = 0.0;
+		vel-y(d4) = 0.0;
+		pos-x(d5) = 1.127290866039468;
+		pos-y(d5) = -9.45580412834378;
+		vel-x(d5) = 0.0;
+		vel-y(d5) = 0.0;
+		pos-x(d6) = 6.324688206553162;
+		pos-y(d6) = 1.5647917071369015;
+		vel-x(d6) = 0.0;
+		vel-y(d6) = 0.0;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}
