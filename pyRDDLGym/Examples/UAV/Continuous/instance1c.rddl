@@ -1,0 +1,27 @@
+non-fluents nf_kinematic_UAVs_con_1c {
+	domain = kinematic_UAVs_con;
+	objects {
+		aircraft : {a1};
+	};
+	non-fluents {
+		GOAL-X(a1) = 12.695694045044526;
+		GOAL-Y(a1) = 43.182225019213064;
+		GOAL-Z(a1) = 56.16032711430123;
+		MIN-ACC(a1) = -10.0;
+		MAX-ACC(a1) = 10.0;
+		RANDOM-WALK-COEFF = 1.0;
+		CONTROLLABLE(a1);
+	};
+}
+instance inst_kinematic_UAVs_con_1c {
+	domain = kinematic_UAVs_con;
+	non-fluents = nf_kinematic_UAVs_con_1c;
+	init-state {
+		pos-x(a1) = -36.16554473560023;
+		pos-y(a1) = -13.834912193457463;
+		pos-z(a1) = 0.0;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}

@@ -1,0 +1,30 @@
+non-fluents nf_mars_rover_science_mission_1c {
+	domain = mars_rover_science_mission;
+	objects {
+		mineral : {m1};
+		rover : {d1, d2};
+	};
+	non-fluents {
+		MINERAL-POS-X(m1) = -2.4976544008983215;
+		MINERAL-POS-Y(m1) = -4.007302419653702;
+		MINERAL-AREA(m1) = 4.481908827780893;
+		MINERAL-VALUE(m1) = 3.943875069885281;
+	};
+}
+instance inst_mars_rover_science_mission_1c {
+	domain = mars_rover_science_mission;
+	non-fluents = nf_mars_rover_science_mission_1c;
+	init-state {
+		pos-x(d1) = 3.184956278055793;
+		pos-y(d1) = 5.498909928599565;
+		vel-x(d1) = 0.0;
+		vel-y(d1) = 0.0;
+		pos-x(d2) = -7.891184197400438;
+		pos-y(d2) = -9.585996390667047;
+		vel-x(d2) = 0.0;
+		vel-y(d2) = 0.0;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}
