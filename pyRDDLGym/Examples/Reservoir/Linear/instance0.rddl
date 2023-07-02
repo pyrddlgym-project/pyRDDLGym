@@ -1,0 +1,25 @@
+non-fluents Reservoir_3nf {
+	domain = reservoir_control_linear;
+
+	objects{
+		reservoir: {t1, t2, t3};
+	};
+
+	non-fluents {
+		RES_CONNECT(t1,t3);
+		RES_CONNECT(t2,t3);
+	};
+}
+
+instance Reservoir_cont_0 {
+	domain = reservoir_control_linear;
+	non-fluents = Reservoir_3nf;
+
+	init-state{
+		rlevel(t1) = 45.0;
+	};
+
+	max-nondef-actions = pos-inf;
+	horizon = 40;
+	discount = 1.0;
+}

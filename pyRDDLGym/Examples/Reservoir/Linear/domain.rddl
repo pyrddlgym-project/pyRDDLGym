@@ -1,0 +1,69 @@
+domain reservoir_control_linear {
+
+	requirements = {
+		concurrent,           // different reservoirs are controlled independently
+		reward-deterministic, // this domain does not use a stochastic reward
+		intermediate-nodes,   // this domain uses intermediate pvariable nodes
+		constrained-state     // this domain uses state constraints
+	};
+
+	types {
+		reservoir: object;
+	};
+
+    pvariables {
+
+		// Constants
+        TOP_RES(reservoir): { non-fluent, real, default = 100.0 }; // Overflowing amount
+        MAX_LEVEL(reservoir): { non-fluent, real, default = 80.0 };  // The upper bound for desired reservoir level
+		MIN_LEVEL(reservoir): { non-fluent, real, default = 20.0 };  // The lower bound for desired reservoir level
+		RAIN_AMOUNT(reservoir):  { non-fluent, real, default = 2.0 }; // Mean parameter for rainfall
+		RAIN_VAR(reservoir):  { non-fluent, real, default = 5.0 };  // Half normal variance parameter for rainfall
+        RES_CONNECT(reservoir, reservoir): { non-fluent, bool, default = false }; // Indicates 2nd reservoir is forward connected to 1st reservoir
+
+        LOW_COST(reservoir) : { non-fluent, real, default =  -5.0 }; // Penalty per unit of level < MIN_LEVEL
+		HIGH_COST(reservoir): { non-fluent, real, default = -10.0 }; // Penalty per unit of level > MAX_LEVEL
+
+        // Intermediate fluents
+        rain(reservoir):   {interm-fluent, real}; // Amount of rain fell
+        overflow(reservoir):   {interm-fluent, real}; // Excess overflow (over the rim)
+        inflow(reservoir):     {interm-fluent, real}; // Amount received from backward reservoirs
+
+        // State fluents
+        rlevel(reservoir): {state-fluent, real, default = 50.0 }; // Reservoir level
+
+        // Action fluents
+        release(reservoir): { action-fluent, real, default = 0.0 }; // Action to set outflow of reservoir
+    };
+
+    cpfs {
+        // amount of rain fall for this timestep
+        rain(?r) = max[0, Normal(RAIN_AMOUNT(?r), RAIN_VAR(?r))];
+
+        // amount of water spilled over the rim
+        overflow(?r) = max[0, rlevel(?r) - release(?r) - TOP_RES(?r)];
+
+        // total incoming flow from all previous connected tanks
+        inflow(?r) = (sum_{?in : reservoir} [RES_CONNECT(?in, ?r) * (release(?in) + overflow(?in))]);
+
+        rlevel'(?r) = max[0, rlevel(?r) + rain(?r) + inflow(?r) - release(?r) - overflow(?r)];
+    };
+
+    reward = (sum_{?r: reservoir} [
+		if (rlevel'(?r) < MIN_LEVEL(?r)) 
+			then LOW_COST(?r) * (MIN_LEVEL(?r) - rlevel'(?r))
+		else if (rlevel'(?r) > MAX_LEVEL(?r))
+			then HIGH_COST(?r) * (rlevel'(?r) - MAX_LEVEL(?r))
+		else 0
+	]);
+
+    action-preconditions {
+		forall_{?r : reservoir} [release(?r) <= rlevel(?r)];
+		forall_{?r : reservoir} [release(?r) >= 0];
+	};
+
+	state-invariants {
+		forall_{?r : reservoir} [rlevel(?r) >= 0];
+		forall_{?r : reservoir} [(sum_{?out : reservoir} [RES_CONNECT(?r, ?out)]) <= 1];
+	};
+}
