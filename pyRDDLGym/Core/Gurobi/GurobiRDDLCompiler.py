@@ -105,7 +105,7 @@ class GurobiRDDLCompiler:
             optimal_plan.append({})
             for (name, (var, *_)) in actions_vars.items():
                 prange = rddl.actionsranges[name]
-                action = var.x
+                action = var.X
                 if prange == 'int':
                     action = int(action)
                 elif prange == 'bool':

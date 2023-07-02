@@ -93,7 +93,7 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                  params: Dict[str, object],
                  step: int,
                  subs: Dict[str, object]) -> Dict[str, object]:
-        action_values = {action: params[f'{action}__{step}'][0].x
+        action_values = {action: params[f'{action}__{step}'][0].X
                          for action in compiled.rddl.actions}
         return action_values
         
@@ -171,9 +171,9 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
         for action in rddl.actions:
             states = {name: subs[name] for name in rddl.states}
             features = self.state_feature(action, states)
-            action_value = params[f'bias_{action}'][0].x
+            action_value = params[f'bias_{action}'][0].X
             for i, feature in enumerate(features):
-                param = params[f'weight_{action}_{i}'][0].x
+                param = params[f'weight_{action}_{i}'][0].X
                 action_value += param * feature
             action_values[action] = action_value
         return action_values
@@ -277,14 +277,14 @@ class GurobiLinearThresholdPolicy(GurobiRDDLPlan):
         for action in rddl.actions:
             states = {name: subs[name] for name in rddl.states}
             features = self.state_feature(action, states)
-            linear_comb = params[f'bias_{action}'][0].x
+            linear_comb = params[f'bias_{action}'][0].X
             for i, feature in enumerate(features):
-                param = params[f'weight_{action}_{i}'][0].x
+                param = params[f'weight_{action}_{i}'][0].X
                 linear_comb += param * feature
             if linear_comb >= 0:
-                action_values[action] = params[f'c1_{action}'][0].x
+                action_values[action] = params[f'c1_{action}'][0].X
             else:
-                action_values[action] = params[f'c2_{action}'][0].x
+                action_values[action] = params[f'c2_{action}'][0].X
         return action_values
         
     def init_params(self, compiled: 'GurobiRDDLCompiler',
@@ -372,11 +372,11 @@ class GurobiCornersPolicy(GurobiRDDLPlan):
             constr = True
             for state in rddl.states:
                 name = f'corner__{action}__{state}'
-                constr = constr and (subs[state] > params[name][0].x)
+                constr = constr and (subs[state] > params[name][0].X)
             if constr:
-                action_values[action] = params[f'c1__{action}'][0].x
+                action_values[action] = params[f'c1__{action}'][0].X
             else:
-                action_values[action] = params[f'c2__{action}'][0].x
+                action_values[action] = params[f'c2__{action}'][0].X
         return action_values
     
     def init_params(self, compiled: 'GurobiRDDLCompiler',

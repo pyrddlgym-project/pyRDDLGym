@@ -43,7 +43,7 @@ class GurobiRDDLBilevelOptimizer:
             inner_model.dispose()
             
             # check stopping condition
-            new_error = outer_model.getVarByName('error').x
+            new_error = outer_model.getVarByName('error').X
             error_hist.append(new_error)
             if abs(new_error - error) < tol * abs(error):
                 print(f'halting optimization with error {new_error}')
@@ -114,7 +114,7 @@ class GurobiRDDLBilevelOptimizer:
         grounded_rddl = compiler.rddl
         
         # get Value(a_1, ... a_T, s) from the solution to the inner problem
-        value_slp = inner_model.getVarByName('value').x
+        value_slp = inner_model.getVarByName('value').X
         
         # get initial state s from the solution to the inner problem
         state_values = {}
@@ -123,7 +123,7 @@ class GurobiRDDLBilevelOptimizer:
             if name in grounded_rddl.states:
                 prange = grounded_rddl.variable_ranges[name]
                 vtype = compiler.GUROBI_TYPES[prange]
-                value = inner_model.getVarByName(name).x
+                value = inner_model.getVarByName(name).X
                 subs[name] = (value, vtype, value, value, False) 
                 state_values[name] = value
         
@@ -137,6 +137,6 @@ class GurobiRDDLBilevelOptimizer:
         
         # optimize then return new policy parameter values
         outer_model.optimize()
-        param_values = {name: var.x for (name, (var, *_)) in policy_params.items()}
+        param_values = {name: var.X for (name, (var, *_)) in policy_params.items()}
         return param_values, state_values
     
