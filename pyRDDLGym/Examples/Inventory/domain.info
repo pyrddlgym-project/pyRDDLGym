@@ -1,0 +1,4 @@
+[General]
+name=Inventory
+description=Simple inventory control problem.
+viz=TextViz.TextVisualizer
