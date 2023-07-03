@@ -26,9 +26,8 @@ domain reservoir_control_linear {
 
         // Intermediate fluents
         rain(reservoir):   {interm-fluent, real}; // Amount of rain fell
-        overflow(reservoir):   {interm-fluent, real}; // Excess overflow (over the rim)
-        inflow(reservoir):     {interm-fluent, real}; // Amount received from backward reservoirs
-
+        outflow(reservoir):   {interm-fluent, real}; // Outflow amount
+        
         // State fluents
         rlevel(reservoir): {state-fluent, real, default = 50.0 }; // Reservoir level
 
@@ -40,13 +39,11 @@ domain reservoir_control_linear {
         // amount of rain fall for this timestep
         rain(?r) = max[0, Normal(RAIN_AMOUNT(?r), RAIN_VAR(?r))];
 
-        // amount of water spilled over the rim
-        overflow(?r) = max[0, rlevel(?r) - release(?r) - TOP_RES(?r)];
+        // amount of water to flow out of reservoir
+        outflow(?r) = max[release(?r), rlevel(?r) - TOP_RES(?r)];
 
-        // total incoming flow from all previous connected tanks
-        inflow(?r) = (sum_{?in : reservoir} [RES_CONNECT(?in, ?r) * (release(?in) + overflow(?in))]);
-
-        rlevel'(?r) = max[0, rlevel(?r) + rain(?r) + inflow(?r) - release(?r) - overflow(?r)];
+        rlevel'(?r) = max[0, rlevel(?r) + rain(?r) + 
+			(sum_{?in : reservoir} [RES_CONNECT(?in, ?r) * outflow(?in)]) - outflow(?r)];
     };
 
     reward = (sum_{?r: reservoir} [
