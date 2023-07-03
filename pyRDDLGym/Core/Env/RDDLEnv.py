@@ -181,7 +181,8 @@ class RDDLEnv(gym.Env):
         return [seed]
     
     def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False, **viz_kwargs):
-        self._visualizer = viz(self.model, **viz_kwargs)
+        if viz is not None:
+            self._visualizer = viz(self.model, **viz_kwargs)
         self._movie_generator = movie_gen
         self._movie_per_episode = movie_per_episode
         self._movies = 0
