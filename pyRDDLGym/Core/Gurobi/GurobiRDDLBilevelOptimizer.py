@@ -45,7 +45,7 @@ class GurobiRDDLBilevelOptimizer:
             # check stopping condition
             new_error = outer_model.getVarByName('error').X
             error_hist.append(new_error)
-            if abs(new_error - error) < tol * abs(error):
+            if abs(new_error - error) <= tol * abs(error):
                 print(f'halting optimization with error {new_error}')
                 break
             else:
@@ -96,9 +96,8 @@ class GurobiRDDLBilevelOptimizer:
         
         # roll out from s using a_t = policy(s_t), t = 1, 2, ... T
         # here the policy is frozen during optimization of the plan above
-        policy = self.policy
-        policy_params = policy.parameterize(compiler, model, values=param_values)
-        value_policy, _ = compiler._rollout(model, policy, policy_params, subs.copy())
+        policy_params = self.policy.parameterize(compiler, model, values=param_values)
+        value_policy, _ = compiler._rollout(model, self.policy, policy_params, subs.copy())
         
         # optimization objective for the inner problem is
         # max_{a_1, ... a_T, s} [V(a_1, ... a_T, s) - V(policy, s)]
