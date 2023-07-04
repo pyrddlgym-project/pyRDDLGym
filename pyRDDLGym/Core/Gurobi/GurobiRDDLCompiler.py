@@ -890,10 +890,10 @@ class GurobiRDDLCompiler:
         
         # determinize uniform as (lower + upper) / 2        
         symb = symb1 or symb2
-        midpoint = 0.5 * (gterm1 + gterm2)
+        midpoint = (gterm1 + gterm2) / 2
         if symb:
             lb, ub = GurobiRDDLCompiler._fix_bounds(
-                0.5 * (lb1 + lb2), 0.5 * (ub1 + ub2))
+                (lb1 + lb2) / 2, (ub1 + ub2) / 2)
             res = self._add_real_var(model, lb, ub)
             model.addConstr(res == midpoint)            
         else:
