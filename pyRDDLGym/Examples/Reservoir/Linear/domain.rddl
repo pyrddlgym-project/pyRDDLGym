@@ -1,66 +1,47 @@
 domain reservoir_control_linear {
-
-	requirements = {
-		concurrent,           // different reservoirs are controlled independently
-		reward-deterministic, // this domain does not use a stochastic reward
-		intermediate-nodes,   // this domain uses intermediate pvariable nodes
-		constrained-state     // this domain uses state constraints
+	
+	requirements = { 
+		reward-deterministic 
 	};
 
 	types {
-		reservoir: object;
+		id: object;
 	};
+	
+	pvariables {
+	
+		// Constant
+		MAXCAP(id) : { non-fluent, real, default = 100.0 };
+		HIGH_BOUND(id) : { non-fluent, real, default = 80.0 };
+		LOW_BOUND(id) : { non-fluent, real, default = 20.0 };
+		HIGH_COST(id) : { non-fluent, real, default = -100.0 };
+		LOW_COST(id) : { non-fluent, real, default = -5.0 };
+		RAIN(id) : { non-fluent, real, default = 5.0 };
+		DOWNSTREAM(id, id) : { non-fluent ,bool, default = false };
 
-    pvariables {
-
-		// Constants
-        TOP_RES(reservoir): { non-fluent, real, default = 100.0 }; // Overflowing amount
-        MAX_LEVEL(reservoir): { non-fluent, real, default = 80.0 };  // The upper bound for desired reservoir level
-		MIN_LEVEL(reservoir): { non-fluent, real, default = 20.0 };  // The lower bound for desired reservoir level
-		RAIN_AMOUNT(reservoir):  { non-fluent, real, default = 2.0 }; // Mean parameter for rainfall
-		RAIN_VAR(reservoir):  { non-fluent, real, default = 5.0 };  // Half normal variance parameter for rainfall
-        RES_CONNECT(reservoir, reservoir): { non-fluent, bool, default = false }; // Indicates 2nd reservoir is forward connected to 1st reservoir
-
-        LOW_COST(reservoir) : { non-fluent, real, default =  -5.0 }; // Penalty per unit of level < MIN_LEVEL
-		HIGH_COST(reservoir): { non-fluent, real, default = -10.0 }; // Penalty per unit of level > MAX_LEVEL
-
-        // Intermediate fluents
-        rain(reservoir):   {interm-fluent, real}; // Amount of rain fell
-        outflow(reservoir):   {interm-fluent, real}; // Outflow amount
-        
-        // State fluents
-        rlevel(reservoir): {state-fluent, real, default = 50.0 }; // Reservoir level
-
-        // Action fluents
-        release(reservoir): { action-fluent, real, default = 0.0 }; // Action to set outflow of reservoir
-    };
-
-    cpfs {
-        // amount of rain fall for this timestep
-        rain(?r) = max[0, Normal(RAIN_AMOUNT(?r), RAIN_VAR(?r))];
-
-        // amount of water to flow out of reservoir
-        outflow(?r) = max[release(?r), rlevel(?r) - TOP_RES(?r)];
-
-        rlevel'(?r) = max[0, rlevel(?r) + rain(?r) + 
-			(sum_{?in : reservoir} [RES_CONNECT(?in, ?r) * outflow(?in)]) - outflow(?r)];
-    };
-
-    reward = (sum_{?r: reservoir} [
-		if (rlevel'(?r) < MIN_LEVEL(?r)) 
-			then LOW_COST(?r) * (MIN_LEVEL(?r) - rlevel'(?r))
-		else if (rlevel'(?r) > MAX_LEVEL(?r))
-			then HIGH_COST(?r) * (rlevel'(?r) - MAX_LEVEL(?r))
-		else 0
-	]);
-
-    action-preconditions {
-		forall_{?r : reservoir} [release(?r) <= rlevel(?r)];
-		forall_{?r : reservoir} [release(?r) >= 0];
+		rlevel(id): { state-fluent, real, default = 50.0 };
+		
+		release(id): { action-fluent, real, default = 0.0 };
 	};
-
-	state-invariants {
-		forall_{?r : reservoir} [rlevel(?r) >= 0];
-		forall_{?r : reservoir} [(sum_{?out : reservoir} [RES_CONNECT(?r, ?out)]) <= 1];
+	
+	cpfs {
+		rlevel'(?r) = max[0, min[MAXCAP(?r), 
+			rlevel(?r) + RAIN(?r) - release(?r) + (sum_{?r2: id}[DOWNSTREAM(?r2, ?r) * release(?r2)])]];
+	};
+	
+	reward = (sum_{?r: id} [if (rlevel'(?r) <= LOW_BOUND(?r))
+								then LOW_COST(?r) * (LOW_BOUND(?r) - rlevel'(?r))
+							else if (rlevel'(?r) >= HIGH_BOUND(?r))
+								then HIGH_COST(?r) * (rlevel'(?r) - HIGH_BOUND(?r))
+							else 0]);
+	
+	action-preconditions {
+		forall_{?r: id} [release(?r) <= rlevel(?r)];
+		forall_{?r: id} [release(?r) >= 0];
+	};
+	
+	state-invariants {	
+		forall_{?r: id} [rlevel(?r) >= 0];
+		forall_{?r: id} [rlevel(?r) <= MAXCAP(?r)];
 	};
 }

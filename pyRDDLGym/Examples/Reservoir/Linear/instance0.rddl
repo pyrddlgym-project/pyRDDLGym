@@ -2,21 +2,30 @@ non-fluents Reservoir_3nf {
 	domain = reservoir_control_linear;
 
 	objects{
-		reservoir: {t1, t2, t3};
+		id: {t1, t2, t3};
 	};
 
 	non-fluents {
-		RES_CONNECT(t1,t3);
-		RES_CONNECT(t2,t3);
+		RAIN(t1) = 5.0;
+		RAIN(t2) = 10.0;
+		RAIN(t3) = 20.0;
+		MAXCAP(t2) = 200.0;
+		MAXCAP(t3) = 400.0;
+		LOW_BOUND(t2) = 30.0;
+		LOW_BOUND(t3) = 40.0;
+		HIGH_BOUND(t2) = 180.0;
+		HIGH_BOUND(t3) = 380.0;
+		DOWNSTREAM(t1, t2);
+		DOWNSTREAM(t2, t3);
 	};
 }
 
-instance Reservoir_cont_0 {
+instance Reservoir_linear_0 {
 	domain = reservoir_control_linear;
 	non-fluents = Reservoir_3nf;
 
 	init-state{
-		rlevel(t1) = 45.0;
+		rlevel(t1) = 75.0;
 	};
 
 	max-nondef-actions = pos-inf;
