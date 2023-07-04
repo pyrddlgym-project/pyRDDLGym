@@ -65,41 +65,12 @@ class ReservoirVisualizer(StateViz):
             elif var == 'CONNECTED_TO_SEA':
                 sink_res[objects[0]] = v
 
-
-            # if 'TOP_RES_' in k:
-            #     point = k.split('___')[1]
-            #     max_res_cap[point] = v
-            # elif 'MAX_LEVEL_' in k:
-            #     point = k.split('___')[1]
-            #     upper_bound[point] = v
-            # elif 'MIN_LEVEL_' in k:
-            #     point = k.split('___')[1]
-            #     lower_bound[point] = v
-            # elif 'RAIN_VAR_' in k:
-            #     point = k.split('___')[1]
-            #     rain_shape[point] = v
-            # elif 'RELEASE_BETA_' in k:
-            #     point = k.split('_')[2]
-            #     rain_scale[point] = v
-            # elif 'RES_CONNECT_' in k:
-            #     if v == True:
-            #         point = k.split('___')[1]
-            #         v = point.split('__')
-                    # point = k.split('___')[2]
-                    # v = k.split('__')[3]
-                    # downstream[v[0]].append(v[1])
-            # elif 'CONNECTED_TO_SEA_' in k:
-            #     point = k.split('___')[1]
-            #     sink_res[point] = v
-
         # # add states
         for k, v in self._states.items():
             var, objects = self._model.parse(k)
             if var == 'rlevel':
                 rlevel[objects[0]] = v
-            # if 'rlevel_' in k:
-            #     point = k.split('___')[1]
-            #     rlevel[point] = v
+
 
         # adding defaults
         for o in self._objects['reservoir']:
@@ -111,8 +82,6 @@ class ReservoirVisualizer(StateViz):
                 lower_bound[o] = self._nonfluents['MIN_LEVEL']
             if rain_shape[o] == None:
                 rain_shape[o] = self._nonfluents['RAIN_VAR']
-            # if rain_scale[o] == None:
-            #     rain_scale[o] = self._nonfluents['RELEASE_BETA']
             if rlevel[o] == None:
                 rlevel[o] = self._states['rlevel']
             if sink_res[o] == None:
