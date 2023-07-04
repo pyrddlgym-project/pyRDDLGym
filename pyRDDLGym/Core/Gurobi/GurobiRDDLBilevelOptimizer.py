@@ -1,3 +1,5 @@
+import math
+import scipy
 from typing import Dict, Iterable
 
 import gurobipy
@@ -8,20 +10,95 @@ from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLPlan
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLStraightLinePlan
 
+
+class GurobiRDDLChanceConstrainedCompiler(GurobiRDDLCompiler):
+    
+    def __init__(self, *args, chance: float=0.99, **kwargs):
+        super(GurobiRDDLChanceConstrainedCompiler, self).__init__(*args, **kwargs)
+        self.chance = chance
         
+    def _compile_init_subs(self, init_values=None) -> Dict[str, object]:
+        subs = super(GurobiRDDLChanceConstrainedCompiler, self)._compile_init_subs(
+            init_values)
+        subs['noise__count'] = {'uniform': 0, 'normal': 0}
+        subs['noise__var'] = {'uniform': {}, 'normal': {}}
+        return subs
+        
+    def _gurobi_uniform(self, expr, model, subs):
+        count = subs['noise__count']['uniform'] + 1
+        subs['noise__count']['uniform'] = count
+        uniform_vars = subs['noise__var']['uniform']
+                
+        # use cached noise variable
+        if count in uniform_vars:
+            return uniform_vars[count]
+        
+        # chance constraint for uniform
+        arg1, arg2 = expr.args
+        low, _, lbl, _, _ = self._gurobi(arg1, model, subs)
+        high, _, _, ubh, _ = self._gurobi(arg2, model, subs)
+        midpoint = (low + high) / 2
+        interval = self.chance * (high - low) / 2
+        lb, ub = GurobiRDDLCompiler._fix_bounds(lbl, ubh)
+        noise = self._add_real_var(model, lb, ub)
+        model.addConstr(noise >= midpoint - interval)
+        model.addConstr(noise <= midpoint + interval)
+        res = (noise, GRB.CONTINUOUS, lb, ub, True)    
+        uniform_vars[count] = res
+        return res
+    
+    def _gurobi_normal(self, expr, model, subs):
+        count = subs['noise__count']['normal'] + 1
+        subs['noise__count']['normal'] = count
+        normal_vars = subs['noise__var']['normal']
+        
+        # use cached noise variable
+        if count in normal_vars:
+            return normal_vars[count]
+        
+        # standard deviation of normal
+        arg1, arg2 = expr.args
+        mean, _, lbm, ubm, _ = self._gurobi(arg1, model, subs)
+        var, _, lbv, ubv, symb2 = self._gurobi(arg2, model, subs)
+        if symb2:
+            lbv, ubv = max(lbv, 0), max(ubv, 0)
+            arg = self._add_real_var(model, lbv, ubv)
+            model.addGenConstrMax(arg, [var], constant=0)
+            lbs, ubs = GurobiRDDLCompiler._fix_bounds(math.sqrt(lbv), math.sqrt(ubv))
+            std = self._add_real_var(model, lbs, ubs)
+            model.addGenConstrPow(arg, std, 0.5, options=self.pw_options)
+        else:
+            std = math.sqrt(var)
+            lbs, ubs = std, std       
+        
+        # chance constraint for normal   
+        cil, ciu = scipy.stats.norm.interval(self.chance)
+        lb, ub = GurobiRDDLCompiler._fix_bounds(lbm + ubs * cil, ubm + ubs * ciu)
+        noise = self._add_real_var(model, lb, ub)
+        model.addConstr(noise >= mean + std * cil)
+        model.addConstr(noise <= mean + std * ciu)        
+        res = (noise, GRB.CONTINUOUS, lb, ub, True)
+        normal_vars[count] = res
+        return res
+        
+    
 class GurobiRDDLBilevelOptimizer:
     
     def __init__(self, rddl: RDDLLiftedModel,
                  policy: GurobiRDDLPlan,
                  state_bounds: Dict[str, object],
+                 use_cc: bool=True,
                  **compiler_kwargs) -> None:
         self.rddl = rddl
         self.policy = policy
+        self.use_cc = use_cc
         self.kwargs = compiler_kwargs
         
         self.state_bounds = {var: state_bounds[rddl.parse(var)[0]]
-                             for var in rddl.groundstates()}
-    
+                             for var in rddl.groundstates()}        
+        self._compiler_cl = GurobiRDDLChanceConstrainedCompiler if use_cc \
+                            else GurobiRDDLCompiler
+
     def solve(self, max_iters: int, tol: float=1e-4) -> Iterable[Dict[str, object]]:
         
         # compile outer problem
@@ -41,12 +118,14 @@ class GurobiRDDLBilevelOptimizer:
             
             # solve inner problem for worst-case state and plan
             print('\nSOLVING INNER PROBLEM:\n')
-            worst_value, worst_action, worst_state = self._solve_inner_problem(param_values)
+            worst_value, worst_action, worst_state, worst_noise = \
+                self._solve_inner_problem(param_values)
             
             # solve outer problem for policy
             print('\nADDING CONSTRAINT AND SOLVING OUTER PROBLEM:\n')
             param_values = self._resolve_outer_problem(
-                worst_value, worst_state, compiler, outer_model, params)
+                worst_value, worst_state, worst_noise, 
+                compiler, outer_model, params)
             
             # check stopping condition
             new_error = outer_model.getVarByName('error').X
@@ -61,6 +140,7 @@ class GurobiRDDLBilevelOptimizer:
                 'worst_value': worst_value,
                 'worst_action': worst_action,
                 'worst_state': worst_state,
+                'worst_noise': worst_noise,
                 'error': error,
                 'error_hist': error_hist,
                 'params': param_values
@@ -71,7 +151,7 @@ class GurobiRDDLBilevelOptimizer:
     def _compile_outer_problem(self):
     
         # model for policy optimization
-        compiler = GurobiRDDLCompiler(self.rddl, plan=self.policy, **self.kwargs)
+        compiler = self._compiler_cl(self.rddl, plan=self.policy, **self.kwargs)
         model = compiler._create_model()
         params = self.policy.parameterize(compiler, model)
     
@@ -86,7 +166,7 @@ class GurobiRDDLBilevelOptimizer:
         
         # model for straight line plan
         slp = GurobiRDDLStraightLinePlan()
-        compiler = GurobiRDDLCompiler(self.rddl, plan=slp, **self.kwargs)
+        compiler = self._compiler_cl(self.rddl, plan=slp, **self.kwargs)
         model = compiler._create_model()
         
         # add variables for the initial states s0
@@ -103,36 +183,54 @@ class GurobiRDDLBilevelOptimizer:
             subs[name] = (var, vtype, lb, ub, True)        
 
         # roll out from s0 using a_1, ... a_T
+        slp_subs = subs.copy()
         slp_params = slp.parameterize(compiler, model)
-        value_slp, action_vars = compiler._rollout(model, slp, slp_params, subs.copy())
+        value_slp, action_vars = compiler._rollout(model, slp, slp_params, slp_subs)
         value_slp_var = compiler._add_real_var(model, name='value')
         model.addConstr(value_slp_var == value_slp)
         
         # roll out from s0 using a_t = policy(s_t), t = 1, 2, ... T
         # here the policy is frozen during optimization of the plan above
+        # noise variables are copied over from the above rollout
+        pol_subs = subs.copy()
+        if self.use_cc:
+            pol_subs['noise__count'] = {dt: 0 for dt in pol_subs['noise__count']}
+            pol_subs['noise__var'] = slp_subs['noise__var']
         pol_params = self.policy.parameterize(compiler, model, values=param_values)
-        value_pol, _ = compiler._rollout(model, self.policy, pol_params, subs.copy())
+        value_pol, _ = compiler._rollout(model, self.policy, pol_params, pol_subs)
         
         # optimization objective for the inner problem is
         # max_{a_1, ... a_T, s0} [V(a_1, ... a_T, s0) - V(policy, s0)]
         model.setObjective(value_slp - value_pol, GRB.MAXIMIZE)     
         model.optimize()    
         
-        # read a_1, ... a_T, s0 and V(a_1, ... a_T, s0) from the optimized model
-        worst_value = model.getVarByName('value').X
+        # read a_1, ... a_T and V(a_1, ... a_T, s0) from the optimized model
         worst_action = compiler._get_optimal_actions(action_vars)
+        worst_value = model.getVarByName('value').X
+        
+        # read worst state s0 from the optimized model
         worst_state = {}
         for name in rddl.states:
             value = model.getVarByName(name).X
             vtype = subs[name][1]
             worst_state[name] = (value, vtype, value, value, False) 
         
+        # read worst noise variables from the optimized model
+        worst_noise = {}
+        if self.use_cc:
+            for key, noise_vars in pol_subs['noise__var'].items():
+                worst_noise[key] = {}
+                for count, (var, vtype, *_) in noise_vars.items():
+                    value = var.X
+                    worst_noise[key][count] = (value, vtype, value, value, False)
+        
         # release the model resources
         model.dispose()
-        return worst_value, worst_action, worst_state
+        return worst_value, worst_action, worst_state, worst_noise
     
     def _resolve_outer_problem(self, worst_value: float,
                                worst_state: Dict[str, object],
+                               worst_noise: Dict[str, Dict[int, object]],
                                compiler: GurobiRDDLCompiler,
                                model: gurobipy.Model,
                                policy_params: Dict[str, object]) -> Dict[str, object]:
@@ -140,6 +238,8 @@ class GurobiRDDLBilevelOptimizer:
         # roll out from worst-case s_0 using a_t = policy(s_t), t = 1, 2, ... T
         subs = compiler._compile_init_subs()
         subs.update(worst_state)
+        if self.use_cc:
+            subs['noise__var'] = worst_noise
         value_pol, _ = compiler._rollout(model, self.policy, policy_params, subs)
                 
         # add constraint on error to outer model
