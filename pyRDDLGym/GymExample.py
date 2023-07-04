@@ -1,9 +1,11 @@
 import sys
+import os
 
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
 from pyRDDLGym.Policies.Agents import RandomAgent
-# from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
+from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
+from pyRDDLGym.Visualizer.TextViz import TextVisualizer
 
 def main(env, inst, method_name=None, episodes=1):
     print(f'preparing to launch instance {inst} of domain {env}...')
@@ -24,8 +26,9 @@ def main(env, inst, method_name=None, episodes=1):
     
     # set up the environment visualizer
     # frames_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Visualizer', 'Frames')
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
-                        # movie_gen=MovieGenerator(frames_path, ENV, 200), movie_per_episode=True)
+    myEnv.set_visualizer(EnvInfo.get_visualizer())#, movie_gen=MovieGenerator(frames_path, env, 200), movie_per_episode=True)
+    # myEnv.set_visualizer(None, movie_gen=MovieGenerator(frames_path, env, 200),
+    #                      movie_per_episode=True)
     
     # set up an example aget
     agent = RandomAgent(action_space=myEnv.action_space, 

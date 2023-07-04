@@ -2,6 +2,7 @@ import glob
 import os
 from PIL import Image
 import warnings
+import re
 
 # (mike: #166) opencv is now optional
 try:
@@ -85,7 +86,15 @@ class MovieGenerator:
         if file_name is None:
             file_name = self.env_name
         load_path = self.save_path.format('*')
-        images = map(Image.open, glob.glob(load_path))
+
+        def getOrder(frame):
+            return int(re.search('\d+', frame).group(0))
+
+        files = glob.glob(load_path)
+        files.sort(key=getOrder)
+
+        # images = map(Image.open, glob.glob(load_path))
+        images = map(Image.open, files)
         
         save_path = os.path.join(self.save_dir, file_name + '.gif')
         frame0 = next(images, None)
