@@ -93,15 +93,14 @@ class GurobiRDDLCompiler:
         non-fluents as defined in the RDDL file (if None, then the original
         values defined in the RDDL domain + instance are used instead)
         '''
-        rddl = self.rddl
-        
-        # compile and solve model
         model, all_action_vars = self._compile(init_values)
         model.optimize()
-        
-        # read the optimal actions
+        return self._get_optimal_actions(all_action_vars)
+    
+    def _get_optimal_actions(self, action_vars):
+        rddl = self.rddl
         optimal_plan = []
-        for actions_vars in all_action_vars:
+        for actions_vars in action_vars:
             optimal_plan.append({})
             for (name, (var, *_)) in actions_vars.items():
                 prange = rddl.actionsranges[name]
