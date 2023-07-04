@@ -16,17 +16,22 @@ domain reservoir_control_linear {
 		LOW_BOUND(id) : { non-fluent, real, default = 20.0 };
 		HIGH_COST(id) : { non-fluent, real, default = -100.0 };
 		LOW_COST(id) : { non-fluent, real, default = -5.0 };
-		RAIN(id) : { non-fluent, real, default = 5.0 };
-		DOWNSTREAM(id, id) : { non-fluent ,bool, default = false };
-
+		RAIN_MEAN(id) : { non-fluent, real, default = 5.0 };
+		RAIN_VAR(id) : { non-fluent, real, default = 5.0 };
+		DOWNSTREAM(id, id) : { non-fluent, bool, default = false };
+		
+		rainfall(id) : { interm-fluent, real };
+		
 		rlevel(id): { state-fluent, real, default = 50.0 };
 		
 		release(id): { action-fluent, real, default = 0.0 };
 	};
 	
 	cpfs {
+		rainfall(?r) = max[0, Normal(RAIN_MEAN(?r), RAIN_VAR(?r))];
+		
 		rlevel'(?r) = max[0, min[MAXCAP(?r), 
-			rlevel(?r) + RAIN(?r) - release(?r) + (sum_{?r2: id}[DOWNSTREAM(?r2, ?r) * release(?r2)])]];
+			rlevel(?r) + rainfall(?r) - release(?r) + (sum_{?r2: id}[DOWNSTREAM(?r2, ?r) * release(?r2)])]];
 	};
 	
 	reward = (sum_{?r: id} [if (rlevel'(?r) <= LOW_BOUND(?r))

@@ -6,9 +6,12 @@ non-fluents Reservoir_3nf {
 	};
 
 	non-fluents {
-		RAIN(t1) = 5.0;
-		RAIN(t2) = 10.0;
-		RAIN(t3) = 20.0;
+		RAIN_MEAN(t1) = 5.0;
+		RAIN_MEAN(t2) = 10.0;
+		RAIN_MEAN(t3) = 20.0;
+		RAIN_VAR(t1) = 5.0;
+		RAIN_VAR(t2) = 10.0;
+		RAIN_VAR(t3) = 20.0;
 		MAXCAP(t2) = 200.0;
 		MAXCAP(t3) = 400.0;
 		LOW_BOUND(t2) = 30.0;
