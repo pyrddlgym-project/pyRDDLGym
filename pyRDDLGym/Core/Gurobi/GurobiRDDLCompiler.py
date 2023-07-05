@@ -122,7 +122,7 @@ class GurobiRDDLCompiler:
         for step in range(self.horizon):
             
             # add action fluent variables to model
-            action_vars = plan.predict(self, model, params, step, subs)
+            action_vars = plan.actions(self, model, params, step, subs)
             all_action_vars.append(action_vars)
             subs.update(action_vars)
             
@@ -150,7 +150,7 @@ class GurobiRDDLCompiler:
         values defined in the RDDL domain + instance are used instead)
         '''
         model = self._create_model()
-        params = self.plan.parameterize(self, model)
+        params = self.plan.params(self, model)
         subs = self._compile_init_subs(init_values)  
         objective, all_action_vars = self._rollout(model, self.plan, params, subs)
         model.setObjective(objective, GRB.MAXIMIZE)

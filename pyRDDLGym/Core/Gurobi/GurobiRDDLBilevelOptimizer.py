@@ -91,11 +91,11 @@ class GurobiRDDLBilevelOptimizer:
                  **compiler_kwargs) -> None:
         self.rddl = rddl
         self.policy = policy
+        self.state_bounds = state_bounds   
         self.use_cc = use_cc
         self.kwargs = compiler_kwargs
-        
-        self.state_bounds = {var: state_bounds[rddl.parse(var)[0]]
-                             for var in rddl.groundstates()}        
+          
+        self.action_bounds = policy.action_bounds
         self._compiler_cl = GurobiRDDLChanceConstrainedCompiler if use_cc \
                             else GurobiRDDLCompiler
 
@@ -153,7 +153,7 @@ class GurobiRDDLBilevelOptimizer:
         # model for policy optimization
         compiler = self._compiler_cl(self.rddl, plan=self.policy, **self.kwargs)
         model = compiler._create_model()
-        params = self.policy.parameterize(compiler, model)
+        params = self.policy.params(compiler, model)
     
         # optimization objective for the outer problem is min_{policy} error
         # constraints on error will be added iteratively
@@ -165,7 +165,7 @@ class GurobiRDDLBilevelOptimizer:
     def _solve_inner_problem(self, param_values):
         
         # model for straight line plan
-        slp = GurobiRDDLStraightLinePlan()
+        slp = GurobiRDDLStraightLinePlan(self.action_bounds)
         compiler = self._compiler_cl(self.rddl, plan=slp, **self.kwargs)
         model = compiler._create_model()
         
@@ -175,16 +175,13 @@ class GurobiRDDLBilevelOptimizer:
         for name in rddl.states:
             prange = rddl.variable_ranges[name]
             vtype = compiler.GUROBI_TYPES[prange]
-            if prange == 'bool':
-                lb, ub = 0, 1
-            else:
-                lb, ub = self.state_bounds[name]
+            lb, ub = (0, 1) if prange == 'bool' else self.state_bounds[name]
             var = compiler._add_var(model, vtype, lb, ub, name=name)
             subs[name] = (var, vtype, lb, ub, True)        
 
         # roll out from s0 using a_1, ... a_T
         slp_subs = subs.copy()
-        slp_params = slp.parameterize(compiler, model)
+        slp_params = slp.params(compiler, model)
         value_slp, action_vars = compiler._rollout(model, slp, slp_params, slp_subs)
         value_slp_var = compiler._add_real_var(model, name='value')
         model.addConstr(value_slp_var == value_slp)
@@ -196,7 +193,7 @@ class GurobiRDDLBilevelOptimizer:
         if self.use_cc:
             pol_subs['noise__count'] = {dt: 0 for dt in pol_subs['noise__count']}
             pol_subs['noise__var'] = slp_subs['noise__var']
-        pol_params = self.policy.parameterize(compiler, model, values=param_values)
+        pol_params = self.policy.params(compiler, model, values=param_values)
         value_pol, _ = compiler._rollout(model, self.policy, pol_params, pol_subs)
         
         # optimization objective for the inner problem is
