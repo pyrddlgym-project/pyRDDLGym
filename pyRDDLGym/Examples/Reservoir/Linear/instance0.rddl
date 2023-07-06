@@ -29,9 +29,11 @@ instance Reservoir_linear_0 {
 
 	init-state{
 		rlevel(t1) = 75.0;
+		rlevel(t2) = 150.0;
+		rlevel(t3) = 300.0;
 	};
 
 	max-nondef-actions = pos-inf;
-	horizon = 40;
+	horizon = 20;
 	discount = 1.0;
 }
