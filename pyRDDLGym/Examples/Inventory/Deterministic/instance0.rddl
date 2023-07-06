@@ -6,7 +6,7 @@ non-fluents inventory_1nf {
 	};
 	
 	non-fluents {
-		MAX-ORDER = 5;
+		MAX-ORDER = 4;
 	};
 }
 

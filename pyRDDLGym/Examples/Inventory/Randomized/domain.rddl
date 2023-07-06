@@ -14,7 +14,7 @@ domain inventory{
 		SHORTAGE-COST(item) : { non-fluent, real, default = 4.0 };	// shortage cost for inadequate inventory
 		PURCHASE-COST(item) : { non-fluent, real, default = 1.0 };  // purchase price of unit
 		MAX-ITEMS(item) : { non-fluent, int, default = 50 };       // max number of items that can be held
-		MAX-ORDER : { non-fluent, int, default = 25 };             // max number of items that can be ordered
+		MAX-ORDER : { non-fluent, int, default = 6 };             // max number of items that can be ordered
 		MAX-BACKLOG(item) : { non-fluent, int, default = -50 };    // max number of items that can be backlogged
 		DEMAND-RATE(item) : { non-fluent, real, default = 2.0 };   // Poisson rate of demand
 		
@@ -39,6 +39,7 @@ domain inventory{
 
 	action-preconditions {
 		forall_{?i : item} [ order(?i) >= 0 ];
+		forall_{?i : item} [ order(?i) <= MAX-ORDER ];
 		(sum_{?i : item} order(?i)) <= MAX-ORDER;
 	};
 	
