@@ -4,7 +4,10 @@ non-fluents inventory_1nf {
 	objects{
 		item: {i1};
 	};
-
+	
+	non-fluents {
+		MAX-ORDER = 5;
+	};
 }
 
 instance inventory_0 {
@@ -16,6 +19,6 @@ instance inventory_0 {
 	};
 
 	max-nondef-actions = pos-inf;
-	horizon = 40;
+	horizon = 20;
 	discount = 1.0;
 }
