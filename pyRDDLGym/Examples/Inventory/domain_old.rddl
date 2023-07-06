@@ -14,8 +14,12 @@ domain inventory{
 		SHORTAGE-COST(item) : { non-fluent, real, default = 4.0 };	// shortage cost for inadequate inventory
 		PURCHASE-COST(item) : { non-fluent, real, default = 1.0 };  // purchase price of unit
 		MAX-ITEMS(item) : { non-fluent, int, default = 50 };       // max number of items that can be held
-		MAX-BACKLOG(item) : { non-fluent, int, default = -50 };    // max number of items that can be backlogged
 		MAX-ORDER : { non-fluent, int, default = 25 };             // max number of items that can be ordered
+		MAX-BACKLOG(item) : { non-fluent, int, default = -50 };    // max number of items that can be backlogged
+		DEMAND-RATE(item) : { non-fluent, real, default = 2.0 };   // Poisson rate of demand
+		
+		// iterm fluent
+		demand(item) : { interm-fluent, int }; // demand in current epoch
 		
 		// states
 		stock(item) : { state-fluent, int, default = 0 };   // stock on hand at beginning of epoch
@@ -25,13 +29,8 @@ domain inventory{
 	};
 
 	cpfs {
-		stock'(?i) = floor[0.135335 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i)]] 
-					+ 0.270671 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - 1]]
-					+ 0.270671 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - 2]]
-					+ 0.180447 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - 3]]
-					+ 0.090224 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - 4]]
-					+ 0.036089 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - 5]]
-					+ 0.016564 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - 6]]];
+		demand(?i) = Poisson(DEMAND-RATE(?i));
+		stock'(?i) = max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - demand(?i)]];
 	};
 
 	reward = -(sum_{?i : item} [SHORTAGE-COST(?i) * max[0, -stock'(?i)] 
@@ -40,7 +39,7 @@ domain inventory{
 
 	action-preconditions {
 		forall_{?i : item} [ order(?i) >= 0 ];
-		(sum_{?i : item} [ order(?i) ]) <= MAX-ORDER;
+		(sum_{?i : item} order(?i)) <= MAX-ORDER;
 	};
 	
 	state-invariants {
