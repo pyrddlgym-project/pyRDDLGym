@@ -1,0 +1,24 @@
+non-fluents inventory_1nf {
+	domain = inventory;
+
+	objects{
+		item: {i1};
+	};
+	
+	non-fluents {
+		MAX-ORDER = 5;
+	};
+}
+
+instance inventory_0 {
+	domain = inventory;
+	non-fluents = inventory_1nf;
+
+	init-state{
+		stock(i1) = 0;
+	};
+
+	max-nondef-actions = pos-inf;
+	horizon = 20;
+	discount = 1.0;
+}

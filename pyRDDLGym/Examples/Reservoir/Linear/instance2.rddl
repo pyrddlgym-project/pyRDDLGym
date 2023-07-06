@@ -1,0 +1,53 @@
+non-fluents Reservoir_5nf {
+	domain = reservoir_control_linear;
+
+	objects{
+		id: {t1, t2, t3, t4, t5};
+	};
+	
+	non-fluents {
+		RAIN_MEAN(t1) = 5.0;
+		RAIN_MEAN(t2) = 10.0;
+		RAIN_MEAN(t3) = 20.0;
+		RAIN_MEAN(t4) = 30.0;
+		RAIN_MEAN(t5) = 40.0;
+		RAIN_VAR(t1) = 5.0;
+		RAIN_VAR(t2) = 10.0;
+		RAIN_VAR(t3) = 20.0;
+		RAIN_VAR(t4) = 20.0;
+		RAIN_VAR(t5) = 20.0;
+		MAXCAP(t2) = 200.0;
+		MAXCAP(t3) = 400.0;
+		MAXCAP(t4) = 500.0;
+		MAXCAP(t5) = 600.0;
+		LOW_BOUND(t2) = 30.0;
+		LOW_BOUND(t3) = 40.0;
+		LOW_BOUND(t4) = 60.0;
+		LOW_BOUND(t5) = 80.0;
+		HIGH_BOUND(t2) = 180.0;
+		HIGH_BOUND(t3) = 380.0;
+		HIGH_BOUND(t4) = 480.0;
+		HIGH_BOUND(t5) = 580.0;
+		DOWNSTREAM(t1, t2);
+		DOWNSTREAM(t2, t3);
+		DOWNSTREAM(t3, t4);
+		DOWNSTREAM(t4, t5);
+	};
+}
+
+instance Reservoir_linear_2 {
+	domain = reservoir_control_linear;
+	non-fluents = Reservoir_5nf;
+
+	init-state{
+		rlevel(t1) = 75.0;
+		rlevel(t2) = 150.0;
+		rlevel(t3) = 300.0;
+		rlevel(t4) = 400.0;
+		rlevel(t5) = 500.0;
+	};
+
+	max-nondef-actions = pos-inf;
+	horizon = 20;
+	discount = 1.0;
+}
