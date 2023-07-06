@@ -430,39 +430,32 @@ class GurobiRDDLCompiler:
                     res, lb, ub = diffexpr, diffexpr, diffexpr                
                 return res, vtype, lb, ub, symb
             
-            # quotient x / y
+            # implement z = x / y as a constraint z * y = x
             elif n == 2 and op == '/': 
                 gterm1, _, lb1, ub1, symb1 = results[0]
                 gterm2, _, lb2, ub2, symb2 = results[1]
-                
-                # implement z = 1 / y as a constraint z * y = 1
-                if symb2: 
-                    if 0 > lb2 and 0 < ub2:
-                        lb2, ub2 = -GRB.INFINITY, GRB.INFINITY
-                    elif lb2 == 0 and ub2 == 0:
-                        lb2, ub2 = GRB.INFINITY, GRB.INFINITY
-                    elif lb2 == 0:
-                        lb2, ub2 = 1 / ub2, GRB.INFINITY
-                    elif ub2 == 0:
-                        lb2, ub2 = -GRB.INFINITY, 1 / lb2
-                    else:
-                        lb2, ub2 = 1 / ub2, 1 / lb2
-                    lb2, ub2 = GurobiRDDLCompiler._fix_bounds(lb2, ub2)                    
-                    gterm2inv = self._add_real_var(model, lb2, ub2)
-                    model.addConstr(gterm2inv * gterm2 == 1)
-                else:
-                    gterm2inv = 1 / gterm2
-                    lb2, ub2 = gterm2inv, gterm2inv
-                
-                # finally compute x / y
-                quotexpr = gterm1 * gterm2inv
                 symb = symb1 or symb2
+                
                 if symb:
-                    lb, ub = GurobiRDDLCompiler._fix_bounds_prod(lb1, ub1, lb2, ub2)
+                    if symb2: 
+                        if 0 > lb2 and 0 < ub2:
+                            lb2, ub2 = -GRB.INFINITY, GRB.INFINITY
+                        elif lb2 == 0 and ub2 == 0:
+                            lb2, ub2 = GRB.INFINITY, GRB.INFINITY
+                        elif lb2 == 0:
+                            lb2, ub2 = 1 / ub2, GRB.INFINITY
+                        elif ub2 == 0:
+                            lb2, ub2 = -GRB.INFINITY, 1 / lb2
+                        else:
+                            lb2, ub2 = 1 / ub2, 1 / lb2
+                    else:
+                        lb2 = ub2 = 1 / gterm2
+                    lb, ub = GurobiRDDLCompiler._fix_bounds_prod(lb1, ub1, lb2, ub2)      
+                                  
                     res = self._add_real_var(model, lb, ub)
-                    model.addConstr(res == quotexpr)
+                    model.addConstr(res * gterm2 == gterm1)    
                 else:
-                    res, lb, ub = quotexpr, quotexpr, quotexpr                  
+                    res = lb = ub = gterm1 / gterm2    
                 return res, GRB.CONTINUOUS, lb, ub, symb
         
         raise RDDLNotImplementedError(
@@ -619,7 +612,7 @@ class GurobiRDDLCompiler:
         lb, ub = max(lb, 0), max(ub, 0)
         res = self._add_var(model, vtype, lb, ub)
         model.addGenConstrMax(res, [gterm], constant=0)
-        return res
+        return res, lb, ub
                     
     def _gurobi_function(self, expr, model, subs):
         _, name = expr.etype
