@@ -759,7 +759,7 @@ class GurobiRDDLCompiler:
                 if symb: 
                     # argument must be non-negative
                     base, lb1, ub1 = self._gurobi_positive(
-                        model, gterm1, vtype, lb1, ub1)   
+                        model, gterm1, vtype1, lb1, ub1)   
                                         
                     # compute bounds on pow
                     loglb = GurobiRDDLCompiler._log(lb1)
