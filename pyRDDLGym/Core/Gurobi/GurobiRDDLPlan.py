@@ -1,4 +1,3 @@
-import numpy as np
 import gurobipy
 from gurobipy import GRB
 from typing import Callable, Dict, Tuple, TYPE_CHECKING
@@ -168,10 +167,10 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
         rddl = compiled.rddl
         param_values = {}
         for action in rddl.actions:
-            param_values[f'bias__{action}'] = 0.0
+            param_values[f'bias__{action}'] = compiled.init_values[action]
             n_features = len(self.feature_map(action, rddl.states))
             for i in range(n_features):
-                param_values[f'weight__{action}__{i}'] = np.random.normal(scale=self.noise)
+                param_values[f'weight__{action}__{i}'] = 0.0
         return param_values
     
     def actions(self, compiled: 'GurobiRDDLCompiler',
@@ -336,7 +335,7 @@ class GurobiInventoryPolicy(GurobiRDDLPlan):
         rddl = compiled.rddl
         param_values = {}
         for (action, state) in zip(rddl.actions, rddl.states): 
-            param_values[f'threshold__{action}__{state}'] = 0.0
+            param_values[f'threshold__{action}__{state}'] = 0
         return param_values
     
     def actions(self, compiled: 'GurobiRDDLCompiler',
