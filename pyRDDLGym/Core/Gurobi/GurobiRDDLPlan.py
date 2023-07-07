@@ -196,32 +196,36 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
 
 class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
     
+    def __init__(self, *args, 
+                 state_bounds: Dict[str, Tuple[float, float]]={}, 
+                 **kwargs) -> None:
+        super(GurobiFactoredPWSCPolicy, self).__init__(*args, **kwargs)
+        self.state_bounds = state_bounds
+        
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
-        rddl = compiled.rddl
-        unbounded = (-GRB.INFINITY, +GRB.INFINITY)     
+        rddl = compiled.rddl  
         param_vars = {}
-        for ((state, srange), (action, arange)) in zip(
-            rddl.statesranges.items(), rddl.actionsranges.items()):
-            stype = compiled.GUROBI_TYPES[srange]
+        for (state, (action, arange)) in zip(rddl.states, rddl.actionsranges.items()):
             atype = compiled.GUROBI_TYPES[arange]
             constr_name = f'threshold__{state}__{action}'
             value1_name = f'value1__{state}__{action}'
             value2_name = f'value2__{state}__{action}'
-            lb, ub = self._bounds(rddl, action)
             if values is None:
-                constr_var = compiled._add_var(model, stype)
+                lb, ub = self._bounds(rddl, action)
+                lbs, ubs = self.state_bounds.get(state, (-GRB.INFINITY, +GRB.INFINITY))
+                constr_var = compiled._add_real_var(model, lbs, ubs)
                 value1_var = compiled._add_var(model, atype, lb, ub)
                 value2_var = compiled._add_var(model, atype, lb, ub)
-                param_vars[constr_name] = (constr_var, stype, *unbounded, True)
+                param_vars[constr_name] = (constr_var, GRB.CONTINUOUS, lbs, ubs, True)
                 param_vars[value1_name] = (value1_var, atype, lb, ub, True)
                 param_vars[value2_name] = (value2_var, atype, lb, ub, True)
             else:
                 constr_val = values[constr_name]
                 value1_val = values[value1_name]
                 value2_val = values[value2_name]
-                param_vars[constr_name] = (constr_val, stype, constr_val, constr_val, False)
+                param_vars[constr_name] = (constr_val, GRB.CONTINUOUS, constr_val, constr_val, False)
                 param_vars[value1_name] = (value1_val, atype, value1_val, value1_val, False)
                 param_vars[value2_name] = (value2_val, atype, value2_val, value2_val, False)
         return param_vars
@@ -231,7 +235,7 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
         rddl = compiled.rddl
         param_values = {}
         for (state, action) in zip(rddl.states, rddl.actions):
-            param_values[f'threshold__{state}__{action}'] = 0
+            param_values[f'threshold__{state}__{action}'] = compiled.init_values[state]
             param_values[f'value1__{state}__{action}'] = compiled.init_values[action]
             param_values[f'value2__{state}__{action}'] = compiled.init_values[action]
         return param_values
@@ -243,8 +247,7 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         action_vars = {}
-        for ((state, _), (action, arange)) in zip(
-            rddl.statesranges.items(), rddl.actionsranges.items()):
+        for (state, (action, arange)) in zip(rddl.states, rddl.actionsranges.items()):
             state_var = subs[state][0]
             constr_var = params[f'threshold__{state}__{action}'][0]
             diffexpr = state_var - constr_var
