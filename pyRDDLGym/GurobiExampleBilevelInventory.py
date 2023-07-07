@@ -26,22 +26,26 @@ def gurobi_solve(domain, inst, horizon):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(),
                     instance=EnvInfo.get_instance(inst)).model
+                    
     MAX_ORDER = model.nonfluents['MAX-ORDER']
+    state_bounds = {'stock___i1': (-50, 50),
+                    'stock___i2': (-50, 50),
+                    'stock___i3': (-50, 50),
+                    'stock___i4': (-50, 50),
+                    'stock___i5': (-50, 50)}
+    action_bounds = {'order___i1': (0, MAX_ORDER),
+                     'order___i2': (0, MAX_ORDER),
+                     'order___i3': (0, MAX_ORDER),
+                     'order___i4': (0, MAX_ORDER),
+                     'order___i5': (0, MAX_ORDER)}
     
     policy = GurobiFactoredPWSCPolicy(
-        action_bounds={'order___i1': (0, MAX_ORDER),
-                       'order___i2': (0, MAX_ORDER),
-                       'order___i3': (0, MAX_ORDER),
-                       'order___i4': (0, MAX_ORDER),
-                       'order___i5': (0, MAX_ORDER)}
+        action_bounds=action_bounds,
+        state_bounds=state_bounds
     )
     planner = GurobiRDDLBilevelOptimizer(
         model, policy,
-        state_bounds={'stock___i1': (-50, 50),
-                      'stock___i2': (-50, 50),
-                      'stock___i3': (-50, 50),
-                      'stock___i4': (-50, 50),
-                      'stock___i5': (-50, 50)},
+        state_bounds=state_bounds,
         rollout_horizon=horizon,
         use_cc=True,
         model_params={'PreSparsify': 1, 'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
