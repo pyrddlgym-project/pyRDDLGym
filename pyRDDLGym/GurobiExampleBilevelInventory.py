@@ -46,12 +46,15 @@ def gurobi_solve(domain, inst, horizon):
         use_cc=True,
         model_params={'PreSparsify': 1, 'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
     
+    EnvInfo = ExampleManager.GetEnvInfo('Inventory randomized')
+    model = RDDLEnv(domain=EnvInfo.get_domain(),
+                    instance=EnvInfo.get_instance(inst)).model
     rddl = RDDLGrounder(model._AST).Ground()
     world = RDDLSimulator(rddl)    
     reward_hist = []
     
     for callback in planner.solve(15, float('nan')): 
-        avg_reward = evaluate(world, policy, planner, horizon, 1000)
+        avg_reward = evaluate(world, policy, planner, horizon, 500)
         print(f'\naverage reward achieved: {avg_reward}\n')
         reward_hist.append(avg_reward)
     
