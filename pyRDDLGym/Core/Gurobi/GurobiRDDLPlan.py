@@ -270,10 +270,13 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         action_values = {}
-        for (state, action) in zip(rddl.states, rddl.actions):
+        for (state, (action, arange)) in zip(rddl.states, rddl.actionsranges.items()):
             if subs[state] >= params[f'threshold__{state}__{action}'][0].X:
-                action_values[action] = params[f'value1__{state}__{action}'][0].X
+                action_value = params[f'value1__{state}__{action}'][0].X
             else:
-                action_values[action] = params[f'value2__{state}__{action}'][0].X
+                action_value = params[f'value2__{state}__{action}'][0].X
+            if arange == 'int':
+                action_value = int(action_value)
+            action_values[action] = action_value
         return action_values
     
