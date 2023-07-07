@@ -2,8 +2,7 @@ import numpy as np
 import sys
 
 from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLStraightLinePlan,\
-    GurobiLinearThresholdPolicy
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiFactoredPWSCPolicy
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
@@ -13,18 +12,18 @@ def slp_replan(domain, inst, trials):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(), 
                     instance=EnvInfo.get_instance(inst)).model
-                    
-    def feature(action, states):
-        obj = action.split('__')[-1]
-        for state, value in states.items():
-            if state.endswith(obj):
-                return [value]
-        return None
+    MAX_ORDER = model.nonfluents['MAX-ORDER']
+     
+    plan = GurobiFactoredPWSCPolicy(
+        action_bounds={'order___i1': (0, MAX_ORDER),
+                       'order___i2': (0, MAX_ORDER),
+                       'order___i3': (0, MAX_ORDER),
+                       'order___i4': (0, MAX_ORDER),
+                       'order___i5': (0, MAX_ORDER)}
+    )
     
-    plan = GurobiLinearThresholdPolicy(feature)
-    
-    planner = GurobiRDDLCompiler(model, plan, rollout_horizon=10,
-                                 model_params={'NonConvex': 2, 'OutputFlag': 1, 'MIPGap': 0.01})
+    planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5,
+                                 model_params={'NonConvex': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
     
     world = RDDLSimulator(planner.rddl)
     rewards = np.zeros((planner.rddl.horizon, trials))
@@ -53,7 +52,7 @@ def slp_replan(domain, inst, trials):
             
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        dom, inst, trials = 'Reservoir continuous', 0, 1
+        dom, inst, trials = 'Inventory randomized', 0, 1
     else:
         dom, inst, trials = sys.argv[1:4]
         trials = int(trials)

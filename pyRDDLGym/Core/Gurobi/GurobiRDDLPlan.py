@@ -75,21 +75,19 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl
-        params = {}
+        action_vars = {}
         for (action, prange) in rddl.actionsranges.items():
             lb, ub = self._bounds(rddl, action)
             vtype = compiled.GUROBI_TYPES[prange]
-            
-            # each decision epoch has a set of action variables in the model
             for step in range(compiled.horizon):
                 var_name = f'{action}__{step}'
                 if values is None:
                     var = compiled._add_var(model, vtype, lb, ub)
-                    params[var_name] = (var, vtype, lb, ub, True)
+                    action_vars[var_name] = (var, vtype, lb, ub, True)
                 else:
                     value = values[var_name]
-                    params[var_name] = (value, vtype, value, value, False)
-        return params
+                    action_vars[var_name] = (value, vtype, value, value, False)
+        return action_vars
         
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
@@ -115,17 +113,17 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
         rddl = compiled.rddl
         action_values = {}
         for (action, prange) in rddl.actionsranges.items():
-            value = params[f'{action}__{step}'][0].X
+            action_value = params[f'{action}__{step}'][0].X
             if prange == 'int':
-                value = int(value)
-            action_values[action] = value        
+                action_value = int(action_value)
+            action_values[action] = action_value        
         return action_values
         
 
 class GurobiLinearPolicy(GurobiRDDLPlan):
     
     def __init__(self, *args,
-                 feature_map: Callable=(lambda a, s: s.values()),
+                 feature_map: Callable=(lambda s: [1.0] + list(s.values())),
                  noise: float=0.01,
                  **kwargs) -> None:
         super(GurobiLinearPolicy, self).__init__(*args, **kwargs)
@@ -136,40 +134,28 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl
-        unbounded = (-GRB.INFINITY, +GRB.INFINITY)
-        
-        params = {}
+        unbounded = (-GRB.INFINITY, +GRB.INFINITY)     
+        n_features = len(self.feature_map(rddl.states))   
+        param_vars = {}
         for action in rddl.actions:
-            
-            # bias parameter
-            var_name = f'bias__{action}'
-            if values is None: 
-                var = compiled._add_real_var(model)
-                params[var_name] = (var, GRB.CONTINUOUS, *unbounded, True)
-            else:
-                value = values[var_name]
-                params[var_name] = (value, GRB.CONTINUOUS, value, value, False)
-            
-            # feature weight parameters
-            n_features = len(self.feature_map(action, rddl.states))
             for i in range(n_features):
                 var_name = f'weight__{action}__{i}'
                 if values is None:
                     var = compiled._add_real_var(model)
-                    params[var_name] = (var, GRB.CONTINUOUS, *unbounded, True)
+                    param_vars[var_name] = (var, GRB.CONTINUOUS, *unbounded, True)
                 else:
                     value = values[var_name]
-                    params[var_name] = (value, GRB.CONTINUOUS, value, value, False)
-        return params
+                    param_vars[var_name] = (value, GRB.CONTINUOUS, value, value, False)
+        return param_vars
     
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
+        n_features = len(self.feature_map(rddl.states))
         param_values = {}
         for action in rddl.actions:
-            param_values[f'bias__{action}'] = compiled.init_values[action]
-            n_features = len(self.feature_map(action, rddl.states))
-            for i in range(n_features):
+            param_values[f'weight__{action}__0'] = compiled.init_values[action]
+            for i in range(1, n_features):
                 param_values[f'weight__{action}__{i}'] = 0.0
         return param_values
     
@@ -179,22 +165,18 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                 step: int,
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
+        state_vars = {name: subs[name][0] for name in rddl.states}
+        feature_vars = self.feature_map(state_vars)
         action_vars = {}
-        for action in rddl.actions:
-            
-            # compute feature map
-            states = {name: subs[name][0] for name in rddl.states}
-            features = self.feature_map(action, states)
-            
-            # compute linear combination bias + feature.T * weight
-            action_value = params[f'bias__{action}'][0]
-            for (i, feature) in enumerate(features):
-                param = params[f'weight__{action}__{i}'][0]
-                action_value += param * feature
+        for action in rddl.actions:            
+            linexpr = 0.0
+            for (i, feature_var) in enumerate(feature_vars):
+                param_var = params[f'weight__{action}__{i}'][0]
+                linexpr += param_var * feature_var
             lb, ub = self._bounds(rddl, action)
-            action_var = compiled._add_real_var(model, lb, ub)
-            model.addConstr(action_var == action_value)
-            action_vars[action] = (action_var, GRB.CONTINUOUS, lb, ub, True)
+            var = compiled._add_real_var(model, lb, ub)
+            model.addConstr(var == linexpr)
+            action_vars[action] = (var, GRB.CONTINUOUS, lb, ub, True)
         return action_vars
     
     def evaluate(self, compiled: 'GurobiRDDLCompiler',
@@ -202,140 +184,58 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                  step: int,
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
+        state_values = {name: subs[name] for name in rddl.states}
+        feature_values = self.feature_map(state_values)
         action_values = {}
-        for action in rddl.actions:
-            states = {name: subs[name] for name in rddl.states}
-            features = self.feature_map(action, states)
-            action_value = params[f'bias__{action}'][0].X
-            for (i, feature) in enumerate(features):
-                param = params[f'weight__{action}__{i}'][0].X
-                action_value += param * feature
+        for action in rddl.actions:            
+            action_value = 0.0
+            for (i, feature_value) in enumerate(feature_values):
+                param_value = params[f'weight__{action}__{i}'][0].X
+                action_value += param_value * feature_value
             action_values[action] = action_value
         return action_values
     
 
-class GurobiCornersPolicy(GurobiRDDLPlan):
+class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
     
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl
-        unbounded = (-GRB.INFINITY, +GRB.INFINITY)
-        params = {}
-        for action in rddl.actions:
-            
-            # for a constraint (s1 > C(a, s1)) & (s2 > C(a, s2)) ...
-            for state in rddl.states:
-                var_name = f'corner__{action}__{state}'
-                if values is None:
-                    var = compiled._add_real_var(model)
-                    params[var_name] = (var, GRB.CONTINUOUS, *unbounded, True)
-                else:
-                    value = values[var_name]
-                    params[var_name] = (value, GRB.CONTINUOUS, value, value, False)
-            
-            # action = action1 if constraint == True else action2
+        unbounded = (-GRB.INFINITY, +GRB.INFINITY)     
+        param_vars = {}
+        for ((state, srange), (action, arange)) in zip(
+            rddl.statesranges.items(), rddl.actionsranges.items()):
+            stype = compiled.GUROBI_TYPES[srange]
+            atype = compiled.GUROBI_TYPES[arange]
+            constr_name = f'threshold__{state}__{action}'
+            value1_name = f'value1__{state}__{action}'
+            value2_name = f'value2__{state}__{action}'
             lb, ub = self._bounds(rddl, action)
             if values is None:
-                a1 = compiled._add_real_var(model, lb, ub)
-                a2 = compiled._add_real_var(model, lb, ub)
-                params[f'action1__{action}'] = (a1, GRB.CONTINUOUS, lb, ub, True)
-                params[f'action2__{action}'] = (a2, GRB.CONTINUOUS, lb, ub, True)
+                constr_var = compiled._add_var(model, stype)
+                value1_var = compiled._add_var(model, atype, lb, ub)
+                value2_var = compiled._add_var(model, atype, lb, ub)
+                param_vars[constr_name] = (constr_var, stype, *unbounded, True)
+                param_vars[value1_name] = (value1_var, atype, lb, ub, True)
+                param_vars[value2_name] = (value2_var, atype, lb, ub, True)
             else:
-                a1 = values[f'action1__{action}']
-                a2 = values[f'action2__{action}']
-                params[f'action1__{action}'] = (a1, GRB.CONTINUOUS, a1, a1, False)
-                params[f'action2__{action}'] = (a2, GRB.CONTINUOUS, a2, a2, False)                
-        return params
-
-    def init_params(self, compiled: 'GurobiRDDLCompiler',
-                    model: gurobipy.Model) -> Dict[str, object]:
-        rddl = compiled.rddl
-        params = {}
-        for action in rddl.actions:
-            for state in rddl.states:
-                params[f'corner__{action}__{state}'] = 0
-            params[f'action1__{action}'] = 0
-            params[f'action2__{action}'] = 0
-        return params
-
-    def actions(self, compiled: 'GurobiRDDLCompiler',
-                model: gurobipy.Model,
-                params: Dict[str, object],
-                step: int,
-                subs: Dict[str, object]) -> Dict[str, object]:
-        rddl = compiled.rddl
-        action_vars = {}
-        for action in rddl.actions:
-            
-            # calculate constraint (s1 > C(a, s1)) & (s2 > C(a, s2))
-            args = []
-            for state in rddl.states:
-                var_name = f'corner__{action}__{state}'
-                diff = subs[state][0] - params[var_name][0]
-                satisfied = compiled._add_bool_var(model)
-                model.addConstr((satisfied == 1) >> (diff >= compiled.epsilon))
-                model.addConstr((satisfied == 0) >> (diff <= 0))
-                args.append(satisfied)
-            var_constr = compiled._add_bool_var(model)
-            model.addGenConstrAnd(var_constr, args)
-            
-            # calculate action values
-            a1 = params[f'action1__{action}'][0]
-            a2 = params[f'action2__{action}'][0]
-            lb, ub = self._bounds(rddl, action)
-            action_var = compiled._add_real_var(model, lb, ub)
-            model.addConstr((var_constr == 1) >> (action_var == a1))
-            model.addConstr((var_constr == 0) >> (action_var == a2))
-            action_vars[action] = (action_var, GRB.CONTINUOUS, lb, ub, True)
-        return action_vars
-    
-    def evaluate(self, compiled: 'GurobiRDDLCompiler',
-                 params: Dict[str, object],
-                 step: int,
-                 subs: Dict[str, object]) -> Dict[str, object]:
-        rddl = compiled.rddl
-        action_values = {}
-        for (action, prange) in rddl.actionsranges.items():
-            
-            # evaluate constraint (s1 > C(a, s1)) & (s2 > C(a, s2))
-            satisfied = True
-            for state in rddl.states:
-                var_name = f'corner__{action}__{state}'
-                satisfied = satisfied and (subs[state] > params[var_name][0].X)
-            
-            # evaluate action values
-            var_name = f'action{1 if satisfied else 2}__{action}'
-            value = params[var_name][0].X
-            if prange == 'int':
-                value = int(value)
-            action_values[action] = value
-        return action_values
-    
-
-class GurobiInventoryPolicy(GurobiRDDLPlan):
-        
-    def params(self, compiled: 'GurobiRDDLCompiler',
-               model: gurobipy.Model,
-               values: Dict[str, object]=None) -> Dict[str, object]:
-        rddl = compiled.rddl
-        params = {}
-        for (action, state) in zip(rddl.actions, rddl.states):
-            var_name = f'threshold__{action}__{state}'
-            if values is None:
-                var = compiled._add_real_var(model)
-                params[var_name] = (var, GRB.INTEGER, -GRB.INFINITY, GRB.INFINITY, True)
-            else:
-                value = values[var_name]
-                params[var_name] = (value, GRB.INTEGER, value, value, False)
-        return params
+                constr_val = values[constr_name]
+                value1_val = values[value1_name]
+                value2_val = values[value2_name]
+                param_vars[constr_name] = (constr_val, stype, constr_val, constr_val, False)
+                param_vars[value1_name] = (value1_val, atype, value1_val, value1_val, False)
+                param_vars[value2_name] = (value2_val, atype, value2_val, value2_val, False)
+        return param_vars
     
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
         param_values = {}
-        for (action, state) in zip(rddl.actions, rddl.states): 
-            param_values[f'threshold__{action}__{state}'] = 0
+        for (state, action) in zip(rddl.states, rddl.actions):
+            param_values[f'threshold__{state}__{action}'] = 0
+            param_values[f'value1__{state}__{action}'] = compiled.init_values[action]
+            param_values[f'value2__{state}__{action}'] = compiled.init_values[action]
         return param_values
     
     def actions(self, compiled: 'GurobiRDDLCompiler',
@@ -345,14 +245,23 @@ class GurobiInventoryPolicy(GurobiRDDLPlan):
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         action_vars = {}
-        for (action, state) in zip(rddl.actions, rddl.states):
-            var_name = f'threshold__{action}__{state}'
-            var_diff = compiled._add_int_var(model)
-            model.addConstr(var_diff == params[var_name][0] - subs[state][0])
+        for ((state, _), (action, arange)) in zip(
+            rddl.statesranges.items(), rddl.actionsranges.items()):
+            state_var = subs[state][0]
+            constr_var = params[f'threshold__{state}__{action}'][0]
+            diffexpr = state_var - constr_var
+            constr_sat_var = compiled._add_bool_var(model)
+            model.addConstr((constr_sat_var == 1) >> (diffexpr >= 0))
+            model.addConstr((constr_sat_var == 0) >> (diffexpr <= 0))
+            
+            value1_var = params[f'value1__{state}__{action}'][0]
+            value2_var = params[f'value2__{state}__{action}'][0]
+            atype = compiled.GUROBI_TYPES[arange]
             lb, ub = self._bounds(rddl, action)
-            var_order = compiled._add_int_var(model, lb, ub)
-            model.addGenConstrMax(var_order, [var_diff], 0)
-            action_vars[action] = (var_order, GRB.INTEGER, lb, ub, True)
+            action_var = compiled._add_var(model, atype, lb, ub)
+            model.addConstr((constr_sat_var == 1) >> (action_var == value1_var))
+            model.addConstr((constr_sat_var == 0) >> (action_var == value2_var))
+            action_vars[action] = (action_var, atype, lb, ub, True)
         return action_vars
     
     def evaluate(self, compiled: 'GurobiRDDLCompiler',
@@ -361,8 +270,10 @@ class GurobiInventoryPolicy(GurobiRDDLPlan):
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         action_values = {}
-        for (action, state) in zip(rddl.actions, rddl.states): 
-            var_name = f'threshold__{action}__{state}'
-            action_values[action] = max(int(params[var_name][0].X - subs[state]), 0)
+        for (state, action) in zip(rddl.states, rddl.actions):
+            if subs[state] >= params[f'threshold__{state}__{action}'][0].X:
+                action_values[action] = params[f'value1__{state}__{action}'][0].X
+            else:
+                action_values[action] = params[f'value2__{state}__{action}'][0].X
         return action_values
     

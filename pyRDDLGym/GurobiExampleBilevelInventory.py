@@ -1,9 +1,9 @@
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiCornersPolicy
-from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
-from pyRDDLGym.Core.Gurobi.GurobiRDDLBilevelOptimizer import GurobiRDDLBilevelOptimizer
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
+from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
+from pyRDDLGym.Core.Gurobi.GurobiRDDLBilevelOptimizer import GurobiRDDLBilevelOptimizer
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiFactoredPWSCPolicy
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 
 def evaluate(world, policy, planner, n_steps, n_episodes):
@@ -12,7 +12,8 @@ def evaluate(world, policy, planner, n_steps, n_episodes):
         world.reset()
         total_reward = 0.0
         for t in range(n_steps):
-            actions = policy.evaluate(planner.compiler, planner.params, t, world.subs)
+            subs = world.subs
+            actions = policy.evaluate(planner.compiler, planner.params, t, subs)
             _, reward, done = world.step(actions)
             total_reward += reward 
             if done: 
@@ -21,38 +22,47 @@ def evaluate(world, policy, planner, n_steps, n_episodes):
     return avg_reward
 
             
-def slp_replan(domain, inst):
+def gurobi_solve(domain, inst, horizon):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(),
                     instance=EnvInfo.get_instance(inst)).model
+    MAX_ORDER = model.nonfluents['MAX-ORDER']
     
-    policy = GurobiCornersPolicy(
-        action_bounds={'order___i1': (0, 50)}
+    policy = GurobiFactoredPWSCPolicy(
+        action_bounds={'order___i1': (0, MAX_ORDER),
+                       'order___i2': (0, MAX_ORDER),
+                       'order___i3': (0, MAX_ORDER),
+                       'order___i4': (0, MAX_ORDER),
+                       'order___i5': (0, MAX_ORDER)}
     )
     planner = GurobiRDDLBilevelOptimizer(
         model, policy,
-        state_bounds={'stock___i1': (-50, 50)},
-        rollout_horizon=40,
+        state_bounds={'stock___i1': (-50, 50),
+                      'stock___i2': (-50, 50),
+                      'stock___i3': (-50, 50),
+                      'stock___i4': (-50, 50),
+                      'stock___i5': (-50, 50)},
+        rollout_horizon=horizon,
         use_cc=True,
-        model_params={'OutputFlag': 1, 'MIPGap': 0.0})
+        model_params={'PreSparsify': 1, 'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
     
     rddl = RDDLGrounder(model._AST).Ground()
     world = RDDLSimulator(rddl)    
     reward_hist = []
     
     for callback in planner.solve(15, float('nan')): 
-        avg_reward = evaluate(world, policy, planner, 40, 1000)
+        avg_reward = evaluate(world, policy, planner, horizon, 1000)
         print(f'\naverage reward achieved: {avg_reward}\n')
         reward_hist.append(avg_reward)
     
     import matplotlib.pyplot as plt
     plt.plot(callback['error_hist'])
-    plt.savefig('error.pdf')    
+    plt.savefig(f'{domain}_{inst}_error.pdf')    
     plt.clf()
     plt.plot(reward_hist)
-    plt.savefig('rewards.pdf')
+    plt.savefig(f'{domain}_{inst}_rewards.pdf')
 
             
 if __name__ == "__main__":
-    slp_replan('Inventory', 0)
+    gurobi_solve('Inventory deterministic', 0, 20)
     

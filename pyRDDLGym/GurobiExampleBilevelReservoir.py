@@ -1,9 +1,9 @@
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLStraightLinePlan
-from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
-from pyRDDLGym.Core.Gurobi.GurobiRDDLBilevelOptimizer import GurobiRDDLBilevelOptimizer
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
+from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
+from pyRDDLGym.Core.Gurobi.GurobiRDDLBilevelOptimizer import GurobiRDDLBilevelOptimizer
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiFactoredPWSCPolicy
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 
 def evaluate(world, policy, planner, n_steps, n_episodes):
@@ -21,42 +21,46 @@ def evaluate(world, policy, planner, n_steps, n_episodes):
     return avg_reward
 
             
-def slp_replan(domain, inst):
+def gurobi_solve(domain, inst, horizon):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(),
                     instance=EnvInfo.get_instance(inst)).model
     
-    policy = GurobiRDDLStraightLinePlan(
+    policy = GurobiFactoredPWSCPolicy(
         action_bounds={'release___t1': (0, 100),
                        'release___t2': (0, 200),
-                       'release___t3': (0, 400)}
+                       'release___t3': (0, 400),
+                       'release___t4': (0, 500),
+                       'release___t5': (0, 600)}
     )
     planner = GurobiRDDLBilevelOptimizer(
         model, policy,
         state_bounds={'rlevel___t1': (0, 100),
                       'rlevel___t2': (0, 200),
-                      'rlevel___t3': (0, 400)},
-        rollout_horizon=40,
+                      'rlevel___t3': (0, 400),
+                      'rlevel___t4': (0, 500),
+                      'rlevel___t5': (0, 600)},
+        rollout_horizon=horizon,
         use_cc=True,
-        model_params={'OutputFlag': 1, 'MIPGap': 0.0})
+        model_params={'PreSparsify': 1, 'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
     
     rddl = RDDLGrounder(model._AST).Ground()
     world = RDDLSimulator(rddl)    
     reward_hist = []
     
-    for callback in planner.solve(10, float('nan')): 
-        avg_reward = evaluate(world, policy, planner, 40, 500)
+    for callback in planner.solve(15, float('nan')): 
+        avg_reward = evaluate(world, policy, planner, horizon, 500)
         print(f'\naverage reward achieved: {avg_reward}\n')
         reward_hist.append(avg_reward)
     
     import matplotlib.pyplot as plt
     plt.plot(callback['error_hist'])
-    plt.savefig('error.pdf')    
+    plt.savefig(f'{domain}_{inst}_error.pdf')    
     plt.clf()
     plt.plot(reward_hist)
-    plt.savefig('rewards.pdf')
+    plt.savefig(f'{domain}_{inst}_rewards.pdf')
 
             
 if __name__ == "__main__":
-    slp_replan('Reservoir linear', 0)
+    gurobi_solve('Reservoir linear', 0, 20)
     
