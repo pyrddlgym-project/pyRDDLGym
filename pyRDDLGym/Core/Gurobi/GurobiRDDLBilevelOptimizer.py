@@ -1,5 +1,6 @@
 import math
 import scipy
+import time
 from typing import Dict, Iterable
 
 import gurobipy
@@ -118,14 +119,18 @@ class GurobiRDDLBilevelOptimizer:
             
             # solve inner problem for worst-case state and plan
             print('\nSOLVING INNER PROBLEM:\n')
+            start_time = time.time()
             worst_value, worst_action, worst_state, worst_noise = \
                 self._solve_inner_problem(param_values)
+            elapsed_time_inner = time.time() - start_time
             
             # solve outer problem for policy
             print('\nADDING CONSTRAINT AND SOLVING OUTER PROBLEM:\n')
+            start_time = time.time()
             param_values = self._resolve_outer_problem(
                 worst_value, worst_state, worst_noise, 
                 compiler, outer_model, params)
+            elapsed_time_outer = time.time() - start_time
             
             # check stopping condition
             new_error = outer_model.getVarByName('error').X
@@ -143,7 +148,9 @@ class GurobiRDDLBilevelOptimizer:
                 'worst_noise': worst_noise,
                 'error': error,
                 'error_hist': error_hist,
-                'params': param_values
+                'params': param_values,
+                'elapsed_time_inner': elapsed_time_inner,
+                'elapsed_time_outer': elapsed_time_outer
             }
             if converged:
                 break
