@@ -124,11 +124,9 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
     
     def __init__(self, *args,
                  feature_map: Callable=(lambda s: [1.0] + list(s.values())),
-                 noise: float=0.01,
                  **kwargs) -> None:
         super(GurobiLinearPolicy, self).__init__(*args, **kwargs)
         self.feature_map = feature_map
-        self.noise = noise
         
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
