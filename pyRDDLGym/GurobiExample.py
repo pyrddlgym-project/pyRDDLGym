@@ -19,7 +19,12 @@ def slp_replan(domain, inst, trials):
                        'order___i2': (0, MAX_ORDER),
                        'order___i3': (0, MAX_ORDER),
                        'order___i4': (0, MAX_ORDER),
-                       'order___i5': (0, MAX_ORDER)}
+                       'order___i5': (0, MAX_ORDER)},
+        state_bounds={'stock___i1': (-50, 50),
+                      'stock___i2': (-50, 50),
+                      'stock___i3': (-50, 50),
+                      'stock___i4': (-50, 50),
+                      'stock___i5': (-50, 50)}
     )
     
     planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5,
@@ -52,7 +57,7 @@ def slp_replan(domain, inst, trials):
             
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        dom, inst, trials = 'Inventory randomized', 0, 1
+        dom, inst, trials = 'Inventory randomized', 1, 1
     else:
         dom, inst, trials = sys.argv[1:4]
         trials = int(trials)
