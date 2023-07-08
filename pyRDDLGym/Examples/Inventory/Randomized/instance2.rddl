@@ -6,7 +6,7 @@ non-fluents inventory_5nf {
 	};
 	
 	non-fluents {
-		MAX-ORDER = 8;
+		MAX-ORDER = 10;
 	};
 }
 
@@ -23,6 +23,6 @@ instance inventory_2 {
 	};
 
 	max-nondef-actions = pos-inf;
-	horizon = 20;
+	horizon = 10;
 	discount = 1.0;
 }

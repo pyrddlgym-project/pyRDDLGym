@@ -34,9 +34,9 @@ domain inventory{
 					+ 0.016564 * max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - 6]]];
 	};
 
-	reward = -(sum_{?i : item} [SHORTAGE-COST(?i) * max[0, -stock'(?i)] 
-								+ HOLDING-COST(?i) * max[0, stock'(?i)] 
-								+ PURCHASE-COST(?i) * order(?i)]);
+	reward = (sum_{?i : item} [SHORTAGE-COST(?i) * min[0, stock'(?i)] 
+								- HOLDING-COST(?i) * max[0, stock'(?i)] 
+								- PURCHASE-COST(?i) * order(?i)]);
 
 	action-preconditions {
 		forall_{?i : item} [ order(?i) >= 0 ];
