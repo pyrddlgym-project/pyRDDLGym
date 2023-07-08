@@ -65,5 +65,5 @@ def gurobi_solve(domain, inst, horizon):
 
             
 if __name__ == "__main__":
-    gurobi_solve('Reservoir linear', 0, 20)
+    gurobi_solve('Reservoir linear', 1, 10)
     
