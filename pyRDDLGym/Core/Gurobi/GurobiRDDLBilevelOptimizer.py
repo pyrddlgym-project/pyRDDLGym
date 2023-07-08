@@ -120,16 +120,15 @@ class GurobiRDDLBilevelOptimizer:
             # solve inner problem for worst-case state and plan
             print('\nSOLVING INNER PROBLEM:\n')
             start_time = time.time()
-            worst_value, worst_action, worst_state, worst_noise = \
+            worst_val_slp, worst_val_pol, worst_action, worst_state, worst_noise = \
                 self._solve_inner_problem(param_values)
             elapsed_time_inner = time.time() - start_time
             
             # solve outer problem for policy
             print('\nADDING CONSTRAINT AND SOLVING OUTER PROBLEM:\n')
             start_time = time.time()
-            param_values = self._resolve_outer_problem(
-                worst_value, worst_state, worst_noise, 
-                compiler, outer_model, params)
+            worst_val_pol_outer, param_values = self._resolve_outer_problem(
+                worst_val_slp, worst_state, worst_noise, compiler, outer_model, params)
             elapsed_time_outer = time.time() - start_time
             
             # check stopping condition
@@ -142,10 +141,11 @@ class GurobiRDDLBilevelOptimizer:
             yield {
                 'it': it,
                 'converged': converged,
-                'worst_value': worst_value,
+                'worst_value_inner': {'slp': worst_val_slp, 'policy': worst_val_pol},
                 'worst_action': worst_action,
                 'worst_state': worst_state,
                 'worst_noise': worst_noise,
+                'worst_value_outer': worst_val_pol_outer,
                 'error': error,
                 'error_hist': error_hist,
                 'params': param_values,
@@ -190,8 +190,6 @@ class GurobiRDDLBilevelOptimizer:
         slp_subs = subs.copy()
         slp_params = slp.params(compiler, model)
         value_slp, action_vars = compiler._rollout(model, slp, slp_params, slp_subs)
-        value_slp_var = compiler._add_real_var(model, name='value')
-        model.addConstr(value_slp_var == value_slp)
         
         # roll out from s0 using a_t = policy(s_t), t = 1, 2, ... T
         # here the policy is frozen during optimization of the plan above
@@ -208,9 +206,10 @@ class GurobiRDDLBilevelOptimizer:
         model.setObjective(value_slp - value_pol, GRB.MAXIMIZE)     
         model.optimize()    
         
-        # read a_1, ... a_T and V(a_1, ... a_T, s0) from the optimized model
+        # read a_1... a_T, V(a_1, ... a_T, s0), V(pi, s0) from the solved model
         worst_action = compiler._get_optimal_actions(action_vars)
-        worst_value = model.getVarByName('value').X
+        worst_value_slp = value_slp.getValue()
+        worst_value_pol = value_pol.getValue()
         
         # read worst state s0 from the optimized model
         worst_state = {}
@@ -230,9 +229,9 @@ class GurobiRDDLBilevelOptimizer:
         
         # release the model resources
         model.dispose()
-        return worst_value, worst_action, worst_state, worst_noise
+        return worst_value_slp, worst_value_pol, worst_action, worst_state, worst_noise
     
-    def _resolve_outer_problem(self, worst_value: float,
+    def _resolve_outer_problem(self, worst_value_slp: float,
                                worst_state: Dict[str, object],
                                worst_noise: Dict[str, Dict[int, object]],
                                compiler: GurobiRDDLCompiler,
@@ -248,10 +247,11 @@ class GurobiRDDLBilevelOptimizer:
                 
         # add constraint on error to outer model
         error = model.getVarByName('error')
-        model.addConstr(error >= worst_value - value_pol)
+        model.addConstr(error >= worst_value_slp - value_pol)
         
         # optimize error and return new policy parameter values
         model.optimize()
         param_values = {name: value[0].X for (name, value) in policy_params.items()}
-        return param_values
+        worst_value_pol = value_pol.getValue()
+        return worst_value_pol, param_values
     
