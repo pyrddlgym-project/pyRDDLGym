@@ -34,6 +34,6 @@ instance Reservoir_linear_1 {
 	};
 
 	max-nondef-actions = pos-inf;
-	horizon = 20;
+	horizon = 10;
 	discount = 1.0;
 }

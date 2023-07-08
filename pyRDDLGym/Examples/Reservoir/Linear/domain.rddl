@@ -34,11 +34,14 @@ domain reservoir_control_linear {
 			rlevel(?r) + rainfall(?r) - release(?r) + (sum_{?r2: id}[DOWNSTREAM(?r2, ?r) * release(?r2)])]];
 	};
 	
-	reward = (sum_{?r: id} [if (rlevel'(?r) <= LOW_BOUND(?r))
-								then LOW_COST(?r) * (LOW_BOUND(?r) - rlevel'(?r))
-							else if (rlevel'(?r) >= HIGH_BOUND(?r))
-								then HIGH_COST(?r) * (rlevel'(?r) - HIGH_BOUND(?r))
-							else 0]);
+	//reward = (sum_{?r: id} [if (rlevel'(?r) <= LOW_BOUND(?r))
+	//							then LOW_COST(?r) * (LOW_BOUND(?r) - rlevel'(?r))
+	//						else if (rlevel'(?r) >= HIGH_BOUND(?r))
+	//							then HIGH_COST(?r) * (rlevel'(?r) - HIGH_BOUND(?r))
+	//						else 0]);
+							
+	reward = (sum_{?r: id} [LOW_COST(?r) * max[LOW_BOUND(?r) - rlevel'(?r), 0]
+							+ HIGH_COST(?r) * max[rlevel'(?r) - HIGH_BOUND(?r), 0]]);
 	
 	action-preconditions {
 		forall_{?r: id} [release(?r) <= rlevel(?r)];
