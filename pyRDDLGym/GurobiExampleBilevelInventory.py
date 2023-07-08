@@ -57,17 +57,17 @@ def gurobi_solve(domain, inst, horizon):
     world = RDDLSimulator(rddl)    
     reward_hist = []
     
-    for callback in planner.solve(15, float('nan')): 
+    for callback in planner.solve(10, float('nan')): 
         avg_reward = evaluate(world, policy, planner, horizon, 500)
         print(f'\naverage reward achieved: {avg_reward}\n')
         reward_hist.append(avg_reward)
     
     import matplotlib.pyplot as plt
     plt.plot(callback['error_hist'])
-    plt.savefig(f'{domain}_{inst}_error.pdf')    
+    plt.savefig(f'{domain}_{inst}_{horizon}_error.pdf')    
     plt.clf()
     plt.plot(reward_hist)
-    plt.savefig(f'{domain}_{inst}_rewards.pdf')
+    plt.savefig(f'{domain}_{inst}_{horizon}_rewards.pdf')
 
             
 if __name__ == "__main__":
