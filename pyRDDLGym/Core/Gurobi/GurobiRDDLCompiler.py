@@ -369,7 +369,7 @@ class GurobiRDDLCompiler:
                 res = self._add_var(model, vtype, lb, ub)
                 model.addConstr(res == negexpr)
             else:
-                res, lb, ub = negexpr, negexpr, negexpr              
+                res = lb = ub = negexpr           
             return res, vtype, lb, ub, symb
         
         # binary operations
@@ -391,7 +391,7 @@ class GurobiRDDLCompiler:
                     res = self._add_var(model, vtype, lb, ub)
                     model.addConstr(res == sumexpr)
                 else:
-                    res, lb, ub = sumexpr, sumexpr, sumexpr                    
+                    res = lb = ub = sumexpr                   
                 return res, vtype, lb, ub, symb
             
             # unwrap multiplication to binary operations
@@ -409,7 +409,7 @@ class GurobiRDDLCompiler:
                     res = self._add_var(model, vtype, lb, ub)
                     model.addConstr(res == prodexpr)
                 else:
-                    res, lb, ub = prodexpr, prodexpr, prodexpr                    
+                    res = lb = ub = prodexpr                    
                 return res, vtype, lb, ub, symb
             
             # subtraction
@@ -427,7 +427,7 @@ class GurobiRDDLCompiler:
                     res = self._add_var(model, vtype, lb, ub)
                     model.addConstr(res == diffexpr)
                 else:
-                    res, lb, ub = diffexpr, diffexpr, diffexpr                
+                    res = lb = ub = diffexpr                
                 return res, vtype, lb, ub, symb
             
             # implement z = x / y as a constraint z * y = x
@@ -474,8 +474,10 @@ class GurobiRDDLCompiler:
         
         if n == 2:
             lhs, rhs = args
-            glhs, _, lb1, ub1, symb1 = self._gurobi(lhs, model, subs)
-            grhs, _, lb2, ub2, symb2 = self._gurobi(rhs, model, subs)
+            glhs, vtype1, lb1, ub1, symb1 = self._gurobi(lhs, model, subs)
+            grhs, vtype2, lb2, ub2, symb2 = self._gurobi(rhs, model, subs)
+            vtype = GurobiRDDLCompiler._promote_vtype(vtype1, vtype2)
+            vtype = GurobiRDDLCompiler._at_least_int(vtype)
             symb = symb1 or symb2
             
             # convert <= to >=, < to >, etc.
@@ -487,53 +489,61 @@ class GurobiRDDLCompiler:
             # assign comparison operator to binary variable
             if op == '==': 
                 if symb:
-                    diff_var = self._add_real_var(model, lb1 - ub2, ub1 - lb2)
+                    diff_var = self._add_var(model, vtype, lb1 - ub2, ub1 - lb2)
                     model.addConstr(diff_var == diffexpr)
                     
                     lb, ub = GurobiRDDLCompiler._fix_bounds_abs(lb1 - ub2, ub1 - lb2)
-                    abs_diff = self._add_real_var(model, lb, ub)
+                    abs_diff = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrAbs(abs_diff, diff_var)
                                  
                     res = self._add_bool_var(model)
                     model.addConstr((res == 1) >> (abs_diff <= self.epsilon))
                     model.addConstr((res == 0) >> (abs_diff >= self.epsilon))
+                    lb, ub = 0, 1
                 else:
                     res = glhs == grhs
-                return res, GRB.BINARY, 0, 1, symb
+                    lb = ub = int(res)
+                return res, GRB.BINARY, lb, ub, symb
             
             elif op == '>=':
                 if symb:
                     res = self._add_bool_var(model)
                     model.addConstr((res == 1) >> (diffexpr >= 0))
                     model.addConstr((res == 0) >> (diffexpr <= 0))
+                    lb, ub = 0, 1
                 else:
                     res = glhs >= grhs
-                return res, GRB.BINARY, 0, 1, symb
+                    lb = ub = int(res)
+                return res, GRB.BINARY, lb, ub, symb
             
             elif op == '~=':
                 if symb:
-                    diff_var = self._add_real_var(model, lb1 - ub2, ub1 - lb2)
+                    diff_var = self._add_var(model, vtype, lb1 - ub2, ub1 - lb2)
                     model.addConstr(diff_var == diffexpr)
                     
                     lb, ub = GurobiRDDLCompiler._fix_bounds_abs(lb1 - ub2, ub1 - lb2)
-                    abs_diff = self._add_real_var(model, lb, ub)
+                    abs_diff = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrAbs(abs_diff, diff_var)
                     
                     res = self._add_bool_var(model)
                     model.addConstr((res == 1) >> (abs_diff >= self.epsilon))
                     model.addConstr((res == 0) >> (abs_diff <= self.epsilon))
+                    lb, ub = 0, 1
                 else: 
                     res = glhs != grhs
-                return res, GRB.BINARY, 0, 1, symb
+                    lb = ub = int(res)
+                return res, GRB.BINARY, lb, ub, symb
             
             elif op == '>':
                 if symb:
                     res = self._add_bool_var(model)
                     model.addConstr((res == 1) >> (diffexpr >= self.epsilon))
                     model.addConstr((res == 0) >> (diffexpr <= self.epsilon))
+                    lb, ub = 0, 1
                 else:
                     res = glhs > grhs
-                return res, GRB.BINARY, 0, 1, symb
+                    lb = ub = int(res)
+                return res, GRB.BINARY, lb, ub, symb
             
         raise RDDLNotImplementedError(
             f'Relational operator {op} with {n} arguments is not '
@@ -554,9 +564,11 @@ class GurobiRDDLCompiler:
             if symb:
                 res = self._add_bool_var(model)
                 model.addConstr(res + gterm == 1)
+                lb, ub = 0, 1
             else:
-                res = not gterm                
-            return res, GRB.BINARY, 0, 1, symb
+                res = not gterm    
+                lb = ub = int(res)            
+            return res, GRB.BINARY, lb, ub, symb
             
         # binary operations
         elif n >= 1:
@@ -579,18 +591,22 @@ class GurobiRDDLCompiler:
                 if symb:
                     res = self._add_bool_var(model)
                     model.addGenConstrAnd(res, gterms)
+                    lb, ub = 0, 1
                 else:
-                    res = all(gterms)                    
-                return res, GRB.BINARY, 0, 1, symb
+                    res = all(gterms)   
+                    lb = ub = int(res)                 
+                return res, GRB.BINARY, lb, ub, symb
             
             # unwrap OR to binary operations
             elif op == '|':
                 if symb:
                     res = self._add_bool_var(model)
                     model.addGenConstrOr(res, gterms)
+                    lb, ub = 0, 1
                 else:
-                    res = any(gterms)                    
-                return res, GRB.BINARY, 0, 1, symb
+                    res = any(gterms)    
+                    lb = ub = int(res)                
+                return res, GRB.BINARY, lb, ub, symb
         
         raise RDDLNotImplementedError(
             f'Logical operator {op} with {n} arguments is not '
@@ -631,8 +647,7 @@ class GurobiRDDLCompiler:
                     res = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrAbs(res, gterm)                    
                 else:
-                    res = abs(gterm)
-                    lb, ub = res, res                    
+                    res = lb = ub = abs(gterm)           
                 return res, vtype, lb, ub, symb
             
             elif name == 'floor':
@@ -643,8 +658,7 @@ class GurobiRDDLCompiler:
                     model.addConstr(res <= gterm)
                     model.addConstr(res + 1 >= gterm + self.epsilon)                    
                 else:
-                    res = int(math.floor(gterm))
-                    lb, ub = res, res   
+                    res = lb = ub = int(math.floor(gterm))
                 return res, GRB.INTEGER, lb, ub, symb
             
             elif name == 'ceil':
@@ -655,8 +669,7 @@ class GurobiRDDLCompiler:
                     model.addConstr(res >= gterm)
                     model.addConstr(res - 1 <= gterm - self.epsilon)
                 else:
-                    res = int(math.ceil(gterm))
-                    lb, ub = res, res   
+                    res = lb = ub = int(math.ceil(gterm))
                 return res, GRB.INTEGER, lb, ub, symb
                 
             elif name == 'cos':
@@ -665,8 +678,7 @@ class GurobiRDDLCompiler:
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrCos(gterm, res, options=self.pw_options)
                 else:
-                    res = math.cos(gterm)
-                    lb, ub = res, res                    
+                    res = lb = ub = math.cos(gterm)      
                 return res, GRB.CONTINUOUS, lb, ub, symb
             
             elif name == 'sin':
@@ -675,8 +687,7 @@ class GurobiRDDLCompiler:
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrSin(gterm, res, options=self.pw_options)
                 else:
-                    res = math.sin(gterm)
-                    lb, ub = res, res                    
+                    res = lb = ub = math.sin(gterm)      
                 return res, GRB.CONTINUOUS, lb, ub, symb
             
             elif name == 'tan':
@@ -685,8 +696,7 @@ class GurobiRDDLCompiler:
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrTan(gterm, res, options=self.pw_options)
                 else:
-                    res = math.tan(gterm)
-                    lb, ub = res, res                    
+                    res = lb = ub = math.tan(gterm)      
                 return res, GRB.CONTINUOUS, lb, ub, symb
             
             elif name == 'exp':
@@ -696,8 +706,7 @@ class GurobiRDDLCompiler:
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrExp(gterm, res, options=self.pw_options)
                 else:
-                    res = math.exp(gterm)
-                    lb, ub = res, res                    
+                    res = lb = ub = math.exp(gterm)      
                 return res, GRB.CONTINUOUS, lb, ub, symb
             
             elif name == 'ln': 
@@ -708,8 +717,7 @@ class GurobiRDDLCompiler:
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrLog(arg, res, options=self.pw_options)
                 else:
-                    res = math.log(gterm)
-                    lb, ub = res, res                    
+                    res = lb = ub = math.log(gterm)      
                 return res, GRB.CONTINUOUS, lb, ub, symb
             
             elif name == 'sqrt':
@@ -720,8 +728,7 @@ class GurobiRDDLCompiler:
                     res = self._add_real_var(model, lb, ub)
                     model.addGenConstrPow(arg, res, 0.5, options=self.pw_options)
                 else:
-                    res = math.sqrt(gterm)
-                    lb, ub = res, res                    
+                    res = lb = ub = math.sqrt(gterm)     
                 return res, GRB.CONTINUOUS, lb, ub, symb
         
         # binary functions
@@ -740,8 +747,7 @@ class GurobiRDDLCompiler:
                     res = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrMin(res, [gterm1, gterm2])
                 else:
-                    res = min(gterm1, gterm2)
-                    lb, ub = res, res                    
+                    res = lb = ub = min(gterm1, gterm2)  
                 return res, vtype, lb, ub, symb
             
             elif name == 'max':
@@ -751,8 +757,7 @@ class GurobiRDDLCompiler:
                     res = self._add_var(model, vtype, lb, ub)
                     model.addGenConstrMax(res, [gterm1, gterm2])
                 else:
-                    res = max(gterm1, gterm2)
-                    lb, ub = res, res                    
+                    res = lb = ub = max(gterm1, gterm2)  
                 return res, vtype, lb, ub, symb
             
             elif name == 'pow':
@@ -773,8 +778,7 @@ class GurobiRDDLCompiler:
                     model.addGenConstrPow(
                         base, res, gterm2, options=self.pw_options)
                 else:
-                    res = math.pow(gterm1, gterm2)   
-                    lb, ub = res, res                                
+                    res = lb = ub = math.pow(gterm1, gterm2)         
                 return res, GRB.CONTINUOUS, lb, ub, symb
         
         raise RDDLNotImplementedError(
@@ -805,10 +809,12 @@ class GurobiRDDLCompiler:
                 model.addConstr((gpred == 1) >> (res == gterm1))
                 model.addConstr((gpred == 0) >> (res == gterm2))
                 symb = True
-            elif gpred:
-                res, lb, ub, symb = gterm1, lb1, ub1, symb1
             else:
-                res, lb, ub, symb = gterm2, lb2, ub2, symb2
+                assert isinstance(gpred, bool)
+                if gpred:
+                    res, lb, ub, symb = gterm1, lb1, ub1, symb1
+                else:
+                    res, lb, ub, symb = gterm2, lb2, ub2, symb2
             return res, vtype, lb, ub, symb
             
         raise RDDLNotImplementedError(
@@ -865,7 +871,7 @@ class GurobiRDDLCompiler:
             res = self._add_real_var(model, lb, ub)
             model.addConstr(res == midexpr)            
         else:
-            res, lb, ub = midexpr, midexpr, midexpr
+            res = lb = ub = midexpr
         return res, GRB.CONTINUOUS, lb, ub, symb
         
     def _gurobi_bernoulli(self, expr, model, subs):
@@ -877,9 +883,10 @@ class GurobiRDDLCompiler:
             res = self._add_bool_var(model)
             model.addConstr((res == 1) >> (gterm >= 0.5 + self.epsilon))
             model.addConstr((res == 0) >> (gterm <= 0.5 + self.epsilon))
+            lb, ub = 0, 1
         else:
             res = gterm > 0.5
-            lb, ub = res, res
+            lb = ub = int(res)
         return res, GRB.BINARY, lb, ub, symb
         
     def _gurobi_normal(self, expr, model, subs):
@@ -916,6 +923,6 @@ class GurobiRDDLCompiler:
             res = self._add_real_var(model, lb, ub)
             model.addConstr(res == prodexpr)
         else:
-            res, lb, ub = prodexpr, prodexpr, prodexpr      
+            res = lb = ub = prodexpr     
         return res, GRB.CONTINUOUS, lb, ub, symb
         
