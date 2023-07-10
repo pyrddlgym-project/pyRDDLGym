@@ -104,6 +104,7 @@ class JaxRDDLCompiler:
             'argmin': lambda x, axis, param: jnp.argmin(x, axis=axis),
             'argmax': lambda x, axis, param: jnp.argmax(x, axis=axis)
         }
+        self.AGGREGATION_BOOL = {'forall', 'exists'}
         self.KNOWN_UNARY = {        
             'abs': lambda x, param: jnp.abs(x),
             'sgn': lambda x, param: jnp.sign(x),
@@ -128,6 +129,7 @@ class JaxRDDLCompiler:
         self.KNOWN_BINARY = {
             'div': lambda x, y, param: jnp.floor_divide(x, y),
             'mod': lambda x, y, param: jnp.mod(x, y),
+            'fmod': lambda x, y, param: jnp.mod(x, y),
             'min': lambda x, y, param: jnp.minimum(x, y),
             'max': lambda x, y, param: jnp.maximum(x, y),
             'pow': lambda x, y, param: jnp.power(x, y),
@@ -705,7 +707,7 @@ class JaxRDDLCompiler:
         _, op = expr.etype
         valid_ops = self.AGGREGATION_OPS      
         JaxRDDLCompiler._check_valid_op(expr, valid_ops) 
-        is_floating = op not in {'forall', 'exists'}
+        is_floating = op not in self.AGGREGATION_BOOL
         
         * _, arg = expr.args  
         _, axes = self.traced.cached_sim_info(expr)
