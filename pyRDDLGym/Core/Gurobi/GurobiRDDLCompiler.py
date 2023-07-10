@@ -780,7 +780,37 @@ class GurobiRDDLCompiler:
                 else:
                     res = lb = ub = math.pow(gterm1, gterm2)         
                 return res, GRB.CONTINUOUS, lb, ub, symb
-        
+            
+            elif name == 'mod':
+                if symb:
+                    # second argument must be non-negative
+                    gterm2, lb2, ub2 = self._gurobi_positive(
+                        model, gterm2, vtype2, lb2, ub2)  
+                    
+                    # compute r = x % y as x = y * q + r where 0 <= r < y
+                    lb, ub = 0, (ub2 - 1)
+                    res = self._add_int_var(model, lb, ub)
+                    quotient = self._add_int_var(model)
+                    model.addConstr(gterm1 == gterm2 * quotient + res)                    
+                else:
+                    res = lb = ub = gterm1 % gterm2
+                return res, GRB.INTEGER, lb, ub, symb
+            
+            elif name == 'fmod':
+                if symb:
+                    # second argument must be non-negative
+                    gterm2, lb2, ub2 = self._gurobi_positive(
+                        model, gterm2, vtype2, lb2, ub2)  
+                    
+                    # compute r = x % y as x = y * q + r where 0 <= r < y
+                    lb, ub = 0, (ub2 - self.epsilon)
+                    res = self._add_real_var(model, lb, ub)
+                    quotient = self._add_int_var(model)
+                    model.addConstr(gterm1 == gterm2 * quotient + res)                    
+                else:
+                    res = lb = ub = gterm1 % gterm2
+                return res, GRB.CONTINUOUS, lb, ub, symb
+                
         raise RDDLNotImplementedError(
             f'Function operator {name} with {n} arguments is not '
             f'supported in Gurobi compiler.\n' + 
