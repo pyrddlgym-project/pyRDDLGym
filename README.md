@@ -6,6 +6,10 @@ This toolkit is the official evaluation system of the [2023 IPC RL and planning 
 ### Paper
 Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym.
 
+### Tutorial
+Please see the following notebook which were given as a tutorial at ICAPS 2023:
+* [Tutorial notebook](https://colab.research.google.com/drive/1wdX0MbjmjpC7NvBRFlTQ8kvi1uuTCQaK?usp=sharing)
+
 ### Status
 pyRDDLGym supports a major subset of the original RDDL language:
 * [RDDL](https://users.cecs.anu.edu.au/~ssanner/IPPC_2011/RDDL.pdf)
