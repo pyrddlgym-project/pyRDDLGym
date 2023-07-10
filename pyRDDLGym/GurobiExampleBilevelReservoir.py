@@ -28,13 +28,11 @@ def gurobi_solve(domain, inst, horizon):
     state_bounds = {'rlevel___t1': (0, 100),
                     'rlevel___t2': (0, 200),
                     'rlevel___t3': (0, 400),
-                    'rlevel___t4': (0, 500),
-                    'rlevel___t5': (0, 600)}
+                    'rlevel___t4': (0, 500)}
     action_bounds = {'release___t1': (0, 100),
                      'release___t2': (0, 200),
                      'release___t3': (0, 400),
-                     'release___t4': (0, 500),
-                     'release___t5': (0, 600)}
+                     'release___t4': (0, 500)}
     
     policy = GurobiFactoredPWSCPolicy(
         action_bounds=action_bounds,
