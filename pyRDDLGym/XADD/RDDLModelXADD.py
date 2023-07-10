@@ -2,7 +2,7 @@ from typing import Set, Sized, Tuple
 
 import sympy as sp
 from xaddpy.xadd import XADD
-from xaddpy.xadd.xadd import ControlFlow
+from xaddpy.xadd.xadd import ControlFlow, DeltaFunctionSubstitution
 
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel, RDDLGroundedModel
 from pyRDDLGym.Core.ErrorHandling.RDDLException import (
@@ -11,7 +11,8 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import (
     RDDLTypeError,
 )
 from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.XADD.helper import TransformToBernoulliXADD
+from pyRDDLGym.XADD.helper import get_bernoulli_node_id
+
 
 VALID_RELATIONAL_OPS = {'>=', '>', '<=', '<', '==', '~='}
 OP_TO_XADD_OP = {
@@ -187,7 +188,13 @@ class RDDLModelWXADD(PlanningModel):
             var_, node_id = self.add_sympy_var(var, var_type)
         return node_id
 
-    def add_sympy_var(self, var_name: str, var_type: str) -> Tuple[sp.Symbol, int]:
+    def add_sympy_var(
+            self,
+            var_name: str,
+            var_type: str,
+            random: bool = False,
+            **kwargs,
+    ) -> Tuple[sp.Symbol, int]:
         if var_name in self._var_name_to_sympy_var_name:
             var_ = self.ns[var_name]
             node_id = self._var_name_to_node_id[var_name]
@@ -196,10 +203,11 @@ class RDDLModelWXADD(PlanningModel):
             var_name,
             sp.Symbol(
                 var_name.replace('-', '_'),
-                bool=var_type == 'bool'
+                bool=var_type == 'bool',
+                random=random
             )
         )
-        node_id = self._context.convert_to_xadd(var_)
+        node_id = self._context.convert_to_xadd(var_, **kwargs)
         self._sympy_var_to_node_id[var_] = node_id
         self._var_name_to_node_id[var_name] = node_id
         self._sympy_var_name_to_var_name[str(var_)] = var_name
@@ -328,7 +336,11 @@ class RDDLModelWXADD(PlanningModel):
             # TODO: How to assert that a Bernoulli node can only come at a leaf?
             else:
                 name = f'{dist}_params_{len(args)}_{proba}'
-                rv, node_id = self.add_sympy_var(name, 'real')
+                rv, node_id = self.add_sympy_var(name,
+                                                 'real',
+                                                 random=True,
+                                                 params=(proba,),
+                                                 type='BERNOULLI')
                 # Need to postprocess the node to make leaf nodes 
                 # represent Bernoulli probabilities
                 self._need_postprocessing = True
@@ -478,9 +490,20 @@ class RDDLModelWXADD(PlanningModel):
         we replace the Bernoulli leaf nodes with their corresponding
         parameter nodes.
         """
-        leaf_op = TransformToBernoulliXADD(self._context)
-        node_id = self._context.reduce_process_xadd_leaf(
-            node_id, leaf_op, [], [])
+        var_set = self._context.collect_vars(node_id)
+        bernoulli_set = set()
+        for v in var_set:
+            name = str(v)
+            if name.startswith('Bernoulli'):
+                bernoulli_set.add(v)
+        for rv in bernoulli_set:
+            bern_param_node_id = get_bernoulli_node_id(rv)
+            leaf_op = DeltaFunctionSubstitution(
+                sub_var=rv, xadd_sub_at_leaves=node_id, context=self._context)
+            node_id = self._context.reduce_process_xadd_leaf(node_id=bern_param_node_id,
+                                                             leaf_op=leaf_op,
+                                                             decisions=[],
+                                                             decision_values=[])
         try:
             node_id = self._context.reduce_lp(node_id)
         except:
