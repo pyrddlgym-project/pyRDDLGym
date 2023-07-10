@@ -7,7 +7,9 @@ This toolkit is the official evaluation system of the [2023 IPC RL and planning 
 Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym.
 
 ### Tutorial
-Please see the following notebook which were given as a tutorial at ICAPS 2023:
+Please see the following slides and notebook which were given as a tutorial at ICAPS 2023:
+* [Part 1 slides](/Tutorial/RDDL_Tutorial_ICAPS_2023_Part_1.ppt)
+* [Part 2 slides](/Tutorial/Tutorial_part2.pptx)
 * [Tutorial notebook](https://colab.research.google.com/drive/1wdX0MbjmjpC7NvBRFlTQ8kvi1uuTCQaK?usp=sharing)
 
 ### Status
