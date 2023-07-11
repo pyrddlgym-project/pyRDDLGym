@@ -112,6 +112,14 @@ class GurobiRDDLCompiler:
                 optimal_plan[-1][name] = action
         return optimal_plan
     
+    @staticmethod
+    def get_variable_info(model):
+        model.update()
+        result = {}
+        for var in model.getVars():
+            result[var.VarName] = (var.VType, var.LB, var.UB)
+        return result
+        
     # ===========================================================================
     # main compilation subroutines
     # ===========================================================================
