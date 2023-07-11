@@ -5,6 +5,8 @@ from typing import Callable, Dict, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
 
+UNBOUNDED = (-GRB.INFINITY, +GRB.INFINITY)
+
 
 class GurobiRDDLPlan:
     
@@ -15,8 +17,7 @@ class GurobiRDDLPlan:
         if rddl.actionsranges[action] == 'bool':
             return (0, 1)
         else:
-            return self.action_bounds.get(
-                action, (-GRB.INFINITY, +GRB.INFINITY))
+            return self.action_bounds.get(action, UNBOUNDED)
                 
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
@@ -132,7 +133,6 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl
-        unbounded = (-GRB.INFINITY, +GRB.INFINITY)     
         n_features = len(self.feature_map(rddl.states))   
         param_vars = {}
         for action in rddl.actions:
@@ -140,7 +140,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                 var_name = f'weight__{action}__{i}'
                 if values is None:
                     var = compiled._add_real_var(model)
-                    param_vars[var_name] = (var, GRB.CONTINUOUS, *unbounded, True)
+                    param_vars[var_name] = (var, GRB.CONTINUOUS, *UNBOUNDED, True)
                 else:
                     value = values[var_name]
                     param_vars[var_name] = (value, GRB.CONTINUOUS, value, value, False)
@@ -166,7 +166,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
         state_vars = {name: subs[name][0] for name in rddl.states}
         feature_vars = self.feature_map(state_vars)
         action_vars = {}
-        for action in rddl.actions:            
+        for action in rddl.actions: 
             linexpr = 0.0
             for (i, feature_var) in enumerate(feature_vars):
                 param_var = params[f'weight__{action}__{i}'][0]
@@ -185,7 +185,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
         state_values = {name: subs[name] for name in rddl.states}
         feature_values = self.feature_map(state_values)
         action_values = {}
-        for action in rddl.actions:            
+        for action in rddl.actions: 
             action_value = 0.0
             for (i, feature_value) in enumerate(feature_values):
                 param_value = params[f'weight__{action}__{i}'][0].X
@@ -196,8 +196,8 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
 
 class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
     
-    def __init__(self, *args, 
-                 state_bounds: Dict[str, Tuple[float, float]]={}, 
+    def __init__(self, *args,
+                 state_bounds: Dict[str, Tuple[float, float]]={},
                  **kwargs) -> None:
         super(GurobiFactoredPWSCPolicy, self).__init__(*args, **kwargs)
         self.state_bounds = state_bounds
@@ -214,7 +214,7 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
             value2_name = f'value2__{state}__{action}'
             if values is None:
                 lb, ub = self._bounds(rddl, action)
-                lbs, ubs = self.state_bounds.get(state, (-GRB.INFINITY, +GRB.INFINITY))
+                lbs, ubs = self.state_bounds.get(state, UNBOUNDED)
                 constr_var = compiled._add_real_var(model, lbs, ubs)
                 value1_var = compiled._add_var(model, atype, lb, ub)
                 value2_var = compiled._add_var(model, atype, lb, ub)
