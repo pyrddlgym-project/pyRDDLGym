@@ -788,7 +788,7 @@ class GurobiRDDLCompiler:
                         model, gterm2, vtype2, lb2, ub2)  
                     
                     # compute r = x % y as x = y * q + r where 0 <= r < y
-                    lb, ub = 0, (ub2 - 1)
+                    lb, ub = 0, max(0, ub2 - 1)
                     res = self._add_int_var(model, lb, ub)
                     quotient = self._add_int_var(model)
                     model.addConstr(gterm1 == gterm2 * quotient + res)                    
@@ -803,7 +803,7 @@ class GurobiRDDLCompiler:
                         model, gterm2, vtype2, lb2, ub2)  
                     
                     # compute r = x % y as x = y * q + r where 0 <= r < y
-                    lb, ub = 0, (ub2 - self.epsilon)
+                    lb, ub = 0, max(0, ub2 - self.epsilon)
                     res = self._add_real_var(model, lb, ub)
                     quotient = self._add_int_var(model)
                     model.addConstr(gterm1 == gterm2 * quotient + res)                    
