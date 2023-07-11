@@ -167,12 +167,12 @@ class RDDLSimulator:
             dtype = getattr(value, 'dtype', type(value))
             if arg is None:
                 raise RDDLTypeError(
-                    f'{msg} must evaluate to <{valid}>, '
-                    f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
+                    f'{msg} must evaluate to {valid}, '
+                    f'got {value} of type {dtype}.\n' + print_stack_trace(expr))
             else:
                 raise RDDLTypeError(
-                    f'Argument {arg} of {msg} must evaluate to <{valid}>, '
-                    f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
+                    f'Argument {arg} of {msg} must evaluate to {valid}, '
+                    f'got {value} of type {dtype}.\n' + print_stack_trace(expr))
     
     @staticmethod
     def _check_types(value, valid, msg, expr):
@@ -182,7 +182,7 @@ class RDDLSimulator:
         dtype = getattr(value, 'dtype', type(value))
         raise RDDLTypeError(
             f'{msg} must evaluate to one of {valid}, '
-            f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
+            f'got {value} of type {dtype}.\n' + print_stack_trace(expr))
     
     @staticmethod
     def _check_op(op, valid, msg, expr):
