@@ -1,0 +1,46 @@
+// Simple linear continuous inventory control problem
+
+domain inventory {
+
+	types {
+		item : object;
+	};
+
+	pvariables {
+
+		// constants
+		PURCHASE-COST(item) : { non-fluent, real, default = 1.0 };
+		PRICE(item)         : { non-fluent, real, default = 2.0 };
+		MAX-ITEMS           : { non-fluent, int, default = 10 };
+		MIN-DEMAND(item) : { non-fluent, real, default = 0.0 }; 
+		MAX-DEMAND(item) : { non-fluent, real, default = 4.0 };
+		
+		// iterm fluent
+		raw-demand(item) : { interm-fluent, real }; 
+		actual-demand(item) : { interm-fluent, real };
+		
+		// states
+		stock(item) : { state-fluent, real, default = 0.0 };
+	
+		// actions
+		order(item) : { action-fluent, int, default = 0 };
+	};
+
+	cpfs {
+		raw-demand(?i) = Uniform(MIN-DEMAND(?i), MAX-DEMAND(?i));
+		actual-demand(?i) = min[raw-demand(?i), stock(?i) + order(?i)];
+		stock'(?i) = stock(?i) + order(?i) - actual-demand(?i);
+	};
+
+	reward = (sum_{?i : item} [PRICE(?i) * actual-demand(?i) - PURCHASE-COST(?i) * order(?i)]);
+
+	action-preconditions {
+		forall_{?i : item} [ order(?i) >= 0 ];
+		(sum_{?i : item} [stock(?i) + order(?i)]) <= MAX-ITEMS;
+	};
+	
+	state-invariants {
+		forall_{?i : item} [ stock(?i) >= 0 ];
+		(sum_{?i : item} stock(?i)) <= MAX-ITEMS;
+	};
+}

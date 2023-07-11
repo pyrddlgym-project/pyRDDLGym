@@ -1,0 +1,4 @@
+[General]
+name=Inventory continuous
+description=Simple continuous inventory control problem.
+viz=TextViz.TextVisualizer
