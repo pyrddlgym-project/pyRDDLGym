@@ -1,0 +1,41 @@
+non-fluents inventory_3nf {
+	domain = inventory;
+
+	objects{
+		item: {i1, i2, i3};
+	};
+	
+	non-fluents {
+		MAX-ITEMS = 12;
+		
+		PURCHASE-COST(i1) = 1.0;
+		PRICE(i1) = 2.0;
+		MIN-DEMAND(i1) = 0;
+		MAX-DEMAND(i1) = 5;
+		
+		PURCHASE-COST(i2) = 1.0;
+		PRICE(i2) = 3.0;
+		MIN-DEMAND(i2) = 0;
+		MAX-DEMAND(i2) = 8;
+		
+		PURCHASE-COST(i3) = 2.0;
+		PRICE(i3) = 3.0;
+		MIN-DEMAND(i3) = 0;
+		MAX-DEMAND(i3) = 7;
+	};
+}
+
+instance inventory_1 {
+	domain = inventory;
+	non-fluents = inventory_3nf;
+
+	init-state{
+		stock(i1) = 0;
+		stock(i2) = 0;
+		stock(i3) = 0;
+	};
+
+	max-nondef-actions = pos-inf;
+	horizon = 10;
+	discount = 1.0;
+}
