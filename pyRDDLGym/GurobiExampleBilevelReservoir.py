@@ -12,7 +12,10 @@ def evaluate(world, policy, planner, n_steps, n_episodes):
         world.reset()
         total_reward = 0.0
         for t in range(n_steps):
-            actions = policy.evaluate(planner.compiler, planner.params, t, world.subs)
+            if policy is None:
+                actions = {}
+            else:
+                actions = policy.evaluate(planner.compiler, planner.params, t, world.subs)
             _, reward, done = world.step(actions)
             total_reward += reward 
             if done: 
@@ -49,6 +52,10 @@ def gurobi_solve(domain, inst, horizon):
     world = RDDLSimulator(rddl)    
     reward_hist = []
     
+    avg_reward = evaluate(world, None, planner, horizon, 500)
+    print(f'\naverage reward achieved: {avg_reward}\n')
+    reward_hist.append(avg_reward)
+        
     for callback in planner.solve(10, float('nan')): 
         avg_reward = evaluate(world, policy, planner, horizon, 500)
         print(f'\naverage reward achieved: {avg_reward}\n')
