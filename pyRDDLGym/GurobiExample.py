@@ -17,14 +17,10 @@ def slp_replan(domain, inst, trials):
     plan = GurobiFactoredPWSCPolicy(
         action_bounds={'order___i1': (0, MAX_ORDER),
                        'order___i2': (0, MAX_ORDER),
-                       'order___i3': (0, MAX_ORDER),
-                       'order___i4': (0, MAX_ORDER),
-                       'order___i5': (0, MAX_ORDER)},
-        state_bounds={'stock___i1': (-50, 50),
-                      'stock___i2': (-50, 50),
-                      'stock___i3': (-50, 50),
-                      'stock___i4': (-50, 50),
-                      'stock___i5': (-50, 50)}
+                       'order___i3': (0, MAX_ORDER)},
+        state_bounds={'stock___i1': (-30, 30),
+                      'stock___i2': (-30, 30),
+                      'stock___i3': (-30, 30)}
     )
     
     planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5,
