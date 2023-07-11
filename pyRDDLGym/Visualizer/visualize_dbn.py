@@ -82,8 +82,9 @@ class RDDL2Graph:
     def __init__(self, domain: str='Wildfire',
                  instance: int=0,
                  directed: bool=True,
-                 strict_grouping: bool=False):
-        
+                 strict_grouping: bool=False,
+                 simulation: bool=False):
+
         # Read the domain and instance files
         self._domain, self._instance = domain, str(instance)
         env_info = ExampleManager.GetEnvInfo(domain)
@@ -104,7 +105,7 @@ class RDDL2Graph:
         model = grounder.Ground()
 
         # XADD compilation
-        self.model = RDDLModelWXADD(model)
+        self.model = RDDLModelWXADD(model, simulation=simulation)
         self.model.compile()
         
         self.cpfs: Dict[str, Union[int, List[int]]] = self.model.cpfs
@@ -501,6 +502,7 @@ if __name__ == "__main__":
     parser.add_argument("--strict_grouping", action='store_true')
     parser.add_argument("--fluent", type=str, default=None)
     parser.add_argument("--gfluent", type=str, default=None)
+    parser.add_argument("--simulation", action='store_true')
 
     args = parser.parse_args()
 
@@ -508,7 +510,8 @@ if __name__ == "__main__":
         domain=args.domain,
         instance=args.instance,
         directed=not args.undirected,
-        strict_grouping=args.strict_grouping
+        strict_grouping=args.strict_grouping,
+        simulation=args.simulation,
     )
     if args.fluent and args.gfluent:
         r2g.save_dbn(file_name=args.domain, fluent=args.fluent, gfluent=args.gfluent)

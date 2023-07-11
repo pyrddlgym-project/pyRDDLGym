@@ -76,6 +76,7 @@ class RDDLSimulator:
             'argmin': np.argmin,
             'argmax': np.argmax
         }
+        self.AGGREGATION_BOOL = {'forall', 'exists'}
         self.UNARY = {        
             'abs': np.abs,
             'sgn': lambda x: np.sign(x).astype(RDDLValueInitializer.INT),
@@ -100,12 +101,14 @@ class RDDLSimulator:
         self.BINARY = {
             'div': lambda x, y: np.floor_divide(x, y).astype(RDDLValueInitializer.INT),
             'mod': lambda x, y: np.mod(x, y).astype(RDDLValueInitializer.INT),
+            'fmod': lambda x, y: np.mod(x, y),
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
             'log': lambda x, y: np.log(x) / np.log(y),
             'hypot': np.hypot
         }
+        self.BINARY_REQUIRES_INT = {'div', 'mod'}
         self.CONTROL_OPS = {'if': np.where,
                             'switch': np.select}
     
@@ -164,12 +167,12 @@ class RDDLSimulator:
             dtype = getattr(value, 'dtype', type(value))
             if arg is None:
                 raise RDDLTypeError(
-                    f'{msg} must evaluate to <{valid}>, '
-                    f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
+                    f'{msg} must evaluate to {valid}, '
+                    f'got {value} of type {dtype}.\n' + print_stack_trace(expr))
             else:
                 raise RDDLTypeError(
-                    f'Argument {arg} of {msg} must evaluate to <{valid}>, '
-                    f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
+                    f'Argument {arg} of {msg} must evaluate to {valid}, '
+                    f'got {value} of type {dtype}.\n' + print_stack_trace(expr))
     
     @staticmethod
     def _check_types(value, valid, msg, expr):
@@ -179,7 +182,7 @@ class RDDLSimulator:
         dtype = getattr(value, 'dtype', type(value))
         raise RDDLTypeError(
             f'{msg} must evaluate to one of {valid}, '
-            f'got {value} of type <{dtype}>.\n' + print_stack_trace(expr))
+            f'got {value} of type {dtype}.\n' + print_stack_trace(expr))
     
     @staticmethod
     def _check_op(op, valid, msg, expr):
@@ -612,7 +615,7 @@ class RDDLSimulator:
         # sample the argument and aggregate over the reduced axes
         * _, arg = expr.args
         sample = self._sample(arg, subs)                
-        if op == 'forall' or op == 'exists':
+        if op in self.AGGREGATION_BOOL:
             RDDLSimulator._check_type(sample, bool, op, expr, arg='')
         else:
             sample = 1 * sample
@@ -647,6 +650,11 @@ class RDDLSimulator:
             lhs, rhs = args
             sample_lhs = 1 * self._sample(lhs, subs)
             sample_rhs = 1 * self._sample(rhs, subs)
+            if name in self.BINARY_REQUIRES_INT:
+                RDDLSimulator._check_type(
+                    sample_lhs, RDDLValueInitializer.INT, name, expr, arg=1)
+                RDDLSimulator._check_type(
+                    sample_rhs, RDDLValueInitializer.INT, name, expr, arg=2)
             try:
                 return binary_op(sample_lhs, sample_rhs)
             except:

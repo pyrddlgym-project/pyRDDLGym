@@ -607,6 +607,12 @@ class PlanningModel(metaclass=ABCMeta):
         printed['preconditions'] = [str(expr) for expr in self.preconditions]
         printed['terminations'] = [str(expr) for expr in self.terminals]
         return printed
+    
+    def dump_to_stdout(self):
+        '''Dumps a pretty printed representation of the current model to stdout.
+        '''
+        from pprint import pprint
+        pprint(vars(self))
 
     
 class RDDLGroundedModel(PlanningModel):
