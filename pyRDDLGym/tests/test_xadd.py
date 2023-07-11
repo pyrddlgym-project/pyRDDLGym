@@ -11,6 +11,7 @@ def test_xadd(
         env_name: str = 'wildfire',
         cpf: Optional[str] = None,
         save_graph: bool = False,
+        simulation: bool = False,
 ):
     env_info = ExampleManager.GetEnvInfo(env_name)
     domain = env_info.get_domain()
@@ -30,7 +31,7 @@ def test_xadd(
     model = grounder.Ground()
 
     # XADD compilation
-    xadd_model = RDDLModelWXADD(model)
+    xadd_model = RDDLModelWXADD(model, simulation=simulation)
     xadd_model.compile()
     context = xadd_model._context
     
@@ -71,5 +72,10 @@ if __name__ == "__main__":
                         help='If specified, only print out this CPF')
     parser.add_argument('--save_graph', action='store_true',
                         help='Save the graph as pdf file')
+    parser.add_argument('--simulation', action='store_true',
+                        help='Use simulation mode for XADD compilation')
     args = parser.parse_args()
-    test_xadd(env_name=args.env, cpf=args.cpf, save_graph=args.save_graph)
+    test_xadd(env_name=args.env,
+              cpf=args.cpf,
+              save_graph=args.save_graph,
+              simulation=args.simulation)
