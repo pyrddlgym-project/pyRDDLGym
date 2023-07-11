@@ -31,9 +31,9 @@ def gurobi_solve(domain, inst, horizon):
                     instance=EnvInfo.get_instance(inst)).model
                     
     MAX_ORDER = model.nonfluents['MAX-ORDER']
-    state_bounds = {'stock___i1': (-30, 30),
-                    'stock___i2': (-30, 30),
-                    'stock___i3': (-30, 30)}
+    state_bounds = {'stock___i1': (-20, 20),
+                    'stock___i2': (-20, 20),
+                    'stock___i3': (-20, 20)}
     action_bounds = {'order___i1': (0, MAX_ORDER),
                      'order___i2': (0, MAX_ORDER),
                      'order___i3': (0, MAX_ORDER)}
