@@ -13,8 +13,8 @@ domain inventory{
 		HOLDING-COST(item) : { non-fluent, real, default = 2.0 };		// holding cost for excess inventory
 		SHORTAGE-COST(item) : { non-fluent, real, default = 4.0 };	// shortage cost for inadequate inventory
 		PURCHASE-COST(item) : { non-fluent, real, default = 1.0 };  // purchase price of unit
-		MAX-ITEMS(item) : { non-fluent, int, default = 30 };       // max number of items that can be held
-		MAX-BACKLOG(item) : { non-fluent, int, default = -30 };    // max number of items that can be backlogged
+		MAX-ITEMS(item) : { non-fluent, int, default = 20 };       // max number of items that can be held
+		MAX-BACKLOG(item) : { non-fluent, int, default = -20 };    // max number of items that can be backlogged
 		MAX-ORDER : { non-fluent, int, default = 6 };             // max number of items that can be ordered
 		
 		// states

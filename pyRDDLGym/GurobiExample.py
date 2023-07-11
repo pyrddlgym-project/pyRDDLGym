@@ -18,9 +18,9 @@ def slp_replan(domain, inst, trials):
         action_bounds={'order___i1': (0, MAX_ORDER),
                        'order___i2': (0, MAX_ORDER),
                        'order___i3': (0, MAX_ORDER)},
-        state_bounds={'stock___i1': (-30, 30),
-                      'stock___i2': (-30, 30),
-                      'stock___i3': (-30, 30)}
+        state_bounds={'stock___i1': (-20, 20),
+                      'stock___i2': (-20, 20),
+                      'stock___i3': (-20, 20)}
     )
     
     planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5,
