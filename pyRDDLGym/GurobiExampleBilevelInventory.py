@@ -30,13 +30,17 @@ def gurobi_solve(domain, inst, horizon):
     model = RDDLEnv(domain=EnvInfo.get_domain(),
                     instance=EnvInfo.get_instance(inst)).model
                     
-    MAX_ORDER = model.nonfluents['MAX-ORDER']
-    state_bounds = {'stock___i1': (-20, 20),
-                    'stock___i2': (-20, 20),
-                    'stock___i3': (-20, 20)}
+    MAX_ORDER = model.nonfluents['MAX-ITEMS']
     action_bounds = {'order___i1': (0, MAX_ORDER),
                      'order___i2': (0, MAX_ORDER),
-                     'order___i3': (0, MAX_ORDER)}
+                     'order___i3': (0, MAX_ORDER),
+                     'order___i4': (0, MAX_ORDER),
+                     'order___i5': (0, MAX_ORDER)}                   
+    state_bounds = {'stock___i1': (0, MAX_ORDER),
+                    'stock___i2': (0, MAX_ORDER),
+                    'stock___i3': (0, MAX_ORDER),
+                    'stock___i4': (0, MAX_ORDER),
+                    'stock___i5': (0, MAX_ORDER)}
     
     policy = GurobiFactoredPWSCPolicy(
         action_bounds=action_bounds,
@@ -47,11 +51,8 @@ def gurobi_solve(domain, inst, horizon):
         state_bounds=state_bounds,
         rollout_horizon=horizon,
         use_cc=True,
-        model_params={'PreSparsify': 1, 'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
+        model_params={'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
     
-    EnvInfo = ExampleManager.GetEnvInfo('Inventory randomized')
-    model = RDDLEnv(domain=EnvInfo.get_domain(),
-                    instance=EnvInfo.get_instance(inst)).model
     rddl = RDDLGrounder(model._AST).Ground()
     world = RDDLSimulator(rddl)    
     reward_hist = []
@@ -74,5 +75,5 @@ def gurobi_solve(domain, inst, horizon):
 
             
 if __name__ == "__main__":
-    gurobi_solve('Inventory deterministic', 1, 10)
+    gurobi_solve('Inventory continuous', 1, 10)
     
