@@ -520,7 +520,7 @@ class GurobiRDDLCompiler:
                     model.addConstr((res == 0) >> (abs_diff >= self.epsilon))
                     lb, ub = 0, 1
                 else:
-                    res = glhs == grhs
+                    res = bool(glhs == grhs)
                     lb = ub = int(res)
                 return res, GRB.BINARY, lb, ub, symb
             
@@ -531,7 +531,7 @@ class GurobiRDDLCompiler:
                     model.addConstr((res == 0) >> (diffexpr <= 0))
                     lb, ub = 0, 1
                 else:
-                    res = glhs >= grhs
+                    res = bool(glhs >= grhs)
                     lb = ub = int(res)
                 return res, GRB.BINARY, lb, ub, symb
             
@@ -549,7 +549,7 @@ class GurobiRDDLCompiler:
                     model.addConstr((res == 0) >> (abs_diff <= self.epsilon))
                     lb, ub = 0, 1
                 else: 
-                    res = glhs != grhs
+                    res = bool(glhs != grhs)
                     lb = ub = int(res)
                 return res, GRB.BINARY, lb, ub, symb
             
@@ -560,7 +560,7 @@ class GurobiRDDLCompiler:
                     model.addConstr((res == 0) >> (diffexpr <= self.epsilon))
                     lb, ub = 0, 1
                 else:
-                    res = glhs > grhs
+                    res = bool(glhs > grhs)
                     lb = ub = int(res)
                 return res, GRB.BINARY, lb, ub, symb
             
@@ -585,7 +585,7 @@ class GurobiRDDLCompiler:
                 model.addConstr(res + gterm == 1)
                 lb, ub = 0, 1
             else:
-                res = not gterm    
+                res = not bool(gterm)
                 lb = ub = int(res)            
             return res, GRB.BINARY, lb, ub, symb
             
@@ -601,7 +601,7 @@ class GurobiRDDLCompiler:
                 for (i, gterm) in enumerate(gterms):
                     if not symbs[i]:
                         var = self._add_bool_var(model)
-                        model.addConstr(var == gterm)
+                        model.addConstr(var == bool(gterm))
                         gterms[i] = var
                         symbs[i] = True
             
@@ -934,7 +934,7 @@ class GurobiRDDLCompiler:
             model.addConstr((res == 0) >> (gterm <= 0.5 + self.epsilon))
             lb, ub = 0, 1
         else:
-            res = gterm > 0.5
+            res = bool(gterm > 0.5)
             lb = ub = int(res)
         return res, GRB.BINARY, lb, ub, symb
         
