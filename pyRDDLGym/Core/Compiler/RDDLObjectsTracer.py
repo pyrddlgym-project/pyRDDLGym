@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -9,6 +9,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
+from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
@@ -55,6 +56,15 @@ class RDDLTracedObjects:
         '''Returns the expression with given identifier, or None if does not 
         exist.'''
         return self._expr_from_id.get(identifier, None)
+    
+    def is_traced(self, expr: Expression) -> bool:
+        '''Determines whether the expression has already been traced.'''
+        if expr is None:
+            return False
+        _id = expr.id
+        if _id is None:
+            return False
+        return self._current_id >= _id
 
 
 def py_enum(**enums):
@@ -89,14 +99,18 @@ class RDDLObjectsTracer:
         NOOP=2  # a scalar pvariable for example does not require any operation
     )
     
-    def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
+    def __init__(self, rddl: PlanningModel, logger: Logger=None,
+                 cpf_levels: Dict[int, Set[str]]=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
         :param logger: to log compilation information during tracing to file
+        :param cpf_levels: pre-computed CPF levels (will be computed internally
+        if None)
         '''
         self.rddl = rddl
         self.logger = logger
+        self.cpf_levels = cpf_levels
             
     @staticmethod
     def _check_not_object(arg, expr, out, msg):
@@ -112,26 +126,33 @@ class RDDLObjectsTracer:
         rddl = self.rddl 
         out = RDDLTracedObjects()   
         
+        # compute trace order for CPFs
+        levels = self.cpf_levels
+        if levels is None:
+            levels = RDDLLevelAnalysis(rddl).compute_levels()
+            
         # trace CPFs
-        for (cpf, (objects, expr)) in rddl.cpfs.items():
-            
-            # check that the parameters are unique
-            pvars = [pvar for (pvar, _) in objects]
-            if len(set(pvars)) != len(pvars):
-                raise RDDLRepeatedVariableError(
-                    f'Repeated parameter(s) {pvars} in definition of CPF <{cpf}>.')
-            
-            # trace the expression
-            self._trace(expr, objects, out)
-            
-            # for domain-object valued check that type matches expression output
-            cpf_range = rddl.variable_ranges[cpf]
-            expr_range = out.cached_object_type(expr)
-            if (cpf_range in rddl.enums and expr_range != cpf_range) \
-            or (cpf_range not in rddl.objects and expr_range is not None):
-                raise RDDLTypeError(
-                    f'CPF <{cpf}> expression expects type <{cpf_range}>, '
-                    f'got expression of type <{expr_range}>.')
+        for cpfs in levels.values():
+            for cpf in cpfs:
+                objects, expr = rddl.cpfs[cpf]
+                
+                # check that the parameters are unique
+                pvars = [pvar for (pvar, _) in objects]
+                if len(set(pvars)) != len(pvars):
+                    raise RDDLRepeatedVariableError(
+                        f'Repeated parameter(s) {pvars} in definition of CPF <{cpf}>.')
+                
+                # trace the expression
+                self._trace(expr, objects, out)
+
+                # for domain-object valued check that type matches expression output
+                cpf_range = rddl.variable_ranges[cpf]
+                expr_range = out.cached_object_type(expr)
+                if (cpf_range in rddl.enums and expr_range != cpf_range) \
+                or (cpf_range not in rddl.objects and expr_range is not None):
+                    raise RDDLTypeError(
+                        f'CPF <{cpf}> expression expects type <{cpf_range}>, '
+                        f'got expression of type <{expr_range}>.')
 
         # trace reward, check not object value
         self._trace(rddl.reward, [], out)
@@ -252,8 +273,15 @@ class RDDLObjectsTracer:
         # if the pvar has free variables (e.g., ?x)...
         else:
             
+            # check if pvar is fluent
+            primed_var = rddl.next_state.get(var, var)
+            _, cpf_expr = rddl.cpfs.get(primed_var, (None, None))
+            if out.is_traced(cpf_expr):
+                is_fluent = out.cached_is_fluent(cpf_expr)
+            else:
+                is_fluent = rddl.variable_types[var] != 'non-fluent'
+
             # recursively trace nested pvariables
-            is_fluent = rddl.variable_types[var] != 'non-fluent'
             if pvars is not None: 
                 for arg in pvars:
                     if isinstance(arg, Expression):
@@ -767,16 +795,14 @@ class RDDLObjectsTracer:
         cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr)
     
         # trace each case expression
-        is_fluent = False
         for (i, arg) in enumerate(case_dict.values()):
             self._trace(arg, objects, out)
-            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
                 arg, expr, out, f'Expression in case {i + 1} of Discrete') 
         
-        out._append(expr, objects, enum_type, is_fluent, cached_sim_info)
+        out._append(expr, objects, enum_type, True, cached_sim_info)
     
     def _trace_discrete_pvar(self, expr, objects, out):
         * pvars, args = expr.args
@@ -797,29 +823,25 @@ class RDDLObjectsTracer:
         new_objects = objects + iter_objects
         
         # trace the arguments
-        is_fluent = False
         for (i, arg) in enumerate(args):
             self._trace(arg, new_objects, out)
-            is_fluent = is_fluent or out.cached_is_fluent(arg)
                 
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
                 arg, expr, out, f'Expression in case {i + 1} of Discrete') 
 
         (_, (_, enum_type)), = pvars
-        out._append(expr, objects, enum_type, is_fluent, None)
+        out._append(expr, objects, enum_type, True, None)
 
     def _trace_random_other(self, expr, objects, out):
-        is_fluent = False
         for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects, out)
-            is_fluent = is_fluent or out.cached_is_fluent(arg)
                 
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
                 arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}') 
         
-        out._append(expr, objects, None, is_fluent, None)
+        out._append(expr, objects, None, True, None)
         
     # ===========================================================================
     # random vector
@@ -867,7 +889,6 @@ class RDDLObjectsTracer:
          
         # trace all parameters
         enum_types = set()
-        is_fluent = False
         for (i, arg) in enumerate(args):
             
             # sample_pvars cannot be argument parameters
@@ -891,7 +912,6 @@ class RDDLObjectsTracer:
             
             # trace argument
             self._trace(arg, batch_objects, out)
-            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
@@ -919,7 +939,7 @@ class RDDLObjectsTracer:
                     f'but destination variable <{pvar}> is of type <{ptype}>.\n' + 
                     print_stack_trace(expr))
              
-        out._append(expr, objects, None, is_fluent, sample_pvar_indices)
+        out._append(expr, objects, None, True, sample_pvar_indices)
 
     # ===========================================================================
     # matrix algebra
