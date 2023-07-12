@@ -123,20 +123,24 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
 
 class GurobiLinearPolicy(GurobiRDDLPlan):
     
-    def __init__(self, *args,
-                 feature_map: Callable=(lambda s: [1.0] + list(s.values())),
+    def __init__(self, *args, 
+                 n_features: int,
+                 feature_map: Callable=(lambda model, s: [1.0] + list(s.values())),
+                 feature_eval: Callable=(lambda s: [1.0] + list(s.values())),
                  **kwargs) -> None:
         super(GurobiLinearPolicy, self).__init__(*args, **kwargs)
+        
+        self.n_features = n_features
         self.feature_map = feature_map
+        self.feature_eval = feature_eval
         
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
-        rddl = compiled.rddl
-        n_features = len(self.feature_map(rddl.states))   
+        rddl = compiled.rddl   
         param_vars = {}
         for action in rddl.actions:
-            for i in range(n_features):
+            for i in range(self.n_features):
                 var_name = f'weight__{action}__{i}'
                 if values is None:
                     var = compiled._add_real_var(model)
@@ -149,11 +153,10 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
-        n_features = len(self.feature_map(rddl.states))
         param_values = {}
         for action in rddl.actions:
             param_values[f'weight__{action}__0'] = compiled.init_values[action]
-            for i in range(1, n_features):
+            for i in range(1, self.n_features):
                 param_values[f'weight__{action}__{i}'] = 0.0
         return param_values
     
@@ -164,7 +167,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         state_vars = {name: subs[name][0] for name in rddl.states}
-        feature_vars = self.feature_map(state_vars)
+        feature_vars = self.feature_map(model, state_vars)
         action_vars = {}
         for action in rddl.actions: 
             linexpr = 0.0
@@ -183,7 +186,7 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         state_values = {name: subs[name] for name in rddl.states}
-        feature_values = self.feature_map(state_values)
+        feature_values = self.feature_eval(state_values)
         action_values = {}
         for action in rddl.actions: 
             action_value = 0.0
