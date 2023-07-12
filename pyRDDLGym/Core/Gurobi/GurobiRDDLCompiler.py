@@ -138,6 +138,10 @@ class GurobiRDDLCompiler:
             self._compile_maxnondef_constraint(model, subs)
             self._compile_action_preconditions(model, subs)
             
+            # add constraint on state for the first step
+            if step == 0:
+                self._compile_state_invariants(model, subs)
+                
             # evaluate CPFs and reward
             self._compile_cpfs(model, subs)
             reward = self._compile_reward(model, subs)
@@ -205,6 +209,13 @@ class GurobiRDDLCompiler:
             if symb:
                 model.addConstr(indicator == 1)
     
+    def _compile_state_invariants(self, model, subs) -> None:
+        for invariant in self.rddl.invariants:
+            indicator, *_, symb = self._gurobi(invariant, model, subs)
+            if symb:
+                model.update()
+                model.addConstr(indicator == 1)
+        
     def _compile_maxnondef_constraint(self, model, subs) -> None:
         rddl = self.rddl
         num_bool, sum_bool = 0, 0
