@@ -65,7 +65,7 @@ class JaxRDDLCompiler:
         self.levels = sorter.compute_levels()        
         
         # trace expressions to cache information to be used later
-        tracer = RDDLObjectsTracer(rddl, logger=self.logger)
+        tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=self.levels)
         self.traced = tracer.trace()
         
         # basic operations

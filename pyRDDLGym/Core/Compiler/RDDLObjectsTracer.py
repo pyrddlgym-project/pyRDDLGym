@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -9,6 +9,7 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 
+from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Parser.expr import Expression
@@ -98,14 +99,18 @@ class RDDLObjectsTracer:
         NOOP=2  # a scalar pvariable for example does not require any operation
     )
     
-    def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
+    def __init__(self, rddl: PlanningModel, logger: Logger=None,
+                 cpf_levels: Dict[int, Set[str]]=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
         :param logger: to log compilation information during tracing to file
+        :param cpf_levels: pre-computed CPF levels (will be computed internally
+        if None)
         '''
         self.rddl = rddl
         self.logger = logger
+        self.cpf_levels = cpf_levels
             
     @staticmethod
     def _check_not_object(arg, expr, out, msg):
@@ -121,26 +126,33 @@ class RDDLObjectsTracer:
         rddl = self.rddl 
         out = RDDLTracedObjects()   
         
+        # compute trace order for CPFs
+        levels = self.cpf_levels
+        if levels is None:
+            levels = RDDLLevelAnalysis(rddl).compute_levels()
+            
         # trace CPFs
-        for (cpf, (objects, expr)) in rddl.cpfs.items():
-            
-            # check that the parameters are unique
-            pvars = [pvar for (pvar, _) in objects]
-            if len(set(pvars)) != len(pvars):
-                raise RDDLRepeatedVariableError(
-                    f'Repeated parameter(s) {pvars} in definition of CPF <{cpf}>.')
-            
-            # trace the expression
-            self._trace(expr, objects, out)
-            
-            # for domain-object valued check that type matches expression output
-            cpf_range = rddl.variable_ranges[cpf]
-            expr_range = out.cached_object_type(expr)
-            if (cpf_range in rddl.enums and expr_range != cpf_range) \
-            or (cpf_range not in rddl.objects and expr_range is not None):
-                raise RDDLTypeError(
-                    f'CPF <{cpf}> expression expects type <{cpf_range}>, '
-                    f'got expression of type <{expr_range}>.')
+        for cpfs in levels.values():
+            for cpf in cpfs:
+                objects, expr = rddl.cpfs[cpf]
+                
+                # check that the parameters are unique
+                pvars = [pvar for (pvar, _) in objects]
+                if len(set(pvars)) != len(pvars):
+                    raise RDDLRepeatedVariableError(
+                        f'Repeated parameter(s) {pvars} in definition of CPF <{cpf}>.')
+                
+                # trace the expression
+                self._trace(expr, objects, out)
+
+                # for domain-object valued check that type matches expression output
+                cpf_range = rddl.variable_ranges[cpf]
+                expr_range = out.cached_object_type(expr)
+                if (cpf_range in rddl.enums and expr_range != cpf_range) \
+                or (cpf_range not in rddl.objects and expr_range is not None):
+                    raise RDDLTypeError(
+                        f'CPF <{cpf}> expression expects type <{cpf_range}>, '
+                        f'got expression of type <{expr_range}>.')
 
         # trace reward, check not object value
         self._trace(rddl.reward, [], out)
