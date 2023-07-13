@@ -201,9 +201,11 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
     
     def __init__(self, *args,
                  state_bounds: Dict[str, Tuple[float, float]]={},
+                 upper_bound: bool=False,
                  **kwargs) -> None:
         super(GurobiFactoredPWSCPolicy, self).__init__(*args, **kwargs)
         self.state_bounds = state_bounds
+        self.upper_bound = upper_bound
         
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
@@ -214,25 +216,33 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
             rddl.statesranges.items(), rddl.actionsranges.items()):
             atype = compiled.GUROBI_TYPES[arange]
             stype = compiled.GUROBI_TYPES[srange]
-            constr_name = f'threshold__{state}__{action}'
-            value1_name = f'value1__{state}__{action}'
-            value2_name = f'value2__{state}__{action}'
+            l_name = f'low__{state}__{action}'
+            h_name = f'high__{state}__{action}'
+            a_name = f'action__{state}__{action}'
+            a_else_name = f'action__else__{state}__{action}'
             if values is None:
                 lb, ub = self._bounds(rddl, action)
                 lbs, ubs = self.state_bounds.get(state, UNBOUNDED)
-                constr_var = compiled._add_var(model, stype, lbs, ubs)
-                value1_var = compiled._add_var(model, atype, lb, ub)
-                value2_var = compiled._add_var(model, atype, lb, ub)
-                param_vars[constr_name] = (constr_var, stype, lbs, ubs, True)
-                param_vars[value1_name] = (value1_var, atype, lb, ub, True)
-                param_vars[value2_name] = (value2_var, atype, lb, ub, True)
+                l_var = compiled._add_var(model, stype, lbs, ubs)
+                param_vars[l_name] = (l_var, stype, lbs, ubs, True)
+                a_var = compiled._add_var(model, atype, lb, ub)
+                param_vars[a_name] = (a_var, atype, lb, ub, True)
+                a_else_var = compiled._add_var(model, atype, lb, ub)
+                param_vars[a_else_name] = (a_else_var, atype, lb, ub, True)
+                if self.upper_bound:
+                    h_var = compiled._add_var(model, stype, lbs, ubs)
+                    model.addConstr(h_var >= l_var)
+                    param_vars[h_name] = (h_var, stype, lbs, ubs, True)
             else:
-                constr_val = values[constr_name]
-                value1_val = values[value1_name]
-                value2_val = values[value2_name]
-                param_vars[constr_name] = (constr_val, stype, constr_val, constr_val, False)
-                param_vars[value1_name] = (value1_val, atype, value1_val, value1_val, False)
-                param_vars[value2_name] = (value2_val, atype, value2_val, value2_val, False)
+                l_val = values[l_name]
+                a_val = values[a_name]
+                a_else_val = values[a_else_name]
+                param_vars[l_name] = (l_val, stype, l_val, l_val, False)
+                param_vars[a_name] = (a_val, atype, a_val, a_val, False)
+                param_vars[a_else_name] = (a_else_val, atype, a_else_val, a_else_val, False)
+                if self.upper_bound:
+                    h_val = values[h_name]
+                    param_vars[h_name] = (h_val, stype, h_val, h_val, False)
         return param_vars
     
     def init_params(self, compiled: 'GurobiRDDLCompiler',
@@ -240,9 +250,16 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
         rddl = compiled.rddl
         param_values = {}
         for (state, action) in zip(rddl.states, rddl.actions):
-            param_values[f'threshold__{state}__{action}'] = compiled.init_values[state]
-            param_values[f'value1__{state}__{action}'] = compiled.init_values[action]
-            param_values[f'value2__{state}__{action}'] = compiled.init_values[action]
+            l_name = f'low__{state}__{action}'
+            h_name = f'high__{state}__{action}'
+            a_name = f'action__{state}__{action}'
+            a_else_name = f'action__else__{state}__{action}'
+            lbs, ubs = self.state_bounds.get(state, UNBOUNDED)
+            param_values[l_name] = lbs
+            if self.upper_bound:
+                param_values[h_name] = ubs
+            param_values[a_name] = compiled.init_values[action]
+            param_values[a_else_name] = compiled.init_values[action]
         return param_values
     
     def actions(self, compiled: 'GurobiRDDLCompiler',
@@ -253,21 +270,35 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
         rddl = compiled.rddl
         action_vars = {}
         for (state, (action, arange)) in zip(rddl.states, rddl.actionsranges.items()):
-            state_var = subs[state][0]
-            constr_var = params[f'threshold__{state}__{action}'][0]
-            diffexpr = state_var - constr_var
-            constr_sat_var = compiled._add_bool_var(model)
-            model.addConstr((constr_sat_var == 1) >> (diffexpr >= 0))
-            model.addConstr((constr_sat_var == 0) >> (diffexpr <= 0))
+            l_name = f'low__{state}__{action}'
+            h_name = f'high__{state}__{action}'
+            a_name = f'action__{state}__{action}'
+            a_else_name = f'action__else__{state}__{action}'
             
-            value1_var = params[f'value1__{state}__{action}'][0]
-            value2_var = params[f'value2__{state}__{action}'][0]
+            # check the constraint s_i >= l_i or s_i >= l_i ^ s_i <= u_i
+            l_diff = subs[state][0] - params[l_name][0]
+            l_sat_var = compiled._add_bool_var(model)
+            model.addConstr((l_sat_var == 1) >> (l_diff >= 0))
+            model.addConstr((l_sat_var == 0) >> (l_diff <= 0))
+            if self.upper_bound:
+                h_diff = subs[state][0] - params[h_name][0]
+                h_sat_var = compiled._add_bool_var(model)
+                model.addConstr((h_sat_var == 1) >> (h_diff <= 0))
+                model.addConstr((h_sat_var == 0) >> (h_diff >= 0))
+                sat_var = compiled._add_bool_var(model)
+                model.addGenConstrAnd(sat_var, [l_sat_var, h_sat_var])
+            else:
+                sat_var = l_sat_var
+            
+            # assign action based on constraint satisfaction
+            a_var = params[a_name][0]
+            a_else_var = params[a_else_name][0]
             atype = compiled.GUROBI_TYPES[arange]
             lb, ub = self._bounds(rddl, action)
-            action_var = compiled._add_var(model, atype, lb, ub)
-            model.addConstr((constr_sat_var == 1) >> (action_var == value1_var))
-            model.addConstr((constr_sat_var == 0) >> (action_var == value2_var))
-            action_vars[action] = (action_var, atype, lb, ub, True)
+            res = compiled._add_var(model, atype, lb, ub)
+            model.addConstr((sat_var == 1) >> (res == a_var))
+            model.addConstr((sat_var == 0) >> (res == a_else_var))
+            action_vars[action] = (res, atype, lb, ub, True)
         return action_vars
     
     def evaluate(self, compiled: 'GurobiRDDLCompiler',
@@ -277,10 +308,16 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
         rddl = compiled.rddl
         action_values = {}
         for (state, (action, arange)) in zip(rddl.states, rddl.actionsranges.items()):
-            if subs[state] >= params[f'threshold__{state}__{action}'][0].X:
-                action_value = params[f'value1__{state}__{action}'][0].X
+            l_name = f'low__{state}__{action}'
+            h_name = f'high__{state}__{action}'
+            a_name = f'action__{state}__{action}'
+            a_else_name = f'action__else__{state}__{action}'
+            l_val = params[l_name][0].X
+            h_val = params[h_name][0].X if self.upper_bound else float('inf')
+            if subs[state] >= l_val and subs[state] <= h_val:
+                action_value = params[a_name][0].X
             else:
-                action_value = params[f'value2__{state}__{action}'][0].X
+                action_value = params[a_else_name][0].X
             if arange == 'int':
                 action_value = int(action_value)
             action_values[action] = action_value
