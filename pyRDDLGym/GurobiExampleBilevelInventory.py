@@ -40,15 +40,21 @@ def gurobi_solve(domain, inst, horizon):
                     'stock___i2': (0, MAX_ORDER),
                     'stock___i3': (0, MAX_ORDER),
                     'stock___i4': (0, MAX_ORDER),
-                    'stock___i5': (0, MAX_ORDER)}
+                    'stock___i5': (0, MAX_ORDER)}                   
+    state_init_bounds = {'stock___i1': (0, 0),
+                         'stock___i2': (0, 0),
+                         'stock___i3': (0, 0),
+                         'stock___i4': (0, 0),
+                         'stock___i5': (0, 0)}
     
     policy = GurobiFactoredPWSCPolicy(
         action_bounds=action_bounds,
-        state_bounds=state_bounds
+        state_bounds=state_bounds,
+        upper_bound=True
     )
     planner = GurobiRDDLBilevelOptimizer(
         model, policy,
-        state_bounds=state_bounds,
+        state_bounds=state_init_bounds,
         rollout_horizon=horizon,
         use_cc=True,
         model_params={'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
