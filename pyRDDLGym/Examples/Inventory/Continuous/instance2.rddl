@@ -6,7 +6,7 @@ non-fluents inventory_5nf {
 	};
 	
 	non-fluents {
-		MAX-ITEMS = 15;
+		MAX-ITEMS = 20;
 		
 		PURCHASE-COST(i1) = 1.0;
 		PRICE(i1) = 2.0;
