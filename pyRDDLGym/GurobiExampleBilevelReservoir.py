@@ -24,7 +24,7 @@ def evaluate(world, policy, planner, n_steps, n_episodes):
     return avg_reward
 
             
-def gurobi_solve(domain, inst, horizon):
+def gurobi_solve(domain, inst, horizon, num_cases):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(),
                     instance=EnvInfo.get_instance(inst)).model
@@ -40,7 +40,8 @@ def gurobi_solve(domain, inst, horizon):
     policy = GurobiFactoredPWSCPolicy(
         action_bounds=action_bounds,
         state_bounds=state_bounds,
-        upper_bound=True
+        upper_bound=False,
+        num_cases=num_cases
     )
     planner = GurobiRDDLBilevelOptimizer(
         model, policy,
@@ -73,5 +74,5 @@ def gurobi_solve(domain, inst, horizon):
 
             
 if __name__ == "__main__":
-    gurobi_solve('Reservoir linear', 1, 10)
+    gurobi_solve('Reservoir linear', 1, 10, 1)
     

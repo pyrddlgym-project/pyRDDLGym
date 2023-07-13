@@ -53,7 +53,9 @@ def slp_replan(domain, inst, trials):
             if done: 
                 break
         print(f'episode ended with reward {total_reward}')
-
+    
+    print('\nfinal policy:\n')
+    print(plan.to_string(planner, planner.policy_params))
             
 if __name__ == "__main__":
     if len(sys.argv) < 4:
