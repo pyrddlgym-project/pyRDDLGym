@@ -150,7 +150,8 @@ class GurobiRDDLBilevelOptimizer:
                 'error_hist': error_hist,
                 'params': param_values,
                 'elapsed_time_inner': elapsed_time_inner,
-                'elapsed_time_outer': elapsed_time_outer
+                'elapsed_time_outer': elapsed_time_outer,
+                'policy_string': self.policy.to_string(compiler, params)
             }
             if converged:
                 break
