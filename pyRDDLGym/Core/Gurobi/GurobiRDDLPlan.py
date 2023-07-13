@@ -408,14 +408,14 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
                 a_val = params[a_name][0].X
                 if self.upper_bound:
                     h_val = params[h_name][0].X
-                    case_val = f'{a_val}, if {state} >= {l_val} ^ {state} <= {h_val}'
+                    case_val = f'{a_val} if {state} >= {l_val} ^ {state} <= {h_val}'
                 else:
-                    case_val = f'{a_val}, if {state} >= {l_val}'
+                    case_val = f'{a_val} if {state} >= {l_val}'
                 cases.append(case_val)
              
             a_else_name = f'action__else__{state}__{action}'
             a_else_val = params[a_else_name][0].X
-            cases.append(f'{a_else_val}, otherwise')
+            cases.append(f'{a_else_val} otherwise')
             
-            res += f'{action}({state}) = ' + '\n'.join(cases) + '\n'
+            res += f'{action}({state}) = ' + ', '.join(cases) + '\n'
         return res
