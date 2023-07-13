@@ -47,7 +47,7 @@ def gurobi_solve(domain, inst, horizon):
         state_bounds=state_bounds,
         rollout_horizon=horizon,
         use_cc=True,
-        model_params={'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.0})
+        model_params={'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.01})
     
     rddl = RDDLGrounder(model._AST).Ground()
     world = RDDLSimulator(rddl)    
