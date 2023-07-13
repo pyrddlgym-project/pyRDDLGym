@@ -95,6 +95,7 @@ class GurobiRDDLCompiler:
         '''
         model, all_action_vars = self._compile(init_values)
         model.optimize()
+        self.model = model
         return self._get_optimal_actions(all_action_vars)
     
     def _get_optimal_actions(self, action_vars):
@@ -163,6 +164,7 @@ class GurobiRDDLCompiler:
         '''
         model = self._create_model()
         params = self.plan.params(self, model)
+        self.policy_params = params
         subs = self._compile_init_subs(init_values)  
         objective, all_action_vars = self._rollout(model, self.plan, params, subs)
         model.setObjective(objective, GRB.MAXIMIZE)
@@ -213,7 +215,6 @@ class GurobiRDDLCompiler:
         for invariant in self.rddl.invariants:
             indicator, *_, symb = self._gurobi(invariant, model, subs)
             if symb:
-                model.update()
                 model.addConstr(indicator == 1)
         
     def _compile_maxnondef_constraint(self, model, subs) -> None:

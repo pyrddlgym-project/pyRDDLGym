@@ -68,7 +68,16 @@ class GurobiRDDLPlan:
         current step
         '''
         raise NotImplementedError
+    
+    def to_string(self, compiled: 'GurobiRDDLCompiler',
+                  params: Dict[str, object]) -> str:
+        '''Returns a string representation of the current policy.
         
+        :param params: parameter variables of the plan/policy
+        :param compiled: A gurobi compiler where the current plan is initialized
+        '''
+        raise NotImplementedError
+
 
 class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
     
@@ -119,8 +128,20 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                 action_value = int(action_value)
             action_values[action] = action_value        
         return action_values
-        
+    
+    def to_string(self, compiled: 'GurobiRDDLCompiler',
+                  params: Dict[str, object]) -> str:
+        rddl = compiled.rddl
+        res = ''
+        for step in range(compiled.horizon):
+            values = []
+            for action in rddl.actions:
+                action_value = params[f'{action}__{step}'][0].X
+                values.append(f'{action}_{step} = {action_value}')
+            res += ', '.join(values) + '\n'
+        return res
 
+                
 class GurobiLinearPolicy(GurobiRDDLPlan):
     
     def __init__(self, *args, 
@@ -195,7 +216,19 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
                 action_value += param_value * feature_value
             action_values[action] = action_value
         return action_values
-    
+
+    def to_string(self, compiled: 'GurobiRDDLCompiler',
+                  params: Dict[str, object]) -> str:
+        rddl = compiled.rddl
+        res = ''
+        for action in rddl.actions:
+            values = []
+            for i in range(self.n_features):
+                param_value = params[f'weight__{action}__{i}'][0].X
+                values.append(f'{param_value} * f_{i}(s)')
+            res += f'{action}(s) = ' + ' + '.join(values)
+        return res
+
 
 class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
     
@@ -360,4 +393,29 @@ class GurobiFactoredPWSCPolicy(GurobiRDDLPlan):
             action_values[action] = action_value
             
         return action_values
-    
+
+    def to_string(self, compiled: 'GurobiRDDLCompiler',
+                  params: Dict[str, object]) -> str:
+        rddl = compiled.rddl
+        res = ''
+        for (state, action) in zip(rddl.states, rddl.actions):
+            cases = []
+            for icase in range(self.num_cases):
+                l_name = f'low__{icase}__{state}__{action}'
+                h_name = f'high__{icase}__{state}__{action}'
+                a_name = f'action__{icase}__{state}__{action}'
+                l_val = params[l_name][0].X  
+                a_val = params[a_name][0].X
+                if self.upper_bound:
+                    h_val = params[h_name][0].X
+                    case_val = f'{a_val}, if {state} >= {l_val} ^ {state} <= {h_val}'
+                else:
+                    case_val = f'{a_val}, if {state} >= {l_val}'
+                cases.append(case_val)
+             
+            a_else_name = f'action__else__{state}__{action}'
+            a_else_val = params[a_else_name][0].X
+            cases.append(f'{a_else_val}, otherwise')
+            
+            res += f'{action}({state}) = ' + '\n'.join(cases) + '\n'
+        return res

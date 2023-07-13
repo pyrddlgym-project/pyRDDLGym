@@ -70,7 +70,9 @@ def gurobi_solve(domain, inst, horizon):
     for callback in planner.solve(10, float('nan')): 
         avg_reward = evaluate(world, policy, planner, horizon, 500)
         print(f'\naverage reward achieved: {avg_reward}\n')
-        reward_hist.append(avg_reward)
+        reward_hist.append(avg_reward)    
+        print('\nfinal policy:\n')
+        print(callback['policy_string'])
     
     import matplotlib.pyplot as plt
     plt.plot(callback['error_hist'])
