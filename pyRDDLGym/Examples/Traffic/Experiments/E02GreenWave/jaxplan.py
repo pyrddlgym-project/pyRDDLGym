@@ -1,5 +1,8 @@
 import jax
 import optax
+import jax.numpy as jnp
+from jax.nn import initializers as jin
+#import jax.random
 from math import inf
 import pickle
 import json
@@ -13,42 +16,59 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 
-from warmup import warmup
+from utils import warmup
+from utils import offset_plan
 
 from jax.config import config as jconfig
 jconfig.update('jax_debug_nans', True)
-jconfig.update('jax_platform_name', 'gpu')
+jconfig.update('jax_platform_name', 'cpu')
 
+key = jax.random.PRNGKey(3452)
 
 # specify the model
 EnvInfo = ExampleManager.GetEnvInfo('traffic2phase')
 myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance='instances/instance01.rddl')
 model = myEnv.model
+N = myEnv.numConcurrentActions
 
 init_state_subs, t_warmup = warmup(myEnv, EnvInfo)
 
 # initialize the planner
 b_train = 2 # Deterministic transitions -> No need for larger batches?
-b_test = 2
+b_test = 1
 clip_grad = 1e-3
-wrap_sigmoid = True
+wrap_sigmoid = False
 
-weight = 15
-step = 100
-nepochs = 20000
+weight = 10
+step = 1
+nepochs = 1
 t_plan = myEnv.horizon
+rollout_horizon = t_plan - t_warmup
 lr = 1e-2
 momentum = 0.1
 
 #initialize the plan
+initializer_actions = jnp.array([offset_plan(i)[:rollout_horizon] for i in range(N)], dtype=float)
+initializer_actions = 2*initializer_actions - 1
+
+key, subkey = jax.random.split(key)
+da = jax.random.normal(subkey, shape=initializer_actions.shape)
+#initializer_actions += da
+initializer_actions = 0.7*da + 0.3*initializer_actions
+
+
+initializer_actions = jnp.swapaxes(initializer_actions, 0, 1)
+initializer_shape = (rollout_horizon, N)
+
 straight_line_plan = JaxStraightLinePlan(
+#    initializer=jin.constant(initializer_actions, initializer_shape),
     wrap_sigmoid=wrap_sigmoid
 )
 
 planner = JaxRDDLBackpropPlanner(
     model,
     plan=straight_line_plan,
-    rollout_horizon=t_plan-t_warmup,
+    rollout_horizon=rollout_horizon,
     batch_size_train=b_train,
     batch_size_test=b_test,
     optimizer=optax.rmsprop,
@@ -67,36 +87,35 @@ train_return, test_return = [], []
 grads, grads_min, grads_max = [], [], []
 
 best_test_return = -inf
-best_params = None
-best_actions = None
+best_params, best_actions = None, None
 
-key = jax.random.PRNGKey(3452)
-gen = planner.optimize(
-    epochs=nepochs,
-    key=key,
-    step=step,
-    subs=init_state_subs,
-    policy_hyperparams={'advance': weight})
-for callback in gen:
-    print('step={} train_return={:.6f} test_return={:.6f}'.format(
-          str(callback['iteration']).rjust(4),
-          callback['train_return'],
-          callback['test_return']))
-    train_return.append(callback['train_return'])
-    test_return.append(callback['test_return'])
+with jax.disable_jit():
+    gen = planner.optimize(
+        epochs=nepochs,
+        key=key,
+        step=step,
+        subs=init_state_subs,
+        policy_hyperparams={'advance': weight})
+    for callback in gen:
+        print('step={} train_return={:.6f} test_return={:.6f}'.format(
+              str(callback['iteration']).rjust(4),
+              callback['train_return'],
+              callback['test_return']))
+        train_return.append(callback['train_return'])
+        test_return.append(callback['test_return'])
 
-    if jax.numpy.isnan(train_return[-1]) or jax.numpy.isnan(test_return[-1]):
-        raise RuntimeError
+        if jax.numpy.isnan(train_return[-1]) or jax.numpy.isnan(test_return[-1]):
+            raise RuntimeError
 
-    if test_return[-1] > best_test_return:
-        best_params, best_test_return = callback['params'], test_return[-1]
-        best_actions = callback['action']['advance']
+        if test_return[-1] > best_test_return:
+            best_params, best_test_return = callback['params'], test_return[-1]
+            best_actions = callback['action']['advance']
 
-    #grads.append(callback['updates']['advance'])
-    #grads_min.append(jax.numpy.min(grads[-1]))
-    #grads_max.append(jax.numpy.max(grads[-1]))
-    #print(grads[-1])
-    print(jax.numpy.sum(callback['action']['advance'][:,:,0], axis=1))
+        #grads.append(callback['updates']['advance'])
+        #grads_min.append(jax.numpy.min(grads[-1]))
+        #grads_max.append(jax.numpy.max(grads[-1]))
+        #print(grads[-1])
+        print(jax.numpy.sum(callback['action']['advance'][:,:,0], axis=1))
 
 print('Best return=', best_test_return)
 
