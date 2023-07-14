@@ -1,0 +1,4 @@
+[General]
+name=VTOL
+description=A simple VTOL domain
+viz=viz=TextViz.TextVisualizer
