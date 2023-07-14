@@ -21,6 +21,9 @@ def warmup(env, EnvInfo, render=False):
 
     return env.sampler.subs, num_warmup_steps
 
+def offset_plan(N):
+    return [False]*8*(N-1) + [True]*5 + [False]*60 + ([True]*32 + [False]*60)*5
+
 
 if __name__ == '__main__':
     import pickle
