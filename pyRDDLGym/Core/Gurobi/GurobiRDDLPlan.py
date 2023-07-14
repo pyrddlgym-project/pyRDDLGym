@@ -235,16 +235,16 @@ class GurobiPWSCPolicy(GurobiRDDLPlan):
     
     def __init__(self, *args,
                  state_bounds: Dict[str, Tuple[float, float]]={},
-                 upper_bound: bool=False,
+                 upper_bound: bool=True,
+                 factored: bool=False,
                  num_cases: int=1,
-                 factored: bool=True,
                  **kwargs) -> None:
         super(GurobiPWSCPolicy, self).__init__(*args, **kwargs)
         
         self.state_bounds = state_bounds
         self.upper_bound = upper_bound or num_cases > 1
-        self.num_cases = num_cases
         self.factored = factored
+        self.num_cases = num_cases
     
     def _get_states_for_constraints(self, rddl):
         states = {}
