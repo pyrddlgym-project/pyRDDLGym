@@ -1,0 +1,21 @@
+non-fluents vtol_con_0 {
+    domain = vtol_continuous;
+}
+
+// Specify VTOL with default settings
+instance inst_vtol_con_0 {
+
+	domain = vtol_continuous;
+
+	non-fluents = vtol_con_0;
+
+	init-state {
+	    theta = 0.1;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 15;
+	discount = 1.0;
+}
