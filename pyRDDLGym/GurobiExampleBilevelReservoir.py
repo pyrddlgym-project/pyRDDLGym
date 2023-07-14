@@ -46,7 +46,10 @@ def gurobi_solve(domain, inst, horizon, num_cases):
                     'rlevel___t2': (0, 200),
                     'rlevel___t3': (0, 400),
                     'rlevel___t4': (0, 500)}
-    state_init_bounds = state_bounds
+    state_init_bounds = {'rlevel___t1': (50, 100),
+                         'rlevel___t2': (100, 200),
+                         'rlevel___t3': (200, 400),
+                         'rlevel___t4': (300, 500)}
     action_bounds = {'release___t1': (0, 100),
                      'release___t2': (0, 200),
                      'release___t3': (0, 400),
