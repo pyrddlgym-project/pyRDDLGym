@@ -79,5 +79,6 @@ class RDDLEnvironmentNotExist(ValueError):
 class RDDLInstanceNotExist(ValueError):
     pass
 
+
 class RDDLLogFolderError(ValueError):
     pass
