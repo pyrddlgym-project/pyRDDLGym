@@ -2,7 +2,7 @@ import numpy as np
 import sys
 
 from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiFactoredPWSCPolicy
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiPWSCPolicy
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
@@ -14,7 +14,7 @@ def slp_replan(domain, inst, trials):
                     instance=EnvInfo.get_instance(inst)).model
     
     MAX_ORDER = model.nonfluents['MAX-ITEMS']
-    plan = GurobiFactoredPWSCPolicy(
+    plan = GurobiPWSCPolicy(
         action_bounds={'order___i1': (0, MAX_ORDER),
                        'order___i2': (0, MAX_ORDER),
                        'order___i3': (0, MAX_ORDER),
