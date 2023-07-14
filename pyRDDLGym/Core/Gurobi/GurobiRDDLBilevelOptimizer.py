@@ -111,7 +111,6 @@ class GurobiRDDLBilevelOptimizer:
         
         # main optimization loop
         error = GRB.INFINITY
-        error_hist = []
         for it in range(max_iters):
             print('\n=========================================================')
             print(f'iteration {it}:')
@@ -133,7 +132,6 @@ class GurobiRDDLBilevelOptimizer:
             
             # check stopping condition
             new_error = outer_model.getVarByName('error').X
-            error_hist.append(new_error)
             converged = abs(new_error - error) <= tol * abs(error)
             error = new_error            
             
@@ -147,7 +145,6 @@ class GurobiRDDLBilevelOptimizer:
                 'worst_noise': worst_noise,
                 'worst_value_outer': worst_val_pol_outer,
                 'error': error,
-                'error_hist': error_hist,
                 'params': param_values,
                 'elapsed_time_inner': elapsed_time_inner,
                 'elapsed_time_outer': elapsed_time_outer,
