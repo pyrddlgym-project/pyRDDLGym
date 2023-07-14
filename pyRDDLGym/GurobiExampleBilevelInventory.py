@@ -52,10 +52,10 @@ def gurobi_solve(domain, inst, horizon, num_cases):
                     'stock___i2': (0, MAX_ORDER),
                     'stock___i3': (0, MAX_ORDER),
                     'stock___i4': (0, MAX_ORDER)}                   
-    state_init_bounds = {'stock___i1': (0, 0),
-                         'stock___i2': (0, 0),
-                         'stock___i3': (0, 0),
-                         'stock___i4': (0, 0)}
+    state_init_bounds = {'stock___i1': (0, 3),
+                         'stock___i2': (0, 3),
+                         'stock___i3': (0, 3),
+                         'stock___i4': (0, 3)}
     
     policy = GurobiPWSCPolicy(
         action_bounds=action_bounds,
