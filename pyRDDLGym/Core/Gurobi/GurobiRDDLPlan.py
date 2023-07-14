@@ -363,6 +363,7 @@ class GurobiPWSCPolicy(GurobiRDDLPlan):
             action_vars[action] = (res, atype, lb, ub, True)
             
             # each case i
+            case_sats = []
             for icase in range(self.num_cases):
                 
                 # each constraint i is an intersection of constraints on each
@@ -391,10 +392,11 @@ class GurobiPWSCPolicy(GurobiRDDLPlan):
                 a_name = f'action__{icase}__{action}'
                 a_var = params[a_name][0]
                 model.addConstr((case_sat == 1) >> (res == a_var))
+                case_sats.append(case_sat)
             
             # if none of the cases hold then use the last case action
             any_case_sat = compiled._add_bool_var(model)
-            model.addGenConstrOr(any_case_sat, case_vars)
+            model.addGenConstrOr(any_case_sat, case_sats)
             a_else_name = f'action__else__{action}'
             a_else_var = params[a_else_name][0]
             model.addConstr((any_case_sat == 0) >> (res == a_else_var))

@@ -41,10 +41,12 @@ def gurobi_solve(domain, inst, horizon, num_cases):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     model = RDDLEnv(domain=EnvInfo.get_domain(),
                     instance=EnvInfo.get_instance(inst)).model
+                    
     state_bounds = {'rlevel___t1': (0, 100),
                     'rlevel___t2': (0, 200),
                     'rlevel___t3': (0, 400),
                     'rlevel___t4': (0, 500)}
+    state_init_bounds = state_bounds
     action_bounds = {'release___t1': (0, 100),
                      'release___t2': (0, 200),
                      'release___t3': (0, 400),
@@ -53,12 +55,12 @@ def gurobi_solve(domain, inst, horizon, num_cases):
     policy = GurobiPWSCPolicy(
         action_bounds=action_bounds,
         state_bounds=state_bounds,
-        upper_bound=False,
+        upper_bound=True,
         num_cases=num_cases
     )
     planner = GurobiRDDLBilevelOptimizer(
         model, policy,
-        state_bounds=state_bounds,
+        state_bounds=state_init_bounds,
         rollout_horizon=horizon,
         use_cc=True,
         model_params={'Presolve': 2, 'OutputFlag': 1, 'MIPGap': 0.01})
