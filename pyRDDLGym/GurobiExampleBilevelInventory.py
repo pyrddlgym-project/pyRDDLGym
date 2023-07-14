@@ -60,7 +60,7 @@ def gurobi_solve(domain, inst, horizon, num_cases):
     policy = GurobiPWSCPolicy(
         action_bounds=action_bounds,
         state_bounds=state_bounds,
-        upper_bound=True,
+        factored=True,
         num_cases=num_cases
     )
     planner = GurobiRDDLBilevelOptimizer(
