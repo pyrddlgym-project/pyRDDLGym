@@ -2,7 +2,7 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 from pyRDDLGym.Core.Gurobi.GurobiRDDLBilevelOptimizer import GurobiRDDLBilevelOptimizer
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiFactoredPWSCPolicy
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiPWSCPolicy
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 
@@ -47,7 +47,7 @@ def gurobi_solve(domain, inst, horizon, num_cases):
                          'stock___i4': (0, 0),
                          'stock___i5': (0, 0)}
     
-    policy = GurobiFactoredPWSCPolicy(
+    policy = GurobiPWSCPolicy(
         action_bounds=action_bounds,
         state_bounds=state_bounds,
         upper_bound=False,
