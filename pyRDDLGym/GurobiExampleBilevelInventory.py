@@ -90,7 +90,7 @@ def gurobi_solve(domain, inst, horizon, num_cases):
     for reward in reward_hist:
         log += str(reward) + '\n'
     
-    with open(f'{domain}_{inst}_{horizon}.log', 'w') as file:
+    with open(f'{domain}_{inst}_{horizon}_{num_cases}.log', 'w') as file:
         file.write(log)
 
             
