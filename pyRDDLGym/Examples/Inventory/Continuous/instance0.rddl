@@ -6,12 +6,12 @@ non-fluents inventory_1nf {
 	};
 	
 	non-fluents {
-		MAX-ITEMS = 10;
+		MAX-ITEMS = 5;
 		
 		PURCHASE-COST(i1) = 1.0;
 		PRICE(i1) = 2.0;
 		MIN-DEMAND(i1) = 0;
-		MAX-DEMAND(i1) = 5;
+		MAX-DEMAND(i1) = 6;
 	};
 }
 
