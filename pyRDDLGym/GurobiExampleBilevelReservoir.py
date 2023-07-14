@@ -23,6 +23,19 @@ def evaluate(world, policy, planner, n_steps, n_episodes):
         avg_reward += total_reward / n_episodes
     return avg_reward
 
+
+def pretty(d, indent=0) -> str:
+    res = ''
+    if isinstance(d, (list, tuple)):
+        for (i, v) in enumerate(d):
+            res += '\n' + '\t' * indent + str(i) + ':' + pretty(v, indent + 1)
+    elif isinstance(d, dict):
+        for (k, v) in d.items():
+            res += '\n' + '\t' * indent + str(k) + ':' + pretty(v, indent + 1)
+    else:
+        res += '\n' + '\t' * indent + str(d)
+    return res
+
             
 def gurobi_solve(domain, inst, horizon, num_cases):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
@@ -57,20 +70,21 @@ def gurobi_solve(domain, inst, horizon, num_cases):
     avg_reward = evaluate(world, None, planner, horizon, 500)
     print(f'\naverage reward achieved: {avg_reward}\n')
     reward_hist.append(avg_reward)
-        
+    
+    log = ''
     for callback in planner.solve(10, float('nan')): 
         avg_reward = evaluate(world, policy, planner, horizon, 500)
         print(f'\naverage reward achieved: {avg_reward}\n')
         reward_hist.append(avg_reward)    
-        print('\nfinal policy:\n')
-        print(callback['policy_string'])
+        print('\nfinal policy:\n' + callback['policy_string'])
+        log += pretty(callback) + '\n\n'
     
-    import matplotlib.pyplot as plt
-    plt.plot(callback['error_hist'])
-    plt.savefig(f'{domain}_{inst}_{horizon}_error.pdf')    
-    plt.clf()
-    plt.plot(reward_hist)
-    plt.savefig(f'{domain}_{inst}_{horizon}_rewards.pdf')
+    log += 'reward history:\n'
+    for reward in reward_hist:
+        log += str(reward) + '\n'    
+    
+    with open(f'{domain}_{inst}_{horizon}.log', 'w') as file:
+        file.write(log)
 
             
 if __name__ == "__main__":
