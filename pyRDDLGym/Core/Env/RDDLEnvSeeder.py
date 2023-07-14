@@ -9,7 +9,9 @@ class RDDLEnvSeeder(metaclass=abc.ABCMeta):
     def Next(self) -> float:
         pass
 
+
 class RDDLEnvSeederFibonacci(RDDLEnvSeeder):
+
     def __init__(self, a1=None):
         self.an = 0
         if a1 is None:
@@ -17,13 +19,14 @@ class RDDLEnvSeederFibonacci(RDDLEnvSeeder):
         self.anext = a1
 
     def Next(self) -> float:
-        next = self.anext
-        self.anext = self.an + next
-        self.an = next
-        return next
+        e = self.anext
+        self.anext = self.an + e
+        self.an = e
+        return e
 
 
 class RDDLEnvSeederCyclic(RDDLEnvSeeder):
+
     def __init__(self, seed_list: list=None):
         self.list = seed_list
         self.iterator = None
