@@ -54,11 +54,15 @@ def gurobi_solve(domain, inst, horizon, num_cases):
                      'release___t2': (0, 200),
                      'release___t3': (0, 400),
                      'release___t4': (0, 500)}
+    dependencies = {'release___t1': ['rlevel___t1'],
+                    'release___t2': ['rlevel___t2'],
+                    'release___t3': ['rlevel___t3'],
+                    'release___t4': ['rlevel___t4']}
     
     policy = GurobiPWSCPolicy(
         action_bounds=action_bounds,
         state_bounds=state_bounds,
-        factored=True,
+        dependencies=dependencies,
         num_cases=num_cases
     )
     planner = GurobiRDDLBilevelOptimizer(
