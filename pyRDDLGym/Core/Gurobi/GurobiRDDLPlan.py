@@ -1,6 +1,6 @@
 import gurobipy
 from gurobipy import GRB
-from typing import Callable, Dict, Tuple, TYPE_CHECKING
+from typing import Callable, Dict, List, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
@@ -144,7 +144,7 @@ class GurobiRDDLStraightLinePlan(GurobiRDDLPlan):
                 
 class GurobiLinearPolicy(GurobiRDDLPlan):
     
-    def __init__(self, *args, 
+    def __init__(self, *args,
                  n_features: int,
                  feature_map: Callable=(lambda model, s: [1.0] + list(s.values())),
                  feature_eval: Callable=(lambda s: [1.0] + list(s.values())),
@@ -230,27 +230,26 @@ class GurobiLinearPolicy(GurobiRDDLPlan):
         return res
 
 
-    
 class GurobiPWSCPolicy(GurobiRDDLPlan):
     
     def __init__(self, *args,
                  state_bounds: Dict[str, Tuple[float, float]]={},
                  upper_bound: bool=True,
-                 factored: bool=False,
+                 dependencies: Dict[str, List[str]]=None,
                  num_cases: int=1,
                  **kwargs) -> None:
         super(GurobiPWSCPolicy, self).__init__(*args, **kwargs)
         
         self.state_bounds = state_bounds
         self.upper_bound = upper_bound or num_cases > 1
-        self.factored = factored
+        self.dependencies = dependencies
         self.num_cases = num_cases
     
     def _get_states_for_constraints(self, rddl):
         states = {}
-        if self.factored:
-            for (action, state) in zip(rddl.actions, rddl.states):
-                states[action] = [state]
+        if self.dependencies is not None:
+            for action in rddl.actions:
+                states[action] = list(self.dependencies[action])
         else:
             for action in rddl.actions:
                 states[action] = list(rddl.states.keys())
@@ -412,7 +411,10 @@ class GurobiPWSCPolicy(GurobiRDDLPlan):
         
         action_values = {}
         for (action, arange) in rddl.actionsranges.items():
-            action_value = None
+            
+            # if none of the cases hold then use the last case action
+            a_else_name = f'action__else__{action}'
+            action_value = params[a_else_name][0].X
             
             # check if case i constraint is satisfied
             for icase in range(self.num_cases):
@@ -422,18 +424,13 @@ class GurobiPWSCPolicy(GurobiRDDLPlan):
                     h_name = f'high__{icase}__{state}__{action}'
                     l_val = params[l_name][0].X
                     h_val = params[h_name][0].X if self.upper_bound else float('inf')   
-                    if not (subs[state] >= l_val and subs[state] <= h_val):
+                    if not (l_val <= subs[state] <= h_val):
                         case_i_holds = False
                         break
                 if case_i_holds:
                     a_name = f'action__{icase}__{action}'
                     action_value = params[a_name][0].X
                     break
-            
-            # if none of the cases hold then use the last case action
-            if action_value is None:
-                a_else_name = f'action__else__{action}'
-                action_value = params[a_else_name][0].X
             
             # cast action to appropriate type
             if arange == 'int':

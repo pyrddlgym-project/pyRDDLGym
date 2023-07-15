@@ -56,11 +56,15 @@ def gurobi_solve(domain, inst, horizon, num_cases):
                          'stock___i2': (0, 3),
                          'stock___i3': (0, 3),
                          'stock___i4': (0, 3)}
+    dependencies = {'order___i1': ['stock___i1'],
+                    'order___i2': ['stock___i2'],
+                    'order___i3': ['stock___i3'],
+                    'order___i4': ['stock___i4']}
     
     policy = GurobiPWSCPolicy(
         action_bounds=action_bounds,
         state_bounds=state_bounds,
-        factored=True,
+        dependencies=dependencies,
         num_cases=num_cases
     )
     planner = GurobiRDDLBilevelOptimizer(
