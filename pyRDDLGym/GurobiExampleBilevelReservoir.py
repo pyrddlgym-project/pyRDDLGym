@@ -70,7 +70,7 @@ def gurobi_solve(domain, inst, horizon, num_cases):
     
     rddl = RDDLGrounder(model._AST).Ground()
     world = RDDLSimulator(rddl)    
-    reward_hist = []
+    reward_hist, error_hist = [], []
     
     avg_reward = evaluate(world, None, planner, horizon, 500)
     print(f'\naverage reward achieved: {avg_reward}\n')
@@ -80,13 +80,13 @@ def gurobi_solve(domain, inst, horizon, num_cases):
     for callback in planner.solve(10, float('nan')): 
         avg_reward = evaluate(world, policy, planner, horizon, 500)
         print(f'\naverage reward achieved: {avg_reward}\n')
-        reward_hist.append(avg_reward)    
+        reward_hist.append(avg_reward)
+        error_hist.append(callback['error'])
         print('\nfinal policy:\n' + callback['policy_string'])
         log += pretty(callback) + '\n\n'
     
-    log += 'reward history:\n'
-    for reward in reward_hist:
-        log += str(reward) + '\n'    
+    log += 'reward history:\n' + '\n'.join(map(str, reward_hist)) + '\n\n'    
+    log += 'error history:\n' + '\n'.join(map(str, error_hist))
     
     with open(f'{domain}_{inst}_{horizon}_{num_cases}.log', 'w') as file:
         file.write(log)
