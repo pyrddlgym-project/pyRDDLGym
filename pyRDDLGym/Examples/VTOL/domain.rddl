@@ -19,35 +19,26 @@ pvariables {
     m1 : { non-fluent, real, default = 10.0 };   // the mass of the fan
     m2 : { non-fluent, real, default = 1.0 };     // the mass of the weight
     h : { non-fluent, real, default = 0.4 };    // height of the pole
-    goal : {non-fluent, real, default = 0 };  // the goal angle to stabilize on
+    goal : {non-fluent, real, default = 0.0 };  // the goal angle to stabilize on
     g : { non-fluent, real, default = 9.8 };    // gravity constant
     T : { non-fluent, real, default = 0.1 };    // time sampling constant
-    alpha : { non-fluent, real, default = 0.001 }; // cost weight
-    FORCE-MAX : {non-fluent, real, default = 10 }; // maximum force applied by the fan
-
-    // interm functions
-    J : { interm-fluent, real };
+    alpha : { non-fluent, real, default = 0.01 }; // cost weight
+    FORCE-MAX : {non-fluent, real, default = 1.0 }; // maximum force applied by the fan
 
     // States
-    theta : { state-fluent, real, default = 0 };    // the angle of the rod in relation to the horizontal axis
-    omega : { state-fluent, real, default = 0 };    // the angular velocity of the rod
+    theta : { state-fluent, real, default = 0.0 };    // the angle of the rod in relation to the horizontal axis
+    omega : { state-fluent, real, default = 0.0 };    // the angular velocity of the rod
 
     // Actions
-    F : {action-fluent, real, default = 0};       // force applied by the fan
+    F : { action-fluent, real, default = 0.0 };       // force applied by the fan
 };
 
 cpfs {
-    // The moment of inertia of the rod
-    J = m1 * l1 * l1 + m2 * l2 * l2;
-
-    // The system dynamics - discretization of the angle differential equation
     theta' =  max[-sin[h / l1], min[sin[h / l2], theta + T * omega]];
-    omega' = if (theta >= sin[h / l2] | theta <= -sin[h / l1])
-                then 0
-                else omega + (T / J) * [g * (m2 * l2 - m1 * l1) * cos[theta] + 10 * l1 * F];
+    omega' = omega + (T / (m1 * l1 * l1 + m2 * l2 * l2)) * (g * (m2 * l2 - m1 * l1) * cos[theta] + 100 * l1 * F);
 };
 
-reward = -alpha * abs[F] - abs[theta - goal];
+reward = -alpha * abs[F] - abs[theta' - goal];
 
 action-preconditions {
     F >= -FORCE-MAX;
@@ -58,9 +49,10 @@ state-invariants {
     l2 * m2 <= l1 * m1;
     l2 > h;
     l1 > l2;
-    theta <= sin[h / l2];
     theta >= -sin[h / l1];
-    g >= 0 ^ FORCE-MAX >= 0;
+    theta <= sin[h / l2];
+    g >= 0;
+	FORCE-MAX >= 0;
 };
 
 }
