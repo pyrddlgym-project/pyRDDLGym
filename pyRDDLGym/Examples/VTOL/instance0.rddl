@@ -16,6 +16,6 @@ instance inst_vtol_con_0 {
   	// State-action constraints above are sufficient
 	max-nondef-actions = pos-inf;
 
-	horizon  = 12;
+	horizon  = 8;
 	discount = 1.0;
 }
