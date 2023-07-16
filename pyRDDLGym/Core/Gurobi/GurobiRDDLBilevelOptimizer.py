@@ -9,7 +9,7 @@ from gurobipy.gurobipy import GRB
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLPlan
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLStraightLinePlan
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiStraightLinePlan
 
 
 class GurobiRDDLChanceConstrainedCompiler(GurobiRDDLCompiler):
@@ -170,7 +170,7 @@ class GurobiRDDLBilevelOptimizer:
     def _solve_inner_problem(self, param_values):
         
         # model for straight line plan
-        slp = GurobiRDDLStraightLinePlan(self.action_bounds)
+        slp = GurobiStraightLinePlan(self.action_bounds)
         compiler = self._compiler_cl(self.rddl, plan=slp, **self.kwargs)
         model = compiler._create_model()
         
