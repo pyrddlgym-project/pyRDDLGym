@@ -69,8 +69,7 @@ class GurobiRDDLChanceConstrainedCompiler(GurobiRDDLCompiler):
             std = self._add_real_var(model, lbs, ubs)
             model.addGenConstrPow(arg, std, 0.5, options=self.pw_options)
         else:
-            std = math.sqrt(var)
-            lbs, ubs = std, std       
+            lbs = ubs = std = math.sqrt(var)
         
         # chance constraint for normal   
         cil, ciu = scipy.stats.norm.interval(self.chance)
