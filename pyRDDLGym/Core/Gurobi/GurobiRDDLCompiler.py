@@ -1,6 +1,7 @@
 import gurobipy
 from gurobipy import GRB
 import math
+import numpy as np
 from typing import Dict, List, Tuple
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
@@ -586,6 +587,7 @@ class GurobiRDDLCompiler:
                 model.addConstr(res + gterm == 1)
                 lb, ub = 0, 1
             else:
+                assert isinstance(gterm, (bool, np.bool_))
                 res = not bool(gterm)
                 lb = ub = int(res)            
             return res, GRB.BINARY, lb, ub, symb
@@ -601,6 +603,7 @@ class GurobiRDDLCompiler:
             if symb:
                 for (i, gterm) in enumerate(gterms):
                     if not symbs[i]:
+                        assert isinstance(gterm, (bool, np.bool_))
                         var = self._add_bool_var(model)
                         model.addConstr(var == bool(gterm))
                         gterms[i] = var
@@ -860,8 +863,8 @@ class GurobiRDDLCompiler:
                 model.addConstr((gpred == 0) >> (res == gterm2))
                 symb = True
             else:
-                assert isinstance(gpred, bool)
-                if gpred:
+                assert isinstance(gpred, (bool, np.bool_))
+                if bool(gpred):
                     res, lb, ub, symb = gterm1, lb1, ub1, symb1
                 else:
                     res, lb, ub, symb = gterm2, lb2, ub2, symb2

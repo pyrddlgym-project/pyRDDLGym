@@ -126,6 +126,8 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
             action_value = params[f'{action}__{step}'][0].X
             if prange == 'int':
                 action_value = int(action_value)
+            elif prange == 'bool':
+                action_value = bool(action_value > 0.5)
             action_values[action] = action_value        
         return action_values
     
@@ -376,6 +378,8 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                     # cast action to appropriate type   
                     if arange == 'int':
                         aval = int(aval)
+                    elif arange == 'bool':
+                        aval = bool(aval > 0.5)
                     action_values[action] = aval               
                     break
             
