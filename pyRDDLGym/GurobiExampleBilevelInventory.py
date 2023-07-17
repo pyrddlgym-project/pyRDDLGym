@@ -1,5 +1,6 @@
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiPiecewisePolicy
+import sys
 
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiPiecewisePolicy
 from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 
@@ -44,6 +45,13 @@ class GurobiInventoryExperiment(GurobiExperiment):
 
             
 if __name__ == "__main__":
-    experiment = GurobiInventoryExperiment(cases=1)
-    experiment.run('Inventory continuous', 1, 10)
+    if len(sys.argv) < 5:
+        dom, inst, horizon, cases = 'Inventory continuous', 1, 10, 1
+    else:
+        dom, inst, horizon, cases = sys.argv[1:5]
+        horizon, cases = int(horizon), int(cases)
+        
+    experiment = GurobiInventoryExperiment(cases=cases)
+    experiment.run(dom, inst, horizon)
+    
 
