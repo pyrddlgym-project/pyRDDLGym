@@ -60,62 +60,47 @@ sampler = compiler.compile_rollouts(policy=policy_fn,
 
 
 # initial state
-init_train = {}
+train_subs = {}
 for (name, value) in init_state_subs.items():
     value = jnp.asarray(value)[jnp.newaxis, ...]
     train_value = jnp.repeat(value, repeats=n_rollouts, axis=0)
     train_value = train_value.astype(compiler.REAL)
-    init_train[name] = train_value
+    train_subs[name] = train_value
 for (state, next_state) in model.next_state.items():
-    init_train[next_state] = init_train[state]
-
-def rollout(base_subs, new_rates):
-    new_subs = {}
-    for (item, value) in base_subs.items():
-        new_subs[item] = jnp.copy(value)
-    new_subs['SOURCE-ARRIVAL-RATE'] = new_rates
-    return sampler(
-        key,
-        policy_params=None,
-        hyperparams=None,
-        subs=new_subs,
-        model_params=compiler.model_params)
+    train_subs[next_state] = train_subs[state]
 
 with jax.disable_jit(disable=False):
     t0 = timer()
 
+    train_subs['SOURCE-ARRIVAL-RATE'] = train_subs['SOURCE-ARRIVAL-RATE'].at[(0,1)].set(0.3)
+    rollouts = sampler(
+            key,
+            policy_params=None,
+            hyperparams=None,
+            subs=train_subs,
+            model_params=compiler.model_params)
+    GROUND_TRUTH_LOOPS = rollouts['pvar']['flow-into-link'][0,:,:]
+    GROUND_TRUTH_RATES = jnp.copy(train_subs['SOURCE-ARRIVAL-RATE'])
+    vrates = jnp.copy(train_subs['SOURCE-ARRIVAL-RATE'])
 
-    #print(rollout_reward())
-
-    #print(init_train.keys())
-    #print(init_train['SOURCE-ARRIVAL-RATE'])
-    #init_train['SOURCE-ARRIVAL-RATE'] = init_train['SOURCE-ARRIVAL-RATE'].at[(0,-1)].set(0.7)
-    #print(rollout_reward())
-
-
-    init_train['SOURCE-ARRIVAL-RATE'] = init_train['SOURCE-ARRIVAL-RATE'].at[(0,1)].set(0.3)
-    rollouts = rollout(init_train, init_train['SOURCE-ARRIVAL-RATE'])
-    #print(rollouts.keys())
-    #print(type(rollouts['pvar']))
-    #print(rollouts['pvar'].keys())
-    #print(rollouts['pvar']['flow-into-link'].shape)
-    #print(rollouts['pvar']['flow-on-link'].shape)
-
-    GROUND_TRUTH = rollouts['pvar']['flow-into-link'][0,:,:]
-    print(GROUND_TRUTH)
-
-    def test(new_rates):
-        rollouts = rollout(init_train, new_rates)
-        delta = rollouts['pvar']['flow-into-link'][0,:,:] - GROUND_TRUTH
+    def rollout(rates, subs, sampler, GROUND_TRUTH_LOOPS):
+        subs['SOURCE-ARRIVAL-RATE'] = rates
+        rollouts = sampler(
+            key,
+            policy_params=None,
+            hyperparams=None,
+            subs=subs,
+            model_params=compiler.model_params)
+        delta = rollouts['pvar']['flow-into-link'][0,:,:] - GROUND_TRUTH_LOOPS
         return jnp.sum(delta*delta)
 
-    dt = jax.grad(test)
-
+    droll = jax.grad(rollout, argnums=0)
 
     for r in np.arange(0., stop=0.5, step=0.025):
-        mutate_rates = jnp.copy(init_train['SOURCE-ARRIVAL-RATE'])
-        mutate_rates = mutate_rates.at[(0,1)].set(r)
-        print(r, test(mutate_rates), dt(mutate_rates))
+        vrates = vrates.at[(0,1)].set(r)
+        sample = rollout(vrates, train_subs, sampler, GROUND_TRUTH_LOOPS)
+        dsample = droll(vrates, train_subs, sampler, GROUND_TRUTH_LOOPS)
+        print(r, sample, dsample)
         print('===')
 
     t1 = timer()
