@@ -1,3 +1,4 @@
+import json 
 from typing import Dict
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
@@ -38,18 +39,17 @@ class GurobiExperiment:
         return avg_reward
     
     @staticmethod
-    def _pretty(d, indent=0) -> str:
-        res = ''
+    def _to_dict(d) -> Dict:
         if isinstance(d, (list, tuple)):
+            res = {}
             for (i, v) in enumerate(d):
-                res += '\n' + '\t' * indent + str(i) + ':' + \
-                GurobiExperiment._pretty(v, indent + 1)
+                res[i] = GurobiExperiment._to_dict(v)
         elif isinstance(d, dict):
+            res = {}
             for (k, v) in d.items():
-                res += '\n' + '\t' * indent + str(k) + ':' + \
-                GurobiExperiment._pretty(v, indent + 1)
+                res[k] = GurobiExperiment._to_dict(v)
         else:
-            res += '\n' + '\t' * indent + str(d)
+            res = d
         return res
     
     def get_policy(self, model: RDDLEnv) -> GurobiRDDLPlan:
@@ -84,28 +84,22 @@ class GurobiExperiment:
         world = RDDLSimulator(world)    
         
         # evaluate the baseline (i.e. no-op) policy
-        reward_hist, error_hist = [], []
+        log_dict = {}
         avg_reward = GurobiExperiment._evaluate(
             world, None, planner, horizon, self.rollouts)
         print(f'\naverage reward achieved: {avg_reward}\n')
-        reward_hist.append(avg_reward)
+        log_dict[-1] = {'avg_reward': avg_reward}
         
         # run the bi-level planner and evaluate at each iteration
-        log = ''        
         for callback in planner.solve(self.iters, float('nan')): 
             avg_reward = GurobiExperiment._evaluate(
                 world, policy, planner, horizon, self.rollouts)
-            print(f'\naverage reward achieved: {avg_reward}\n')
-            reward_hist.append(avg_reward)
-            error_hist.append(callback['error'])    
-            print('\nfinal policy:\n' + callback['policy_string'])
-            log += GurobiExperiment._pretty(callback) + '\n\n'
-        
-        # append the reward and error history to the log
-        log += 'reward history:\n' + '\n'.join(map(str, reward_hist)) + '\n\n' 
-        log += 'error history:\n' + '\n'.join(map(str, error_hist))
-        
+            print(f'\naverage reward achieved: {avg_reward}\n')  
+            print('\nfinal policy:\n' + callback['policy_string']) 
+            callback['avg_reward'] = avg_reward
+            log_dict[callback['it']] = GurobiExperiment._to_dict(callback)
+            
         # save log to file
         idstr = self.get_experiment_id_str()
         with open(f'{domain}_{inst}_{horizon}_{idstr}.log', 'w') as file:
-            file.write(log)
+            json.dump(log_dict, file, indent=2)
