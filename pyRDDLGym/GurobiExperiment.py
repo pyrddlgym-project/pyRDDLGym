@@ -13,7 +13,7 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 class GurobiExperiment:
     
     def __init__(self, model_params: Dict={'Presolve': 2, 'OutputFlag': 1},
-                 iters: int=10, rollouts: int=500):
+                 iters: int=10, rollouts: int=100):
         self.model_params = model_params
         self.iters = iters
         self.rollouts = rollouts
