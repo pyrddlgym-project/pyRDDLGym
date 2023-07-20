@@ -1,6 +1,6 @@
 import sys
 
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiPiecewisePolicy
+from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiQuadraticPolicy
 from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 
@@ -16,14 +16,10 @@ class GurobiVTOLExperiment(GurobiExperiment):
         action_bounds = {'F': (-1, 1)}
         state_bounds = {'theta': (-0.38942, 0.71736),
                         'omega': (-20.0, 20.0)}
-        dependencies = {'F': ['theta']}
         
-        policy = GurobiPiecewisePolicy(
+        policy = GurobiQuadraticPolicy(
             action_bounds=action_bounds,
-            state_bounds=state_bounds,
-            dependencies=dependencies,
-            linear_value=True,
-            num_cases=self.cases
+            state_bounds=state_bounds
         )
         return policy
     
@@ -38,7 +34,7 @@ class GurobiVTOLExperiment(GurobiExperiment):
 
 if __name__ == "__main__":
     if len(sys.argv) < 5:
-        dom, inst, horizon, cases = 'VTOL', 0, 6, 4
+        dom, inst, horizon, cases = 'VTOL', 0, 6, 0
     else:
         dom, inst, horizon, cases = sys.argv[1:5]
         horizon, cases = int(horizon), int(cases)
