@@ -34,10 +34,10 @@ class GurobiInventoryExperiment(GurobiExperiment):
         return policy
 
     def get_state_init_bounds(self, model):
-        state_init_bounds = {'stock___i1': (0, 4),
-                             'stock___i2': (0, 4),
-                             'stock___i3': (0, 4),
-                             'stock___i4': (0, 4)}
+        state_init_bounds = {'stock___i1': (0, 3),
+                             'stock___i2': (0, 3),
+                             'stock___i3': (0, 3),
+                             'stock___i4': (0, 3)}
         return state_init_bounds
     
     def get_experiment_id_str(self):
