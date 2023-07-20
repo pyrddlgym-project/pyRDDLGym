@@ -433,3 +433,162 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
             res += f'{action} = ' + ', '.join(case_strs) + '\n'
             
         return res
+
+
+class GurobiQuadraticPolicy(GurobiRDDLPlan):
+    
+    def __init__(self, *args,
+                 state_bounds: Dict[str, Tuple[float, float]]={},
+                 action_clip_value: float=100.,
+                 **kwargs) -> None:
+        super(GurobiQuadraticPolicy, self).__init__(*args, **kwargs)
+        self.action_clip_value = action_clip_value
+        self.state_bounds = state_bounds
+        
+    def params(self, compiled: 'GurobiRDDLCompiler',
+               model: gurobipy.Model,
+               values: Dict[str, object]=None) -> Dict[str, object]:
+        rddl = compiled.rddl
+        states = list(rddl.states.keys())
+        clip_range = (-self.action_clip_value, +self.action_clip_value)
+        param_vars = {}
+        for action in rddl.actions:
+            
+            # bias parameter
+            b_name = f'bias__{action}'
+            if values is None:
+                b_var = compiled._add_real_var(model, *clip_range)
+                param_vars[b_name] = (b_var, GRB.CONTINUOUS, *clip_range, True)
+            else:
+                b_val = values[b_name]
+                param_vars[b_name] = (b_val, GRB.CONTINUOUS, b_val, b_val, False)
+            
+            # linear terms
+            for state in states:
+                l_name = f'linear__{action}__{state}'
+                if values is None:
+                    l_var = compiled._add_real_var(model, *clip_range)
+                    param_vars[l_name] = (l_var, GRB.CONTINUOUS, *clip_range, True)
+                else:
+                    l_val = values[l_name]
+                    param_vars[l_name] = (l_val, GRB.CONTINUOUS, l_val, l_val, False)
+            
+            # quadratic terms
+            for (i, state1) in enumerate(states):
+                for state2 in states[i:]:
+                    q_name = f'linear__{action}__{state1}__{state2}'
+                    if values is None:
+                        q_var = compiled._add_real_var(model, *clip_range)
+                        param_vars[q_name] = (q_var, GRB.CONTINUOUS, *clip_range, True)
+                    else:
+                        q_val = values[q_name]
+                        param_vars[q_name] = (q_val, GRB.CONTINUOUS, q_val, q_val, False)
+        return param_vars
+        
+    def init_params(self, compiled: 'GurobiRDDLCompiler',
+                    model: gurobipy.Model) -> Dict[str, object]:
+        rddl = compiled.rddl
+        states = list(rddl.states.keys())
+        param_values = {}
+        for action in rddl.actions:
+            
+            # bias initialized to no-op action value
+            b_name = f'bias__{action}'
+            param_values[b_name] = compiled.init_values[action]
+            
+            # linear and quadratic terms are zero
+            for state in states:
+                l_name = f'linear__{action}__{state}'
+                param_values[l_name] = 0
+            for (i, state1) in enumerate(states):
+                for state2 in states[i:]:
+                    q_name = f'linear__{action}__{state1}__{state2}'
+                    param_values[q_name] = 0
+        return param_values
+    
+    def actions(self, compiled: 'GurobiRDDLCompiler',
+                model: gurobipy.Model,
+                params: Dict[str, object],
+                step: int,
+                subs: Dict[str, object]) -> Dict[str, object]:
+        rddl = compiled.rddl
+        states = list(rddl.states.keys())
+        action_vars = {}        
+        for action in rddl.actions:
+            
+            # start with bias
+            b_name = f'bias__{action}'
+            action_value = params[b_name][0]
+            
+            # add linear terms
+            for state in states:
+                l_name = f'linear__{action}__{state}'
+                action_value = action_value + params[l_name][0] * subs[state][0]
+            
+            # add quadratic terms
+            for (i, state1) in enumerate(states):
+                for state2 in states[i:]:
+                    q_name = f'linear__{action}__{state1}__{state2}'
+                    q_var = compiled._add_real_var(model)
+                    model.addConstr(q_var == subs[state1][0] * subs[state2][0])
+                    action_value = action_value + params[q_name][0] * q_var
+            
+            # action variable a_i
+            lb, ub = self._bounds(rddl, action)
+            res = compiled._add_real_var(model, lb, ub)
+            action_vars[action] = (res, GRB.CONTINUOUS, lb, ub, True)
+            model.addConstr(res == action_value)
+        return action_vars
+    
+    def evaluate(self, compiled: 'GurobiRDDLCompiler',
+                 params: Dict[str, object],
+                 step: int,
+                 subs: Dict[str, object]) -> Dict[str, object]:
+        rddl = compiled.rddl
+        states = list(rddl.states.keys())
+        action_values = {}
+        for action in rddl.actions:
+            
+            # bias
+            b_name = f'bias__{action}'
+            action_value = params[b_name][0].X
+            
+            # add linear terms
+            for state in states:
+                l_name = f'linear__{action}__{state}'
+                action_value += params[l_name][0].X * subs[state]
+            
+            # add quadratic terms
+            for (i, state1) in enumerate(states):
+                for state2 in states[i:]:
+                    q_name = f'linear__{action}__{state1}__{state2}'
+                    action_value += params[q_name][0].X * subs[state1] * subs[state2]
+            action_values[action] = action_value
+        return action_values
+        
+    def to_string(self, compiled: 'GurobiRDDLCompiler',
+                  params: Dict[str, object]) -> str:
+        rddl = compiled.rddl
+        states = list(rddl.states.keys())
+        res = ''
+        for action in rddl.actions:
+            
+            # bias term
+            b_name = f'bias__{action}'
+            terms = [f'{params[b_name][0].X}']
+            
+            # linear terms
+            for state in states:
+                l_name = f'linear__{action}__{state}'
+                l_val = params[l_name][0].X
+                terms.append(f'{l_val} * {state}')
+            
+            # quadratic terms
+            for (i, state1) in enumerate(states):
+                for state2 in states[i:]:
+                    q_name = f'linear__{action}__{state1}__{state2}'
+                    q_val = params[q_name][0].X
+                    terms.append(f'{q_val} * {state1} * {state2}')
+            
+            res += f'{action} = ' + ' + '.join(terms) + '\n'
+        return res
