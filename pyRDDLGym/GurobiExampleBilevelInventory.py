@@ -46,12 +46,12 @@ class GurobiInventoryExperiment(GurobiExperiment):
             
 if __name__ == "__main__":
     dom = 'Inventory continuous'
-    if len(sys.argv) < 4:
-        inst, horizon, cases = 1, 10, 1
+    if len(sys.argv) < 5:
+        inst, horizon, cases, chance = 1, 10, 1, 0.995
     else:
-        inst, horizon, cases = sys.argv[1:4]
-        horizon, cases = int(horizon), int(cases)        
-    experiment = GurobiInventoryExperiment(cases=cases)
+        inst, horizon, cases, chance = sys.argv[1:5]
+        horizon, cases, chance = int(horizon), int(cases), float(chance)    
+    experiment = GurobiInventoryExperiment(cases=cases, chance=chance)
     experiment.run(dom, inst, horizon)
     
 

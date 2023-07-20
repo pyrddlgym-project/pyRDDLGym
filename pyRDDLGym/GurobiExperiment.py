@@ -14,10 +14,11 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 class GurobiExperiment:
     
     def __init__(self, model_params: Dict={'Presolve': 2, 'OutputFlag': 1},
-                 iters: int=10, rollouts: int=100):
+                 iters: int=10, rollouts: int=100, **compiler_kwargs):
         self.model_params = model_params
         self.iters = iters
         self.rollouts = rollouts
+        self.compiler_kwargs = compiler_kwargs
         
     @staticmethod
     def _evaluate(world, policy, planner, n_steps, n_episodes):
@@ -62,7 +63,7 @@ class GurobiExperiment:
     def get_experiment_id_str(self) -> str:
         raise NotImplementedError
     
-    def run(self, domain, inst, horizon):
+    def run(self, domain: str, inst: int, horizon: int) -> None:
         
         # build the model of the environment
         EnvInfo = ExampleManager.GetEnvInfo(domain)    
@@ -78,7 +79,8 @@ class GurobiExperiment:
             state_bounds=self.get_state_init_bounds(model),
             rollout_horizon=horizon,
             use_cc=True,
-            model_params=self.model_params)
+            model_params=self.model_params,
+            **self.compiler_kwargs)
         
         # build the evaluation environment
         world = RDDLGrounder(model._AST).Ground()
