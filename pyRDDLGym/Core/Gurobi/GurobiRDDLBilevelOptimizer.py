@@ -118,7 +118,8 @@ class GurobiRDDLBilevelOptimizer:
             # solve inner problem for worst-case state and plan
             print('\nSOLVING INNER PROBLEM:\n')
             start_time = time.time()
-            worst_val_slp, worst_val_pol, worst_action, worst_state, worst_noise = \
+            worst_val_slp, worst_val_pol, worst_action, \
+            worst_state, worst_noise, worst_next_states = \
                 self._solve_inner_problem(param_values)
             elapsed_time_inner = time.time() - start_time
             
@@ -142,6 +143,7 @@ class GurobiRDDLBilevelOptimizer:
                 'worst_action': worst_action,
                 'worst_state': worst_state,
                 'worst_noise': worst_noise,
+                'worst_next_states': worst_next_states,
                 'worst_value_outer': worst_val_pol_outer,
                 'error': error,
                 'params': param_values,
@@ -186,7 +188,8 @@ class GurobiRDDLBilevelOptimizer:
         # roll out from s0 using a_1, ... a_T
         slp_subs = subs.copy()
         slp_params = slp.params(compiler, model)
-        value_slp, action_vars = compiler._rollout(model, slp, slp_params, slp_subs)
+        value_slp, action_vars, next_state_vars = compiler._rollout(
+            model, slp, slp_params, slp_subs)
         
         # roll out from s0 using a_t = policy(s_t), t = 1, 2, ... T
         # here the policy is frozen during optimization of the plan above
@@ -196,7 +199,7 @@ class GurobiRDDLBilevelOptimizer:
             pol_subs['noise__count'] = {dt: 0 for dt in pol_subs['noise__count']}
             pol_subs['noise__var'] = slp_subs['noise__var']
         pol_params = self.policy.params(compiler, model, values=param_values)
-        value_pol, _ = compiler._rollout(model, self.policy, pol_params, pol_subs)
+        value_pol, *_ = compiler._rollout(model, self.policy, pol_params, pol_subs)
         
         # optimization objective for the inner problem is
         # max_{a_1, ... a_T, s0} [V(a_1, ... a_T, s0) - V(policy, s0)]
@@ -218,15 +221,23 @@ class GurobiRDDLBilevelOptimizer:
         # read worst noise variables from the optimized model
         worst_noise = {}
         if self.use_cc:
-            for key, noise_vars in pol_subs['noise__var'].items():
+            for (key, noise_vars) in pol_subs['noise__var'].items():
                 worst_noise[key] = {}
-                for count, (var, vtype, *_) in noise_vars.items():
+                for (count, (var, vtype, *_)) in noise_vars.items():
                     value = var.X
                     worst_noise[key][count] = (value, vtype, value, value, False)
         
+        # read worst next-state variables from the optimized model
+        worst_next_states = []
+        for next_states_step in next_state_vars:
+            next_states_val = {key: var.X 
+                               for (key, (var, *_)) in next_states_step.items()}
+            worst_next_states.append(next_states_val)
+        
         # release the model resources
         model.dispose()
-        return worst_value_slp, worst_value_pol, worst_action, worst_state, worst_noise
+        return worst_value_slp, worst_value_pol, worst_action, \
+            worst_state, worst_noise, worst_next_states
     
     def _resolve_outer_problem(self, worst_value_slp: float,
                                worst_state: Dict[str, object],
@@ -240,7 +251,7 @@ class GurobiRDDLBilevelOptimizer:
         subs.update(worst_state)
         if self.use_cc:
             subs['noise__var'] = worst_noise
-        value_pol, _ = compiler._rollout(model, self.policy, policy_params, subs)
+        value_pol, *_ = compiler._rollout(model, self.policy, policy_params, subs)
                 
         # add constraint on error to outer model
         error = model.getVarByName('error')
