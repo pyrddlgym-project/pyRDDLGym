@@ -10,6 +10,7 @@ class GurobiVTOLExperiment(GurobiExperiment):
         model_params = {'Presolve': 2, 'NonConvex': 2, 'OutputFlag': 1}
         super(GurobiVTOLExperiment, self).__init__(
             *args, iters=5, rollouts=1, model_params=model_params, **kwargs)
+        self._chance = kwargs['chance']
         
     def get_policy(self, model):
         action_bounds = {'F': (-1, 1)}
@@ -28,15 +29,16 @@ class GurobiVTOLExperiment(GurobiExperiment):
         return state_bounds_init
     
     def get_experiment_id_str(self):
-        return ''
+        return f'{self._chance}'
 
 
 if __name__ == "__main__":
     dom = 'VTOL'
-    if len(sys.argv) < 2:
-        horizon = 6
+    if len(sys.argv) < 3:
+        horizon, chance = 6, 0.995
     else:
-        horizon = int(sys.argv[1])        
-    experiment = GurobiVTOLExperiment()
+        horizon, chance = sys.argv[1:3]
+        horizon, chance = int(horizon), float(chance)     
+    experiment = GurobiVTOLExperiment(chance=chance)
     experiment.run(dom, 0, horizon)
     
