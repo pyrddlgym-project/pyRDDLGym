@@ -34,10 +34,10 @@ class GurobiInventoryExperiment(GurobiExperiment):
         return policy
 
     def get_state_init_bounds(self, model):
-        state_init_bounds = {'stock___i1': (0, 3),
-                             'stock___i2': (0, 3),
-                             'stock___i3': (0, 3),
-                             'stock___i4': (0, 3)}
+        state_init_bounds = {'stock___i1': (0, 4),
+                             'stock___i2': (0, 4),
+                             'stock___i3': (0, 4),
+                             'stock___i4': (0, 4)}
         return state_init_bounds
     
     def get_experiment_id_str(self):
@@ -45,12 +45,12 @@ class GurobiInventoryExperiment(GurobiExperiment):
 
             
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        dom, inst, horizon, cases = 'Inventory continuous', 1, 10, 1
+    dom = 'Inventory continuous'
+    if len(sys.argv) < 4:
+        inst, horizon, cases = 1, 10, 1
     else:
-        dom, inst, horizon, cases = sys.argv[1:5]
-        horizon, cases = int(horizon), int(cases)
-        
+        inst, horizon, cases = sys.argv[1:4]
+        horizon, cases = int(horizon), int(cases)        
     experiment = GurobiInventoryExperiment(cases=cases)
     experiment.run(dom, inst, horizon)
     

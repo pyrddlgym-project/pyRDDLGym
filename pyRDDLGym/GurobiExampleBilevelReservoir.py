@@ -44,12 +44,12 @@ class GurobiReservoirExperiment(GurobiExperiment):
 
             
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        dom, inst, horizon, cases = 'Reservoir linear', 1, 10, 1
+    dom = 'Reservoir linear'
+    if len(sys.argv) < 4:
+        inst, horizon, cases = 1, 10, 1
     else:
-        dom, inst, horizon, cases = sys.argv[1:5]
-        horizon, cases = int(horizon), int(cases)
-        
+        inst, horizon, cases = sys.argv[1:4]
+        horizon, cases = int(horizon), int(cases)        
     experiment = GurobiReservoirExperiment(cases=cases)
     experiment.run(dom, inst, horizon)
     

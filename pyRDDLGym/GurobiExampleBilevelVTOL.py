@@ -6,11 +6,10 @@ from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 class GurobiVTOLExperiment(GurobiExperiment):
     
-    def __init__(self, *args, cases: int=1, **kwargs):
-        model_params = {'Presolve': 2, 'NonConvex': 2, 'OutputFlag': 1, 'MIPGap': 0.02}
+    def __init__(self, *args, **kwargs):
+        model_params = {'Presolve': 2, 'NonConvex': 2, 'OutputFlag': 1}
         super(GurobiVTOLExperiment, self).__init__(
-            *args, rollouts=1, model_params=model_params, **kwargs)
-        self.cases = cases
+            *args, iters=5, rollouts=1, model_params=model_params, **kwargs)
         
     def get_policy(self, model):
         action_bounds = {'F': (-1, 1)}
@@ -29,16 +28,15 @@ class GurobiVTOLExperiment(GurobiExperiment):
         return state_bounds_init
     
     def get_experiment_id_str(self):
-        return str(self.cases)
+        return ''
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        dom, inst, horizon, cases = 'VTOL', 0, 6, 0
+    dom = 'VTOL'
+    if len(sys.argv) < 2:
+        horizon = 6
     else:
-        dom, inst, horizon, cases = sys.argv[1:5]
-        horizon, cases = int(horizon), int(cases)
-        
-    experiment = GurobiVTOLExperiment(cases=cases)
-    experiment.run(dom, inst, horizon)
+        horizon = int(sys.argv[1])        
+    experiment = GurobiVTOLExperiment()
+    experiment.run(dom, 0, horizon)
     
