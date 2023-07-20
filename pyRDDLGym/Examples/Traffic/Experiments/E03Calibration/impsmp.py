@@ -40,7 +40,7 @@ rollout_horizon = t_plan - t_warmup
 compiler = JaxRDDLCompilerWithGrad(
     rddl=model,
     use64bit=True,
-    logic=FuzzyLogic(weight=1e7))
+    logic=FuzzyLogic(weight=15))
 compiler.compile()
 
 
@@ -56,8 +56,8 @@ def policy_fn(key, policy_params, hyperparams, step, states):
     return {'advance': FIXED_TIME_PLAN[step]}
 
 # obtain rollout sampler
-n_rollouts = 1
-n_batches = 8
+n_rollouts = 8
+n_batches = 1
 sampler = compiler.compile_rollouts(policy=policy_fn,
                                     n_steps=rollout_horizon,
                                     n_batch=n_rollouts)
@@ -84,25 +84,37 @@ with jax.disable_jit(disable=False):
             hyperparams=None,
             subs=train_subs,
             model_params=compiler.model_params)
-    GROUND_TRUTH_LOOPS = rollouts['pvar']['flow-into-link']
+#    GROUND_TRUTH_LOOPS = rollouts['pvar']['flow-into-link']
+    GROUND_TRUTH_LOOPS = rollouts['pvar']['flow-into-link'][:,:,11:]
     GROUND_TRUTH_RATES = base_rates
     vrates = jnp.copy(train_subs['SOURCE-ARRIVAL-RATE'])
 
     dim_batch = n_rollouts
     dim_input = 1
 
-    def policy_stoch(input):
+    def policy_stoch_params(input):
         mlp = hk.Sequential([
             hk.Linear(32), jax.nn.relu,
             hk.Linear(32), jax.nn.relu,
             hk.Linear(2)
         ])
-        mean, stdev = jnp.exp(mlp(input))/30
-        #print('mean and stdev=', mean, stdev)
-        rng = hk.next_rng_key()
+        mean, stdev = jnp.exp(mlp(input))/10
+        return mean, stdev
+
+    policy = hk.transform(policy_stoch_params)
+    key, subkey = jax.random.split(key)
+    input = jnp.ones([dim_input])
+    theta = policy.init(subkey, input)
+
+    def policy_stoch_pdf(theta, rng, a):
+        mean, stdev = policy.apply(theta, rng, jnp.array([1]))
+        return jax.scipy.stats.norm.pdf(a, loc=mean, scale=stdev)
+
+    def policy_stoch_sample(theta, rng):
+        mean, stdev = policy.apply(theta, rng, jnp.array([1]))
         normed_sample = jax.random.normal(rng, shape=(dim_batch,))
         actions = mean + stdev*normed_sample
-        return mean, stdev, actions
+        return actions
 
     def reward_stoch(rng, subs, actions):
         subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,1].set(actions)
@@ -112,7 +124,8 @@ with jax.disable_jit(disable=False):
             hyperparams=None,
             subs=subs,
             model_params=compiler.model_params)
-        return rollouts['pvar']['flow-into-link'] - GROUND_TRUTH_LOOPS
+#        return rollouts['pvar']['flow-into-link'] - GROUND_TRUTH_LOOPS
+        return rollouts['pvar']['flow-into-link'][:,:,11:] - GROUND_TRUTH_LOOPS
 
     def reward_determ(rng, subs):
         mlp = hk.Sequential([
@@ -142,20 +155,15 @@ with jax.disable_jit(disable=False):
 
     def reward_reinforce(rng, subs, actions):
         delta = reward_stoch(rng, subs, actions)
-        return jnp.sum(delta, axis=(1,2))
+        return jnp.sum(delta*delta, axis=(1,2))
 
     dJ_sgd = jax.grad(reward_sgd, argnums=2)
-
-    policy = hk.transform(policy_stoch)
-    key, subkey = jax.random.split(key)
-    input = jnp.ones([dim_input])
-    theta = policy.init(subkey, input)
 
     reward_sgd = hk.transform(reward_sgd)
 
 
     def sgd_update_rule(theta, update):
-        return theta - 1e-5*update
+        return theta - 1e-5 * update
 
     def sgd(key, n_iters, theta, input):
         X = np.arange(n_iters)
@@ -179,15 +187,17 @@ with jax.disable_jit(disable=False):
             updates = jax.tree_util.tree_map(lambda _: jnp.zeros(1), theta)
             for _ in range(n_batches):
                 key, *subkeys = jax.random.split(key, num=3)
-                mean, stdev, actions = policy.apply(theta, subkeys[0], input)
-                da = jax.jacrev(policy.apply)(theta, subkeys[0], input)[2]
+                mean, stdev = policy.apply(theta, subkeys[0], jnp.array([1]))
+                actions = policy_stoch_sample(theta, subkeys[0])
+                pi = policy_stoch_pdf(theta, subkeys[0], actions)
+                dpi = jax.jacrev(policy_stoch_pdf, argnums=0)(theta, subkeys[0], actions)
                 rewards = reward_reinforce(subkeys[1], train_subs, actions)
-                factors = rewards / (actions + 1e-8)
-                weighting_map = jax.vmap(
-                    scalar_mult, in_axes=0, out_axes=0)
+                factors = rewards / (pi + 1e-8)
+                weighting_map = jax.jit(jax.vmap(
+                    scalar_mult, in_axes=0, out_axes=0))
                 w = lambda x: jnp.mean(weighting_map(factors, x), axis=0)
 
-                u = jax.tree_util.tree_map(w, da)
+                u = jax.tree_util.tree_map(w, dpi)
                 updates = jax.tree_util.tree_map(lambda x, y: x+(y/n_batches), updates, u)
             theta = jax.tree_util.tree_map(sgd_update_rule, theta, updates)
 
@@ -202,7 +212,7 @@ with jax.disable_jit(disable=False):
     key, subkey = jax.random.split(key)
     X, Y, Ymean, Ystdev = reinforce(key=subkey, n_iters=100, theta=theta, input=input)
 
-    with open(f'img/reinforce_b{n_rollouts*n_batches}.json', 'w') as file:
+    with open(f'img/reinforce_b{n_rollouts*n_batches}_from11.json', 'w') as file:
         json.dump({
             'X': X.tolist(),
             'Y': Y.tolist(),
