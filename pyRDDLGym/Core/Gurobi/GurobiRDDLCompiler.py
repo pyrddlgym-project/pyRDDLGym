@@ -129,6 +129,7 @@ class GurobiRDDLCompiler:
     def _rollout(self, model, plan, params, subs):
         objective = 0
         all_action_vars = []
+        all_next_state_vars = []
         for step in range(self.horizon):
             
             # add action fluent variables to model
@@ -150,9 +151,11 @@ class GurobiRDDLCompiler:
             objective += reward
             
             # update state
+            all_next_state_vars.append({})
             for (state, next_state) in self.rddl.next_state.items():
                 subs[state] = subs[next_state]
-        return objective, all_action_vars
+                all_next_state_vars[-1][next_state] = subs[next_state]
+        return objective, all_action_vars, all_next_state_vars
     
     def _compile(self, init_values: Dict[str, object]=None) -> \
         Tuple[gurobipy.Model, List[Dict[str, object]]]:
@@ -167,7 +170,8 @@ class GurobiRDDLCompiler:
         params = self.plan.params(self, model)
         self.policy_params = params
         subs = self._compile_init_subs(init_values)  
-        objective, all_action_vars = self._rollout(model, self.plan, params, subs)
+        objective, all_action_vars, _ = self._rollout(
+            model, self.plan, params, subs)
         model.setObjective(objective, GRB.MAXIMIZE)
         return model, all_action_vars
     
