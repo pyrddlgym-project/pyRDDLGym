@@ -1,4 +1,5 @@
 import json 
+import numpy as np
 from typing import Dict
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
@@ -20,7 +21,7 @@ class GurobiExperiment:
         
     @staticmethod
     def _evaluate(world, policy, planner, n_steps, n_episodes):
-        avg_reward = 0.
+        returns = []
         for _ in range(n_episodes):
             world.reset()
             total_reward = 0.0
@@ -35,8 +36,8 @@ class GurobiExperiment:
                 total_reward += reward 
                 if done: 
                     break
-            avg_reward += total_reward / n_episodes
-        return avg_reward
+            returns.append(total_reward)
+        return returns
     
     @staticmethod
     def _to_dict(d) -> Dict:
@@ -85,18 +86,21 @@ class GurobiExperiment:
         
         # evaluate the baseline (i.e. no-op) policy
         log_dict = {}
-        avg_reward = GurobiExperiment._evaluate(
+        returns = GurobiExperiment._evaluate(
             world, None, planner, horizon, self.rollouts)
-        print(f'\naverage reward achieved: {avg_reward}\n')
-        log_dict[-1] = {'avg_reward': avg_reward}
+        print(f'\naverage return: {np.mean(returns)}\n')
+        log_dict[-1] = {'returns': returns, 'mean_return': np.mean(returns), 
+                        'std_return': np.std(returns)}
         
         # run the bi-level planner and evaluate at each iteration
         for callback in planner.solve(self.iters, float('nan')): 
-            avg_reward = GurobiExperiment._evaluate(
+            returns = GurobiExperiment._evaluate(
                 world, policy, planner, horizon, self.rollouts)
-            print(f'\naverage reward achieved: {avg_reward}\n')  
+            print(f'\naverage return: {np.mean(returns)}\n')  
             print('\nfinal policy:\n' + callback['policy_string']) 
-            callback['avg_reward'] = avg_reward
+            callback['returns'] = returns
+            callback['mean_return'] = np.mean(returns)
+            callback['std_return'] = np.std(returns)
             log_dict[callback['it']] = GurobiExperiment._to_dict(callback)
             
         # save log to file
