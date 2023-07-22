@@ -64,7 +64,7 @@ class GurobiReservoirExperiment(GurobiExperiment):
     def get_experiment_id_str(self):
         return f'{self.cases}_{self.linear_value}_{self._chance}' 
     
-    def prepare_plots(self, domain, inst, horizon, start_it=1): 
+    def prepare_plots(self, domain, inst, horizon, start_it=1, error=False): 
         id_strs = {'$\\mathrm{L}$': f'0_True_{self._chance}',
                    '$\\mathrm{PWS-C}$': f'1_False_{self._chance}',
                    '$\\mathrm{PWS-L}$': f'1_True_{self._chance}'}
@@ -72,10 +72,12 @@ class GurobiReservoirExperiment(GurobiExperiment):
                  for (k, v) in id_strs.items()}
         
         # return curves vs iteration with error bars
+        key = 'error' if error else 'mean_return'
+        label = 'error' if error else 'return'
         for st in id_strs:
             values = []
             for data in datas[st]:
-                values.append([it_data['mean_return'] for it_data in data.values()])
+                values.append([it_data.get(key, np.nan) for it_data in data.values()])
             if values:
                 values = np.asarray(values)
                 return_curve = np.mean(values, axis=0)[start_it:]
@@ -83,13 +85,18 @@ class GurobiReservoirExperiment(GurobiExperiment):
                 x = np.arange(1, return_curve.size + 1)
                 plt.errorbar(x, return_curve, yerr=return_std, label=st)
         plt.xlabel('$\\mathrm{epoch}$')
-        plt.ylabel('$\\mathrm{return}$')
+        plt.ylabel('$\\mathrm{' + label + '}$')
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
-        plt.legend(loc='lower right')
+        if error:
+            plt.legend(loc='upper right')
+        else:
+            plt.legend(loc='lower right')
         plt.tight_layout()
         plt.savefig(os.path.join(
-             'gurobi_results', f'{domain}_{inst}_{horizon}.pdf'))
+             'gurobi_results', f'{domain}_{inst}_{horizon}_{label}.pdf'))
+        plt.clf()
+        plt.close()
 
             
 if __name__ == "__main__":
