@@ -57,8 +57,9 @@ if __name__ == "__main__":
         inst, horizon, cases, chance = 1, 10, 1, 0.995
     else:
         inst, horizon, cases, chance = sys.argv[1:5]
-        horizon, cases, chance = int(horizon), int(cases), float(chance)      
-    experiment = GurobiReservoirExperiment(
-        cases=cases, linear_value=linear_value, chance=chance)
-    experiment.run(dom, inst, horizon)
+        horizon, cases, chance = int(horizon), int(cases), float(chance)   
+    for _ in range(5):   
+        experiment = GurobiReservoirExperiment(
+            cases=cases, linear_value=linear_value, chance=chance)
+        experiment.run(dom, inst, horizon)
     

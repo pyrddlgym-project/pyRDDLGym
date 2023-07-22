@@ -1,5 +1,6 @@
 import json 
 import numpy as np
+import time
 from typing import Dict
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
@@ -14,7 +15,12 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 class GurobiExperiment:
     
     def __init__(self, model_params: Dict={'Presolve': 2, 'OutputFlag': 1},
-                 iters: int=10, rollouts: int=100, **compiler_kwargs):
+                 iters: int=10, rollouts: int=100, seed: int=None, 
+                 **compiler_kwargs):
+        if seed is None:
+            seed = GurobiExperiment.seed_from_time()
+        model_params['Seed'] = seed
+        self.seed = seed
         self.model_params = model_params
         self.iters = iters
         self.rollouts = rollouts
@@ -54,6 +60,14 @@ class GurobiExperiment:
             res = d
         return res
     
+    @staticmethod
+    def seed_from_time():
+        t = int(time.time() * 1000.0)
+        seed = ((t & 0xff000000) >> 24) + ((t & 0x00ff0000) >> 8) + \
+               ((t & 0x0000ff00) << 8) + ((t & 0x000000ff) << 24)
+        seed = seed % 2000000000
+        return seed    
+         
     def get_policy(self, model: RDDLEnv) -> GurobiRDDLPlan:
         raise NotImplementedError
     
@@ -84,7 +98,7 @@ class GurobiExperiment:
         
         # build the evaluation environment
         world = RDDLGrounder(model._AST).Ground()
-        world = RDDLSimulator(world)    
+        world = RDDLSimulator(world, rng=np.random.default_rng(seed=self.seed))    
         
         # evaluate the baseline (i.e. no-op) policy
         log_dict = {}
@@ -107,5 +121,5 @@ class GurobiExperiment:
             
         # save log to file
         idstr = self.get_experiment_id_str()
-        with open(f'{domain}_{inst}_{horizon}_{idstr}.log', 'w') as file:
+        with open(f'{domain}_{inst}_{horizon}_{self.seed}_{idstr}.log', 'w') as file:
             json.dump(log_dict, file, indent=2)
