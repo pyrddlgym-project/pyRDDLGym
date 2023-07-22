@@ -438,12 +438,10 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
 class GurobiQuadraticPolicy(GurobiRDDLPlan):
     
     def __init__(self, *args,
-                 state_bounds: Dict[str, Tuple[float, float]]={},
                  action_clip_value: float=100.,
                  **kwargs) -> None:
         super(GurobiQuadraticPolicy, self).__init__(*args, **kwargs)
         self.action_clip_value = action_clip_value
-        self.state_bounds = state_bounds
         
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
@@ -563,7 +561,11 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
                 for state2 in states[i:]:
                     q_name = f'linear__{action}__{state1}__{state2}'
                     action_value += params[q_name][0].X * subs[state1] * subs[state2]
-            action_values[action] = action_value
+            
+            # bound to valid range
+            lb, ub = self._bounds(rddl, action)
+            action_values[action] = max(min(action_value, ub), lb)
+            
         return action_values
         
     def to_string(self, compiled: 'GurobiRDDLCompiler',
