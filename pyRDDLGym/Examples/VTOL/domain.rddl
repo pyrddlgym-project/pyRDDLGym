@@ -35,7 +35,7 @@ pvariables {
 
 cpfs {
     theta' =  max[-sin[h / l1], min[sin[h / l2], theta + T * omega]];
-    omega' = omega + (T / (m1 * l1 * l1 + m2 * l2 * l2)) * (g * (m2 * l2 - m1 * l1) * cos[theta] + 150 * l1 * F);
+    omega' = omega + (T / (m1 * l1 * l1 + m2 * l2 * l2)) * (g * (m2 * l2 - m1 * l1) * cos[theta] + 100 * l1 * F);
 };
 
 reward = -alpha * abs[F] - abs[theta' - goal];

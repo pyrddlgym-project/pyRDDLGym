@@ -44,12 +44,12 @@ class GurobiVTOLExperiment(GurobiExperiment):
     def get_experiment_id_str(self):
         return f'{self._chance}'
     
-    def prepare_policy_plot(self, domain, inst=0, horizon=6):
+    def prepare_policy_plot(self):
         
         def policy(theta, omega):
-            return 0.6206685409847967 + -8.836488823820638 * theta + \
-                -1.041761277800478 * omega + 34.76625526044426 * theta * theta + \
-                66.07315031611493 * theta * omega + 8.64200631418066 * omega * omega
+            return -0.38739016377776403 + -0.4742443203026949 * theta + \
+                -19.807301089794326 * omega + 100.0 * theta * theta + \
+                -100.0 * theta * omega + -81.09237718477412 * omega * omega
          
         n = 200
         thetas = np.linspace(-0.38, 0.71, n)
@@ -66,8 +66,7 @@ class GurobiVTOLExperiment(GurobiExperiment):
         plt.ylabel('$\\omega$')
         plt.colorbar(im, pad=0.03, fraction=0.09)
         plt.tight_layout()
-        plt.savefig(os.path.join(
-            'gurobi_results', f'{domain}_{inst}_{horizon}_policy.pdf'))
+        plt.savefig(os.path.join('gurobi_results', 'VTOL_policy.pdf'))
         plt.clf()
         plt.close()
 
