@@ -1,7 +1,24 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 import sys
 
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiPiecewisePolicy
 from pyRDDLGym.GurobiExperiment import GurobiExperiment
+
+# settings for pyplot
+SMALL_SIZE = 18
+MEDIUM_SIZE = 24
+BIGGER_SIZE = 28
+
+plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+plt.rcParams['text.usetex'] = True
 
 
 class GurobiReservoirExperiment(GurobiExperiment):
@@ -46,6 +63,33 @@ class GurobiReservoirExperiment(GurobiExperiment):
     
     def get_experiment_id_str(self):
         return f'{self.cases}_{self.linear_value}_{self._chance}' 
+    
+    def prepare_plots(self, domain, inst, horizon, start_it=1): 
+        id_strs = {'$\\mathrm{L}$': f'0_True_{self._chance}',
+                   '$\\mathrm{PWS-C}$': f'1_False_{self._chance}',
+                   '$\\mathrm{PWS-L}$': f'1_True_{self._chance}'}
+        datas = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
+                 for (k, v) in id_strs.items()}
+        
+        # return curves vs iteration with error bars
+        for st in id_strs:
+            values = []
+            for data in datas[st]:
+                values.append([it_data['mean_return'] for it_data in data.values()])
+            if values:
+                values = np.asarray(values)
+                return_curve = np.mean(values, axis=0)[start_it:]
+                return_std = np.std(values, axis=0)[start_it:] / np.sqrt(values.shape[0])
+                x = np.arange(1, return_curve.size + 1)
+                plt.errorbar(x, return_curve, yerr=return_std, label=st)
+        plt.xlabel('$\\mathrm{epoch}$')
+        plt.ylabel('$\\mathrm{return}$')
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.legend(loc='lower right')
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+             'gurobi_results', f'{domain}_{inst}_{horizon}.pdf'))
 
             
 if __name__ == "__main__":
