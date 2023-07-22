@@ -1,5 +1,7 @@
+import glob
 import json 
 import numpy as np
+import os
 import time
 from typing import Dict
 
@@ -47,20 +49,6 @@ class GurobiExperiment:
         return returns
     
     @staticmethod
-    def _to_dict(d) -> Dict:
-        if isinstance(d, (list, tuple)):
-            res = {}
-            for (i, v) in enumerate(d):
-                res[i] = GurobiExperiment._to_dict(v)
-        elif isinstance(d, dict):
-            res = {}
-            for (k, v) in d.items():
-                res[k] = GurobiExperiment._to_dict(v)
-        else:
-            res = d
-        return res
-    
-    @staticmethod
     def seed_from_time():
         t = int(time.time() * 1000.0)
         seed = ((t & 0xff000000) >> 24) + ((t & 0x00ff0000) >> 8) + \
@@ -68,6 +56,18 @@ class GurobiExperiment:
         seed = seed % 2000000000
         return seed    
          
+    @staticmethod
+    def load_json(domain: str, inst: int, horizon: int, id_str: str):
+        values = []
+        print(f'{domain}_{inst}_{horizon}_*_{id_str}.log')
+        for filepath in glob.glob(os.path.join(
+            'gurobi_results', 
+            f'{domain}_{inst}_{horizon}_*_{id_str}.log')):
+            print(f'loading {filepath}')
+            with open(filepath) as file:
+                values.append(json.load(file))
+        return values
+    
     def get_policy(self, model: RDDLEnv) -> GurobiRDDLPlan:
         raise NotImplementedError
     
@@ -117,9 +117,12 @@ class GurobiExperiment:
             callback['returns'] = returns
             callback['mean_return'] = np.mean(returns)
             callback['std_return'] = np.std(returns)
-            log_dict[callback['it']] = GurobiExperiment._to_dict(callback)
+            log_dict[callback['it']] = callback
             
         # save log to file
         idstr = self.get_experiment_id_str()
-        with open(f'{domain}_{inst}_{horizon}_{self.seed}_{idstr}.log', 'w') as file:
+        with open(os.path.join(
+            'gurobi_results', 
+            f'{domain}_{inst}_{horizon}_{self.seed}_{idstr}.log'), 'w') as file:
             json.dump(log_dict, file, indent=2)
+    
