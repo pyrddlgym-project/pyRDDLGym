@@ -38,7 +38,8 @@ if __name__ == "__main__":
         horizon, chance = 6, 0.995
     else:
         horizon, chance = sys.argv[1:3]
-        horizon, chance = int(horizon), float(chance)     
-    experiment = GurobiVTOLExperiment(chance=chance)
-    experiment.run(dom, 0, horizon)
+        horizon, chance = int(horizon), float(chance)    
+    for _ in range(5): 
+        experiment = GurobiVTOLExperiment(chance=chance)
+        experiment.run(dom, 0, horizon)
     

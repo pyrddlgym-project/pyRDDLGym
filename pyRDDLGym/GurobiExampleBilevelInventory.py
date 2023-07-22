@@ -59,8 +59,9 @@ if __name__ == "__main__":
     else:
         inst, horizon, cases, chance = sys.argv[1:5]
         horizon, cases, chance = int(horizon), int(cases), float(chance)    
-    experiment = GurobiInventoryExperiment(
-        cases=cases, linear_value=linear_value, chance=chance)
-    experiment.run(dom, inst, horizon)
+    for _ in range(5):
+        experiment = GurobiInventoryExperiment(
+            cases=cases, linear_value=linear_value, chance=chance)
+        experiment.run(dom, inst, horizon)
     
 
