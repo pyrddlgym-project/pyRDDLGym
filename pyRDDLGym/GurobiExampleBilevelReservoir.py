@@ -23,12 +23,14 @@ plt.rcParams['text.usetex'] = True
 
 class GurobiReservoirExperiment(GurobiExperiment):
     
-    def __init__(self, *args, cases: int=1, linear_value: bool=False, **kwargs):
+    def __init__(self, *args, cases: int=1, linear_value: bool=False,
+                 factored: bool=True, **kwargs):
         super(GurobiReservoirExperiment, self).__init__(*args, **kwargs)
         if linear_value:
             self.model_params['NonConvex'] = 2
         self.cases = cases
         self.linear_value = linear_value
+        self.factored = factored
         self._chance = kwargs['chance']
         
     def get_policy(self, model):
@@ -40,10 +42,13 @@ class GurobiReservoirExperiment(GurobiExperiment):
                          'release___t2': (0, 200),
                          'release___t3': (0, 400),
                          'release___t4': (0, 500)}
-        dependencies = {'release___t1': ['rlevel___t1'],
-                        'release___t2': ['rlevel___t2'],
-                        'release___t3': ['rlevel___t3'],
-                        'release___t4': ['rlevel___t4']}
+        if self.factored:
+            dependencies = {'release___t1': ['rlevel___t1'],
+                            'release___t2': ['rlevel___t2'],
+                            'release___t3': ['rlevel___t3'],
+                            'release___t4': ['rlevel___t4']}
+        else:
+            dependencies = None
     
         policy = GurobiPiecewisePolicy(
             action_bounds=action_bounds,
@@ -64,7 +69,7 @@ class GurobiReservoirExperiment(GurobiExperiment):
     def get_experiment_id_str(self):
         return f'{self.cases}_{self.linear_value}_{self._chance}' 
     
-    def prepare_plots(self, domain, inst, horizon, start_it=1, error=False): 
+    def prepare_simulation_plots(self, domain, inst, horizon, start_it=1, error=False): 
         id_strs = {'$\\mathrm{L}$': f'0_True_{self._chance}',
                    '$\\mathrm{PWS-C}$': f'1_False_{self._chance}',
                    '$\\mathrm{PWS-L}$': f'1_True_{self._chance}'}
@@ -74,7 +79,7 @@ class GurobiReservoirExperiment(GurobiExperiment):
         # return curves vs iteration with error bars
         key = 'error' if error else 'mean_return'
         label = 'error' if error else 'return'
-        plt.figure(figsize=(6.4, 3.6))
+        plt.figure(figsize=(6.4, 3.2))
         for st in id_strs:
             values = []
             for data in datas[st]:
@@ -99,17 +104,57 @@ class GurobiReservoirExperiment(GurobiExperiment):
         plt.clf()
         plt.close()
 
+    def prepare_policy_plot(self, domain, inst, horizon):
+        
+        def pws_c(level):
+            r1 = 5.258950722464834 if level >= 20.0 and level <= 73.98223240131068 else 32.66944349781649
+            r2 = 19.944748098808862 if level >= 1.1233798230275625 and level <= 162.24675964605626 else 74.19159837441754
+            r3 = 22.479484620174745 if level >= 39.99999999999986 and level <= 137.4354363527234 else 91.7450350167259
+            return (r1, r2, r3)
+        
+        def pws_l(level):
+            r1 = 2.442770810130966 + 0.0 * level if level >= 17.66596188384031 and level <= 69.88017050753558 else 43.19908300223227 + 0.0006996429874287747 * level
+            r2 = 0.5615733378292518 + 0.11519666638587732 * level if level >= 27.665961883840197 and level <= 100.00000000000004 else 82.29421914403906 + 0.0 * level
+            r3 = 0.0 + 0.32473268362836244 * level if level >= 37.66596188384028 and level <= 150.16130570243052 else 142.51100357900523 + 0.18827389288118004 * level
+            return (r1, r2, r3)
             
+        policies = {'pwsc': pws_c, 'pwsl': pws_l}
+        levels = list(range(40, 400))
+        
+        for key, policy in policies.items():
+            rs = [[] for _ in range(3)]
+            for stock in levels:
+                r = policy(stock)
+                for ri, rsi in zip(r, rs):
+                    rsi.append(ri)
+            plt.figure(figsize=(6.4, 3.2))
+            for i, rsi in enumerate(rs):
+                plt.plot(levels, rsi, label='$\mathrm{reservoir_' + str(i + 1) + '}$') 
+            plt.xlabel('$\\mathrm{level}_i$')
+            plt.ylabel('$\\mathrm{release}_i$')
+            plt.gca().spines['top'].set_visible(False)
+            plt.gca().spines['right'].set_visible(False)
+            plt.legend(loc='upper right')
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                'gurobi_results', f'{domain}_{inst}_{horizon}_{key}_policy.pdf'))
+        
+        
 if __name__ == "__main__":
     dom = 'Reservoir linear'
     linear_value = False
+    factored = True
     if len(sys.argv) < 5:
         inst, horizon, cases, chance = 1, 10, 1, 0.995
     else:
         inst, horizon, cases, chance = sys.argv[1:5]
         horizon, cases, chance = int(horizon), int(cases), float(chance)   
-    for _ in range(5):   
+    for _ in range(5): 
         experiment = GurobiReservoirExperiment(
-            cases=cases, linear_value=linear_value, chance=chance)
+            cases=cases,
+            linear_value=linear_value,
+            factored=factored,
+            chance=chance
+        )
         experiment.run(dom, inst, horizon)
-    
+
