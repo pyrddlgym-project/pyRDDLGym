@@ -42,8 +42,8 @@ class GurobiReservoirExperiment(GurobiExperiment):
     def get_state_init_bounds(self, model):
         state_init_bounds = {'rlevel___t1': (50, 100),
                              'rlevel___t2': (100, 200),
-                             'rlevel___t3': (200, 400),
-                             'rlevel___t4': (300, 500)}
+                             'rlevel___t3': (250, 350),
+                             'rlevel___t4': (350, 450)}
         return state_init_bounds
     
     def get_experiment_id_str(self):
