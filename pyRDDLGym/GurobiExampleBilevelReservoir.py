@@ -74,6 +74,7 @@ class GurobiReservoirExperiment(GurobiExperiment):
         # return curves vs iteration with error bars
         key = 'error' if error else 'mean_return'
         label = 'error' if error else 'return'
+        plt.figure(figsize=(6.4, 3.6))
         for st in id_strs:
             values = []
             for data in datas[st]:
@@ -84,7 +85,7 @@ class GurobiReservoirExperiment(GurobiExperiment):
                 return_std = np.std(values, axis=0)[start_it:] / np.sqrt(values.shape[0])
                 x = np.arange(1, return_curve.size + 1)
                 plt.errorbar(x, return_curve, yerr=return_std, label=st)
-        plt.xlabel('$\\mathrm{epoch}$')
+        plt.xlabel('$\\mathrm{iteration}$')
         plt.ylabel('$\\mathrm{' + label + '}$')
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
