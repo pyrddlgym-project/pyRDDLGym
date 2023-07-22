@@ -9,6 +9,7 @@ class GurobiVTOLExperiment(GurobiExperiment):
     def __init__(self, *args, **kwargs):
         super(GurobiVTOLExperiment, self).__init__(*args, iters=5, rollouts=1, **kwargs)
         self.model_params['NonConvex'] = 2
+        self.model_params['MIPGap'] = 0.02
         self._chance = kwargs['chance']
         
     def get_policy(self, model):

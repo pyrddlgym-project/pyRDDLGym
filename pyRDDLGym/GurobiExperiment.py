@@ -141,7 +141,7 @@ class GurobiExperiment:
             f'{domain}_{inst}_{horizon}_{self.seed}_{idstr}.log'), 'w') as file:
             json.dump(log_dict, file, indent=2)
     
-    def prepare_plots(self, domain, inst, horizon): 
+    def prepare_plots(self, domain, inst, horizon, start_it=0): 
         id_str = self.get_experiment_id_str()
         datas = GurobiExperiment.load_json(domain, inst, horizon, id_str)
         
@@ -151,8 +151,8 @@ class GurobiExperiment:
             values.append([it_data['mean_return'] for it_data in data.values()])
         if values:
             values = np.asarray(values)
-            return_curve = np.mean(values, axis=0)[1:]
-            return_std = np.std(values, axis=0)[1:] / np.sqrt(values.shape[0])
+            return_curve = np.mean(values, axis=0)[start_it:]
+            return_std = np.std(values, axis=0)[start_it:] / np.sqrt(values.shape[0])
             x = np.arange(1, return_curve.size + 1)
             plt.plot(x, return_curve, color='black')
             plt.errorbar(x, return_curve, yerr=return_std, color='black')
