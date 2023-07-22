@@ -7,11 +7,9 @@ from pyRDDLGym.GurobiExperiment import GurobiExperiment
 class GurobiInventoryExperiment(GurobiExperiment):
     
     def __init__(self, *args, cases: int=1, linear_value: bool=False, **kwargs):
-        model_params = {'Presolve': 2, 'OutputFlag': 1}
+        super(GurobiInventoryExperiment, self).__init__(*args, **kwargs)
         if linear_value:
-            model_params['NonConvex'] = 2
-        super(GurobiInventoryExperiment, self).__init__(
-            *args, model_params=model_params, **kwargs)
+            self.model_params['NonConvex'] = 2
         self.cases = cases
         self.linear_value = linear_value
         self._chance = kwargs['chance']
