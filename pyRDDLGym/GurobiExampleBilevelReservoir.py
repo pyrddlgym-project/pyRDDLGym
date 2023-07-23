@@ -138,8 +138,64 @@ class GurobiReservoirExperiment(GurobiExperiment):
             plt.tight_layout()
             plt.savefig(os.path.join(
                 'gurobi_results', f'{domain}_{inst}_{horizon}_{key}_policy.pdf'))
+    
+    def prepare_worst_case_analysis(self, domain, inst, horizon):
+        id_str = self.get_experiment_id_str()
+        data = GurobiExperiment.load_json(domain, inst, horizon, id_str)[0]
+        data = data['0']
+        ws0 = data['worst_state']
+        wss = data['worst_next_states']
+        wa = data['worst_action']
+        ris, ria = [], []
+        for res in range(1, 4):
+            ri = [ws0[f'rlevel___t{res}'][0]] + [d[f'rlevel___t{res}\''] for d in wss]
+            ris.append(ri)
+            ria.append([d[f'release___t{res}'] for d in wa])
         
+        # plot state trajectory
+        plt.figure(figsize=(6.4, 3.2))
+        xs = np.arange(len(ris[0]))
+        plt.bar(xs - 0.2, ris[0], width=0.2, label='$\mathrm{reservoir_1}$')
+        plt.bar(xs + 0.0, ris[1], width=0.2, label='$\mathrm{reservoir_2}$')
+        plt.bar(xs + 0.2, ris[2], width=0.2, label='$\mathrm{reservoir_3}$')
+        plt.axhline(y=20, color='blue', linestyle='dotted', linewidth=1)
+        plt.axhline(y=80, color='blue', linestyle='dotted', linewidth=1)
+        plt.axhline(y=30, color='orange', linestyle='dotted', linewidth=1)
+        plt.axhline(y=180, color='orange', linestyle='dotted', linewidth=1)
+        plt.axhline(y=40, color='green', linestyle='dotted', linewidth=1)
+        plt.axhline(y=380, color='green', linestyle='dotted', linewidth=1)
+        plt.xlabel('$\\mathrm{epoch}$')
+        plt.ylabel('$\\mathrm{level}_i$')
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_states.pdf'))
+        plt.clf()
+        plt.close()
         
+        # plot control sequence
+        plt.figure(figsize=(6.4, 3.2))
+        plt.bar(xs[:-1] - 0.2, ria[0], width=0.2, label='$\mathrm{reservoir_1}$')
+        plt.bar(xs[:-1] + 0.0, ria[1], width=0.2, label='$\mathrm{reservoir_2}$')
+        plt.bar(xs[:-1] + 0.2, ria[2], width=0.2, label='$\mathrm{reservoir_3}$')
+        plt.axhline(y=0, color='blue', linestyle='dotted', linewidth=1)
+        plt.axhline(y=100, color='blue', linestyle='dotted', linewidth=1)
+        plt.axhline(y=0, color='orange', linestyle='dotted', linewidth=1)
+        plt.axhline(y=200, color='orange', linestyle='dotted', linewidth=1)
+        plt.axhline(y=0, color='green', linestyle='dotted', linewidth=1)
+        plt.axhline(y=400, color='green', linestyle='dotted', linewidth=1)
+        plt.xlabel('$\\mathrm{epoch}$')
+        plt.ylabel('$\\mathrm{release}_i$')
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_controls.pdf'))
+        plt.clf()
+        plt.close()
+
+
 if __name__ == "__main__":
     dom = 'Reservoir linear'
     linear_value = False

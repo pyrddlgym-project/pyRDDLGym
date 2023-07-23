@@ -68,7 +68,7 @@ class GurobiExperiment:
             f'{domain}_{inst}_{horizon}_*_{id_str}.log')):
             print(f'loading {filepath}')
             with open(filepath) as file:
-                values.append(json.load(file))
+                values.append(json.load(file, strict=False))
         return values
     
     def get_policy(self, model: RDDLEnv) -> GurobiRDDLPlan:
