@@ -68,12 +68,13 @@ class GurobiInventoryExperiment(GurobiExperiment):
         return state_init_bounds
     
     def get_experiment_id_str(self):
-        return f'{self.cases}_{self.linear_value}_{self._chance}'
+        return f'{self.cases}_{self.linear_value}_{self.factored}_{self._chance}'
 
     def prepare_simulation_plots(self, domain, inst, horizon, start_it=1, error=False): 
-        id_strs = {'$\\mathrm{L}$': f'0_True_{self._chance}',
-                   '$\\mathrm{PWS-C}$': f'1_False_{self._chance}',
-                   '$\\mathrm{PWS-L}$': f'1_True_{self._chance}'}
+        id_strs = {'$\\mathrm{S}$': f'0_True_True_{self._chance}',
+                   '$\\mathrm{PWS-C}$': f'1_False_True_{self._chance}',
+                   '$\\mathrm{PWS-S}$': f'1_True_True_{self._chance}',
+                   '$\\mathrm{PWL-L}$': f'1_True_False_{self._chance}'}
         datas = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
                  for (k, v) in id_strs.items()}
         
@@ -112,12 +113,7 @@ class GurobiInventoryExperiment(GurobiExperiment):
             r2 = 8.0 if level >= 0.0 and level <= 0.135 else 2.0
             return (r1, r2)
         
-        def pws_l(level):
-            r1 = 6.0 + 0.0 * level if level >= 0.0 and level <= 0.135 else 0.0 + 0.0 * level
-            r2 = 8.0 + 0.0 * level if level >= 0.0 and level <= 0.134 else 2.0 + 0.0 * level
-            return (r1, r2)
-        
-        policies = {'pwsc': pws_c, 'pwsl': pws_l}
+        policies = {'pwsc': pws_c}
         stocks = list(range(0, 20))
         
         for key, policy in policies.items():

@@ -67,12 +67,13 @@ class GurobiReservoirExperiment(GurobiExperiment):
         return state_init_bounds
     
     def get_experiment_id_str(self):
-        return f'{self.cases}_{self.linear_value}_{self._chance}' 
+        return f'{self.cases}_{self.linear_value}_{self.factored}_{self._chance}' 
     
     def prepare_simulation_plots(self, domain, inst, horizon, start_it=1, error=False): 
-        id_strs = {'$\\mathrm{L}$': f'0_True_{self._chance}',
-                   '$\\mathrm{PWS-C}$': f'1_False_{self._chance}',
-                   '$\\mathrm{PWS-L}$': f'1_True_{self._chance}'}
+        id_strs = {'$\\mathrm{S}$': f'0_True_True_{self._chance}',
+                   '$\\mathrm{PWS-C}$': f'1_False_True_{self._chance}',
+                   '$\\mathrm{PWS-S}$': f'1_True_True_{self._chance}',
+                   '$\\mathrm{PWL-L}$': f'1_True_False_{self._chance}'}
         datas = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
                  for (k, v) in id_strs.items()}
         
@@ -106,19 +107,13 @@ class GurobiReservoirExperiment(GurobiExperiment):
 
     def prepare_policy_plot(self, domain, inst, horizon):
         
-        def pws_c(level):
-            r1 = 5.258950722464834 if level >= 20.0 and level <= 73.98223240131068 else 32.66944349781649
-            r2 = 19.944748098808862 if level >= 1.1233798230275625 and level <= 162.24675964605626 else 74.19159837441754
-            r3 = 22.479484620174745 if level >= 39.99999999999986 and level <= 137.4354363527234 else 91.7450350167259
-            return (r1, r2, r3)
-        
-        def pws_l(level):
+        def pws_s(level):
             r1 = 2.442770810130966 + 0.0 * level if level >= 17.66596188384031 and level <= 69.88017050753558 else 43.19908300223227 + 0.0006996429874287747 * level
             r2 = 0.5615733378292518 + 0.11519666638587732 * level if level >= 27.665961883840197 and level <= 100.00000000000004 else 82.29421914403906 + 0.0 * level
             r3 = 0.0 + 0.32473268362836244 * level if level >= 37.66596188384028 and level <= 150.16130570243052 else 142.51100357900523 + 0.18827389288118004 * level
             return (r1, r2, r3)
             
-        policies = {'pwsc': pws_c, 'pwsl': pws_l}
+        policies = {'pwss': pws_s}
         levels = list(range(40, 400))
         
         for key, policy in policies.items():

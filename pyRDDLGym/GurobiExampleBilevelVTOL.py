@@ -52,8 +52,8 @@ class GurobiVTOLExperiment(GurobiExperiment):
                 -100.0 * theta * omega + -81.09237718477412 * omega * omega
          
         n = 200
-        thetas = np.linspace(-0.38, 0.71, n)
-        omegas = np.linspace(-2.0, 2.0, n)
+        thetas = np.linspace(-0.1, 0.1, n)
+        omegas = np.linspace(-0.5, 0.5, n)
         data = np.zeros((n, n))
         for io in range(n):
             for it in range(n):
@@ -61,7 +61,7 @@ class GurobiVTOLExperiment(GurobiExperiment):
         data = np.clip(data, -1, 1)
         data = data[::-1,:]
         plt.figure(figsize=(6.4, 3.2))
-        im = plt.imshow(data, extent=[-0.38, 0.71, -2, 2], aspect=0.12, cmap='seismic')
+        im = plt.imshow(data, extent=[-0.1, 0.1, -0.5, 0.5], aspect=0.1, cmap='seismic')
         plt.xlabel('$\\theta$')
         plt.ylabel('$\\omega$')
         plt.colorbar(im, pad=0.03, fraction=0.09)
@@ -105,4 +105,3 @@ if __name__ == "__main__":
     for _ in range(5): 
         experiment = GurobiVTOLExperiment(chance=chance)
         experiment.run(dom, 0, horizon)
-    
