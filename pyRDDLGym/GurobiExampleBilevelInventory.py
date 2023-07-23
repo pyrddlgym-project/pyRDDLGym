@@ -8,8 +8,8 @@ from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 # settings for pyplot
 SMALL_SIZE = 18
-MEDIUM_SIZE = 24
-BIGGER_SIZE = 28
+MEDIUM_SIZE = 20
+BIGGER_SIZE = 22
 
 plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
@@ -137,6 +137,70 @@ class GurobiInventoryExperiment(GurobiExperiment):
             plt.tight_layout()
             plt.savefig(os.path.join(
                 'gurobi_results', f'{domain}_{inst}_{horizon}_{key}_policy.pdf'))
+
+    def prepare_worst_case_analysis(self, domain, inst, horizon):
+        id_str = self.get_experiment_id_str()
+        data = GurobiExperiment.load_json(domain, inst, horizon, id_str)[0]
+        data = data['9']
+        ws0 = data['worst_state']
+        wss = data['worst_next_states']
+        wa = data['worst_action']
+        noise = data['worst_noise']['uniform']
+        noise = [xi[0] for xi in noise.values()]
+        ris, ria = [], []
+        rid1, rid2 = [], []
+        for res in range(1, 3):
+            ri = [ws0[f'stock___i{res}'][0]] + [d[f'stock___i{res}\''] for d in wss]
+            ris.append(ri)
+            ria.append([d[f'order___i{res}'] for d in wa])
+        for it in range(0, 20, 2):
+            rid1.append(noise[it])
+            rid2.append(noise[it + 1])
+            
+        # plot state trajectory
+        plt.figure(figsize=(6.4, 3.2))
+        xs = np.arange(len(ris[0]))
+        plt.bar(xs - 0.2, ris[0], width=0.4, label='$\mathrm{stock_1}$')
+        plt.bar(xs + 0.2, ris[1], width=0.4, label='$\mathrm{stock_2}$')
+        plt.xlabel('$\\mathrm{epoch}$')
+        plt.ylabel('$\\mathrm{stock}_i$')
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_states.pdf'))
+        plt.clf()
+        plt.close()
+        
+        # plot worst demand
+        plt.figure(figsize=(6.4, 3.2))
+        plt.bar(xs[:-1] - 0.2, rid1, width=0.4, label='$i1$')
+        plt.bar(xs[:-1] + 0.2, rid2, width=0.4, label='$i2$')
+        plt.xlabel('$\\mathrm{epoch}$')
+        plt.ylabel('$\\mathrm{demand}_i$')
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.legend(loc='upper left')
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_demand.pdf'))
+        plt.clf()
+        plt.close()
+        
+        # plot control sequence
+        plt.figure(figsize=(6.4, 3.2))
+        plt.bar(xs[:-1] - 0.2, ria[0], width=0.4, label='$\mathrm{reorder_1}$')
+        plt.bar(xs[:-1] + 0.2, ria[1], width=0.4, label='$\mathrm{reorder_2}$')
+        plt.xlabel('$\\mathrm{epoch}$')
+        plt.ylabel('$\\mathrm{reorder}_i$')
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_controls.pdf'))
+        plt.clf()
+        plt.close()
+
 
 if __name__ == "__main__":
     dom = 'Inventory continuous'
