@@ -8,8 +8,8 @@ from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 # settings for pyplot
 SMALL_SIZE = 18
-MEDIUM_SIZE = 24
-BIGGER_SIZE = 28
+MEDIUM_SIZE = 20
+BIGGER_SIZE = 22
 
 plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
@@ -142,15 +142,22 @@ class GurobiReservoirExperiment(GurobiExperiment):
     def prepare_worst_case_analysis(self, domain, inst, horizon):
         id_str = self.get_experiment_id_str()
         data = GurobiExperiment.load_json(domain, inst, horizon, id_str)[0]
-        data = data['0']
+        data = data['9']
         ws0 = data['worst_state']
         wss = data['worst_next_states']
         wa = data['worst_action']
+        noise = data['worst_noise']['normal']
+        noise = [max(xi[0], 0) for xi in noise.values()]
         ris, ria = [], []
+        rir1, rir2, rir3 = [], [], []
         for res in range(1, 4):
             ri = [ws0[f'rlevel___t{res}'][0]] + [d[f'rlevel___t{res}\''] for d in wss]
             ris.append(ri)
             ria.append([d[f'release___t{res}'] for d in wa])
+        for it in range(0, 30, 3):
+            rir1.append(noise[it])
+            rir2.append(noise[it + 1])
+            rir3.append(noise[it + 2])
         
         # plot state trajectory
         plt.figure(figsize=(6.4, 3.2))
@@ -171,6 +178,22 @@ class GurobiReservoirExperiment(GurobiExperiment):
         plt.tight_layout()
         plt.savefig(os.path.join(
             'gurobi_results', f'{domain}_{inst}_{horizon}_worst_states.pdf'))
+        plt.clf()
+        plt.close()
+        
+        # plot worst rainfall
+        plt.figure(figsize=(6.4, 3.2))
+        plt.bar(xs[:-1] - 0.2, rir1, width=0.2, label='$r1$')
+        plt.bar(xs[:-1] + 0.0, rir2, width=0.2, label='$r2$')
+        plt.bar(xs[:-1] + 0.2, rir3, width=0.2, label='$r3$')
+        plt.xlabel('$\\mathrm{epoch}$')
+        plt.ylabel('$\\mathrm{rainfall}_i$')
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.legend(loc='upper left')
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_rainfall.pdf'))
         plt.clf()
         plt.close()
         

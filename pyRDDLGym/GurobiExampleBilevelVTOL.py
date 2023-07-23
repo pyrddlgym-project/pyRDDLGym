@@ -7,9 +7,9 @@ from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiQuadraticPolicy
 from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 # settings for pyplot
-SMALL_SIZE = 20
-MEDIUM_SIZE = 24
-BIGGER_SIZE = 28
+SMALL_SIZE = 18
+MEDIUM_SIZE = 20
+BIGGER_SIZE = 22
 
 plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
@@ -69,8 +69,32 @@ class GurobiVTOLExperiment(GurobiExperiment):
         plt.savefig(os.path.join('gurobi_results', 'VTOL_policy.pdf'))
         plt.clf()
         plt.close()
-
-
+    
+    def prepare_worst_case_analysis(self):
+        id_str = self.get_experiment_id_str()
+        data = GurobiExperiment.load_json('VTOL', 0, 6, id_str)[0]
+        data = data['0']
+        ws0 = data['worst_state']
+        wss = data['worst_next_states']
+        wa = data['worst_action']
+        thetas = [ws0['theta'][0]] + [d['theta\''] for d in wss]
+        omegas = [ws0['omega'][0]] + [d['omega\''] for d in wss]
+        forces = [d['F'] for d in wa]
+        
+        plt.figure(figsize=(6.4, 3.2))
+        xs = np.arange(len(thetas))
+        plt.plot(xs, thetas, label='$\\theta$')
+        plt.plot(xs, omegas, label='$\\omega$')
+        plt.plot(xs, forces + [np.nan], label='$F$')
+        plt.xlabel('$\mathrm{epoch}$')
+        plt.ylabel('$\mathrm{value}$')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(os.path.join('gurobi_results', 'VTOL_worst.pdf'))
+        plt.clf()
+        plt.close()
+        
+        
 if __name__ == "__main__":
     dom = 'VTOL'
     if len(sys.argv) < 3:
