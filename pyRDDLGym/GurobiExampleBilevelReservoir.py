@@ -24,13 +24,13 @@ plt.rcParams['text.usetex'] = True
 class GurobiReservoirExperiment(GurobiExperiment):
     
     def __init__(self, *args, cases: int=1, linear_value: bool=False,
-                 factored: bool=True, **kwargs):
+                 factored_value: bool=True, **kwargs):
         super(GurobiReservoirExperiment, self).__init__(*args, **kwargs)
         if linear_value:
             self.model_params['NonConvex'] = 2
         self.cases = cases
         self.linear_value = linear_value
-        self.factored = factored
+        self.factored_value = factored_value
         self._chance = kwargs['chance']
         
     def get_policy(self, model):
@@ -42,18 +42,21 @@ class GurobiReservoirExperiment(GurobiExperiment):
                          'release___t2': (0, 200),
                          'release___t3': (0, 400),
                          'release___t4': (0, 500)}
-        if self.factored:
-            dependencies = {'release___t1': ['rlevel___t1'],
-                            'release___t2': ['rlevel___t2'],
-                            'release___t3': ['rlevel___t3'],
-                            'release___t4': ['rlevel___t4']}
+        
+        dependencies_constr = {'release___t1': ['rlevel___t1'],
+                               'release___t2': ['rlevel___t2'],
+                               'release___t3': ['rlevel___t3'],
+                               'release___t4': ['rlevel___t4']}
+        if self.factored_value:
+            dependencies_values = dependencies_constr
         else:
-            dependencies = None
+            dependencies_values = None
     
         policy = GurobiPiecewisePolicy(
             action_bounds=action_bounds,
             state_bounds=state_bounds,
-            dependencies=dependencies,
+            dependencies_constr=dependencies_constr,
+            dependencies_values=dependencies_values,
             num_cases=self.cases,
             linear_value=self.linear_value
         )
@@ -67,13 +70,12 @@ class GurobiReservoirExperiment(GurobiExperiment):
         return state_init_bounds
     
     def get_experiment_id_str(self):
-        return f'{self.cases}_{self.linear_value}_{self.factored}_{self._chance}' 
+        return f'{self.cases}_{self.linear_value}_{self.factored_value}_{self._chance}' 
     
     def prepare_simulation_plots(self, domain, inst, horizon, start_it=1, error=False): 
         id_strs = {'$\\mathrm{S}$': f'0_True_True_{self._chance}',
                    '$\\mathrm{PWS-C}$': f'1_False_True_{self._chance}',
-                   '$\\mathrm{PWS-S}$': f'1_True_True_{self._chance}',
-                   '$\\mathrm{PWL-L}$': f'1_True_False_{self._chance}'}
+                   '$\\mathrm{PWS-S}$': f'1_True_True_{self._chance}'}
         datas = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
                  for (k, v) in id_strs.items()}
         
@@ -97,8 +99,6 @@ class GurobiReservoirExperiment(GurobiExperiment):
         plt.gca().spines['right'].set_visible(False)
         if error:
             plt.legend(loc='upper right')
-        else:
-            plt.legend(loc='lower right')
         plt.tight_layout()
         plt.savefig(os.path.join(
              'gurobi_results', f'{domain}_{inst}_{horizon}_{label}.pdf'))
@@ -217,7 +217,7 @@ class GurobiReservoirExperiment(GurobiExperiment):
 if __name__ == "__main__":
     dom = 'Reservoir linear'
     linear_value = False
-    factored = True
+    factored_value = True
     if len(sys.argv) < 5:
         inst, horizon, cases, chance = 1, 10, 1, 0.995
     else:
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         experiment = GurobiReservoirExperiment(
             cases=cases,
             linear_value=linear_value,
-            factored=factored,
+            factored_value=factored_value,
             chance=chance
         )
         experiment.run(dom, inst, horizon)
