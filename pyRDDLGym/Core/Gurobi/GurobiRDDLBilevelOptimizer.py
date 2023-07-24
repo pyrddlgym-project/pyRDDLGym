@@ -119,15 +119,17 @@ class GurobiRDDLBilevelOptimizer:
             print('\nSOLVING INNER PROBLEM:\n')
             start_time = time.time()
             worst_val_slp, worst_val_pol, worst_action, \
-            worst_state, worst_noise, worst_next_states = \
+            worst_state, worst_noise, worst_next_states, inner_stats = \
                 self._solve_inner_problem(param_values)
             elapsed_time_inner = time.time() - start_time
             
             # solve outer problem for policy
             print('\nADDING CONSTRAINT AND SOLVING OUTER PROBLEM:\n')
             start_time = time.time()
-            worst_val_pol_outer, param_values = self._resolve_outer_problem(
-                worst_val_slp, worst_state, worst_noise, compiler, outer_model, params)
+            worst_val_pol_outer, param_values, outer_stats = \
+                self._resolve_outer_problem(
+                    worst_val_slp, worst_state, worst_noise, 
+                    compiler, outer_model, params)
             elapsed_time_outer = time.time() - start_time
             
             # check stopping condition
@@ -149,7 +151,9 @@ class GurobiRDDLBilevelOptimizer:
                 'params': param_values,
                 'elapsed_time_inner': elapsed_time_inner,
                 'elapsed_time_outer': elapsed_time_outer,
-                'policy_string': self.policy.to_string(compiler, params)
+                'policy_string': self.policy.to_string(compiler, params),
+                'inner_model_stats': inner_stats,
+                'outer_model_stats': outer_stats
             }
             if converged:
                 break
@@ -168,6 +172,21 @@ class GurobiRDDLBilevelOptimizer:
         model.update()
         return compiler, model, params
     
+    def _model_stats(self, model):        
+        model_stats = {
+            'variables': model.NumVars,
+            'integer_variables': model.NumIntVars,
+            'binary_variables': model.NumBinVars,
+            'piecewise_linear_variables': model.NumPWLObjVars,
+            'linear_constraints': model.NumConstrs,
+            'SOS_constraints': model.NumSOS,
+            'quadratic_constraints': model.NumQConstrs,
+            'general_constraints': model.NumGenConstrs,
+            'gap': model.MIPGap,
+            'runtime': model.Runtime
+        }
+        return model_stats
+        
     def _solve_inner_problem(self, param_values):
         
         # model for straight line plan
@@ -235,9 +254,10 @@ class GurobiRDDLBilevelOptimizer:
             worst_next_states.append(next_states_val)
         
         # release the model resources
+        model_stats = self._model_stats(model)
         model.dispose()
         return worst_value_slp, worst_value_pol, worst_action, \
-            worst_state, worst_noise, worst_next_states
+            worst_state, worst_noise, worst_next_states, model_stats
     
     def _resolve_outer_problem(self, worst_value_slp: float,
                                worst_state: Dict[str, object],
@@ -261,5 +281,6 @@ class GurobiRDDLBilevelOptimizer:
         model.optimize()
         param_values = {name: value[0].X for (name, value) in policy_params.items()}
         worst_value_pol = value_pol.getValue()
-        return worst_value_pol, param_values
+        model_stats = self._model_stats(model)
+        return worst_value_pol, param_values, model_stats
     
