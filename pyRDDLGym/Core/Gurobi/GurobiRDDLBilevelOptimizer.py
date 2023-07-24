@@ -196,16 +196,17 @@ class GurobiRDDLBilevelOptimizer:
         
         # add variables for the initial states s0
         rddl = compiler.rddl
-        subs = compiler._compile_init_subs()
+        init_state_vars = {}
         for name in rddl.states:
             prange = rddl.variable_ranges[name]
             vtype = compiler.GUROBI_TYPES[prange]
             lb, ub = (0, 1) if prange == 'bool' else self.state_bounds[name]
             var = compiler._add_var(model, vtype, lb, ub, name=name)
-            subs[name] = (var, vtype, lb, ub, True)        
+            init_state_vars[name] = (var, vtype, lb, ub, True)        
 
         # roll out from s0 using a_1, ... a_T
-        slp_subs = subs.copy()
+        slp_subs = compiler._compile_init_subs()
+        slp_subs.update(init_state_vars)
         slp_params = slp.params(compiler, model)
         value_slp, action_vars, next_state_vars = compiler._rollout(
             model, slp, slp_params, slp_subs)
@@ -213,9 +214,10 @@ class GurobiRDDLBilevelOptimizer:
         # roll out from s0 using a_t = policy(s_t), t = 1, 2, ... T
         # here the policy is frozen during optimization of the plan above
         # noise variables are copied over from the above rollout
-        pol_subs = subs.copy()
+        pol_subs = compiler._compile_init_subs()
+        pol_subs.update(init_state_vars)
         if self.use_cc:
-            pol_subs['noise__count'] = {dt: 0 for dt in pol_subs['noise__count']}
+            pol_subs['noise__count'] = {dt: 0 for dt in slp_subs['noise__count']}
             pol_subs['noise__var'] = slp_subs['noise__var']
         pol_params = self.policy.params(compiler, model, values=param_values)
         value_pol, *_ = compiler._rollout(model, self.policy, pol_params, pol_subs)
@@ -233,8 +235,8 @@ class GurobiRDDLBilevelOptimizer:
         # read worst state s0 from the optimized model
         worst_state = {}
         for name in rddl.states:
-            value = model.getVarByName(name).X
-            vtype = subs[name][1]
+            value = init_state_vars[name][0].X
+            vtype = init_state_vars[name][1]
             worst_state[name] = (value, vtype, value, value, False) 
         
         # read worst noise variables from the optimized model

@@ -23,7 +23,7 @@ class GurobiRDDLCompiler:
                  plan: GurobiRDDLPlan,
                  allow_synchronous_state: bool=True,
                  rollout_horizon: int=None,
-                 epsilon: float=1e-6,
+                 epsilon: float=1e-5,
                  float_range: Tuple[float, float]=(1e-15, 1e15),
                  model_params: Dict[str, object]={'NonConvex': 2},
                  piecewise_options: str='',
@@ -236,7 +236,7 @@ class GurobiRDDLCompiler:
     def _compile_cpfs(self, model, subs) -> None:
         rddl = self.rddl
         for cpfs in self.levels.values():
-            for cpf in cpfs:
+            for cpf in sorted(cpfs):
                 _, expr = rddl.cpfs[cpf]
                 subs[cpf] = self._gurobi(expr, model, subs)
     
@@ -522,7 +522,7 @@ class GurobiRDDLCompiler:
                     model.addGenConstrAbs(abs_diff, diff_var)
                                  
                     res = self._add_bool_var(model)
-                    model.addConstr((res == 1) >> (abs_diff <= self.epsilon))
+                    model.addConstr((res == 1) >> (abs_diff <= 0))
                     model.addConstr((res == 0) >> (abs_diff >= self.epsilon))
                     lb, ub = 0, 1
                 else:
@@ -534,7 +534,7 @@ class GurobiRDDLCompiler:
                 if symb:
                     res = self._add_bool_var(model)
                     model.addConstr((res == 1) >> (diffexpr >= 0))
-                    model.addConstr((res == 0) >> (diffexpr <= 0))
+                    model.addConstr((res == 0) >> (diffexpr <= -self.epsilon))
                     lb, ub = 0, 1
                 else:
                     res = bool(glhs >= grhs)
@@ -552,7 +552,7 @@ class GurobiRDDLCompiler:
                     
                     res = self._add_bool_var(model)
                     model.addConstr((res == 1) >> (abs_diff >= self.epsilon))
-                    model.addConstr((res == 0) >> (abs_diff <= self.epsilon))
+                    model.addConstr((res == 0) >> (abs_diff <= 0))
                     lb, ub = 0, 1
                 else: 
                     res = bool(glhs != grhs)
@@ -563,7 +563,7 @@ class GurobiRDDLCompiler:
                 if symb:
                     res = self._add_bool_var(model)
                     model.addConstr((res == 1) >> (diffexpr >= self.epsilon))
-                    model.addConstr((res == 0) >> (diffexpr <= self.epsilon))
+                    model.addConstr((res == 0) >> (diffexpr <= 0))
                     lb, ub = 0, 1
                 else:
                     res = bool(glhs > grhs)
@@ -939,7 +939,7 @@ class GurobiRDDLCompiler:
         if symb:
             res = self._add_bool_var(model)
             model.addConstr((res == 1) >> (gterm >= 0.5 + self.epsilon))
-            model.addConstr((res == 0) >> (gterm <= 0.5 + self.epsilon))
+            model.addConstr((res == 0) >> (gterm <= 0.5))
             lb, ub = 0, 1
         else:
             res = bool(gterm > 0.5)
