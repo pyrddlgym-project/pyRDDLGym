@@ -24,13 +24,13 @@ plt.rcParams['text.usetex'] = True
 class GurobiInventoryExperiment(GurobiExperiment):
     
     def __init__(self, *args, cases: int=1, linear_value: bool=False, 
-                 factored: bool=True, **kwargs):
+                 factored_value: bool=True, **kwargs):
         super(GurobiInventoryExperiment, self).__init__(*args, **kwargs)
         if linear_value:
             self.model_params['NonConvex'] = 2
         self.cases = cases
         self.linear_value = linear_value
-        self.factored = factored
+        self.factored_value = factored_value
         self._chance = kwargs['chance']
         
     def get_policy(self, model):
@@ -43,18 +43,21 @@ class GurobiInventoryExperiment(GurobiExperiment):
                         'stock___i2': (0, MAX_ORDER),
                         'stock___i3': (0, MAX_ORDER),
                         'stock___i4': (0, MAX_ORDER)}  
-        if self.factored:
-            dependencies = {'order___i1': ['stock___i1'],
-                            'order___i2': ['stock___i2'],
-                            'order___i3': ['stock___i3'],
-                            'order___i4': ['stock___i4']}
+        
+        dependencies_constr = {'order___i1': ['stock___i1'],
+                               'order___i2': ['stock___i2'],
+                               'order___i3': ['stock___i3'],
+                               'order___i4': ['stock___i4']}        
+        if self.factored_value:
+            dependencies_values = dependencies_constr
         else:
-            dependencies = None
+            dependencies_values = None
         
         policy = GurobiPiecewisePolicy(
             action_bounds=action_bounds,
             state_bounds=state_bounds,
-            dependencies=dependencies,
+            dependencies_constr=dependencies_constr,
+            dependencies_values=dependencies_values,
             num_cases=self.cases,
             linear_value=self.linear_value
         )
@@ -68,13 +71,12 @@ class GurobiInventoryExperiment(GurobiExperiment):
         return state_init_bounds
     
     def get_experiment_id_str(self):
-        return f'{self.cases}_{self.linear_value}_{self.factored}_{self._chance}'
+        return f'{self.cases}_{self.linear_value}_{self.factored_value}_{self._chance}'
 
     def prepare_simulation_plots(self, domain, inst, horizon, start_it=1, error=False): 
         id_strs = {'$\\mathrm{S}$': f'0_True_True_{self._chance}',
                    '$\\mathrm{PWS-C}$': f'1_False_True_{self._chance}',
-                   '$\\mathrm{PWS-S}$': f'1_True_True_{self._chance}',
-                   '$\\mathrm{PWL-L}$': f'1_True_False_{self._chance}'}
+                   '$\\mathrm{PWS-S}$': f'1_True_True_{self._chance}'}
         datas = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
                  for (k, v) in id_strs.items()}
         
@@ -96,10 +98,6 @@ class GurobiInventoryExperiment(GurobiExperiment):
         plt.ylabel('$\\mathrm{' + label + '}$')
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
-        if error:
-            plt.legend(loc='upper right')
-        else:
-            plt.legend(loc='lower right')
         plt.tight_layout()
         plt.savefig(os.path.join(
              'gurobi_results', f'{domain}_{inst}_{horizon}_{label}.pdf'))
@@ -201,7 +199,7 @@ class GurobiInventoryExperiment(GurobiExperiment):
 if __name__ == "__main__":
     dom = 'Inventory continuous'
     linear_value = False
-    factored = True
+    factored_value = True
     if len(sys.argv) < 5:
         inst, horizon, cases, chance = 1, 10, 1, 0.995
     else:
@@ -211,7 +209,7 @@ if __name__ == "__main__":
         experiment = GurobiInventoryExperiment(
             cases=cases, 
             linear_value=linear_value, 
-            chance=chance,
-            factored=factored)
+            factored_value=factored_value,
+            chance=chance)
         experiment.run(dom, inst, horizon)
 

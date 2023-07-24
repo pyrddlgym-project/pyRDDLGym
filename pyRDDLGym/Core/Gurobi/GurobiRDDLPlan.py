@@ -149,7 +149,8 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
     def __init__(self, *args,
                  state_bounds: Dict[str, Tuple[float, float]]={},
                  upper_bound: bool=True,
-                 dependencies: Dict[str, List[str]]=None,
+                 dependencies_constr: Dict[str, List[str]]=None,
+                 dependencies_values: Dict[str, List[str]]=None,
                  linear_value: bool=False,
                  num_cases: int=1,
                  **kwargs) -> None:
@@ -157,15 +158,26 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         
         self.state_bounds = state_bounds
         self.upper_bound = upper_bound or num_cases > 1
-        self.dependencies = dependencies
+        self.dependencies_constr = dependencies_constr
+        self.dependencies_values = dependencies_values
         self.linear_value = linear_value
         self.num_cases = num_cases
     
     def _get_states_for_constraints(self, rddl):
         states = {}
-        if self.dependencies is not None:
+        if self.dependencies_constr is not None:
             for action in rddl.actions:
-                states[action] = list(self.dependencies[action])
+                states[action] = list(self.dependencies_constr[action])
+        else:
+            for action in rddl.actions:
+                states[action] = list(rddl.states.keys())
+        return states
+    
+    def _get_states_for_values(self, rddl):
+        states = {}
+        if self.dependencies_values is not None:
+            for action in rddl.actions:
+                states[action] = list(self.dependencies_values[action])
         else:
             for action in rddl.actions:
                 states[action] = list(rddl.states.keys())
@@ -176,6 +188,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl  
         states_in_constr = self._get_states_for_constraints(rddl)
+        states_in_values = self._get_states_for_values(rddl)
         
         param_vars = {}
         for (action, arange) in rddl.actionsranges.items():
@@ -213,7 +226,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                 
                 # action parameters a_i for current case
                 if self.linear_value:
-                    for state in ['bias'] + states_in_constr[action]:
+                    for state in ['bias'] + states_in_values[action]:
                         wname = f'weight__{state}__{icase}__{action}'
                         if values is None:
                             wvar = compiled._add_var(model, atype, lb, ub)
@@ -236,6 +249,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
+        states_in_values = self._get_states_for_values(rddl)
         
         param_values = {}
         for action in rddl.actions:
@@ -257,7 +271,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                 if self.linear_value:
                     aname = f'weight__bias__{icase}__{action}'
                     param_values[aname] = compiled.init_values[action]
-                    for state in states_in_constr[action]:
+                    for state in states_in_values[action]:
                         aname = f'weight__{state}__{icase}__{action}'
                         param_values[aname] = 0
                 else:
@@ -273,6 +287,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
+        states_in_values = self._get_states_for_values(rddl)
         
         action_vars = {}
         for (action, arange) in rddl.actionsranges.items():
@@ -318,7 +333,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                 if self.linear_value:
                     wname = f'weight__bias__{icase}__{action}'
                     aexpr = params[wname][0]
-                    for state in states_in_constr[action]:
+                    for state in states_in_values[action]:
                         wname = f'weight__{state}__{icase}__{action}'
                         aexpr = aexpr + params[wname][0] * subs[state][0]
                     avar = compiled._add_var(model, atype, lb, ub)
@@ -344,6 +359,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
+        states_in_values = self._get_states_for_values(rddl)
         
         action_values = {}
         for (action, arange) in rddl.actionsranges.items():
@@ -368,7 +384,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                     if self.linear_value:
                         wname = f'weight__bias__{icase}__{action}'  
                         aval = params[wname][0].X
-                        for state in states_in_constr[action]:
+                        for state in states_in_values[action]:
                             wname = f'weight__{state}__{icase}__{action}'   
                             aval += params[wname][0].X * subs[state]
                     else:
@@ -389,6 +405,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                   params: Dict[str, object]) -> str:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
+        states_in_values = self._get_states_for_values(rddl)
         
         res = ''
         for action in rddl.actions:
@@ -403,7 +420,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                     w_name = f'weight__bias__{icase}__{action}'               
                     w_val = params[w_name][0].X
                     a_vals.append(str(w_val))
-                    for state in states_in_constr[action]:
+                    for state in states_in_values[action]:
                         w_name = f'weight__{state}__{icase}__{action}'   
                         w_val = params[w_name][0].X
                         a_vals.append(f'{w_val} * {state}')

@@ -19,6 +19,7 @@ class GurobiExperiment:
     def __init__(self, model_params: Dict={'Presolve': 2, 
                                            'PreSparsify': 1, 
                                            'Aggregate': 2,
+                                           'NumericFocus': 2,
                                            'OutputFlag': 1},
                  iters: int=10, rollouts: int=100, seed: int=None,
                  **compiler_kwargs):
