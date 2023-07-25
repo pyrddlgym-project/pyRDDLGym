@@ -1,7 +1,6 @@
-// Simple linear inventory control problem
-// Taken from Bertsekas, Dynamic Programming and Optimal Control, Vol. 1, 3rd Ed., Section 4.2
+// Simple linear continuous inventory control problem
 
-domain inventory{
+domain inventory {
 
 	types {
 		item : object;
@@ -9,44 +8,42 @@ domain inventory{
 
 	pvariables {
 
-		// constants
-		HOLDING-COST(item) : { non-fluent, real, default = 2.0 };		// holding cost for excess inventory
-		SHORTAGE-COST(item) : { non-fluent, real, default = 4.0 };	// shortage cost for inadequate inventory
-		PURCHASE-COST(item) : { non-fluent, real, default = 1.0 };  // purchase price of unit
-		MAX-ITEMS(item) : { non-fluent, int, default = 20 };       // max number of items that can be held
-		MAX-BACKLOG(item) : { non-fluent, int, default = -20 };    // max number of items that can be backlogged
-		MAX-ORDER : { non-fluent, int, default = 6 };             // max number of items that can be ordered
-		DEMAND-RATE(item) : { non-fluent, real, default = 2.0 };   // Poisson rate of demand
+		PURCHASE-COST(item) : { non-fluent, real, default = 1.0 };
+		PRICE(item)         : { non-fluent, real, default = 2.0 };
+		MAX-ITEMS           : { non-fluent, int, default = 10 };
+		MIN-DEMAND(item) : { non-fluent, int, default = 0 }; 		
+		MED-DEMAND(item) : { non-fluent, int, default = 2 };		
+		MAX-DEMAND(item) : { non-fluent, int, default = 4 };
+		P-MIN : { non-fluent, real, default = 0.25 };
+		P-MED : { non-fluent, real, default = 0.6 };
 		
-		// iterm fluent
-		demand(item) : { interm-fluent, int }; // demand in current epoch
-		
-		// states
-		stock(item) : { state-fluent, int, default = 0 };   // stock on hand at beginning of epoch
+		is-min(item) : { interm-fluent, bool };
+		is-med(item) : { interm-fluent, bool };
+		raw-demand(item) : { interm-fluent, int }; 
+			
+		stock(item) : { state-fluent, int, default = 0 };
 	
-		// actions
-		order(item) : { action-fluent, int, default = 0 };    // how many units to purchase
+		order(item) : { action-fluent, int, default = 0 };
 	};
 
 	cpfs {
-		demand(?i) = Poisson(DEMAND-RATE(?i));
-		stock'(?i) = max[MAX-BACKLOG(?i), min[MAX-ITEMS(?i), stock(?i) + order(?i) - demand(?i)]];
+		is-min(?i) = Bernoulli(P-MIN);
+		is-med(?i) = Bernoulli(P-MED);		
+		raw-demand(?i) = floor[is-min(?i) * MIN-DEMAND(?i) 
+								+ (1 - is-min(?i)) * is-med(?i) * MED-DEMAND(?i) 
+								+ (1 - is-min(?i)) * (1 - is-med(?i)) * MAX-DEMAND(?i)];
+		stock'(?i) = max[0, stock(?i) + order(?i) - raw-demand(?i)];
 	};
 
-	reward = -(sum_{?i : item} [SHORTAGE-COST(?i) * max[0, -stock'(?i)] 
-								+ HOLDING-COST(?i) * max[0, stock'(?i)] 
-								+ PURCHASE-COST(?i) * order(?i)]);
+	reward = (sum_{?i : item} [PRICE(?i) * (stock(?i) + order(?i) - stock'(?i)) - PURCHASE-COST(?i) * order(?i)]);
 
 	action-preconditions {
 		forall_{?i : item} [ order(?i) >= 0 ];
-		forall_{?i : item} [ order(?i) <= MAX-ORDER ];
-		(sum_{?i : item} order(?i)) <= MAX-ORDER;
+		(sum_{?i : item} [stock(?i) + order(?i)]) <= MAX-ITEMS;
 	};
 	
 	state-invariants {
-		forall_{?i : item} [ stock(?i) >= MAX-BACKLOG(?i) ];
-		forall_{?i : item} [ stock(?i) <= MAX-ITEMS(?i) ];
-		forall_{?i : item} [ PURCHASE-COST(?i) > 0 ];
-		forall_{?i : item} [ SHORTAGE-COST(?i) > PURCHASE-COST(?i) ];
+		forall_{?i : item} [ stock(?i) >= 0 ];
+		(sum_{?i : item} stock(?i)) <= MAX-ITEMS;
 	};
 }
