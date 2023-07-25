@@ -1,29 +1,17 @@
-non-fluents Reservoir_2nf {
+non-fluents Reservoir_1nf {
 	domain = reservoir_control_linear;
 
 	objects{
-		id: {t1, t2};
-	};
-
-	non-fluents {
-		RAIN_MEAN(t1) = 5.0;
-		RAIN_MEAN(t2) = 10.0;
-		RAIN_VAR(t1) = 5.0;
-		RAIN_VAR(t2) = 10.0;
-		MAXCAP(t2) = 200.0;
-		LOW_BOUND(t2) = 30.0;
-		HIGH_BOUND(t2) = 180.0;
-		DOWNSTREAM(t1, t2);
+		id: {t1};
 	};
 }
 
 instance Reservoir_linear_0 {
 	domain = reservoir_control_linear;
-	non-fluents = Reservoir_2nf;
+	non-fluents = Reservoir_1nf;
 
 	init-state{
 		rlevel(t1) = 75.0;
-		rlevel(t2) = 150.0;
 	};
 
 	max-nondef-actions = pos-inf;
