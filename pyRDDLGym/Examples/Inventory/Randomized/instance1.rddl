@@ -6,7 +6,19 @@ non-fluents inventory_2nf {
 	};
 	
 	non-fluents {
-		MAX-ORDER = 6;
+		MAX-ITEMS = 12;
+		
+		PURCHASE-COST(i1) = 1.0;
+		PRICE(i1) = 2.0;
+		MIN-DEMAND(i1) = 0;
+		MED-DEMAND(i2) = 2;
+		MAX-DEMAND(i1) = 6;
+		
+		PURCHASE-COST(i2) = 1.0;
+		PRICE(i2) = 3.0;
+		MIN-DEMAND(i1) = 2;
+		MED-DEMAND(i2) = 5;
+		MAX-DEMAND(i1) = 8;
 	};
 }
 
@@ -14,7 +26,7 @@ instance inventory_1 {
 	domain = inventory;
 	non-fluents = inventory_2nf;
 
-	init-state{
+	init-state {
 		stock(i1) = 0;
 		stock(i2) = 0;
 	};
