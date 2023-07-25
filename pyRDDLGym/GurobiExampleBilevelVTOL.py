@@ -3,7 +3,6 @@ import numpy as np
 import os
 import sys
 
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiQuadraticPolicy
 from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 # settings for pyplot
@@ -24,26 +23,24 @@ plt.rcParams['text.usetex'] = True
 class GurobiVTOLExperiment(GurobiExperiment):
     
     def __init__(self, *args, **kwargs):
-        super(GurobiVTOLExperiment, self).__init__(*args, iters=5, rollouts=1, **kwargs)
+        super(GurobiVTOLExperiment, self).__init__(
+            *args, value='Q', cases=0, iters=5, rollouts=1, **kwargs)
         self.model_params['NonConvex'] = 2
-        self.model_params['MIPGap'] = 0.02
-        self._chance = kwargs['chance']
         
-    def get_policy(self, model):
-        action_bounds = {'F': (-1, 1)}        
-        policy = GurobiQuadraticPolicy(
-            action_bounds=action_bounds
-        )
-        return policy
+    def get_action_bounds(self, model):
+        return {'F': (-1, 1)}
+    
+    def get_state_bounds(self, model):
+        return {'theta': (-0.38, 0.71),
+                'omega': (-20., 20.)}  
     
     def get_state_init_bounds(self, model):
-        state_bounds_init = {'theta': (0.1, 0.1),
-                             'omega': (0.0, 0.0)}
-        return state_bounds_init
+        return {'theta': (0.1, 0.1),
+                'omega': (0.0, 0.0)}
     
-    def get_experiment_id_str(self):
-        return f'{self._chance}'
-    
+    def get_state_dependencies_S(self, model):
+        return {'F': ['theta', 'omega']} 
+        
     def prepare_policy_plot(self):
         
         def policy(theta, omega):
@@ -70,38 +67,17 @@ class GurobiVTOLExperiment(GurobiExperiment):
         plt.clf()
         plt.close()
     
-    def prepare_worst_case_analysis(self):
-        id_str = self.get_experiment_id_str()
-        data = GurobiExperiment.load_json('VTOL', 0, 6, id_str)[0]
-        data = data['0']
-        ws0 = data['worst_state']
-        wss = data['worst_next_states']
-        wa = data['worst_action']
-        thetas = [ws0['theta'][0]] + [d['theta\''] for d in wss]
-        omegas = [ws0['omega'][0]] + [d['omega\''] for d in wss]
-        forces = [d['F'] for d in wa]
-        
-        plt.figure(figsize=(6.4, 3.2))
-        xs = np.arange(len(thetas))
-        plt.plot(xs, thetas, label='$\\theta$')
-        plt.plot(xs, omegas, label='$\\omega$')
-        plt.plot(xs, forces + [np.nan], label='$F$')
-        plt.xlabel('$\mathrm{epoch}$')
-        plt.ylabel('$\mathrm{value}$')
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(os.path.join('gurobi_results', 'VTOL_worst.pdf'))
-        plt.clf()
-        plt.close()
         
         
 if __name__ == "__main__":
-    dom = 'VTOL'
-    if len(sys.argv) < 3:
-        horizon, chance = 6, 0.995
+    if len(sys.argv) < 2:
+        horizon = 6
     else:
-        horizon, chance = sys.argv[1:3]
-        horizon, chance = int(horizon), float(chance)    
-    for _ in range(5): 
-        experiment = GurobiVTOLExperiment(chance=chance)
-        experiment.run(dom, 0, horizon)
+        horizon = sys.argv[1]
+        horizon = int(horizon)
+          
+    dom = 'VTOL'
+    dom_test = dom
+    for _ in range(1): 
+        experiment = GurobiVTOLExperiment()
+        experiment.run(dom, 0, horizon, dom_test)

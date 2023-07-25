@@ -3,7 +3,6 @@ import numpy as np
 import os
 import sys
 
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiPiecewisePolicy
 from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
 # settings for pyplot
@@ -23,86 +22,74 @@ plt.rcParams['text.usetex'] = True
 
 class GurobiInventoryExperiment(GurobiExperiment):
     
-    def __init__(self, *args, cases: int=1, linear_value: bool=False, 
-                 factored_value: bool=True, **kwargs):
-        super(GurobiInventoryExperiment, self).__init__(*args, **kwargs)
-        if linear_value:
-            self.model_params['NonConvex'] = 2
-        self.cases = cases
-        self.linear_value = linear_value
-        self.factored_value = factored_value
-        self._chance = kwargs['chance']
-        
-    def get_policy(self, model):
+    def get_action_bounds(self, model):
         MAX_ORDER = model.nonfluents['MAX-ITEMS']
-        action_bounds = {'order___i1': (0, MAX_ORDER),
-                         'order___i2': (0, MAX_ORDER),
-                         'order___i3': (0, MAX_ORDER),
-                         'order___i4': (0, MAX_ORDER)}    
-        state_bounds = {'stock___i1': (0, MAX_ORDER),
-                        'stock___i2': (0, MAX_ORDER),
-                        'stock___i3': (0, MAX_ORDER),
-                        'stock___i4': (0, MAX_ORDER)}  
-        
-        dependencies_constr = {'order___i1': ['stock___i1'],
-                               'order___i2': ['stock___i2'],
-                               'order___i3': ['stock___i3'],
-                               'order___i4': ['stock___i4']}        
-        if self.factored_value:
-            dependencies_values = dependencies_constr
-        else:
-            dependencies_values = None
-        
-        policy = GurobiPiecewisePolicy(
-            action_bounds=action_bounds,
-            state_bounds=state_bounds,
-            dependencies_constr=dependencies_constr,
-            dependencies_values=dependencies_values,
-            num_cases=self.cases,
-            linear_value=self.linear_value
-        )
-        return policy
-
-    def get_state_init_bounds(self, model):
-        state_init_bounds = {'stock___i1': (0, 3),
-                             'stock___i2': (0, 3),
-                             'stock___i3': (0, 3),
-                             'stock___i4': (0, 3)}
-        return state_init_bounds
+        return {'order___i1': (0, MAX_ORDER),
+                'order___i2': (0, MAX_ORDER),
+                'order___i3': (0, MAX_ORDER)} 
     
-    def get_experiment_id_str(self):
-        return f'{self.cases}_{self.linear_value}_{self.factored_value}_{self._chance}'
-
+    def get_state_bounds(self, model):
+        return {'stock___i1': (0, 100),
+                'stock___i2': (0, 100),
+                'stock___i3': (0, 100)}  
+    
+    def get_state_init_bounds(self, model):
+        return {'stock___i1': (0, 2),
+                'stock___i2': (0, 2),
+                'stock___i3': (0, 2)}
+    
+    def get_state_dependencies_S(self, model):
+        return {'order___i1': ['stock___i1'],
+                'order___i2': ['stock___i2'],
+                'order___i3': ['stock___i3']} 
+        
     def prepare_simulation_plots(self, domain, inst, horizon, start_it=1, error=False): 
-        id_strs = {'$\\mathrm{S}$': f'0_True_True_{self._chance}',
+        id_strs1 = {'$\\mathrm{S}$': f'0_True_True_{self._chance}',
                    '$\\mathrm{PWS-C}$': f'1_False_True_{self._chance}',
                    '$\\mathrm{PWS-S}$': f'1_True_True_{self._chance}'}
-        datas = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
-                 for (k, v) in id_strs.items()}
+        datas1 = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
+                 for (k, v) in id_strs1.items()}
+        
+        id_strs2 = {'$\\mathrm{K=0}$': f'0_False_True_{self._chance}',
+                    '$\\mathrm{K=1}$': f'1_False_True_{self._chance}',
+                    '$\\mathrm{K=2}$': f'2_False_True_{self._chance}',
+                    '$\\mathrm{K=3}$': f'3_False_True_{self._chance}'}
+        datas2 = {k: GurobiExperiment.load_json(domain, inst, horizon, v) 
+                  for (k, v) in id_strs2.items()}
+        
+        all_idstrs = [id_strs1, id_strs2]
+        all_datas = [datas1, datas2]
+        labels = ['', 'pwsc_']
         
         # return curves vs iteration with error bars
-        key = 'error' if error else 'mean_return'
-        label = 'error' if error else 'return'
-        plt.figure(figsize=(6.4, 3.2))
-        for st in id_strs:
-            values = []
-            for data in datas[st]:
-                values.append([it_data.get(key, np.nan) for it_data in data.values()])
-            if values:
-                values = np.asarray(values)
-                return_curve = np.mean(values, axis=0)[start_it:]
-                return_std = np.std(values, axis=0)[start_it:] / np.sqrt(values.shape[0])
-                x = np.arange(1, return_curve.size + 1)
-                plt.errorbar(x, return_curve, yerr=return_std, label=st)
-        plt.xlabel('$\\mathrm{iteration}$')
-        plt.ylabel('$\\mathrm{' + label + '}$')
-        plt.gca().spines['top'].set_visible(False)
-        plt.gca().spines['right'].set_visible(False)
-        plt.tight_layout()
-        plt.savefig(os.path.join(
-             'gurobi_results', f'{domain}_{inst}_{horizon}_{label}.pdf'))
-        plt.clf()
-        plt.close()
+        for lbl, id_strs, datas in zip(labels, all_idstrs, all_datas):
+            label = 'error' if error else 'return'
+            plt.figure(figsize=(6.4, 3.2))
+            for st in id_strs:
+                values = []
+                for data in datas[st]:
+                    if error:
+                        values.append([it_data.get('worst_value_inner', {}).get('slp', np.nan) - \
+                                       it_data.get('worst_value_inner', {}).get('policy', np.nan)
+                                       for it_data in data.values()])
+                    else:
+                        values.append([it_data.get('mean_return', np.nan) 
+                                       for it_data in data.values()])                        
+                if values:
+                    values = np.asarray(values)
+                    return_curve = np.mean(values, axis=0)[start_it:]
+                    return_std = np.std(values, axis=0)[start_it:] / np.sqrt(values.shape[0])
+                    x = np.arange(1, return_curve.size + 1)
+                    plt.errorbar(x, return_curve, yerr=return_std, label=st)
+            plt.xlabel('$\\mathrm{iteration}$')
+            plt.ylabel('$\\mathrm{' + label + '}$')
+            plt.gca().spines['top'].set_visible(False)
+            plt.gca().spines['right'].set_visible(False)
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                 'gurobi_results', f'{domain}_{inst}_{horizon}_{lbl + label}.pdf'))
+            plt.clf()
+            plt.close()
     
     def prepare_policy_plot(self, domain, inst, horizon):
         
@@ -132,84 +119,18 @@ class GurobiInventoryExperiment(GurobiExperiment):
             plt.savefig(os.path.join(
                 'gurobi_results', f'{domain}_{inst}_{horizon}_{key}_policy.pdf'))
 
-    def prepare_worst_case_analysis(self, domain, inst, horizon):
-        id_str = self.get_experiment_id_str()
-        data = GurobiExperiment.load_json(domain, inst, horizon, id_str)[0]
-        data = data['9']
-        ws0 = data['worst_state']
-        wss = data['worst_next_states']
-        wa = data['worst_action']
-        noise = data['worst_noise']['uniform']
-        noise = [xi[0] for xi in noise.values()]
-        ris, ria = [], []
-        rid1, rid2 = [], []
-        for res in range(1, 3):
-            ri = [ws0[f'stock___i{res}'][0]] + [d[f'stock___i{res}\''] for d in wss]
-            ris.append(ri)
-            ria.append([d[f'order___i{res}'] for d in wa])
-        for it in range(0, 20, 2):
-            rid1.append(noise[it])
-            rid2.append(noise[it + 1])
-            
-        # plot state trajectory
-        plt.figure(figsize=(6.4, 3.2))
-        xs = np.arange(len(ris[0]))
-        plt.bar(xs - 0.2, ris[0], width=0.4, label='$\mathrm{stock_1}$')
-        plt.bar(xs + 0.2, ris[1], width=0.4, label='$\mathrm{stock_2}$')
-        plt.xlabel('$\\mathrm{epoch}$')
-        plt.ylabel('$\\mathrm{stock}_i$')
-        plt.gca().spines['top'].set_visible(False)
-        plt.gca().spines['right'].set_visible(False)
-        plt.tight_layout()
-        plt.savefig(os.path.join(
-            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_states.pdf'))
-        plt.clf()
-        plt.close()
-        
-        # plot worst demand
-        plt.figure(figsize=(6.4, 3.2))
-        plt.bar(xs[:-1] - 0.2, rid1, width=0.4, label='$i1$')
-        plt.bar(xs[:-1] + 0.2, rid2, width=0.4, label='$i2$')
-        plt.xlabel('$\\mathrm{epoch}$')
-        plt.ylabel('$\\mathrm{demand}_i$')
-        plt.gca().spines['top'].set_visible(False)
-        plt.gca().spines['right'].set_visible(False)
-        plt.legend(loc='upper left')
-        plt.tight_layout()
-        plt.savefig(os.path.join(
-            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_demand.pdf'))
-        plt.clf()
-        plt.close()
-        
-        # plot control sequence
-        plt.figure(figsize=(6.4, 3.2))
-        plt.bar(xs[:-1] - 0.2, ria[0], width=0.4, label='$\mathrm{reorder_1}$')
-        plt.bar(xs[:-1] + 0.2, ria[1], width=0.4, label='$\mathrm{reorder_2}$')
-        plt.xlabel('$\\mathrm{epoch}$')
-        plt.ylabel('$\\mathrm{reorder}_i$')
-        plt.gca().spines['top'].set_visible(False)
-        plt.gca().spines['right'].set_visible(False)
-        plt.tight_layout()
-        plt.savefig(os.path.join(
-            'gurobi_results', f'{domain}_{inst}_{horizon}_worst_controls.pdf'))
-        plt.clf()
-        plt.close()
-
 
 if __name__ == "__main__":
-    dom = 'Inventory continuous'
-    linear_value = False
-    factored_value = True
-    if len(sys.argv) < 5:
-        inst, horizon, cases, chance = 1, 10, 1, 0.995
+    if len(sys.argv) < 7:
+        inst, horizon, constr, value, cases, chance = 1, 10, 'S', 'C', 1, 0.995
     else:
-        inst, horizon, cases, chance = sys.argv[1:5]
-        horizon, cases, chance = int(horizon), int(cases), float(chance)    
-    for _ in range(5):
+        inst, horizon, constr, value, cases, chance = sys.argv[1:7]
+        horizon, cases, chance = int(horizon), int(cases), float(chance)
+        
+    dom = 'Inventory deterministic'
+    dom_test = 'Inventory randomized'
+    
+    for _ in range(1):
         experiment = GurobiInventoryExperiment(
-            cases=cases, 
-            linear_value=linear_value, 
-            factored_value=factored_value,
-            chance=chance)
-        experiment.run(dom, inst, horizon)
-
+            constr=constr, value=value, cases=cases, chance=chance)
+        experiment.run(dom, inst, horizon, dom_test)
