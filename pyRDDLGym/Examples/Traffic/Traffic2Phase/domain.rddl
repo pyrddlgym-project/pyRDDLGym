@@ -272,7 +272,6 @@ domain BLX_model {
                                   else if (signal-t(?i) < PHASE-MIN(?i)) then false
                                   else if (signal-t(?i) >= PHASE-MAX(?i)) then true
                                   else advance(?i);
-                                  
 
         ////////////////////////////////////
         // State space evolution
