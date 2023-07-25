@@ -260,9 +260,10 @@ class GurobiRDDLBilevelOptimizer:
                                for (key, (var, *_)) in next_states_step.items()}
             worst_next_states.append(next_states_val)
         
-        # release the model resources
+        # read stats and release the model resources
         model_stats = self._model_stats(model)
         model.dispose()
+        
         return worst_value_slp, worst_value_pol, worst_action, \
             worst_state, worst_noise, worst_next_states, model_stats
     
@@ -289,5 +290,6 @@ class GurobiRDDLBilevelOptimizer:
         param_values = {name: value[0].X for (name, value) in policy_params.items()}
         value_pol = value_pol.getValue()
         model_stats = self._model_stats(model)
+        
         return value_pol, param_values, model_stats
     

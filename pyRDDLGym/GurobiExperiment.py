@@ -1,5 +1,6 @@
 import glob
 import json 
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import time
@@ -15,16 +16,30 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
+# settings for pyplot
+SMALL_SIZE = 18
+MEDIUM_SIZE = 20
+BIGGER_SIZE = 22
+
+plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+plt.rcParams['text.usetex'] = True
+
 
 class GurobiExperiment:
     
     def __init__(self, constr: str='S', value: str='C', cases: int=1,
-                 model_params: Dict={'Presolve': 2, 
-                                     'PreSparsify': 1, 
+                 model_params: Dict={'Presolve': 2,
+                                     'PreSparsify': 1,
                                      'NumericFocus': 2,
                                      'MIPGap': 0.05,
                                      'OutputFlag': 1},
-                 iters: int=10, 
+                 iters: int=10,
                  rollouts: int=500,
                  chance: float=0.995,
                  seed: int=None):
@@ -96,6 +111,51 @@ class GurobiExperiment:
                 values.append(json.load(file, strict=False))
         return values
     
+    @staticmethod
+    def simulation_plots(domain: str, inst: str, horizon: int, chance: str,
+                         policies, label='return', legend=False): 
+        
+        # load log files
+        logs = [GurobiExperiment.load_json(domain, inst, horizon, policy, chance) 
+                for policy in policies]
+        
+        # read attributes from log files
+        means, errors = [], []
+        for pol_logs in logs:
+            pol_values = []
+            for log in pol_logs:
+                log_values = []
+                for it in range(len(log) - 1):
+                    log_it = log[str(it)]
+                    if label == 'return':
+                        value = log_it['rollouts']['mean']
+                    elif label == 'epsilon':
+                        value = log_it['inner_value']['epsilon']
+                    log_values.append(value)
+                pol_values.append(log_values)
+            pol_values_mean = np.mean(pol_values, axis=0)
+            pol_values_se = np.std(pol_values, axis=0) / len(pol_values)
+            means.append(pol_values_mean)
+            errors.append(pol_values_se)
+        
+        # plotting
+        plt.figure(figsize=(6.4, 3.2))
+        for curve, bars, policy in zip(means, errors, policies):
+            x = 1 + np.arange(curve.size)
+            plt.errorbar(x, curve, yerr=bars, label=policy)
+            plt.xlabel('$\\mathrm{iteration}$')
+            plt.ylabel('$\\mathrm{' + label + '}$')
+            plt.gca().spines['top'].set_visible(False)
+            plt.gca().spines['right'].set_visible(False)
+            if legend:
+                plt.legend(loc='upper right', ncol=4)
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                 'gurobi_results',
+                 f'{domain}_{inst}_{horizon}_{chance}_{label}.pdf'))
+            plt.clf()
+            plt.close()
+            
     def get_state_bounds(self, model) -> Dict:
         raise NotImplementedError
     
@@ -173,12 +233,13 @@ class GurobiExperiment:
         log_dict = {}
         returns = GurobiExperiment._evaluate(
             world, None, planner, horizon, self.rollouts)
-        log_dict[-1] = {'sim_return': {'mean': np.mean(returns), 
-                                       'std': np.std(returns),
-                                       'min': np.min(returns),
-                                       'max': np.max(returns)}}
+        log_dict[-1] = {'rollouts': {'mean': np.mean(returns),
+                                     'std': np.std(returns),
+                                     'min': np.min(returns),
+                                     'max': np.max(returns),
+                                     'values': ','.join(map(str, returns))}}
         
-        print(f'\POLICY SUMMARY [{self.policy_class}]:'
+        print(f'\nPOLICY SUMMARY [{self.policy_class}]:'
               f'\nmean return: {np.mean(returns)}'
               f'\nstd return:  {np.std(returns)}')
         
@@ -186,10 +247,11 @@ class GurobiExperiment:
         for callback in planner.solve(self.iters, float('nan')): 
             returns = GurobiExperiment._evaluate(
                 world, policy, planner, horizon, self.rollouts)
-            callback['sim_return'] = {'mean': np.mean(returns), 
-                                      'std': np.std(returns),
-                                      'min': np.min(returns),
-                                      'max': np.max(returns)}
+            callback['rollouts'] = {'mean': np.mean(returns),
+                                    'std': np.std(returns),
+                                    'min': np.min(returns),
+                                    'max': np.max(returns),
+                                    'values': ','.join(map(str, returns))}
             log_dict[callback['iteration']] = callback
             
             print(f'\nPOLICY SUMMARY [{self.policy_class}]:'

@@ -68,7 +68,6 @@ class GurobiVTOLExperiment(GurobiExperiment):
         plt.close()
     
         
-        
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         horizon = 6
@@ -78,6 +77,7 @@ if __name__ == "__main__":
           
     dom = 'VTOL'
     dom_test = dom
-    for _ in range(1): 
+    
+    for _ in range(5): 
         experiment = GurobiVTOLExperiment()
         experiment.run(dom, 0, horizon, dom_test)
