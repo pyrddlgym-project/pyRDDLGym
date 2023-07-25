@@ -14,8 +14,8 @@ domain inventory {
 		MIN-DEMAND(item) : { non-fluent, int, default = 0 }; 		
 		MED-DEMAND(item) : { non-fluent, int, default = 2 };		
 		MAX-DEMAND(item) : { non-fluent, int, default = 4 };
-		P-MIN : { non-fluent, real, default = 0.25 };
-		P-MED : { non-fluent, real, default = 0.6 };
+		P-MIN(item) : { non-fluent, real, default = 0.25 };
+		P-MED(item) : { non-fluent, real, default = 0.6 };
 		
 		raw-demand(item) : { interm-fluent, int }; 
 			
@@ -25,9 +25,9 @@ domain inventory {
 	};
 
 	cpfs {	
-		raw-demand(?i) = floor[P-MIN * MIN-DEMAND(?i) 
-								+ (1 - P-MIN) * P-MED * MED-DEMAND(?i) 
-								+ (1 - P-MIN) * (1 - P-MED) * MAX-DEMAND(?i)];
+		raw-demand(?i) = floor[P-MIN(?i) * MIN-DEMAND(?i) 
+								+ (1 - P-MIN(?i)) * P-MED(?i) * MED-DEMAND(?i) 
+								+ (1 - P-MIN(?i)) * (1 - P-MED(?i)) * MAX-DEMAND(?i)];
 		stock'(?i) = max[0, stock(?i) + order(?i) - raw-demand(?i)];
 	};
 
@@ -35,11 +35,10 @@ domain inventory {
 
 	action-preconditions {
 		forall_{?i : item} [ order(?i) >= 0 ];
-		(sum_{?i : item} [stock(?i) + order(?i)]) <= MAX-ITEMS;
+		(sum_{?i : item} order(?i)) <= MAX-ITEMS;
 	};
 	
 	state-invariants {
 		forall_{?i : item} [ stock(?i) >= 0 ];
-		(sum_{?i : item} stock(?i)) <= MAX-ITEMS;
 	};
 }

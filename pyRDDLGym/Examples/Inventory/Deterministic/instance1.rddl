@@ -6,19 +6,23 @@ non-fluents inventory_2nf {
 	};
 	
 	non-fluents {
-		MAX-ITEMS = 12;
+		MAX-ITEMS = 10;
 		
 		PURCHASE-COST(i1) = 1.0;
 		PRICE(i1) = 2.0;
 		MIN-DEMAND(i1) = 0;
-		MED-DEMAND(i2) = 2;
-		MAX-DEMAND(i1) = 6;
+		MED-DEMAND(i2) = 1;
+		MAX-DEMAND(i1) = 5;
+		P-MIN(i1) = 0.25;
+		P-MED(i1) = 0.6;
 		
 		PURCHASE-COST(i2) = 1.0;
-		PRICE(i2) = 3.0;
+		PRICE(i2) = 4.0;
 		MIN-DEMAND(i1) = 2;
-		MED-DEMAND(i2) = 5;
-		MAX-DEMAND(i1) = 8;
+		MED-DEMAND(i2) = 6;
+		MAX-DEMAND(i1) = 10;
+		P-MIN(i1) = 0.1;
+		P-MED(i1) = 0.5;
 	};
 }
 
