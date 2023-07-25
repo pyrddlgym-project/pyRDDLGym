@@ -1,4 +1,4 @@
-# A tool for generating traffic instances
+# A tool for generating instances of the Traffic domain
 
 import numpy as np
 from itertools import product
@@ -432,7 +432,7 @@ def generate_grid(nrows,
                   ns_link_len=(200,50),
                   feeder_link_elongation_factor=1.5,
                   Vl=13.8,
-                  inflow_rate_per_lane=(0.08,0.02),
+                  inflow_rate_per_lane=(0.08,0.02), # parsed as Uniform(a-b,a+b)
                   satflow_per_lane=0.53,
                   num_lanes=4,
                   high_left_prob=0,

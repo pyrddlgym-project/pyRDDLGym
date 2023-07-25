@@ -69,8 +69,15 @@ if __name__ == '__main__':
     def sample_max_agent_action(t):
         return {f'advance___i{n}': False for n in range(N)}
     def sample_offset_max_agent_action(t):
-        base_plan = offset_plan(N) #[False]*8*(N-1) + [True]*5 + [False]*60 + ([True]*32 + [False]*60)*5
-        return {f'advance___i{n}': base_plan[t+8*(N-n-1)] for n in range(N)}
+        #base_plan = offset_plan(N) # [False]*8*(N-1) + [True]*5 + [False]*60 + ([True]*32 + [False]*60)*5
+        #t_offset = 8
+        #base_plan = [False]*t_offset*(N-1) + [True]*5 + [False]*60 + ([True]*18 + [False]*60)*5
+        #return {f'advance___i{n}': base_plan[t+t_offset*(N-n-1)] for n in range(N)}
+
+        t_offsets = [0, 4, 10, 19, 29]
+        base_plan = [False]*t_offsets[-1] + [True]*5 + [False]*60 + ([True]*18 + [False]*60)*5
+        return {f'advance___i{n}': base_plan[t+t_offsets[n]] for n in range(N)}
+
     def sample_trained_planner_action(t):
         return {f'advance___i{n}': learned_plan[t][n] for n in range(N)}
 

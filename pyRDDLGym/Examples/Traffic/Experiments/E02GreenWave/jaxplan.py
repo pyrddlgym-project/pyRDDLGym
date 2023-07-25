@@ -35,7 +35,7 @@ init_state_subs, t_warmup = warmup(myEnv, EnvInfo)
 
 # initialize the planner
 b_train = 2 # Deterministic transitions -> No need for larger batches?
-b_test = 1
+b_test = 2
 clip_grad = 1e-3
 wrap_sigmoid = False
 

@@ -186,7 +186,7 @@ non-fluents green_wave_5_experiment {
         LINK-FROM(i0,l0);
         LINK-FROM(i0,l22);
         //phase properties
-        PHASE-MIN(i0) = 24;
+        PHASE-MIN(i0) = 10;
         PHASE-MAX(i0) = 60;
         PHASE-ALL-RED-DUR(i0) = 4;
         //green turns
@@ -220,7 +220,7 @@ non-fluents green_wave_5_experiment {
         LINK-FROM(i1,l2);
         LINK-FROM(i1,l24);
         //phase properties
-        PHASE-MIN(i1) = 24;
+        PHASE-MIN(i1) = 10;
         PHASE-MAX(i1) = 60;
         PHASE-ALL-RED-DUR(i1) = 4;
         //green turns
@@ -254,7 +254,7 @@ non-fluents green_wave_5_experiment {
         LINK-FROM(i2,l4);
         LINK-FROM(i2,l26);
         //phase properties
-        PHASE-MIN(i2) = 24;
+        PHASE-MIN(i2) = 10;
         PHASE-MAX(i2) = 60;
         PHASE-ALL-RED-DUR(i2) = 4;
         //green turns
@@ -288,7 +288,7 @@ non-fluents green_wave_5_experiment {
         LINK-FROM(i3,l6);
         LINK-FROM(i3,l28);
         //phase properties
-        PHASE-MIN(i3) = 24;
+        PHASE-MIN(i3) = 10;
         PHASE-MAX(i3) = 60;
         PHASE-ALL-RED-DUR(i3) = 4;
         //green turns
@@ -322,7 +322,7 @@ non-fluents green_wave_5_experiment {
         LINK-FROM(i4,l8);
         LINK-FROM(i4,l30);
         //phase properties
-        PHASE-MIN(i4) = 24;
+        PHASE-MIN(i4) = 10;
         PHASE-MAX(i4) = 60;
         PHASE-ALL-RED-DUR(i4) = 4;
         //green turns
@@ -357,6 +357,6 @@ instance green_wave_5_experiment {
     domain = BLX_model;
     non-fluents = green_wave_5_experiment;
     max-nondef-actions = 5;
-    horizon = 320;
+    horizon = 1024; //320;
     discount = 1.0;
 }
