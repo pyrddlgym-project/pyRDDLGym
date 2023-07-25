@@ -107,20 +107,29 @@ class GurobiExperiment:
         log_dict = {}
         returns = GurobiExperiment._evaluate(
             world, None, planner, horizon, self.rollouts)
-        print(f'\naverage return: {np.mean(returns)}\n')
-        log_dict[-1] = {'returns': returns, 'mean_return': np.mean(returns),
-                        'std_return': np.std(returns)}
+        log_dict[-1] = {'returns': returns, 
+                        'returns_stats': {'mean': np.mean(returns), 
+                                          'std': np.std(returns)}}
+        
+        print(f'\POLICY SUMMARY:'
+              f'\nmean return: {np.mean(returns)}'
+              f'\nstd return:  {np.std(returns)}')
         
         # run the bi-level planner and evaluate at each iteration
         for callback in planner.solve(self.iters, float('nan')): 
             returns = GurobiExperiment._evaluate(
                 world, policy, planner, horizon, self.rollouts)
-            print(f'\naverage return: {np.mean(returns)}\n')  
-            print('\nfinal policy:\n' + callback['policy_string']) 
             callback['returns'] = returns
-            callback['mean_return'] = np.mean(returns)
-            callback['std_return'] = np.std(returns)
-            log_dict[callback['it']] = callback
+            callback['returns_stats'] = {'mean': np.mean(returns), 
+                                         'std': np.std(returns)}
+            log_dict[callback['iteration']] = callback
+            
+            print(f'\nPOLICY SUMMARY:'
+                  f'\nmean return: {np.mean(returns)}'
+                  f'\nstd return:  {np.std(returns)}'
+                  f'\npolicy:      {callback["policy"]}'
+                  f'\nerror:       {callback["inner_value"]["epsilon"]}'
+                  f'\nouter value: {callback["outer_value"]["policy"]}')
             
         # save log to file
         idstr = self.get_experiment_id_str()

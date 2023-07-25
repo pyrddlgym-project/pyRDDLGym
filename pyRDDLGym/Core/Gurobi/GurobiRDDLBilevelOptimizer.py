@@ -126,34 +126,34 @@ class GurobiRDDLBilevelOptimizer:
             # solve outer problem for policy
             print('\nADDING CONSTRAINT AND SOLVING OUTER PROBLEM:\n')
             start_time = time.time()
-            worst_val_pol_outer, param_values, outer_stats = \
-                self._resolve_outer_problem(
-                    worst_val_slp, worst_state, worst_noise, 
-                    compiler, outer_model, params)
+            outer_value_pol, param_values, outer_stats = self._resolve_outer_problem(
+                worst_val_slp, worst_state, worst_noise, 
+                compiler, outer_model, params)
             elapsed_time_outer = time.time() - start_time
             
             # check stopping condition
-            new_error = outer_model.getVarByName('error').X
+            new_error = worst_val_slp - worst_val_pol
             converged = abs(new_error - error) <= tol * abs(error)
             error = new_error            
             
             # callback
             yield {
-                'it': it,
+                'iteration': it,
                 'converged': converged,
-                'worst_value_inner': {'slp': worst_val_slp, 'policy': worst_val_pol},
-                'worst_action': worst_action,
-                'worst_state': worst_state,
-                'worst_noise': worst_noise,
-                'worst_next_states': worst_next_states,
-                'worst_value_outer': worst_val_pol_outer,
-                'error': error,
-                'params': param_values,
-                'elapsed_time_inner': elapsed_time_inner,
-                'elapsed_time_outer': elapsed_time_outer,
-                'policy_string': self.policy.to_string(compiler, params),
-                'inner_model_stats': inner_stats,
-                'outer_model_stats': outer_stats
+                'elapsed_time': {'inner': elapsed_time_inner, 
+                                 'outer': elapsed_time_outer},
+                'model_stats': {'inner': inner_stats, 
+                                'outer': outer_stats},                
+                'inner_value': {'plan': worst_val_slp, 
+                                'policy': worst_val_pol, 
+                                'epsilon': new_error},
+                'inner_sol': {'actions': worst_action,
+                              'init_state': worst_state,
+                              'noises': worst_noise,
+                              'states': worst_next_states},
+                'outer_value': {'policy': outer_value_pol},
+                'parameters': param_values,
+                'policy': self.policy.to_string(compiler, params),
             }
             if converged:
                 break
@@ -174,16 +174,21 @@ class GurobiRDDLBilevelOptimizer:
     
     def _model_stats(self, model):        
         model_stats = {
-            'variables': model.NumVars,
-            'integer_variables': model.NumIntVars,
-            'binary_variables': model.NumBinVars,
-            'piecewise_linear_variables': model.NumPWLObjVars,
-            'linear_constraints': model.NumConstrs,
-            'SOS_constraints': model.NumSOS,
-            'quadratic_constraints': model.NumQConstrs,
-            'general_constraints': model.NumGenConstrs,
+            'variables': {'total': model.NumVars, 
+                          'integer': model.NumIntVars, 
+                          'binary': model.NumBinVars,
+                          'piecewise': model.NumPWLObjVars},
+            'constraints': {'linear': model.NumConstrs,
+                            'SOS': model.NumSOS,
+                            'quadratic': model.NumQConstrs, 
+                            'general': model.NumGenConstrs},
+            'sense': model.ModelSense,
+            'objective': {'value': model.ObjVal,
+                          'bound': model.ObjBound},
             'gap': model.MIPGap,
-            'runtime': model.Runtime
+            'runtime': model.Runtime,
+            'status': model.Status,
+            'iters': model.IterCount
         }
         return model_stats
         
@@ -282,7 +287,7 @@ class GurobiRDDLBilevelOptimizer:
         # optimize error and return new policy parameter values
         model.optimize()
         param_values = {name: value[0].X for (name, value) in policy_params.items()}
-        worst_value_pol = value_pol.getValue()
+        value_pol = value_pol.getValue()
         model_stats = self._model_stats(model)
-        return worst_value_pol, param_values, model_stats
+        return value_pol, param_values, model_stats
     
