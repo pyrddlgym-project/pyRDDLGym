@@ -10,14 +10,16 @@ domain reservoir_control_linear {
 	
 	pvariables {
 	
-		// Constant
-		MAXCAP(id) : { non-fluent, real, default = 100.0 };
-		HIGH_BOUND(id) : { non-fluent, real, default = 80.0 };
 		LOW_BOUND(id) : { non-fluent, real, default = 20.0 };
-		HIGH_COST(id) : { non-fluent, real, default = -100.0 };
+		HIGH_BOUND(id) : { non-fluent, real, default = 80.0 };
+		MAXCAP(id) : { non-fluent, real, default = 100.0 };
+		
 		LOW_COST(id) : { non-fluent, real, default = -5.0 };
+		HIGH_COST(id) : { non-fluent, real, default = -100.0 };
+		
 		RAIN_MEAN(id) : { non-fluent, real, default = 5.0 };
 		RAIN_VAR(id) : { non-fluent, real, default = 5.0 };
+		
 		DOWNSTREAM(id, id) : { non-fluent, bool, default = false };
 		
 		rainfall(id) : { interm-fluent, real };
