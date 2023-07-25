@@ -87,16 +87,16 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
         rddl = compiled.rddl
         action_vars = {}
         for (action, prange) in rddl.actionsranges.items():
-            lb, ub = self._bounds(rddl, action)
-            vtype = compiled.GUROBI_TYPES[prange]
+            bounds = self._bounds(rddl, action)
+            atype = compiled.GUROBI_TYPES[prange]
             for step in range(compiled.horizon):
-                var_name = f'{action}__{step}'
+                name = f'{action}__{step}'
                 if values is None:
-                    var = compiled._add_var(model, vtype, lb, ub)
-                    action_vars[var_name] = (var, vtype, lb, ub, True)
+                    var = compiled._add_var(model, atype, *bounds)
+                    action_vars[name] = (var, atype, *bounds, True)
                 else:
-                    value = values[var_name]
-                    action_vars[var_name] = (value, vtype, value, value, False)
+                    value = values[name]
+                    action_vars[name] = (value, atype, value, value, False)
         return action_vars
         
     def init_params(self, compiled: 'GurobiRDDLCompiler',
@@ -123,7 +123,8 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
         rddl = compiled.rddl
         action_values = {}
         for (action, prange) in rddl.actionsranges.items():
-            action_value = params[f'{action}__{step}'][0].X
+            name = f'{action}__{step}'
+            action_value = params[name][0].X
             if prange == 'int':
                 action_value = int(action_value)
             elif prange == 'bool':
@@ -138,8 +139,8 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
         for step in range(compiled.horizon):
             values = []
             for action in rddl.actions:
-                action_value = params[f'{action}__{step}'][0].X
-                values.append(f'{action}_{step} = {action_value}')
+                name = f'{action}__{step}'
+                values.append(f'{action}[{step}] = {params[name][0].X}')
             res += ', '.join(values) + '\n'
         return res
 
@@ -148,100 +149,89 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
     
     def __init__(self, *args,
                  state_bounds: Dict[str, Tuple[float, float]]={},
-                 upper_bound: bool=True,
-                 dependencies_constr: Dict[str, List[str]]=None,
-                 dependencies_values: Dict[str, List[str]]=None,
-                 linear_value: bool=False,
+                 dependencies_constr: Dict[str, List[str]]={},
+                 dependencies_values: Dict[str, List[str]]={}, 
                  num_cases: int=1,
                  **kwargs) -> None:
-        super(GurobiPiecewisePolicy, self).__init__(*args, **kwargs)
-        
+        super(GurobiPiecewisePolicy, self).__init__(*args, **kwargs)        
         self.state_bounds = state_bounds
-        self.upper_bound = upper_bound or num_cases > 1
         self.dependencies_constr = dependencies_constr
+        if dependencies_values is None:
+            dependencies_values = {}
         self.dependencies_values = dependencies_values
-        self.linear_value = linear_value
         self.num_cases = num_cases
     
     def _get_states_for_constraints(self, rddl):
-        states = {}
-        if self.dependencies_constr is not None:
-            for action in rddl.actions:
-                states[action] = list(self.dependencies_constr[action])
+        if self.dependencies_constr:
+            return self.dependencies_constr
         else:
-            for action in rddl.actions:
-                states[action] = list(rddl.states.keys())
-        return states
-    
-    def _get_states_for_values(self, rddl):
-        states = {}
-        if self.dependencies_values is not None:
-            for action in rddl.actions:
-                states[action] = list(self.dependencies_values[action])
-        else:
-            for action in rddl.actions:
-                states[action] = list(rddl.states.keys())
-        return states
+            state_names = list(rddl.states.keys())
+            return {action: state_names for action in rddl.actions}
     
     def params(self, compiled: 'GurobiRDDLCompiler',
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl  
         states_in_constr = self._get_states_for_constraints(rddl)
-        states_in_values = self._get_states_for_values(rddl)
+        states_in_values = self.dependencies_values
         
         param_vars = {}
         for (action, arange) in rddl.actionsranges.items():
-            atype = compiled.GUROBI_TYPES[arange]
-            lb, ub = self._bounds(rddl, action)
             
-            # each case i
-            for icase in list(range(self.num_cases)) + ['else']:
-                    
-                # a constraint for an action is an intersection of constraints on
-                # state of the form s_i >= lb_i ^ s_i <= ub_i
-                if icase != 'else':
-                    for state in states_in_constr[action]:
-                        srange = rddl.statesranges[state]
-                        stype = compiled.GUROBI_TYPES[srange]
-                        lbs, ubs = self.state_bounds.get(state, UNBOUNDED)
-                    
-                        # initialize parameters of constraint s_i >= lb_i ^ s_i <= ub_i
-                        # initialize action parameter a_i if constraint is true
-                        lname = f'low__{icase}__{state}__{action}'
-                        hname = f'high__{icase}__{state}__{action}'
-                        if values is None:
-                            lvar = compiled._add_var(model, stype, lbs, ubs)
-                            param_vars[lname] = (lvar, stype, lbs, ubs, True)                        
-                            if self.upper_bound:
-                                hvar = compiled._add_var(model, stype, lbs, ubs)
-                                model.addConstr(hvar >= lvar)
-                                param_vars[hname] = (hvar, stype, lbs, ubs, True)
-                        else:
-                            lval = values[lname]                                       
-                            param_vars[lname] = (lval, stype, lval, lval, False)
-                            if self.upper_bound:
-                                hval = values[hname]
-                                param_vars[hname] = (hval, stype, hval, hval, False)
+            # each case k
+            for k in list(range(self.num_cases)) + ['else']:
                 
-                # action parameters a_i for current case
-                if self.linear_value:
-                    for state in ['bias'] + states_in_values[action]:
-                        wname = f'weight__{state}__{icase}__{action}'
-                        if values is None:
-                            wvar = compiled._add_var(model, atype, lb, ub)
-                            param_vars[wname] = (wvar, atype, lb, ub, True)
-                        else:
-                            wval = values[wname]
-                            param_vars[wname] = (wval, atype, wval, wval, False)
-                else:
-                    aname = f'action__{icase}__{action}'
+                # constraint is a linear function of state variables
+                if k != 'else':
+                    
+                    # constraint value assumes two cases:
+                    # 1. PWL: S = {s1,... sK} --> w1 * s1 + ... + wK * sK
+                    # 2. PWS: S = {s}         --> s
+                    states = states_in_constr[action]
+                    is_linear = len(states) > 1
+                    if is_linear:
+                        for feature in states:
+                            name = f'constr_weight__{action}__{k}__{feature}'
+                            if values is None:
+                                var = compiled._add_real_var(model)
+                                param_vars[name] = (var, GRB.CONTINUOUS, *UNBOUNDED, True)
+                            else:
+                                val = values[name]
+                                param_vars[name] = (val, GRB.CONTINUOUS, val, val, False)
+                        
+                    # lower and upper bounds for constraint value
+                    vtype = GRB.CONTINUOUS
+                    lb_name = f'lb__{action}__{k}'
+                    ub_name = f'ub__{action}__{k}'                    
                     if values is None:
-                        avar = compiled._add_var(model, atype, lb, ub)
-                        param_vars[aname] = (avar, atype, lb, ub, True)
+                        lb, ub = self.state_bounds[states[0]]
+                        var_bounds = UNBOUNDED if is_linear else (lb - 1, ub + 1)
+                        lb_var = compiled._add_var(model, vtype, *var_bounds)                        
+                        ub_var = compiled._add_var(model, vtype, *var_bounds)
+                        model.addConstr(ub_var >= lb_var)
+                        param_vars[lb_name] = (lb_var, vtype, *var_bounds, True)
+                        param_vars[ub_name] = (ub_var, vtype, *var_bounds, True)
                     else:
-                        aval = values[aname]     
-                        param_vars[aname] = (aval, atype, aval, aval, False)              
+                        lb_val = values[lb_name]       
+                        ub_val = values[ub_name]                          
+                        param_vars[lb_name] = (lb_val, vtype, lb_val, lb_val, False)
+                        param_vars[ub_name] = (ub_val, vtype, ub_val, ub_val, False)
+                    
+                # action values are generally linear, but two cases:
+                # C: only a bias term
+                # S/L: has bias and weight parameters
+                states = states_in_values.get(action, [])
+                is_linear = len(states) > 0
+                var_bounds = UNBOUNDED if is_linear else self._bounds(rddl, action)
+                vtype = GRB.CONTINUOUS if is_linear else compiled.GUROBI_TYPES[arange]
+                for feature in ['bias'] + states:
+                    name = f'value_weight__{action}__{k}__{feature}'
+                    if values is None:
+                        var = compiled._add_var(model, vtype, *var_bounds)
+                        param_vars[name] = (var, vtype, *var_bounds, True)
+                    else:
+                        val = values[name]
+                        param_vars[name] = (val, vtype, val, val, False)          
                 
         return param_vars
     
@@ -249,34 +239,43 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
-        states_in_values = self._get_states_for_values(rddl)
+        states_in_values = self.dependencies_values
         
         param_values = {}
         for action in rddl.actions:
             
-            # each case i
-            for icase in list(range(self.num_cases)) + ['else']: 
+            # each case k
+            for k in list(range(self.num_cases)) + ['else']: 
                 
-                # initialize bounds lb_i, ub_i in constraint to default state bounds
-                if icase != 'else':
-                    for state in states_in_constr[action]:
-                        lbs, ubs = self.state_bounds.get(state, UNBOUNDED)            
-                        lname = f'low__{icase}__{state}__{action}'
-                        param_values[lname] = lbs
-                        if self.upper_bound:
-                            hname = f'high__{icase}__{state}__{action}'
-                            param_values[hname] = ubs
-            
-                # initialize action parameter a_i for current case to no-op
-                if self.linear_value:
-                    aname = f'weight__bias__{icase}__{action}'
-                    param_values[aname] = compiled.init_values[action]
-                    for state in states_in_values[action]:
-                        aname = f'weight__{state}__{icase}__{action}'
-                        param_values[aname] = 0
-                else:
-                    aname = f'action__{icase}__{action}'
-                    param_values[aname] = compiled.init_values[action]
+                # constraint
+                if k != 'else':
+                    
+                    # constraint value initialized to zero
+                    states = states_in_constr[action]
+                    is_linear = len(states) > 1
+                    if is_linear:
+                        for feature in states:
+                            name = f'constr_weight__{action}__{k}__{feature}'
+                            param_values[name] = 0
+                    
+                    # constraint bounds
+                    if is_linear:
+                        lb, ub = -1, +1
+                    else:
+                        lb, ub = self.state_bounds[states[0]]
+                    lb_name = f'lb__{action}__{k}'
+                    ub_name = f'ub__{action}__{k}'
+                    param_values[lb_name] = lb
+                    param_values[ub_name] = ub
+                    
+                # action value initialized to default action
+                states = states_in_values.get(action, [])
+                for feature in ['bias'] + states:
+                    name = f'value_weight__{action}__{k}__{feature}'
+                    if feature == 'bias':
+                        param_values[name] = compiled.init_values[action]
+                    else:
+                        param_values[name] = 0
                 
         return param_values
     
@@ -287,69 +286,73 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
-        states_in_values = self._get_states_for_values(rddl)
+        states_in_values = self.dependencies_values
         
         action_vars = {}
         for (action, arange) in rddl.actionsranges.items():
             
-            # action variable a_i
+            # action variable
             atype = compiled.GUROBI_TYPES[arange]
-            lb, ub = self._bounds(rddl, action)
-            res = compiled._add_var(model, atype, lb, ub)
-            action_vars[action] = (res, atype, lb, ub, True)
+            action_bounds = self.action_bounds[action]
+            action_var = compiled._add_var(model, atype, *action_bounds)
+            action_vars[action] = (action_var, atype, *action_bounds, True)
             
-            # each case i
-            case_sat_vars = []
-            for icase in list(range(self.num_cases)) + ['else']:
+            # each case k
+            constr_sat_vars = []
+            for k in list(range(self.num_cases)) + ['else']:
                 
-                # each constraint i is an intersection of constraints
-                if icase != 'else':
+                # constraint
+                if k != 'else':
                     
-                    # check sub-constraints s_j >= lb_ij ^ s_j <= ub_ij
-                    case_vars = []
-                    for state in states_in_constr[action]:
-                        l_name = f'low__{icase}__{state}__{action}'
-                        h_name = f'high__{icase}__{state}__{action}'
+                    # constraint value
+                    states = states_in_constr[action]
+                    is_linear = len(states) > 1
+                    if is_linear:
+                        constr_value = 0
+                        for feature in states:
+                            name = f'constr_weight__{action}__{k}__{feature}'
+                            constr_value += params[name][0] * subs[feature][0]
+                        constr_value_var = compiled._add_real_var(model)
+                        model.addConstr(constr_value_var == constr_value)
+                    else:
+                        constr_value_var = subs[states[0]][0]
                         
-                        # assign s_j >= lb_ij ^ s_j <= ub_ij to a variable
-                        ldiff = subs[state][0] - params[l_name][0]
-                        lvar = compiled._add_bool_var(model)
-                        model.addConstr((lvar == 1) >> (ldiff >= 0))
-                        model.addConstr((lvar == 0) >> (ldiff <= 0))
-                        case_vars.append(lvar)
-                        if self.upper_bound:
-                            hdiff = subs[state][0] - params[h_name][0]
-                            hvar = compiled._add_bool_var(model)
-                            model.addConstr((hvar == 1) >> (hdiff <= 0))
-                            model.addConstr((hvar == 0) >> (hdiff >= 0))
-                            case_vars.append(hvar)
-                        
-                    # check constraint of case i satisfied
-                    case_var = compiled._add_bool_var(model)
-                    model.addGenConstrAnd(case_var, case_vars)
-                    case_sat_vars.append(case_var)
+                    # constraint bounds
+                    lb_name = f'lb__{action}__{k}'
+                    ub_name = f'ub__{action}__{k}'   
+                    lb_var = params[lb_name][0]
+                    ub_var = params[ub_name][0]
+                    lb_sat_var = compiled._add_bool_var(model)
+                    ub_sat_var = compiled._add_bool_var(model)
+                    lb_diff = constr_value_var - lb_var
+                    ub_diff = constr_value_var - ub_var
+                    model.addConstr((lb_sat_var == 1) >> (lb_diff >= 0))
+                    model.addConstr((lb_sat_var == 0) >> (lb_diff <= -compiled.epsilon))
+                    model.addConstr((ub_sat_var == 1) >> (ub_diff <= 0))
+                    model.addConstr((ub_sat_var == 0) >> (ub_diff >= +compiled.epsilon))
+                    constr_sat_var = compiled._add_bool_var(model)
+                    model.addGenConstrAnd(constr_sat_var, [lb_sat_var, ub_sat_var])
+                    constr_sat_vars.append(constr_sat_var)
                 
-                # construct an action var constant or linear function of state
-                if self.linear_value:
-                    wname = f'weight__bias__{icase}__{action}'
-                    aexpr = params[wname][0]
-                    for state in states_in_values[action]:
-                        wname = f'weight__{state}__{icase}__{action}'
-                        aexpr = aexpr + params[wname][0] * subs[state][0]
-                    avar = compiled._add_var(model, atype, lb, ub)
-                    model.addConstr(avar == aexpr)
-                else:
-                    aname = f'action__{icase}__{action}'
-                    avar = params[aname][0]
+                # action value
+                states = states_in_values.get(action, [])
+                name = f'value_weight__{action}__{k}__bias'
+                action_case_value = params[name][0]
+                for feature in states:
+                    name = f'value_weight__{action}__{k}__{feature}'
+                    action_case_value += params[name][0] * subs[feature][0]
+                action_case_var = compiled._add_var(model, atype, *action_bounds)
+                model.addConstr(action_case_var == action_case_value)
                 
-                # assign action to a_i if constraint satisfied
-                # if none of the state constraints hold, assign else value
-                if icase == 'else':
-                    any_sat_var = compiled._add_bool_var(model)
-                    model.addGenConstrOr(any_sat_var, case_sat_vars)
-                    model.addConstr((any_sat_var == 0) >> (res == avar))
-                else:
-                    model.addConstr((case_var == 1) >> (res == avar))
+                # if the current constraint is satisfied assign action value
+                if k != 'else':
+                    model.addConstr((constr_sat_var == 1) >> 
+                                    (action_var == action_case_var))
+            
+            # if no constraint is satisfied assign default action value
+            any_sat_var = compiled._add_bool_var(model)
+            model.addGenConstrOr(any_sat_var, constr_sat_vars)
+            model.addConstr((any_sat_var == 0) >> (action_var == action_case_var))
                     
         return action_vars
     
@@ -359,44 +362,55 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
-        states_in_values = self._get_states_for_values(rddl)
+        states_in_values = self.dependencies_values
         
         action_values = {}
         for (action, arange) in rddl.actionsranges.items():
             
-            # for each case
-            for icase in list(range(self.num_cases)) + ['else']:
+            # case k
+            for k in list(range(self.num_cases)) + ['else']:
                 
-                # check if case i constraint is satisfied
-                case_i_holds = True                
-                if icase != 'else':
-                    for state in states_in_constr[action]:
-                        lname = f'low__{icase}__{state}__{action}'
-                        hname = f'high__{icase}__{state}__{action}'
-                        lval = params[lname][0].X
-                        hval = params[hname][0].X if self.upper_bound else float('inf')   
-                        if not (lval <= subs[state] <= hval):
-                            case_i_holds = False
-                            break
-                
-                # evaluate the action as either constant or linear in the state
-                if case_i_holds:
-                    if self.linear_value:
-                        wname = f'weight__bias__{icase}__{action}'  
-                        aval = params[wname][0].X
-                        for state in states_in_values[action]:
-                            wname = f'weight__{state}__{icase}__{action}'   
-                            aval += params[wname][0].X * subs[state]
+                # constraint   
+                if k == 'else':
+                    case_i_holds = True
+                else:
+                    # constraint value
+                    states = states_in_constr[action]
+                    is_linear = len(states) > 1
+                    if is_linear:
+                        constr_value = 0
+                        for feature in states:
+                            name = f'constr_weight__{action}__{k}__{feature}'
+                            constr_value += params[name][0].X * subs[feature]
                     else:
-                        aname = f'action__{icase}__{action}'
-                        aval = params[aname][0].X    
+                        constr_value = subs[states[0]]
                         
+                    # constraint bounds
+                    lb_name = f'lb__{action}__{k}'
+                    ub_name = f'ub__{action}__{k}'
+                    lb_val = params[lb_name][0].X
+                    ub_val = params[ub_name][0].X
+                    case_i_holds = (lb_val <= constr_value <= ub_val)
+                
+                # action value
+                if case_i_holds:
+                    states = states_in_values.get(action, [])
+                    name = f'value_weight__{action}__{k}__bias'
+                    action_value = params[name][0].X
+                    for feature in states:
+                        name = f'value_weight__{action}__{k}__{feature}'
+                        action_value += params[name][0].X * subs[feature]
+                    
+                    # clip to valid range
+                    lb, ub = self._bounds(rddl, action)
+                    action_value = max(lb, min(ub, action_value))
+                    
                     # cast action to appropriate type   
                     if arange == 'int':
-                        aval = int(aval)
+                        action_value = int(action_value)
                     elif arange == 'bool':
-                        aval = bool(aval > 0.5)
-                    action_values[action] = aval               
+                        action_value = bool(action_value > 0.5)
+                    action_values[action] = action_value           
                     break
             
         return action_values
@@ -405,51 +419,55 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                   params: Dict[str, object]) -> str:
         rddl = compiled.rddl
         states_in_constr = self._get_states_for_constraints(rddl)
-        states_in_values = self._get_states_for_values(rddl)
+        states_in_values = self.dependencies_values
         
-        res = ''
+        values = []
         for action in rddl.actions:
-            case_strs = []
             
-            # for each case i
-            for icase in list(range(self.num_cases)) + ['else']:
+            # case k
+            action_case_values = []
+            for k in list(range(self.num_cases)) + ['else']:
                 
-                # print the action value
-                if self.linear_value:
-                    a_vals = []
-                    w_name = f'weight__bias__{icase}__{action}'               
-                    w_val = params[w_name][0].X
-                    a_vals.append(str(w_val))
-                    for state in states_in_values[action]:
-                        w_name = f'weight__{state}__{icase}__{action}'   
-                        w_val = params[w_name][0].X
-                        a_vals.append(f'{w_val} * {state}')
-                    a_val = ' + '.join(a_vals)
-                else:
-                    a_name = f'action__{icase}__{action}'
-                    a_val = params[a_name][0].X
+                # constraint
+                if k != 'else':
                     
-                # print the intersection constraint for current case i
-                if icase == 'else':
-                    case_str = f'{a_val} otherwise'
-                else:
-                    case_constrs = []                    
-                    for state in states_in_constr[action]:
-                        l_name = f'low__{icase}__{state}__{action}'
-                        l_val = params[l_name][0].X  
-                        if self.upper_bound:
-                            h_name = f'high__{icase}__{state}__{action}'
-                            h_val = params[h_name][0].X
-                            case_val = f'{state} >= {l_val} ^ {state} <= {h_val}'
-                        else:
-                            case_val = f'{state} >= {l_val}'
-                        case_constrs.append(case_val)
-                    case_str = f'{a_val} if ' + ' ^ '.join(case_constrs)
-                case_strs.append(case_str)
+                    # constraint value
+                    states = states_in_constr[action]
+                    if len(states) > 1:
+                        constr_values = []
+                        for feature in states:
+                            name = f'constr_weight__{action}__{k}__{feature}'
+                            constr_values.append(f'{params[name][0].X} * {feature}')
+                        constr_value = ' + '.join(constr_values)
+                    else:
+                        constr_value = f'{states[0]}'
                     
-            res += f'{action} = ' + ', '.join(case_strs) + '\n'
-            
-        return res
+                    # constraint bounds
+                    lb_name = f'lb__{action}__{k}'
+                    ub_name = f'ub__{action}__{k}'
+                    lb_val = params[lb_name][0].X
+                    ub_val = params[ub_name][0].X
+                    case_i_holds = f'{lb_val} <= {constr_value} <= {ub_val}'
+                else:
+                    case_i_holds = 'else'
+                    
+                # action case value
+                states = states_in_values.get(action, [])
+                name = f'value_weight__{action}__{k}__bias'
+                action_case_terms = [f'{params[name][0].X}']
+                for feature in states:
+                    name = f'value_weight__{action}__{k}__{feature}'
+                    action_case_terms.append(f'{params[name][0].X} * {feature}')
+                action_case_value = ' + '.join(action_case_terms)
+                
+                # update expression for action value
+                if k == 'else':
+                    action_case_values.append(action_case_value)
+                else:
+                    action_case_values.append(f'{action_case_value} if {case_i_holds}') 
+            values.append(f'{action} = ' + ' else '.join(action_case_values))
+        
+        return '\n'.join(values)
 
 
 class GurobiQuadraticPolicy(GurobiRDDLPlan):
@@ -466,59 +484,54 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
         rddl = compiled.rddl
         states = list(rddl.states.keys())
         clip_range = (-self.action_clip_value, +self.action_clip_value)
+        
         param_vars = {}
         for action in rddl.actions:
             
-            # bias parameter
-            b_name = f'bias__{action}'
-            if values is None:
-                b_var = compiled._add_real_var(model, *clip_range)
-                param_vars[b_name] = (b_var, GRB.CONTINUOUS, *clip_range, True)
-            else:
-                b_val = values[b_name]
-                param_vars[b_name] = (b_val, GRB.CONTINUOUS, b_val, b_val, False)
-            
             # linear terms
-            for state in states:
-                l_name = f'linear__{action}__{state}'
+            for state in ['bias'] + states:
+                name = f'weight__{action}__{state}'
                 if values is None:
-                    l_var = compiled._add_real_var(model, *clip_range)
-                    param_vars[l_name] = (l_var, GRB.CONTINUOUS, *clip_range, True)
+                    var = compiled._add_real_var(model, *clip_range)
+                    param_vars[name] = (var, GRB.CONTINUOUS, *clip_range, True)
                 else:
-                    l_val = values[l_name]
-                    param_vars[l_name] = (l_val, GRB.CONTINUOUS, l_val, l_val, False)
+                    val = values[name]
+                    param_vars[name] = (val, GRB.CONTINUOUS, val, val, False)
             
             # quadratic terms
-            for (i, state1) in enumerate(states):
-                for state2 in states[i:]:
-                    q_name = f'linear__{action}__{state1}__{state2}'
+            for (i, s1) in enumerate(states):
+                for s2 in states[i:]:
+                    name = f'weight__{action}__{s1}__{s2}'
                     if values is None:
-                        q_var = compiled._add_real_var(model, *clip_range)
-                        param_vars[q_name] = (q_var, GRB.CONTINUOUS, *clip_range, True)
+                        var = compiled._add_real_var(model, *clip_range)
+                        param_vars[name] = (var, GRB.CONTINUOUS, *clip_range, True)
                     else:
-                        q_val = values[q_name]
-                        param_vars[q_name] = (q_val, GRB.CONTINUOUS, q_val, q_val, False)
+                        val = values[name]
+                        param_vars[name] = (val, GRB.CONTINUOUS, val, val, False)
+                        
         return param_vars
         
     def init_params(self, compiled: 'GurobiRDDLCompiler',
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
         states = list(rddl.states.keys())
+        
         param_values = {}
         for action in rddl.actions:
             
             # bias initialized to no-op action value
-            b_name = f'bias__{action}'
-            param_values[b_name] = compiled.init_values[action]
+            name = f'weight__{action}__bias'
+            param_values[name] = compiled.init_values[action]
             
             # linear and quadratic terms are zero
             for state in states:
-                l_name = f'linear__{action}__{state}'
-                param_values[l_name] = 0
-            for (i, state1) in enumerate(states):
-                for state2 in states[i:]:
-                    q_name = f'linear__{action}__{state1}__{state2}'
-                    param_values[q_name] = 0
+                name = f'weight__{action}__{state}'
+                param_values[name] = 0
+            for (i, s1) in enumerate(states):
+                for s2 in states[i:]:
+                    name = f'weight__{action}__{s1}__{s2}'
+                    param_values[name] = 0
+                    
         return param_values
     
     def actions(self, compiled: 'GurobiRDDLCompiler',
@@ -528,31 +541,31 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         states = list(rddl.states.keys())
+        
         action_vars = {}        
         for action in rddl.actions:
             
-            # start with bias
-            b_name = f'bias__{action}'
-            action_value = params[b_name][0]
-            
-            # add linear terms
+            # linear terms
+            name = f'weight__{action}__bias'
+            action_value = params[name][0]
             for state in states:
-                l_name = f'linear__{action}__{state}'
-                action_value = action_value + params[l_name][0] * subs[state][0]
+                name = f'weight__{action}__{state}'
+                action_value += params[name][0] * subs[state][0]
             
-            # add quadratic terms
-            for (i, state1) in enumerate(states):
-                for state2 in states[i:]:
-                    q_name = f'linear__{action}__{state1}__{state2}'
-                    q_var = compiled._add_real_var(model)
-                    model.addConstr(q_var == subs[state1][0] * subs[state2][0])
-                    action_value = action_value + params[q_name][0] * q_var
+            # quadratic terms
+            for (i, s1) in enumerate(states):
+                for s2 in states[i:]:
+                    name = f'weight__{action}__{s1}__{s2}'
+                    var = compiled._add_real_var(model)
+                    model.addConstr(var == subs[s1][0] * subs[s2][0])
+                    action_value += params[name][0] * var
             
-            # action variable a_i
-            lb, ub = self._bounds(rddl, action)
-            res = compiled._add_real_var(model, lb, ub)
-            action_vars[action] = (res, GRB.CONTINUOUS, lb, ub, True)
-            model.addConstr(res == action_value)
+            # action variable
+            bounds = self._bounds(rddl, action)
+            action_var = compiled._add_real_var(model, *bounds)
+            action_vars[action] = (action_var, GRB.CONTINUOUS, *bounds, True)
+            model.addConstr(action_var == action_value)
+            
         return action_vars
     
     def evaluate(self, compiled: 'GurobiRDDLCompiler',
@@ -561,23 +574,22 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         states = list(rddl.states.keys())
+        
         action_values = {}
         for action in rddl.actions:
             
-            # bias
-            b_name = f'bias__{action}'
-            action_value = params[b_name][0].X
-            
-            # add linear terms
+            # linear terms
+            name = f'weight__{action}__bias'
+            action_value = params[name][0].X
             for state in states:
-                l_name = f'linear__{action}__{state}'
-                action_value += params[l_name][0].X * subs[state]
+                name = f'weight__{action}__{state}'
+                action_value += params[name][0].X * subs[state]
             
-            # add quadratic terms
-            for (i, state1) in enumerate(states):
-                for state2 in states[i:]:
-                    q_name = f'linear__{action}__{state1}__{state2}'
-                    action_value += params[q_name][0].X * subs[state1] * subs[state2]
+            # quadratic terms
+            for (i, s1) in enumerate(states):
+                for s2 in states[i:]:
+                    name = f'weight__{action}__{s1}__{s2}'
+                    action_value += params[name][0].X * subs[s1] * subs[s2]
             
             # bound to valid range
             lb, ub = self._bounds(rddl, action)
@@ -589,25 +601,26 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
                   params: Dict[str, object]) -> str:
         rddl = compiled.rddl
         states = list(rddl.states.keys())
+        
         res = ''
         for action in rddl.actions:
             
-            # bias term
-            b_name = f'bias__{action}'
-            terms = [f'{params[b_name][0].X}']
-            
             # linear terms
-            for state in states:
-                l_name = f'linear__{action}__{state}'
-                l_val = params[l_name][0].X
-                terms.append(f'{l_val} * {state}')
+            terms = []
+            for state in ['bias'] + states:
+                name = f'weight__{action}__{state}'
+                if state == 'bias':
+                    terms.append(f'{params[name][0].X}')
+                else:
+                    terms.append(f'{params[name][0].X} * {state}')
             
             # quadratic terms
-            for (i, state1) in enumerate(states):
-                for state2 in states[i:]:
-                    q_name = f'linear__{action}__{state1}__{state2}'
-                    q_val = params[q_name][0].X
-                    terms.append(f'{q_val} * {state1} * {state2}')
+            for (i, s1) in enumerate(states):
+                for s2 in states[i:]:
+                    name = f'weight__{action}__{s1}__{s2}'
+                    val = params[name][0].X
+                    terms.append(f'{val} * {s1} * {s2}')
             
             res += f'{action} = ' + ' + '.join(terms) + '\n'
+            
         return res
