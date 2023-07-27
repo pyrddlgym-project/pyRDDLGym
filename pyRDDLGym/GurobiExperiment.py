@@ -43,7 +43,8 @@ class GurobiExperiment:
                  iters: int=10,
                  rollouts: int=500,
                  chance: float=0.995,
-                 seed: int=None):
+                 seed: int=None,
+                 log: bool=False):
         self.policy_class = GurobiExperiment._get_policy_class(constr, value, cases)
         self.constr = constr
         self.value = value
@@ -60,7 +61,8 @@ class GurobiExperiment:
         self.rollouts = rollouts
         self.chance = chance
         self.seed = seed
-    
+        self.log = log
+        
     @staticmethod
     def _get_policy_class(constr, value, cases):
         assert constr in {'S', 'L'}
@@ -103,14 +105,19 @@ class GurobiExperiment:
     @staticmethod
     def load_json(domain: str, inst: int, horizon: int, policy: str, chance: str):
         values = []
-        print(f'{domain}_{inst}_{horizon}_*_{policy}_{chance}.log')
-        for filepath in glob.glob(os.path.join(
-            'gurobi_results',
-            f'{domain}_{inst}_{horizon}_*_{policy}_{chance}.log')):
+        filename = GurobiExperiment.filename(
+            domain, inst, horizon, policy, chance, '*') + '.json'
+        print(filename)
+        for filepath in glob.glob(os.path.join('gurobi_results', filename)):
             print(f'loading {filepath}')
             with open(filepath) as file:
                 values.append(json.load(file, strict=False))
         return values
+    
+    @staticmethod
+    def filename(domain: str, inst: int, horizon: int, policy: str, 
+                 chance: str, seed: int):
+        return f'{domain}_{inst}_{horizon}_{policy}_{chance}_{seed}'
     
     @staticmethod
     def simulation_plots(domain: str, inst: str, horizon: int, chance: str,
@@ -227,12 +234,16 @@ class GurobiExperiment:
         policy = self.get_policy(world_model)
         
         # build the bi-level planner
+        filename = GurobiExperiment.filename(
+            domain, inst, horizon, self.policy_class, self.chance, self.seed)
+        model_params = self.model_params.copy()
+        model_params['LogFile'] = f'gurobi_results\\{filename}.log'
         planner = GurobiRDDLBilevelOptimizer(
             model, policy,
             state_bounds=self.get_state_init_bounds(model),
             rollout_horizon=horizon,
             use_cc=True,
-            model_params=self.model_params,
+            model_params=model_params,
             chance=self.chance)
         
         # evaluate the baseline (i.e. no-op) policy
@@ -268,8 +279,6 @@ class GurobiExperiment:
                   f'\nouter value: {callback["outer_value"]["policy"]}')
             
         # save log to file
-        with open(os.path.join(
-            'gurobi_results',
-            f'{domain}_{inst}_{horizon}_{self.seed}_{self.policy_class}_{self.chance}.log'), 'w') as file:
+        with open(os.path.join('gurobi_results', f'{filename}.json'), 'w') as file:
             json.dump(log_dict, file, indent=2)
     
