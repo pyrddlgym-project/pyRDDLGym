@@ -34,10 +34,7 @@ plt.rcParams['text.usetex'] = True
 class GurobiExperiment:
     
     def __init__(self, constr: str='S', value: str='C', cases: int=1,
-                 model_params: Dict={'Presolve': 2,
-                                     'PreSparsify': 1,
-                                     'NumericFocus': 2,
-                                     'MIPFocus': 3,
+                 model_params: Dict={'NumericFocus': 2,
                                      'MIPGap': 0.05,
                                      'OutputFlag': 1},
                  iters: int=10,
