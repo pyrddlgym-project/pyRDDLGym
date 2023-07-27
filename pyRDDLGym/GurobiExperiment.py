@@ -233,11 +233,16 @@ class GurobiExperiment:
         # build the policy
         policy = self.get_policy(world_model)
         
+        # update Gurobi parameters with log file path
+        if self.log:
+            filename = GurobiExperiment.filename(
+                domain, inst, horizon, self.policy_class, self.chance, self.seed)
+            model_params = self.model_params.copy()
+            model_params['LogFile'] = f'gurobi_results\\{filename}.log'
+        else:
+            model_params = self.model_params
+            
         # build the bi-level planner
-        filename = GurobiExperiment.filename(
-            domain, inst, horizon, self.policy_class, self.chance, self.seed)
-        model_params = self.model_params.copy()
-        model_params['LogFile'] = f'gurobi_results\\{filename}.log'
         planner = GurobiRDDLBilevelOptimizer(
             model, policy,
             state_bounds=self.get_state_init_bounds(model),
