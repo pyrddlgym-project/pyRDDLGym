@@ -14,7 +14,7 @@ domain reservoir_control_linear {
 		HIGH_BOUND(id) : { non-fluent, real, default = 80.0 };
 		MAXCAP(id) : { non-fluent, real, default = 100.0 };
 		
-		LOW_COST(id) : { non-fluent, real, default = -5.0 };
+		LOW_COST(id) : { non-fluent, real, default = -10.0 };
 		HIGH_COST(id) : { non-fluent, real, default = -100.0 };
 		
 		RAIN_MEAN(id) : { non-fluent, real, default = 5.0 };
@@ -23,6 +23,7 @@ domain reservoir_control_linear {
 		DOWNSTREAM(id, id) : { non-fluent, bool, default = false };
 		
 		rainfall(id) : { interm-fluent, real };
+		release-act(id) : { interm-fluent, real };
 		
 		rlevel(id): { state-fluent, real, default = 50.0 };
 		
@@ -31,22 +32,18 @@ domain reservoir_control_linear {
 	
 	cpfs {
 		rainfall(?r) = max[0, Normal(RAIN_MEAN(?r), RAIN_VAR(?r))];
-		
+		release-act(?r) = max[0, min[release(?r), rlevel(?r)]];
 		rlevel'(?r) = max[0, min[MAXCAP(?r), 
-			rlevel(?r) + rainfall(?r) - release(?r) + (sum_{?r2: id}[DOWNSTREAM(?r2, ?r) * release(?r2)])]];
+			rlevel(?r) + rainfall(?r) - release-act(?r) 
+			+ (sum_{?r2: id}[DOWNSTREAM(?r2, ?r) * release-act(?r2)])]];
 	};
 	
 	reward = (sum_{?r: id} [LOW_COST(?r) * max[LOW_BOUND(?r) - rlevel'(?r), 0]
 							+ HIGH_COST(?r) * max[rlevel'(?r) - HIGH_BOUND(?r), 0]]);
 	
 	action-preconditions {
-		forall_{?r: id} [release(?r) <= rlevel(?r)];
-		forall_{?r: id} [release(?r) <= MAXCAP(?r)];
-		forall_{?r: id} [release(?r) >= 0];
 	};
 	
-	state-invariants {	
-		forall_{?r: id} [rlevel(?r) >= 0];
-		forall_{?r: id} [rlevel(?r) <= MAXCAP(?r)];
+	state-invariants {
 	};
 }

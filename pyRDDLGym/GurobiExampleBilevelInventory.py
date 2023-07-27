@@ -8,9 +8,9 @@ from pyRDDLGym.GurobiExperiment import GurobiExperiment
 class GurobiInventoryExperiment(GurobiExperiment):
     
     def get_action_bounds(self, model):
-        return {'order___i1': (0, 15),
-                'order___i2': (0, 15),
-                'order___i3': (0, 15)} 
+        return {'order___i1': (0, 10),
+                'order___i2': (0, 10),
+                'order___i3': (0, 10)} 
     
     def get_state_bounds(self, model):
         return {'stock___i1': (-100, 100),

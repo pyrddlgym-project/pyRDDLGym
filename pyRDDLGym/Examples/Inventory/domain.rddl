@@ -8,7 +8,7 @@ domain inventory {
 
 	pvariables {
 		
-		CAP : { non-fluent, real, default = 15.0 };
+		CAP : { non-fluent, int, default = 10 };
 		C(item) : { non-fluent, real, default = 0.5 };
 		P(item) : { non-fluent, real, default = 2.0 };
 		
@@ -16,6 +16,7 @@ domain inventory {
 		DISP(item) : { non-fluent, real, default = 1.0 };
 		
 		demand(item) : { interm-fluent, int }; 
+		order-act(item) : { interm-fluent, int };
 			
 		stock(item) : { state-fluent, int, default = 0 };
 	
@@ -23,16 +24,14 @@ domain inventory {
 	};
 
 	cpfs {	
+		order-act(?i) = max[0, min[order(?i), CAP]];
 		demand(?i) = floor[Uniform(MEAN(?i) - DISP(?i), MEAN(?i) + DISP(?i))];
-		stock'(?i) = stock(?i) + order(?i) - demand(?i);		
+		stock'(?i) = stock(?i) + order-act(?i) - demand(?i);		
 	};
 
-	reward = (sum_{?i : item} [(-C(?i)) * order(?i) + (-P(?i)) * abs[stock'(?i)]]);
+	reward = (sum_{?i : item} [(-C(?i)) * order-act(?i) + (-P(?i)) * abs[stock'(?i)]]);
 
 	action-preconditions {
-		forall_{?i : item} [order(?i) >= 0.0];
-		forall_{?i : item} [order(?i) <= CAP];
-		(sum_{?i : item} order(?i)) <= CAP;
 	};
 	
 	state-invariants {
