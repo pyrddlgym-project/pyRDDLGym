@@ -127,18 +127,21 @@ class GurobiExperiment:
                 if log_it is not None:
                     value = log_it
                     for key in seq_keys:
-                        value = value[key]
-                    log_values.append(value)
+                        value = value.get(key, None)
+                        if value is None:
+                            break
+                    if value is not None:
+                        log_values.append(value)
             values.append(log_values)
         values_mean = np.mean(values, axis=0)
-        values_se = np.std(values, axis=0) / len(values)
+        values_se = 2 * np.std(values, axis=0) / len(values)
         return values_mean, values_se
         
     @staticmethod
     def simulation_plots(domain: str, inst: str, horizon: int, chance: str,
                          policies, label='return', 
                          legend=True, 
-                         legend_args={'loc': 'lower right', 'ncol': 2,
+                         legend_args={'loc': 'upper right', 'ncol': 2,
                                       'columnspacing': 0.2, 'borderpad': 0.2,
                                       'labelspacing': 0.2}): 
         
@@ -238,9 +241,9 @@ class GurobiExperiment:
         policy = self.get_policy(world_model)
         
         # update Gurobi parameters with log file path
+        filename = GurobiExperiment.filename(
+            domain, inst, horizon, self.policy_class, self.chance, self.seed)
         if self.log:
-            filename = GurobiExperiment.filename(
-                domain, inst, horizon, self.policy_class, self.chance, self.seed)
             model_params = self.model_params.copy()
             model_params['LogFile'] = f'gurobi_results\\{filename}.log'
         else:
