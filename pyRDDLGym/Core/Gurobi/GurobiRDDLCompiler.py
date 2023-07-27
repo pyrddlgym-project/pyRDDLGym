@@ -126,7 +126,7 @@ class GurobiRDDLCompiler:
     # main compilation subroutines
     # ===========================================================================
     
-    def _rollout(self, model, plan, params, subs):
+    def _rollout(self, model, plan, params, subs, value_bounds: bool=False):
         objective = 0
         all_action_vars = []
         all_next_state_vars = []
@@ -146,7 +146,7 @@ class GurobiRDDLCompiler:
                 
             # evaluate CPFs and reward
             self._compile_cpfs(model, subs)
-            reward = self._compile_reward(model, subs)
+            reward, (lbr, ubr) = self._compile_reward(model, subs)
             objective += reward
             
             # update state
@@ -154,8 +154,19 @@ class GurobiRDDLCompiler:
             for (state, next_state) in self.rddl.next_state.items():
                 subs[state] = subs[next_state]
                 all_next_state_vars[-1][next_state] = subs[next_state]
-        return objective, all_action_vars, all_next_state_vars
-    
+            
+            # update bounds on reward
+            if value_bounds:
+                if step == 0:
+                    lb, ub = lbr, ubr
+                else:
+                    lb, ub = lb + lbr, ub + ubr
+        
+        if value_bounds:
+            return objective, all_action_vars, all_next_state_vars, (lb, ub)
+        else:
+            return objective, all_action_vars, all_next_state_vars
+        
     def _compile(self, init_values: Dict[str, object]=None) -> \
         Tuple[gurobipy.Model, List[Dict[str, object]]]:
         '''Compiles and returns the current RDDL domain as a Gurobi optimization
@@ -234,8 +245,8 @@ class GurobiRDDLCompiler:
                 subs[cpf] = self._gurobi(expr, model, subs)
     
     def _compile_reward(self, model, subs) -> object:
-        reward, *_ = self._gurobi(self.rddl.reward, model, subs)
-        return reward
+        reward, _, lb, ub, _ = self._gurobi(self.rddl.reward, model, subs)
+        return reward, (lb, ub)
     
     # ===========================================================================
     # start of compilation subroutines
