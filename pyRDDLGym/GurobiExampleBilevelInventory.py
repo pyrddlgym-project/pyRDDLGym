@@ -8,15 +8,14 @@ from pyRDDLGym.GurobiExperiment import GurobiExperiment
 class GurobiInventoryExperiment(GurobiExperiment):
     
     def get_action_bounds(self, model):
-        MAX_ORDER = model.nonfluents['MAX-ITEMS']
-        return {'order___i1': (0, MAX_ORDER),
-                'order___i2': (0, MAX_ORDER),
-                'order___i3': (0, MAX_ORDER)} 
+        return {'order___i1': (0, 15),
+                'order___i2': (0, 15),
+                'order___i3': (0, 15)} 
     
     def get_state_bounds(self, model):
-        return {'stock___i1': (0, 100),
-                'stock___i2': (0, 100),
-                'stock___i3': (0, 100)}  
+        return {'stock___i1': (-100, 100),
+                'stock___i2': (-100, 100),
+                'stock___i3': (-100, 100)}  
     
     def get_state_init_bounds(self, model):
         return {'stock___i1': (0, 2),
@@ -59,13 +58,13 @@ class GurobiInventoryExperiment(GurobiExperiment):
 
 if __name__ == "__main__":
     if len(sys.argv) < 7:
-        inst, horizon, constr, value, cases, chance = 1, 10, 'S', 'C', 1, 0.995
+        inst, horizon, constr, value, cases, chance = 1, 8, 'S', 'C', 1, 0.995
     else:
         inst, horizon, constr, value, cases, chance = sys.argv[1:7]
         horizon, cases, chance = int(horizon), int(cases), float(chance)
         
-    dom = 'Inventory deterministic'
-    dom_test = 'Inventory randomized'
+    dom = 'Inventory linear'
+    dom_test = dom
     
     for _ in range(5):
         experiment = GurobiInventoryExperiment(

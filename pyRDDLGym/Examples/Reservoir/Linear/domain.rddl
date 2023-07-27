@@ -41,6 +41,7 @@ domain reservoir_control_linear {
 	
 	action-preconditions {
 		forall_{?r: id} [release(?r) <= rlevel(?r)];
+		forall_{?r: id} [release(?r) <= MAXCAP(?r)];
 		forall_{?r: id} [release(?r) >= 0];
 	};
 	
