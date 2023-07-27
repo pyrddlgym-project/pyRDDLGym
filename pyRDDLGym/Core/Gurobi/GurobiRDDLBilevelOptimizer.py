@@ -167,7 +167,7 @@ class GurobiRDDLBilevelOptimizer:
     
         # optimization objective for the outer problem is min_{policy} error
         # constraints on error will be added iteratively
-        error = compiler._add_real_var(model, name='error')
+        error = compiler._add_real_var(model, lb=0, name='error')
         model.setObjective(error, GRB.MINIMIZE)
         model.update()
         return compiler, model, params

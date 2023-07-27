@@ -142,8 +142,7 @@ class GurobiRDDLCompiler:
             self._compile_action_preconditions(model, subs)
             
             # add constraint on state for the first step
-            if step == 0:
-                self._compile_state_invariants(model, subs)
+            self._compile_state_invariants(model, subs)
                 
             # evaluate CPFs and reward
             self._compile_cpfs(model, subs)
@@ -176,13 +175,7 @@ class GurobiRDDLCompiler:
         return model, all_action_vars
     
     def _create_model(self) -> gurobipy.Model:
-        
-        # create the Gurobi optimization problem
-        env = gurobipy.Env(empty=True)
-        env.start()
-        model = gurobipy.Model(env=env)
-        
-        # set additional model settings here before optimization
+        model = gurobipy.Model()
         for (name, value) in self.model_params.items():
             model.setParam(name, value)
         return model 
