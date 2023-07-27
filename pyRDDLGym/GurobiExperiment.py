@@ -118,6 +118,23 @@ class GurobiExperiment:
         return f'{domain}_{inst}_{horizon}_{policy}_{chance}_{seed}'
     
     @staticmethod
+    def summarize(logs, seq_keys):
+        values = []
+        for log in logs:
+            log_values = []
+            for it in range(-1, len(log) - 1):
+                log_it = log.get(str(it), None)
+                if log_it is not None:
+                    value = log_it
+                    for key in seq_keys:
+                        value = value[key]
+                    log_values.append(value)
+            values.append(log_values)
+        values_mean = np.mean(values, axis=0)
+        values_se = np.std(values, axis=0) / len(values)
+        return values_mean, values_se
+        
+    @staticmethod
     def simulation_plots(domain: str, inst: str, horizon: int, chance: str,
                          policies, label='return', 
                          legend=True, 
@@ -125,29 +142,18 @@ class GurobiExperiment:
                                       'columnspacing': 0.2, 'borderpad': 0.2,
                                       'labelspacing': 0.2}): 
         
-        # load log files
+        # read attributes from log files
         logs = [GurobiExperiment.load_json(domain, inst, horizon, policy, chance) 
                 for policy in policies]
-        
-        # read attributes from log files
         means, errors = [], []
         for pol_logs in logs:
-            pol_values = []
-            for log in pol_logs:
-                log_values = []
-                its = -1 if label == 'return' else 0
-                for it in range(its, len(log) - 1):
-                    log_it = log[str(it)]
-                    if label == 'return':
-                        value = log_it['rollouts']['mean']
-                    elif label == 'epsilon':
-                        value = log_it['inner_value']['epsilon']
-                    log_values.append(value)
-                pol_values.append(log_values)
-            pol_values_mean = np.mean(pol_values, axis=0)
-            pol_values_se = np.std(pol_values, axis=0) / len(pol_values)
-            means.append(pol_values_mean)
-            errors.append(pol_values_se)
+            if label == 'return':
+                seq_keys = ['rollouts', 'mean']
+            elif label == 'epsilon':
+                seq_keys = ['inner_value', 'epsilon']
+            values_mean, values_se = GurobiExperiment.summarize(pol_logs, seq_keys)
+            means.append(values_mean)
+            errors.append(values_se)
         
         # plotting
         plt.figure(figsize=(6.4, 3.2))
