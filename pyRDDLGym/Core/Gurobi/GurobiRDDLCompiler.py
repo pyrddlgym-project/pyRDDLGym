@@ -23,7 +23,7 @@ class GurobiRDDLCompiler:
                  plan: GurobiRDDLPlan,
                  allow_synchronous_state: bool=True,
                  rollout_horizon: int=None,
-                 epsilon: float=1e-5,
+                 epsilon: float=1e-4,
                  float_range: Tuple[float, float]=(1e-15, 1e15),
                  model_params: Dict[str, object]={'NonConvex': 2},
                  piecewise_options: str='',

@@ -223,7 +223,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                 states = states_in_values.get(action, [])
                 is_linear = len(states) > 0
                 var_bounds = UNBOUNDED if is_linear else self._bounds(rddl, action)
-                vtype = GRB.CONTINUOUS if is_linear else compiled.GUROBI_TYPES[arange]
+                vtype = compiled.GUROBI_TYPES[arange]
                 for feature in ['bias'] + states:
                     name = f'value_weight__{action}__{k}__{feature}'
                     if values is None:
@@ -258,15 +258,18 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                             name = f'constr_weight__{action}__{k}__{feature}'
                             param_values[name] = 0
                     
-                    # constraint bounds
+                    # constraint bounds - make non-overlapping initial bounds
                     if is_linear:
-                        lb, ub = -1, +1
+                        lb, ub = -100, +100
                     else:
                         lb, ub = self.state_bounds[states[0]]
+                    delta = (ub - lb) / self.num_cases
+                    lbk = lb + delta * k + compiled.epsilon
+                    ubk = lb + delta * (k + 1) - compiled.epsilon
                     lb_name = f'lb__{action}__{k}'
                     ub_name = f'ub__{action}__{k}'
-                    param_values[lb_name] = lb
-                    param_values[ub_name] = ub
+                    param_values[lb_name] = lbk
+                    param_values[ub_name] = ubk
                     
                 # action value initialized to default action
                 states = states_in_values.get(action, [])
@@ -348,6 +351,10 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
                 if k != 'else':
                     model.addConstr((constr_sat_var == 1) >> 
                                     (action_var == action_case_var))
+            
+            # at most one constraint satisfied - implies disjoint case conditions
+            num_sat_vars = sum(constr_sat_vars)
+            model.addConstr(num_sat_vars <= 1)
             
             # if no constraint is satisfied assign default action value
             any_sat_var = compiled._add_bool_var(model)
