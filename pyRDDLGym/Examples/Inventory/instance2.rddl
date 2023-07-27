@@ -13,8 +13,8 @@ non-fluents inventory_3nf {
 		
 		C(i3) = 0.5;
 		P(i3) = 3.0;
-		MEAN(i3) = 8.0;
-		DISP(i3) = 6.0;
+		MEAN(i3) = 5.0;
+		DISP(i3) = 4.0;
 	};
 }
 
