@@ -1,0 +1,39 @@
+// Linear inventory control problem
+
+domain inventory {
+
+	types {
+		item : object;
+	};
+
+	pvariables {
+		
+		CAP : { non-fluent, real, default = 20.0 };
+		C(item) : { non-fluent, real, default = 0.5 };
+		P(item) : { non-fluent, real, default = 2.0 };
+		
+		MEAN(item) : { non-fluent, real, default = 3.0 };
+		DISP(item) : { non-fluent, real, default = 1.0 };
+		
+		demand(item) : { interm-fluent, int }; 
+			
+		stock(item) : { state-fluent, int, default = 0 };
+	
+		order(item) : { action-fluent, int, default = 0 };
+	};
+
+	cpfs {	
+		demand(?i) = floor[Uniform(MEAN(?i) - DISP(?i), MEAN(?i) + DISP(?i))];
+		stock'(?i) = stock(?i) + order(?i) - demand(?i);		
+	};
+
+	reward = -(sum_{?i : item} [C(?i) * order(?i) + P(?i) * abs[stock'(?i)]]);
+
+	action-preconditions {
+		forall_{?i : item} [order(?i) >= 0.0];
+		(sum_{?i : item} order(?i)) <= CAP;
+	};
+	
+	state-invariants {
+	};
+}

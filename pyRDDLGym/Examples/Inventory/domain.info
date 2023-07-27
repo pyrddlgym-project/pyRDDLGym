@@ -1,0 +1,4 @@
+[General]
+name=Inventory linear
+description=Linear inventory control problem.
+viz=TextViz.TextVisualizer
