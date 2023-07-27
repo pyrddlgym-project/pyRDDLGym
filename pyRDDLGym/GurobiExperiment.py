@@ -73,6 +73,7 @@ class GurobiExperiment:
         
     @staticmethod
     def _evaluate(world, policy, planner, n_steps, n_episodes):
+        discount = world.rddl.discount
         returns = []
         for _ in range(n_episodes):
             world.reset()
@@ -85,7 +86,7 @@ class GurobiExperiment:
                     actions = policy.evaluate(
                         planner.compiler, planner.params, t, subs)
                 _, reward, done = world.step(actions)
-                total_reward += reward 
+                total_reward += reward * (discount ** t) 
                 if done: 
                     break
             returns.append(total_reward)

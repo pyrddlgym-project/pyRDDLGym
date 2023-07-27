@@ -51,6 +51,7 @@ class GurobiRDDLCompiler:
         if rollout_horizon is None:
             rollout_horizon = rddl.horizon
         self.horizon = rollout_horizon
+        self.discount = rddl.discount
         self.allow_synchronous_state = allow_synchronous_state
         self.logger = logger
         
@@ -147,7 +148,8 @@ class GurobiRDDLCompiler:
             # evaluate CPFs and reward
             self._compile_cpfs(model, subs)
             reward, (lbr, ubr) = self._compile_reward(model, subs)
-            objective += reward
+            discount = self.discount ** step
+            objective += reward * discount
             
             # update state
             all_next_state_vars.append({})
@@ -160,7 +162,8 @@ class GurobiRDDLCompiler:
                 if step == 0:
                     lb, ub = lbr, ubr
                 else:
-                    lb, ub = lb + lbr, ub + ubr
+                    lb += lbr * discount
+                    ub += ubr * discount
         
         if value_bounds:
             return objective, all_action_vars, all_next_state_vars, (lb, ub)
