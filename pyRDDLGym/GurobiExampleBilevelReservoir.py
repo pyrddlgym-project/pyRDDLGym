@@ -68,5 +68,5 @@ if __name__ == "__main__":
     dom_test = dom
     for _ in range(5):
         experiment = GurobiReservoirExperiment(
-            constr=constr, value=value, cases=cases, chance=chance, log=True)
+            constr=constr, value=value, cases=cases, chance=chance)
         experiment.run(dom, inst, horizon, dom_test)

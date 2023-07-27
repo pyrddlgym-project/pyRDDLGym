@@ -65,5 +65,5 @@ if __name__ == "__main__":
     dom_test = dom
     
     for _ in range(5): 
-        experiment = GurobiVTOLExperiment(log=True)
+        experiment = GurobiVTOLExperiment()
         experiment.run(dom, 0, horizon, dom_test)

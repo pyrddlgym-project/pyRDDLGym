@@ -68,5 +68,5 @@ if __name__ == "__main__":
     
     for _ in range(5):
         experiment = GurobiInventoryExperiment(
-            constr=constr, value=value, cases=cases, chance=chance, log=True)
+            constr=constr, value=value, cases=cases, chance=chance)
         experiment.run(dom, inst, horizon, dom_test)
