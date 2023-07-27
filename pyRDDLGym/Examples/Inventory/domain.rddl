@@ -8,7 +8,7 @@ domain inventory {
 
 	pvariables {
 		
-		CAP : { non-fluent, real, default = 20.0 };
+		CAP : { non-fluent, real, default = 15.0 };
 		C(item) : { non-fluent, real, default = 0.5 };
 		P(item) : { non-fluent, real, default = 2.0 };
 		
@@ -27,10 +27,11 @@ domain inventory {
 		stock'(?i) = stock(?i) + order(?i) - demand(?i);		
 	};
 
-	reward = -(sum_{?i : item} [C(?i) * order(?i) + P(?i) * abs[stock'(?i)]]);
+	reward = (sum_{?i : item} [(-C(?i)) * order(?i) + (-P(?i)) * abs[stock'(?i)]]);
 
 	action-preconditions {
 		forall_{?i : item} [order(?i) >= 0.0];
+		forall_{?i : item} [order(?i) <= CAP];
 		(sum_{?i : item} order(?i)) <= CAP;
 	};
 	
