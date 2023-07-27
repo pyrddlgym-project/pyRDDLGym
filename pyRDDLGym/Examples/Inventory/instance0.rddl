@@ -4,7 +4,6 @@ non-fluents inventory_1nf {
 	objects{
 		item: {i1};
 	};
-	
 }
 
 instance inventory_0 {
