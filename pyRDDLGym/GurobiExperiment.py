@@ -37,6 +37,7 @@ class GurobiExperiment:
                  model_params: Dict={'Presolve': 2,
                                      'PreSparsify': 1,
                                      'NumericFocus': 2,
+                                     'MIPFocus': 3,
                                      'MIPGap': 0.05,
                                      'OutputFlag': 1},
                  iters: int=10,
@@ -113,7 +114,11 @@ class GurobiExperiment:
     
     @staticmethod
     def simulation_plots(domain: str, inst: str, horizon: int, chance: str,
-                         policies, label='return', legend=False): 
+                         policies, label='return', 
+                         legend=True, 
+                         legend_args={'loc': 'lower right', 'ncol': 2,
+                                      'columnspacing': 0.2, 'borderpad': 0.2,
+                                      'labelspacing': 0.2}): 
         
         # load log files
         logs = [GurobiExperiment.load_json(domain, inst, horizon, policy, chance) 
@@ -125,7 +130,8 @@ class GurobiExperiment:
             pol_values = []
             for log in pol_logs:
                 log_values = []
-                for it in range(len(log) - 1):
+                its = -1 if label == 'return' else 0
+                for it in range(its, len(log) - 1):
                     log_it = log[str(it)]
                     if label == 'return':
                         value = log_it['rollouts']['mean']
@@ -141,20 +147,20 @@ class GurobiExperiment:
         # plotting
         plt.figure(figsize=(6.4, 3.2))
         for curve, bars, policy in zip(means, errors, policies):
-            x = 1 + np.arange(curve.size)
+            x = np.arange(curve.size) + int(label == 'epsilon')
             plt.errorbar(x, curve, yerr=bars, label=policy)
             plt.xlabel('$\\mathrm{iteration}$')
             plt.ylabel('$\\mathrm{' + label + '}$')
-            plt.gca().spines['top'].set_visible(False)
-            plt.gca().spines['right'].set_visible(False)
-            if legend:
-                plt.legend(loc='upper right', ncol=4)
-            plt.tight_layout()
-            plt.savefig(os.path.join(
-                 'gurobi_results',
-                 f'{domain}_{inst}_{horizon}_{chance}_{label}.pdf'))
-            plt.clf()
-            plt.close()
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        if legend:
+            plt.legend(**legend_args)
+        plt.tight_layout()
+        plt.savefig(os.path.join(
+            'gurobi_results',
+            f'{domain}_{inst}_{horizon}_{chance}_{label}.pdf'))
+        plt.clf()
+        plt.close()
             
     def get_state_bounds(self, model) -> Dict:
         raise NotImplementedError
