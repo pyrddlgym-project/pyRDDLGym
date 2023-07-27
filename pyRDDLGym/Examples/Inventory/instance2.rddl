@@ -29,6 +29,6 @@ instance inventory_2 {
 	};
 
 	max-nondef-actions = pos-inf;
-	horizon = 10;
+	horizon = 8;
 	discount = 1.0;
 }
