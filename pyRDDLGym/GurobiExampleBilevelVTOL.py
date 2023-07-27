@@ -5,20 +5,6 @@ import sys
 
 from pyRDDLGym.GurobiExperiment import GurobiExperiment
 
-# settings for pyplot
-SMALL_SIZE = 18
-MEDIUM_SIZE = 20
-BIGGER_SIZE = 22
-
-plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-plt.rcParams['text.usetex'] = True
-
 
 class GurobiVTOLExperiment(GurobiExperiment):
     
@@ -79,5 +65,5 @@ if __name__ == "__main__":
     dom_test = dom
     
     for _ in range(5): 
-        experiment = GurobiVTOLExperiment()
+        experiment = GurobiVTOLExperiment(log=True)
         experiment.run(dom, 0, horizon, dom_test)

@@ -13,16 +13,17 @@ def slp_replan(domain, inst, trials):
     model = RDDLEnv(domain=EnvInfo.get_domain(), 
                     instance=EnvInfo.get_instance(inst)).model
     
-    MAX_ORDER = model.nonfluents['MAX-ITEMS']
     plan = GurobiPiecewisePolicy(
-        action_bounds={'order___i1': (0, MAX_ORDER),
-                       'order___i2': (0, MAX_ORDER),
-                       'order___i3': (0, MAX_ORDER),
-                       'order___i4': (0, MAX_ORDER)},
-        state_bounds={'stock___i1': (0, MAX_ORDER),
-                      'stock___i2': (0, MAX_ORDER),
-                      'stock___i3': (0, MAX_ORDER),                      
-                      'stock___i4': (0, MAX_ORDER)}
+        action_bounds={'release___t1': (0, 100),
+                       'release___t2': (0, 200),
+                       'release___t3': (0, 400)},
+        state_bounds={'rlevel___t1': (0, 100),
+                      'rlevel___t2': (0, 200),
+                      'rlevel___t3': (0, 400)},
+        dependencies_constr={'release___t1': ['rlevel___t1'],
+                             'release___t2': ['rlevel___t2'],
+                             'release___t3': ['rlevel___t3']},
+        dependencies_values={}
     )
     
     planner = GurobiRDDLCompiler(model, plan, rollout_horizon=5,
@@ -57,7 +58,7 @@ def slp_replan(domain, inst, trials):
             
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        dom, inst, trials = 'Inventory continuous', 1, 1
+        dom, inst, trials = 'Reservoir linear', 1, 1
     else:
         dom, inst, trials = sys.argv[1:4]
         trials = int(trials)
