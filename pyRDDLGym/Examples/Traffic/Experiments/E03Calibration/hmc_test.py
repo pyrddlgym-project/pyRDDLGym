@@ -9,16 +9,29 @@ import matplotlib.pyplot as plt
 def unnormalized_log_prob(x):
     return -x - x**2
 
+def unnormalized_log_prob2(x):
+    return -0.5*x**2
+
+# log(rho(x,y)) = log(rho1(x)rho2(y)) = log(rho1(x)) + log(rho2(y))
+def two_dim_unnormalized_log_prob(X):
+    return unnormalized_log_prob(X[0]) + unnormalized_log_prob2(X[1])
+
+v_2d_rho = jax.vmap(two_dim_unnormalized_log_prob, in_axes=0, out_axes=0)
+
+def batch_two_dim_unnormalized_log_prob(X):
+    return jnp.sum(v_2d_rho(X), axis=-1)
+
 key = jax.random.PRNGKey(3264)
 
-def run_chain(seed, num_results):
-    # Run the chain (with burn-in).
+def run_chain(seed, initial_state, num_results):
+    # Run the chain (with burn-in) with one-dimensional density rho(x)
+
     num_burnin_steps = int(num_results/10)
 
     # Initialize the HMC transition kernel.
     adaptive_hmc = tfp.mcmc.SimpleStepSizeAdaptation(
         tfp.mcmc.HamiltonianMonteCarlo(
-            target_log_prob_fn=unnormalized_log_prob,
+            target_log_prob_fn=unnormalized_log_prob2,
             num_leapfrog_steps=3,
             step_size=1.),
         num_adaptation_steps=int(num_burnin_steps * 0.8))
@@ -27,64 +40,100 @@ def run_chain(seed, num_results):
         seed=seed,
         num_results=num_results,
         num_burnin_steps=num_burnin_steps,
-        current_state=1.,
+        current_state=initial_state,
         kernel=adaptive_hmc,
         trace_fn=lambda _, pkr: pkr.inner_results.is_accepted)
 
     return samples, is_accepted
 
-samples, is_accepted = run_chain(seed=key, num_results=1e4)
+def run_chain_2d_density(seed, initial_state, num_results):
+    # Run chain with the two-dimensional density rho(X) = rho(x,y)
 
-# int_-inf^inf exp(-x(1+x)) = e^(1/4) * pi^(1/2)
-print('Expected: Mean=-0.5, StDev=1/sqrt(2)=0.707107...')
-print('Before filtering by accepted/unaccepted')
+    num_burnin_steps = int(num_results/10)
 
-print(jnp.mean(samples), jnp.std(samples), jnp.sqrt(jnp.mean(samples*samples - jnp.mean(samples)**2)))
+    # Initialize the HMC transition kernel.
+    adaptive_hmc = tfp.mcmc.SimpleStepSizeAdaptation(
+        tfp.mcmc.HamiltonianMonteCarlo(
+            target_log_prob_fn=batch_two_dim_unnormalized_log_prob,
+            num_leapfrog_steps=3,
+            step_size=1.),
+        num_adaptation_steps=int(num_burnin_steps * 0.8))
 
-fig, ax = plt.subplots(1,2)
-fig.set_size_inches(14,7)
+    samples, is_accepted = tfp.mcmc.sample_chain(
+        seed=seed,
+        num_results=num_results,
+        num_burnin_steps=num_burnin_steps,
+        current_state=initial_state,
+        kernel=adaptive_hmc,
+        trace_fn=lambda _, pkr: pkr.inner_results.is_accepted)
 
-X = np.arange(-5.0, stop=5., step=0.1)
-Z = np.exp(0.25) * np.pi**(0.5)
-Y = 1/Z * np.exp(-X*(1+X)) * samples.shape[0]
-n, bins, patches = ax[0].hist(samples)
-ax[1].plot(X, Y)
-plt.show()
-
-samples = samples[is_accepted]
-
-print('After filtering')
-print(jnp.mean(samples), jnp.std(samples))
+    return samples, is_accepted
 
 
-iters = [10, 50, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000, 25000, 50000, 75000, 100000]
-seeds = np.random.randint(low=1, high=60000, size=(10,))
-results = np.zeros(shape=(len(iters), len(seeds), 4))
+def test_1d_density_chain(num_results, num_parallel_chains, filter=False):
+    # \int_{-inf}^{inf} exp(-x(1+x)) = e^(1/4) * pi^(1/2)
+    # Let X be a r.v. with density e^(-1/4) * pi^(-1/2) * exp(-x(1+x))
+    #     E(X) = -0.5
+    #     StDev(X) = 1/sqrt(2) ~ 0.707107...
 
-for ni, n in enumerate(iters):
-    print(ni, n)
-    for si, s in enumerate(seeds):
-        key = jax.random.PRNGKey(s)
-        samples, is_accepted = run_chain(seed=key, num_results=n)
-        results[ni,si,0] = np.mean(samples)
-        results[ni,si,1] = np.std(samples)
+    key = jax.random.PRNGKey(3264)
+    key, subkey = jax.random.split(key, num=2)
+    initial_states = jax.random.uniform(
+        subkey,
+        shape=(num_parallel_chains,1),
+        minval=-0.5,
+        maxval=0.5)
+
+    samples, is_accepted = run_chain(key, initial_states, num_results)
+
+    if filter:
         samples = samples[is_accepted]
-        results[ni,si,2] = np.mean(samples)
-        results[ni,si,3] = np.std(samples)
 
-averages = np.mean(results, axis=1)
+    print(f'Testing HMC with a one-dimensional density with {num_results} steps per chain (with {num_parallel_chains} parallel chains). Filter={filter}')
+    print('Estimated means (expected -0.5):')
+    print(jnp.mean(samples, axis=0))
+    print('Estimated StDevs (expected 1/sqrt(2) ~ 0.707107...)')
+    print(jnp.std(samples, axis=0))
+    print('Combined estimates:')
+    print('Mean:', jnp.mean(samples))
+    print('StDev:', jnp.std(samples))
 
-fig, ax = plt.subplots(1,2)
-fig.set_size_inches(14,7)
-ax[0].plot(iters, averages[:,0], label='Unfiltered')
-ax[0].plot(iters, averages[:,2], label='Filtered')
-ax[1].plot(iters, averages[:,1], label='Unfiltered')
-ax[1].plot(iters, averages[:,3], label='Filtered')
-ax[0].plot(iters, [-0.5] * len(iters), linestyle='dashed')
-ax[1].plot(iters, [0.707107] * len(iters), linestyle='dashed')
-ax[0].set_title('HMC Mean convergence (average of 10 runs)')
-ax[1].set_title('HMC StDev convergence (average of 10 runs)')
-ax[0].legend()
-ax[1].legend()
-plt.tight_layout()
-plt.show()
+    X = jnp.squeeze(samples*samples - jnp.mean(samples, axis=0))
+    print(jnp.mean(X, axis=0))
+    print(jnp.sqrt(jnp.mean(X, axis=0)))
+    print(X.shape)
+
+def test_2d_density_chain(num_results, num_parallel_chains, filter=False):
+    # \int_{-inf}^{inf} exp(-x(1+x)) dx = e^(1/4) * pi^(1/2)
+    # \int_{-inf}^{inf} exp(-x^2/2) dx = (2*pi)^{1/2}
+    # Let Y be a r.v. with density 2^(-1/2) * e^(-1/4) * pi^(-1) * exp(-x(1+x) - y^2/2)
+    #     E(Y) = [-0.5, 0]
+    #     Covar(Y) = [ 1/2  0 ]
+    #                [  0   1 ]
+
+    key = jax.random.PRNGKey(3264)
+    key, subkey = jax.random.split(key, num=2)
+    initial_states = jax.random.uniform(
+        subkey,
+        shape=(num_parallel_chains,2),
+        minval=-0.5,
+        maxval=0.5)
+
+    samples, is_accepted = run_chain_2d_density(key, initial_state=initial_states, num_results=num_results)
+
+    print(f'Testing HMC with a two-dimensional density with {num_results} steps per chain (and {num_parallel_chains} parallel chains). Filter={filter}')
+    print('Estimated means (E[X]=-0.5 E[Y]=0)')
+    print(jnp.mean(samples, axis=0))
+    print('Estimated Covar matrix')
+    print('Covar((X,Y)) = [ 1/2   0 ]\n'
+          '               [  0    1 ]')
+    samples = jnp.swapaxes(samples, 0, 1)
+    for s in samples:
+        print(jnp.cov(s, rowvar=False))
+
+
+
+
+#test_1d_density_chain(num_results=1e3, num_parallel_chains=4, filter=False)
+test_2d_density_chain(num_results=1e4, num_parallel_chains=4, filter=False)
+
