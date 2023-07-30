@@ -289,7 +289,7 @@ with jax.disable_jit(disable=False):
         # run
         for idx in range(n_iters):
             subt0 = timer()
-            key, *subkeys = jax.random.split(key, num=5)
+            key, *subkeys = jax.random.split(key, num=6)
             mean, cov = policy.apply(theta, subkeys[0], one_hot_inputs)
 
             log_density = lambda a: unnormalized_log_rho(subkeys[0], theta, subs_hmc, a)
@@ -298,7 +298,7 @@ with jax.disable_jit(disable=False):
                 tfp.mcmc.HamiltonianMonteCarlo(
                     target_log_prob_fn=log_density,
                     num_leapfrog_steps=3,
-                    step_size=0.3),
+                    step_size=0.05),
                 num_adaptation_steps=int(impsmp_num_burnin_steps * 0.8))
 
             samples, is_accepted = tfp.mcmc.sample_chain(
