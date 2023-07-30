@@ -61,7 +61,7 @@ def policy_fn(key, policy_params, hyperparams, step, states):
 
 # compile batch and sequential rollout samplers
 n_rollouts = 128
-n_batches = 2
+n_batches = 1
 sampler = compiler.compile_rollouts(policy=policy_fn,
                                     n_steps=rollout_horizon,
                                     n_batch=n_rollouts)
@@ -129,7 +129,7 @@ with jax.disable_jit(disable=False):
 
 
 
-    def policy_stoch_params(input):
+    def parametrized_policy(input):
         # Currently assumes a multivariate normal policy with
         # a diagonal covariance matrix
         mlp = hk.Sequential([
@@ -141,60 +141,59 @@ with jax.disable_jit(disable=False):
         mean, cov = (jnp.squeeze(x) for x in jnp.split(output, 2, axis=1))
         return mean, jnp.diag(cov)
 
-    policy = hk.transform(policy_stoch_params)
+    policy = hk.transform(parametrized_policy)
     key, subkey = jax.random.split(key)
     theta = policy.init(subkey, one_hot_inputs)
 
     def print_shapes(x):
         print(x.shape)
 
-    def policy_stoch_pdf(theta, rng, actions):
+    @jax.jit
+    def policy_pdf(theta, rng, actions):
         mean, cov = policy.apply(theta, rng, one_hot_inputs)
         return jax.scipy.stats.multivariate_normal.pdf(actions, mean=mean, cov=cov)
 
-    def policy_stoch_sample(theta, rng):
+    @jax.jit
+    def policy_sample(theta, rng):
+        # TODO: Properly handle samples that violate constraints
         mean, cov = policy.apply(theta, rng, one_hot_inputs)
         action_sample = jax.random.multivariate_normal(
             rng, mean, cov,
             shape=(n_rollouts,))
-        print(action_sample.shape)
         return action_sample
 
-    def reward_stoch(rng, subs, actions):
-        # FIX: Figure out how to rewrite this to avoid the copy
-        #      operation (while not having side-effects)
-        subs_copy = {}
-        for name, val in subs.items():
-            subs_copy[name] = jnp.copy(val)
-        subs_copy['SOURCE-ARRIVAL-RATE'] = subs_copy['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(actions)
+    @jax.jit
+    def reward_batched(rng, subs, actions):
+        subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(actions)
         rollouts = sampler(
             rng,
             policy_params=None,
             hyperparams=None,
-            subs=subs_copy,
+            subs=subs,
             model_params=compiler.model_params)
-        return rollouts['pvar']['flow-into-link'][:,:,:] - GROUND_TRUTH_LOOPS
+        delta = rollouts['pvar']['flow-into-link'][:,:,:] - GROUND_TRUTH_LOOPS
+        return jnp.sum(delta*delta, axis=(1,2))
 
-    def reward_stoch_hmc(rng, subs, action):
-        subs_copy = {}
-        for name, val in subs.items():
-            subs_copy[name] = jnp.copy(val)
-        subs_copy['SOURCE-ARRIVAL-RATE'] = subs_copy['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(action)
+    @jax.jit
+    def reward_seqtl(rng, subs, action):
+        subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(action)
         rollout = sampler_hmc(
             rng,
             policy_params=None,
             hyperparams=None,
-            subs=subs_copy,
+            subs=subs,
             model_params=compiler.model_params)
-        return rollout['pvar']['flow-into-link'][:,:,:] - GROUND_TRUTH_LOOPS_HMC
-
-    def reward_reinforce(rng, subs, actions):
-        delta = reward_stoch(rng, subs, actions)
+        delta = rollout['pvar']['flow-into-link'][:,:,:] - GROUND_TRUTH_LOOPS_HMC
         return jnp.sum(delta*delta, axis=(1,2))
 
-    def reward_hmc(rng, subs, actions):
-        delta = reward_stoch_hmc(rng, subs, actions)
-        return jnp.sum(delta*delta, axis=(1,2))
+    clip_val = jnp.array([1e-6], dtype=compiler.REAL)
+
+    @jax.jit
+    def scalar_mult(alpha, v):
+        return alpha * v
+
+    weighting_map = jax.jit(jax.vmap(
+        scalar_mult, in_axes=0, out_axes=0))
 
     @jax.jit
     def collect_covar_data(theta, C, iter):
@@ -207,15 +206,15 @@ with jax.disable_jit(disable=False):
         return C
 
 
-    def reinforce(key, n_iters, theta, subs_train, input):
+    def reinforce(key, n_iters, theta, subs_train, input, subs_hmc=None, est_Z=None):
         # initialize stats collection
         X, Y = np.arange(n_iters), np.zeros(shape=(n_iters,3,num_nonzero_sources))
         n_params = sum(leaf.flatten().shape[0] for leaf in jax.tree_util.tree_leaves(theta))
         C = jnp.zeros(shape=(n_params, n_iters))
 
         # initialize optimizer
-        #optimizer = optax.sgd(learning_rate=1e-5)
-        optimizer = optax.rmsprop(learning_rate=1e-3)
+        optimizer = optax.sgd(learning_rate=1e-5)
+        #optimizer = optax.rmsprop(learning_rate=1e-3)
         opt_state = optimizer.init(theta)
 
         # run
@@ -224,14 +223,14 @@ with jax.disable_jit(disable=False):
             cmlt_rewards = 0
             for _ in range(n_batches):
                 key, *subkeys = jax.random.split(key, num=3)
-                means, stdevs = policy.apply(theta, subkeys[0], one_hot_inputs)
-                actions = policy_stoch_sample(theta, subkeys[0])
-                pi = policy_stoch_pdf(theta, subkeys[0], actions)
-                dpi = jax.jacrev(policy_stoch_pdf, argnums=0)(theta, subkeys[0], actions)
-                rewards = reward_reinforce(subkeys[0], subs_train, actions)
+                mean, cov = policy.apply(theta, subkeys[0], one_hot_inputs)
+                actions = policy_sample(theta, subkeys[0])
+                pi = policy_pdf(theta, subkeys[0], actions)
+                dpi = jax.jacrev(policy_pdf, argnums=0)(theta, subkeys[0], actions)
+                rewards = reward_batched(subkeys[0], subs_train, actions)
                 factors = rewards / (pi + 1e-6)
 
-                w = lambda x: jnp.mean(weighting_map(factors, x), axis=(0,1))
+                w = lambda x: jnp.mean(weighting_map(factors, x), axis=0)
 
                 accumulant = jax.tree_util.tree_map(w, dpi)
                 grads = jax.tree_util.tree_map(lambda x, y: x+(y/n_batches), grads, accumulant)
@@ -241,8 +240,8 @@ with jax.disable_jit(disable=False):
             theta = optax.apply_updates(theta, updates)
 
             Y[idx,0] = cmlt_rewards
-            Y[idx,1] = jnp.squeeze(means)
-            Y[idx,2] = jnp.squeeze(stdevs)
+            Y[idx,1] = mean
+            Y[idx,2] = jnp.diag(cov)
             print(idx, cmlt_rewards, Y[idx])
 
             C = collect_covar_data(theta, C, idx)
@@ -251,40 +250,24 @@ with jax.disable_jit(disable=False):
 
 
     # === REINFORCE + Importance sampling ====
-    clip_val = jnp.array([1e-6], dtype=compiler.REAL)
-
-    @jax.jit
-    def scalar_mult(alpha, v):
-        n, m = len(v.shape), len(alpha.shape)
-        alpha = jnp.expand_dims(alpha, tuple(range(m,n)))
-        return alpha * v
-
-    weighting_map = jax.jit(jax.vmap(
-        scalar_mult, in_axes=1, out_axes=0))
-
-    @jax.jit
-    def scalar_mult_impsmp(alpha, v): return alpha * v
-
-    weighting_map_impsmp = jax.jit(jax.vmap(
-        scalar_mult_impsmp, in_axes=0, out_axes=0))
+    impsmp_num_iters = int(n_rollouts * n_batches)
+    impsmp_num_burnin_steps = int(impsmp_num_iters/8)
 
     @jax.jit
     def unnormalized_log_rho(key, theta, subs, a):
-        dpi = jax.jacrev(policy_stoch_pdf, argnums=0)(theta, key, a)
+        dpi = jax.jacrev(policy_pdf, argnums=0)(theta, key, a)
         #dpi_norm = jax.tree_util.tree_reduce(lambda x,y: x + jnp.sum(y*y), dpi, initializer=jnp.zeros(1))
         #dpi_norm = jnp.sqrt(dpi_norm)
         dpi_norm = jax.tree_util.tree_reduce(lambda x, y: jnp.maximum(x, jnp.max(jnp.abs(y))), dpi, initializer=jnp.array([-jnp.inf]))
-        rewards = reward_hmc(key, subs, a)
+        rewards = reward_seqtl(key, subs, a)
         density = jnp.abs(rewards) * dpi_norm
         return jnp.log(jnp.maximum(density, clip_val))[0]
 
     batch_unnormalized_log_rho = jax.jit(jax.vmap(
         unnormalized_log_rho, (None, None, None, 0), 0))
 
-    impsmp_num_iters = int(n_rollouts * n_batches)
-    impsmp_num_burnin_steps = int(impsmp_num_iters/8)
 
-    def impsmp(key, n_iters, theta, subs_train, subs_hmc, input, est_Z=False):
+    def impsmp(key, n_iters, theta, subs_train, input, subs_hmc, est_Z=False):
 
         # initialize stats collection
         X, Y = np.arange(n_iters), np.zeros(shape=(n_iters, 3, num_nonzero_sources))
@@ -299,13 +282,14 @@ with jax.disable_jit(disable=False):
             minval=0.05, maxval=0.35)
 
         # initialize optimizer
-        optimizer = optax.rmsprop(learning_rate=1e-3)
         #optimizer = optax.sgd(learning_rate=1e-2)
+        optimizer = optax.rmsprop(learning_rate=1e-3)
         opt_state = optimizer.init(theta)
 
         # run
         for idx in range(n_iters):
-            key, *subkeys = jax.random.split(key, num=4)
+            subt0 = timer()
+            key, *subkeys = jax.random.split(key, num=5)
             mean, cov = policy.apply(theta, subkeys[0], one_hot_inputs)
 
             log_density = lambda a: unnormalized_log_rho(subkeys[0], theta, subs_hmc, a)
@@ -314,7 +298,7 @@ with jax.disable_jit(disable=False):
                 tfp.mcmc.HamiltonianMonteCarlo(
                     target_log_prob_fn=log_density,
                     num_leapfrog_steps=3,
-                    step_size=0.1),
+                    step_size=0.3),
                 num_adaptation_steps=int(impsmp_num_burnin_steps * 0.8))
 
             samples, is_accepted = tfp.mcmc.sample_chain(
@@ -330,18 +314,18 @@ with jax.disable_jit(disable=False):
 
             for si in range(n_batches):
                 actions = samples[si*n_rollouts:(si+1)*n_rollouts]
-                dpi = jax.jacrev(policy_stoch_pdf, argnums=0)(theta, subkeys[0], actions)
-                rho = jnp.exp(batch_unnormalized_log_rho(subkeys[0], theta, subs_hmc, actions))
-                rewards = reward_reinforce(subkeys[0], subs_train, actions)
+                dpi = jax.jacrev(policy_pdf, argnums=0)(theta, subkeys[2], actions)
+                rewards = reward_batched(subkeys[2], subs_train, actions)
+                rho = jnp.exp(batch_unnormalized_log_rho(subkeys[3], theta, subs_hmc, actions))
                 factors = rewards / (rho + 1e-8)
 
                 if est_Z:
-                    pi = policy_stoch_pdf(theta, subkeys[0], actions)
+                    pi = policy_pdf(theta, subkeys[2], actions)
                     Zinv = jnp.sum(pi/rho)
                     Zinv = jnp.maximum(Zinv, clip_val)
                     factors = factors / Zinv
 
-                w = lambda x: jnp.mean(weighting_map_impsmp(factors, x), axis=0)
+                w = lambda x: jnp.mean(weighting_map(factors, x), axis=0)
 
                 accumulant = jax.tree_util.tree_map(w, dpi)
                 grads = jax.tree_util.tree_map(lambda x, y: x+(y/n_batches), grads, accumulant)
@@ -351,12 +335,13 @@ with jax.disable_jit(disable=False):
             theta = optax.apply_updates(theta, updates)
 
             # Initialize the next chain at a random point of the current chain
-            hmc_intializer = jax.random.choice(subkeys[2], samples)
+            hmc_intializer = jax.random.choice(subkeys[4], samples)
 
             Y[idx,0] = cmlt_rewards
             Y[idx,1] = mean
             Y[idx,2] = jnp.diag(cov)
-            print(idx, rewards, Y[idx])
+            subt1 = timer()
+            print(idx, rewards, Y[idx], subt1-subt0)
 
             C = collect_covar_data(theta, C, idx)
 
@@ -371,7 +356,7 @@ with jax.disable_jit(disable=False):
     id = f'{method}_2x2_b{n_rollouts*n_batches}_nS{num_nonzero_sources}'
 
     t1 = timer()
-    X, Y, C = method_fn(key=subkey, n_iters=100, theta=theta, subs_train=subs_train, subs_hmc=subs_hmc, input=input, est_Z=False)
+    X, Y, C = method_fn(key=subkey, n_iters=100, theta=theta, subs_train=subs_train, input=input, subs_hmc=subs_hmc, est_Z=False)
     t2 = timer()
 
     Covar = jnp.cov(C)
