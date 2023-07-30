@@ -26,7 +26,7 @@ non-fluents green_wave_5_experiment {
     //             | |                                          | |                     
 
     non-fluents {
-        Ts = 1;
+        Ts = 3;
 
         //cartesian coordinates
         X(i0) = 100;    Y(i0) = 100;
@@ -357,6 +357,6 @@ instance green_wave_5_experiment {
     domain = BLX_model;
     non-fluents = green_wave_5_experiment;
     max-nondef-actions = 5;
-    horizon = 1024; //320;
+    horizon = 256;
     discount = 1.0;
 }

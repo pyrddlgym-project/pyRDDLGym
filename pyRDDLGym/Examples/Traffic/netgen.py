@@ -428,6 +428,7 @@ def generate_green_wave_scenario(N,
 
 def generate_grid(nrows,
                   ncols,
+                  two_phase=False,
                   ew_link_len=(200,50), #(a,b) parsed as Uniform(a-b,a+b)
                   ns_link_len=(200,50),
                   feeder_link_elongation_factor=1.5,
@@ -721,6 +722,11 @@ def generate_grid(nrows,
         f'    discount = {discount};',
         f'}}' ))
 
+    instance_str += '\n'
+    instance_str += '// Source link ids\n//'
+    source_link_indices = [f'{id}={link_names.index(id)}' for id in source_link_names]
+    instance_str += '\n//'.join(source_link_indices)
+
     return instance_str
 
 
@@ -736,7 +742,7 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--rows', type=int, help='Number of rows in the network', required=True)
     parser.add_argument('-c', '--cols', type=int, help='Number of columns in the network', required=True)
     parser.add_argument('-f', '--force-overwrite', action='store_true', help='By default the generator will not overwrite existing files. With this argument, it will')
-    parser.add_argument('-l', '--high-left-prob', default=0, help='Probability of having heavier demand on through than left from an approach')
+    parser.add_argument('-L', '--high-left-prob', default=0, help='Probability of having heavier demand on through than left from an approach')
     parser.add_argument('-n', '--instance-name', help='Name of instance')
     args = parser.parse_args()
 

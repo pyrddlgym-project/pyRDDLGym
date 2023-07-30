@@ -4,10 +4,12 @@ non-fluents grid_2x2 {
     objects {
         intersection : {i0, i1, i2, i3};
         link         : {l-i0-s0, l-i0-i1, l-i0-i2, l-i0-s7, l-i1-s1, l-i1-s2, l-i1-i3, l-i1-i0, l-i2-i0, l-i2-i3, l-i2-s5, l-i2-s6, l-i3-i1, l-i3-s3, l-i3-s4, l-i3-i2, l-s0-i0, l-s5-i2, l-s1-i1, l-s4-i3, l-s7-i0, l-s2-i1, l-s6-i2, l-s3-i3};
-        time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27};
+        time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28};
     };
 
     non-fluents {
+        Ts = 3;
+
         //sources
         SOURCE(l-s7-i0);
         SOURCE(l-s2-i1);
@@ -27,8 +29,8 @@ non-fluents grid_2x2 {
         SINK(l-i1-s1);
         SINK(l-i3-s4);
         //satflow rates
-        MU(l-s7-i0,l-i0-i1) = 1.06;
-        MU(l-s7-i0,l-i0-s0) = 0.636;
+        MU(l-s7-i0,l-i0-s0) = 1.06;
+        MU(l-s7-i0,l-i0-i1) = 0.636;
         MU(l-s7-i0,l-i0-i2) = 0.42400000000000004;
         MU(l-i1-i0,l-i0-s7) = 1.06;
         MU(l-s0-i0,l-i0-i1) = 0.636;
@@ -42,8 +44,8 @@ non-fluents grid_2x2 {
         MU(l-i0-i1,l-i1-s2) = 1.06;
         MU(l-i0-i1,l-i1-s1) = 0.636;
         MU(l-i0-i1,l-i1-i3) = 0.42400000000000004;
-        MU(l-s1-i1,l-i1-s2) = 1.06;
-        MU(l-s2-i1,l-i1-i0) = 0.636;
+        MU(l-s2-i1,l-i1-i0) = 1.06;
+        MU(l-s1-i1,l-i1-s2) = 0.636;
         MU(l-i3-i1,l-i1-s2) = 0.42400000000000004;
         MU(l-s1-i1,l-i1-i3) = 1.06;
         MU(l-s2-i1,l-i1-i3) = 0.636;
@@ -51,8 +53,8 @@ non-fluents grid_2x2 {
         MU(l-i3-i1,l-i1-s1) = 1.06;
         MU(l-i3-i1,l-i1-i0) = 0.636;
         MU(l-s1-i1,l-i1-i0) = 0.42400000000000004;
-        MU(l-s6-i2,l-i2-i0) = 1.06;
-        MU(l-s6-i2,l-i2-i3) = 0.636;
+        MU(l-s6-i2,l-i2-i3) = 1.06;
+        MU(l-s6-i2,l-i2-i0) = 0.636;
         MU(l-s6-i2,l-i2-s5) = 0.42400000000000004;
         MU(l-i0-i2,l-i2-i3) = 1.06;
         MU(l-i3-i2,l-i2-s6) = 0.636;
@@ -60,8 +62,8 @@ non-fluents grid_2x2 {
         MU(l-i0-i2,l-i2-s5) = 1.06;
         MU(l-i3-i2,l-i2-s5) = 0.636;
         MU(l-i3-i2,l-i2-i0) = 0.42400000000000004;
-        MU(l-s5-i2,l-i2-s6) = 1.06;
-        MU(l-s5-i2,l-i2-i0) = 0.636;
+        MU(l-s5-i2,l-i2-i0) = 1.06;
+        MU(l-s5-i2,l-i2-s6) = 0.636;
         MU(l-i0-i2,l-i2-s6) = 0.42400000000000004;
         MU(l-i2-i3,l-i3-s3) = 1.06;
         MU(l-i2-i3,l-i3-i1) = 0.636;
@@ -69,95 +71,95 @@ non-fluents grid_2x2 {
         MU(l-s3-i3,l-i3-i2) = 1.06;
         MU(l-i1-i3,l-i3-s3) = 0.636;
         MU(l-s4-i3,l-i3-s3) = 0.42400000000000004;
-        MU(l-s3-i3,l-i3-s4) = 1.06;
-        MU(l-i1-i3,l-i3-s4) = 0.636;
+        MU(l-i1-i3,l-i3-s4) = 1.06;
+        MU(l-s3-i3,l-i3-s4) = 0.636;
         MU(l-s3-i3,l-i3-i1) = 0.42400000000000004;
         MU(l-s4-i3,l-i3-i1) = 1.06;
         MU(l-s4-i3,l-i3-i2) = 0.636;
         MU(l-i1-i3,l-i3-i2) = 0.42400000000000004;
         //turn probabilities
-        BETA(l-s7-i0,l-i0-i1) = 0.7963686026984523;
-        BETA(l-s7-i0,l-i0-s0) = 0.10363139730154763;
+        BETA(l-s7-i0,l-i0-s0) = 0.6469694161264531;
+        BETA(l-s7-i0,l-i0-i1) = 0.2530305838735469;
         BETA(l-s7-i0,l-i0-i2) = 0.10000000000000003;
-        BETA(l-i1-i0,l-i0-s7) = 0.6007245931895671;
-        BETA(l-s0-i0,l-i0-i1) = 0.2992754068104329;
-        BETA(l-i2-i0,l-i0-i1) = 0.10000000000000003;
-        BETA(l-s0-i0,l-i0-i2) = 0.7837852313375269;
-        BETA(l-i1-i0,l-i0-i2) = 0.11621476866247314;
-        BETA(l-i1-i0,l-i0-s0) = 0.09999999999999999;
-        BETA(l-i2-i0,l-i0-s0) = 0.6254204003052289;
-        BETA(l-i2-i0,l-i0-s7) = 0.27457959969477097;
-        BETA(l-s0-i0,l-i0-s7) = 0.10000000000000009;
-        BETA(l-i0-i1,l-i1-s2) = 0.7833126241594143;
-        BETA(l-i0-i1,l-i1-s1) = 0.11668737584058567;
-        BETA(l-i0-i1,l-i1-i3) = 0.10000000000000006;
-        BETA(l-s1-i1,l-i1-s2) = 0.7319758848979822;
-        BETA(l-s2-i1,l-i1-i0) = 0.16802411510201778;
-        BETA(l-i3-i1,l-i1-s2) = 0.10000000000000006;
-        BETA(l-s1-i1,l-i1-i3) = 0.7277956655581521;
-        BETA(l-s2-i1,l-i1-i3) = 0.17220433444184785;
-        BETA(l-s2-i1,l-i1-s1) = 0.10000000000000003;
-        BETA(l-i3-i1,l-i1-s1) = 0.6633237227873652;
-        BETA(l-i3-i1,l-i1-i0) = 0.23667627721263482;
-        BETA(l-s1-i1,l-i1-i0) = 0.1;
-        BETA(l-s6-i2,l-i2-i0) = 0.6615664562036848;
-        BETA(l-s6-i2,l-i2-i3) = 0.23843354379631515;
-        BETA(l-s6-i2,l-i2-s5) = 0.10000000000000003;
-        BETA(l-i0-i2,l-i2-i3) = 0.6672383109994944;
-        BETA(l-i3-i2,l-i2-s6) = 0.23276168900050564;
-        BETA(l-s5-i2,l-i2-i3) = 0.09999999999999998;
-        BETA(l-i0-i2,l-i2-s5) = 0.7165969658762028;
-        BETA(l-i3-i2,l-i2-s5) = 0.18340303412379716;
-        BETA(l-i3-i2,l-i2-i0) = 0.10000000000000003;
-        BETA(l-s5-i2,l-i2-s6) = 0.7581917415456654;
-        BETA(l-s5-i2,l-i2-i0) = 0.14180825845433465;
-        BETA(l-i0-i2,l-i2-s6) = 0.09999999999999998;
-        BETA(l-i2-i3,l-i3-s3) = 0.7623255573035529;
-        BETA(l-i2-i3,l-i3-i1) = 0.13767444269644702;
-        BETA(l-i2-i3,l-i3-s4) = 0.10000000000000009;
-        BETA(l-s3-i3,l-i3-i2) = 0.6196223835662339;
-        BETA(l-i1-i3,l-i3-s3) = 0.2803776164337661;
-        BETA(l-s4-i3,l-i3-s3) = 0.10000000000000003;
-        BETA(l-s3-i3,l-i3-s4) = 0.6711058025826262;
-        BETA(l-i1-i3,l-i3-s4) = 0.2288941974173737;
-        BETA(l-s3-i3,l-i3-i1) = 0.10000000000000009;
-        BETA(l-s4-i3,l-i3-i1) = 0.7540681902617298;
-        BETA(l-s4-i3,l-i3-i2) = 0.1459318097382702;
-        BETA(l-i1-i3,l-i3-i2) = 0.10000000000000003;
+        BETA(l-i1-i0,l-i0-s7) = 0.7530391865814613;
+        BETA(l-s0-i0,l-i0-i1) = 0.1469608134185387;
+        BETA(l-i2-i0,l-i0-i1) = 0.1;
+        BETA(l-s0-i0,l-i0-i2) = 0.623405066609596;
+        BETA(l-i1-i0,l-i0-i2) = 0.27659493339040386;
+        BETA(l-i1-i0,l-i0-s0) = 0.10000000000000009;
+        BETA(l-i2-i0,l-i0-s0) = 0.7924163193332691;
+        BETA(l-i2-i0,l-i0-s7) = 0.10758368066673095;
+        BETA(l-s0-i0,l-i0-s7) = 0.09999999999999999;
+        BETA(l-i0-i1,l-i1-s2) = 0.6361203397853255;
+        BETA(l-i0-i1,l-i1-s1) = 0.26387966021467457;
+        BETA(l-i0-i1,l-i1-i3) = 0.09999999999999998;
+        BETA(l-s2-i1,l-i1-i0) = 0.6165689268058006;
+        BETA(l-s1-i1,l-i1-s2) = 0.28343107319419936;
+        BETA(l-i3-i1,l-i1-s2) = 0.10000000000000009;
+        BETA(l-s1-i1,l-i1-i3) = 0.7788024631038308;
+        BETA(l-s2-i1,l-i1-i3) = 0.1211975368961691;
+        BETA(l-s2-i1,l-i1-s1) = 0.10000000000000006;
+        BETA(l-i3-i1,l-i1-s1) = 0.68007643310393;
+        BETA(l-i3-i1,l-i1-i0) = 0.21992356689606996;
+        BETA(l-s1-i1,l-i1-i0) = 0.10000000000000009;
+        BETA(l-s6-i2,l-i2-i3) = 0.649557648916447;
+        BETA(l-s6-i2,l-i2-i0) = 0.25044235108355306;
+        BETA(l-s6-i2,l-i2-s5) = 0.09999999999999998;
+        BETA(l-i0-i2,l-i2-i3) = 0.6899291657047447;
+        BETA(l-i3-i2,l-i2-s6) = 0.2100708342952552;
+        BETA(l-s5-i2,l-i2-i3) = 0.10000000000000009;
+        BETA(l-i0-i2,l-i2-s5) = 0.6004910654631863;
+        BETA(l-i3-i2,l-i2-s5) = 0.2995089345368136;
+        BETA(l-i3-i2,l-i2-i0) = 0.10000000000000009;
+        BETA(l-s5-i2,l-i2-i0) = 0.7031012592024548;
+        BETA(l-s5-i2,l-i2-s6) = 0.19689874079754513;
+        BETA(l-i0-i2,l-i2-s6) = 0.10000000000000006;
+        BETA(l-i2-i3,l-i3-s3) = 0.7023141063683299;
+        BETA(l-i2-i3,l-i3-i1) = 0.19768589363167008;
+        BETA(l-i2-i3,l-i3-s4) = 0.1;
+        BETA(l-s3-i3,l-i3-i2) = 0.79173433101063;
+        BETA(l-i1-i3,l-i3-s3) = 0.10826566898937007;
+        BETA(l-s4-i3,l-i3-s3) = 0.09999999999999998;
+        BETA(l-i1-i3,l-i3-s4) = 0.6787809237026877;
+        BETA(l-s3-i3,l-i3-s4) = 0.2212190762973123;
+        BETA(l-s3-i3,l-i3-i1) = 0.09999999999999998;
+        BETA(l-s4-i3,l-i3-i1) = 0.7868639333339298;
+        BETA(l-s4-i3,l-i3-i2) = 0.11313606666607022;
+        BETA(l-i1-i3,l-i3-i2) = 0.09999999999999999;
         //link lengths
-        Dl(l-i0-s0) = 241.0;
-        Dl(l-i0-i1) = 229.0;
-        Dl(l-i0-i2) = 227.0;
-        Dl(l-i0-s7) = 345.0;
-        Dl(l-i1-s1) = 241.0;
-        Dl(l-i1-s2) = 250.0;
-        Dl(l-i1-i3) = 227.0;
-        Dl(l-i1-i0) = 229.0;
-        Dl(l-i2-i0) = 227.0;
-        Dl(l-i2-i3) = 229.0;
-        Dl(l-i2-s5) = 352.0;
-        Dl(l-i2-s6) = 345.0;
-        Dl(l-i3-i1) = 227.0;
-        Dl(l-i3-s3) = 250.0;
-        Dl(l-i3-s4) = 352.0;
-        Dl(l-i3-i2) = 229.0;
-        Dl(l-s0-i0) = 241.0;
-        Dl(l-s5-i2) = 352.0;
-        Dl(l-s1-i1) = 241.0;
-        Dl(l-s4-i3) = 352.0;
-        Dl(l-s7-i0) = 345.0;
-        Dl(l-s2-i1) = 250.0;
-        Dl(l-s6-i2) = 345.0;
-        Dl(l-s3-i3) = 250.0;
+        Dl(l-i0-s0) = 370.0;
+        Dl(l-i0-i1) = 170.0;
+        Dl(l-i0-i2) = 218.0;
+        Dl(l-i0-s7) = 310.0;
+        Dl(l-i1-s1) = 370.0;
+        Dl(l-i1-s2) = 366.0;
+        Dl(l-i1-i3) = 218.0;
+        Dl(l-i1-i0) = 170.0;
+        Dl(l-i2-i0) = 218.0;
+        Dl(l-i2-i3) = 170.0;
+        Dl(l-i2-s5) = 261.0;
+        Dl(l-i2-s6) = 310.0;
+        Dl(l-i3-i1) = 218.0;
+        Dl(l-i3-s3) = 366.0;
+        Dl(l-i3-s4) = 261.0;
+        Dl(l-i3-i2) = 170.0;
+        Dl(l-s0-i0) = 370.0;
+        Dl(l-s5-i2) = 261.0;
+        Dl(l-s1-i1) = 370.0;
+        Dl(l-s4-i3) = 261.0;
+        Dl(l-s7-i0) = 310.0;
+        Dl(l-s2-i1) = 366.0;
+        Dl(l-s6-i2) = 310.0;
+        Dl(l-s3-i3) = 366.0;
         //source arrival rates
-        SOURCE-ARRIVAL-RATE(l-s0-i0) = 0.33;
-        SOURCE-ARRIVAL-RATE(l-s5-i2) = 0.37;
-        SOURCE-ARRIVAL-RATE(l-s1-i1) = 0.25;
-        SOURCE-ARRIVAL-RATE(l-s4-i3) = 0.34;
-        SOURCE-ARRIVAL-RATE(l-s7-i0) = 0.31;
-        SOURCE-ARRIVAL-RATE(l-s2-i1) = 0.26;
-        SOURCE-ARRIVAL-RATE(l-s6-i2) = 0.3;
-        SOURCE-ARRIVAL-RATE(l-s3-i3) = 0.32;
+        SOURCE-ARRIVAL-RATE(l-s0-i0) = 0.31;
+        SOURCE-ARRIVAL-RATE(l-s5-i2) = 0.38;
+        SOURCE-ARRIVAL-RATE(l-s1-i1) = 0.33;
+        SOURCE-ARRIVAL-RATE(l-s4-i3) = 0.25;
+        SOURCE-ARRIVAL-RATE(l-s7-i0) = 0.3;
+        SOURCE-ARRIVAL-RATE(l-s2-i1) = 0.39;
+        SOURCE-ARRIVAL-RATE(l-s6-i2) = 0.29;
+        SOURCE-ARRIVAL-RATE(l-s3-i3) = 0.31;
         
         //intersection i0
         //turns
@@ -440,7 +442,7 @@ non-fluents grid_2x2 {
         GREEN(l-s4-i3,l-i3-s3,@ALL-RED4);
         // time-delay properties
         TIME-HEAD(t0);
-        TIME-TAIL(t27);
+        TIME-TAIL(t28);
         TIME-VAL(t0) = 0;
         TIME-VAL(t1) = 1;
         TIME-VAL(t2) = 2;
@@ -469,6 +471,7 @@ non-fluents grid_2x2 {
         TIME-VAL(t25) = 25;
         TIME-VAL(t26) = 26;
         TIME-VAL(t27) = 27;
+        TIME-VAL(t28) = 28;
         NEXT(t0,t1);
         NEXT(t1,t2);
         NEXT(t2,t3);
@@ -496,27 +499,28 @@ non-fluents grid_2x2 {
         NEXT(t24,t25);
         NEXT(t25,t26);
         NEXT(t26,t27);
+        NEXT(t27,t28);
         //cartesian coordinates (for visualization)
-        X(i0) = 345.0; Y(i0) = 579.0;
-        X(i1) = 574.0; Y(i1) = 579.0;
-        X(i2) = 345.0; Y(i2) = 352.0;
-        X(i3) = 574.0; Y(i3) = 352.0;
-        SOURCE-X(l-s7-i0) = 0.0; SOURCE-Y(l-s7-i0) = 579.0;
-        SOURCE-X(l-s2-i1) = 824.0; SOURCE-Y(l-s2-i1) = 579.0;
-        SINK-X(l-i0-s7) = 0.0; SINK-Y(l-i0-s7) = 579.0;
-        SINK-X(l-i1-s2) = 824.0; SINK-Y(l-i1-s2) = 579.0;
-        SOURCE-X(l-s6-i2) = 0.0; SOURCE-Y(l-s6-i2) = 352.0;
-        SOURCE-X(l-s3-i3) = 824.0; SOURCE-Y(l-s3-i3) = 352.0;
-        SINK-X(l-i2-s6) = 0.0; SINK-Y(l-i2-s6) = 352.0;
-        SINK-X(l-i3-s3) = 824.0; SINK-Y(l-i3-s3) = 352.0;
-        SOURCE-X(l-s0-i0) = 345.0; SOURCE-Y(l-s0-i0) = 820.0;
-        SOURCE-X(l-s5-i2) = 345.0; SOURCE-Y(l-s5-i2) = 0.0;
-        SINK-X(l-i0-s0) = 345.0; SINK-Y(l-i0-s0) = 820.0;
-        SINK-X(l-i2-s5) = 345.0; SINK-Y(l-i2-s5) = 0.0;
-        SOURCE-X(l-s1-i1) = 574.0; SOURCE-Y(l-s1-i1) = 820.0;
-        SOURCE-X(l-s4-i3) = 574.0; SOURCE-Y(l-s4-i3) = 0.0;
-        SINK-X(l-i1-s1) = 574.0; SINK-Y(l-i1-s1) = 820.0;
-        SINK-X(l-i3-s4) = 574.0; SINK-Y(l-i3-s4) = 0.0;
+        X(i0) = 310.0; Y(i0) = 479.0;
+        X(i1) = 480.0; Y(i1) = 479.0;
+        X(i2) = 310.0; Y(i2) = 261.0;
+        X(i3) = 480.0; Y(i3) = 261.0;
+        SOURCE-X(l-s7-i0) = 0.0; SOURCE-Y(l-s7-i0) = 479.0;
+        SOURCE-X(l-s2-i1) = 846.0; SOURCE-Y(l-s2-i1) = 479.0;
+        SINK-X(l-i0-s7) = 0.0; SINK-Y(l-i0-s7) = 479.0;
+        SINK-X(l-i1-s2) = 846.0; SINK-Y(l-i1-s2) = 479.0;
+        SOURCE-X(l-s6-i2) = 0.0; SOURCE-Y(l-s6-i2) = 261.0;
+        SOURCE-X(l-s3-i3) = 846.0; SOURCE-Y(l-s3-i3) = 261.0;
+        SINK-X(l-i2-s6) = 0.0; SINK-Y(l-i2-s6) = 261.0;
+        SINK-X(l-i3-s3) = 846.0; SINK-Y(l-i3-s3) = 261.0;
+        SOURCE-X(l-s0-i0) = 310.0; SOURCE-Y(l-s0-i0) = 849.0;
+        SOURCE-X(l-s5-i2) = 310.0; SOURCE-Y(l-s5-i2) = 0.0;
+        SINK-X(l-i0-s0) = 310.0; SINK-Y(l-i0-s0) = 849.0;
+        SINK-X(l-i2-s5) = 310.0; SINK-Y(l-i2-s5) = 0.0;
+        SOURCE-X(l-s1-i1) = 480.0; SOURCE-Y(l-s1-i1) = 849.0;
+        SOURCE-X(l-s4-i3) = 480.0; SOURCE-Y(l-s4-i3) = 0.0;
+        SINK-X(l-i1-s1) = 480.0; SINK-Y(l-i1-s1) = 849.0;
+        SINK-X(l-i3-s4) = 480.0; SINK-Y(l-i3-s4) = 0.0;
     };
 }
 
@@ -524,8 +528,15 @@ instance grid_2x2 {
     domain = BLX_model;
     non-fluents = grid_2x2;
     max-nondef-actions = 4;
-    horizon = 200;
+    horizon = 256;
     discount = 1.0;
 }
 // Source link ids
-l-s0-i0, l-s5-i2, l-s1-i1, l-s4-i3, l-s7-i0, l-s2-i1, l-s6-i2, l-s3-i3
+//l-s0-i0=16
+//l-s5-i2=17
+//l-s1-i1=18
+//l-s4-i3=19
+//l-s7-i0=20
+//l-s2-i1=21
+//l-s6-i2=22
+//l-s3-i3=23
