@@ -118,9 +118,11 @@ class GurobiRDDLBilevelOptimizer:
             # solve inner problem for worst-case state and plan
             print('\nSOLVING INNER PROBLEM:\n')
             start_time = time.time()
-            worst_val_slp, worst_val_pol, worst_action, \
-            worst_state, worst_noise, worst_next_states, inner_stats = \
-                self._solve_inner_problem(param_values)
+            worst_val_slp, worst_val_pol, \
+            worst_action_slp, worst_action_pol, \
+            worst_state, worst_noise, \
+            worst_next_states_slp, worst_next_states_pol, \
+                inner_stats = self._solve_inner_problem(param_values)
             elapsed_time_inner = time.time() - start_time
             
             # solve outer problem for policy
@@ -147,10 +149,12 @@ class GurobiRDDLBilevelOptimizer:
                 'inner_value': {'plan': worst_val_slp, 
                                 'policy': worst_val_pol, 
                                 'epsilon': new_error},
-                'inner_sol': {'actions': worst_action,
+                'inner_sol': {'actions': {'plan': worst_action_slp,
+                                          'policy': worst_action_pol},
                               'init_state': worst_state,
                               'noises': worst_noise,
-                              'states': worst_next_states},
+                              'states': {'plan': worst_next_states_slp,
+                                         'policy': worst_next_states_pol}},
                 'outer_value': {'policy': outer_value_pol},
                 'parameters': param_values,
                 'policy': self.policy.to_string(compiler, params),
@@ -213,7 +217,7 @@ class GurobiRDDLBilevelOptimizer:
         slp_subs = compiler._compile_init_subs()
         slp_subs.update(init_state_vars)
         slp_params = slp.params(compiler, model)
-        value_slp, action_vars, next_state_vars = compiler._rollout(
+        value_slp, action_vars_slp, next_state_vars_slp = compiler._rollout(
             model, slp, slp_params, slp_subs)
         
         # roll out from s0 using a_t = policy(s_t), t = 1, 2, ... T
@@ -225,7 +229,8 @@ class GurobiRDDLBilevelOptimizer:
             pol_subs['noise__count'] = {dt: 0 for dt in slp_subs['noise__count']}
             pol_subs['noise__var'] = slp_subs['noise__var']
         pol_params = self.policy.params(compiler, model, values=param_values)
-        value_pol, *_ = compiler._rollout(model, self.policy, pol_params, pol_subs)
+        value_pol, action_vars_pol, next_state_vars_pol = compiler._rollout(
+            model, self.policy, pol_params, pol_subs)
         
         # optimization objective for the inner problem is
         # max_{a_1, ... a_T, s0} [V(a_1, ... a_T, s0) - V(policy, s0)]
@@ -233,7 +238,8 @@ class GurobiRDDLBilevelOptimizer:
         model.optimize()    
         
         # read a_1... a_T, V(a_1, ... a_T, s0), V(pi, s0) from the solved model
-        worst_action = compiler._get_optimal_actions(action_vars)
+        worst_action_slp = compiler._get_optimal_actions(action_vars_slp)
+        worst_action_pol = compiler._get_optimal_actions(action_vars_pol)
         worst_value_slp = value_slp.getValue()
         worst_value_pol = value_pol.getValue()
         
@@ -254,18 +260,25 @@ class GurobiRDDLBilevelOptimizer:
                     worst_noise[key][count] = (value, vtype, value, value, False)
         
         # read worst next-state variables from the optimized model
-        worst_next_states = []
-        for next_states_step in next_state_vars:
+        worst_next_states_slp = []
+        for next_states_step in next_state_vars_slp:
             next_states_val = {key: var.X 
                                for (key, (var, *_)) in next_states_step.items()}
-            worst_next_states.append(next_states_val)
+            worst_next_states_slp.append(next_states_val)
+        worst_next_states_pol = []
+        for next_states_step in next_state_vars_pol:
+            next_states_val = {key: var.X 
+                               for (key, (var, *_)) in next_states_step.items()}
+            worst_next_states_pol.append(next_states_val)
         
         # read stats and release the model resources
         model_stats = self._model_stats(model)
         model.dispose()
         
-        return worst_value_slp, worst_value_pol, worst_action, \
-            worst_state, worst_noise, worst_next_states, model_stats
+        return worst_value_slp, worst_value_pol, \
+            worst_action_slp, worst_action_pol, \
+            worst_state, worst_noise, \
+            worst_next_states_slp, worst_next_states_pol, model_stats
     
     def _resolve_outer_problem(self, worst_value_slp: float,
                                worst_state: Dict[str, object],

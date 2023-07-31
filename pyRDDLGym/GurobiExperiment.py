@@ -3,6 +3,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
 import time
 from typing import Dict
 
@@ -17,6 +18,7 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 # settings for pyplot
+plt.style.use('ggplot')
 SMALL_SIZE = 18
 MEDIUM_SIZE = 20
 BIGGER_SIZE = 22
@@ -34,7 +36,9 @@ plt.rcParams['text.usetex'] = True
 class GurobiExperiment:
     
     def __init__(self, constr: str='S', value: str='C', cases: int=1,
-                 model_params: Dict={'NumericFocus': 2,
+                 model_params: Dict={'PreSparsify': 1,
+                                     'Presolve': 2,
+                                     'NumericFocus': 2,
                                      'MIPGap': 0.05,
                                      'OutputFlag': 1},
                  iters: int=10,
@@ -141,9 +145,10 @@ class GurobiExperiment:
     def simulation_plots(domain: str, inst: str, horizon: int, chance: str,
                          policies, label='return', 
                          legend=True, 
-                         legend_args={'loc': 'upper right', 'ncol': 2,
+                         legend_args={'loc': 'lower right', 'ncol': 2,
                                       'columnspacing': 0.2, 'borderpad': 0.2,
-                                      'labelspacing': 0.2}): 
+                                      'labelspacing': 0.2},
+                         ylim=None): 
         
         # read attributes from log files
         logs = [GurobiExperiment.load_json(domain, inst, horizon, policy, chance) 
@@ -167,6 +172,10 @@ class GurobiExperiment:
             plt.ylabel('$\\mathrm{' + label + '}$')
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
+        if ylim is not None:
+            plt.ylim(ylim)
+        plt.gca().set_yscale('log')
+
         if legend:
             plt.legend(**legend_args)
         plt.tight_layout()
@@ -175,6 +184,147 @@ class GurobiExperiment:
             f'{domain}_{inst}_{horizon}_{chance}_{label}.pdf'))
         plt.clf()
         plt.close()
+    
+    @staticmethod
+    def size_plots(domain: str, inst: str, horizon: int, chance: str,
+                   policies, model='outer'):
+        for policy in policies:
+            log = GurobiExperiment.load_json(
+                domain, inst, horizon, policy, chance)[0]
+            vars_data = {'iteration': [], 'binary': [], 'integer': [], 'real': []}
+            constrs_data = {'iteration': [], 'linear': [], 'quadratic': [], 'general': []}
+            for it in range(len(log) - 1):
+                log_it = log[str(it)]
+                log_vars = log_it['model_stats'][model]['variables']
+                total = log_vars['total']
+                discrete = log_vars['integer']
+                binary = log_vars['binary']
+                pw = log_vars['piecewise']
+                integer = discrete - binary
+                real = total - discrete - pw
+                vars_data['iteration'].append(it)
+                vars_data['binary'].append(binary)
+                vars_data['integer'].append(integer)
+                vars_data['real'].append(real)
+                
+                log_constrs = log_it['model_stats'][model]['constraints']
+                linear = log_constrs['linear']
+                quadratic = log_constrs['quadratic']
+                general = log_constrs['general'] + log_constrs['SOS']
+                constrs_data['iteration'].append(it)
+                constrs_data['linear'].append(linear)
+                constrs_data['quadratic'].append(quadratic)
+                constrs_data['general'].append(general)
+            
+            vars_data = pd.DataFrame(vars_data)
+            constrs_data = pd.DataFrame(constrs_data)
+            
+            fig, ax = plt.subplots(figsize=(6.4, 3.2))
+            vars_data.plot(ax=ax, x='iteration', y=['binary', 'integer', 'real'], kind='bar')
+            plt.xlabel('$\\mathrm{iteration}$')
+            plt.ylabel('$\\mathrm{variables}$')
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                'gurobi_results',
+                f'{domain}_{inst}_{horizon}_{chance}_{policy}_{model}_variables.pdf'))
+            plt.clf()
+            plt.close()
+            
+            fig, ax = plt.subplots(figsize=(6.4, 3.2))
+            constrs_data.plot(ax=ax, x='iteration', y=['linear', 'quadratic', 'general'], kind='bar')
+            plt.xlabel('$\\mathrm{iteration}$')
+            plt.ylabel('$\\mathrm{constraints}$')
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                'gurobi_results',
+                f'{domain}_{inst}_{horizon}_{chance}_{policy}_{model}_constraints.pdf'))
+            plt.clf()
+            plt.close()
+               
+    @staticmethod
+    def plot_worst_case(domain: str, inst: str, horizon: int, chance: str,
+                        policy: str, state_name: str, action_name: str, 
+                        noise_name: str):
+        log = GurobiExperiment.load_json(domain, inst, horizon, policy, chance)[0]
+        
+        for it in range(len(log) - 1):
+            data = log[str(it)]['inner_sol']
+            worst_state = {k: v[0] for k, v in data['init_state'].items()}
+            worst_states = [list(v.values()) for v in data['states']['policy']]
+            worst_states = [list(worst_state.values())] + worst_states
+            worst_states = np.asarray(worst_states)
+            n_iters, n_cols = worst_states.shape
+            worst_states = pd.DataFrame(
+                {f'$\\mathrm{{{state_name}}} {i + 1}$': worst_states[:, i]
+                 for i in range(n_cols)})
+            worst_states['$\\mathrm{epoch}$'] = list(range(n_iters))
+            
+            _, ax = plt.subplots(figsize=(6.4, 3.2))
+            worst_states.plot(ax=ax, x='$\\mathrm{epoch}$', 
+                              y=[f'$\\mathrm{{{state_name}}} {i + 1}$' for i in range(n_cols)], 
+                              kind='bar')
+            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+            plt.axhline(y=20, linestyle='dotted', color=colors[0])
+            plt.axhline(y=80, linestyle='dotted', color=colors[0])
+            plt.axhline(y=30, linestyle='dotted', color=colors[1])
+            plt.axhline(y=180, linestyle='dotted', color=colors[1])
+            plt.xlabel('$\\mathrm{epoch}$')
+            plt.ylabel(f'$\\mathrm{{{state_name}}}$')
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                'gurobi_results',
+                f'{domain}_{inst}_{horizon}_{chance}_{policy}_{it}_worst_states.pdf'))
+            plt.clf()
+            plt.close()
+            
+            worst_actions = [list(v.values()) for v in data['actions']['policy']]
+            worst_actions = np.asarray(worst_actions)
+            n_iters, n_cols = worst_actions.shape
+            worst_actions = pd.DataFrame(
+                {f'$\\mathrm{{{action_name}}} {i + 1}$': worst_actions[:, i]
+                 for i in range(n_cols)})
+            worst_actions['$\\mathrm{epoch}$'] = list(range(1, n_iters + 1))
+            
+            _, ax = plt.subplots(figsize=(6.4, 3.2))
+            worst_actions.plot(ax=ax, x='$\\mathrm{epoch}$', 
+                               y=[f'$\\mathrm{{{action_name}}} {i + 1}$' for i in range(n_cols)], 
+                               kind='bar')
+            plt.xlabel('$\\mathrm{epoch}$')
+            plt.ylabel(f'$\\mathrm{{{action_name}}}$')
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                'gurobi_results',
+                f'{domain}_{inst}_{horizon}_{chance}_{policy}_{it}_worst_actions.pdf'))
+            plt.clf()
+            plt.close()
+            
+            worst_noise = [v[0] for v in data['noises']['normal'].values()]
+            worst_noise = [(worst_noise[i], worst_noise[i + 1]) 
+                           for i in range(0, len(worst_noise), 2)]
+            worst_noise = np.asarray(worst_noise)
+            n_iters, n_cols = worst_noise.shape
+            worst_noise = pd.DataFrame(
+                {f'$\\mathrm{{{noise_name}}} {i + 1}$': worst_noise[:, i]
+                 for i in range(n_cols)})
+            worst_noise['$\\mathrm{epoch}$'] = list(range(1, n_iters + 1))
+            
+            _, ax = plt.subplots(figsize=(6.4, 3.2))
+            worst_noise.plot(ax=ax, x='$\\mathrm{epoch}$', 
+                             y=[f'$\\mathrm{{{noise_name}}} {i + 1}$' for i in range(n_cols)], 
+                             kind='bar')
+            plt.xlabel('$\\mathrm{epoch}$')
+            plt.ylabel(f'$\\mathrm{{{noise_name}}}$')
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                'gurobi_results',
+                f'{domain}_{inst}_{horizon}_{chance}_{policy}_{it}_worst_noise.pdf'))
+            plt.clf()
+            plt.close()
             
     def get_state_bounds(self, model) -> Dict:
         raise NotImplementedError
