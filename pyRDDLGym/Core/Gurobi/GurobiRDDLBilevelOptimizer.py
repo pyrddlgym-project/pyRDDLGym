@@ -290,6 +290,12 @@ class GurobiRDDLBilevelOptimizer:
         # roll out from worst-case s_0 using a_t = policy(s_t), t = 1, 2, ... T
         subs = compiler._compile_init_subs()
         subs.update(worst_state)
+        for (state, srange) in self.rddl.statesranges.items():
+            (value, vtype, lb, ub, symb) = subs[state]
+            if srange == 'int':
+                subs[state] = (int(value), vtype, lb, ub, symb)
+            elif srange == 'bool':
+                subs[state] = (value > 0.5, vtype, lb, ub, symb)
         if self.use_cc:
             subs['noise__var'] = worst_noise
         value_pol, *_ = compiler._rollout(model, self.policy, policy_params, subs)
