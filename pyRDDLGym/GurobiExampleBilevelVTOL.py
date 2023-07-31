@@ -10,7 +10,7 @@ class GurobiVTOLExperiment(GurobiExperiment):
     
     def __init__(self, *args, **kwargs):
         super(GurobiVTOLExperiment, self).__init__(
-            *args, value='Q', cases=0, iters=5, rollouts=1, **kwargs)
+            *args, iters=5, rollouts=1, **kwargs)
         self.model_params['NonConvex'] = 2
         
     def get_action_bounds(self, model):
@@ -26,17 +26,16 @@ class GurobiVTOLExperiment(GurobiExperiment):
     
     def get_state_dependencies_S(self, model):
         return {'F': ['theta', 'omega']} 
-        
-    def prepare_policy_plot(self):
+    
+    @staticmethod
+    def prepare_policy_plot():
         
         def policy(theta, omega):
-            return -0.38739016377776403 + -0.4742443203026949 * theta + \
-                -19.807301089794326 * omega + 100.0 * theta * theta + \
-                -100.0 * theta * omega + -81.09237718477412 * omega * omega
+            return 0.6 - 15.4 * theta - 2.3 * omega + 100 * theta ** 2 - 1.5 * omega ** 2
          
         n = 200
-        thetas = np.linspace(-0.1, 0.1, n)
-        omegas = np.linspace(-0.5, 0.5, n)
+        thetas = np.linspace(-0.2, 0.2, n)
+        omegas = np.linspace(-1, 1, n)
         data = np.zeros((n, n))
         for io in range(n):
             for it in range(n):
@@ -44,7 +43,7 @@ class GurobiVTOLExperiment(GurobiExperiment):
         data = np.clip(data, -1, 1)
         data = data[::-1,:]
         plt.figure(figsize=(6.4, 3.2))
-        im = plt.imshow(data, extent=[-0.1, 0.1, -0.5, 0.5], aspect=0.1, cmap='seismic')
+        im = plt.imshow(data, extent=[-0.2, 0.2, -1, 1], aspect=0.1, cmap='seismic')
         plt.xlabel('$\\theta$')
         plt.ylabel('$\\omega$')
         plt.colorbar(im, pad=0.03, fraction=0.09)
@@ -65,5 +64,5 @@ if __name__ == "__main__":
     dom_test = dom
     
     for _ in range(5): 
-        experiment = GurobiVTOLExperiment()
+        experiment = GurobiVTOLExperiment(value='Q', cases=0)
         experiment.run(dom, 0, horizon, dom_test)
