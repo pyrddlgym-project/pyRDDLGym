@@ -13,7 +13,6 @@ requirements = {
 
 pvariables {
 
-    // Constants
     l1 : { non-fluent, real, default = 1.0 };     // the length of the rod from the pole to the fan
     l2 : { non-fluent, real, default = 0.5 };     // the length of the rod from the pole to the weight
     m1 : { non-fluent, real, default = 10.0 };   // the mass of the fan
@@ -22,37 +21,28 @@ pvariables {
     goal : {non-fluent, real, default = 0.0 };  // the goal angle to stabilize on
     g : { non-fluent, real, default = 9.8 };    // gravity constant
     T : { non-fluent, real, default = 0.1 };    // time sampling constant
-    alpha : { non-fluent, real, default = 0.01 }; // cost weight
     FORCE-MAX : {non-fluent, real, default = 1.0 }; // maximum force applied by the fan
 
-    // States
     theta : { state-fluent, real, default = 0.0 };    // the angle of the rod in relation to the horizontal axis
     omega : { state-fluent, real, default = 0.0 };    // the angular velocity of the rod
 
-    // Actions
+	F-act : { interm-fluent, real };
+	
     F : { action-fluent, real, default = 0.0 };       // force applied by the fan
 };
 
 cpfs {
+	F-act = max[-FORCE-MAX, min[FORCE-MAX, F]];
     theta' =  max[-sin[h / l1], min[sin[h / l2], theta + T * omega]];
-    omega' = omega + (T / (m1 * l1 * l1 + m2 * l2 * l2)) * (g * (m2 * l2 - m1 * l1) * cos[theta] + 100 * l1 * F);
+    omega' = omega + (T / (m1 * l1 * l1 + m2 * l2 * l2)) * (g * (m2 * l2 - m1 * l1) * cos[theta] + 150 * l1 * F-act);
 };
 
-reward = -alpha * abs[F] - abs[theta' - goal];
+reward = -abs[theta' - goal];
 
 action-preconditions {
-    F >= -FORCE-MAX;
-    F <= FORCE-MAX;
 };
 
 state-invariants {
-    l2 * m2 <= l1 * m1;
-    l2 > h;
-    l1 > l2;
-    theta >= -sin[h / l1];
-    theta <= sin[h / l2];
-    g >= 0;
-	FORCE-MAX >= 0;
 };
 
 }

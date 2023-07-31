@@ -12,8 +12,8 @@ domain inventory {
 		C(item) : { non-fluent, real, default = 0.5 };
 		P(item) : { non-fluent, real, default = 2.0 };
 		
-		MEAN(item) : { non-fluent, real, default = 3.0 };
-		DISP(item) : { non-fluent, real, default = 1.0 };
+		MEAN(item) : { non-fluent, real, default = 4.0 };
+		DISP(item) : { non-fluent, real, default = 2.0 };
 		
 		demand(item) : { interm-fluent, int }; 
 		order-act(item) : { interm-fluent, int };
