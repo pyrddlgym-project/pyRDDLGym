@@ -4,9 +4,11 @@ import jax.numpy as jnp
 import haiku as hk
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
+import functools
 
 from sys import argv
 from time import perf_counter as timer
+from datetime import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
@@ -19,7 +21,7 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLCompilerWithGrad
 
 from jax.config import config as jconfig
 jconfig.update('jax_debug_nans', True)
-jconfig.update('jax_platform_name', 'gpu')
+jconfig.update('jax_platform_name', 'cpu')
 jconfig.update('jax_enable_x64', False)
 jnp.set_printoptions(
     linewidth=9999,
@@ -89,8 +91,8 @@ for (state, next_state) in model.next_state.items():
 
 # ground truth rates
 source_indices = range(16,24)
-true_source_rates = jnp.array([0.1, 0.2, 0.3, 0.4, 0.3, 0.2, 0.3])
-num_nonzero_sources = 7
+true_source_rates = jnp.array([0.3, 0.2, 0.1, 0.4, 0.1, 0.2, 0.3])
+num_nonzero_sources = 2
 source_rates = true_source_rates[:num_nonzero_sources]
 s0, s1, s2 = source_indices[0], source_indices[num_nonzero_sources], source_indices[-1]
 
@@ -132,16 +134,20 @@ with jax.disable_jit(disable=False):
     def parametrized_policy(input):
         # Currently assumes a multivariate normal policy with
         # a diagonal covariance matrix
+
+#        last_layer_bias_init = hk.initializers.Constant(jnp.array([jnp.log(3), 0.]))
+        last_layer_bias_init = hk.initializers.Constant(jnp.array([-1.821, -1.82118]))
         mlp = hk.Sequential([
             hk.Linear(32), jax.nn.relu,
             hk.Linear(32), jax.nn.relu,
-            hk.Linear(2)
+            hk.Linear(2, b_init=last_layer_bias_init)
         ])
-        output = jnp.exp(mlp(input))/10
+        output = jax.nn.softplus(mlp(input))
         mean, cov = (jnp.squeeze(x) for x in jnp.split(output, 2, axis=1))
         return mean, jnp.diag(cov)
 
     policy = hk.transform(parametrized_policy)
+    policy_apply = jax.jit(policy.apply)
     key, subkey = jax.random.split(key)
     theta = policy.init(subkey, one_hot_inputs)
 
@@ -150,13 +156,13 @@ with jax.disable_jit(disable=False):
 
     @jax.jit
     def policy_pdf(theta, rng, actions):
-        mean, cov = policy.apply(theta, rng, one_hot_inputs)
+        mean, cov = policy_apply(theta, rng, one_hot_inputs)
         return jax.scipy.stats.multivariate_normal.pdf(actions, mean=mean, cov=cov)
 
     @jax.jit
     def policy_sample(theta, rng):
         # TODO: Properly handle samples that violate constraints
-        mean, cov = policy.apply(theta, rng, one_hot_inputs)
+        mean, cov = policy_apply(theta, rng, one_hot_inputs)
         action_sample = jax.random.multivariate_normal(
             rng, mean, cov,
             shape=(n_rollouts,))
@@ -213,8 +219,8 @@ with jax.disable_jit(disable=False):
         C = jnp.zeros(shape=(n_params, n_iters))
 
         # initialize optimizer
-        optimizer = optax.sgd(learning_rate=1e-5)
-        #optimizer = optax.rmsprop(learning_rate=1e-3)
+        #optimizer = optax.sgd(learning_rate=1e-5)
+        optimizer = optax.rmsprop(learning_rate=1e-3)
         opt_state = optimizer.init(theta)
 
         # run
@@ -223,7 +229,7 @@ with jax.disable_jit(disable=False):
             cmlt_rewards = 0
             for _ in range(n_batches):
                 key, *subkeys = jax.random.split(key, num=3)
-                mean, cov = policy.apply(theta, subkeys[0], one_hot_inputs)
+                mean, cov = policy_apply(theta, subkeys[0], one_hot_inputs)
                 actions = policy_sample(theta, subkeys[0])
                 pi = policy_pdf(theta, subkeys[0], actions)
                 dpi = jax.jacrev(policy_pdf, argnums=0)(theta, subkeys[0], actions)
@@ -252,6 +258,8 @@ with jax.disable_jit(disable=False):
     # === REINFORCE + Importance sampling ====
     impsmp_num_iters = int(n_rollouts * n_batches)
     impsmp_num_burnin_steps = int(impsmp_num_iters/8)
+    impsmp_step_size = 0.1
+
 
     @jax.jit
     def unnormalized_log_rho(key, theta, subs, a):
@@ -282,23 +290,31 @@ with jax.disable_jit(disable=False):
             minval=0.05, maxval=0.35)
 
         # initialize optimizer
-        #optimizer = optax.sgd(learning_rate=1e-2)
+        #optimizer = optax.sgd(learning_rate=1e-3)
         optimizer = optax.rmsprop(learning_rate=1e-3)
         opt_state = optimizer.init(theta)
+
+        # initialize unconstraining bijector
+        unconstraining_bijector = [
+            #tfp.bijectors.Softplus()
+            tfp.bijectors.Identity()
+        ]
 
         # run
         for idx in range(n_iters):
             subt0 = timer()
             key, *subkeys = jax.random.split(key, num=6)
-            mean, cov = policy.apply(theta, subkeys[0], one_hot_inputs)
 
-            log_density = lambda a: unnormalized_log_rho(subkeys[0], theta, subs_hmc, a)
+            log_density = functools.partial(
+                unnormalized_log_rho, subkeys[0], theta, subs_hmc)
 
-            adaptive_hmc = tfp.mcmc.SimpleStepSizeAdaptation(
-                tfp.mcmc.HamiltonianMonteCarlo(
-                    target_log_prob_fn=log_density,
-                    num_leapfrog_steps=3,
-                    step_size=0.05),
+            adaptive_hmc_kernel = tfp.mcmc.SimpleStepSizeAdaptation(
+                tfp.mcmc.TransformedTransitionKernel(
+                    inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
+                        target_log_prob_fn=log_density,
+                        num_leapfrog_steps=3,
+                        step_size=impsmp_step_size),
+                    bijector=unconstraining_bijector),
                 num_adaptation_steps=int(impsmp_num_burnin_steps * 0.8))
 
             samples, is_accepted = tfp.mcmc.sample_chain(
@@ -306,8 +322,8 @@ with jax.disable_jit(disable=False):
                 num_results=impsmp_num_iters,
                 num_burnin_steps=impsmp_num_burnin_steps,
                 current_state=hmc_initializer,
-                kernel=adaptive_hmc,
-                trace_fn=lambda _, pkr: pkr.inner_results.is_accepted)
+                kernel=adaptive_hmc_kernel,
+                trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
 
             grads = jax.tree_util.tree_map(lambda _: jnp.zeros(1), theta)
             cmlt_rewards = 0.
@@ -337,35 +353,54 @@ with jax.disable_jit(disable=False):
             # Initialize the next chain at a random point of the current chain
             hmc_intializer = jax.random.choice(subkeys[4], samples)
 
+            mean, cov = policy_apply(theta, subkeys[0], one_hot_inputs)
+            eval_actions = policy_sample(theta, subkeys[0])
+            eval_rewards = reward_batched(subkeys[0], subs_train, eval_actions)
+
             Y[idx,0] = cmlt_rewards
             Y[idx,1] = mean
             Y[idx,2] = jnp.diag(cov)
             subt1 = timer()
-            print(idx, rewards, Y[idx], subt1-subt0)
+            print(f'Iter {idx} :: Runtime={subt1-subt0}s ::  HMC acceptance rate={jnp.mean(is_accepted)*100:.2f}%')
+            print(f'[Rew, Mean, Cov] = \n{Y[idx]}')
+            print(f'Eval rew.: {jnp.mean(eval_rewards)}\n')
 
             C = collect_covar_data(theta, C, idx)
 
         return X, Y, C
 
-    key, subkey = jax.random.split(key)
-    method = 'impsmp'
+    def eval_single_rollout(a):
+        # For debugging
+        a = jnp.asarray(a)
+        rewards = reward_seqtl(key, subs_hmc, a)
+        print(rewards)
+
+
+    method = 'reinforce'
     if method == 'impsmp': method_fn = impsmp
     elif method == 'reinforce': method_fn = reinforce
     else: raise KeyError
 
-    id = f'{method}_2x2_b{n_rollouts*n_batches}_nS{num_nonzero_sources}'
 
+    id = f'{method}_2x2_b{n_rollouts*n_batches}_nS{num_nonzero_sources}'
+    time = datetime.now()
+    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+    key, subkey = jax.random.split(key)
     t1 = timer()
-    X, Y, C = method_fn(key=subkey, n_iters=100, theta=theta, subs_train=subs_train, input=input, subs_hmc=subs_hmc, est_Z=False)
+    X, Y, C = method_fn(key=subkey, n_iters=500, theta=theta, subs_train=subs_train, input=input, subs_hmc=subs_hmc, est_Z=True)
     t2 = timer()
 
     Covar = jnp.cov(C)
     sns.heatmap(Covar)
-    plt.savefig(f'img/{id}_covar.png')
+    plt.savefig(f'img/{timestamp}_{id}_covar.png')
 
-    with open(f'img/{id}.json', 'w') as file:
+    with open(f'img/{timestamp}_{id}.json', 'w') as file:
         json.dump({
             'num_nonzero_sources': num_nonzero_sources,
+            'impsmp_num_iters': impsmp_num_iters,
+            'impsmp_num_burnin_steps': impsmp_num_burnin_steps,
+            'impsmp_step_size': impsmp_step_size,
             'X': X.tolist(),
             'Y': Y.T.tolist(),
             'C': C.tolist(),
