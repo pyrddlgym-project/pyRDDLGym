@@ -246,7 +246,8 @@ class GurobiExperiment:
     @staticmethod
     def plot_worst_case(domain: str, inst: str, horizon: int, chance: str,
                         policy: str, state_name: str, action_name: str, 
-                        noise_name: str):
+                        noise_name: str, n_noise_vars_per_step: int=2, 
+                        noise: str='normal', state_bounds=[(20, 80), (30, 180)]):
         log = GurobiExperiment.load_json(domain, inst, horizon, policy, chance)[0]
         
         for it in range(len(log) - 1):
@@ -266,10 +267,9 @@ class GurobiExperiment:
                               y=[f'$\\mathrm{{{state_name}}} {i + 1}$' for i in range(n_cols)], 
                               kind='bar')
             colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-            plt.axhline(y=20, linestyle='dotted', color=colors[0])
-            plt.axhline(y=80, linestyle='dotted', color=colors[0])
-            plt.axhline(y=30, linestyle='dotted', color=colors[1])
-            plt.axhline(y=180, linestyle='dotted', color=colors[1])
+            for (i, (sx, sy)) in enumerate(state_bounds):
+                plt.axhline(y=sx, linestyle='dotted', color=colors[i])
+                plt.axhline(y=sy, linestyle='dotted', color=colors[i])
             plt.xlabel('$\\mathrm{epoch}$')
             plt.ylabel(f'$\\mathrm{{{state_name}}}$')
             plt.legend()
@@ -302,29 +302,30 @@ class GurobiExperiment:
             plt.clf()
             plt.close()
             
-            worst_noise = [v[0] for v in data['noises']['normal'].values()]
-            worst_noise = [(worst_noise[i], worst_noise[i + 1]) 
-                           for i in range(0, len(worst_noise), 2)]
-            worst_noise = np.asarray(worst_noise)
-            n_iters, n_cols = worst_noise.shape
-            worst_noise = pd.DataFrame(
-                {f'$\\mathrm{{{noise_name}}} {i + 1}$': worst_noise[:, i]
-                 for i in range(n_cols)})
-            worst_noise['$\\mathrm{epoch}$'] = list(range(1, n_iters + 1))
-            
-            _, ax = plt.subplots(figsize=(6.4, 3.2))
-            worst_noise.plot(ax=ax, x='$\\mathrm{epoch}$', 
-                             y=[f'$\\mathrm{{{noise_name}}} {i + 1}$' for i in range(n_cols)], 
-                             kind='bar')
-            plt.xlabel('$\\mathrm{epoch}$')
-            plt.ylabel(f'$\\mathrm{{{noise_name}}}$')
-            plt.legend()
-            plt.tight_layout()
-            plt.savefig(os.path.join(
-                'gurobi_results',
-                f'{domain}_{inst}_{horizon}_{chance}_{policy}_{it}_worst_noise.pdf'))
-            plt.clf()
-            plt.close()
+            if noise is not None:
+                worst_noise = [v[0] for v in data['noises'][noise].values()]
+                worst_noise = [tuple(worst_noise[i:i + n_noise_vars_per_step]) 
+                               for i in range(0, len(worst_noise), n_noise_vars_per_step)]
+                worst_noise = np.asarray(worst_noise)
+                n_iters, n_cols = worst_noise.shape
+                worst_noise = pd.DataFrame(
+                    {f'$\\mathrm{{{noise_name}}} {i + 1}$': worst_noise[:, i]
+                     for i in range(n_cols)})
+                worst_noise['$\\mathrm{epoch}$'] = list(range(1, n_iters + 1))
+                
+                _, ax = plt.subplots(figsize=(6.4, 3.2))
+                worst_noise.plot(ax=ax, x='$\\mathrm{epoch}$', 
+                                 y=[f'$\\mathrm{{{noise_name}}} {i + 1}$' for i in range(n_cols)], 
+                                 kind='bar')
+                plt.xlabel('$\\mathrm{epoch}$')
+                plt.ylabel(f'$\\mathrm{{{noise_name}}}$')
+                plt.legend()
+                plt.tight_layout()
+                plt.savefig(os.path.join(
+                    'gurobi_results',
+                    f'{domain}_{inst}_{horizon}_{chance}_{policy}_{it}_worst_noise.pdf'))
+                plt.clf()
+                plt.close()
             
     def get_state_bounds(self, model) -> Dict:
         raise NotImplementedError
