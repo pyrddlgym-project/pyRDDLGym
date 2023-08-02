@@ -1,0 +1,12 @@
+non-fluents interception_1 {
+	domain = interception;
+}
+
+instance interception_0 {
+	domain = interception;
+	non-fluents = interception_1;
+
+	max-nondef-actions = pos-inf;
+	horizon = 10;
+	discount = 1.0;
+}
