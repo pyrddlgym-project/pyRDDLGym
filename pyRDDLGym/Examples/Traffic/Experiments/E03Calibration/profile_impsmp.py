@@ -1,6 +1,7 @@
 import jax
 import optax
 import jax.numpy as jnp
+import jax.profiler as jprof
 import haiku as hk
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
@@ -100,11 +101,11 @@ s0, s1, s2 = source_indices[0], source_indices[num_nonzero_sources], source_indi
 one_hot_inputs = jnp.eye(num_nonzero_sources)
 
 
-with jax.disable_jit(disable=False):
+with jax.disable_jit(disable=False), jprof.trace('/tmp/jax-trace', create_perfetto_link=True):
     t0 = timer()
 
     # Prepare the ground truth inflow rates
-#    nulled_rates = jnp.zeros(shape=(n_rollouts, s2-s1))
+    nulled_rates = jnp.zeros(shape=(n_rollouts, s2-s1))
     base_rates = jnp.broadcast_to(source_rates[None,...], shape=(n_rollouts,s1-s0))
 
     # The difference in the batched and sequential rollout samplers
@@ -114,7 +115,7 @@ with jax.disable_jit(disable=False):
 
     # Prepare the ground truth for batched rollouts
     subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(base_rates)
-    subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s1:s2].set(0.)
+    subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s1:s2].set(nulled_rates)
     rollouts = sampler(
             key,
             policy_params=None,
@@ -467,7 +468,7 @@ with jax.disable_jit(disable=False):
 
 
     id = f'{method}_2x2_b{n_rollouts*n_batches}_nS{num_nonzero_sources}'
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    timestamp = datetime.now().strftime('Y-%m-%d_%H-%M-%S')
 
     key, subkey = jax.random.split(key)
     t1 = timer()
