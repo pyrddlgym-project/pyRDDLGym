@@ -148,7 +148,8 @@ class GurobiExperiment:
                          legend_args={'loc': 'lower right', 'ncol': 2,
                                       'columnspacing': 0.2, 'borderpad': 0.2,
                                       'labelspacing': 0.2},
-                         ylim=None): 
+                         ylim=None,
+                         logy=False): 
         
         # read attributes from log files
         logs = [GurobiExperiment.load_json(domain, inst, horizon, policy, chance) 
@@ -174,7 +175,8 @@ class GurobiExperiment:
         plt.gca().spines['right'].set_visible(False)
         if ylim is not None:
             plt.ylim(ylim)
-        plt.gca().set_yscale('log')
+        if logy:
+            plt.gca().set_yscale('log')
 
         if legend:
             plt.legend(**legend_args)
@@ -257,21 +259,25 @@ class GurobiExperiment:
             worst_states = [list(worst_state.values())] + worst_states
             worst_states = np.asarray(worst_states)
             n_iters, n_cols = worst_states.shape
+            if isinstance(state_name, (tuple, list)):
+                state_names = [f'$\\mathrm{{{name}}}$' for name in state_name]
+                state_key = 'state'
+            else:
+                state_names = [f'$\\mathrm{{{state_name}}} {i + 1}$' 
+                               for i in range(n_cols)]
+                state_key = state_name 
             worst_states = pd.DataFrame(
-                {f'$\\mathrm{{{state_name}}} {i + 1}$': worst_states[:, i]
-                 for i in range(n_cols)})
+                {state_names[i]: worst_states[:, i] for i in range(n_cols)})
             worst_states['$\\mathrm{epoch}$'] = list(range(n_iters))
             
             _, ax = plt.subplots(figsize=(6.4, 3.2))
-            worst_states.plot(ax=ax, x='$\\mathrm{epoch}$', 
-                              y=[f'$\\mathrm{{{state_name}}} {i + 1}$' for i in range(n_cols)], 
-                              kind='bar')
+            worst_states.plot(ax=ax, x='$\\mathrm{epoch}$', y=state_names, kind='bar')
             colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
             for (i, (sx, sy)) in enumerate(state_bounds):
                 plt.axhline(y=sx, linestyle='dotted', color=colors[i])
                 plt.axhline(y=sy, linestyle='dotted', color=colors[i])
             plt.xlabel('$\\mathrm{epoch}$')
-            plt.ylabel(f'$\\mathrm{{{state_name}}}$')
+            plt.ylabel(f'$\\mathrm{{{state_key}}}$')
             plt.legend()
             plt.tight_layout()
             plt.savefig(os.path.join(
