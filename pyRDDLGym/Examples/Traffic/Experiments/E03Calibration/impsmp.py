@@ -27,9 +27,6 @@ jnp.set_printoptions(
     linewidth=9999,
     formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
-profile = True
-if profile:
-    import jax.profiler as jprof
 
 key = jax.random.PRNGKey(3264)
 
@@ -105,11 +102,9 @@ one_hot_inputs = jnp.eye(num_nonzero_sources)
 
 with jax.disable_jit(disable=False):
     t0 = timer()
-    if profile:
-        jprof.start_trace('/tmp/tensorboard')
 
     # Prepare the ground truth inflow rates
-    nulled_rates = jnp.zeros(shape=(n_rollouts, s2-s1))
+#    nulled_rates = jnp.zeros(shape=(n_rollouts, s2-s1))
     base_rates = jnp.broadcast_to(source_rates[None,...], shape=(n_rollouts,s1-s0))
 
     # The difference in the batched and sequential rollout samplers
@@ -119,7 +114,7 @@ with jax.disable_jit(disable=False):
 
     # Prepare the ground truth for batched rollouts
     subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(base_rates)
-    subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s1:s2].set(nulled_rates)
+    subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s1:s2].set(0.)
     rollouts = sampler(
             key,
             policy_params=None,
@@ -276,16 +271,19 @@ with jax.disable_jit(disable=False):
 
 
     # === REINFORCE with Importance Sampling ====
-    impsmp_num_iters = int(n_rollouts * n_batches)
-    impsmp_num_burnin_steps = int(impsmp_num_iters/8)
-    impsmp_step_size = 0.1
-    impsmp_lr = 1e-3
-    impsmp_momentum = 0.1
+    impsmp_params = {
+        'num_iters': int(n_rollouts * n_batches),
+        'step_size': 0.1,
+        'lr': 1e-3,
+        'momentum': 0.1,
+    }
+    impsmp_params['num_burnin_steps'] = int(impsmp_params['num_iters']/8)
 
 
     @jax.jit
     def unnormalized_log_rho(key, theta, subs, a):
-        dpi = jax.jacrev(policy_pdf, argnums=0)(theta, key, a)
+        #dpi = jax.jacrev(policy_pdf, argnums=0)(theta, key, a)
+        dpi = jax.grad(policy_pdf, argnums=0)(theta, key, a)
         #dpi_norm = jax.tree_util.tree_reduce(lambda x,y: x + jnp.sum(y*y), dpi, initializer=jnp.zeros(1))
         #dpi_norm = jnp.sqrt(dpi_norm)
         dpi_norm = jax.tree_util.tree_reduce(lambda x, y: jnp.maximum(x, jnp.max(jnp.abs(y))), dpi, initializer=jnp.array([-jnp.inf]))
@@ -314,11 +312,12 @@ with jax.disable_jit(disable=False):
         # initialize optimizer
         #optimizer = optax.sgd(learning_rate=1e-3)
         optimizer = optax.rmsprop(
-            learning_rate=impsmp_lr,
-            momentum=impsmp_momentum)
+            learning_rate=impsmp_params['lr'],
+            momentum=impsmp_params['momentum'])
         opt_state = optimizer.init(theta)
 
         # initialize unconstraining bijector
+        # FIXME: Not working...
         unconstraining_bijector = [
             #tfp.bijectors.SoftClip(low=0., high=0.4)
             #tfp.bijectors.Softplus()
@@ -338,14 +337,14 @@ with jax.disable_jit(disable=False):
                     inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
                         target_log_prob_fn=log_density,
                         num_leapfrog_steps=3,
-                        step_size=impsmp_step_size),
-                    num_adaptation_steps=int(impsmp_num_burnin_steps * 0.8)),
+                        step_size=impsmp_params['step_size']),
+                    num_adaptation_steps=int(impsmp_params['num_burnin_steps'] * 0.8)),
                 bijector=unconstraining_bijector)
 
             samples, is_accepted = tfp.mcmc.sample_chain(
                 seed=subkeys[1],
-                num_results=impsmp_num_iters,
-                num_burnin_steps=impsmp_num_burnin_steps,
+                num_results=impsmp_params['num_iters'],
+                num_burnin_steps=impsmp_params['num_burnin_steps'],
                 current_state=hmc_initializer,
                 kernel=adaptive_hmc_kernel,
                 trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
@@ -468,37 +467,29 @@ with jax.disable_jit(disable=False):
 
 
     id = f'{method}_2x2_b{n_rollouts*n_batches}_nS{num_nonzero_sources}'
-    time = datetime.now()
-    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
     key, subkey = jax.random.split(key)
     t1 = timer()
-    X, Y, C = method_fn(key=subkey, n_iters=250, theta=theta, subs_train=subs_train, subs_hmc=subs_hmc, est_Z=True)
+    X, Y, C = method_fn(key=subkey, n_iters=10, theta=theta, subs_train=subs_train, subs_hmc=subs_hmc, est_Z=True)
     t2 = timer()
 
-    X.block_until_ready()
+    C.block_until_ready()
 
     thetacov = jnp.cov(C)
     sns.heatmap(thetacov)
     plt.savefig(f'img/{timestamp}_{id}_covar.png')
 
     with open(f'img/{timestamp}_{id}.json', 'w') as file:
-        saveddata = {
+        savedata = {
             'num_nonzero_sources': num_nonzero_sources,
             'X': X.tolist(),
             'Y': Y.T.tolist(),
             'C': C.tolist(),
             'thetacov': thetacov.tolist()}
         if method == 'impsmp':
-            saveddata.update({
-                'impsmp_num_iters': impsmp_num_iters,
-                'impsmp_num_burnin_steps': impsmp_num_burnin_steps,
-                'impsmp_step_size': impsmp_step_size,
-                'impsmp_lr': impsmp_lr,
-                'impsmp_momentum': impsmp_momentum,})
-        json.dump(datadict, file)
+            savedata.update(impsmp_params)
+        json.dump(savedata, file)
 
-    if profile:
-        jprof.stop_trace()
     print('Setup took', t1-t0, 'seconds')
     print('Optimization took', t2-t1, 'seconds')
