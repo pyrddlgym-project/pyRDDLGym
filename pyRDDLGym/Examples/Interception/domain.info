@@ -1,0 +1,4 @@
+[General]
+name=Interception
+description=Missile interception problem.
+viz=TextViz.TextVisualizer

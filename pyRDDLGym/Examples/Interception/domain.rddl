@@ -1,0 +1,33 @@
+// Missile interception problem
+
+domain interception {
+
+	pvariables {
+		G : { non-fluent, real, default = 9.8 };
+		INTERCEPT-X : { non-fluent, real, default = 0.7 };
+		
+		missile-x : { state-fluent, real, default = 0 };
+		missile-y : { state-fluent, real, default = 5 };
+		intercept-fired : { state-fluent, bool, default = false };
+		intercept-y : { state-fluent, real, default = 0 };
+		
+		fire : { action-fluent, bool, default = false };
+	};
+
+	cpfs {	
+		missile-x' = missile-x + 0.1;
+		missile-y' = 5.0 - 0.5 * G * missile-x * missile-x;
+		intercept-fired' = intercept-fired | fire;
+		intercept-y' = intercept-y + 1.0 * intercept-fired;
+	};
+
+	reward = intercept-fired' 
+			^ (abs[missile-x' - INTERCEPT-X] <= 0.2)
+			^ (abs[missile-y' - intercept-y'] <= 0.2);
+
+	action-preconditions {
+	};
+	
+	state-invariants {
+	};
+}
