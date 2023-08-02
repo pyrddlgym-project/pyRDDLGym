@@ -1,4 +1,5 @@
 import numpy as np
+import jax
 import jax.numpy as jnp
 import networkx as nx
 
@@ -70,18 +71,19 @@ def convert_od_to_flows_and_turn_props(od, turn_flow_matrix):
     turn_props = turn_flows / (np.sum(turn_flows, axis=1) + 1e-8)[:, np.newaxis]
     return inflows, turn_props
 
+@jax.jit
 def convert_od_to_flows_and_turn_props_jax(od, turn_flow_matrix):
-    inflows = jnp.sum(od, axis=1)
-    turn_flows = jnp.tensordot(od, turn_flow_matrix, axes=([0,1],[0,1]))
-    turn_props = turn_flows / (jnp.sum(turn_flows, axis=0) + 1e-8)[:, jnp.newaxis]
+    # The first coordinate should be the batch index
+    inflows = jnp.sum(od, axis=2)
+    turn_flows = jnp.einsum('bij,bijkl->bkl', od, turn_flow_matrix)
+    turn_props = turn_flows / (jnp.sum(turn_flows, axis=2) + 1e-8)[..., jnp.newaxis]
     return inflows, turn_props
 
 if __name__ == '__main__':
     from pyRDDLGym import ExampleManager
     from pyRDDLGym import RDDLEnv
 
-    np.set_printoptions(
-        linewidth=9999)
+    np.set_printoptions(linewidth=9999)
 
     # specify the model
     EnvInfo = ExampleManager.GetEnvInfo('traffic4phase')
@@ -190,3 +192,13 @@ if __name__ == '__main__':
     test5_turn_props[1,5] = 3/4
     test5_turn_props[1,4] = 1/4
     run_test(test5_inflows, test5_turn_props, inflows, turn_props, 'Test 5')
+
+
+    # Test 6. numpy and jax.numpy compatibility
+    jax_od = jnp.array(od)[jnp.newaxis, ...]
+    jax_turn_flow_matrix = jnp.array(turn_flow_matrix)[jnp.newaxis, ...]
+
+    jax_inflows, jax_turn_props = convert_od_to_flows_and_turn_props_jax(jax_od, jax_turn_flow_matrix)
+    if not jnp.isclose(jax_inflows, jnp.array(inflows)[jnp.newaxis, ...]).all(): raise AssertionError('Test 6 failed on inflow comparison')
+    elif not jnp.isclose(jax_turn_props, jnp.array(turn_props)[jnp.newaxis, ...]).all(): raise AssertionError('Test 6 failed on turn proportion comparison')
+    else: print('Test 6 PASSED')
