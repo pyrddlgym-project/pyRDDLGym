@@ -115,12 +115,12 @@ one_hot_inputs = jnp.eye(num_nonzero_sources)
 
 
 # Prepare the ground truth inflow rates
-base_rates = jnp.broadcast_to(
+batch_source_rates = jnp.broadcast_to(
     source_rates[jnp.newaxis, ...],
     shape=(n_rollouts,s1-s0))
 
 # Prepare the ground truth for batched rollouts
-subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(base_rates)
+subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(batch_source_rates)
 subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s1:s2].set(0.)
 rollouts = sampler(
         key,
@@ -168,7 +168,6 @@ policy_apply = jax.jit(policy.apply)
 key, subkey = jax.random.split(key)
 theta = policy.init(subkey, one_hot_inputs)
 
-@jax.jit
 def policy_pdf(theta, rng, actions):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
     unconstrained_actions = softplus_inv(actions)
@@ -176,7 +175,6 @@ def policy_pdf(theta, rng, actions):
     correction = jnp.apply_along_axis(density_correction, axis=1, arr=actions)
     return normal_pdf * correction
 
-@jax.jit
 def policy_sample(theta, rng):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
     action_sample = jax.random.multivariate_normal(
@@ -185,7 +183,6 @@ def policy_sample(theta, rng):
     action_sample = softplus_fwd(action_sample)
     return action_sample
 
-@jax.jit
 def reward_batched(rng, subs, actions):
     subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(actions)
     rollouts = sampler(
@@ -197,7 +194,7 @@ def reward_batched(rng, subs, actions):
     delta = rollouts['pvar']['flow-into-link'][:,:,:] - GROUND_TRUTH_LOOPS
     return jnp.sum(delta*delta, axis=(1,2))
 
-@jax.jit
+#@jax.jit
 def reward_seqtl(rng, subs, action):
     subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(action)
     rollout = sampler_hmc(
@@ -214,8 +211,8 @@ clip_val = jnp.array([1e-6], dtype=compiler.REAL)
 def scalar_mult(alpha, v):
     return alpha * v
 
-weighting_map = jax.jit(jax.vmap(
-    scalar_mult, in_axes=0, out_axes=0))
+weighting_map = jax.vmap(
+    scalar_mult, in_axes=0, out_axes=0)
 
 @jax.jit
 def collect_covar_data(theta, C, iter):
@@ -227,10 +224,34 @@ def collect_covar_data(theta, C, iter):
         ip0 = ip1
     return C
 
+# === REINFORCE ===
+@jax.jit
+def reinforce_inner_loop(key, theta):
+    grads = jax.tree_util.tree_map(lambda _: jnp.zeros(1), theta)
+    cmlt_rewards = 0
+    cmlt_actions = jnp.empty(shape=(batch_size, num_nonzero_sources))
+
+    for si in range(n_shards):
+        key, *subkeys = jax.random.split(key, num=3)
+        actions = policy_sample(theta, subkeys[0])
+        pi = policy_pdf(theta, subkeys[0], actions)
+        dpi = jax.jacrev(policy_pdf, argnums=0)(theta, subkeys[0], actions)
+        rewards = reward_batched(subkeys[0], subs_train, actions)
+        factors = rewards / (pi + 1e-6)
+
+        w = lambda x: jnp.mean(weighting_map(factors, x), axis=0)
+        accumulant = jax.tree_util.tree_map(w, dpi)
+        grads = jax.tree_util.tree_map(lambda x, y: x+(y/n_shards), grads, accumulant)
+
+        cmlt_rewards += jnp.mean(rewards)/n_shards
+        cmlt_actions = cmlt_actions.at[si*n_rollouts:(si+1)*n_rollouts].set(actions)
+
+    return grads, cmlt_rewards, cmlt_actions
+
 
 def reinforce(key, n_iters, theta, subs_train, subs_hmc=None, est_Z=None):
     # (The arguments that default to 'None' are included to have a consistent signature
-    #  with the impsmp function)
+    #  with the impsmp function below)
 
     # initialize stats collection
     X, Y = np.arange(n_iters), np.zeros(shape=(n_iters,5,num_nonzero_sources))
@@ -249,24 +270,7 @@ def reinforce(key, n_iters, theta, subs_train, subs_hmc=None, est_Z=None):
         key, subkey = jax.random.split(key)
         mean, cov = policy_apply(theta, subkey, one_hot_inputs)
 
-        grads = jax.tree_util.tree_map(lambda _: jnp.zeros(1), theta)
-        cmlt_rewards = 0
-        cmlt_actions = np.empty(shape=(batch_size, num_nonzero_sources))
-        for si in range(n_shards):
-            key, *subkeys = jax.random.split(key, num=3)
-            actions = policy_sample(theta, subkeys[0])
-            pi = policy_pdf(theta, subkeys[0], actions)
-            dpi = jax.jacrev(policy_pdf, argnums=0)(theta, subkeys[0], actions)
-            rewards = reward_batched(subkeys[0], subs_train, actions)
-            factors = rewards / (pi + 1e-6)
-
-            w = lambda x: jnp.mean(weighting_map(factors, x), axis=0)
-
-            accumulant = jax.tree_util.tree_map(w, dpi)
-            grads = jax.tree_util.tree_map(lambda x, y: x+(y/n_shards), grads, accumulant)
-            cmlt_rewards += jnp.mean(rewards)/n_shards
-            cmlt_actions[si*n_rollouts:(si+1)*n_rollouts] = actions
-
+        grads, cmlt_rewards, cmlt_actions = reinforce_inner_loop(key, theta)
         updates, opt_state = optimizer.update(grads, opt_state)
         theta = optax.apply_updates(theta, updates)
 
@@ -278,7 +282,7 @@ def reinforce(key, n_iters, theta, subs_train, subs_hmc=None, est_Z=None):
         subt1 = timer()
         print(f'Iter {idx} :: REINFORCE :: Runtime={subt1-subt0}s')
         print(f'Untransformed parametrized policy [Mean, Diag(Cov)] = \n{Y[idx,1:3]}')
-        print(f'Transformed action sample means, stdevs = \n{Y[idx,3:5]}')
+        print(f'Transformed action sample [[Means], [StDevs]] = \n{Y[idx,3:5]}')
         print(f'Eval. reward={Y[idx,0,0]}\n')
 
         C = collect_covar_data(theta, C, idx)
