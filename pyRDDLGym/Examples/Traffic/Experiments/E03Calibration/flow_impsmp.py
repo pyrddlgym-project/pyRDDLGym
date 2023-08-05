@@ -75,9 +75,9 @@ def policy_fn(key, policy_params, hyperparams, step, states):
 # separately
 
 # number of rollouts per shard (e.g. for splitting computation on a GPU)
-n_rollouts = 128
+n_rollouts = 256
 # number of shards per batch
-n_shards = 8
+n_shards = 1
 batch_size = n_rollouts * n_shards
 
 sampler = compiler.compile_rollouts(policy=policy_fn,
@@ -107,7 +107,8 @@ for (state, next_state) in model.next_state.items():
 
 # Set up ground truth inflow rates
 source_indices = range(16,24)
-true_source_rates = jnp.array([0.3, 0.2, 0.1, 0.4, 0.1, 0.2, 0.3])
+#true_source_rates = jnp.array([0.3, 0.2, 0.1, 0.4, 0.1, 0.2, 0.3])
+true_source_rates = jnp.array([0.3, 0.2, 0.1, 0., 0.1, 0.2, 0.3])
 num_nonzero_sources = 7
 source_rates = true_source_rates[:num_nonzero_sources]
 s0, s1, s2 = source_indices[0], source_indices[num_nonzero_sources], source_indices[-1]
@@ -151,16 +152,19 @@ def parametrized_policy(input):
         hk.Linear(32), jax.nn.relu,
         hk.Linear(2)
     ])
-    output = jax.nn.softplus(mlp(input))
+    output = mlp(input)
     mean, cov = (jnp.squeeze(x) for x in jnp.split(output, 2, axis=1))
-    return mean, jnp.diag(cov)
+    return mean, jnp.diag(jax.nn.softplus(cov))
 
 policy = hk.transform(parametrized_policy)
 policy_apply = jax.jit(policy.apply)
 key, subkey = jax.random.split(key)
 theta = policy.init(subkey, one_hot_inputs)
 
-bijector_obj = tfp.bijectors.SoftClip(low=0., high=0.4)
+bijector_eps = 0.05
+bijector_obj = tfp.bijectors.SoftClip(low=0.-bijector_eps, high=0.4+bijector_eps)
+#bijector_obj = tfp.bijectors.Softplus()
+#bijector_obj = tfp.bijectors.Identity()
 bijector_fwd = bijector_obj.forward
 bijector_inv = bijector_obj.inverse
 Jbijector_inv = jax.jacrev(bijector_inv)
@@ -319,7 +323,8 @@ def unnormalized_log_rho(key, theta, subs, a):
     dpi_norm = jax.tree_util.tree_reduce(lambda x, y: jnp.maximum(x, jnp.max(jnp.abs(y))), dpi, initializer=jnp.array([-jnp.inf]))
     rewards = reward_seqtl(key, subs, a)
     density = jnp.abs(rewards) * dpi_norm
-    return jnp.log(jnp.maximum(density, clip_val))[0]
+    return jnp.log(density)[0]
+    #return jnp.log(jnp.maximum(density, clip_val))[0]
 
 batch_unnormalized_log_rho = jax.jit(jax.vmap(
     unnormalized_log_rho, (None, None, None, 0), 0))
@@ -372,9 +377,7 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
 
     # initialize unconstraining bijector
     unconstraining_bijector = [
-        tfp.bijectors.SoftClip(low=0., high=0.4)
-        #tfp.bijectors.Softplus()
-        #tfp.bijectors.Identity()
+        bijector_obj
     ]
 
     # run
@@ -443,8 +446,8 @@ def eval_single_rollout(a):
     return rewards
 
 
-method = 'impsmp'
-n_iters = 250
+method = 'reinforce'
+n_iters = 350
 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
 with jax.disable_jit(disable=False):
