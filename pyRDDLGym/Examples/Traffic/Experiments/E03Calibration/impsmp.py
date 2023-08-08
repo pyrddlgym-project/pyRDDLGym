@@ -67,7 +67,7 @@ def policy_fn(key, policy_params, hyperparams, step, states):
 
 # jit-compile batch and sequential rollout samplers
 n_rollouts = 128
-n_batches = 1
+n_batches = 4
 sampler = compiler.compile_rollouts(policy=policy_fn,
                                     n_steps=rollout_horizon,
                                     n_batch=n_rollouts)
@@ -92,6 +92,11 @@ for (state, next_state) in model.next_state.items():
     subs_train[next_state] = subs_train[state]
     subs_hmc[next_state] = subs_hmc[state]
 
+
+# set the source arrival rate to be higher until
+# figuring out how to enforce constraints
+subs_train['SOURCE-MU'] = jnp.full(shape=subs_train['SOURCE-MU'].shape, fill_value=2.)
+subs_hmc['SOURCE-MU'] = jnp.full(shape=subs_hmc['SOURCE-MU'].shape, fill_value=2.)
 
 # set up ground truth inflow rates
 srcs, sinks, turn_flow_matrix = prepare_shortest_path_assignment(myEnv)
@@ -281,11 +286,11 @@ with jax.disable_jit(disable=False):
     # === REINFORCE with Importance Sampling ====
     impsmp_config = {
         'num_iters': int(n_rollouts * n_batches),
-        'step_size': 0.25,
+        'step_size': 0.03,
         'optimizer': 'rmsprop',
         'lr': 1e-3,
         'momentum': 0.1,
-        'est_Z': False,
+        'est_Z': True,
     }
     impsmp_config['num_burnin_steps'] = int(impsmp_config['num_iters']/8)
 
@@ -294,8 +299,8 @@ with jax.disable_jit(disable=False):
     def unnormalized_log_rho(key, theta, subs, a):
         #dpi = jax.jacrev(policy_pdf, argnums=0)(theta, key, a)
         dpi = jax.grad(policy_pdf, argnums=0)(theta, key, a)
-        #dpi_norm = jax.tree_util.tree_reduce(lambda x,y: x + jnp.sum((y/100)**2), dpi, initializer=jnp.zeros(1))
-        #dpi_norm = 100*jnp.sqrt(dpi_norm)
+        #dpi_norm = jax.tree_util.tree_reduce(lambda x,y: x + jnp.sum((y/1000)**2), dpi, initializer=jnp.zeros(1))
+        #dpi_norm = 1000*jnp.sqrt(dpi_norm)
         dpi_norm = jax.tree_util.tree_reduce(lambda x, y: jnp.maximum(x, jnp.max(jnp.abs(y))), dpi, initializer=jnp.array([-jnp.inf]))
         rewards = reward_seqtl(key, subs, a)
         density = jnp.abs(rewards) * dpi_norm
@@ -306,7 +311,6 @@ with jax.disable_jit(disable=False):
 
 
     def impsmp(key, n_iters, theta, subs_train, subs_hmc, est_Z=False):
-
         # initialize stats
         stats = np.zeros(shape=(n_iters,2))
 
@@ -411,7 +415,6 @@ with jax.disable_jit(disable=False):
     method = 'impsmp'
     if method == 'impsmp': method_fn = impsmp
     elif method == 'reinforce': method_fn = reinforce
-    elif method == 'rndsmp': method_fn = rndsmp
     else: raise KeyError
 
 
@@ -425,7 +428,7 @@ with jax.disable_jit(disable=False):
 
     fig, ax = plt.subplots()
     ax.plot(range(stats.shape[0]), stats)
-    plt.savefig('img/{timestamp}_lc.png')
+    plt.savefig(f'img/{timestamp}_{method}_lc.png')
 
     """
     thetacov = jnp.cov(C)

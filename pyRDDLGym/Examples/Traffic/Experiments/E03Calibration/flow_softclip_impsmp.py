@@ -75,7 +75,7 @@ def policy_fn(key, policy_params, hyperparams, step, states):
 # separately
 
 # number of shards per batch (e.g. for splitting the computation on a GPU)
-n_shards = 16
+n_shards = 2
 # number of rollouts per shard
 n_rollouts = 128
 batch_size = n_rollouts * n_shards
@@ -160,39 +160,31 @@ policy_apply = jax.jit(policy.apply)
 key, subkey = jax.random.split(key)
 theta = policy.init(subkey, one_hot_inputs)
 
-#bijector_obj = tfp.bijectors.SoftClip(low=0., high=0.4)
+bijector_obj = tfp.bijectors.SoftClip(low=0., high=0.4)
 #bijector_obj = tfp.bijectors.Softplus()
 #bijector_obj = tfp.bijectors.Identity()
-bijector_obj = tfp.bijectors.IteratedSigmoidCentered()
-def bijector_fwd(x):
-    y = bijector_obj.forward(x)
-    return y[..., :-1] * 0.4
-#bijector_fwd = bijector_obj.forward
-#bijector_inv = bijector_obj.inverse
-def bijector_inv(y):
-    y = y/0.4
-    s = jnp.sum(y, axis=-1)[..., jnp.newaxis]
-    return bijector_obj.inverse(jnp.concatenate((y, s), axis=-1))
+bijector_fwd = bijector_obj.forward
+bijector_inv = bijector_obj.inverse
 Jbijector_inv = jax.jacrev(bijector_inv)
 change_of_vars_correction = lambda a: jnp.abs(jnp.linalg.det(Jbijector_inv(a)))
 
 def policy_pdf(theta, rng, actions):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
-    unconstrained_actions = jnp.squeeze(bijector_inv(actions))
+    unconstrained_actions = bijector_inv(actions)
     normal_pdf = jax.scipy.stats.multivariate_normal.pdf(unconstrained_actions, mean=mean, cov=cov)
-    density_correction = jnp.squeeze(jnp.apply_along_axis(change_of_vars_correction, axis=1, arr=actions))
+    density_correction = jnp.apply_along_axis(change_of_vars_correction, axis=1, arr=actions)
     return normal_pdf * density_correction
 
 def policy_sample(theta, rng):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
     action_sample = jax.random.multivariate_normal(
         rng, mean, cov,
-        shape=(n_rollouts,))[..., jnp.newaxis]
+        shape=(n_rollouts,))
     action_sample = bijector_fwd(action_sample)
     return action_sample
 
 def reward_batched(rng, subs, actions):
-    subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(jnp.squeeze(actions))
+    subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(actions)
     rollouts = sampler(
         rng,
         policy_params=None,
@@ -254,7 +246,7 @@ def reinforce_inner_loop(key, theta, subs):
     grads = jax.tree_util.tree_map(lambda _: jnp.zeros(1), theta)
 
     batch_rewards = 0.
-    batch_actions = jnp.empty(shape=(batch_size, num_nonzero_sources,1))
+    batch_actions = jnp.empty(shape=(batch_size, num_nonzero_sources))
 
     for si in range(n_shards):
         key, subkey = jax.random.split(key)
@@ -299,8 +291,8 @@ def reinforce(key, n_iters, theta, subs, config):
         Y[idx,0] = batch_rewards
         Y[idx,1] = mean
         Y[idx,2] = jnp.diag(cov)
-        Y[idx,3] = jnp.squeeze(jnp.mean(batch_actions, axis=0))
-        Y[idx,4] = jnp.squeeze(jnp.std(batch_actions, axis=0))
+        Y[idx,3] = jnp.mean(batch_actions, axis=0)
+        Y[idx,4] = jnp.std(batch_actions, axis=0)
         subt1 = timer()
         print(f'Iter {idx} :: REINFORCE :: Runtime={subt1-subt0}s')
         print(f'Untransformed parametrized policy [Mean, Diag(Cov)] = \n{Y[idx,1:3]}')
@@ -452,7 +444,7 @@ def eval_single_rollout(a):
     return rewards
 
 
-method = 'reinforce'
+method = 'impsmp'
 n_iters = 250
 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
