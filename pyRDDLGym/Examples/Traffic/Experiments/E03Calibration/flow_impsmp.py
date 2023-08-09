@@ -4,8 +4,8 @@ import jax.numpy as jnp
 import numpy as np
 import haiku as hk
 from tensorflow_probability.substrates import jax as tfp
-import functools
 
+import functools
 from sys import argv
 from time import perf_counter as timer
 from datetime import datetime
@@ -75,7 +75,7 @@ def policy_fn(key, policy_params, hyperparams, step, states):
 # separately
 
 # number of shards per batch (e.g. for splitting the computation on a GPU)
-n_shards = 16
+n_shards = 1
 # number of rollouts per shard
 n_rollouts = 128
 batch_size = n_rollouts * n_shards
@@ -160,39 +160,35 @@ policy_apply = jax.jit(policy.apply)
 key, subkey = jax.random.split(key)
 theta = policy.init(subkey, one_hot_inputs)
 
-#bijector_obj = tfp.bijectors.SoftClip(low=0., high=0.4)
-#bijector_obj = tfp.bijectors.Softplus()
-#bijector_obj = tfp.bijectors.Identity()
+# Set up the bijector
 bijector_obj = tfp.bijectors.IteratedSigmoidCentered()
 def bijector_fwd(x):
-    y = bijector_obj.forward(x)
-    return y[..., :-1] * 0.4
-#bijector_fwd = bijector_obj.forward
-#bijector_inv = bijector_obj.inverse
+    y = bijector_obj.forward(x[...,jnp.newaxis])
+    return y[..., 0] * 0.4
 def bijector_inv(y):
-    y = y/0.4
+    y = (y/0.4)[..., jnp.newaxis]
     s = jnp.sum(y, axis=-1)[..., jnp.newaxis]
-    return bijector_obj.inverse(jnp.concatenate((y, s), axis=-1))
+    return bijector_obj.inverse(jnp.concatenate((y, s), axis=-1))[..., 0]
 Jbijector_inv = jax.jacrev(bijector_inv)
 change_of_vars_correction = lambda a: jnp.abs(jnp.linalg.det(Jbijector_inv(a)))
 
 def policy_pdf(theta, rng, actions):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
-    unconstrained_actions = jnp.squeeze(bijector_inv(actions))
+    unconstrained_actions = bijector_inv(actions)
     normal_pdf = jax.scipy.stats.multivariate_normal.pdf(unconstrained_actions, mean=mean, cov=cov)
-    density_correction = jnp.squeeze(jnp.apply_along_axis(change_of_vars_correction, axis=1, arr=actions))
+    density_correction = jnp.apply_along_axis(change_of_vars_correction, axis=1, arr=actions)
     return normal_pdf * density_correction
 
 def policy_sample(theta, rng):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
     action_sample = jax.random.multivariate_normal(
         rng, mean, cov,
-        shape=(n_rollouts,))[..., jnp.newaxis]
+        shape=(n_rollouts,))
     action_sample = bijector_fwd(action_sample)
     return action_sample
 
 def reward_batched(rng, subs, actions):
-    subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(jnp.squeeze(actions))
+    subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(actions)
     rollouts = sampler(
         rng,
         policy_params=None,
@@ -254,7 +250,7 @@ def reinforce_inner_loop(key, theta, subs):
     grads = jax.tree_util.tree_map(lambda _: jnp.zeros(1), theta)
 
     batch_rewards = 0.
-    batch_actions = jnp.empty(shape=(batch_size, num_nonzero_sources,1))
+    batch_actions = jnp.empty(shape=(batch_size, num_nonzero_sources))
 
     for si in range(n_shards):
         key, subkey = jax.random.split(key)
@@ -383,7 +379,7 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
 
     # initialize unconstraining bijector
     unconstraining_bijector = [
-        tfp.bijectors.SoftClip(low=0., high=0.4)
+        bijector_obj
     ]
 
     # run
@@ -468,7 +464,7 @@ with jax.disable_jit(disable=False):
     else: raise KeyError
     t2 = timer()
 
-id = f'{method}_2x2_b{batch_size}_nS{num_nonzero_sources}_opt{method_config["optimizer"]}'
+id = f'{method}_2x2_b{batch_size}_nS{num_nonzero_sources}_opt{method_config["optimizer"]}_iters{n_iters}_flow'
 
 thetacov = jnp.cov(C)
 sns.heatmap(thetacov)

@@ -71,7 +71,6 @@ def convert_od_to_flows_and_turn_props(od, turn_flow_matrix):
     turn_props = turn_flows / (np.sum(turn_flows, axis=1) + 1e-8)[:, np.newaxis]
     return inflows, turn_props
 
-@jax.jit
 def convert_od_to_flows_and_turn_props_jax(od, turn_flow_matrix):
     # The first coordinate should be the batch index
     inflows = jnp.sum(od, axis=2)
@@ -102,9 +101,9 @@ if __name__ == '__main__':
     print(sinks)
 
     def run_test(target_inflows, target_turn_props, inflows, turn_props, test_name):
-        if not np.isclose(target_inflows, inflows).all(): raise AssertionError(f'{test_name} inflows failed to match')
-        elif not np.isclose(target_turn_props, turn_props).all(): raise AssertionError(f'{test_name} turning props failed to match')
-        else: print(f'{test_name} PASSED')
+        assert np.allclose(target_inflows, inflows), f'{test_name} inflows failed to match'
+        assert np.allclose(target_turn_props, turn_props), f'{test_name} turning props failed to match'
+        print(f'{test_name} PASSED')
 
     # Test 1. Simple straight flow
     od = np.zeros(shape=(len(srcs), len(sinks)))
@@ -118,7 +117,7 @@ if __name__ == '__main__':
     test1_turn_props[2,10] = 1.
     run_test(test1_inflows, test1_turn_props, inflows, turn_props, 'Test 1')
 
-    # Test 2. Branch into three
+    # Test 2. Branch one flow into three flows
     od = np.zeros(shape=(len(srcs), len(sinks)))
     od[0,4] = 0.2
     od[0,1] = 0.2
@@ -135,7 +134,7 @@ if __name__ == '__main__':
     test2_turn_props[1,5] = 1.
     run_test(test2_inflows, test2_turn_props, inflows, turn_props, 'Test 2')
 
-    # Test 3. Branch into three with unequal flows
+    # Test 3. Branch one flow into three flows with unequal rates
     od = np.zeros(shape=(len(srcs), len(sinks)))
     od[0,4] = 0.2
     od[0,1] = 0.1
@@ -152,7 +151,7 @@ if __name__ == '__main__':
     test3_turn_props[1,5] = 1.
     run_test(test3_inflows, test3_turn_props, inflows, turn_props, 'Test 3')
 
-    # Test 4. Branching at several nodes
+    # Test 4. Branching flows at several nodes
     od = np.zeros(shape=(len(srcs), len(sinks)))
     od[0,4] = 0.2
     od[0,1] = 0.1
@@ -199,6 +198,6 @@ if __name__ == '__main__':
     jax_turn_flow_matrix = jnp.array(turn_flow_matrix)[jnp.newaxis, ...]
 
     jax_inflows, jax_turn_props = convert_od_to_flows_and_turn_props_jax(jax_od, jax_turn_flow_matrix)
-    if not jnp.isclose(jax_inflows, jnp.array(inflows)[jnp.newaxis, ...]).all(): raise AssertionError('Test 6 failed on inflow comparison')
-    elif not jnp.isclose(jax_turn_props, jnp.array(turn_props)[jnp.newaxis, ...]).all(): raise AssertionError('Test 6 failed on turn proportion comparison')
-    else: print('Test 6 PASSED')
+    assert jnp.allclose(jax_inflows, jnp.array(inflows)[jnp.newaxis, ...]), f'Test 6 failed on inflow comparison'
+    assert jnp.allclose(jax_turn_props, jnp.array(turn_props)[jnp.newaxis, ...]), 'Test 6 failed on turn proportion comparison'
+    print('Test 6 PASSED')
