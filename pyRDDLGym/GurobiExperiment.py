@@ -45,7 +45,8 @@ class GurobiExperiment:
                  rollouts: int=500,
                  chance: float=0.995,
                  seed: int=None,
-                 log: bool=False):
+                 log: bool=False, 
+                 **compiler_kwargs):
         self.policy_class = GurobiExperiment._get_policy_class(constr, value, cases)
         self.constr = constr
         self.value = value
@@ -63,6 +64,7 @@ class GurobiExperiment:
         self.chance = chance
         self.seed = seed
         self.log = log
+        self.compiler_kwargs = compiler_kwargs
         
     @staticmethod
     def _get_policy_class(constr, value, cases):
@@ -413,7 +415,8 @@ class GurobiExperiment:
             rollout_horizon=horizon,
             use_cc=True,
             model_params=model_params,
-            chance=self.chance)
+            chance=self.chance, 
+            **self.compiler_kwargs)
         
         # evaluate the baseline (i.e. no-op) policy
         log_dict = {}
