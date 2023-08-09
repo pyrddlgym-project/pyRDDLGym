@@ -27,7 +27,7 @@ class GurobiInterceptionExperiment(GurobiExperiment):
     
 if __name__ == "__main__":
     if len(sys.argv) < 6:
-        horizon, constr, value, cases, chance = 10, 'L', 'C', 2, 0.995
+        horizon, constr, value, cases, chance = 10, 'L', 'C', 1, 0.995
     else:
         horizon, constr, value, cases, chance = sys.argv[1:6]
         horizon, cases, chance = int(horizon), int(cases), float(chance)
@@ -38,5 +38,5 @@ if __name__ == "__main__":
     for _ in range(1):
         experiment = GurobiInterceptionExperiment(
             constr=constr, value=value, cases=cases, chance=chance,
-            iters=10)
+            iters=10, epsilon=1e-3)
         experiment.run(dom, 0, horizon, dom_test)
