@@ -12,6 +12,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
+from math import ceil
 
 from pyRDDLGym import ExampleManager
 from pyRDDLGym import RDDLEnv
@@ -21,7 +22,7 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLCompilerWithGrad
 t0 = timer()
 
 from jax.config import config as jconfig
-use64bit = False # tfp.bijectors.SoftClip seems to have a bug with float64
+use64bit = True # tfp.bijectors.SoftClip seems to have a bug with float64
 jconfig.update('jax_debug_nans', True)
 jconfig.update('jax_platform_name', 'cpu')
 jconfig.update('jax_enable_x64', use64bit)
@@ -161,22 +162,43 @@ key, subkey = jax.random.split(key)
 theta = policy.init(subkey, one_hot_inputs)
 
 # Set up the bijector
-bijector_obj = tfp.bijectors.IteratedSigmoidCentered()
-def bijector_fwd(x):
-    y = bijector_obj.forward(x[...,jnp.newaxis])
-    return y[..., 0] * 0.4
-def bijector_inv(y):
-    y = (y/0.4)[..., jnp.newaxis]
-    s = jnp.sum(y, axis=-1)[..., jnp.newaxis]
-    return bijector_obj.inverse(jnp.concatenate((y, s), axis=-1))[..., 0]
-Jbijector_inv = jax.jacrev(bijector_inv)
-change_of_vars_correction = lambda a: jnp.abs(jnp.linalg.det(Jbijector_inv(a)))
+#bijector_obj = tfp.bijectors.IteratedSigmoidCentered()
+class SimplexBijector(tfp.bijectors.IteratedSigmoidCentered):
+    # Wraps the IteratedSigmoidCentered bijector, adding
+    # a projection onto the first N (out of N+1) coordinates
+    def __init__(self, num_nonzero_sources, max_rate):
+        super().__init__()
+        self.num_nonzero_sources = num_nonzero_sources
+        self.max_rate = max_rate
+
+        self._inverse_jac = jax.jacrev(self._inverse)
+
+    def _forward(self, x):
+        y = super()._forward(x[..., jnp.newaxis])
+        return y[..., 0] * self.max_rate
+
+    def _inverse(self, y):
+        y = (y/self.max_rate)[..., jnp.newaxis]
+        s = jnp.sum(y, axis=-1)[..., jnp.newaxis]
+        return super()._inverse(
+            jnp.concatenate((y,s), axis=-1))[..., 0]
+
+    def _inverse_det_jacobian(self, y):
+        y = jnp.squeeze(y)
+        return jnp.abs(jnp.linalg.det(self._inverse_jac(y)))
+
+    def _inverse_log_det_jacobian(self, y):
+        return jnp.log(self._inverse_det_jacobian(y))
+
+bijector_obj = SimplexBijector(
+    num_nonzero_sources=num_nonzero_sources,
+    max_rate=0.4)
 
 def policy_pdf(theta, rng, actions):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
-    unconstrained_actions = bijector_inv(actions)
+    unconstrained_actions = bijector_obj.inverse(actions)
     normal_pdf = jax.scipy.stats.multivariate_normal.pdf(unconstrained_actions, mean=mean, cov=cov)
-    density_correction = jnp.apply_along_axis(change_of_vars_correction, axis=1, arr=actions)
+    density_correction = jnp.apply_along_axis(bijector_obj._inverse_det_jacobian, axis=1, arr=actions)
     return normal_pdf * density_correction
 
 def policy_sample(theta, rng):
@@ -184,7 +206,7 @@ def policy_sample(theta, rng):
     action_sample = jax.random.multivariate_normal(
         rng, mean, cov,
         shape=(n_rollouts,))
-    action_sample = bijector_fwd(action_sample)
+    action_sample = bijector_obj.forward(action_sample)
     return action_sample
 
 def reward_batched(rng, subs, actions):
@@ -309,11 +331,14 @@ def reinforce(key, n_iters, theta, subs, config):
 # === REINFORCE with Importance Sampling ====
 impsmp_config = {
     'hmc_num_iters': int(batch_size),
-    'hmc_step_size': 0.1,
+    'hmc_step_size': 0.3,
+    'hmc_num_leapfrog_steps': 30,
     'optimizer': 'rmsprop',
     'lr': 1e-3,
     'momentum': 0.1,
     'est_Z': False,
+    'collect_covar': False,
+    'collect_trace_plot': True,
 }
 impsmp_config['hmc_num_burnin_steps'] = int(impsmp_config['hmc_num_iters']/8)
 
@@ -356,15 +381,11 @@ def impsmp_inner_loop(key, theta, subs_train, subs_hmc, samples, est_Z=False):
         hmc_sample_reward_mean += jnp.mean(rewards)/n_shards
 
     if est_Z:
-        grads = jax.tree_util.tree_map(lambda x: x / jnp.maximum(Z_inv, clip_val), grads)
+        grads = jax.tree_util.tree_map(lambda x: x / jnp.maximum(Zinv, clip_val), grads)
 
     return key, grads, hmc_sample_reward_mean
 
 def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
-    # initialize stats collection
-    X, Y = np.arange(n_iters), np.zeros(shape=(n_iters, 5, num_nonzero_sources))
-    n_params = sum(leaf.flatten().shape[0] for leaf in jax.tree_util.tree_leaves(theta))
-    C = jnp.zeros(shape=(n_params, n_iters))
 
     # initialize hmc
     key, subkey = jax.random.split(key)
@@ -382,6 +403,15 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
         bijector_obj
     ]
 
+    # initialize stats collection
+    X, Y = np.arange(n_iters), np.zeros(shape=(n_iters, 5, num_nonzero_sources))
+    n_params = sum(leaf.flatten().shape[0] for leaf in jax.tree_util.tree_leaves(theta))
+    if config['collect_covar']:
+        covar_data = jnp.empty(shape=(n_params, n_iters))
+    if config['collect_trace_plot']:
+        tri = 3 # trace parameter index
+        trace_plot_data = np.empty(shape=(ceil(n_iters/10), config['hmc_num_iters']))
+
     # run
     for idx in range(n_iters):
         subt0 = timer()
@@ -394,7 +424,7 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
             inner_kernel = tfp.mcmc.SimpleStepSizeAdaptation(
                 inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
                     target_log_prob_fn=log_density,
-                    num_leapfrog_steps=3,
+                    num_leapfrog_steps=config['hmc_num_leapfrog_steps'],
                     step_size=config['hmc_step_size']),
                 num_adaptation_steps=int(config['hmc_num_burnin_steps'] * 0.8)),
             bijector=unconstraining_bijector)
@@ -410,7 +440,7 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
         samples = jnp.squeeze(samples)
 
         key, grads, hmc_sample_reward_mean = impsmp_inner_loop(
-            key, theta, subs_train, subs_hmc, samples, est_Z=False)
+            key, theta, subs_train, subs_hmc, samples, est_Z=config['est_Z'])
 
         updates, opt_state = optimizer.update(grads, opt_state)
         theta = optax.apply_updates(theta, updates)
@@ -434,9 +464,17 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
         print(f'Transformed action sample statistics [Mean, StDev] = \n{Y[idx,3:5]}')
         print(f'HMC sample reward={Y[idx,0,1]} :: Eval reward={Y[idx,0,0]}\n')
 
-        C = collect_covar_data(theta, C, idx)
+        # stats
+        if config['collect_trace_plot'] and idx % 10 == 0:
+            trace_plot_data[int(idx/10)] = samples[:,tri]
+        if config['collect_covar']:
+            covar_data = collect_covar_data(theta, covar_data, idx)
 
-    return X, Y, C
+    stats = {}
+    if config['collect_trace_plot']: stats['trace_plot'] = trace_plot_data
+    if config['collect_covar']: stats['covar'] = covar_data
+
+    return X, Y, stats
 
 # === Debugging utils ===
 def print_shapes(x):
@@ -448,8 +486,8 @@ def eval_single_rollout(a):
     return rewards
 
 
-method = 'reinforce'
-n_iters = 250
+method = 'impsmp'
+n_iters = 100
 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
 with jax.disable_jit(disable=False):
@@ -457,18 +495,28 @@ with jax.disable_jit(disable=False):
     t1 = timer()
     if method == 'impsmp':
         method_config = impsmp_config
-        X, Y, C = impsmp(key=subkey, n_iters=n_iters, theta=theta, subs_train=subs_train, subs_hmc=subs_hmc, config=method_config)
+        X, Y, stats = impsmp(key=subkey, n_iters=n_iters, theta=theta, subs_train=subs_train, subs_hmc=subs_hmc, config=method_config)
     elif method == 'reinforce':
         method_config = reinforce_config
         X, Y, C = reinforce(key=subkey, n_iters=n_iters, theta=theta, subs=subs_train, config=method_config)
     else: raise KeyError
     t2 = timer()
 
+
+# Save plots and dump results
 id = f'{method}_2x2_b{batch_size}_nS{num_nonzero_sources}_opt{method_config["optimizer"]}_iters{n_iters}_flow'
 
-thetacov = jnp.cov(C)
-sns.heatmap(thetacov)
-plt.savefig(f'img/{timestamp}_{id}_covar.png')
+if method_config.get('collect_trace_plot', False):
+    fig, ax = plt.subplots()
+    ax.plot(range(method_config['hmc_num_iters']), stats['trace_plot'].T)
+    ax.set_xlabel('Training iteration')
+    ax.set_ylabel('Parameter trace')
+    ax.set_title('HMC trace plot')
+    plt.savefig(f'img/{timestamp}_{id}_trace.png')
+if method_config.get('collect_covar', False):
+    thetacov = jnp.cov(stats['covar'])
+    sns.heatmap(thetacov)
+    plt.savefig(f'img/{timestamp}_{id}_covar.png')
 
 with open(f'img/{timestamp}_{id}.json', 'w') as file:
     savedata = {
@@ -477,6 +525,8 @@ with open(f'img/{timestamp}_{id}.json', 'w') as file:
         'Y': Y.T.tolist(),}
     savedata.update(method_config)
     json.dump(savedata, file)
+t3 = timer()
 
 print('Setup took', t1-t0, 'seconds')
 print('Optimization took', t2-t1, 'seconds')
+print('Plotting took', t3-t2, 'seconds')
