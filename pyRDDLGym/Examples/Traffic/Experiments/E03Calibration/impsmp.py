@@ -107,20 +107,60 @@ for (state, next_state) in model.next_state.items():
     subs_hmc[next_state] = subs_hmc[state]
 
 
-# Set up ground truth inflow rates
-srcs, sinks, turn_flow_matrix = prepare_shortest_path_assignment(myEnv)
-turn_flow_matrix = jnp.array(turn_flow_matrix)[jnp.newaxis, ...]
+srcs, sinks, transfer_matrix = prepare_shortest_path_assignment(myEnv)
+transfer_matrix = jnp.array(transfer_matrix)[jnp.newaxis, ...]
 
+# Set up the bijector
+class SimplexBijector(tfp.bijectors.IteratedSigmoidCentered):
+#class SimplexBijector(tfp.bijectors.SoftmaxCentered):
+    # Wraps the IteratedSigmoidCentered bijector, adding
+    # a projection onto the first N (out of N+1) coordinates
+    def __init__(self, n_srcs, n_sinks, max_rate):
+        super().__init__()
+        self.n_srcs = n_srcs
+        self.n_sinks = n_sinks
+        self.action_dim = n_srcs * n_sinks
+        self.max_rate = max_rate
+
+        self._inverse_jac = jax.jacrev(self._inverse)
+
+    def _forward(self, x):
+        x = x.reshape(-1, self.n_srcs, self.n_sinks)
+        y = super()._forward(x)
+        return (y[..., :-1] * self.max_rate).reshape(-1, self.action_dim)
+
+    def _inverse(self, y):
+        y = (y/self.max_rate).reshape(-1, self.n_srcs, self.n_sinks)
+        s = jnp.sum(y, axis=-1)[..., jnp.newaxis]
+        return super()._inverse(
+            jnp.concatenate((y,s), axis=-1)).reshape(-1, self.action_dim)
+
+    def _inverse_det_jacobian(self, y):
+        y = jnp.squeeze(y)
+        return jnp.abs(jnp.linalg.det(self._inverse_jac(y)))
+
+    def _inverse_log_det_jacobian(self, y):
+        return jnp.log(self._inverse_det_jacobian(y))
+
+bijector_obj = SimplexBijector(
+    n_srcs=len(srcs),
+    n_sinks=len(sinks),
+    max_rate=0.4)
+
+
+# Set up ground truth inflow rates
 s0, s1 = 16, 24 # The range of source link indices among all link indices
-ground_truth_od = np.zeros(shape=(len(srcs),len(sinks)))
-ground_truth_od[0, 4] = 0.3
+#ground_truth_od = np.zeros(shape=(len(srcs),len(sinks)))
+#ground_truth_od[0, 4] = 0.3
+ground_truth_od = np.random.normal(loc=0., scale=3., size=(len(srcs), len(sinks)))
 ground_truth_od = jnp.array(ground_truth_od)[jnp.newaxis, ...]
+ground_truth_od = bijector_obj.forward(ground_truth_od)
 
 action_dim = len(srcs)*len(sinks)
 one_hot_inputs = jnp.eye(action_dim)
 
 ground_truth_inflows, ground_truth_turn_props = convert_od_to_flows_and_turn_props_jax(
-    ground_truth_od, turn_flow_matrix)
+    ground_truth_od, transfer_matrix)
 
 batch_ground_inflows = jnp.broadcast_to(
     ground_truth_inflows,
@@ -170,44 +210,6 @@ policy_apply = jax.jit(policy.apply)
 key, subkey = jax.random.split(key)
 theta = policy.init(subkey, one_hot_inputs)
 
-# Set up the bijector
-class SimplexBijector(tfp.bijectors.IteratedSigmoidCentered):
-    # Wraps the IteratedSigmoidCentered bijector, adding
-    # a projection onto the first N (out of N+1) coordinates
-    def __init__(self, n_srcs, n_sinks, max_rate):
-        super().__init__()
-        self.n_srcs = n_srcs
-        self.n_sinks = n_sinks
-        self.action_dim = n_srcs * n_sinks
-        self.max_rate = max_rate
-
-        self._inverse_jac = jax.jacrev(self._inverse)
-
-    def _forward(self, x):
-        x = x.reshape(-1, self.n_srcs, self.n_sinks)
-        y = super()._forward(x)
-        return (y[..., :-1] * self.max_rate).reshape(-1, self.action_dim)
-
-    def _inverse(self, y):
-        y = (y/self.max_rate).reshape(-1, self.n_srcs, self.n_sinks)
-        s = jnp.sum(y, axis=-1)[..., jnp.newaxis]
-        return super()._inverse(
-            jnp.concatenate((y,s), axis=-1)).reshape(-1, self.action_dim)
-
-    def _inverse_det_jacobian(self, y):
-        y = jnp.squeeze(y)
-        return jnp.abs(jnp.linalg.det(self._inverse_jac(y)))
-
-    def _inverse_log_det_jacobian(self, y):
-        return jnp.log(self._inverse_det_jacobian(y))
-
-bijector_obj = SimplexBijector(
-    n_srcs=len(srcs),
-    n_sinks=len(sinks),
-    max_rate=0.4
-)
-
-
 def policy_pdf(theta, rng, actions):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
     unconstrained_actions = bijector_obj.inverse(actions)
@@ -226,7 +228,7 @@ def policy_sample(theta, rng):
 
 def reward_batched(rng, subs, actions):
     od = actions.reshape(n_rollouts, len(srcs), len(sinks))
-    inflows, turn_props = convert_od_to_flows_and_turn_props_jax(od, turn_flow_matrix)
+    inflows, turn_props = convert_od_to_flows_and_turn_props_jax(od, transfer_matrix)
     subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(inflows)
     subs['BETA'] = turn_props
     rollouts = sampler(
@@ -240,7 +242,7 @@ def reward_batched(rng, subs, actions):
 
 def reward_seqtl(rng, subs, action):
     od = action.reshape(1, len(srcs), len(sinks))
-    inflows, turn_props = convert_od_to_flows_and_turn_props_jax(od, turn_flow_matrix)
+    inflows, turn_props = convert_od_to_flows_and_turn_props_jax(od, transfer_matrix)
     subs['SOURCE-ARRIVAL-RATE'] = subs['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(inflows)
     subs['BETA'] = turn_props
     rollout = sampler_hmc(
@@ -352,7 +354,7 @@ def reinforce(key, n_iters, theta, subs, config):
 # === REINFORCE with Importance Sampling ====
 impsmp_config = {
     'hmc_num_iters': int(batch_size),
-    'hmc_step_size': 0.1,
+    'hmc_step_size': 0.5,
     'optimizer': 'rmsprop',
     'lr': 1e-3,
     'momentum': 0.1,
@@ -491,8 +493,8 @@ def eval_single_rollout(a):
     return rewards
 
 
-method = 'impsmp'
-n_iters = 250
+method = 'reinforce'
+n_iters = 100
 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
 with jax.disable_jit(disable=False):
