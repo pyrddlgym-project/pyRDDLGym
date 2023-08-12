@@ -109,6 +109,9 @@ for (state, next_state) in model.next_state.items():
 
 srcs, sinks, transfer_matrix = prepare_shortest_path_assignment(myEnv)
 transfer_matrix = jnp.array(transfer_matrix)[jnp.newaxis, ...]
+action_dim = len(srcs)*len(sinks)
+one_hot_inputs = jnp.eye(action_dim)
+
 
 # Set up the bijector
 class SimplexBijector(tfp.bijectors.IteratedSigmoidCentered):
@@ -150,14 +153,11 @@ bijector_obj = SimplexBijector(
 
 # Set up ground truth inflow rates
 s0, s1 = 16, 24 # The range of source link indices among all link indices
-#ground_truth_od = np.zeros(shape=(len(srcs),len(sinks)))
-#ground_truth_od[0, 4] = 0.3
-ground_truth_od = np.random.normal(loc=0., scale=3., size=(len(srcs), len(sinks)))
-ground_truth_od = jnp.array(ground_truth_od)[jnp.newaxis, ...]
-ground_truth_od = bijector_obj.forward(ground_truth_od)
-
-action_dim = len(srcs)*len(sinks)
-one_hot_inputs = jnp.eye(action_dim)
+#ground_truth_od = jnp.zeros(shape=(1, len(srcs),len(sinks)))
+#ground_truth_od = ground_truth_od.at[0, 0, 4].set(0.3)
+key, subkey = jax.random.split(key)
+ground_truth_od = 3. * jax.random.normal(key=subkey, shape=(1, action_dim), dtype=compiler.REAL)
+ground_truth_od = bijector_obj.forward(ground_truth_od).reshape(1, len(srcs), len(sinks))
 
 ground_truth_inflows, ground_truth_turn_props = convert_od_to_flows_and_turn_props_jax(
     ground_truth_od, transfer_matrix)
@@ -355,6 +355,7 @@ def reinforce(key, n_iters, theta, subs, config):
 impsmp_config = {
     'hmc_num_iters': int(batch_size),
     'hmc_step_size': 0.5,
+    'hmc_num_leapfrog_steps': 3,
     'optimizer': 'rmsprop',
     'lr': 1e-3,
     'momentum': 0.1,
@@ -439,7 +440,7 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
             inner_kernel = tfp.mcmc.SimpleStepSizeAdaptation(
                 inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
                     target_log_prob_fn=log_density,
-                    num_leapfrog_steps=3,
+                    num_leapfrog_steps=config['hmc_num_leapfrog_steps'],
                     step_size=config['hmc_step_size']),
                 num_adaptation_steps=int(config['hmc_num_burnin_steps'] * 0.8)),
             bijector=unconstraining_bijector)
@@ -493,7 +494,7 @@ def eval_single_rollout(a):
     return rewards
 
 
-method = 'reinforce'
+method = 'impsmp'
 n_iters = 100
 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
