@@ -15,6 +15,8 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 def load_config_file(path: str):
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f'File {path} does not exist.')
     config = configparser.RawConfigParser()
     config.optionxform = str 
     config.read(path)
@@ -51,16 +53,15 @@ def load_rddl_files(check_external, domain_name, inst_name):
     return domain, instance
 
 
-def get(path: str, 
-        new_env_kwargs={}, new_logic_kwargs={}, 
-        new_plan_kwargs={}, new_planner_kwargs={}) -> Dict[str, object]:
+def get(path: str, inst: str=None) -> Dict[str, object]:
     
     # load the config file
     config, args = load_config_file(path)
     env_args, model_args, planner_args, train_args = read_config_sections(config, args)
     
     # read the environment settings
-    env_args.update(new_env_kwargs)
+    if inst is not None:
+        env_args['instance'] = inst
     check_external = env_args.pop('check_rddlrepository', False)
     domain_name = env_args['domain']
     inst_name = env_args['instance']
@@ -75,7 +76,6 @@ def get(path: str,
     logic_name = model_args['logic']
     logic_kwargs = model_args['logic_kwargs']
     logic_kwargs['tnorm'] = getattr(JaxRDDLLogic, tnorm_name)(**tnorm_kwargs)
-    logic_kwargs.update(new_logic_kwargs)
     planner_args['logic'] = getattr(JaxRDDLLogic, logic_name)(**logic_kwargs)
     
     # read the optimizer settings
@@ -96,10 +96,8 @@ def get(path: str,
     if 'activation' in plan_kwargs:  # activation function
         plan_kwargs['activation'] = getattr(jax.nn, plan_kwargs['activation'])
     
-    plan_kwargs.update(new_plan_kwargs)
     planner_args['plan'] = getattr(JaxRDDLBackpropPlanner, plan_method)(**plan_kwargs)
     planner_args['optimizer'] = getattr(optax, planner_args['optimizer'])
-    planner_args.update(new_planner_kwargs)
     planner = JaxRDDLBackpropPlanner.JaxRDDLBackpropPlanner(**planner_args)
     
     # read the training settings

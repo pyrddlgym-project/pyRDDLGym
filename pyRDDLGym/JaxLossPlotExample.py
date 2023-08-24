@@ -89,7 +89,7 @@ def plot_surface(x, y, z, name):
     fig.show()
 
 
-def run_experiment(problem, probname,
+def run_experiment(problem, 
                    xmax=25.0, n=500, iters=100,
                    ws=[(100.0, 5.0), (100.0, 5.0), (10000.0, 100.0)]):
     
@@ -120,9 +120,9 @@ def run_experiment(problem, probname,
             zbatch = np.asarray(loss_func(batch))
             zbatches.append(zbatch)
         z = np.concatenate(zbatches)
-        plot_surface(x, y, z, f'surface_{i}_{probname}')
+        plot_surface(x, y, z, f'surface_{i}_{problem}')
 
 
 if __name__ == '__main__':
-    problem, probname = 'Wildfire', 'Wildfire'
-    run_experiment(problem, probname)
+    problem = 'Wildfire'
+    run_experiment(problem)
