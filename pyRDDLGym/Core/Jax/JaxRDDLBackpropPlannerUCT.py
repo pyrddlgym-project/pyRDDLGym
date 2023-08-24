@@ -311,31 +311,32 @@ def get_rddl(domain, inst):
     return RDDLEnv(domain, inst).model
 
 
-rddl = get_rddl('CartPole continuous', 0)
-world = JaxRDDLSimulator(rddl)
-planner = JaxRDDLHybridBackpropUCTPlanner(
-    rddl, None, 5, 0.5, 0.5, 1.0,
-    action_sample=(lambda s: {'force': random.uniform(-10., 10.)}),
-    plan=JaxStraightLinePlan(wrap_sigmoid=False),
-    batch_size_train=16,
-    action_bounds={'force': (-10., 10.)})
-
-print('starting MCTS...')
-world.reset()
-key = jax.random.PRNGKey(42)
-for step in range(200):
+if __name__ == '__main__':
+    rddl = get_rddl('CartPole_continuous', 0)
+    world = JaxRDDLSimulator(rddl)
+    planner = JaxRDDLHybridBackpropUCTPlanner(
+        rddl, None, 5, 0.5, 0.5, 1.0,
+        action_sample=(lambda s: {'force': random.uniform(-10., 10.)}),
+        plan=JaxStraightLinePlan(wrap_sigmoid=False),
+        batch_size_train=16,
+        action_bounds={'force': (-10., 10.)})
     
-    print('\n' + f'iteration {step}...')
-    s0 = world.subs.copy()
-    for callback in planner.search(key, s0, 200, 20):
-        print(f'iter={callback["iter"]}, '
-              f'reward={callback["return"]}, '
-              f'action={callback["action"]}, '
-              f'c={callback["c"]}, '
-              f'delta={callback["max_delta"]}, '
-              f'updates={callback["sgd_updates"]}')
-    print(f'final action {callback["action"]}')
-    
-    _, reward, done = world.step(callback["action"])
-    if done:
-        break
+    print('starting MCTS...')
+    world.reset()
+    key = jax.random.PRNGKey(42)
+    for step in range(200):
+        
+        print('\n' + f'iteration {step}...')
+        s0 = world.subs.copy()
+        for callback in planner.search(key, s0, 200, 20):
+            print(f'iter={callback["iter"]}, '
+                  f'reward={callback["return"]}, '
+                  f'action={callback["action"]}, '
+                  f'c={callback["c"]}, '
+                  f'delta={callback["max_delta"]}, '
+                  f'updates={callback["sgd_updates"]}')
+        print(f'final action {callback["action"]}')
+        
+        _, reward, done = world.step(callback["action"])
+        if done:
+            break

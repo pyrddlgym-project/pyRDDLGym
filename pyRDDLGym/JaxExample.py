@@ -5,7 +5,6 @@ import time
 
 from pyRDDLGym.Planner import JaxConfigManager
 from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
-# from pyRDDLGym.Core.Jax.JaxRDDLModelError import JaxRDDLModelError
 
 
 def print_parameterized_exprs(planner):
@@ -39,18 +38,15 @@ def slp_train(planner, budget, **train_args):
             print('ran out of time!')
             break
     params = callback['best_params']
-    
-    # key = jax.random.PRNGKey(42)
-    # error = JaxRDDLModelError(planner.rddl, planner.test_policy, 
-    #                           batch_size=64, logic=planner.logic)
-    # error.summarize(key, params)
-    # error.sensitivity(key, params)
     return params
 
 
 def slp_no_replan(env, trials, timeout, timeout_ps, save):
     myEnv, planner, _, _, train_args, (dom, inst) = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']    
+    
+    print('parameterized expressions as follows:')
+    print_parameterized_exprs(planner)
     
     rewards = np.zeros((myEnv.horizon, trials))
     for trial in range(trials):
@@ -88,6 +84,9 @@ def slp_replan(env, trials, timeout, timeout_ps, save):
     myEnv, planner, _, _, train_args, (dom, inst) = JaxConfigManager.get(f'{env}.cfg')
     key = train_args['key']
     
+    print('parameterized expressions as follows:')
+    print_parameterized_exprs(planner)
+    
     rewards = np.zeros((myEnv.horizon, trials))
     for trial in range(trials):
         print('\n' + '*' * 30 + '\n' + f'starting trial {trial + 1}\n' + '*' * 30)
@@ -106,6 +105,7 @@ def slp_replan(env, trials, timeout, timeout_ps, save):
                                    subs=subs,
                                    **train_args)
                 key, subkey = jax.random.split(key)
+                train_args['key'] = key
                 action = planner.get_action(subkey, params, 0, subs)
                 train_args['guess'] = planner.plan.guess_next_epoch(params)
             else:

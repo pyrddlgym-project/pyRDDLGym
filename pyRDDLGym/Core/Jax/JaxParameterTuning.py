@@ -118,7 +118,7 @@ class JaxParameterTuning:
         return [(fore, back) 
                 for back in background
                 for fore in foreground
-                if int(back[2:-1]) - int(fore[2:-1]) != 10]
+                if int(back[2:-1]) - int(fore[2:-1]) != 10]  # ensure fore != back
 
     @staticmethod
     def _annealing_utility(n_samples, n_delay_samples=0, kappa1=10.0, kappa2=1.0):
