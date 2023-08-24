@@ -60,12 +60,12 @@ def get(path: str,
     env_args, model_args, planner_args, train_args = read_config_sections(config, args)
     
     # read the environment settings
+    env_args.update(new_env_kwargs)
     check_external = env_args.pop('check_rddlrepository', False)
     domain_name = env_args['domain']
     inst_name = env_args['instance']
     env_args['domain'], env_args['instance'] = load_rddl_files(
         check_external, domain_name, inst_name)
-    env_args.update(new_env_kwargs)
     myEnv = RDDLEnv(**env_args)
     planner_args['rddl'] = myEnv.model
     
