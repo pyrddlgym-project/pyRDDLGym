@@ -92,7 +92,7 @@ class ExampleManager:
                 instances.append(file)
         return instances
 
-    def get_instance(self, num: int):
+    def get_instance(self, num: str):
         instance = f'instance{num}.rddl'
         if not os.path.exists(self.path_to_env + instance):
             raise RDDLInstanceNotExist(
