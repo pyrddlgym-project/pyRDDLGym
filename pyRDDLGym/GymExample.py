@@ -2,7 +2,7 @@ import sys
 
 from pyRDDLGym import ExampleManager
 from pyRDDLGym import RDDLEnv
-from pyRDDLGym.Policies.Agents import RandomAgent
+from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
 def main(env, inst, method_name=None, episodes=1):
     print(f'preparing to launch instance {inst} of domain {env}...')

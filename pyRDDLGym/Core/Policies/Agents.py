@@ -1,6 +1,5 @@
 from abc import ABCMeta, abstractmethod
 import random
-
 import gym
 
 
@@ -12,6 +11,7 @@ class BaseAgent(metaclass=ABCMeta):
 
 
 class RandomAgent(BaseAgent):
+
     def __init__(self, action_space, num_actions=1, seed=None):
         self.action_space = action_space
         self.num_actions = num_actions
@@ -36,6 +36,7 @@ class RandomAgent(BaseAgent):
 
 
 class NoOpAgent(BaseAgent):
+
     def __init__(self, action_space, num_actions=0):
         self.action_space = action_space
         self.num_actions = num_actions
