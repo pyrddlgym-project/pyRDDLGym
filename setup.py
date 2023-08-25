@@ -17,7 +17,7 @@ from setuptools import setup, find_packages
 
 setup(
       name='pyRDDLGym',
-      version='1.1.1',
+      version='1.2.0',
       author="Ayal Taitler, Michael Gimelfarb, Scott Sanner, Jihwan Jeong, Sriram Gopalakrishnan, Martin Mladenov, Jack Liu",
       author_email="ataitler@gmail.com, mike.gimelfarb@mail.utoronto.ca, ssanner@mie.utoronto.ca, jhjeong@mie.utoronto.ca, sriram.gopalakrishnan@jpmchase.com, mmladenov@google.com, xiaotian.liu@mail.utoronto.ca",
       description="pyRDDLGym: RDDL automatic generation tool for OpenAI Gym",
