@@ -1,154 +1,81 @@
-import jax
-import numpy as np
+import os
 import sys
-import time
 
-from pyRDDLGym.Planner import JaxConfigManager
-from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
+from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config, JaxRDDLBackpropPlanner
+from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
-
-def print_parameterized_exprs(planner):
-    model_params = planner.compiled.model_params
-    print(f'model_params = {model_params}')
-    ids = planner.compiled.get_ids_of_parameterized_expressions()
-    for _id in ids:
-        expr = planner.compiled.traced.lookup(_id)
-        print(f'\nid = {_id}:\n' + RDDLDecompiler().decompile_expr(expr))
     
+def run_straightline(config_path, env):
     
-def slp_train(planner, budget, **train_args):
-    step = train_args['step']
-    del train_args['step']
-    print('\n' + 'training plan:')
-    for i, callback in enumerate(planner.optimize(**train_args, step=1)):
-        if i == 0:
-            elapsed = 0
-            starttime = time.time()
-        else:
-            elapsed = time.time() - starttime
-        
-        if i % step == 0:
-            print('[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} best_return={:.6f}'.format(
-                elapsed,
-                str(callback['iteration']).rjust(4),
-                callback['train_return'],
-                callback['test_return'],
-                callback['best_return']))
-        if elapsed >= budget:
-            print('ran out of time!')
+    # optimize policy
+    planner_args, _, train_args = load_config(config_path)
+    planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
+    params = planner.optimize(**train_args)
+    
+    # evaluate
+    total_reward = 0
+    state = env.reset()
+    for step in range(env.horizon):
+        action = planner.get_action(0, params, step, env.sampler.subs)        
+        next_state, reward, done, _ = env.step(action)
+        total_reward += reward             
+        print(f'step       = {step}\n'
+              f'state      = {state}\n'
+              f'action     = {action}\n'
+              f'next state = {next_state}\n'
+              f'reward     = {reward}\n')
+        state = next_state
+        if done:
             break
-    params = callback['best_params']
-    return params
-
-
-def slp_no_replan(env, trials, timeout, timeout_ps, save):
-    myEnv, planner, _, _, train_args, (dom, inst) = JaxConfigManager.get(f'{env}.cfg')
-    key = train_args['key']    
-    
-    print('parameterized expressions as follows:')
-    print_parameterized_exprs(planner)
-    
-    rewards = np.zeros((myEnv.horizon, trials))
-    for trial in range(trials):
-        print('\n' + '*' * 30 + '\n' + f'starting trial {trial + 1}\n' + '*' * 30)
-        train_args['key'] = key
-        params = slp_train(planner, timeout, **train_args)
+    return total_reward
         
-        total_reward = 0
-        state = myEnv.reset()
-        for step in range(myEnv.horizon):
-            subs = myEnv.sampler.subs
-            key, subkey = jax.random.split(key)
-            action = planner.get_action(subkey, params, step, subs)
-            next_state, reward, done, _ = myEnv.step(action)
-            total_reward += reward 
-            rewards[step, trial] = reward
-            
-            print()
-            print('step       = {}'.format(step))
-            print('state      = {}'.format(state))
-            print('action     = {}'.format(action))
-            print('next state = {}'.format(next_state))
-            print('reward     = {}'.format(reward))
-            state = next_state
-            if done:
-                break
-        print(f'episode ended with reward {total_reward}')
-        
-    myEnv.close()
-    if save:
-        np.savetxt(f'{dom}_{inst}_slp.csv', rewards, delimiter=',')
 
+def run_replan(config_path, env):
     
-def slp_replan(env, trials, timeout, timeout_ps, save):
-    myEnv, planner, _, _, train_args, (dom, inst) = JaxConfigManager.get(f'{env}.cfg')
-    key = train_args['key']
+    # initialize policy
+    planner_args, _, train_args = load_config(config_path)
+    planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
     
-    print('parameterized expressions as follows:')
-    print_parameterized_exprs(planner)
-    
-    rewards = np.zeros((myEnv.horizon, trials))
-    for trial in range(trials):
-        print('\n' + '*' * 30 + '\n' + f'starting trial {trial + 1}\n' + '*' * 30)
-        total_reward = 0
-        state = myEnv.reset() 
-        starttime = time.time()
-        train_args['guess'] = None
-        for step in range(myEnv.horizon):
-            currtime = time.time()
-            elapsed = currtime - starttime
+    # optimize and evaluate
+    guess = None
+    total_reward = 0
+    state = env.reset() 
+    for step in range(env.horizon):
+        subs = env.sampler.subs
+        params = planner.optimize(subs=subs, guess=guess, **train_args)
+        guess = planner.plan.guess_next_epoch(params)         
+        action = planner.get_action(0, params, 0, subs)           
+        next_state, reward, done, _ = env.step(action)
+        total_reward += reward 
             
-            if elapsed < timeout:
-                subs = myEnv.sampler.subs
-                params = slp_train(planner,
-                                   budget=min(timeout - elapsed, timeout_ps),
-                                   subs=subs,
-                                   **train_args)
-                key, subkey = jax.random.split(key)
-                train_args['key'] = key
-                action = planner.get_action(subkey, params, 0, subs)
-                train_args['guess'] = planner.plan.guess_next_epoch(params)
-            else:
-                print('ran out of time!')
-                action = {}
-            
-            next_state, reward, done, _ = myEnv.step(action)
-            total_reward += reward 
-            rewards[step, trial] = reward
-            
-            print()
-            print(f'elapsed    = {elapsed} s')
-            print(f'step       = {step}')
-            print(f'state      = {state}')
-            print(f'action     = {action}')
-            print(f'next state = {next_state}')
-            print(f'reward     = {reward}')
-            state = next_state
-            if done: 
-                break
-        print(f'episode ended with reward {total_reward}')
-        
-    myEnv.close()
-    if save:
-        np.savetxt(f'{dom}_{inst}_mpc.csv', rewards, delimiter=',')
+        print(f'step       = {step}\n'
+              f'state      = {state}\n'
+              f'action     = {action}\n'
+              f'next state = {next_state}\n'
+              f'reward     = {reward}\n')
+        state = next_state
+        if done:
+            break
+    return total_reward
 
-    
-def main(env, replan, trials, timeout, timeout_ps, save):
-    if replan:
-        slp_replan(env, trials, timeout, timeout_ps, save)
-    else: 
-        slp_no_replan(env, trials, timeout, timeout_ps, save)
-    
         
 if __name__ == "__main__":
-    if len(sys.argv) < 6:
-        env, trials, timeout, timeout_ps, save = 'Wildfire', 1, 60 * 2, 1, False
+    dom, inst, method = 'Wildfire', 0, 'slp'
+    if len(sys.argv) >= 4:
+        dom, inst, method = sys.argv[1:4]
+    
+    EnvInfo = ExampleManager.GetEnvInfo(dom)    
+    env = RDDLEnv(domain=EnvInfo.get_domain(),
+                  instance=EnvInfo.get_instance(inst),
+                  enforce_action_constraints=True)
+    
+    abs_path = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(abs_path, 'JaxPlanConfigs', f'{dom}_{method}.cfg') 
+    
+    if method == 'replan':
+        reward = run_replan(config_path, env)
     else:
-        env, trials, timeout, timeout_ps, save = sys.argv[1:6]
-        trials = int(trials)
-        timeout = int(timeout)
-        timeout_ps = int(timeout_ps)
-        save = save == 'True' or save == True
-    replan = env.endswith('replan')
-    main(env, replan, trials, timeout, timeout_ps, save) 
+        reward = run_straightline(config_path, env)
+    print(f'episode ended with reward {reward}')
     
