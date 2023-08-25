@@ -17,8 +17,8 @@ from setuptools import setup, find_packages
 
 setup(
       name='pyRDDLGym',
-      version='1.1.0',
-      author="Ayal Taitler, Michael Gimelfarb, Scott Sanner, Jihwan Jeong, Sriram Gopalakrishnan, Martin Mladenov, jack liu",
+      version='1.1.1',
+      author="Ayal Taitler, Michael Gimelfarb, Scott Sanner, Jihwan Jeong, Sriram Gopalakrishnan, Martin Mladenov, Jack Liu",
       author_email="ataitler@gmail.com, mike.gimelfarb@mail.utoronto.ca, ssanner@mie.utoronto.ca, jhjeong@mie.utoronto.ca, sriram.gopalakrishnan@jpmchase.com, mmladenov@google.com, xiaotian.liu@mail.utoronto.ca",
       description="pyRDDLGym: RDDL automatic generation tool for OpenAI Gym",
       license="MIT License",
@@ -26,6 +26,7 @@ setup(
       packages=find_packages(),
       install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy>=1.22', 'gym>=0.24.0', 'pygame'],
       python_requires=">=3.8",
+      package_data={'': ['*.cfg']},
       include_package_data=True,
       classifiers=[
         "Development Status :: 3 - Alpha",
