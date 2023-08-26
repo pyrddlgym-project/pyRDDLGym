@@ -22,6 +22,7 @@ from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax import JaxRDDLLogic
 from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
+from pyRDDLGym.Core.Policies.Agents import BaseAgent
 
 
 # ***********************************************************************
@@ -87,10 +88,8 @@ def load_config(path: str) -> Dict[str, object]:
 
     
 # ***********************************************************************
-# ALL VERSIONS OF JAX PLANNER
+# MODEL RELAXATIONS
 # 
-# - straight line planning
-# - deep reactive policies
 # - replace discrete ops in state dynamics/reward with differentiable ones
 #
 # ***********************************************************************
@@ -207,6 +206,13 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         return _jax_wrapped_discrete_calc_approx, jax_param
 
 
+# ***********************************************************************
+# ALL VERSIONS OF JAX PLANS
+# 
+# - straight line plan
+# - deep reactive policy
+#
+# ***********************************************************************
 class JaxPlan:
     
     def __init__(self) -> None:
@@ -830,6 +836,65 @@ class JaxDeepReactivePolicy(JaxPlan):
         return params
 
     
+# ***********************************************************************
+# ALL VERSIONS OF JAX PLANNER
+# 
+# - simple gradient descent based planner
+# - more stable but slower line search based planner
+#
+# ***********************************************************************
+class JaxOfflineController(BaseAgent):
+    '''A container class for a Jax policy trained offline.'''
+    
+    def __init__(self, planner, key, eval_hyperparams=None, **train_kwargs) -> None:
+        self.planner = planner
+        self.key = key
+        self.eval_hyperparams = eval_hyperparams
+        
+        self.params = self.planner.optimize(key=self.key, **train_kwargs)   
+        self.reset()
+        
+    def sample_action(self, state):
+        self.key, subkey = random.split(self.key)
+        actions = self.planner.get_action(
+            subkey, self.params, self.step, state, self.eval_hyperparams)
+        self.step += 1
+        return actions
+        
+    def reset(self):
+        self.step = 0
+
+
+class JaxOnlineController(BaseAgent):
+    '''A container class for a Jax controller continuously updated using state 
+    feedback.'''
+    
+    def __init__(self, planner, key, eval_hyperparams=None, warm_start=True, 
+                 **train_kwargs) -> None:
+        self.planner = planner
+        self.key = key
+        self.eval_hyperparams = eval_hyperparams
+        self.warm_start = warm_start
+        self.train_kwargs = train_kwargs
+        self.reset()
+     
+    def sample_action(self, state):
+        planner = self.planner
+        params = planner.optimize(
+            key=self.key,
+            guess=self.guess,
+            subs=state,
+            **self.train_kwargs)
+        self.key, subkey = random.split(self.key)
+        actions = planner.get_action(subkey, params, 0, state, self.eval_hyperparams)
+        if self.warm_start:
+            self.guess = planner.plan.guess_next_epoch(params)
+        return actions
+        
+    def reset(self):
+        self.guess = None
+    
+    
 class JaxRDDLBackpropPlanner:
     '''A class for optimizing an action sequence in the given RDDL MDP using 
     gradient descent.'''
@@ -1082,7 +1147,8 @@ class JaxRDDLBackpropPlanner:
                            policy_hyperparams: Dict[str, object]=None,
                            subs: Dict[str, object]=None,
                            guess: Dict[str, object]=None,
-                           verbose: bool=True) -> Generator[Dict[str, object], None, None]:
+                           verbose: bool=True,
+                           tqdm_position: int=None) -> Generator[Dict[str, object], None, None]:
         '''Returns a generator for computing an optimal straight-line plan. 
         Generator can be iterated over to lazily optimize the plan, yielding
         a dictionary of intermediate computations.
@@ -1100,6 +1166,7 @@ class JaxRDDLBackpropPlanner:
         :param guess: initial policy parameters: if None will use the initializer
         specified in this instance
         :param verbose: whether to print progress during training
+        :param tqdm_position: position of tqdm progress bar (for multiprocessing)
         '''
         start_time = time.time()
         
@@ -1127,7 +1194,7 @@ class JaxRDDLBackpropPlanner:
         # training loop
         iters = range(epochs)
         if verbose:
-            iters = tqdm(iters, total=100)
+            iters = tqdm(iters, total=100, position=tqdm_position)
         
         for it in iters:
             elapsed = time.time() - start_time
@@ -1191,7 +1258,6 @@ class JaxRDDLBackpropPlanner:
             if not np.isfinite(train_loss):
                 break
             
-    
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
                    step: int,
