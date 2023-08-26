@@ -1,7 +1,5 @@
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import UtilityFunction
-from colorama import init as colorama_init, Back, Fore, Style
-colorama_init()    
 import csv
 import datetime
 import jax
@@ -28,7 +26,7 @@ np.seterr(all='warn')
 # 
 # Currently contains three implementations:
 # 1. straight line plan
-# 2. replanning
+# 2. re-planning
 # 3. deep reactive policies
 # 
 # ===============================================================================
@@ -100,21 +98,6 @@ class JaxParameterTuning:
             num_samples = self.gp_iters * self.num_workers
             acquisition = JaxParameterTuning._annealing_utility(num_samples)
         self.acquisition = acquisition
-        
-        # create valid color variations for multiprocess output
-        self.colors = JaxParameterTuning._color_variations()
-        self.num_workers = min(num_workers, len(self.colors))
-
-    @staticmethod
-    def _color_variations():
-        foreground = [Fore.BLUE, Fore.CYAN, Fore.GREEN,
-                      Fore.MAGENTA, Fore.RED, Fore.YELLOW]
-        background = [Back.RESET, Back.BLUE, Back.CYAN, Back.GREEN,
-                      Back.MAGENTA, Back.RED, Back.YELLOW]
-        return [(fore, back) 
-                for back in background
-                for fore in foreground
-                if int(back[2:-1]) - int(fore[2:-1]) != 10]  # ensure fore != back
 
     @staticmethod
     def _annealing_utility(n_samples, n_delay_samples=0, kappa1=10.0, kappa2=1.0):
@@ -128,8 +111,8 @@ class JaxParameterTuning:
         raise NotImplementedError
     
     @staticmethod
-    def _wrapped_evaluate(index, params, key, color, func, kwargs):
-        target = func(params=params, kwargs=kwargs, key=key, index=index, color=color)
+    def _wrapped_evaluate(index, params, key, func, kwargs):
+        target = func(params=params, kwargs=kwargs, key=key, index=index)
         pid = os.getpid()
         return index, pid, params, target
 
@@ -171,11 +154,10 @@ class JaxParameterTuning:
             writer = csv.writer(file)
             writer.writerow(
                 ['pid', 'worker', 'iteration', 'target', 'best_target', 'kappa'] + \
-                 list(hyperparams_bounds.keys())
+                list(hyperparams_bounds.keys())
             )
                 
         # start multiprocess evaluation
-        colors = self.colors[:num_workers]
         worker_ids = list(range(num_workers))
         best_params, best_target = None, -np.inf
         
@@ -205,7 +187,7 @@ class JaxParameterTuning:
                 # parameters usually differ across jobs
                 results = [
                     pool.apply_async(evaluate, worker_args + objective)
-                    for worker_args in zip(worker_ids, suggested, subkeys, colors)
+                    for worker_args in zip(worker_ids, suggested, subkeys)
                 ]
             
                 # wait for all workers to complete
@@ -242,9 +224,8 @@ class JaxParameterTuning:
                             best_params, best_target = rddl_params, target
                         
                         # write progress to file in real time
-                        rows[index] = [
-                            pid, index, it, target, best_target, old_kappa
-                        ] + list(rddl_params.values())
+                        rows[index] = [pid, index, it, target, best_target, old_kappa] + \
+                                      list(rddl_params.values())
                         
             # write results of all processes in current iteration to file
             with open(filename, 'a', newline='') as file:
@@ -292,7 +273,7 @@ class JaxParameterTuning:
 # STRAIGHT LINE PLANNING
 #
 # ===============================================================================
-def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
+def objective_slp(params, kwargs, key, index):
                     
     # transform hyper-parameters to natural space
     param_values = [
@@ -308,9 +289,8 @@ def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
         wa = None
                       
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'optimizing SLP with PRNG key={key}, ' 
-                f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
+        print(f'[{index}] optimizing SLP with PRNG key={key}, ' 
+              f'std={std}, lr={lr}, w={w}, wa={wa}...')
         
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
@@ -334,9 +314,7 @@ def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'done optimizing SLP, '
-                f'total reward={total_reward}{Style.RESET_ALL}')
+        print(f'[{index}] done optimizing SLP, reward={total_reward}')
     return total_reward
 
         
@@ -405,7 +383,7 @@ class JaxParameterTuningSLP(JaxParameterTuning):
 # REPLANNING
 #
 # ===============================================================================
-def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
+def objective_replan(params, kwargs, key, index):
 
     # transform hyper-parameters to natural space
     param_values = [
@@ -421,10 +399,8 @@ def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET))
         wa = None
         
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-              f'optimizing MPC with PRNG key={key}, ' 
-              f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...'
-              f'{Style.RESET_ALL}')
+        print(f'[{index}] optimizing MPC with PRNG key={key}, ' 
+              f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
 
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
@@ -449,9 +425,7 @@ def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET))
         
         # start the next trial
         if kwargs['verbose']:
-            print(f'|--- [{index}] {color[0]}{color[1]}'
-                  f'starting trial {trial + 1} '
-                  f'with PRNG key={key}...{Style.RESET_ALL}')
+            print(f'--- [{index}] starting trial {trial + 1} with PRNG key={key}...')
             
         total_reward = 0.0
         guess = None
@@ -480,15 +454,11 @@ def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET))
             
         # update average reward across trials
         if kwargs['verbose']:
-            print(f'|--- [{index}] {color[0]}{color[1]}'
-                  f'done trial {trial + 1}, '
-                  f'total reward={total_reward}{Style.RESET_ALL}')
+            print(f'--- [{index}] done trial {trial + 1}, reward={total_reward}')
         average_reward += total_reward / kwargs['eval_trials']
         
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-              f'done optimizing MPC, '
-              f'average reward={average_reward}{Style.RESET_ALL}')
+        print(f'[{index}] done optimizing MPC, average reward={average_reward}')
     return average_reward
 
     
@@ -562,7 +532,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
 # DEEP REACTIVE POLICIES
 #
 # ===============================================================================
-def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
+def objective_drp(params, kwargs, key, index):
                     
     # transform hyper-parameters to natural space
     param_values = [
@@ -574,9 +544,8 @@ def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
     lr, w, layers, neurons = param_values
                       
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'optimizing DRP with PRNG key={key}, ' 
-                f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...{Style.RESET_ALL}')
+        print(f'[{index}] optimizing DRP with PRNG key={key}, ' 
+              f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...')
            
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
@@ -600,9 +569,7 @@ def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'done optimizing DRP, '
-                f'total reward={total_reward}{Style.RESET_ALL}')
+        print(f'[{index}] done optimizing DRP, reward={total_reward}')
     return total_reward
 
 
