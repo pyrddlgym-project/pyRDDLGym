@@ -329,7 +329,8 @@ def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
         verbose=kwargs['verbose'],
-        return_callback=True)
+        return_callback=True,
+        tqdm_position=index)
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
@@ -466,7 +467,8 @@ def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET))
                 policy_hyperparams=policy_hyperparams,
                 subs=subs,
                 guess=guess,
-                verbose=kwargs['verbose'])
+                verbose=kwargs['verbose'],
+                tqdm_position=index)
             action = planner.get_action(subkey2, params, 0, subs)
             if kwargs['use_guess_last_epoch']:
                 guess = planner.plan.guess_next_epoch(params)
@@ -593,7 +595,8 @@ def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: None for name in planner._action_bounds},
         verbose=kwargs['verbose'],
-        return_callback=True)
+        return_callback=True,
+        tqdm_position=index)
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
