@@ -20,15 +20,17 @@ def main(domain, instance, method):
     config_path = os.path.join(abs_path, 'JaxPlanConfigs', f'{domain}_{method}.cfg') 
     planner_args, _, train_args = load_config(config_path)
     
-    # create the controller agent
+    # create the planning algorithm
     planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
+    
+    # create the controller agent    
     if method == 'replan':
         controller = JaxOnlineController(planner, **train_args)
     else:
         controller = JaxOfflineController(planner, **train_args)
     
     # evaluate the agent
-    controller.evaluate(env, ground_state=False, verbose=True)
+    controller.evaluate(env, ground_state=False, verbose=True, render=True)
         
         
 if __name__ == "__main__":

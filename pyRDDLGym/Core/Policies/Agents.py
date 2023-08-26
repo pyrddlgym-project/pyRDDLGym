@@ -17,7 +17,7 @@ class BaseAgent(metaclass=ABCMeta):
         pass
     
     def evaluate(self, env: RDDLEnv, ground_state: bool=True,
-                 episodes: int=1, verbose: bool=False) -> Dict[str, float]:
+                 episodes: int=1, verbose: bool=False, render: bool=False) -> Dict[str, float]:
         '''Evaluates the current agent on the specified environment by simulating
         roll-outs. Returns a dictionary of summary statistics of the returns
         accumulated on the roll-outs.
@@ -28,6 +28,7 @@ class BaseAgent(metaclass=ABCMeta):
         :param episodes: how many episodes (trials) to perform
         :param verbose: whether to print the transition information to console
         at each step of the simulation
+        :param render: visualize the domain using the env internal visualizer
         '''
         
         history = np.zeros((episodes,))
@@ -38,6 +39,8 @@ class BaseAgent(metaclass=ABCMeta):
             total_reward = 0.0
             state = env.reset()
             for step in range(env.horizon):
+                if render:
+                    env.render()
                 
                 # take a step in the environment
                 if ground_state:
