@@ -14,6 +14,7 @@ def main(domain, instance, method):
     env = RDDLEnv(domain=EnvInfo.get_domain(),
                   instance=EnvInfo.get_instance(instance),
                   enforce_action_constraints=True)
+    env.set_visualizer(EnvInfo.get_visualizer())
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
