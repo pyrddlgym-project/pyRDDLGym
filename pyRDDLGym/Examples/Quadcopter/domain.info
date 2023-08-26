@@ -1,0 +1,4 @@
+[General]
+name=Quadcopter
+description=Control a four-propeller drone in 3D space.
+viz=QuadcopterViz.QuadcopterVisualizer
