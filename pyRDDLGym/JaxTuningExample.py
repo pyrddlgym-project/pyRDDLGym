@@ -22,36 +22,24 @@ def main(domain, instance, method, trials, iters, workers):
     config_path = os.path.join(abs_path, 'JaxPlanConfigs', f'{domain}_{method}.cfg')
     planner_args, plan_args, train_args = load_config(config_path)
     
+    extra_kwargs = {}
     if method == 'slp':
-        tuning = JaxParameterTuningSLP(
-            env=env,
-            train_epochs=train_args['epochs'],
-            timeout_training=train_args['train_seconds'],
-            planner_kwargs=planner_args,
-            plan_kwargs=plan_args,
-            num_workers=workers,
-            gp_iters=iters)
-        
+        tuning_class = JaxParameterTuningSLP        
     elif method == 'drp':
-        tuning = JaxParameterTuningDRP(
-            env=env,
-            train_epochs=train_args['epochs'],
-            timeout_training=train_args['train_seconds'],
-            planner_kwargs=planner_args,
-            plan_kwargs=plan_args,
-            num_workers=workers,
-            gp_iters=iters)
-    
+        tuning_class = JaxParameterTuningDRP    
     elif method == 'replan':
-        tuning = JaxParameterTuningSLPReplan(
-            env=env,
-            train_epochs=train_args['epochs'],
-            timeout_training=train_args['train_seconds'],
-            eval_trials=trials,
-            planner_kwargs=planner_args,
-            plan_kwargs=plan_args,
-            num_workers=workers,
-            gp_iters=iters)
+        tuning_class = JaxParameterTuningSLPReplan
+        extra_kwargs = {'eval_trials': trials}
+
+    tuning = tuning_class(
+        env=env,
+        train_epochs=train_args['epochs'],
+        timeout_training=train_args['train_seconds'],
+        planner_kwargs=planner_args,
+        plan_kwargs=plan_args,
+        num_workers=workers,
+        gp_iters=iters,
+        **extra_kwargs)
 
     best = tuning.tune(key=train_args['key'], filename='gp_' + method)
     print(f'best parameters found = {best}')
