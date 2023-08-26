@@ -1180,8 +1180,8 @@ class JaxRDDLBackpropPlanner:
             if verbose:
                 iters.n = 100 * min(1, max(elapsed / train_seconds, it / epochs))
                 iters.set_description(
-                    f'Train={-train_loss:.6f} Test={-test_loss:.6f} '
-                    f'Best={-best_loss:.6f}')
+                    f'Id={tqdm_position} Train={-train_loss:.6f} '
+                    f'Test={-test_loss:.6f} Best={-best_loss:.6f}')
             
             # return a callback
             yield {
@@ -1205,6 +1205,9 @@ class JaxRDDLBackpropPlanner:
             # numerical error
             if not np.isfinite(train_loss):
                 break
+        
+        if verbose:
+            iters.close()
             
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
