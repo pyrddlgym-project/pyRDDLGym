@@ -45,7 +45,8 @@ def _parse_config_file(path: str):
     return config, args
 
 
-def load_config(path: str) -> Dict[str, object]:
+def load_config(path: str) -> Tuple[Dict[str, object], ...]:
+    '''Loads a config file at the specified file path.'''
     
     # parse the config file
     config, args = _parse_config_file(path)

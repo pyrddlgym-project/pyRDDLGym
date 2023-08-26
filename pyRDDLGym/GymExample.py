@@ -28,7 +28,7 @@ def main(domain, instance, method_name=None, episodes=1):
                         seed=42)
     
     # main simulation loop
-    agent.evaluate(myEnv, episodes=episodes, verbose=True)
+    agent.evaluate(myEnv, episodes=episodes, verbose=True, render=True)
     
     myEnv.close()
 
