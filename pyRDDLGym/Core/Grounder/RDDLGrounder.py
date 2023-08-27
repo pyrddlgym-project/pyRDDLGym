@@ -142,9 +142,9 @@ class RDDLGrounder(Grounder):
 
     def _ground_discount(self):
         discount = self.AST.instance.discount
-        if not (0. <= discount <= 1.):
+        if not (0. <= discount):
             raise RDDLValueOutOfRangeError(
-                f'Discount factor {discount} in the instance is not in [0, 1].')
+                f'Discount factor {discount} in the instance is not >= 0')
         return discount
 
     def _extract_objects(self):

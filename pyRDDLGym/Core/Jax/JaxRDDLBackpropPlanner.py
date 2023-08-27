@@ -991,7 +991,7 @@ class JaxRDDLBackpropPlanner:
         
         # apply discounting of future reward and then optional symlog transform
         def _jax_wrapped_returns(rewards):
-            if gamma < 1:
+            if gamma != 1:
                 horizon = rewards.shape[1]
                 discount = jnp.power(gamma, jnp.arange(horizon))
                 rewards = rewards * discount[jnp.newaxis, ...]
