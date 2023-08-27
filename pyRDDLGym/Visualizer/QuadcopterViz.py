@@ -1,6 +1,5 @@
 import io
 import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d.axes3d as p3
 import numpy as np
 from PIL import Image
 import pygame
@@ -12,9 +11,9 @@ from pyRDDLGym.Visualizer.StateViz import StateViz
 class QuadcopterVisualizer(StateViz):
 
     def __init__(self, model: PlanningModel,
-                 bound=5,
+                 bound=4,
                  figure_size=(6, 6),
-                 wait_time=100) -> None:
+                 wait_time=10) -> None:
         self._model = model
         self._bound = bound
         self._figure_size = figure_size
@@ -54,6 +53,7 @@ class QuadcopterVisualizer(StateViz):
             motor2 = (R @ np.array([[-l], [0], [0]])).reshape((-1,)) + pos
             motor3 = (R @ np.array([[0], [l], [0]])).reshape((-1,)) + pos
             motor4 = (R @ np.array([[0], [-l], [0]])).reshape((-1,)) + pos
+            perp = (R @ np.array([[0], [0], [2 * l]])).reshape((-1,)) + pos
             
             tpos = np.array([self._nonfluents[f'TX___{dk}'], 
                              self._nonfluents[f'TY___{dk}'], 
@@ -68,7 +68,8 @@ class QuadcopterVisualizer(StateViz):
             self.ax.plot(*zip(pos, motor2), c='gray')
             self.ax.plot(*zip(pos, motor3), c='gray')
             self.ax.plot(*zip(pos, motor4), c='gray')
-            self.ax.scatter(*tpos, c='red', marker='>')
+            self.ax.plot(*zip(pos, perp), c='red')
+            self.ax.scatter(*tpos, c='red', marker='>', alpha=0.5)
             # self.ax.autoscale_view()
         
         pygame.time.wait(self._wait_time)

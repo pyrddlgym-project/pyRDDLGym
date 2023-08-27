@@ -19,6 +19,7 @@ domain quadcopter {
 	
 	types {
 		drone : object;
+		propeller : { @1, @2, @3, @4 };
 	};
 	
 	pvariables { 
@@ -38,7 +39,7 @@ domain quadcopter {
 		KD : { non-fluent, real, default = 4.0 };   // friction coefficient
 		
 		// properties of the environment
-		DT : { non-fluent, real, default = 0.02 }; // time discretization step
+		DT : { non-fluent, real, default = 0.01 }; // time discretization step
 		G : { non-fluent, real, default = 9.8 };   // force of gravity
 		
 		// target coordinates
@@ -49,6 +50,8 @@ domain quadcopter {
 		// reward parameters
 		DISTANCE : { non-fluent, real, default = 1.0 }; 
 		COLLISION : { non-fluent, real, default = 10000.0 };
+		TILT : { non-fluent, real, default = 0.0001 };
+		WOBBLE : { non-fluent, real, default = 0.0001 };
 		
 		// state includes:
 		// position (x, y, z)
@@ -73,10 +76,7 @@ domain quadcopter {
 		
 		// actions include:
 		// power of each propeller
-		power1(drone) : { action-fluent, real, default = 0.0 };
-		power2(drone) : { action-fluent, real, default = 0.0 };
-		power3(drone) : { action-fluent, real, default = 0.0 };
-		power4(drone) : { action-fluent, real, default = 0.0 };
+		power(drone, propeller) : { action-fluent, real, default = 0.0 };
 		
 		// intermediate fluents include:
 		// angular velocity in the body frame
@@ -136,7 +136,7 @@ domain quadcopter {
 		Rzz(?d) = cos[theta(?d)];
 		
 		// calculate linear accelerations
-		thrust(?d) = K * (power1(?d) + power2(?d) + power3(?d) + power4(?d));
+		thrust(?d) = K * (power(?d, @1) + power(?d, @2) + power(?d, @3) + power(?d, @4));
 		ax(?d) = min[FMAX, max[-FMAX, 0 + Rxz(?d) * thrust(?d) / (MC + 4 * MR) - KD * xdot(?d)]];
 		ay(?d) = min[FMAX, max[-FMAX, 0 + Ryz(?d) * thrust(?d) / (MC + 4 * MR) - KD * ydot(?d)]];
 		az(?d) = min[FMAX, max[-FMAX, -G + Rzz(?d) * thrust(?d) / (MC + 4 * MR) - KD * zdot(?d)]];
@@ -147,9 +147,9 @@ domain quadcopter {
 		Iz = 0.4 * MC * pow[R, 2] + 4 * pow[L, 2] * MR;
 		
 		// calculate angular accelerations
-		tauphi(?d) = L * K * (power1(?d) - power3(?d));
-		tautheta(?d) = L * K * (power2(?d) - power4(?d));
-		taupsi(?d) = B * (power1(?d) - power2(?d) + power3(?d) - power4(?d));
+		tauphi(?d) = L * K * (power(?d, @1) - power(?d, @3));
+		tautheta(?d) = L * K * (power(?d, @2) - power(?d, @4));
+		taupsi(?d) = B * (power(?d, @1) - power(?d, @2) + power(?d, @3) - power(?d, @4));
 		omegaxdot(?d) = tauphi(?d) / Ix - ((Iy - Iz) / Ix) * omegay(?d) * omegaz(?d);
 		omegaydot(?d) = tautheta(?d) / Iy - ((Iz - Ix) / Iy) * omegax(?d) * omegaz(?d);
 		omegazdot(?d) = taupsi(?d) / Iz - ((Ix - Iy) / Iz) * omegax(?d) * omegay(?d);
@@ -193,16 +193,14 @@ domain quadcopter {
 			- COLLISION * (sum_{?d1 : drone, ?d2 : drone}[
 				if ((ID(?d1) ~= ID(?d2)) 
 					^ (pow[x(?d1) - x(?d2), 2] + pow[y(?d1) - y(?d2), 2] + pow[z(?d1) - z(?d2), 2] <= pow[2 * L, 2]))
-				then 1 
-				else 0]);
+				then 1 else 0])
+			- TILT * (sum_{?d : drone}[pow[phi(?d), 2] + pow[theta(?d), 2] + pow[psi(?d), 2]])
+			- WOBBLE * (sum_{?d : drone}[pow[phidot(?d), 2] + pow[thetadot(?d), 2] + pow[psidot(?d), 2]]);
   	
 	state-invariants {
 	};
 
 	action-preconditions {
-		forall_{?d : drone}[power1(?d) >= -PMAX ^ power1(?d) <= PMAX];
-		forall_{?d : drone}[power2(?d) >= -PMAX ^ power2(?d) <= PMAX];
-		forall_{?d : drone}[power3(?d) >= -PMAX ^ power3(?d) <= PMAX];
-		forall_{?d : drone}[power4(?d) >= -PMAX ^ power4(?d) <= PMAX];
+		forall_{?d : drone, ?p : propeller}[power(?d, ?p) >= -PMAX ^ power(?d, ?p) <= PMAX];
 	};
 }
