@@ -5,7 +5,7 @@ A toolkit for auto-generation of OpenAI Gym environments from RDDL description f
 This toolkit is the official evaluation system of the [2023 IPC RL and planning track](https://ataitler.github.io/IPPC2023/).
 
 <p float="left">
-<img src="banner_cpfs.jpg" width="700" height="250"/><img src="banner_sim.gif" width="250" height="250"/> 
+<img src="banner_cpfs.jpg" width="600" height="200"/><img src="banner_sim.gif" width="200" height="200"/> 
 </p>
 
 ### Paper
