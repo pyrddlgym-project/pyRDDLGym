@@ -2,8 +2,10 @@ import os
 import sys
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config, \
-    JaxRDDLBackpropPlanner, JaxOfflineController, JaxOnlineController
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOnlineController
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
     
@@ -24,7 +26,7 @@ def main(domain, instance, method):
     # create the planning algorithm
     planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
     
-    # create the controller agent    
+    # create the controller agent   
     if method == 'replan':
         controller = JaxOnlineController(planner, **train_args)
     else:
@@ -36,8 +38,11 @@ def main(domain, instance, method):
         
 if __name__ == "__main__":
     domain, instance, method = 'Wildfire', 0, 'drp'
-    if len(sys.argv) >= 4:
-        domain, instance, method = sys.argv[1:4]
-        
+    if len(sys.argv) == 2:
+        domain = sys.argv[1]
+    elif len(sys.argv) == 3:
+        domain, instance = sys.argv[1:3]
+    elif len(sys.argv) >= 4:
+        domain, instance, method = sys.argv[1:4]    
     main(domain, instance, method)
     
