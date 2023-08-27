@@ -1,7 +1,5 @@
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import UtilityFunction
-from colorama import init as colorama_init, Back, Fore, Style
-colorama_init()    
 import csv
 import datetime
 import jax
@@ -21,32 +19,30 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
 # do this after imports to prevent it from being overwritten
 np.seterr(all='warn')
 
+
 # ===============================================================================
 # 
 # GENERIC TUNING MODULE
 # 
 # Currently contains three implementations:
 # 1. straight line plan
-# 2. replanning
+# 2. re-planning
 # 3. deep reactive policies
 # 
 # ===============================================================================
-
-
 class JaxParameterTuning:
     '''A general-purpose class for tuning a Jax planner.'''
     
     def __init__(self, env: RDDLEnv,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]],
-                 max_train_epochs: int,
-                 timeout_episode: float,
+                 train_epochs: int,
+                 timeout_training: float,
                  timeout_tuning: float=np.inf,
                  verbose: bool=True,
-                 print_step: int=None,
                  planner_kwargs: Dict={},
                  plan_kwargs: Dict={},
                  pool_context: str='spawn',
-                 num_workers: int=1, 
+                 num_workers: int=1,
                  poll_frequency: float=0.2,
                  gp_iters: int=25,
                  acquisition=None,
@@ -60,14 +56,13 @@ class JaxParameterTuning:
         to a triple, where the first two elements are lower/upper bounds on the
         parameter value, and the last is a callable mapping the parameter to its
         RDDL equivalent
-        :param max_train_epochs: the maximum number of iterations of SGD per 
+        :param train_epochs: the maximum number of iterations of SGD per 
         step or trial
-        :param timeout_episode: the maximum amount of time to spend training per
-        trial (in seconds)
+        :param timeout_training: the maximum amount of time to spend training per
+        trial/decision step (in seconds)
         :param timeout_tuning: the maximum amount of time to spend tuning 
         hyperparameters in general (in seconds)
         :param verbose: whether to print intermediate results of tuning
-        :param print_step: how often to print training callback
         :param planner_kwargs: additional arguments to feed to the planner
         :param plan_kwargs: additional arguments to feed to the plan/policy
         :param pool_context: context for multiprocessing pool (defaults to 
@@ -85,11 +80,10 @@ class JaxParameterTuning:
         
         self.env = env
         self.hyperparams_dict = hyperparams_dict
-        self.max_train_epochs = max_train_epochs
-        self.timeout_episode = timeout_episode
+        self.train_epochs = train_epochs
+        self.timeout_training = timeout_training
         self.timeout_tuning = timeout_tuning
         self.verbose = verbose
-        self.print_step = print_step
         self.planner_kwargs = planner_kwargs
         self.plan_kwargs = plan_kwargs
         self.pool_context = pool_context
@@ -104,21 +98,6 @@ class JaxParameterTuning:
             num_samples = self.gp_iters * self.num_workers
             acquisition = JaxParameterTuning._annealing_utility(num_samples)
         self.acquisition = acquisition
-        
-        # create valid color variations for multiprocess output
-        self.colors = JaxParameterTuning._color_variations()
-        self.num_workers = min(num_workers, len(self.colors))
-
-    @staticmethod
-    def _color_variations():
-        foreground = [Fore.BLUE, Fore.CYAN, Fore.GREEN,
-                      Fore.MAGENTA, Fore.RED, Fore.YELLOW]
-        background = [Back.RESET, Back.BLUE, Back.CYAN, Back.GREEN,
-                      Back.MAGENTA, Back.RED, Back.YELLOW]
-        return [(fore, back) 
-                for back in background
-                for fore in foreground
-                if int(back[2:-1]) - int(fore[2:-1]) != 10]  # ensure fore != back
 
     @staticmethod
     def _annealing_utility(n_samples, n_delay_samples=0, kappa1=10.0, kappa2=1.0):
@@ -132,14 +111,14 @@ class JaxParameterTuning:
         raise NotImplementedError
     
     @staticmethod
-    def _wrapped_evaluate(index, params, key, color, func, kwargs):
-        target = func(params=params, kwargs=kwargs, key=key, index=index, color=color)
+    def _wrapped_evaluate(index, params, key, func, kwargs):
+        target = func(params=params, kwargs=kwargs, key=key, index=index)
         pid = os.getpid()
         return index, pid, params, target
 
     def tune(self, key: jax.random.PRNGKey, filename: str) -> Dict[str, object]:
         '''Tunes the hyper-parameters for Jax planner, returns the best found.'''
-        starttime = time.time()
+        start_time = time.time()
         
         # objective function
         objective = self._pickleable_objective_with_kwargs()
@@ -175,20 +154,18 @@ class JaxParameterTuning:
             writer = csv.writer(file)
             writer.writerow(
                 ['pid', 'worker', 'iteration', 'target', 'best_target', 'kappa'] + \
-                 list(hyperparams_bounds.keys())
+                list(hyperparams_bounds.keys())
             )
                 
         # start multiprocess evaluation
-        colors = self.colors[:num_workers]
         worker_ids = list(range(num_workers))
         best_params, best_target = None, -np.inf
         
         for it in range(self.gp_iters): 
             
             # check if there is enough time left for another iteration
-            currtime = time.time()  
-            elapsed = currtime - starttime
-            if elapsed > self.timeout_tuning - self.timeout_episode:
+            elapsed = time.time() - start_time
+            if elapsed >= self.timeout_tuning:
                 print(f'global time limit reached at iteration {it}, aborting')
                 break
             
@@ -210,7 +187,7 @@ class JaxParameterTuning:
                 # parameters usually differ across jobs
                 results = [
                     pool.apply_async(evaluate, worker_args + objective)
-                    for worker_args in zip(worker_ids, suggested, subkeys, colors)
+                    for worker_args in zip(worker_ids, suggested, subkeys)
                 ]
             
                 # wait for all workers to complete
@@ -247,9 +224,8 @@ class JaxParameterTuning:
                             best_params, best_target = rddl_params, target
                         
                         # write progress to file in real time
-                        rows[index] = [
-                            pid, index, it, target, best_target, old_kappa
-                        ] + list(rddl_params.values())
+                        rows[index] = [pid, index, it, target, best_target, old_kappa] + \
+                                      list(rddl_params.values())
                         
             # write results of all processes in current iteration to file
             with open(filename, 'a', newline='') as file:
@@ -291,53 +267,13 @@ class JaxParameterTuning:
             plt.clf()
             plt.close()
 
+
 # ===============================================================================
 # 
 # STRAIGHT LINE PLANNING
 #
 # ===============================================================================
-
-
-def train_epoch(key, model_params, policy_hyperparams, subs, planner, timeout,
-                 max_train_epochs, verbose, print_step, index, color, guess=None): 
-    colorstr = f'{color[0]}{color[1]}'
-    starttime = None
-    for (it, callback) in enumerate(planner.optimize(
-        key=key,
-        epochs=max_train_epochs,
-        step=1,
-        model_params=model_params,
-        policy_hyperparams=policy_hyperparams,
-        subs=subs,
-        guess=guess
-    )):
-        if starttime is None:
-            starttime = time.time()
-        currtime = time.time()  
-        elapsed = currtime - starttime    
-        if verbose and print_step is not None and print_step > 0 \
-        and it > 0 and it % print_step == 0:
-            print(f'|------ [{index}] {colorstr}' 
-                  '[{:.4f} s] step={} train_return={:.6f} test_return={:.6f} best_return={:.6f}'.format(
-                      index,
-                      elapsed,
-                      str(callback['iteration']).rjust(4),
-                      callback['train_return'],
-                      callback['test_return'],
-                      callback['best_return']) + 
-                  f'{Style.RESET_ALL}')
-        if not np.isfinite(callback['train_return']):
-            if verbose:
-                print(f'|------ [{index}] {colorstr}'
-                      f'warning: training aborted due to NaN or inf value'
-                      f'{Style.RESET_ALL}')
-            break
-        if elapsed >= timeout:
-            break
-    return callback
-
-
-def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
+def objective_slp(params, kwargs, key, index):
                     
     # transform hyper-parameters to natural space
     param_values = [
@@ -353,9 +289,8 @@ def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
         wa = None
                       
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'optimizing SLP with PRNG key={key}, ' 
-                f'std={std}, lr={lr}, w={w}, wa={wa}...{Style.RESET_ALL}')
+        print(f'[{index}] optimizing SLP with PRNG key={key}, ' 
+              f'std={std}, lr={lr}, w={w}, wa={wa}...')
         
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
@@ -367,25 +302,19 @@ def objective_slp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
         **kwargs['planner_kwargs'])
                     
     # perform training
-    callback = train_epoch(
+    callback = planner.optimize(
         key=key,
+        epochs=kwargs['train_epochs'],
+        train_seconds=kwargs['timeout_training'],
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
-        subs=None,
-        planner=planner,
-        timeout=kwargs['timeout_episode'],
-        max_train_epochs=kwargs['max_train_epochs'],
         verbose=kwargs['verbose'],
-        print_step=kwargs['print_step'],
-        index=index,
-        color=color,
-        guess=None)
+        return_callback=True,
+        tqdm_position=index)
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'done optimizing SLP, '
-                f'total reward={total_reward}{Style.RESET_ALL}')
+        print(f'[{index}] done optimizing SLP, reward={total_reward}')
     return total_reward
 
         
@@ -439,24 +368,22 @@ class JaxParameterTuningSLP(JaxParameterTuning):
         kwargs = {
             'rddl': self.env.model,
             'hyperparams_dict': self.hyperparams_dict,
-            'timeout_episode': self.timeout_episode,
-            'max_train_epochs': self.max_train_epochs,
+            'timeout_training': self.timeout_training,
+            'train_epochs': self.train_epochs,
             'planner_kwargs': planner_kwargs,
             'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
-            'print_step': self.print_step,
             'wrapped_bool_actions': self.wrapped_bool_actions
         }
         return objective_fn, kwargs
+
 
 # ===============================================================================
 # 
 # REPLANNING
 #
 # ===============================================================================
-
-
-def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
+def objective_replan(params, kwargs, key, index):
 
     # transform hyper-parameters to natural space
     param_values = [
@@ -472,10 +399,8 @@ def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET))
         wa = None
         
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-              f'optimizing MPC with PRNG key={key}, ' 
-              f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...'
-              f'{Style.RESET_ALL}')
+        print(f'[{index}] optimizing MPC with PRNG key={key}, ' 
+              f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
 
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
@@ -500,41 +425,28 @@ def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET))
         
         # start the next trial
         if kwargs['verbose']:
-            print(f'|--- [{index}] {color[0]}{color[1]}'
-                  f'starting trial {trial + 1} '
-                  f'with PRNG key={key}...{Style.RESET_ALL}')
+            print(f'--- [{index}] starting trial {trial + 1} with PRNG key={key}...')
             
         total_reward = 0.0
         guess = None
-        env.reset() 
-        starttime = time.time()
-        for _ in range(kwargs['eval_horizon']):
-            currtime = time.time()
-            elapsed = currtime - starttime            
-            if elapsed < kwargs['timeout_episode']:
-                subs = env.sampler.subs
-                timeout = min(kwargs['timeout_episode'] - elapsed,
-                              kwargs['timeout_epoch'])
-                key, subkey1, subkey2 = jax.random.split(key, num=3)
-                callback = train_epoch(
-                    key=subkey1,
-                    model_params=model_params,
-                    policy_hyperparams=policy_hyperparams,
-                    subs=subs,
-                    planner=planner,
-                    timeout=timeout,
-                    max_train_epochs=kwargs['max_train_epochs'],
-                    verbose=kwargs['verbose'],
-                    print_step=None,
-                    index=index,
-                    color=color,
-                    guess=guess)
-                params = callback['best_params']
-                action = planner.get_action(subkey2, params, 0, subs)
-                if kwargs['use_guess_last_epoch']:
-                    guess = planner.plan.guess_next_epoch(params)
-            else:
-                action = {}            
+        env.reset()
+        for _ in range(kwargs['eval_horizon']):      
+            subs = env.sampler.subs
+            key, subkey1, subkey2 = jax.random.split(key, num=3)
+            params = planner.optimize(
+                key=subkey1,
+                epochs=kwargs['train_epochs'],
+                train_seconds=kwargs['timeout_training'],
+                model_params=model_params,
+                policy_hyperparams=policy_hyperparams,
+                subs=subs,
+                guess=guess,
+                verbose=kwargs['verbose'],
+                tqdm_position=index)
+            action = planner.get_action(subkey2, params, 0, subs)
+            if kwargs['use_guess_last_epoch']:
+                guess = planner.plan.guess_next_epoch(params)
+            
             _, reward, done, _ = env.step(action)
             total_reward += reward 
             if done: 
@@ -542,21 +454,17 @@ def objective_replan(params, kwargs, key, index, color=(Fore.RESET, Back.RESET))
             
         # update average reward across trials
         if kwargs['verbose']:
-            print(f'|--- [{index}] {color[0]}{color[1]}'
-                  f'done trial {trial + 1}, '
-                  f'total reward={total_reward}{Style.RESET_ALL}')
+            print(f'--- [{index}] done trial {trial + 1}, reward={total_reward}')
         average_reward += total_reward / kwargs['eval_trials']
         
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-              f'done optimizing MPC, '
-              f'average reward={average_reward}{Style.RESET_ALL}')
+        print(f'[{index}] done optimizing MPC, average reward={average_reward}')
     return average_reward
 
     
 class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
     
-    def __init__(self, timeout_epoch: float,
+    def __init__(self, 
                  *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
                     'std': (-5., 0., power_ten),
@@ -570,8 +478,6 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
                  **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
         
-        :param timeout_epoch: the maximum amount of time to spend training per
-        decision time step
         :param *args: arguments to pass to parent class
         :param hyperparams_dict: same as parent class, but here must contain
         weight initialization (std), learning rate (lr), model weight (w), 
@@ -587,7 +493,6 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         super(JaxParameterTuningSLPReplan, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
         
-        self.timeout_epoch = timeout_epoch
         self.eval_trials = eval_trials
         self.use_guess_last_epoch = use_guess_last_epoch
         
@@ -609,28 +514,25 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
             'domain': self.env.domain_text,
             'instance': self.env.instance_text,
             'hyperparams_dict': self.hyperparams_dict,
-            'timeout_episode': self.timeout_episode,
-            'max_train_epochs': self.max_train_epochs,
+            'timeout_training': self.timeout_training,
+            'train_epochs': self.train_epochs,
             'planner_kwargs': planner_kwargs,
             'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
-            'print_step': self.print_step,
             'wrapped_bool_actions': self.wrapped_bool_actions,
-            'timeout_epoch': self.timeout_epoch,
             'eval_trials': self.eval_trials,
             'eval_horizon': self.env.horizon,
             'use_guess_last_epoch': self.use_guess_last_epoch
         }
         return objective_fn, kwargs
 
+
 # ===============================================================================
 # 
 # DEEP REACTIVE POLICIES
 #
 # ===============================================================================
-
-
-def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
+def objective_drp(params, kwargs, key, index):
                     
     # transform hyper-parameters to natural space
     param_values = [
@@ -642,9 +544,8 @@ def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
     lr, w, layers, neurons = param_values
                       
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'optimizing DRP with PRNG key={key}, ' 
-                f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...{Style.RESET_ALL}')
+        print(f'[{index}] optimizing DRP with PRNG key={key}, ' 
+              f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...')
            
     # initialize planner
     planner = JaxRDDLBackpropPlanner(
@@ -656,25 +557,19 @@ def objective_drp(params, kwargs, key, index, color=(Fore.RESET, Back.RESET)):
         **kwargs['planner_kwargs'])
     
     # perform training
-    callback = train_epoch(
+    callback = planner.optimize(
         key=key,
+        epochs=kwargs['train_epochs'],
+        train_seconds=kwargs['timeout_training'],
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: None for name in planner._action_bounds},
-        subs=None,
-        planner=planner,
-        timeout=kwargs['timeout_episode'],
-        max_train_epochs=kwargs['max_train_epochs'],
         verbose=kwargs['verbose'],
-        print_step=kwargs['print_step'],
-        index=index,
-        color=color,
-        guess=None)
+        return_callback=True,
+        tqdm_position=index)
     total_reward = float(callback['best_return'])
             
     if kwargs['verbose']:
-        print(f'| [{index}] {color[0]}{color[1]}'
-                f'done optimizing DRP, '
-                f'total reward={total_reward}{Style.RESET_ALL}')
+        print(f'[{index}] done optimizing DRP, reward={total_reward}')
     return total_reward
 
 
@@ -719,11 +614,10 @@ class JaxParameterTuningDRP(JaxParameterTuning):
         kwargs = {
             'rddl': self.env.model,
             'hyperparams_dict': self.hyperparams_dict,
-            'timeout_episode': self.timeout_episode,
-            'max_train_epochs': self.max_train_epochs,
+            'timeout_training': self.timeout_training,
+            'train_epochs': self.train_epochs,
             'planner_kwargs': planner_kwargs,
             'plan_kwargs': plan_kwargs,
-            'verbose': self.verbose,
-            'print_step': self.print_step
+            'verbose': self.verbose
         }
         return objective_fn, kwargs

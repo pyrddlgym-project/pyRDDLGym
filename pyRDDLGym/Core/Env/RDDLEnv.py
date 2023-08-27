@@ -15,7 +15,7 @@ from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeederFibonacci as RDDLSeede
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
-from pyRDDLGym.Visualizer.TextViz import TextVisualizer
+from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
 
 
 def _make_dir(simlogname, domain_name, instance_name):
@@ -173,7 +173,7 @@ class RDDLEnv(gym.Env):
 
         # set the visualizer
         # the next line should be changed for the default behaviour - TextVix
-        self._visualizer = TextVisualizer(self.model)
+        self._visualizer = ChartVisualizer(self.model)
         self._movie_generator = None
         self.state = None
         self.image = None
@@ -207,7 +207,7 @@ class RDDLEnv(gym.Env):
                 for action in actions 
                 if self.model.groundactionsranges()[action] == 'bool'
             ])
-        if (action_length > self.max_allowed_actions):
+        if action_length > self.max_allowed_actions:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Invalid action, expected at most '
                 f'{self.max_allowed_actions} entries, '

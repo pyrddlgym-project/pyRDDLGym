@@ -297,22 +297,10 @@ class JaxRDDLHybridBackpropUCTPlanner:
                 }
 
 
-def get_rddl(domain, inst):
-    try:
-        from rddlrepository.Manager.RDDLRepoManager import RDDLRepoManager
-        manager = RDDLRepoManager()
-        EnvInfo = manager.get_problem(domain)
-        print('reading domain from rddlrepository...')
-    except:
-        EnvInfo = ExampleManager.GetEnvInfo(domain)
-        print('reading domain from Examples...')
-    domain = EnvInfo.get_domain()
-    inst = EnvInfo.get_instance(inst)
-    return RDDLEnv(domain, inst).model
-
-
 if __name__ == '__main__':
-    rddl = get_rddl('CartPole_continuous', 0)
+    EnvInfo = ExampleManager.GetEnvInfo('CartPole_continuous')
+    rddl = RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(0)).model
+    
     world = JaxRDDLSimulator(rddl)
     planner = JaxRDDLHybridBackpropUCTPlanner(
         rddl, None, 5, 0.5, 0.5, 1.0,
