@@ -21,7 +21,7 @@ instance quadcopter_inst_0 {
 
 	max-nondef-actions = pos-inf;
 
-	horizon = 100;
+	horizon = 200;
 	
 	discount = 1.0;
 } 
