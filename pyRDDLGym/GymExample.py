@@ -6,7 +6,6 @@ from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
 
 def main(domain, instance, method_name=None, episodes=1):
-    print(f'preparing to launch instance {instance} of domain {domain}...')
     
     # get the environment info
     EnvInfo = ExampleManager.GetEnvInfo(domain)
@@ -45,8 +44,5 @@ if __name__ == "__main__":
         domain, instance, method_name = args[1:4]
     else:
         domain, instance, method_name, episodes = args[1:5]
-        try:
-            episodes = int(episodes)
-        except:
-            raise ValueError('episodes argument must be an integer, received:' + episodes)
+        episodes = int(episodes)
     main(domain, instance, method_name, episodes)
