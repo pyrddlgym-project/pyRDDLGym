@@ -26,9 +26,27 @@ def main(domain, instance, method_name=None, episodes=1):
                         num_actions=myEnv.numConcurrentActions,
                         seed=42)
     
-    # main simulation loop
-    agent.evaluate(myEnv, episodes=episodes, verbose=True, render=True)
-    
+    # main evaluation loop
+    # can do the following with one command
+    # agent.evaluate(myEnv, episodes=episodes, verbose=True, render=True)
+    for episode in range(episodes):
+        total_reward = 0
+        state = myEnv.reset()
+        for step in range(myEnv.horizon):
+            myEnv.render()
+            action = agent.sample_action(state)
+            next_state, reward, done, info = myEnv.step(action)
+            total_reward += reward
+            print(f'step       = {step}\n'
+                  f'state      = {state}\n'
+                  f'action     = {action}\n'
+                  f'next state = {next_state}\n'
+                  f'reward     = {reward}\n')
+            state = next_state
+            if done:
+                break
+        print(f'episode {episode} ended with return {total_reward}')
+        
     myEnv.close()
 
 
