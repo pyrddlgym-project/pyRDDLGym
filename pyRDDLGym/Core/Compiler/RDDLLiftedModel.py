@@ -370,8 +370,8 @@ class RDDLLiftedModel(PlanningModel):
 
     def _extract_discount(self):
         discount = self._AST.instance.discount
-        if not (0. <= discount <= 1.):
+        if not (0. <= discount):
             raise RDDLValueOutOfRangeError(
-                f'Discount factor {discount} in the instance is not in [0, 1].')
+                f'Discount factor {discount} in the instance is not >= 0')
         self.discount = discount
     

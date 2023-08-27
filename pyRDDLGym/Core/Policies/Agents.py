@@ -8,12 +8,18 @@ from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 
 
 class BaseAgent(metaclass=ABCMeta):
+    '''Base class for policies.'''
 
     @abstractmethod
     def sample_action(self, state: object) -> object:
+        '''Samples an action from the current policy evaluated at the given state.
+        
+        :param state: the current state
+        '''
         pass
     
     def reset(self) -> None:
+        '''Resets the policy and prepares it for the next episode.'''
         pass
     
     def evaluate(self, env: RDDLEnv, ground_state: bool=True,
@@ -30,13 +36,14 @@ class BaseAgent(metaclass=ABCMeta):
         at each step of the simulation
         :param render: visualize the domain using the env internal visualizer
         '''
+        gamma = env.discount
         
         history = np.zeros((episodes,))
         for episode in range(episodes):
             
             # restart episode
+            total_reward, cuml_gamma = 0.0, 1.0
             self.reset()
-            total_reward = 0.0
             state = env.reset()
             for step in range(env.horizon):
                 if render:
@@ -49,7 +56,8 @@ class BaseAgent(metaclass=ABCMeta):
                     policy_input = env.sampler.subs
                 action = self.sample_action(policy_input)    
                 next_state, reward, done, _ = env.step(action)
-                total_reward += reward           
+                total_reward += reward * cuml_gamma
+                cuml_gamma *= gamma
                 
                 # printing
                 if verbose: 
@@ -63,7 +71,7 @@ class BaseAgent(metaclass=ABCMeta):
                     break
             
             if verbose:
-                print(f'episode {episode + 1} ended with reward {total_reward}')
+                print(f'episode {episode + 1} ended with return {total_reward}')
             history[episode] = total_reward
         
         # summary statistics
