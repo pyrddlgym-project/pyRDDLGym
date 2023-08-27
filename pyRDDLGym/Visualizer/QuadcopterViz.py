@@ -25,18 +25,19 @@ class QuadcopterVisualizer(StateViz):
         self.fig = plt.figure(figsize=self._figure_size)
         self.ax = self.fig.add_subplot(111, projection='3d')
         
+        self.xs, self.ys, self.zs = {}, {}, {}
+        for dk in self._objects['drone']:
+            self.xs[dk] = []
+            self.ys[dk] = []
+            self.zs[dk] = []
+            
     def convert2img(self):
         img_buf = io.BytesIO()
         self.fig.savefig(img_buf, format='png')
         im = Image.open(img_buf)
         return im
-
+    
     def render(self, state):
-        scale = 1
-        
-        self.ax.set_xlim3d([-self._bound, self._bound])
-        self.ax.set_ylim3d([-self._bound, self._bound])
-        self.ax.set_zlim3d([-self._bound, self._bound])
         
         for dk in self._objects['drone']:
             pos = np.array([state[f'x___{dk}'], state[f'y___{dk}'], state[f'z___{dk}']])
@@ -48,29 +49,48 @@ class QuadcopterVisualizer(StateViz):
                 [cth * cps * sph + cph * sps, cph * cth * cps - sph * sps, -cps * sth],
                 [sph * sth, cph * sth, cth]
             ])
-            l = scale * self._nonfluents['L']
+            l = self._nonfluents['L']
             motor1 = (R @ np.array([[l], [0], [0]])).reshape((-1,)) + pos
             motor2 = (R @ np.array([[-l], [0], [0]])).reshape((-1,)) + pos
             motor3 = (R @ np.array([[0], [l], [0]])).reshape((-1,)) + pos
             motor4 = (R @ np.array([[0], [-l], [0]])).reshape((-1,)) + pos
             perp = (R @ np.array([[0], [0], [2 * l]])).reshape((-1,)) + pos
             
-            tpos = np.array([self._nonfluents[f'TX___{dk}'], 
-                             self._nonfluents[f'TY___{dk}'], 
+            tpos = np.array([self._nonfluents[f'TX___{dk}'],
+                             self._nonfluents[f'TY___{dk}'],
                              self._nonfluents[f'TZ___{dk}']])
             
-            self.ax.scatter(*pos, c='black', s=scale * self._nonfluents['R'])
-            self.ax.scatter(*motor1, c='black', s=scale * self._nonfluents['R'])
-            self.ax.scatter(*motor2, c='black', s=scale * self._nonfluents['R'])
-            self.ax.scatter(*motor3, c='black', s=scale * self._nonfluents['R'])
-            self.ax.scatter(*motor4, c='black', s=scale * self._nonfluents['R'])
-            self.ax.plot(*zip(pos, motor1), c='gray')
-            self.ax.plot(*zip(pos, motor2), c='gray')
-            self.ax.plot(*zip(pos, motor3), c='gray')
-            self.ax.plot(*zip(pos, motor4), c='gray')
-            self.ax.plot(*zip(pos, perp), c='red')
-            self.ax.scatter(*tpos, c='red', marker='>', alpha=0.5)
-            # self.ax.autoscale_view()
+            self.ax.scatter(*pos, c='black', s=(40 * self._nonfluents['R']) ** 2)
+            self.ax.scatter(*motor1, c='black', s=(20 * self._nonfluents['R']) ** 2)
+            self.ax.scatter(*motor2, c='black', s=(20 * self._nonfluents['R']) ** 2)
+            self.ax.scatter(*motor3, c='black', s=(20 * self._nonfluents['R']) ** 2)
+            self.ax.scatter(*motor4, c='black', s=(20 * self._nonfluents['R']) ** 2)
+            self.ax.plot(*zip(pos, motor1), c='black')
+            self.ax.plot(*zip(pos, motor2), c='black')
+            self.ax.plot(*zip(pos, motor3), c='black')
+            self.ax.plot(*zip(pos, motor4), c='black')
+            self.ax.plot(*zip(pos, perp), c='red', alpha=0.4)
+            self.ax.scatter(*tpos, c='red', marker='>', s=40)
+            
+            self.xs[dk].append(pos[0])
+            self.ys[dk].append(pos[1])
+            self.zs[dk].append(pos[2])
+            
+            self.ax.plot(self.xs[dk], self.ys[dk], self.zs[dk], 
+                         color='blue', alpha=0.1, linewidth=1.0)
+        
+        self.ax.set_xlim3d([-self._bound, self._bound])
+        self.ax.set_ylim3d([-self._bound, self._bound])
+        self.ax.set_zlim3d([-self._bound, self._bound])
+        self.ax.xaxis.set_pane_color((0.0, 0.0, 1.0, 0.05))
+        self.ax.yaxis.set_pane_color((0.0, 0.0, 1.0, 0.05))
+        self.ax.zaxis.set_pane_color((0.0, 0.0, 1.0, 0.05))
+        self.ax.tick_params(axis='x', colors='dimgray')
+        self.ax.tick_params(axis='y', colors='dimgray')
+        self.ax.tick_params(axis='z', colors='dimgray')
+        self.ax.grid(False)
+        plt.rcParams.update({'font.size': 12, 'font.family': 'Consolas'})
+        plt.tight_layout()
         
         pygame.time.wait(self._wait_time)
         

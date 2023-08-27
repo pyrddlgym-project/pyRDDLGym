@@ -33,6 +33,7 @@ domain quadcopter {
 		MR : { non-fluent, real, default = 0.1 };   // mass of each rotor
 		R : { non-fluent, real, default = 0.15 };   // radius of the center
 		L : { non-fluent, real, default = 0.3 };   // distance from center to propeller
+		DF : { non-fluent, real, default = 1.5 };   // distance factor of 2 * L for clearance to avoid collision
 		
 		K : { non-fluent, real, default = 0.01 };    // thrust coefficient, controls power -> motion
 		B : { non-fluent, real, default = 0.001 };    // controls strength of propeller torque -> torque due to drag
@@ -192,7 +193,7 @@ domain quadcopter {
 	reward = -DISTANCE * (sum_{?d : drone}[pow[x(?d) - TX(?d), 2] + pow[y(?d) - TY(?d), 2] + pow[z(?d) - TZ(?d), 2]])
 			- COLLISION * (sum_{?d1 : drone, ?d2 : drone}[
 				if ((ID(?d1) ~= ID(?d2)) 
-					^ (pow[x(?d1) - x(?d2), 2] + pow[y(?d1) - y(?d2), 2] + pow[z(?d1) - z(?d2), 2] <= pow[2 * L, 2]))
+					^ (pow[x(?d1) - x(?d2), 2] + pow[y(?d1) - y(?d2), 2] + pow[z(?d1) - z(?d2), 2] <= pow[2 * L * DF, 2]))
 				then 1 else 0])
 			- TILT * (sum_{?d : drone}[pow[phi(?d), 2] + pow[theta(?d), 2] + pow[psi(?d), 2]])
 			- WOBBLE * (sum_{?d : drone}[pow[phidot(?d), 2] + pow[thetadot(?d), 2] + pow[psidot(?d), 2]]);
