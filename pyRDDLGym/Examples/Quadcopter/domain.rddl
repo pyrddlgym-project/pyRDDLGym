@@ -33,7 +33,7 @@ domain quadcopter {
 		MR : { non-fluent, real, default = 0.1 };   // mass of each rotor
 		R : { non-fluent, real, default = 0.15 };   // radius of the center
 		L : { non-fluent, real, default = 0.3 };   // distance from center to propeller
-		DF : { non-fluent, real, default = 1.5 };   // distance factor of 2 * L for clearance to avoid collision
+		DF : { non-fluent, real, default = 2.0 };   // distance factor of 2 * L for clearance to avoid collision
 		
 		K : { non-fluent, real, default = 0.01 };    // thrust coefficient, controls power -> motion
 		B : { non-fluent, real, default = 0.001 };    // controls strength of propeller torque -> torque due to drag
