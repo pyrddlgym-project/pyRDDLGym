@@ -1,0 +1,207 @@
+// ***********************************************************************************************************
+// Quadcopter control
+// 
+// Author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
+// 
+// Sanca, Armando & Alsina, Pablo & Cerqueira, Jes. (2008). Dynamic Modelling of a Quadrotor Aerial Vehicle //
+// with Nonlinear Inputs. Latin American Robotics Symposium and Intelligent Robotics Meeting. 143-148. 10.1109/LARS.2008.17. 
+// 
+// Quadcopter Dynamics, Simulation, and Control:
+// https://andrew.gibiansky.com/downloads/pdf/Quadcopter%20Dynamics,%20Simulation,%20and%20Control.pdf
+//
+// ***********************************************************************************************************
+domain quadcopter {
+	
+	requirements = { 
+		intermediate-nodes,
+		reward-deterministic
+	};
+	
+	types {
+		drone : object;
+		propeller : { @1, @2, @3, @4 };
+	};
+	
+	pvariables { 
+	
+		// non-fluents include:
+		// physical attributes of the quadcopter
+		ID(drone) : { non-fluent, int, default = 1 }; // drone object to integer id
+		FMAX : { non-fluent, real, default = 1000000 }; // limit on state change
+		PMAX : { non-fluent, real, default = 10000 }; // limit on power
+		MC : { non-fluent, real, default = 0.3 };   // mass of the quadcopter center
+		MR : { non-fluent, real, default = 0.1 };   // mass of each rotor
+		R : { non-fluent, real, default = 0.15 };   // radius of the center
+		L : { non-fluent, real, default = 0.3 };   // distance from center to propeller
+		DF : { non-fluent, real, default = 1.5 };   // distance factor of 2 * L for clearance to avoid collision
+		
+		K : { non-fluent, real, default = 0.01 };    // thrust coefficient, controls power -> motion
+		B : { non-fluent, real, default = 0.001 };    // controls strength of propeller torque -> torque due to drag
+		KD : { non-fluent, real, default = 4.0 };   // friction coefficient
+		
+		// properties of the environment
+		DT : { non-fluent, real, default = 0.01 }; // time discretization step
+		G : { non-fluent, real, default = 9.8 };   // force of gravity
+		
+		// target coordinates
+		TX(drone) : { non-fluent, real, default = 0.0 };   // target x
+		TY(drone) : { non-fluent, real, default = 0.0 };   // target y
+		TZ(drone) : { non-fluent, real, default = 10.0 };  // target z
+		
+		// reward parameters
+		DISTANCE : { non-fluent, real, default = 1.0 }; 
+		COLLISION : { non-fluent, real, default = 10000.0 };
+		TILT : { non-fluent, real, default = 0.0001 };
+		WOBBLE : { non-fluent, real, default = 0.0001 };
+		
+		// state includes:
+		// position (x, y, z)
+		x(drone) : { state-fluent, real, default = 0.0 };
+		y(drone) : { state-fluent, real, default = 0.0 };
+		z(drone) : { state-fluent, real, default = 0.0 };
+		
+		// velocity (xdot, ydot, zdot)
+		xdot(drone) : { state-fluent, real, default = 0.0 };
+		ydot(drone) : { state-fluent, real, default = 0.0 };
+		zdot(drone) : { state-fluent, real, default = 0.0 };
+		
+		// angles (phi, theta, psi)
+		phi(drone) : { state-fluent, real, default = 0.0 };
+		theta(drone) : { state-fluent, real, default = 0.0 };
+		psi(drone) : { state-fluent, real, default = 0.0 };
+		
+		// angular velocity (phidot, thetadot, psidot)
+		phidot(drone) : { state-fluent, real, default = 0.0 };
+		thetadot(drone) : { state-fluent, real, default = 0.0 };
+		psidot(drone) : { state-fluent, real, default = 0.0 };
+		
+		// actions include:
+		// power of each propeller
+		power(drone, propeller) : { action-fluent, real, default = 0.0 };
+		
+		// intermediate fluents include:
+		// angular velocity in the body frame
+		omegax(drone) : { interm-fluent, real };
+		omegay(drone) : { interm-fluent, real };
+		omegaz(drone) : { interm-fluent, real };
+		
+		// rotation matrix for intertial to body frame
+		Rxz(drone) : { interm-fluent, real };
+		Ryz(drone) : { interm-fluent, real };
+		Rzz(drone) : { interm-fluent, real };	
+		
+		// linear acceleration after applying thrust
+		thrust(drone) : { interm-fluent, real };	
+		ax(drone) : { interm-fluent, real };	
+		ay(drone) : { interm-fluent, real };	
+		az(drone) : { interm-fluent, real };	
+		
+		// inertia matrix (diagonal)
+		Ix : { interm-fluent, real };
+		Iy : { interm-fluent, real };
+		Iz : { interm-fluent, real };
+		
+		// angular acceleration
+		tauphi(drone) : { interm-fluent, real };
+		tautheta(drone) : { interm-fluent, real };
+		taupsi(drone) : { interm-fluent, real };
+		
+		omegaxdot(drone) : { interm-fluent, real };
+		omegaydot(drone) : { interm-fluent, real };
+		omegazdot(drone) : { interm-fluent, real };
+		
+		// omega after Euler update
+		omegax2(drone) : { interm-fluent, real };
+		omegay2(drone) : { interm-fluent, real };
+		omegaz2(drone) : { interm-fluent, real };
+		Rinvxx(drone) : { interm-fluent, real };
+		Rinvxy(drone) : { interm-fluent, real };
+		Rinvxz(drone) : { interm-fluent, real };
+		Rinvyy(drone) : { interm-fluent, real };
+		Rinvyz(drone) : { interm-fluent, real };
+		Rinvzy(drone) : { interm-fluent, real };
+		Rinvzz(drone) : { interm-fluent, real };
+		
+	};
+  
+	cpfs {
+		
+		// convert inertial frame movement to body frame
+		omegax(?d) = 1 * phidot(?d) + 0 * thetadot(?d) + (-sin[theta(?d)]) * psidot(?d);
+		omegay(?d) = 0 * phidot(?d) + cos[phi(?d)] * thetadot(?d) + (cos[theta(?d)] * sin[phi(?d)]) * psidot(?d);
+		omegaz(?d) = 0 * phidot(?d) + (-sin[phi(?d)]) * thetadot(?d) + (cos[theta(?d)] * cos[phi(?d)]) * psidot(?d);
+		
+		// calculate rotation matrix
+		Rxz(?d) = sin[theta(?d)] * sin[psi(?d)];
+		Ryz(?d) = -cos[psi(?d)] * sin[theta(?d)];
+		Rzz(?d) = cos[theta(?d)];
+		
+		// calculate linear accelerations
+		thrust(?d) = K * (power(?d, @1) + power(?d, @2) + power(?d, @3) + power(?d, @4));
+		ax(?d) = min[FMAX, max[-FMAX, 0 + Rxz(?d) * thrust(?d) / (MC + 4 * MR) - KD * xdot(?d)]];
+		ay(?d) = min[FMAX, max[-FMAX, 0 + Ryz(?d) * thrust(?d) / (MC + 4 * MR) - KD * ydot(?d)]];
+		az(?d) = min[FMAX, max[-FMAX, -G + Rzz(?d) * thrust(?d) / (MC + 4 * MR) - KD * zdot(?d)]];
+		
+		// calculate inertia matrix
+		Ix = 0.4 * MC * pow[R, 2] + 2 * pow[L, 2] * MR;
+		Iy = Ix;
+		Iz = 0.4 * MC * pow[R, 2] + 4 * pow[L, 2] * MR;
+		
+		// calculate angular accelerations
+		tauphi(?d) = L * K * (power(?d, @1) - power(?d, @3));
+		tautheta(?d) = L * K * (power(?d, @2) - power(?d, @4));
+		taupsi(?d) = B * (power(?d, @1) - power(?d, @2) + power(?d, @3) - power(?d, @4));
+		omegaxdot(?d) = tauphi(?d) / Ix - ((Iy - Iz) / Ix) * omegay(?d) * omegaz(?d);
+		omegaydot(?d) = tautheta(?d) / Iy - ((Iz - Ix) / Iy) * omegax(?d) * omegaz(?d);
+		omegazdot(?d) = taupsi(?d) / Iz - ((Ix - Iy) / Iz) * omegax(?d) * omegay(?d);
+		
+		// Euler update for omega
+		omegax2(?d) = omegax(?d) + DT * omegaxdot(?d);
+		omegay2(?d) = omegay(?d) + DT * omegaydot(?d);
+		omegaz2(?d) = omegaz(?d) + DT * omegazdot(?d);
+		
+		// calculate matrix for body frame back to inertial
+		Rinvxx(?d) = 1.0;
+		Rinvxy(?d) = sin[theta(?d)] * sin[phi(?d)] / cos[theta(?d)];
+		Rinvxz(?d) = sin[theta(?d)] * cos[phi(?d)] / cos[theta(?d)];
+		Rinvyy(?d) = cos[phi(?d)];
+		Rinvyz(?d) = -sin[phi(?d)];
+		Rinvzy(?d) = sin[phi(?d)] / cos[theta(?d)];
+		Rinvzz(?d) = cos[phi(?d)] / cos[theta(?d)];
+		
+		// convert omega back to inertial frame
+		phidot'(?d) = min[FMAX, max[
+			-FMAX, Rinvxx(?d) * omegax2(?d) + Rinvxy(?d) * omegay2(?d) + Rinvxz(?d) * omegaz2(?d)]];
+		thetadot'(?d) = min[FMAX, max[
+			-FMAX, 0 * omegax2(?d) + Rinvyy(?d) * omegay2(?d) + Rinvyz(?d) * omegaz2(?d)]];
+		psidot'(?d) = min[FMAX, max[
+			-FMAX, 0 * omegax2(?d) + Rinvzy(?d) * omegay2(?d) + Rinvzz(?d) * omegaz2(?d)]];
+		
+		// Euler update for position and velocity
+		phi'(?d) = phi(?d) + DT * phidot(?d);
+		theta'(?d) = theta(?d) + DT * thetadot(?d);
+		psi'(?d) = psi(?d) + DT * psidot(?d);
+		xdot'(?d) = xdot(?d) + DT * ax(?d);
+		ydot'(?d) = ydot(?d) + DT * ay(?d);
+		zdot'(?d) = zdot(?d) + DT * az(?d);
+		x'(?d) = x(?d) + DT * xdot(?d);
+		y'(?d) = y(?d) + DT * ydot(?d);
+		z'(?d) = z(?d) + DT * zdot(?d);
+	};
+	
+	// distance to the target
+	reward = -DISTANCE * (sum_{?d : drone}[pow[x(?d) - TX(?d), 2] + pow[y(?d) - TY(?d), 2] + pow[z(?d) - TZ(?d), 2]])
+			- COLLISION * (sum_{?d1 : drone, ?d2 : drone}[
+				if ((ID(?d1) ~= ID(?d2)) 
+					^ (pow[x(?d1) - x(?d2), 2] + pow[y(?d1) - y(?d2), 2] + pow[z(?d1) - z(?d2), 2] <= pow[2 * L * DF, 2]))
+				then 1 else 0])
+			- TILT * (sum_{?d : drone}[pow[phi(?d), 2] + pow[theta(?d), 2] + pow[psi(?d), 2]])
+			- WOBBLE * (sum_{?d : drone}[pow[phidot(?d), 2] + pow[thetadot(?d), 2] + pow[psidot(?d), 2]]);
+  	
+	state-invariants {
+	};
+
+	action-preconditions {
+		forall_{?d : drone, ?p : propeller}[power(?d, ?p) >= -PMAX ^ power(?d, ?p) <= PMAX];
+	};
+}
