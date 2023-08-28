@@ -28,27 +28,16 @@ def main(domain, instance, method):
     controller = JaxOfflineController(planner, params={}, **train_args)
     
     # expand budget in config
-    train_args['train_seconds'] = 9999
-    train_args['epochs'] = 9999
+    train_args['train_seconds'] = 60
     
-    # we will train for 5 seconds, then evaluate, then repeat
-    eval_period, eval_phases = 5, 10
-    elapsed_time, elapsed_phase = 0, 0
+    # we will train for 10 seconds, then evaluate, then repeat
+    eval_period = 10
+    time_last_eval = 0
     for callback in planner.optimize_generator(**train_args):
-        
-        # check if enough time passed since last evaluation
-        time_from_last_eval = time.time() - elapsed_time
-        if time_from_last_eval >= eval_period:
-            
-            # update controller parameters and evaluate
+        if callback['elapsed_time'] - time_last_eval > eval_period:
             controller.params = callback['best_params']
-            controller.evaluate(env, ground_state=False, verbose=True, render=True)
-            
-            # update elapsed time
-            elapsed_time = time.time()
-            elapsed_phase += 1
-            if elapsed_phase >= eval_phases:
-                break
+            controller.evaluate(env, ground_state=False, verbose=False, render=True)
+            time_last_eval = callback['elapsed_time']
 
         
 if __name__ == "__main__":
