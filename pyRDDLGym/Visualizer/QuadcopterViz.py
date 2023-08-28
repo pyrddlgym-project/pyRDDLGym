@@ -82,13 +82,17 @@ class QuadcopterVisualizer(StateViz):
         self.ax.set_xlim3d([-self._bound, self._bound])
         self.ax.set_ylim3d([-self._bound, self._bound])
         self.ax.set_zlim3d([-self._bound, self._bound])
-        self.ax.xaxis.set_pane_color((0.0, 0.0, 1.0, 0.05))
-        self.ax.yaxis.set_pane_color((0.0, 0.0, 1.0, 0.05))
-        self.ax.zaxis.set_pane_color((0.0, 0.0, 1.0, 0.05))
+        self.ax.xaxis.set_pane_color((0.0, 0.0, 1.0, 0.0))
+        self.ax.yaxis.set_pane_color((0.0, 0.0, 1.0, 0.0))
+        self.ax.zaxis.set_pane_color((0.0, 0.0, 1.0, 0.0))
         self.ax.tick_params(axis='x', colors='dimgray')
         self.ax.tick_params(axis='y', colors='dimgray')
         self.ax.tick_params(axis='z', colors='dimgray')
-        self.ax.grid(False)
+        self.ax.xaxis._axinfo['grid']['linewidth'] = 0.1
+        self.ax.yaxis._axinfo['grid']['linewidth'] = 0.1
+        self.ax.zaxis._axinfo['grid']['linewidth'] = 0.1
+
+        # self.ax.grid(False)
         plt.rcParams.update({'font.size': 12, 'font.family': 'Consolas'})
         plt.tight_layout()
         
