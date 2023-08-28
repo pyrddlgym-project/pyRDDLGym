@@ -7,8 +7,17 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 
 
 class RDDLConstraints:
-
+    '''Provides added functionality to understand a set of action-preconditions
+    and state invariants in a RDDL file.'''
+    
     def __init__(self, simulator: RDDLSimulator, max_bound: float=np.inf) -> None:
+        '''Creates a new set of state and action constraints.
+        
+        :param simulator: the RDDL simulator to evaluate potential non-fluent
+        expressions nested in constraints
+        :param max_bound: initial value for maximum possible bounds
+        '''
+        
         self.sim = simulator
         self.rddl = simulator.rddl
         self.BigM = max_bound
@@ -43,15 +52,21 @@ class RDDLConstraints:
     def _parse_bounds(self, expr, objects, search_vars):
         etype, op = expr.etype
         
+        # for aggregation can only parse forall, since it is equivalent to a 
+        # set of independent constraints determined by the function aggregated
         if etype == 'aggregation' and op == 'forall':
             * pvars, arg = expr.args
             new_objects = objects + [pvar for (_, pvar) in pvars]
             self._parse_bounds(arg, new_objects, search_vars)
-            
+        
+        # for logical expression can only parse conjunction
+        # same rationale as forall discussed above
         elif etype == 'boolean' and op == '^':
             for arg in expr.args:
                 self._parse_bounds(arg, objects, search_vars)
-                
+        
+        # relational operation in constraint at the top level, i.e. constraint
+        # LHS <= RHS for example
         elif etype == 'relational':
             var, lim, loc, active = self._parse_bounds_relational(
                 expr, objects, search_vars)
@@ -81,6 +96,8 @@ class RDDLConstraints:
         is_left_pvar = left.is_pvariable_expression() and left.args[0] in search_vars
         is_right_pvar = right.is_pvariable_expression() and right.args[0] in search_vars
         
+        # both LHS and RHS are pvariable expressions, or relational operator 
+        # cannot be simplified further
         if (is_left_pvar and is_right_pvar) or op not in ['<=', '<', '>=', '>']:
             warnings.warn(
                 f'Constraint does not have a structure of '
@@ -90,11 +107,15 @@ class RDDLConstraints:
                     f'non-fluents or constants only.\n' + 
                     print_stack_trace(expr))
             return None, 0.0, None, []
-            
+        
+        # neither side is a pvariable, nothing to do
         elif not is_left_pvar and not is_right_pvar:
             return None, 0.0, None, []
         
+        # only one of LHS and RHS are pvariable expressions, other side constant
         else:
+            
+            # which one is the constant expression?
             if is_left_pvar:
                 var, args = left.args
                 const_expr = right
@@ -111,6 +132,8 @@ class RDDLConstraints:
                     print_stack_trace(const_expr))
                 return None, 0.0, None, []
             
+            # use the simulator to evaluate the constant side of the comparison
+            # this is likened to a constant-folding operation
             const = self.sim._sample(const_expr, self.sim.subs)
             eps, loc = self._get_op_code(op, is_left_pvar)
             lim = const + eps

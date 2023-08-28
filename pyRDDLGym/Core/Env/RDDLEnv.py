@@ -36,6 +36,7 @@ def _make_dir(simlogname, domain_name, instance_name):
 
 
 class RDDLEnv(gym.Env):
+    '''A gym environment class for RDDL domains.'''
     
     def __init__(self, domain: str,
                  instance: str=None,

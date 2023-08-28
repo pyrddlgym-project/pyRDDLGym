@@ -121,8 +121,19 @@ class RDDLObjectsTracer:
                 print_stack_trace(expr)) 
             
     def trace(self) -> RDDLTracedObjects:
-        '''Traces all expressions in CPF block and all constraints and annotates
-        AST nodes with object information.'''   
+        '''Traces all expressions in the current RDDL file and annotates
+        AST nodes with object information. 
+        
+        Important notes: 
+        (1) tracing annotates intermediate expressions in the AST with unique 
+        identifiers; if the shape or structure of the AST changes, it is required
+        to call trace() again to re-populate these IDs
+        (2) the identifiers are cached internally in each Expression node: care
+        must therefore be taken if object references in two different AST point
+        to the same underlying Expression object, since they could require 
+        different IDs; this generally shouldn't happen in typical use cases, but
+        any manual AST construction can simply ensure that all expressions to be
+        shared across different AST instances are (deep) copied.'''   
         rddl = self.rddl 
         out = RDDLTracedObjects()   
         

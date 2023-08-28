@@ -85,8 +85,14 @@ class BaseAgent(metaclass=ABCMeta):
 
 
 class RandomAgent(BaseAgent):
+    '''Uniformly pseudo-random policy.'''
 
     def __init__(self, action_space, num_actions=1, seed=None):
+        '''Creates a new uniformly pseudo-random policy.
+        
+        :param action_space: the set of actions from which to sample uniformly
+        :param num_actions: the number of samples to produce
+        '''
         self.action_space = action_space
         self.num_actions = num_actions
         self.rng = random.Random(seed)
@@ -110,8 +116,14 @@ class RandomAgent(BaseAgent):
 
 
 class NoOpAgent(BaseAgent):
-
+    '''No-op policy.'''
+    
     def __init__(self, action_space, num_actions=0):
+        '''Creates a new no-op policy.
+            
+        :param action_space: the set of actions (currently unused)
+        :param num_actions: the number of samples to produce (currently unused)
+        '''
         self.action_space = action_space
         self.num_actions = num_actions
 
