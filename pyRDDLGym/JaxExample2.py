@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config
