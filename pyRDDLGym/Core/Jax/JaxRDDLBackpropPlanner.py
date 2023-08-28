@@ -1379,7 +1379,9 @@ class JaxOfflineController(BaseAgent):
     '''A container class for a Jax policy trained offline.'''
     
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
-                 eval_hyperparams: Dict=None, **train_kwargs) -> None:
+                 eval_hyperparams: Dict[str, object]=None, 
+                 params: Dict[str, object]=None,
+                 **train_kwargs) -> None:
         '''Creates a new JAX offline control policy that is trained once, then
         deployed later.
         
@@ -1387,6 +1389,8 @@ class JaxOfflineController(BaseAgent):
         :param key: the RNG key to seed randomness
         :param eval_hyperparams: policy hyperparameters to apply for evaluation
         or whenever sample_action is called
+        :param params: use the specified policy parameters instead of calling
+        planner.optimize()
         :param **train_kwargs: any keyword arguments to be passed to the planner
         for optimization
         '''
@@ -1394,8 +1398,11 @@ class JaxOfflineController(BaseAgent):
         self.key = key
         self.eval_hyperparams = eval_hyperparams
         
-        self.params = self.planner.optimize(key=self.key, **train_kwargs)   
         self.reset()
+        if params is None:
+            self.params = self.planner.optimize(key=self.key, **train_kwargs) 
+        else:
+            self.parmas = params  
         
     def sample_action(self, state):
         self.key, subkey = random.split(self.key)
