@@ -1119,6 +1119,7 @@ class JaxRDDLBackpropPlanner:
         :param tqdm_position: position of tqdm progress bar (for multiprocessing)
         '''
         start_time = time.time()
+        elapsed_outside_loop = 0
         
         # compute a batched version of the initial values
         if subs is None:
@@ -1147,7 +1148,6 @@ class JaxRDDLBackpropPlanner:
             iters = tqdm(iters, total=100, position=tqdm_position)
         
         for it in iters:
-            elapsed = time.time() - start_time
             
             # update the parameters of the plan
             key, subkey1, subkey2, subkey3 = random.split(key, num=4)
@@ -1179,6 +1179,7 @@ class JaxRDDLBackpropPlanner:
                     key, policy_params, policy_hyperparams, test_subs, it)
             
             # if the progress bar is used
+            elapsed = time.time() - start_time - elapsed_outside_loop
             if verbose:
                 iters.n = 100 * min(1, max(elapsed / train_seconds, it / epochs))
                 iters.set_description(
@@ -1186,6 +1187,7 @@ class JaxRDDLBackpropPlanner:
                     f'Test={-test_loss:.6f} Best={-best_loss:.6f}')
             
             # return a callback
+            start_time_outside = time.time()
             yield {
                 'iteration': it,
                 'train_return':-train_loss,
@@ -1199,6 +1201,7 @@ class JaxRDDLBackpropPlanner:
                 'elapsed_time': elapsed,
                 **log
             }
+            elapsed_outside_loop += (time.time() - start_time_outside)
             
             # reached time budget
             if elapsed >= train_seconds:
