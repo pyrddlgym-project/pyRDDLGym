@@ -215,6 +215,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
 #
 # ***********************************************************************
 class JaxPlan:
+    '''Base class for all JAX policy representations.'''
     
     def __init__(self) -> None:
         self._initializer = None
@@ -1379,6 +1380,16 @@ class JaxOfflineController(BaseAgent):
     
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict=None, **train_kwargs) -> None:
+        '''Creates a new JAX offline control policy that is trained once, then
+        deployed later.
+        
+        :param planner: underlying planning algorithm for optimizing actions
+        :param key: the RNG key to seed randomness
+        :param eval_hyperparams: policy hyperparameters to apply for evaluation
+        or whenever sample_action is called
+        :param **train_kwargs: any keyword arguments to be passed to the planner
+        for optimization
+        '''
         self.planner = planner
         self.key = key
         self.eval_hyperparams = eval_hyperparams
@@ -1404,6 +1415,16 @@ class JaxOnlineController(BaseAgent):
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict=None, warm_start: bool=True,
                  **train_kwargs) -> None:
+        '''Creates a new JAX control policy that is trained online in a closed-
+        loop fashion.
+        
+        :param planner: underlying planning algorithm for optimizing actions
+        :param key: the RNG key to seed randomness
+        :param eval_hyperparams: policy hyperparameters to apply for evaluation
+        or whenever sample_action is called
+        :param **train_kwargs: any keyword arguments to be passed to the planner
+        for optimization
+        '''
         self.planner = planner
         self.key = key
         self.eval_hyperparams = eval_hyperparams

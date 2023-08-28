@@ -7,27 +7,33 @@ from typing import Set
 
 
 class Complement:
+    '''Base class for approximate logical complement operations.'''
     
     def __call__(self, x):
         raise NotImplementedError
 
 
 class StandardComplement(Complement):
+    '''The standard approximate logical complement given by x -> 1 - x.'''
     
     def __call__(self, x):
         return 1.0 - x
 
 
 class TNorm:
+    '''Base class for fuzzy differentiable t-norms.'''
     
     def norm(self, x, y):
+        '''Elementwise t-norm of x and y.'''
         raise NotImplementedError
     
     def norms(self, x, axis):
+        '''T-norm computed for tensor x along axis.'''
         raise NotImplementedError
         
 
 class ProductTNorm(TNorm):
+    '''Product t-norm given by the expression (x, y) -> x * y.'''
     
     def norm(self, x, y):
         return x * y
@@ -37,6 +43,7 @@ class ProductTNorm(TNorm):
 
 
 class GodelTNorm(TNorm):
+    '''Godel t-norm given by the expression (x, y) -> min(x, y).'''
     
     def norm(self, x, y):
         return jnp.minimum(x, y)
@@ -46,6 +53,7 @@ class GodelTNorm(TNorm):
 
 
 class LukasiewiczTNorm(TNorm):
+    '''Lukasiewicz t-norm given by the expression (x, y) -> max(x + y - 1, 0).'''
     
     def norm(self, x, y):
         return jax.nn.relu(x + y - 1.0)
@@ -300,14 +308,6 @@ class FuzzyLogic:
     #     new_param = (tags, self.error)
     #     return _jax_wrapped_calc_floor_approx, new_param
     #
-    # def ceil(self):
-    #     jax_floor, jax_param = self.floor()
-    #
-    #     def _jax_wrapped_calc_ceil_approx(x, param):
-    #         return -jax_floor(-x, param)
-    #
-    #     return _jax_wrapped_calc_ceil_approx, jax_param
-    
     def ceil(self):
         warnings.warn('Using the replacement rule: '
                       'ceil(x) --> ceil(x - 0.5) + step(x - 0.5), '
