@@ -333,10 +333,12 @@ Tuning of hyper-parameters can be done with only a slight modification of the pr
     best = tuning.tune(key=train_args['key'], filename='myOutputFile')
     print(f'best parameters found = {best}')
 
-The tuning algorithm initialization requires the ``num_workers`` parameter to specify the 
+The ``__init__`` method requires the ``num_workers`` parameter to specify the 
 number of parallel processes and the ``gp_iters`` to specify the number of iterations of Bayesian optimization to perform. 
+
 Upon executing this script, it will return a dictionary of the best hyper-parameters (e.g. learning rate, policy network architecture, model hyper-parameters, etc.).
 A log of the previous sets of hyper-parameters suggested by the algorithm is also recorded in the specified file.
+Deep reactive policies and re-planning algorithms can be tuned by replacing ``JaxParameterTuningSLP`` with ``JaxParameterTuningDRP`` and ``JaxParameterTuningSLPReplan``, respectively.
 
 Dealing with Non-Differentiable Expressions
 -------------------
