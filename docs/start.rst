@@ -197,7 +197,7 @@ The environment initialization has the following general structure:
     # set up the environment visualizer
     myEnv.set_visualizer(MyDomainViz)
 
-.. note::
+.. warning::
    The visualizer argument in ``set_visualizer`` should not contain the customary ``()`` when initializing the visualizer object, since this is done internally.
    So, instead of writing ``myEnv.set_visualizer(MyDomainViz(**MyArgs))``, write ``myEnv.set_visualizer(MyDomainViz, viz_kwargs=MyArgs)``.
    
