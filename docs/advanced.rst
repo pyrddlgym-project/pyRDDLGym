@@ -20,26 +20,6 @@ For the purpose of simulation, the default backend and the ``JaxRDDLSimulator`` 
 .. note::
    All RDDL syntax (both new and old!) is supported in the RDDL-to-JAX compiler.
 
-Logging RDDL Compilation
--------------------
-
-For purposes such as debugging, it is possible to log information about the RDDL compilation to a file.
-
-.. code-block:: python
-	
-	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0),
-                            debug=True)
-
-Upon executing this command, a log file is created with the name <domain name>_<instance name>.log in the installation's root directory.
-Currently, the following information is written in the generated log file:
-
-* description of pvariables as they are stored in memory (e.g., parameters, data type, data shape)
-* dependency graph between CPFs
-* calculated order of evaluation of CPFs
-* information used by the simulator and JAX compiler for operating on pvariables stored as arrays
-* simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
-* for JAX compilation, also prints the JAX compiled expressions corresponding to CPFs, reward and constraint expressions.
-
 Open-Loop Planning with JAX
 -------------------
 
