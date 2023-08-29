@@ -106,7 +106,7 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
                 break
     myEnv.close()
 
-We also provide a convenience function for policy evaluation, so it is not necessary to implement the interaction loop explicitly:
+We also provide a convenience ``evaluate`` function for policy evaluation, so it is not necessary to implement the interaction loop explicitly:
 
 .. code-block:: python
 	
