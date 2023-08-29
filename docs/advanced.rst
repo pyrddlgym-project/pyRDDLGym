@@ -126,8 +126,6 @@ This immediately begins training an open-loop plan with the specified hyper-para
 
 .. code-block:: python
 
-    import os
-
     from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
@@ -141,14 +139,10 @@ This immediately begins training an open-loop plan with the specified hyper-para
     myEnv.set_visualizer(EnvInfo.get_visualizer())
     
     # load the config file with planner settings from the JaxPlanConfigs
-    abs_path = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(abs_path, 'JaxPlanConfigs', f'{domain}_slp.cfg') 
     planner_args, _, train_args = load_config(config_path)
     
-    # create the planning algorithm
+    # create the planning algorithm, controller and begin training immediately
     planner = JaxRDDLBackpropPlanner(myEnv.model, **planner_args)
-    
-    # create the controller agent and begin training immediately
     controller = JaxOfflineController(planner, **train_args)
     
     # evaluate the agent, note the ground_state flag
