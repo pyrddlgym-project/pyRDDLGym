@@ -236,6 +236,6 @@ Custom Domains
 Writing new user defined domains is as easy as writing a few lines of text in a mathematical fashion!
 It is only required to specify the lifted constants, variables (all are referred as fluents in RDDL),
 behavior/dynamic of the problem and generating an instance with the actual objects and initial state in RDDL - and pyRDDLGym will do the rest.
-The syntax for building RDDL domains is described in the section RDDL Language Description.
+The syntax for building RDDL domains is described here: :ref:`rddl-description`.
 
 
