@@ -290,6 +290,54 @@ This can be passed to the planner as follows:
     planner = JaxRDDLBackpropPlanner(..., utility=entropic)
     ...
 
+Automatically Tuning Hyper-Parameters
+-------------------
+
+The different versions of JAX planner (straight-line, deep reactive) require a large number of tunable hyper-parameters to be specified, 
+making identification of parameters for obtaining good performance challenging.
+An algorithm is provided for automatically tuning key hyper-parameters, with the following features:
+
+* supports multi-processing by launching works in different parallel processes when evaluating hyper-parameters
+* leverages Bayesian optimization with Gaussian processes to perform more efficient search than random or grid search
+* supports straight-line planning and deep reactive policies
+
+Tuning of hyper-parameters can be done with only a slight modification of the previous codes:
+
+.. code-block:: python
+
+    from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config
+    from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLP
+    from pyRDDLGym.Examples.ExampleManager import ExampleManager
+
+    # create the environment
+    EnvInfo = ExampleManager.GetEnvInfo(domain)    
+    myEnv = RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(instance))
+    myEnv.set_visualizer(EnvInfo.get_visualizer())
+    
+    # load the config file with planner settings from the JaxPlanConfigs
+    # this is necessary to provide non-tunable parameters
+    planner_args, plan_args, train_args = load_config(config_path)
+    
+    # create the tuning algorithm
+    tuning = JaxParameterTuningSLP(
+        env=myEnv,
+        train_epochs=train_args['epochs'],
+        timeout_training=train_args['train_seconds'],
+        planner_kwargs=planner_args,
+        plan_kwargs=plan_args,
+        num_workers=workers,
+        gp_iters=iters)
+    
+    # perform tuning
+    best = tuning.tune(key=train_args['key'], filename='myOutputFile')
+    print(f'best parameters found = {best}')
+
+The tuning algorithm initialization requires the ``num_workers`` parameter to specify the 
+number of parallel processes and the ``gp_iters`` to specify the number of iterations of Bayesian optimization to perform. 
+Upon executing this script, it will return a dictionary of the best hyper-parameters (e.g. learning rate, policy network architecture, model hyper-parameters, etc.).
+A log of the previous sets of hyper-parameters suggested by the algorithm is also recorded in the specified file.
+
 Dealing with Non-Differentiable Expressions
 -------------------
 
