@@ -211,21 +211,21 @@ A ``MovieGenerator`` class is provided to allow capture of videos of agent behav
     from pyRDDLGym import RDDLEnv
     from pyRDDLGym.Visualizer.StateViz import StateViz
     from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
-	
-	# load the environment
+
+    # load the environment
     myEnv = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
 	
-	# set up the movie generator
-	movie_gen = MovieGenerator('myFilePath', 'myEnvName', max_frames=1000)
+    # set up the movie generator
+    movie_gen = MovieGenerator('myFilePath', 'myEnvName', max_frames=1000)
     
     # set up the environment visualizer, passing a movie generator to capture frames
     myEnv.set_visualizer(EnvInfo.get_visualizer(), movie_gen=movie_gen)
-	
-	# interact with myEnv as usual
-	...
-	
-	# close the environment
-	myEnv.close()
+
+    # interact with myEnv as usual
+    ...
+
+    # close the environment
+    myEnv.close()
 
 Upon calling ``myEnv.close()``, the images captured will be combined into video format and saved to the desired path.
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
