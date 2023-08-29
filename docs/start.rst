@@ -230,6 +230,39 @@ A ``MovieGenerator`` class is provided to allow capture of videos of agent behav
 Upon calling ``myEnv.close()``, the images captured will be combined into video format and saved to the desired path.
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
 
+Logging Data
+--------------------------
+
+In addition to recording images or video of agent behavior, it is also possible to log the raw simulation
+data about state, action, reward etc. in a separate log file. It is also possible to log compilation information
+to assist in debugging or for error reporting.
+
+To log information about the RDDL compilation to a file:
+
+.. code-block:: python
+	
+	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0),
+                            debug=True)
+
+Upon executing this command, a log file is created with the name <domain name>_<instance name>.log in the installation's root directory.
+Currently, the following information is written in the generated log file:
+
+* description of pvariables as they are stored in memory (e.g., parameters, data type, data shape)
+* dependency graph between CPFs
+* calculated order of evaluation of CPFs
+* information used by the simulator for operating on pvariables stored as arrays
+* simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
+* for JAX compilation, also prints the JAX compiled expressions corresponding to CPFs, reward and constraint expressions.
+
+To log simulation data to a file:
+
+.. code-block:: python
+	
+	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0),
+                            log=True, simlogname='MyLogName')
+                            
+Upon interacting with the environment, a log file is created in the Logs folder in pyRDDLGym.
+
 Custom Domains
 --------------------------
 
