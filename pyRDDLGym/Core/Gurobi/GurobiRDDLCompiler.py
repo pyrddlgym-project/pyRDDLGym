@@ -1,3 +1,4 @@
+from copy import deepcopy
 import math
 import numpy as np
 from typing import Dict, List, Tuple, TYPE_CHECKING
@@ -76,7 +77,7 @@ class GurobiRDDLCompiler:
         }
         
         # ground out the domain
-        grounder = RDDLGrounder(rddl._AST)
+        grounder = RDDLGrounder(deepcopy(rddl._AST))
         self.rddl = grounder.Ground()
         
         # compile initial values
@@ -94,6 +95,12 @@ class GurobiRDDLCompiler:
         tracer = RDDLObjectsTracer(self.rddl, logger=self.logger)
         self.traced = tracer.trace()
         
+        # calculate no-op actions
+        self.noop_actions = {}
+        for (var, values) in self.init_values.items():
+            if self.rddl.variable_types[var] == 'action-fluent':
+                self.noop_actions[var] = values
+                
     # ===========================================================================
     # main compilation subroutines
     # ===========================================================================
