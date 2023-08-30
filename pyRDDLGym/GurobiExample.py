@@ -28,7 +28,7 @@ def main(domain, instance, horizon):
             
 if __name__ == "__main__":
     args = sys.argv
-    domain, instance, horizon = 'Reservoir_continuous', 0, 5
+    domain, instance, horizon = 'Wildfire', 0, 5
     if len(args) == 2:
         domain = args[1]
     elif len(args) == 3:
