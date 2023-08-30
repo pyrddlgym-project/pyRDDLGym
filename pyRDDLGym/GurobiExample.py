@@ -16,10 +16,9 @@ def main(domain, instance, horizon):
     env.set_visualizer(EnvInfo.get_visualizer())
     
     # create the controller agent
-    plan = GurobiStraightLinePlan()
     controller = GurobiOnlineController(
         rddl=env.model,
-        plan=plan,
+        plan=GurobiStraightLinePlan(),
         rollout_horizon=horizon,
         model_params={'NonConvex': 2, 'OutputFlag': 1})
     
