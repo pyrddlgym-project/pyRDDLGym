@@ -12,7 +12,7 @@ def main(domain, instance, horizon):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     env = RDDLEnv(domain=EnvInfo.get_domain(),
                   instance=EnvInfo.get_instance(instance),
-                  enforce_action_constraints=False)
+                  enforce_action_constraints=True)
     env.set_visualizer(EnvInfo.get_visualizer())
     
     # create the controller agent
