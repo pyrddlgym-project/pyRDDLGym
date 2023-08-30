@@ -12,7 +12,7 @@ def main(domain, instance, horizon):
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
     env = RDDLEnv(domain=EnvInfo.get_domain(),
                   instance=EnvInfo.get_instance(instance),
-                  enforce_action_constraints=True)
+                  enforce_action_constraints=False)
     env.set_visualizer(EnvInfo.get_visualizer())
     
     # create the controller agent
@@ -28,7 +28,7 @@ def main(domain, instance, horizon):
             
 if __name__ == "__main__":
     args = sys.argv
-    domain, instance, horizon = 'Wildfire', 0, 5
+    domain, instance, horizon = 'Reservoir_continuous', 0, 5
     if len(args) == 2:
         domain = args[1]
     elif len(args) == 3:
