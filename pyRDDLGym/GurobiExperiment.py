@@ -279,7 +279,7 @@ class GurobiExperiment:
                 plt.axhline(y=sx, linestyle='dotted', color=colors[i])
                 plt.axhline(y=sy, linestyle='dotted', color=colors[i])
             plt.xlabel('$\\mathrm{epoch}$')
-            plt.ylabel(f'$\\mathrm{{{state_key}}}$')
+            plt.ylabel(f'$\\mathrm{{state \\ ({state_key})}}$')
             plt.legend()
             plt.tight_layout()
             plt.savefig(os.path.join(
@@ -301,7 +301,7 @@ class GurobiExperiment:
                                y=[f'$\\mathrm{{{action_name}}} {i + 1}$' for i in range(n_cols)], 
                                kind='bar')
             plt.xlabel('$\\mathrm{epoch}$')
-            plt.ylabel(f'$\\mathrm{{{action_name}}}$')
+            plt.ylabel(f'$\\mathrm{{action \\ ({action_name})}}$')
             plt.legend()
             plt.tight_layout()
             plt.savefig(os.path.join(
@@ -326,7 +326,7 @@ class GurobiExperiment:
                                  y=[f'$\\mathrm{{{noise_name}}} {i + 1}$' for i in range(n_cols)], 
                                  kind='bar')
                 plt.xlabel('$\\mathrm{epoch}$')
-                plt.ylabel(f'$\\mathrm{{{noise_name}}}$')
+                plt.ylabel(f'$\\mathrm{{noise \\ ({noise_name})}}$')
                 plt.legend()
                 plt.tight_layout()
                 plt.savefig(os.path.join(
