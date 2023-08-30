@@ -5,6 +5,7 @@ from gurobipy import GRB
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
+from pyRDDLGym.Core.Policies.Agents import BaseAgent
 
 UNBOUNDED = (-GRB.INFINITY, +GRB.INFINITY)
 
@@ -652,7 +653,7 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
 # - just simple determinized planner
 #
 # ***********************************************************************
-class GurobiOfflineController:
+class GurobiOfflineController(BaseAgent):
     '''A container class for a Gurobi policy trained offline.'''
     
     def __init__(self, rddl: RDDLLiftedModel,
@@ -698,10 +699,14 @@ class GurobiOfflineController:
         # inputs to the optimizer include all current fluent values
         subs = self.compiler._compile_init_subs()
         subs.update(self.compiler._compile_init_subs(state))
+        subs = {name: value[0] for (name, value) in subs.items()}
         
         # evaluate policy at the current time step
         action_values = self.plan.evaluate(
             self.compiler, params=self.params, step=self.step, subs=subs)
+        action_values = {name: value for (name, value) in action_values.items()
+                         if value != self.compiler.noop_actions[name]}
+        
         self.step += 1
         return action_values
                 
@@ -709,7 +714,7 @@ class GurobiOfflineController:
         self.step = 0
 
 
-class GurobiOnlineController: 
+class GurobiOnlineController(BaseAgent): 
     '''A container class for a Gurobi controller continuously updated using 
     state feedback.'''
 
@@ -746,6 +751,7 @@ class GurobiOnlineController:
         # inputs to the optimizer include all current fluent values
         subs = self.compiler._compile_init_subs()
         subs.update(self.compiler._compile_init_subs(state))
+        subs = {name: value[0] for (name, value) in subs.items()}     
         
         # optimize the policy parameters at the current time step
         model, _, params = self.compiler.compile(subs)
@@ -754,6 +760,8 @@ class GurobiOnlineController:
         # evaluate policy at the current time step with current inputs
         action_values = self.plan.evaluate(
             self.compiler, params=params, step=0, subs=subs)
+        action_values = {name: value for (name, value) in action_values.items()
+                         if value != self.compiler.noop_actions[name]}
         return action_values
         
     def reset(self):
