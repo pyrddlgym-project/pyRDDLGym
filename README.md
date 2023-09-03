@@ -88,7 +88,7 @@ pip install pyRDDLGym
 
 #### Known issues
 There are two known issues not documented with RDDL
-1. The minus (-) arithmatic operation must have spaces on both sides,
+1. The minus (-) arithmetic operation must have spaces on both sides,
 otherwise there is ambiguity is whether it is a mathematical operation of a fluent name.
 2. Aggregation union precedence requires for encapsulating parentheses, e.g., (sum_{}[]).
 
@@ -99,7 +99,7 @@ In addition, we supply two simple agents, to illustrate interaction with the env
 ```python
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
-from pyRDDLGym.Policies.Agents import RandomAgent
+from pyRDDLGym.Core.Policies.Agents import RandomAgent
 ```
 The list of examples can be obtained through the ExampleManager object:
 ```python
