@@ -2,7 +2,7 @@ import os
 
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeeder
-from pyRDDLGym.Policies.Agents import NoOpAgent as RDDLAgent
+from pyRDDLGym.Core.Policies.Agents import NoOpAgent as RDDLAgent
 
 
 def Test_instance(dom_path, inst_path, episodes=1):
@@ -12,7 +12,7 @@ def Test_instance(dom_path, inst_path, episodes=1):
                             debug=False,
                             seeds=[42, 43])
     agent = RDDLAgent(action_space=myEnv.action_space,
-                        num_actions=myEnv.numConcurrentActions)
+                      num_actions=myEnv.numConcurrentActions)
 
     for episode in range(episodes):
         total_reward = 0
@@ -46,7 +46,6 @@ def main(path):
     print(inst_path)
 
     Test_instance(dom_path, inst_path, 3)
-
 
 
 if __name__ == "__main__":
