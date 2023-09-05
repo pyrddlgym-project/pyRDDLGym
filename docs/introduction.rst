@@ -24,8 +24,7 @@ Please see our `paper <https://arxiv.org/abs/2211.05939>`_ describing pyRDDLGym.
       title={pyRDDLGym: From RDDL to Gym Environments},
       author={Taitler, Ayal and Gimelfarb, Michael and Gopalakrishnan, Sriram and Mladenov, Martin and Liu, Xiaotian and Sanner, Scott},
       journal={arXiv preprint arXiv:2211.05939},
-      year={2022}
-}
+      year={2022}}
 
 Status
 ------
