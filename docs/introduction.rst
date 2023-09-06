@@ -5,13 +5,10 @@ pyRDDLGym is A toolkit for auto-generation of OpenAI Gym environments from RDDL 
 
 Purpose and Benefits
 -----
-- Describe your environment in RDDL, and let pyRDDLGym convert it to a 
-standard OpenAI Gym environment for testing your reinforcement learning or planning algorithms
+- Describe your environment in RDDL, and let pyRDDLGym convert it to a standard OpenAI Gym environment for testing your reinforcement learning or planning algorithms
 - Compiler tools to help you understand the structure of your problem (i.e. dynamics, reward, constraints)
-- Visualization and video recording tools for monitoring and documenting 
-the behaviour of your algorithm
-- Support for new language features (i.e. multivariate distributions) 
-that were not present in older RDDL implementations
+- Visualization and video recording tools for monitoring and documenting the behaviour of your algorithm
+- Support for new language features (i.e. multivariate distributions) that were not present in older RDDL implementations
 - Planning baselines in Gurobi and JAX/TensorFlow that you can build upon
 
 Paper
