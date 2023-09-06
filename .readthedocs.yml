@@ -1,18 +1,26 @@
-# .readthedocs.yml
+ .readthedocs.yml
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
-# Required
-version: 1
+ # Required
+ version: 2
 
-# Build documentation in the docs/ directory with Sphinx
 sphinx:
-  configuration: docs/conf.py
+  builder: html
+  configuration: conf.py
+  fail_on_warning: true
 
-# Optionally build your docs in additional formats such as PDF
-formats:
-  - pdf
+ # Optionally build your docs in additional formats such as PDF
+ formats:
+   - pdf
 
-# Optionally set the version of Python and requirements required to build your docs
+build:
+  os: "ubuntu-22.04"
+  tools:
+    python: "3.8"
+
 python:
-  version: 3.8
+  install:
+    - requirements: equirements.txt
+
+
