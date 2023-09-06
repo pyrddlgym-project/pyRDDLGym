@@ -1,4 +1,4 @@
- .readthedocs.yml
+# .readthedocs.yml
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
@@ -10,9 +10,9 @@ sphinx:
   configuration: conf.py
   fail_on_warning: true
 
- # Optionally build your docs in additional formats such as PDF
- formats:
-   - pdf
+# Optionally build your docs in additional formats such as PDF
+formats:
+  - pdf
 
 build:
   os: "ubuntu-22.04"
