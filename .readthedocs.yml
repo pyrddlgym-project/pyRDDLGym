@@ -21,6 +21,6 @@ build:
 
 python:
   install:
-    - requirements: equirements.txt
+    - requirements: requirements.txt
 
 
