@@ -78,7 +78,7 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
 
     from pyRDDLGym import RDDLEnv
     from pyRDDLGym import ExampleManager
-    from pyRDDLGym.Policies.Agents import RandomAgent
+    from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
     # get the environment info
     EnvInfo = ExampleManager.GetEnvInfo('MarsRover')
