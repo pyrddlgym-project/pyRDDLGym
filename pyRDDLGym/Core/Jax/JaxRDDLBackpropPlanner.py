@@ -45,11 +45,17 @@ def _parse_config_file(path: str):
     return config, args
 
 
-def load_config(path: str) -> Tuple[Dict[str, object], ...]:
-    '''Loads a config file at the specified file path.'''
-    
-    # parse the config file
-    config, args = _parse_config_file(path)
+def _parse_config_string(value: str):
+    config = configparser.RawConfigParser()
+    config.optionxform = str 
+    config.read_string(value)
+    args = {k: literal_eval(v) 
+            for section in config.sections()
+            for (k, v) in config.items(section)}
+    return config, args
+
+
+def _load_config(config, args):
     model_args = {k: args[k] for (k, _) in config.items('Model')}
     planner_args = {k: args[k] for (k, _) in config.items('Optimizer')}
     train_args = {k: args[k] for (k, _) in config.items('Training')}    
@@ -86,6 +92,18 @@ def load_config(path: str) -> Tuple[Dict[str, object], ...]:
     planner_args['optimizer'] = getattr(optax, planner_args['optimizer'])
     
     return planner_args, plan_kwargs, train_args
+
+
+def load_config(path: str) -> Tuple[Dict[str, object], ...]:
+    '''Loads a config file at the specified file path.'''
+    config, args = _parse_config_file(path)
+    return _load_config(config, args)
+
+
+def load_config_from_string(value: str) -> Tuple[Dict[str, object], ...]:
+    '''Loads config file contents specified explicitly as a string value.'''
+    config, args = _parse_config_string(value)
+    return _load_config(config, args)
 
     
 # ***********************************************************************
@@ -1382,7 +1400,7 @@ class JaxOfflineController(BaseAgent):
     '''A container class for a Jax policy trained offline.'''
     
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
-                 eval_hyperparams: Dict[str, object]=None, 
+                 eval_hyperparams: Dict[str, object]=None,
                  params: Dict[str, object]=None,
                  **train_kwargs) -> None:
         '''Creates a new JAX offline control policy that is trained once, then
