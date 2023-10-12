@@ -21,3 +21,6 @@ VizRDDL/
 # Competition/
 TestingDomain/
 
+# macOS
+.DS_Store
+
