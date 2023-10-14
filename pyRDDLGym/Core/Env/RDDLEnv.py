@@ -75,7 +75,7 @@ class RDDLEnv(gym.Env):
         # hardcoded so cannot be changed externally for the purpose of the competition.
         # TODO: add it to the API after the competition
         self.budget = 240
-        self.seeds = seeds
+        self.seeds = iter(seeds)
 
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
