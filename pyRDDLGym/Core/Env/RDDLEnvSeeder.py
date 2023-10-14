@@ -1,42 +1,34 @@
 import abc
+import time
 
-from itertools import cycle
+MAX_INT_32 = 2 ** 31 - 1
 
 
 class RDDLEnvSeeder(metaclass=abc.ABCMeta):
-
-    @abc.abstractmethod
-    def Next(self) -> float:
-        pass
+    pass
 
 
 class RDDLEnvSeederFibonacci(RDDLEnvSeeder):
+    
+    def __iter__(self):
+        self.a = 1
+        self.b = 2
+        return self
+    
+    def __next__(self) -> int:
+        v = self.a
+        self.a, self.b = self.b, self.a + self.b
+        if self.b > MAX_INT_32:
+            self.a = self.a % MAX_INT_32
+            self.b = self.b % MAX_INT_32
+        return v
 
-    def __init__(self, a1=None):
-        self.an = 0
-        if a1 is None:
-            a1 = 1
-        self.anext = a1
 
-    def Next(self) -> float:
-        e = self.anext
-        self.anext = self.an + e
-        self.an = e
-        return e
-
-
-class RDDLEnvSeederCyclic(RDDLEnvSeeder):
-
-    def __init__(self, seed_list: list=None):
-        self.list = seed_list
-        self.iterator = None
-        if self.list is not None:
-            if len(self.list) > 0:
-                self.iterator = cycle(self.list)
-
-    def Next(self):
-        if self.iterator is not None:
-            return next(self.iterator)
-        else:
-            return None
-
+class RDDLEnvSeederTimestamp(RDDLEnvSeeder):
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self) -> int:
+        time_millis = int(time.time_ns())
+        return time_millis % MAX_INT_32
