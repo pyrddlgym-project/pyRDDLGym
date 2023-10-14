@@ -429,7 +429,7 @@ def objective_replan(params, kwargs, key, index):
             
         total_reward = 0.0
         guess = None
-        env.reset()
+        env.reset(seed=np.array(key)[0])
         for _ in range(kwargs['eval_horizon']):      
             subs = env.sampler.subs
             key, subkey1, subkey2 = jax.random.split(key, num=3)
@@ -441,7 +441,7 @@ def objective_replan(params, kwargs, key, index):
                 policy_hyperparams=policy_hyperparams,
                 subs=subs,
                 guess=guess,
-                verbose=kwargs['verbose'],
+                verbose=False,
                 tqdm_position=index)
             action = planner.get_action(subkey2, params, 0, subs)
             if kwargs['use_guess_last_epoch']:
@@ -471,7 +471,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
                     'lr': (-5., 0., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten),
-                    'T': (1, 100, int)
+                    'T': (1, 40, int)
                  },
                  eval_trials: int=5,
                  use_guess_last_epoch: bool=True,
