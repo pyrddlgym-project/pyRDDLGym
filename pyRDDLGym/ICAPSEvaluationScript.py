@@ -5,8 +5,11 @@ import os
 import sys
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+
+from pyRDDLGym.Core.Gurobi.GurobiParameterTuning import GurobiParameterTuningReplan
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiStraightLinePlan
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiOnlineController
+
 from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLPReplan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import _parse_config_file, _load_config
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
@@ -30,7 +33,7 @@ def main(method, domain, instance):
     env = RDDLEnv(domain=EnvInfo.get_domain(),
                   instance=EnvInfo.get_instance(instance),
                   enforce_action_constraints=True,
-                  log=True, simlogname=f'JaxPlan_{domain}_{instance}.log')
+                  log=True, simlogname=f'{filename}.log')
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +42,7 @@ def main(method, domain, instance):
     planner_args, plan_args, train_args = _load_config(config, args)
     
     # create the planning algorithm
+    tuning_key = int(datetime.now().timestamp())
     if method == 'jax':
         
         # run hyper-parameter tuning
@@ -51,7 +55,7 @@ def main(method, domain, instance):
             num_workers=CPUS,
             gp_iters=GP_ITERS,
             eval_trials=EPISODES)
-        params = tuning.tune(key=jax.random.PRNGKey(int(datetime.now().timestamp())),
+        params = tuning.tune(key=jax.random.PRNGKey(tuning_key),
                              filename=f'gp_{filename}')
         
         # update config with optimal hyper-parameters
@@ -70,11 +74,20 @@ def main(method, domain, instance):
         
     elif method == 'gurobi':
         
+        # run hyper-parameter tuning
+        tuning = GurobiParameterTuningReplan(
+            env, 
+            timeout_training=train_args['train_seconds'], 
+            num_workers=CPUS,  
+            gp_iters=GP_ITERS,
+            eval_trials=EPISODES)
+        params = tuning.tune(key=tuning_key, filename=f'{filename}')
+        
         # solve planning problem with new optimal parameters
         policy = GurobiOnlineController(
             rddl=env.model,
             plan=GurobiStraightLinePlan(),
-            rollout_horizon=planner_args['rollout_horizon'],
+            rollout_horizon=params['T'],
             model_params={'NonConvex': 2, 'OutputFlag': 0})
         ground_state = True
         
@@ -89,7 +102,7 @@ def main(method, domain, instance):
 
 
 if __name__ == '__main__':
-    method, domain, instance = 'jax', 'Wildfire_MDP_ippc2014', '1'
+    method, domain, instance = 'gurobi', 'Wildfire_MDP_ippc2014', '1'
     # method, domain, instance = sys.argv[1:4]
     main(method, domain, instance)
     
