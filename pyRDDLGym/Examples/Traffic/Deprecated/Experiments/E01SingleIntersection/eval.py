@@ -4,11 +4,12 @@ from scipy.stats import bernoulli
 
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
-from pyRDDLGym.Policies.Agents import RandomAgent
+from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
 from learned_plans.two_cycle import plan as JAX2CyclePlan
 
-parser = argparse.ArgumentParser(description='Evaluating benchmarks for a single-intersection traffic scenario')
+parser = argparse.ArgumentParser(
+    description='Evaluating benchmarks for a single-intersection traffic scenario')
 parser.add_argument('agent', type=str, choices=[
     'webster',
     'random',
@@ -16,7 +17,8 @@ parser.add_argument('agent', type=str, choices=[
     'max',
     'jax2cycle'
 ])
-parser.add_argument('-r', '--render', action='store_true', help='Whether to render (visualize) the rollout')
+parser.add_argument('-r', '--render', action='store_true',
+                    help='Whether to render (visualize) the rollout')
 parser.add_argument('-w', '--warmup', type=int, default=-1)
 args = parser.parse_args()
 
@@ -38,28 +40,41 @@ if args.render:
 # set up agent
 webster_change_ts = {32, 36, 69, 73, 106, 110, 143, 147}
 webster_CT = 148
+
+
 def get_webster_action(step):
-    return {'advance___i0': step%webster_CT in webster_change_ts}
+    return {'advance___i0': step % webster_CT in webster_change_ts}
+
 
 random_agent = RandomAgent(action_space=myEnv.action_space,
                            num_actions=myEnv.numConcurrentActions)
 flips = bernoulli.rvs(0.5, size=myEnv.horizon)
+
+
 def get_random_action(step):
     return {'advance___i0': flips[step]}
     return random_agent.sample_action()
 
+
 min_change_ts = {5, 9, 15, 19, 25, 29, 35, 39}
 min_CT = 40
+
+
 def get_min_action(step):
-    return {'advance___i0': step%min_CT in min_change_ts}
+    return {'advance___i0': step % min_CT in min_change_ts}
+
 
 max_change_ts = {59, 63, 123, 127, 187, 191, 251, 255}
 max_CT = 256
+
+
 def get_max_action(step):
-    return {'advance___i0': step%min_CT in max_change_ts}
+    return {'advance___i0': step % min_CT in max_change_ts}
+
 
 def get_jax_2_cycle_action(step):
     return {'advance___i0': JAX2CyclePlan[step]}
+
 
 if args.agent == 'random':
     get_action = get_random_action
@@ -92,7 +107,8 @@ for step in range(args.warmup):
 
 # evaluate
 for step in range(myEnv.horizon-args.warmup):
-    if args.render: myEnv.render()
+    if args.render:
+        myEnv.render()
     action = get_action(step)
     next_state, reward, done, info = myEnv.step(action)
     total_reward += reward

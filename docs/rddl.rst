@@ -1,3 +1,4 @@
+.. _rddl-description:
 
 RDDL Language Description
 ===============

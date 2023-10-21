@@ -113,6 +113,10 @@ class RDDLSimulator:
                             'switch': np.select}
     
     def seed(self, seed: int) -> None:
+        '''Sets the pseudo-random RNG seed for generating random numbers.
+        
+        :param seed: seed value to use for all future simulations
+        '''
         self.rng = np.random.default_rng(seed)
         
     def _compile(self):

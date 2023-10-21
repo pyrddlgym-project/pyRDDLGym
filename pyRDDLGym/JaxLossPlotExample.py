@@ -1,10 +1,12 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import os
 import plotly.graph_objects as go
 
-from pyRDDLGym.JaxExample import slp_train
-from pyRDDLGym.Planner import JaxConfigManager
+from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config, JaxRDDLBackpropPlanner
+from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 
 def sample_points(center, dir1, dir2, x1min, x1max, x2min, x2max, n):
@@ -39,10 +41,7 @@ def _shape_info(planner):
     return shapes, starts, sizes, count_entries
 
     
-def loss_surface(problem, w=None, wa=None, train=True):
-    
-    # create the planning problem but non-aggregated return
-    _, planner, _, _, train_args, _ = JaxConfigManager.get(f'{problem}.cfg')
+def loss_surface(planner, train_args, w=None, wa=None, train=True):
     
     model_params = planner.compiled.model_params
     if w is not None:
@@ -55,6 +54,7 @@ def loss_surface(problem, w=None, wa=None, train=True):
     # plan vector
     shapes, starts, sizes, _ = _shape_info(planner)
     
+    @jax.jit
     def unravel_params(params):
         policy_params = {}
         for name in planner.compiled.rddl.actions:
@@ -70,15 +70,17 @@ def loss_surface(problem, w=None, wa=None, train=True):
     subs = train_subs if train else test_subs
     loss_fn = planner.train_loss if train else planner.test_loss
     
+    @jax.jit
     def loss_func(params):
         params = unravel_params(params)
         loss, _ = loss_fn(key, params, hyperparams, subs, model_params)
         return loss
         
+    @jax.jit
     def loss_func_batched(params):
         return jnp.ravel(jax.vmap(loss_func)(params))
     
-    return jax.jit(loss_func_batched)
+    return loss_func_batched
 
 
 def plot_surface(x, y, z, name):
@@ -89,18 +91,19 @@ def plot_surface(x, y, z, name):
     fig.show()
 
 
-def run_experiment(problem, probname,
+def run_experiment(config_path, dom, env,
                    xmax=25.0, n=500, iters=100,
                    ws=[(100.0, 5.0), (100.0, 5.0), (10000.0, 100.0)]):
     
     # solve with default parameters
-    _, planner, _, _, train_args, _ = JaxConfigManager.get(f'{problem}.cfg')
-    sol_params = slp_train(planner, 60, **train_args)
+    planner_args, _, train_args = load_config(config_path)
+    planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
+    params = planner.optimize(**train_args)
     
     # reshape to solution vector
     _, starts, sizes, count_entries = _shape_info(planner)
     center = np.zeros((count_entries,))
-    for name, value in sol_params.items():
+    for name, value in params.items():
         start = starts[name]
         center[start:start + sizes[name]] = np.ravel(value)
     
@@ -112,7 +115,7 @@ def run_experiment(problem, probname,
     
     # evaluate loss surfaces
     for i, (w, wa) in enumerate(ws):
-        loss_func = loss_surface(problem, w=w, wa=wa, train=i > 0)
+        loss_func = loss_surface(planner, train_args, w=w, wa=wa, train=i > 0)
         zbatches = []
         for j in range(iters):
             print(f'batch {j}')
@@ -120,9 +123,15 @@ def run_experiment(problem, probname,
             zbatch = np.asarray(loss_func(batch))
             zbatches.append(zbatch)
         z = np.concatenate(zbatches)
-        plot_surface(x, y, z, f'surface_{i}_{probname}')
+        plot_surface(x, y, z, f'surface_{i}_{dom}')
 
 
-if __name__ == '__main__':
-    problem, probname = 'Wildfire', 'Wildfire'
-    run_experiment(problem, probname)
+if __name__ == '__main__': 
+    EnvInfo = ExampleManager.GetEnvInfo('Wildfire')    
+    env = RDDLEnv(domain=EnvInfo.get_domain(),
+                  instance=EnvInfo.get_instance(0))
+    
+    abs_path = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(abs_path, 'JaxPlanConfigs', 'Wildfire_slp.cfg')
+    
+    run_experiment(config_path, 'Wildfire', env)
