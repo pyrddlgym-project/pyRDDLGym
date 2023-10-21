@@ -2,7 +2,7 @@ import os
 
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
-from pyRDDLGym.Policies.Agents import RandomAgent
+from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
 ENVS = ['HVAC', 'RaceCar', 'UAV_continuous', 'MarsRover', 'PowerGen_continuous', 'MountainCar', 'RecSim', 'Reservoir_continuous']
 

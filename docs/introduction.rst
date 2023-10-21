@@ -3,11 +3,25 @@ Introduction
 
 pyRDDLGym is A toolkit for auto-generation of OpenAI Gym environments from RDDL description files.
 
-This toolkit is the official evaluation system of the `2023 IPC RL and planning track <https://ataitler.github.io/IPPC2023/>`_.
+Purpose and Benefits
+-----
+- Describe your environment in RDDL, and let pyRDDLGym convert it to a standard OpenAI Gym environment for testing your reinforcement learning or planning algorithms
+- Compiler tools to help you understand the structure of your problem (i.e. dynamics, reward, constraints)
+- Visualization and video recording tools for monitoring and documenting the behaviour of your algorithm
+- Support for new language features (i.e. multivariate distributions) that were not present in older RDDL implementations
+- Planning baselines in Gurobi and JAX/TensorFlow that you can build upon
 
 Paper
 -----
-Please see our `paper <https://arxiv.org/abs/2211.05939>`_ describing pyRDDLGym.
+Please see our `paper <https://arxiv.org/abs/2211.05939>`_ describing pyRDDLGym. To cite:
+
+.. code-block:: python
+
+    @article{taitler2022pyrddlgym,
+      title={pyRDDLGym: From RDDL to Gym Environments},
+      author={Taitler, Ayal and Gimelfarb, Michael and Gopalakrishnan, Sriram and Mladenov, Martin and Liu, Xiaotian and Sanner, Scott},
+      journal={arXiv preprint arXiv:2211.05939},
+      year={2022}}
 
 Status
 ------
@@ -52,6 +66,9 @@ Software for related simulators:
 - `rddlsim <https://github.com/ssanner/rddlsim>`_
 - `rddlgym <https://github.com/thiagopbueno/rddlgym>`_
 - `pddlgym <https://github.com/tomsilver/pddlgym>`_
+
+
+This toolkit was the official evaluation system of the `2023 IPC RL and planning track <https://ataitler.github.io/IPPC2023/>`_.
 
 License
 -------

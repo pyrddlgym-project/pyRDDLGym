@@ -1,18 +1,42 @@
+
 # pyRDDLGym
 
 A toolkit for auto-generation of OpenAI Gym environments from RDDL description files. <br />
-This toolkit is the official evaluation system of the [2023 IPC RL and planning track](https://ataitler.github.io/IPPC2023/).
 
-### Paper
-Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym.
+<p float="left">
+<img src="banner_cpfs.jpg" width="600" height="200"/><img src="banner_sim.gif" width="200" height="200"/> 
+</p>
 
-### Tutorial
+## Purpose and Benefits
+* Describe your environment in RDDL, and let pyRDDLGym convert it to a standard OpenAI Gym environment for training and testing your reinforcement learning or planning algorithms
+* Compiler tools to help you understand the structure of your problem (i.e. dynamics, reward, constraints)
+* Visualization and video recording tools for monitoring and documenting the behaviour of your algorithm
+* Support for new language features (i.e. multivariate distributions) that were not present in older RDDL implementations
+* Planning baselines in Gurobi and JAX/TensorFlow that you can build upon
+
+## Paper
+
+Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym. If you found this useful, please consider citing us:
+
+```
+@article{taitler2022pyrddlgym,
+      title={pyRDDLGym: From RDDL to Gym Environments},
+      author={Taitler, Ayal and Gimelfarb, Michael and Gopalakrishnan, Sriram and Mladenov, Martin and Liu, Xiaotian and Sanner, Scott},
+      journal={arXiv preprint arXiv:2211.05939},
+      year={2022}}
+```
+
+## Tutorial
+
+This toolkit was the official evaluation system of the [2023 IPC RL and planning track](https://ataitler.github.io/IPPC2023/).
+
 Please see the following slides and notebook which were given as a tutorial at ICAPS 2023:
 * [Part 1 slides](https://github.com/ataitler/pyRDDLGym/raw/main/Tutorial/RDDL_Tutorial_ICAPS_2023_Part_1.pdf)
 * [Part 2 slides](https://github.com/ataitler/pyRDDLGym/raw/main/Tutorial/Tutorial_part2.pdf)
-* [Tutorial notebook](https://colab.research.google.com/drive/1wdX0MbjmjpC7NvBRFlTQ8kvi1uuTCQaK?usp=sharing)
+* [Tutorial notebook](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing)
+<!---* [Tutorial notebook](https://colab.research.google.com/drive/1wdX0MbjmjpC7NvBRFlTQ8kvi1uuTCQaK?usp=sharing) --->
 
-### Status
+## Status
 pyRDDLGym supports a major subset of the original RDDL language:
 * [RDDL](https://users.cecs.anu.edu.au/~ssanner/IPPC_2011/RDDL.pdf)
 
@@ -65,12 +89,12 @@ The parser used in this project is based on the parser from
 Thiago Pbueno's [pyrddl](https://github.com/thiagopbueno/pyrddl)
 (used in [rddlgym](https://github.com/thiagopbueno/rddlgym)).
 
-### Installation
+## Installation
 
-#### Python version
+### Python version
 We require Python 3.8+.
 
-###Requirements:
+### Requirements:
 * ply
 * pillow>=9.2.0
 * numpy>=1.22
@@ -78,12 +102,12 @@ We require Python 3.8+.
 * gym>=0.24.0
 * pygame
 
-#### Installing via pip
+### Installing via pip
 pip install pyRDDLGym
 
-#### Known issues
+### Known issues
 There are two known issues not documented with RDDL
-1. The minus (-) arithmatic operation must have spaces on both sides,
+1. The minus (-) arithmetic operation must have spaces on both sides,
 otherwise there is ambiguity is whether it is a mathematical operation of a fluent name.
 2. Aggregation union precedence requires for encapsulating parentheses, e.g., (sum_{}[]).
 
@@ -94,7 +118,7 @@ In addition, we supply two simple agents, to illustrate interaction with the env
 ```python
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
-from pyRDDLGym.Policies.Agents import RandomAgent
+from pyRDDLGym.Core.Policies.Agents import RandomAgent
 ```
 The list of examples can be obtained through the ExampleManager object:
 ```python

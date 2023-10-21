@@ -11,11 +11,11 @@ from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError, RDDLLogFol
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Debug.Logger import Logger, SimLogger
 from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
-from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeederFibonacci as RDDLSeeder
+from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeeder, RDDLEnvSeederFibonacci
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
-from pyRDDLGym.Visualizer.TextViz import TextVisualizer
+from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
 
 
 def _make_dir(simlogname, domain_name, instance_name):
@@ -36,6 +36,7 @@ def _make_dir(simlogname, domain_name, instance_name):
 
 
 class RDDLEnv(gym.Env):
+    '''A gym environment class for RDDL domains.'''
     
     def __init__(self, domain: str,
                  instance: str=None,
@@ -46,7 +47,7 @@ class RDDLEnv(gym.Env):
                  simlogname: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
                  backend_kwargs: Dict={},
-                 seeds: list=None):
+                 seeds: RDDLEnvSeeder=RDDLEnvSeederFibonacci()):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -62,7 +63,7 @@ class RDDLEnv(gym.Env):
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
         pass to backend (must not include logger)
-        :param seeds: list of seeds for the cyclic iterator. Will be seeded in the reset function.
+        :param seeds: an instance of RDDLEnvSeeder for generating RNG seeds
         '''
         super(RDDLEnv, self).__init__()
         self.domain_text = domain
@@ -74,7 +75,7 @@ class RDDLEnv(gym.Env):
         # hardcoded so cannot be changed externally for the purpose of the competition.
         # TODO: add it to the API after the competition
         self.budget = 240
-        self.seeds = RDDLSeeder(a1=1)
+        self.seeds = iter(seeds)
 
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
@@ -173,7 +174,7 @@ class RDDLEnv(gym.Env):
 
         # set the visualizer
         # the next line should be changed for the default behaviour - TextVix
-        self._visualizer = TextVisualizer(self.model)
+        self._visualizer = ChartVisualizer(self.model)
         self._movie_generator = None
         self.state = None
         self.image = None
@@ -207,7 +208,7 @@ class RDDLEnv(gym.Env):
                 for action in actions 
                 if self.model.groundactionsranges()[action] == 'bool'
             ])
-        if (action_length > self.max_allowed_actions):
+        if action_length > self.max_allowed_actions:
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Invalid action, expected at most '
                 f'{self.max_allowed_actions} entries, '
@@ -268,7 +269,7 @@ class RDDLEnv(gym.Env):
         if seed is not None:
             self.seed(seed)
         else:
-            seed = self.seeds.Next()
+            seed = next(self.seeds)
             if seed is not None:
                 self.seed(seed)
 

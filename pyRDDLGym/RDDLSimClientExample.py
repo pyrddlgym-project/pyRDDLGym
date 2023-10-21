@@ -1,7 +1,7 @@
 import sys
 
 from pyRDDLGym import ExampleManager
-from pyRDDLGym.Policies.RDDLSimAgent import RDDLSimAgent
+from pyRDDLGym.Core.Policies.RDDLSimAgent import RDDLSimAgent
 
 def main(domain):
     EnvInfo = ExampleManager.GetEnvInfo(domain)

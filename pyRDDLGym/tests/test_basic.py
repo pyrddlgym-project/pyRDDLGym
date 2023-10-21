@@ -1,16 +1,18 @@
 from pyRDDLGym.Core.Env import RDDLEnv as RDDLEnv
-from pyRDDLGym.Policies.Agents import RandomAgent
+from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
-FOLDER = 'Competition/MountainCar/'
+FOLDER = 'pyRDDLGym/Examples/MountainCar/'
 
 
 def main():
-    myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl', instance=FOLDER + 'instance0.rddl', is_grounded=False)
-    agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
-    
+    myEnv = RDDLEnv.RDDLEnv(domain=FOLDER + 'domain.rddl',
+                            instance=FOLDER + 'instance0.rddl')
+    agent = RandomAgent(action_space=myEnv.action_space,
+                        num_actions=myEnv.numConcurrentActions)
+
     from pprint import pprint
     pprint(vars(myEnv.model))
-    
+
     total_reward = 0
     state = myEnv.reset()
     for step in range(myEnv.model.horizon):
