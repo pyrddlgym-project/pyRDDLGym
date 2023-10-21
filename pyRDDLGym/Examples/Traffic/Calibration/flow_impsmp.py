@@ -22,9 +22,11 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLCompilerWithGrad
 t0 = timer()
 
 from jax.config import config as jconfig
+useGPU = False
+platform_name = 'gpu' if useGPU else 'cpu'
 use64bit = True # tfp.bijectors.SoftClip seems to have a bug with float64
 jconfig.update('jax_debug_nans', True)
-jconfig.update('jax_platform_name', 'cpu')
+jconfig.update('jax_platform_name', platform_name)
 jconfig.update('jax_enable_x64', use64bit)
 jnp.set_printoptions(
     linewidth=9999,
@@ -43,7 +45,8 @@ myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
 model = myEnv.model
 N = myEnv.numConcurrentActions
 
-init_state_subs, t_warmup = myEnv.sampler.subs, 0
+init_state_subs = myEnv.sampler.subs
+t_warmup = 0
 t_plan = myEnv.horizon
 rollout_horizon = t_plan - t_warmup
 
@@ -78,12 +81,12 @@ def policy_fn(key, policy_params, hyperparams, step, states):
 # number of shards per batch (e.g. for splitting the computation on a GPU)
 n_shards = 1
 # number of rollouts per shard
-n_rollouts = 128
-batch_size = n_rollouts * n_shards
+n_rollouts_per_shard = 128
+batch_size = n_rollouts_per_shard * n_shards
 
 sampler = compiler.compile_rollouts(policy=policy_fn,
                                     n_steps=rollout_horizon,
-                                    n_batch=n_rollouts)
+                                    n_batch=n_rollouts_per_shard)
 sampler_hmc = compiler.compile_rollouts(policy=policy_fn,
                                         n_steps=rollout_horizon,
                                         n_batch=1)
@@ -94,7 +97,7 @@ subs_train = {}
 subs_hmc = {}
 for (name, value) in init_state_subs.items():
     value = jnp.array(value)[jnp.newaxis, ...]
-    train_value = jnp.repeat(value, repeats=n_rollouts, axis=0)
+    train_value = jnp.repeat(value, repeats=n_rollouts_per_shard, axis=0)
     train_value = train_value.astype(compiler.REAL)
     subs_train[name] = train_value
 
@@ -116,7 +119,7 @@ s0, s1, s2 = source_indices[0], source_indices[num_nonzero_sources], source_indi
 # Prepare the ground truth inflow rates
 batch_source_rates = jnp.broadcast_to(
     source_rates[jnp.newaxis, ...],
-    shape=(n_rollouts,s1-s0))
+    shape=(n_rollouts_per_shard,s1-s0))
 
 # Prepare the ground truth for batched rollouts
 subs_train['SOURCE-ARRIVAL-RATE'] = subs_train['SOURCE-ARRIVAL-RATE'].at[:,s0:s1].set(batch_source_rates)
@@ -144,8 +147,17 @@ GROUND_TRUTH_LOOPS_HMC = rollout_hmc['pvar']['flow-into-link'][:,:,:]
 one_hot_inputs = jnp.eye(num_nonzero_sources)
 
 def parametrized_policy(input):
-    # Currently assumes a multivariate normal policy with
-    # a diagonal covariance matrix
+    """The parametrized policy pi_theta.
+
+    Currently, the policy is assumed to be parameterized by a multivariate
+    normal policy with a diagonal covariance matrix
+
+    The parametrization is currently a MLP with 32x32 hidden nodes.
+
+    The haiku library stores the parameters theta structured as a dictionary
+    with the weights of each layer and the biases of each layer getting
+    a separate dictionary key. To work with theta, it is often necessary
+    to make use of the jax.tree_util module."""
 
     mlp = hk.Sequential([
         hk.Linear(32), jax.nn.relu,
@@ -160,6 +172,9 @@ policy = hk.transform(parametrized_policy)
 policy_apply = jax.jit(policy.apply)
 key, subkey = jax.random.split(key)
 theta = policy.init(subkey, one_hot_inputs)
+
+n_params = sum(leaf.flatten().shape[0] for leaf in jax.tree_util.tree_leaves(theta))
+
 
 # Set up the bijector
 #bijector_obj = tfp.bijectors.IteratedSigmoidCentered()
@@ -205,7 +220,7 @@ def policy_sample(theta, rng):
     mean, cov = policy_apply(theta, rng, one_hot_inputs)
     action_sample = jax.random.multivariate_normal(
         rng, mean, cov,
-        shape=(n_rollouts,))
+        shape=(n_rollouts_per_shard,))
     action_sample = bijector_obj.forward(action_sample)
     return action_sample
 
@@ -239,15 +254,7 @@ def scalar_mult(alpha, v):
 weighting_map = jax.vmap(
     scalar_mult, in_axes=0, out_axes=0)
 
-@jax.jit
-def collect_covar_data(theta, C, iter):
-    ip0 = 0
-    for leaf in jax.tree_util.tree_leaves(theta):
-        leaf = leaf.flatten()
-        ip1 = ip0 + leaf.shape[0]
-        C = C.at[ip0:ip1, iter].set(leaf)
-        ip0 = ip1
-    return C
+
 
 def parse_optimizer(config):
     if config['optimizer'] == 'rmsprop':
@@ -269,11 +276,36 @@ reinforce_config = {
 
 @jax.jit
 def reinforce_inner_loop(key, theta, subs):
-    grads = jax.tree_util.tree_map(lambda _: jnp.zeros(1), theta)
+    """Computes an estimate of dJ^pi over a sample B using the REINFORCE formula
 
-    batch_rewards = 0.
-    batch_actions = jnp.empty(shape=(batch_size, num_nonzero_sources))
+    dJ hat = 1/|B| * sum_{b in B} r(a_b) * grad pi(a_b) / pi(a_b)
 
+    where dJ denotes the gradient of J^pi with respect to theta
+
+    Args:
+        key: JAX random key
+        theta: Current policy pi parameters
+        subs: Values of the RDDL nonfluents used to run the RDDL model
+
+    Returns:
+        key: Mutated JAX random key
+        dJ_hat: dJ estimator
+        batch_stats: Dictionary of statistics for the current sample
+    """
+
+    dJ_hat = jax.tree_util.tree_map(lambda leaf: jnp.zeros(leaf.shape), theta)
+
+    # initialize the batch stats
+    batch_stats = {
+        'rewards': 0.,
+        'actions': jnp.empty(shape=(batch_size, num_nonzero_sources)),
+        'dJ': jnp.empty(shape=(batch_size, n_params)),
+        'dJ_covar': None
+    }
+
+    # compute dJ hat for the current sample, dividing the computation up
+    # into shards of size n_rollouts_per_shard (for example, this can be
+    # useful for fiting the computation into GPU VRAM)
     for si in range(n_shards):
         key, subkey = jax.random.split(key)
         actions = policy_sample(theta, subkey)
@@ -282,50 +314,87 @@ def reinforce_inner_loop(key, theta, subs):
         rewards = reward_batched(subkey, subs, actions)
         factors = rewards / (pi + 1e-6)
 
-        w = lambda x: jnp.mean(weighting_map(factors, x), axis=0)
-        accumulant = jax.tree_util.tree_map(w, dpi)
-        grads = jax.tree_util.tree_map(lambda x, y: x+(y/n_shards), grads, accumulant)
+        dJ_shard = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
 
-        batch_rewards += jnp.mean(rewards)/n_shards
-        batch_actions = batch_actions.at[si*n_rollouts:(si+1)*n_rollouts].set(actions)
+        # update the dJ estimator dJ_hat
+        dJ_shard_find_mean_fn = lambda x: jnp.mean(x, axis=0)
+        accumulant = jax.tree_util.tree_map(dJ_shard_find_mean_fn, dJ_shard)
+        dJ_hat = jax.tree_util.tree_map(lambda x, y: x+(y/n_shards), dJ_hat, accumulant)
 
-    return key, grads, batch_rewards, batch_actions
+        # collect statistics for the batch
+        # collect flattened dJ (0th index = batch index)
+        ip0 = 0
+        for leaf in jax.tree_util.tree_leaves(dJ_shard):
+            leaf = leaf.reshape(n_rollouts_per_shard, -1)
+            ip1 = ip0 + leaf.shape[1]
+            batch_stats['dJ'] = batch_stats['dJ'].at[si*n_rollouts_per_shard:(si+1)*n_rollouts_per_shard, ip0:ip1].set(leaf)
+            ip0 = ip1
+
+        # collect other statistics
+        batch_stats['rewards'] += jnp.mean(rewards)/n_shards
+        batch_stats['actions'] = batch_stats['actions'].at[si*n_rollouts_per_shard:(si+1)*n_rollouts_per_shard].set(actions)
+
+    batch_stats['dJ_covar'] = jnp.cov(batch_stats['dJ'])
+
+    return key, dJ_hat, batch_stats
+
+def update_reinforce_stats(it, algo_stats, batch_stats, policy_mean, policy_cov):
+    """Updates the REINFORCE statistics using the statistics returned
+    from the computation of dJ_hat for the current sample as well as
+    the current policy mean/cov """
+    algo_stats['dJ_covar_max'][it] = jnp.max(batch_stats['dJ_covar'])
+    algo_stats['dJ_covar_min'][it] = jnp.min(batch_stats['dJ_covar'])
+    algo_stats['dJ_covar_diag_max'][it] = jnp.max(jnp.diag(batch_stats['dJ_covar']))
+    algo_stats['dJ_covar_diag_min'][it] = jnp.min(jnp.diag(batch_stats['dJ_covar']))
+    algo_stats['Y'][it,0] = batch_stats['rewards']
+    algo_stats['Y'][it,1] = policy_mean
+    algo_stats['Y'][it,2] = jnp.diag(policy_cov)
+    algo_stats['Y'][it,3] = jnp.squeeze(jnp.mean(batch_stats['actions'], axis=0))
+    algo_stats['Y'][it,4] = jnp.squeeze(jnp.std(batch_stats['actions'], axis=0))
+    return algo_stats
+
+def print_reinforce_report(it, algo_stats, subt0, subt1):
+    """Prints out the results for the current REINFORCE iteration to console"""
+    print(f'Iter {it} :: REINFORCE :: Runtime={subt1-subt0}s')
+    print(f'Untransformed parametrized policy [Mean, Diag(Cov)] = \n{algo_stats["Y"][it,1:3]}')
+    print(f'Transformed action sample statistics [[Means], [StDevs]] = \n{algo_stats["Y"][it,3:5]}')
+    print(f'{algo_stats["dJ_covar_min"][it]} <= cov(dJ) <= {algo_stats["dJ_covar_max"][it]}')
+    print(f'{algo_stats["dJ_covar_diag_min"][it]} <= diag(cov(dJ)) <= {algo_stats["dJ_covar_diag_max"][it]}')
+    print(f'Eval. reward={algo_stats["Y"][it,0,0]}\n')
+
 
 def reinforce(key, n_iters, theta, subs, config):
+    """Runs the REINFORCE algorithm"""
     # initialize stats collection
-    X, Y = np.arange(n_iters), np.zeros(shape=(n_iters,5,num_nonzero_sources))
-    n_params = sum(leaf.flatten().shape[0] for leaf in jax.tree_util.tree_leaves(theta))
-    C = jnp.zeros(shape=(n_params, n_iters))
+    algo_stats = {
+        'X': np.arange(n_iters),
+        'Y': np.zeros(shape=(n_iters, 5, num_nonzero_sources)),
+        'dJ_covar_max': np.empty(shape=(n_iters)),
+        'dJ_covar_min': np.empty(shape=(n_iters)),
+        'dJ_covar_diag_max': np.empty(shape=(n_iters)),
+        'dJ_covar_diag_min': np.empty(shape=(n_iters)),
+    }
 
     # initialize optimizer
     optimizer = parse_optimizer(config)
     opt_state = optimizer.init(theta)
 
-    # run
-    for idx in range(n_iters):
+    # run REINFORCE
+    for it in range(n_iters):
         subt0 = timer()
 
         key, subkey = jax.random.split(key)
         mean, cov = policy_apply(theta, subkey, one_hot_inputs)
 
-        key, grads, batch_rewards, batch_actions = reinforce_inner_loop(key, theta, subs)
-        updates, opt_state = optimizer.update(grads, opt_state)
+        key, dJ_hat, batch_stats = reinforce_inner_loop(key, theta, subs)
+        updates, opt_state = optimizer.update(dJ_hat, opt_state)
         theta = optax.apply_updates(theta, updates)
 
-        C = collect_covar_data(theta, C, idx)
+        # update statistics and print out report for current iteration
+        algo_stats = update_reinforce_stats(it, algo_stats, batch_stats, mean, cov)
+        print_reinforce_report(it, algo_stats, subt0, timer())
 
-        Y[idx,0] = batch_rewards
-        Y[idx,1] = mean
-        Y[idx,2] = jnp.diag(cov)
-        Y[idx,3] = jnp.squeeze(jnp.mean(batch_actions, axis=0))
-        Y[idx,4] = jnp.squeeze(jnp.std(batch_actions, axis=0))
-        subt1 = timer()
-        print(f'Iter {idx} :: REINFORCE :: Runtime={subt1-subt0}s')
-        print(f'Untransformed parametrized policy [Mean, Diag(Cov)] = \n{Y[idx,1:3]}')
-        print(f'Transformed action sample statistics [[Means], [StDevs]] = \n{Y[idx,3:5]}')
-        print(f'Eval. reward={Y[idx,0,0]}\n')
-
-    return X, Y, C
+    return algo_stats
 
 
 # === REINFORCE with Importance Sampling ====
@@ -365,7 +434,7 @@ def impsmp_inner_loop(key, theta, subs_train, subs_hmc, samples, est_Z=False):
     if est_Z: Zinv = 0.
 
     for si in range(n_shards):
-        actions = samples[si*n_rollouts:(si+1)*n_rollouts]
+        actions = samples[si*n_rollouts_per_shard:(si+1)*n_rollouts_per_shard]
         dpi = jax.jacrev(policy_pdf, argnums=0)(theta, subkeys[2], actions)
         rewards = reward_batched(subkeys[2], subs_train, actions)
         rho = jnp.exp(batch_unnormalized_log_rho(subkeys[3], theta, subs_hmc, actions[:,jnp.newaxis,:]))
@@ -386,6 +455,15 @@ def impsmp_inner_loop(key, theta, subs_train, subs_hmc, samples, est_Z=False):
     return key, grads, hmc_sample_reward_mean
 
 def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
+    # initialize stats collection
+    algo_stats = {
+        'X': np.arange(n_iters),
+        'Y': np.zeros(shape=(n_iters, 5, num_nonzero_sources)),
+        'dJ_covar_max': np.empty(shape=(n_iters)),
+        'dJ_covar_min': np.empty(shape=(n_iters)),
+        'dJ_covar_diag_max': np.empty(shape=(n_iters)),
+        'dJ_covar_diag_min': np.empty(shape=(n_iters)),
+    }
 
     # initialize hmc
     key, subkey = jax.random.split(key)
@@ -412,7 +490,7 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
         tri = 3 # trace parameter index
         trace_plot_data = np.empty(shape=(ceil(n_iters/10), config['hmc_num_iters']))
 
-    # run
+    # run REINFORCE with Importance Sampling
     for idx in range(n_iters):
         subt0 = timer()
         key, *subkeys = jax.random.split(key, num=6)
@@ -474,7 +552,7 @@ def impsmp(key, n_iters, theta, subs_train, subs_hmc, config):
     if config['collect_trace_plot']: stats['trace_plot'] = trace_plot_data
     if config['collect_covar']: stats['covar'] = covar_data
 
-    return X, Y, stats
+    return algo_stats
 
 # === Debugging utils ===
 def print_shapes(x):
@@ -486,47 +564,22 @@ def eval_single_rollout(a):
     return rewards
 
 
-method = 'impsmp'
-n_iters = 100
-timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+if __name__ == '__main__':
+    method = 'impsmp'
+    n_iters = 100
 
-with jax.disable_jit(disable=False):
-    key, subkey = jax.random.split(key)
-    t1 = timer()
-    if method == 'impsmp':
-        method_config = impsmp_config
-        X, Y, stats = impsmp(key=subkey, n_iters=n_iters, theta=theta, subs_train=subs_train, subs_hmc=subs_hmc, config=method_config)
-    elif method == 'reinforce':
-        method_config = reinforce_config
-        X, Y, C = reinforce(key=subkey, n_iters=n_iters, theta=theta, subs=subs_train, config=method_config)
-    else: raise KeyError
-    t2 = timer()
+    with jax.disable_jit(disable=False):
+        key, subkey = jax.random.split(key)
+        if method == 'impsmp':
+            method_config = impsmp_config
+            algo_stats = impsmp(key=subkey, n_iters=n_iters, theta=theta, subs_train=subs_train, subs_hmc=subs_hmc, config=method_config)
+        elif method == 'reinforce':
+            method_config = reinforce_config
+            algo_stats = reinforce(key=subkey, n_iters=n_iters, theta=theta, subs=subs_train, config=method_config)
+        else: raise KeyError
 
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
-# Save plots and dump results
-id = f'{method}_2x2_b{batch_size}_nS{num_nonzero_sources}_opt{method_config["optimizer"]}_iters{n_iters}_flow'
-
-if method_config.get('collect_trace_plot', False):
-    fig, ax = plt.subplots()
-    ax.plot(range(method_config['hmc_num_iters']), stats['trace_plot'].T)
-    ax.set_xlabel('Training iteration')
-    ax.set_ylabel('Parameter trace')
-    ax.set_title('HMC trace plot')
-    plt.savefig(f'img/{timestamp}_{id}_trace.png')
-if method_config.get('collect_covar', False):
-    thetacov = jnp.cov(stats['covar'])
-    sns.heatmap(thetacov)
-    plt.savefig(f'img/{timestamp}_{id}_covar.png')
-
-with open(f'img/{timestamp}_{id}.json', 'w') as file:
-    savedata = {
-        'num_nonzero_sources': num_nonzero_sources,
-        'X': X.tolist(),
-        'Y': Y.T.tolist(),}
-    savedata.update(method_config)
-    json.dump(savedata, file)
-t3 = timer()
-
-print('Setup took', t1-t0, 'seconds')
-print('Optimization took', t2-t1, 'seconds')
-print('Plotting took', t3-t2, 'seconds')
+    with open(f'tmp/n{num_nonzero_sources}.json', 'w') as file:
+        json.dump({'X': algo_stats['X'].tolist(),
+                   'max': algo_stats['dJ_covar_diag_max'].tolist()}, file)
