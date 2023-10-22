@@ -22,7 +22,7 @@ GP_ITERS = 5
 EPISODES = 5
 
  
-def main(method, domain, instance):
+def main(method, domain, instance, do_tune):
     assert method in ['jax', 'gurobi']
     
     # create the environment
@@ -46,26 +46,27 @@ def main(method, domain, instance):
     if method == 'jax':
         
         # run hyper-parameter tuning
-        tuning = JaxParameterTuningSLPReplan(
-            env=env,
-            train_epochs=train_args['epochs'],
-            timeout_training=train_args['train_seconds'],
-            planner_kwargs=planner_args,
-            plan_kwargs=plan_args,
-            num_workers=CPUS,
-            gp_iters=GP_ITERS,
-            eval_trials=EPISODES)
-        params = tuning.tune(key=jax.random.PRNGKey(tuning_key),
-                             filename=f'gp_{filename}')
-        
-        # update config with optimal hyper-parameters
-        args['method_kwargs']['initializer'] = 'normal'
-        args['method_kwargs']['initializer_kwargs'] = {'stddev': params['std']}
-        args['optimizer_kwargs']['learning_rate'] = params['lr']
-        args['logic_kwargs']['weight'] = params['w']
-        args['policy_hyperparams'] = {k: params['wa'] for k in args['policy_hyperparams']}
-        args['rollout_horizon'] = params['T']     
-        planner_args, plan_args, train_args = _load_config(config, args)
+        if do_tune:
+            tuning = JaxParameterTuningSLPReplan(
+                env=env,
+                train_epochs=train_args['epochs'],
+                timeout_training=train_args['train_seconds'],
+                planner_kwargs=planner_args,
+                plan_kwargs=plan_args,
+                num_workers=CPUS,
+                gp_iters=GP_ITERS,
+                eval_trials=EPISODES)
+            params = tuning.tune(key=jax.random.PRNGKey(tuning_key),
+                                 filename=f'gp_{filename}')
+                
+            # update config with optimal hyper-parameters
+            args['method_kwargs']['initializer'] = 'normal'
+            args['method_kwargs']['initializer_kwargs'] = {'stddev': params['std']}
+            args['optimizer_kwargs']['learning_rate'] = params['lr']
+            args['logic_kwargs']['weight'] = params['w']
+            args['policy_hyperparams'] = {k: params['wa'] for k in args['policy_hyperparams']}
+            args['rollout_horizon'] = params['T']     
+            planner_args, plan_args, train_args = _load_config(config, args)
         
         # solve planning problem with new optimal parameters
         planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
@@ -75,13 +76,16 @@ def main(method, domain, instance):
     elif method == 'gurobi':
         
         # run hyper-parameter tuning
-        tuning = GurobiParameterTuningReplan(
-            env, 
-            timeout_training=train_args['train_seconds'], 
-            num_workers=CPUS,  
-            gp_iters=GP_ITERS,
-            eval_trials=EPISODES)
-        params = tuning.tune(key=tuning_key, filename=f'{filename}')
+        if do_tune:
+            tuning = GurobiParameterTuningReplan(
+                env, 
+                timeout_training=train_args['train_seconds'], 
+                num_workers=CPUS,  
+                gp_iters=GP_ITERS,
+                eval_trials=EPISODES)
+            params = tuning.tune(key=tuning_key, filename=f'{filename}')
+        else:
+            params = {'T': args['rollout_horizon']}
         
         # solve planning problem with new optimal parameters
         policy = GurobiOnlineController(
@@ -102,7 +106,7 @@ def main(method, domain, instance):
 
 
 if __name__ == '__main__':
-    method, domain, instance = 'gurobi', 'Wildfire_MDP_ippc2014', '1'
+    method, domain, instance, do_tune, = 'gurobi', 'Elevators_MDP_ippc2014', '5', False
     # method, domain, instance = sys.argv[1:4]
-    main(method, domain, instance)
+    main(method, domain, instance, do_tune)
     
