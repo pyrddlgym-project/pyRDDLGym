@@ -21,4 +21,5 @@ VizRDDL/
 # Competition/
 TestingDomain/
 
-*img/
+pyRDDLGym/Examples/Traffic/Calibration/img/*
+pyRDDLGym/Examples/Traffic/Calibration/tmp/*
