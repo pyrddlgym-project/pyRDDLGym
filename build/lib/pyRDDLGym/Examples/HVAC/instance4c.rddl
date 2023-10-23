@@ -1,0 +1,67 @@
+non-fluents nf_hvac_4c {
+	domain = hvac;
+	objects {
+		zone : {z1, z2, z3, z4, z5, z6, z7, z8, z9, z10};
+		heater : {h1, h2, h3, h4, h5, h6, h7, h8};
+	};
+	non-fluents {
+		TEMP-ZONE-MIN = 22.0;
+		TEMP-ZONE-MAX = 25.0;
+		P-SWITCH(z10) = 0.02;
+		P-SWITCH(z1) = 0.02;
+		P-SWITCH(z4) = 0.02;
+		P-SWITCH(z8) = 0.02;
+		P-SWITCH(z9) = 0.02;
+		ADJ-HEATER(h1, z4);
+		ADJ-HEATER(h1, z8);
+		ADJ-HEATER(h2, z4);
+		ADJ-HEATER(h3, z5);
+		ADJ-HEATER(h3, z6);
+		ADJ-HEATER(h4, z2);
+		ADJ-HEATER(h4, z6);
+		ADJ-HEATER(h4, z10);
+		ADJ-HEATER(h5, z3);
+		ADJ-HEATER(h6, z7);
+		ADJ-HEATER(h7, z4);
+		ADJ-HEATER(h8, z1);
+		ADJ-HEATER(h8, z9);
+		ADJ-ZONES(z2, z9);
+		ADJ-ZONES(z2, z10);
+		ADJ-ZONES(z2, z5);
+		ADJ-ZONES(z2, z7);
+		ADJ-ZONES(z3, z9);
+		ADJ-ZONES(z4, z7);
+		ADJ-ZONES(z5, z10);
+		ADJ-ZONES(z6, z10);
+		ADJ-ZONES(z6, z7);
+		ADJ-ZONES(z7, z10);
+		ADJ-ZONES(z9, z10);
+	};
+}
+instance inst_hvac_4c {
+	domain = hvac;
+	non-fluents = nf_hvac_4c;
+	init-state {
+		temp-zone(z1) = 12.887006995351715;
+		temp-zone(z2) = 6.343577959805469;
+		temp-zone(z3) = 4.454817486433324;
+		temp-zone(z4) = 2.3674304327582667;
+		temp-zone(z5) = 4.432989085677872;
+		temp-zone(z6) = 7.318267301368263;
+		temp-zone(z7) = 4.687420927035832;
+		temp-zone(z8) = 11.009313058663006;
+		temp-zone(z9) = 5.017215268197358;
+		temp-zone(z10) = 2.1124866698167715;
+		temp-heater(h1) = 2.4091306471593255;
+		temp-heater(h2) = 6.616852650053302;
+		temp-heater(h3) = 8.959796702993172;
+		temp-heater(h4) = 2.8634450053105267;
+		temp-heater(h5) = 8.11528745715114;
+		temp-heater(h6) = 1.498950052110113;
+		temp-heater(h7) = 2.2506938705377455;
+		temp-heater(h8) = 3.7158439855174716;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}

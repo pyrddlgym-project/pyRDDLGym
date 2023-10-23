@@ -1,0 +1,4 @@
+[General]
+name=SupplyChainNet
+description=A supply chain network with factory and multiple warehouses.
+viz=ChartViz.ChartVisualizer

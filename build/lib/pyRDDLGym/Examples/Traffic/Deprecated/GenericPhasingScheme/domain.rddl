@@ -1,0 +1,421 @@
+///////////////////////////////////////////////////////////////////////////////////////////////
+//
+//  Implementation of the BLX (van den Berg - Lin - Xi) model / QTM (Queue Transmission Model)
+//  of queue and platoon dynamics in a traffic network.
+//
+//  Platoons travel at free-flow speed, with propagation time along a link determined by
+//  the distance from the upstream link entrance to the end of the queue at entrance time.
+//  Incoming flows are split along different turning directions according to turning proportions.
+//
+//  The model takes into account undersaturated, saturated, and oversaturated conditions:
+//      * Undersaturated: The queue + arriving flow is small enough to be released
+//                        in a single time-step
+//      * Saturated:      The queue is released at the saturation flow rate.
+//      * Oversaturated:  The downstream link does not have enough capacity to fit
+//                        the entirety of the queue, causing a spillback.
+//
+//  The implementation allows for quite general phasing schemes. The collection of phases
+//  {p1,p2,...,pn} that are permitted to follow the currently active phase p0 can be a
+//  function of p0. The standard example in the field of traffic engineering is the NEMA8 scheme
+//  for a 4-leg intersection. Fixed-order cycles and schemes that allow any phase transition
+//  are also special cases.
+//
+//  Authors: Ayal Taitler (ataitler@gmail.com)
+//           Ilia Smirnov (iliathesmirnov@gmail.com)
+//
+//  References:
+//      S. Lin, B. De Schutter, Y. Xi, and J. Hellendoorn, "A simplified macroscopic urban
+//      traffic network model for model-based predictive control," Proceedings of the 12th
+//      IFAC Symposium on Transportation Systems, Redondo Beach, California, pp. 286–
+//      291, Sept. 2009
+//
+//      Guilliard, I., Sanner, S., Trevizan, F. W., & Williams, B. C. "Nonhomogeneous
+//      time mixed integer linear programming formulation for traffic signal control,"
+//      Transportation Research Record, pp. 128-138 2595(1), 2016
+//
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+domain BLX_model {
+
+    requirements = {
+        constrained-state
+    };
+
+    types {
+        intersection : object;
+        phase : object;
+        action-token: object;
+        time : object;
+    };
+
+    pvariables {
+        ///////////////////////////////////////////
+        // non-fluents == topology and geometry
+        ///////////////////////////////////////////
+
+        // simulation time step in seconds
+        Ts                                                     :  { non-fluent, int, default = 1 };
+        // average vehicle length in meters
+        Lv                                                     :  { non-fluent, real, default = 5 };
+
+        // cartesian coordinates of an intersection
+        X(intersection)                                        :  { non-fluent, real, default = 0 };
+        Y(intersection)                                        :  { non-fluent, real, default = 0 };
+
+        // each intersection is assigned a unique index
+        INTERSECTION-INDEX(intersection)                       :  { non-fluent, int, default = 0 };
+
+        // action tokens are enumerated
+        ACTION-TOKEN-INDEX(action-token)                       :  { non-fluent, int, default = 0 };
+
+        // the highest possible number of valid actions for the intersection. used to bound the action space.
+        NUM-ACTION-TOKENS(intersection)                        :  { non-fluent, int, default = 1 };
+
+
+        // is there a link between (uplink intersection, downlink intersection)?
+        LINK(intersection, intersection)                       :  { non-fluent, bool, default = false };
+
+        // number of lanes in link
+        Nl(intersection, intersection)                         : { non-fluent, int, default = 1 };
+
+        // free-flow velocity of traffic in link in m/s
+        V(intersection, intersection)                          :  { non-fluent, real, default = 13.8 };
+
+        // saturation flow rate leaving turn (u,d,o) in veh/s
+        MU(intersection, intersection, intersection)           :  { non-fluent, real, default = 1.2 };
+
+        // fraction of the traffic turning to link (d,o) from link (u,d)
+        BETA(intersection, intersection, intersection)         :  { non-fluent, real, default = 0.33 };
+
+
+        // is intersection a source?
+        SOURCE(intersection)                                   :  { non-fluent, bool, default = false };
+
+        // is intersection a sink?
+        SINK(intersection)                                     :  { non-fluent, bool, default = false };
+
+        // is intersection signalized?
+        TL(intersection)                                       :  { non-fluent, bool, default = false };
+
+        // arrival rate at sources in veh/s - the mean for a uniform distribution
+        ARRIVAL-RATE(intersection)                             :  { non-fluent, real, default = 0.67 };
+
+        // max. flow per lane in veh/s - cap when releasing virtual queue and vehicles at sinks
+        MAX-FLOWRATE(intersection)                             :  { non-fluent, real, default = 0.67 };
+
+
+        // by convention, phases should be enumerated between 0 and (num.phases-1) in every intersection
+        PHASE-INDEX(phase)                                     :  { non-fluent, int, default = 0 };
+
+        // phase constraints and properties
+        PHASE-MIN(phase)                                       :  { non-fluent, int, default = 20 };
+        PHASE-MAX(phase)                                       :  { non-fluent, int, default = 60 };
+        // duration of all-red following the phase
+        PHASE-ALL-RED-DUR(phase)                               :  { non-fluent, int, default = 3 };
+
+        // is the phase part of the control plan of the intersection?
+        PHASE-OF(phase, intersection)                          :  { non-fluent, bool, default = false};
+
+        // is turn green in phase?
+        GREEN(intersection, intersection, intersection, phase) :  { non-fluent, bool, default = false };
+
+        // which phase transition the i-th indexed action corresponds to
+        // the 0 action should always be interpreted as extend
+        TRANSITION(phase, action-token)                    :  { non-fluent, int, default = -1 };
+
+
+        // time ordering for time-delayed queues
+        NEXT(time, time)                                       :  { non-fluent, bool, default = false };
+
+        // is the time index first in the queue, i,e., no delay
+        TIME-HEAD(time)                                        :  {non-fluent, bool, default = false };
+
+        // is the time index last in the queue, i,e., maximum delay memory depth
+        TIME-TAIL(time)                                        :  {non-fluent, bool, default = false };
+
+        // time object to actual time delay index
+        TIME-VAL(time)                                         :  { non-fluent, int, default = 1 };
+
+
+
+        //////////////////////////////
+        // interm fluents
+        //////////////////////////////
+
+        // distance between intersections
+        Dl(intersection, intersection)                         :  { interm-fluent, real };
+
+        // link capacity (maximal storage)
+        Cl(intersection, intersection)                         :  { interm-fluent, real };
+
+        // is the triple (u,d,o) a turn?
+        TURN(intersection, intersection, intersection)         :  { interm-fluent, bool };
+
+        // time delay variables
+        // Suppose it takes
+        //     t*Ts + g, where t, g are integers, and 0 <= g < Ts
+        // time-steps to reach the end of queue from the upstream link entrance.
+        // Define tau=t/Ts and gamma=g/Ts.
+        // Then the inflow is split so that
+        //      (1-gamma) of the inflow will arrive in tau time-steps, and
+        //         gamma of the inflow will arrive in (tau+1) time-steps.
+        // For example, if Ts=4s and the propagation time is 7s, then
+        //         (1/4) of the inflow will arrive in 1 time-step and
+        //         (3/4) will arrive in 2 time-steps
+
+        tau(intersection, intersection)                        :  { interm-fluent, int };
+        gamma(intersection, intersection)                      :  { interm-fluent, real };
+
+        // number of cars arriving at the end of the queue (u,d)
+        Ma(intersection, intersection)                         :  { interm-fluent, real };
+
+        // arrivals at time step k in link (u,d) is u is a source
+        arrivals(intersection)                                 :  { interm-fluent, real };
+
+        // flow from source u into the network
+        src-flow(intersection)                                 :  { interm-fluent, real };
+
+        // overflow from source u
+        src-overflow(intersection)                             :  { interm-fluent, real };
+
+        // outflow at turn (u,d,o)
+        turn-outflow(intersection, intersection, intersection) :  { interm-fluent, real };
+
+        // is green for inflows from link (u,d) in the direction of link (d,o)?
+        b(intersection, intersection, intersection)            :  { interm-fluent, bool };
+
+        // the number of transitions from the current phase
+        num-transitions-from-cur-ph(intersection)              :  { interm-fluent, int  };
+
+        // is the current phase time below the min. time?
+        cur-ph-below-min(intersection)                         :  { interm-fluent, bool };
+
+        // is the current phase at max. time?
+        cur-ph-at-max(intersection)                            :  { interm-fluent, bool };
+
+        // is current phase being extended?
+        extend(intersection)                                   :  { interm-fluent, bool };
+
+        // clipped action
+        clipped-set-phase(intersection)                        :  { interm-fluent, int  };
+
+
+
+        //////////////////////////////
+        // states fluents
+        //////////////////////////////
+        // number of cars leaving link (u,d) and turning towards link (d,o) - state because of the time delay "memory"
+        Ml(intersection, intersection, intersection, time) :  { state-fluent, real, default = 0 };
+
+        // number of cars leaving source u toward intersection d
+        Mlsrc(intersection, intersection, time)            :  { state-fluent, real, default = 0 };
+
+        // queue length at step in link (u,d) turning in direction (d,o)
+        q(intersection, intersection, intersection)        :  { state-fluent, real, default = 0 };
+
+        // total queue length at step in link (u,d) (all directions)
+        qd(intersection, intersection)                     :  { state-fluent, real, default = 0 };
+
+        //virtual queue at source (u) (i.e. vehicles held outside of the network)
+        virtual-q(intersection)                            :  { state-fluent, real, default = 0 };
+
+        // number of vehicles in link
+        Nc(intersection, intersection)                     :  { state-fluent, real, default = 0 };
+
+        // current phase index
+        cur-ph-idx(intersection)                           :  { state-fluent, int, default = 0 };
+
+        // current phase time
+        cur-ph-t(intersection)                             :  { state-fluent, int, default = 0 };
+
+        // remaining time in interphase (all-red phase)
+        all-red(intersection)                              :  { state-fluent, int, default = 0 };
+
+
+        //////////////////////////////
+        // action fluents
+        //////////////////////////////
+        // The number of actions can be state-dependent.
+        // For example, in the usual NEMA8 phasing scheme, there can be between 1 and 5 valid phase transitions,
+        // depending on the active phase. This is handled here by enumerating the valid transitions, {a0,..,an},
+        // for the active phase, and interpreting the integer action set-phase(?d) as the index of the chosen
+        // action in the list. So, if set-phase(?d) is equal to 3, then a3 is taken, which transitions the traffic
+        // light to the phase with index TRANSITION(p,a3). By convention, the 0-indexed action a0 is EXTEND.
+        //
+        // Please note that set-phase(?d) may need to be clipped from above (if higher than the number of valid
+        // phase transitions) or below (if the extend valid is invalid because of the max. time constraint).
+
+        set-phase(intersection)                            :  { action-fluent, int, default = 0 };
+
+
+        //////////////////////////////
+        // observation fluents
+        //////////////////////////////
+        // only the queues that are relevant (no time delay queues, and no total of vehicle number)
+
+    };
+
+    cpfs {
+
+        ////////////////////////////////////
+        // interm fluents
+        ////////////////////////////////////
+
+        // distance between intersections
+        Dl(?u,?d) = sqrt[ (X(?u) - X(?d))*(X(?u) - X(?d)) + (Y(?u) - Y(?d))*(Y(?u) - Y(?d)) ];
+
+        // derived fluent for the actual capacity
+        Cl(?u,?d) = Dl(?u,?d) * Nl(?u,?d) / Lv;
+
+        // is the triple (u,d,o) a turn?
+        // the third term rules out U-turns
+        TURN(?u,?d,?o) = LINK(?u,?d) ^ LINK(?d,?o) ^ (~(INTERSECTION-INDEX(?u)==INTERSECTION-INDEX(?o)));
+
+        // time-delay variables update
+        tau(?u,?d) = LINK(?u,?d) * floor[ (Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) ];
+        gamma(?u,?d) = LINK(?u,?d) * ((Cl(?u,?d) - qd(?u,?d))*Lv / (Nl(?u,?d)*V(?u,?d)*Ts) - tau(?u,?d));
+
+        // green for inflows from link (u,d) in the direction of link (d,o)
+        // for non-signalized intersections, all turns are treated as permitted
+        b(?u,?d,?o) = ~TL(?d) | [ (all-red(?d) == 0)
+                                  ^ ( exists_{?p : phase}[ PHASE-OF(?p,?d) ^ (PHASE-INDEX(?p)==cur-ph-idx(?d)) ^ GREEN(?u,?d,?o,?p)] )];
+
+        // how many cars should arrive for the direction of u on the link (u,d) if u is a source
+        arrivals(?u) =  SOURCE(?u) * Uniform(0,2*ARRIVAL-RATE(?u)*Ts);
+
+        // flows from source u
+        src-flow(?u) = SOURCE(?u) * max[0, min[ arrivals(?u), (sum_{?d : intersection}[ LINK(?u,?d) * (Cl(?u,?d) - Nc(?u,?d)) ]) ]];
+        src-overflow(?u) = SOURCE(?u) * max[0, arrivals(?u) - src-flow(?u)];
+
+        // number of vehicles arriving to tail of queue at link (u,d)
+        // add time-delayed outflows from the sources, and time-delayed outflows over all incoming turns
+        Ma(?u,?d) = LINK(?u,?d) * (       SOURCE(?u)  * (sum_{?t : time}[TIME-HEAD(?t) * Mlsrc(?u,?d,?t)])
+                                   + (1 - SOURCE(?u)) * (sum_{?t : time}[TIME-HEAD(?t) * (sum_{?i : intersection}[Ml(?i,?u,?d,?t)])]) );
+
+        // outflow at turn (u,d,o)
+        // min(undersaturated, saturated, oversaturated)
+        turn-outflow(?u,?d,?o) = TURN(?u,?d,?o)
+                                 * b(?u,?d,?o)
+                                 * max[0, min[ q(?u,?d,?o) + Ma(?u,?d)*BETA(?u,?d,?o), // Undersaturated flow
+                                          min[ BETA(?u,?d,?o)*MU(?u,?d,?o)*Ts,         // Saturated flow
+                                               Cl(?d,?o) - Nc(?d,?o) ]]];              // Oversaturated flow (Capacity-Count=Storage)
+
+
+        // count the number of transitions from the current phase to clip the actions
+        num-transitions-from-cur-ph(?d) =
+            (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d))
+                               * (sum_{?a : action-token} (TRANSITION(?p,?a) > -1))));
+
+        // is the current phase time below the min. time?
+        cur-ph-below-min(?d) =  [ cur-ph-t(?d) < (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * PHASE-MIN(?p))) ];
+
+        // is the current phase at max. time?
+        cur-ph-at-max(?d) = [ cur-ph-t(?d) == (sum_{?p : phase} (PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * PHASE-MAX(?p))) ];
+
+        // is current phase being extended?
+        extend(?d) =
+            // true if any:
+            // the intersection is not signalized
+                (~TL(?d))
+            // in all-red phase
+                | (all-red(?d) > 0)
+            // cur-ph-t is smaller than the phase min. time
+                | cur-ph-below-min(?d)
+            // the action is 0 and cur-ph-t is not at phase max. time
+                | [ (~cur-ph-at-max(?d)) ^ (set-phase(?d) == 0) ];
+
+        // clipped action
+        clipped-set-phase(?d) = max[cur-ph-at-max(?d), min[set-phase(?d), num-transitions-from-cur-ph(?d) - 1]];
+             
+
+        ////////////////////////////////////
+        // State space evolution
+        ////////////////////////////////////
+
+        // Source outflows and virtual queues
+        Mlsrc'(?u,?d,?t) = LINK(?u,?d) * (
+              (TIME-VAL(?t) == tau(?u,?d))     * (1 - gamma(?u,?d)) * src-flow(?u)
+            + (TIME-VAL(?t) == (tau(?u,?d)+1)) * gamma(?u,?d) * src-flow(?u)
+            + (sum_{?t2 : time}[ NEXT(?t,?t2) * Mlsrc(?u,?d,?t2) ]));
+
+        virtual-q'(?u) = max[0, virtual-q(?u) + src-overflow(?u) - src-flow(?u)];
+
+        // Turning outflows
+        Ml'(?u,?d,?o,?t) =
+              (TIME-VAL(?t) == tau(?d,?o))     * (1 - gamma(?u,?d)) * turn-outflow(?u,?d,?o)
+            + (TIME-VAL(?t) == (tau(?d,?o)+1)) * gamma(?u,?d) * turn-outflow(?u,?d,?o)
+            + (sum_{?t2 : time}[ NEXT(?t,?t2) * Ml(?u,?d,?o,?t2) ]);
+            
+        q'(?u,?d,?o) = [q(?u,?d,?o) + BETA(?u,?d,?o)*Ma(?u,?d) - turn-outflow(?u,?d,?o)] * TURN(?u,?d,?o);
+
+        qd'(?u,?d) = (sum_{?o : intersection}[q(?u,?d,?o) * LINK(?d,?o)]) * LINK(?u,?d);
+
+        Nc'(?u,?d) =
+            Nc(?u,?d)
+            + (sum_{?i : intersection} [turn-outflow(?i,?u,?d)])
+            + src-flow(?u)
+            - SINK(?d)*Ma(?u,?d)
+            - (sum_{?o : intersection}[turn-outflow(?u,?d,?o)]);
+
+        // Phases
+        //
+        // Notes:
+        //  * A change action triggers an all-red phase.
+        //        During all-red, cur-ph-idx is equal to the index of the upcoming phase,
+        //        and cur-ph-t is kept at 0.
+        //  * If the action integer set-phase(?d) is larger than the number of allowed phase
+        //    transitions from the current phase, the integer is clipped above by the largest valid
+        //    index.
+        //  * If the phase is at max. time, and the action is 0, the action is clipped below at 1
+        //    (i.e. use the 1 action is used instead)
+
+        cur-ph-idx'(?d) = if (extend(?d)) then cur-ph-idx(?d)
+                          else
+                              (sum_{?p : phase} [
+                                  PHASE-OF(?p,?d)
+                                  * (PHASE-INDEX(?p)==cur-ph-idx(?d))
+                                  * (sum_{?a : action-token}[
+                                        (ACTION-TOKEN-INDEX(?a)==clipped-set-phase(?d))
+                                         * TRANSITION(?p,?a) ])]);
+                              
+        cur-ph-t'(?d) = if (extend(?d)) then [cur-ph-t(?d) + Ts*(all-red(?d) == 0)] else 0;
+
+        all-red'(?d) = if (extend(?d))
+                           then max[all-red(?d) - Ts, 0]
+                       else
+                           (sum_{?p : phase} [PHASE-OF(?p,?d) * (PHASE-INDEX(?p)==cur-ph-idx(?d)) * PHASE-ALL-RED-DUR(?p)]);
+    };
+
+    // minus number of cars in the network
+    // minus all virtual queues at source nodes
+    reward = - (sum_{?u : intersection, ?d : intersection}[Nc(?u,?d)*LINK(?u,?d)])
+             - (sum_{?u : intersection}[virtual-q(?u)*SOURCE(?u)]);
+
+    state-invariants {
+        1 <= Ts;
+        0 < Lv;
+
+        // assert that intersection indices are unique
+        (sum_{?u : intersection} (sum_{?d : intersection} (INTERSECTION-INDEX(?u)==INTERSECTION-INDEX(?d)))) <= (sum_{?u : intersection} (1));
+
+        forall_{?d : intersection} [ ~(SINK(?d) ^ TL(?d)) ];
+        forall_{?d : intersection} [ ~(SOURCE(?d) ^ TL(?d)) ];
+
+        forall_{?p : phase} [ 0 < PHASE-MIN(?p) ];
+        forall_{?p : phase} [ PHASE-MIN(?p) <= PHASE-MAX(?p) ];
+        forall_{?p : phase} [ 0 <= PHASE-ALL-RED-DUR(?p) ];
+
+        forall_{?u : intersection} [forall_{?d : intersection} [ 0 < Nl(?u,?d) ]];
+        forall_{?u : intersection} [forall_{?d : intersection} [ 0 < V(?u,?d) ]];
+        forall_{?u : intersection} [forall_{?d : intersection} [forall_{?o : intersection} [ 0 <= BETA(?u,?d,?o) ]]];
+        forall_{?u : intersection} [forall_{?d : intersection} [forall_{?o : intersection} [ 0 < MU(?u,?d,?o) ]]];
+
+    };
+
+    action-preconditions {
+        forall_{?d : intersection} [ 0 <= set-phase(?d) ];
+        forall_{?d : intersection} [ set-phase(?d) < NUM-ACTION-TOKENS(?d) ];
+    };
+}
+
+

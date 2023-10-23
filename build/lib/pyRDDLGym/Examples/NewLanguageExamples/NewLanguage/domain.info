@@ -1,0 +1,4 @@
+[General]
+name=NewLanguage
+description=Example with new language features.
+viz=ChartViz.ChartVisualizer

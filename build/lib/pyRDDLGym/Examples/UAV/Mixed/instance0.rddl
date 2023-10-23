@@ -1,0 +1,47 @@
+non-fluents nf_simple_UAV_p0{
+	domain = kinematic_UAVs_mix;
+
+	objects {
+		aircraft : {a1};
+	};
+
+	non-fluents {
+        // Bounds on the position of the aircraft
+        MIN-X = -50000.0;
+        MAX-X = 500000.0;
+        MIN-Y = -500000.0;
+        MAX-Y = 500000.0;
+        MIN-Z = -50000.0;
+        MAX-Z = 50000.0;
+
+        GRAVITY = 9.8;
+
+        SCALE-FACTOR = 0.1;
+
+        GOAL-X(a1) = 50.0;
+        GOAL-Y(a1) = 50.0;
+        GOAL-Z(a1) = 50.0;
+
+        CONTROLLABLE(a1);
+	};
+}
+
+instance simple_UAV_hyb_0 {
+	domain = kinematic_UAVs_mix;
+	non-fluents = nf_simple_UAV_p0;
+	
+	init-state {
+	    pos-x(a1) = 0.0;
+        pos-y(a1) = 0.0;
+        pos-z(a1) = 0.0;
+        vel(a1) = 0.1;
+        psi(a1) = 0.0;
+        phi(a1) = 0.0;
+        theta(a1) = 0.0;
+ 	};
+
+	max-nondef-actions = pos-inf;
+	horizon  = 20;
+	discount = 1.0;
+
+}

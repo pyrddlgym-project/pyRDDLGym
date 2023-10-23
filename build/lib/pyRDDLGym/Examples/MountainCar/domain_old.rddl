@@ -1,0 +1,76 @@
+////////////////////////////////////////////////////////////////////
+// A simple continuous MDP for the classical mountain car control
+// problem. A car is placed at the bottom of a valley, and must be
+// brought to a destination located at the top of a hill by pushing
+// the car left and right. 
+// 
+// This domain originated in Andrew Moore's 1990 PhD thesis found here:
+// https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-209.pdf, and implemented
+// e.g. here: http://incompleteideas.net/MountainCar/MountainCar1.cp.
+////////////////////////////////////////////////////////////////////
+domain mountain_car {
+
+    requirements = {
+        reward-deterministic
+    };
+
+    pvariables {
+
+    	// physics constants
+		GRAVITY-MAG : { non-fluent, real, default = 0.0025 };       // force of gravity acting down
+		FORCE-MAG 	: { non-fluent, real, default = 0.001 };		// force applied to the side of the cart
+
+		// valley shape
+		DEPTH : { non-fluent, real, default = 0.45 };				// depth of the valley
+		
+		// bounds
+		MIN-POS  : { non-fluent, real, default = -1.2 };        		// min position of cart
+		MAX-POS  : { non-fluent, real, default = 0.6 };			 	// max position of cart
+		MAX-VEL  : { non-fluent, real, default = 0.07 };				// max velocity of cart
+		GOAL-MIN : { non-fluent, real, default = 0.5 };				// desired x position of cart
+		VEL-MIN  : { non-fluent, real, default = 0.0 };				// desired velocity of the cart
+		
+		// states
+       	pos    	: { state-fluent, real, default = -0.5 };          	// cart position
+       	vel   	: { state-fluent, real, default = 0 };          	// cart velocity
+
+       	// actions
+       	action : { action-fluent, real, default = 1 };      		// whether to accelerate left (0), none (1) or right (2)
+    };
+
+    cpfs {
+	
+		// update position and velocity of the cart
+		pos' = max[min[pos + vel, MAX-POS], MIN-POS];		
+		vel' = [max[min[vel + (action - 1) * FORCE-MAG + (-GRAVITY-MAG) * (cos[3 * pos] * (3 * DEPTH)), 
+				MAX-VEL], -MAX-VEL]];
+    };
+
+    // R = 1 as long as the pole is upright and the cart is not out of bounds
+    reward = if((pos' >= GOAL-MIN) ^ (vel' >= VEL-MIN))
+				then 1.0
+				else 0.0;
+	
+	termination {
+		(pos >= GOAL-MIN) ^ (vel >= VEL-MIN);
+	};
+	
+    state-invariants {
+	
+		// check that state is within bounds
+		pos >= MIN-POS;
+		pos <= MAX-POS;
+		vel >= -MAX-VEL;
+		vel <= MAX-VEL;
+		
+		// system is physically plausible
+		GRAVITY-MAG >= 0 ^ FORCE-MAG >= 0;
+		MAX-POS >= MIN-POS ^ MAX-VEL >= 0;
+    };
+
+    action-preconditions {
+        action >= 0;
+        action <= 2;
+    };
+
+}

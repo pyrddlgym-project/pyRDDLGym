@@ -1,0 +1,78 @@
+domain recsim_ecosystem_welfare {
+
+	types {
+		feature : object;
+		item: object;
+		consumer : object;
+		provider : object;
+	};
+
+	pvariables {
+
+		MAX-AFFINITY            : { non-fluent, real, default =   10.0 } ; // For affinity calculation.
+		PROVIDER-COMPETENCE(provider, feature) : { non-fluent, real, default = 0.0 };
+		PROVIDER-DISCOUNT(provider) : { non-fluent, real, default = 0.5 }; // Effect of memory on provider satisfaction.
+		CONSUMER-AFFINITY(consumer, feature)     : { non-fluent,  real, default = 0.0 };
+		LESS(provider, provider) : { non-fluent, bool, default = false }; // Total ordering for CDF calculation.
+		NEXT-PROVIDER(provider, provider) : { non-fluent, bool, default = false }; // Linear representation of LESS. Must be consistent with LESS.
+
+		// State fluents
+		provider-satisfaction(provider) : { state-fluent, real, default = 1.0 };
+		consumer-satisfaction(consumer) : { state-fluent, real, default = 0.0 };
+		item-feature(item, feature) : { state-fluent, real, default = 0.0};
+		item-affinity(consumer, item) : { interm-fluent, real, level = 3 };
+		item-by(provider, item) : { state-fluent, bool, default = false};
+		item-gen-randomness(item):  { interm-fluent, real, level = 1 };
+		item-feature-randomness(item, feature):  { interm-fluent, real, level = 1 };
+		item-gen-cdf(provider) : { interm-fluent, real, level = 2 };
+		provider-sat-norm: {interm-fluent, real, level = 1};
+		consumer-num-recs(consumer): { interm-fluent, real, level = 1 };
+		sanitized-recommend(consumer, item): { interm-fluent, bool, level = 2 };
+
+		// Action fluents
+		recommend(consumer, item) : { action-fluent, bool, default = false }; // recommend one item to every consumer.
+	};
+
+	cpfs {
+		// The general story is as follows:
+		//  0. matching constraints are verified and enforced.
+		//	1. items are served to consumers according to recommender action;
+		//  2. providers update state according to recommendations;
+		//  3. new items are generated for the next round.
+
+		// 0:
+		consumer-num-recs(?c) = (sum_{?i: item} [recommend(?c, ?i)]);
+		sanitized-recommend(?c, ?i) = if (consumer-num-recs(?c) > 1) then false
+									else recommend(?c, ?i);
+	//1:
+    // Consumer satisfaction is inversely proportional to the Euclidan distance between their affinity and the item features.
+    item-affinity(?c, ?i) = MAX-AFFINITY - pow[(sum_{?f: feature} [pow[CONSUMER-AFFINITY(?c, ?f) - item-feature(?i, ?f), 2.0]]), 0.5];
+    consumer-satisfaction'(?c) = (sum_{?i: item} [item-affinity(?c, ?i) * sanitized-recommend(?c, ?i)]);
+
+    // 2:
+	  // Provider satisfaction is driven by the number they are recommended with a backwards-discounted "memory".
+		provider-satisfaction'(?p) = PROVIDER-DISCOUNT(?p) * provider-satisfaction(?p) + (sum_{?c: consumer, ?i: item}[sanitized-recommend(?c, ?i) ^ item-by(?p, ?i)]);
+
+		// CDF according to ordering defined by LESS. This will be used later for item generation.
+		provider-sat-norm = (sum_{?p: provider}[provider-satisfaction(?p)]); // Normalizing constant.
+		item-gen-cdf(?p) = (provider-satisfaction(?p) + (sum_{?q: provider} [provider-satisfaction(?q)  * LESS(?q, ?p)]))/provider-sat-norm; 
+
+		// 3:
+		// The recommender system maintains a limited inventory of items (say we can index/process so many items in a given day).
+		// Providers compete for these slots, where the probability of a provider getting the slot is proportional to their
+		// satisfaction. Essentially, unsatisfied providers will become unrecommendable.
+		// Sample a provider for each item slot with CDF sampling.
+		item-gen-randomness(?i) = Uniform(0.0, 1.0);
+		item-by'(?p, ?i) = ((sum_{?q: provider} [item-gen-cdf(?q) * NEXT-PROVIDER(?q, ?p)])) <= (item-gen-randomness(?i)) ^ (item-gen-randomness(?i) < item-gen-cdf(?p));
+		// Generate item features based on provider competence. 
+		item-feature-randomness(?i, ?f) = Normal(0.0, 1.0);
+		item-feature'(?i, ?f) = item-feature-randomness(?i, ?f) + (sum_{?p: provider}[item-by(?p, ?i) * PROVIDER-COMPETENCE(?p, ?f)]);
+	};
+
+	reward = sum_{?c: consumer} [ consumer-satisfaction(?c) ];
+
+ 	action-preconditions {
+
+		forall_{?c : consumer} [(sum_{?i : item} recommend(?c, ?i)) <= 1];
+	};
+}

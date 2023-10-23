@@ -1,0 +1,29 @@
+non-fluents nf_reservoir_control_cont_1c {
+	domain = reservoir_control_cont;
+	objects {
+		reservoir : {t1, t2};
+	};
+	non-fluents {
+		RES_CONNECT(t2, t1);
+		CONNECTED_TO_SEA(t1);
+		MIN_LEVEL(t1) = 21.54543539150386;
+		MAX_LEVEL(t1) = 138.5025169414638;
+		TOP_RES(t1) = 175.8977600780484;
+		RAIN_VAR(t1) = 5.0;
+		MIN_LEVEL(t2) = 69.82934008911755;
+		MAX_LEVEL(t2) = 128.80327030045743;
+		TOP_RES(t2) = 139.28609654370416;
+		RAIN_VAR(t2) = 5.0;
+	};
+}
+instance inst_reservoir_control_cont_1c {
+	domain = reservoir_control_cont;
+	non-fluents = nf_reservoir_control_cont_1c;
+	init-state {
+		rlevel(t1) = 115.42019251537728;
+		rlevel(t2) = 83.29988767733587;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}

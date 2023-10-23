@@ -1,0 +1,6 @@
+gym>=0.24.0
+matplotlib>=3.5.0
+numpy>=1.22
+pillow>=9.2.0
+ply
+pygame
