@@ -1,0 +1,125 @@
+///////////////////////////////////////////////////////////////////////////////
+//
+// A multi-UAV problem where a group of UAVs have to reach goal positions in
+// in the 3d Space.
+//
+///////////////////////////////////////////////////////////////////////////////
+
+domain kinematic_UAVs_dis{
+
+types {
+    aircraft : object;
+};
+
+pvariables {
+
+    CONTROLLABLE(aircraft) : { non-fluent, bool, default = false}; // which aircraft can be controlled
+    GRAVITY : { non-fluent, real, default = 9.8};
+
+    // Bounds on the position of the aircraft
+    MIN-X : { non-fluent, real, default = -50000.0};
+    MAX-X : { non-fluent, real, default = 50000.0};
+    MIN-Y : { non-fluent, real, default = -50000.0};
+    MAX-Y : { non-fluent, real, default = 50000.0};
+    MIN-Z : { non-fluent, real, default = -50000.0};
+    MAX-Z : { non-fluent, real, default = 50000.0};
+
+    SCALE-FACTOR  : { non-fluent, real, default = 0.1 };          // time scale factor for dynamic equations
+    RANDOM-WALK-COEFF : {non-fluent, real, default = 0.1 };       // variance constant for random walk of non controllable UAVs
+    VEL-REG     : {non-fluent, real, default = 0.001};            // regularizatino factor when dividing by zero velocity
+
+    // bounds on actions
+    MIN-ACC(aircraft) : {non-fluent, int, default = -1};
+    MAX-ACC(aircraft) : {non-fluent, int, default = 1};
+    MIN-DELTA-PHI(aircraft) : {non-fluent, int, default = -1};
+    MAX-PHI(aircraft) : {non-fluent, int, default = 1};
+    MIN-DELTA-THETA(aircraft) : {non-fluent, int, default = -1};
+    MAX-DELTA-THETA(aircraft) : {non-fluent, int, default = 1};
+
+    // goal position
+    GOAL-X(aircraft) : {non-fluent, real, default = 100.0};
+    GOAL-Y(aircraft) : {non-fluent, real, default = 100.0};
+    GOAL-Z(aircraft) : {non-fluent, real, default = 100.0};
+
+    // States
+    // Cartesian Coordinates
+    pos-x(aircraft) : { state-fluent, real, default = 0.0 }; // X axis coordinate
+    pos-y(aircraft) : { state-fluent, real, default = 0.0 }; // Y axis coordinate
+    pos-z(aircraft) : { state-fluent, real, default = 0.0 }; // Z axis coordinate
+    // Angles
+    theta(aircraft) : { state-fluent, real, default = 0.0 };  // pitch
+    phi(aircraft) : { state-fluent, real, default = 0.0 };    // roll
+    psi(aircraft) : { state-fluent, real, default = 0.0 };    // yaw
+    // velocity
+    vel(aircraft) : { state-fluent, real, default = 1.0 }; // velocity in the direction of the nose
+
+    // actions
+    set-acc(aircraft)  :  { action-fluent, int, default = 0 };
+    set-phi(aircraft)  :  { action-fluent, int, default = 0 };
+    set-theta(aircraft)  :  { action-fluent, int, default = 0 };
+   
+};
+
+cpfs {
+
+    // position changes for each time step
+    pos-x'(?a) = if (CONTROLLABLE(?a))
+                 then pos-x(?a) + SCALE-FACTOR * vel(?a) * cos[psi(?a)]
+                 else pos-x(?a) + Normal(0.0, RANDOM-WALK-COEFF);
+    pos-y'(?a) = if (CONTROLLABLE(?a))
+                 then pos-y(?a) + SCALE-FACTOR * vel(?a) * sin[psi(?a)]
+                 else pos-y(?a) + Normal(0.0, RANDOM-WALK-COEFF);
+    pos-z'(?a) = if (CONTROLLABLE(?a))
+                 then pos-z(?a) + SCALE-FACTOR * vel(?a) * sin[theta(?a)]
+                 else pos-z(?a) + Normal(0.0, RANDOM-WALK-COEFF);
+
+    // velocity
+    vel'(?a) = if (CONTROLLABLE(?a))
+               then max[0, vel(?a) + SCALE-FACTOR * max[min[set-acc(?a), MAX-ACC(?a)], MIN-ACC(?a)]]
+               else max[0, vel(?a) + Normal(0.0, RANDOM-WALK-COEFF)];
+
+    // angle changes
+    phi'(?a) = if (CONTROLLABLE(?a))
+               then phi(?a) + SCALE-FACTOR * max[min[set-phi(?a), MAX-PHI(?a)], MIN-DELTA-PHI(?a)]
+               else phi(?a) + Normal(0.0, RANDOM-WALK-COEFF);
+    theta'(?a) = if (CONTROLLABLE(?a))
+                 then theta(?a) + SCALE-FACTOR * max[min[set-theta(?a), MAX-DELTA-THETA(?a)], MIN-DELTA-THETA(?a)]
+                 else theta(?a) + Normal(0.0, RANDOM-WALK-COEFF);
+    psi'(?a) = if (CONTROLLABLE(?a))
+               then psi(?a) + SCALE-FACTOR * (tan[phi(?a)] / (vel(?a)+VEL-REG)) * GRAVITY
+               else psi(?a) + Normal(0.0, RANDOM-WALK-COEFF);
+
+};
+
+reward = -sum_{?a : aircraft} [CONTROLLABLE(?a) * [sqrt[pow[(pos-x(?a) - GOAL-X(?a)),2] +
+                                   pow[(pos-y(?a) - GOAL-Y(?a)),2] +
+                                   pow[(pos-z(?a) - GOAL-Z(?a)),2]]] ];
+
+state-invariants {
+    // boundaries of the aircraft locations
+    forall_{?a : aircraft}[ pos-x(?a) <= MAX-X ];
+    forall_{?a : aircraft}[ pos-x(?a) >= MIN-X ];
+    forall_{?a : aircraft}[ pos-y(?a) <= MAX-Y ];
+    forall_{?a : aircraft}[ pos-y(?a) >= MIN-Y ];
+    forall_{?a : aircraft}[ pos-z(?a) <= MAX-Z ];
+    forall_{?a : aircraft}[ pos-z(?a) >= MIN-Z ];
+	
+	// physics are plausible
+	GRAVITY >= 0 ^ SCALE-FACTOR >= 0 ^ RANDOM-WALK-COEFF >= 0 ^ VEL-REG >= 0;
+	
+	// boundaries are well defined
+	MAX-X >= MIN-X ^ MAX-Y >= MIN-Y ^ MAX-Z >= MIN-Z;
+	forall_{?a : aircraft} [MAX-ACC(?a) >= MIN-ACC(?a) ^ MAX-PHI(?a) >= MIN-DELTA-PHI(?a) ^ MAX-DELTA-THETA(?a) >= MIN-DELTA-THETA(?a)];
+};
+
+action-preconditions {
+    // boundaries for set acc
+    forall_{?a : aircraft}[ set-acc(?a) <= MAX-ACC(?a)];
+    forall_{?a : aircraft}[ set-acc(?a) >= MIN-ACC(?a)];
+    forall_{?a : aircraft}[ set-phi(?a) <= MAX-PHI(?a)];
+    forall_{?a : aircraft}[ set-phi(?a) >= MIN-DELTA-PHI(?a)];
+    forall_{?a : aircraft}[ set-theta(?a) <= MAX-DELTA-THETA(?a)];
+    forall_{?a : aircraft}[ set-theta(?a) >= MIN-DELTA-THETA(?a)];
+};
+
+}

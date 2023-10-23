@@ -1,0 +1,127 @@
+////////////////////////////////////////////////////////////////////
+// A simple continuous MDP for the racecar problem.
+//
+// A car is accelerated by applying a force in the x and y directions. 
+// The goal is to bring the car to within a fixed distance to a fixed 
+// goal location. The car must remain within boundaries defined as 
+// line segments connected between points (X1, Y1) and (X2, Y2).
+//
+////////////////////////////////////////////////////////////////////
+domain racecar {
+	
+    requirements = {
+        reward-deterministic
+    };
+	
+	types {
+		b: object;		// boundary of the race track that cannot be crossed by the car
+	};
+	
+    pvariables {
+		
+		// non-fluents
+		X1(b) 	: { non-fluent, real, default = 0 };	 	// boundary is the line segment (X1, Y1) -> (X2, Y2)
+		Y1(b) 	: { non-fluent, real, default = 0 };	
+		X2(b) 	: { non-fluent, real, default = 1 };
+		Y2(b) 	: { non-fluent, real, default = 1 };
+		
+		X0		: { non-fluent, real, default = 0.01 };		// starting x position of car
+		Y0 		: { non-fluent, real, default = 0.01 };		// starting y position of car
+		
+		GX 			: { non-fluent, real, default = 0.95 };		// x center of goal region
+		GY 			: { non-fluent, real, default = 0.95 };		// y center of goal region
+		RADIUS 		: { non-fluent, real, default = 0.05 };		// radius of goal region
+		COST 		: { non-fluent, real, default = 0.01 };		// cost of fuel, proportional to force	
+		GOAL-REWARD : { non-fluent, real, default = 1.0 };		// reward upon reaching the goal region
+		
+		MAX-F 	: { non-fluent, real, default = 1 };		// maximum force in each direction 
+		MASS 	: { non-fluent, real, default = 1 };		// mass of the car
+		DT	 	: { non-fluent, real, default = 0.1 };		// how much time passes between epochs	
+		
+		// interm and derived fluents
+		ax 				: { interm-fluent, real };			// x acceleration of car
+		ay 				: { interm-fluent, real };			// y acceleration of car
+		dx				: { interm-fluent, real };			// x displacement of car
+		dy				: { interm-fluent, real };			// y displacement of car
+		
+		o1(b)			: { interm-fluent, int }; 			// orientations of line segments	
+		o2(b)			: { interm-fluent, int }; 			
+		o3(b)			: { interm-fluent, int }; 			
+		o4(b)			: { interm-fluent, int }; 					
+		intersect(b)	: { interm-fluent, bool }; 			// whether car intersects boundary
+		violation		: { interm-fluent, bool };			// whether car intersects any boundary
+		
+		// states
+       	x    	: { state-fluent, real, default = 0 };      // x position of car
+		y 		: { state-fluent, real, default = 0 };		// y position of car
+		vx		: { state-fluent, real, default = 0 };		// x velocity of car
+		vy		: { state-fluent, real, default = 0 };		// y velocity of car
+		
+       	// actions
+       	fx 		: { action-fluent, real, default = 0 };     // x force component applied to the car
+		fy 		: { action-fluent, real, default = 0 };     // y force component applied to the car
+    };
+
+    cpfs {
+	
+		// compute acceleration and displacement of the car
+		ax = fx / MASS;
+		ay = fy / MASS;
+		dx = vx * DT + ax * pow[DT, 2] / 2;
+		dy = vy * DT + ay * pow[DT, 2] / 2;
+				 
+		// detect intersect with boundaries
+		// ref: https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
+		o1(?b) = sgn[(dy * (X1(?b) - (x + dx))) - (dx * (Y1(?b) - (y + dy)))];
+		o2(?b) = sgn[(dy * (X2(?b) - (x + dx))) - (dx * (Y2(?b) - (y + dy)))];
+		o3(?b) = sgn[((Y2(?b) - Y1(?b)) * (x - X2(?b))) - ((X2(?b) - X1(?b)) * (y - Y2(?b)))];
+		o4(?b) = sgn[((Y2(?b) - Y1(?b)) * ((x + dx) - X2(?b))) - ((X2(?b) - X1(?b)) * ((y + dy) - Y2(?b)))];
+		
+		intersect(?b) = ((o1(?b) ~= o2(?b)) ^ (o3(?b) ~= o4(?b))) | 
+						((o1(?b) == 0) ^ ((X1(?b) <= max[x, (x + dx)]) ^ (X1(?b) >= min[x, (x + dx)]) ^ 
+										  (Y1(?b) <= max[y, (y + dy)]) ^ (Y1(?b) >= min[y, (y + dy)]))) | 
+						((o2(?b) == 0) ^ ((X2(?b) <= max[x, (x + dx)]) ^ (X2(?b) >= min[x, (x + dx)]) ^ 
+										  (Y2(?b) <= max[y, (y + dy)]) ^ (Y2(?b) >= min[y, (y + dy)]))) | 
+						((o3(?b) == 0) ^ ((x <= max[X1(?b), X2(?b)]) ^ (x >= min[X1(?b), X2(?b)]) ^ 
+										  (y <= max[Y1(?b), Y2(?b)]) ^ (y >= min[Y1(?b), Y2(?b)]))) | 
+						((o4(?b) == 0) ^ (((x + dx) <= max[X1(?b), X2(?b)]) ^ ((x + dx) >= min[X1(?b), X2(?b)]) ^ 
+										  ((y + dy) <= max[Y1(?b), Y2(?b)]) ^ ((y + dy) >= min[Y1(?b), Y2(?b)])));
+		
+		violation = exists_{?b : b} [intersect(?b)];
+		
+		// compute new position and velocity
+		x' = if(violation) 
+				then X0
+				else x + dx;				
+		y' = if(violation)
+				then Y0
+				else y + dy;
+		vx' = if(violation)
+				then 0.0
+				else vx + ax * DT;
+		vy' = if(violation)
+				then 0.0
+				else vy + ay * DT;		
+    };
+
+    reward = (-COST * sqrt[pow[fx, 2] + pow[fy, 2]]) + 
+				(if(sqrt[pow[x' - GX, 2] + pow[y' - GY, 2]] <= RADIUS)
+					then GOAL-REWARD
+					else 0.0);
+
+	termination {
+		sqrt[pow[x - GX, 2] + pow[y - GY, 2]] <= RADIUS;
+	};
+	
+    state-invariants {
+		RADIUS >= 0 ^ MAX-F >= 0 ^ MASS >= 0 ^ DT >= 0;
+    };
+
+    action-preconditions {
+		fx >= -MAX-F;
+		fx <= MAX-F;
+		fy >= -MAX-F;
+		fy <= MAX-F;
+    };
+
+}

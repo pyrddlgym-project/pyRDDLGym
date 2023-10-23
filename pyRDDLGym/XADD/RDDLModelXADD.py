@@ -319,7 +319,6 @@ class RDDLModelWXADD(PlanningModel):
                                      "can be used for non-simulation.")
 
         if dist == 'Bernoulli':
-            assert len(args) == 1
             proba = args[0]
             # Sample a Bernoulli rv by sampling a uniform rv
             if self.simulation:
@@ -343,7 +342,11 @@ class RDDLModelWXADD(PlanningModel):
                                                  type='BERNOULLI')
                 # Need to postprocess the node to make leaf nodes 
                 # represent Bernoulli probabilities
-                self._need_postprocessing = True
+
+                # changed to make it a boolean bernnoulli when not at leaf
+                # self._need_postprocessing = True
+                self._need_postprocessing = False
+
             return node_id
         
         elif dist == 'Binomial':

@@ -1,0 +1,41 @@
+non-fluents nf_hvac_3c {
+	domain = hvac;
+	objects {
+		zone : {z1, z2, z3, z4, z5};
+		heater : {h1, h2, h3, h4, h5};
+	};
+	non-fluents {
+		TEMP-ZONE-MIN = 22.0;
+		TEMP-ZONE-MAX = 25.0;
+		P-SWITCH(z3) = 0.02;
+		P-SWITCH(z2) = 0.02;
+		ADJ-HEATER(h1, z3);
+		ADJ-HEATER(h2, z4);
+		ADJ-HEATER(h3, z3);
+		ADJ-HEATER(h3, z5);
+		ADJ-HEATER(h4, z2);
+		ADJ-HEATER(h5, z1);
+		ADJ-HEATER(h5, z2);
+		ADJ-ZONES(z3, z4);
+		ADJ-ZONES(z1, z5);
+	};
+}
+instance inst_hvac_3c {
+	domain = hvac;
+	non-fluents = nf_hvac_3c;
+	init-state {
+		temp-zone(z1) = 12.63355600264254;
+		temp-zone(z2) = 3.784539143727652;
+		temp-zone(z3) = 5.906233453116096;
+		temp-zone(z4) = 14.025804720939986;
+		temp-zone(z5) = 4.211124940625873;
+		temp-heater(h1) = 5.832926581886406;
+		temp-heater(h2) = 5.226151445302746;
+		temp-heater(h3) = 8.366647802475859;
+		temp-heater(h4) = 0.7582327255566934;
+		temp-heater(h5) = 8.382208934472319;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}

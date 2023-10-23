@@ -1,0 +1,12 @@
+non-fluents newton_nf {
+    domain = newton;
+}
+
+instance inst_newton_0 {
+    domain = newton;
+    non-fluents = newton_nf;
+	
+    max-nondef-actions = 2;
+    horizon = 100;
+    discount = 1.0;
+}

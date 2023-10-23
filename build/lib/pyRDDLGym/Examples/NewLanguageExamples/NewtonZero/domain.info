@@ -1,0 +1,4 @@
+[General]
+name=NewtonZero
+description=Example with Newton root-finding method.
+viz=ChartViz.ChartVisualizer

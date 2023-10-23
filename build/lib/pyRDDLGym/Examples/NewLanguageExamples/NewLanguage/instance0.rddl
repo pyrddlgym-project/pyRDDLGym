@@ -1,0 +1,35 @@
+non-fluents newsyntax_nf {
+    domain = newsyntax;
+	
+	non-fluents {
+		COST(@l1) = 1;
+		COST(@l2) = 2;
+		COST(@l3) = 3;
+		NEXT(@l1) = @l2;
+		NEXT(@l2) = @l3;
+		NEXT(@l3) = @l1;
+		TRIALS(@l1) = 10;
+		TRIALS(@l2) = 100;
+		TRIALS(@l3) = 1000;
+	};
+}
+
+instance inst_newsyntax_0 {
+    domain = newsyntax;
+    non-fluents = newsyntax_nf;
+	
+    init-state { 
+		matrix(@l1, @l1) = @l1;
+		matrix(@l2, @l2) = @l2;
+		matrix(@l3, @l3) = @l3;
+		matrix(@l1, @l2) = @l1;
+		matrix(@l1, @l3) = @l1;
+		matrix(@l2, @l1) = @l1;
+		matrix(@l2, @l3) = @l2;
+		matrix(@l3, @l1) = @l1;
+		matrix(@l3, @l2) = @l2;
+	};
+    max-nondef-actions = 1;
+    horizon = 10;
+    discount = 1.0;
+}

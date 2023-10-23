@@ -1,0 +1,307 @@
+non-fluents grid_1x2_FIXED4 {
+    domain = BLX_model;
+
+    objects {
+        intersection : {i0, i1, s0, s1, s2, s3, s4, s5};
+        phase        : {p0, p1, p2, p3, p4, p5, p6, p7};
+        action-token : {a0, a1, a2, a3, a4};
+        time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24};
+    };
+
+    non-fluents {
+        //action token enumeration
+        ACTION-TOKEN-INDEX(a0) = 0;
+        ACTION-TOKEN-INDEX(a1) = 1;
+
+        // cartesian coordinates
+        X(s0) = 232.0;    Y(s0) = 599.0;
+        X(s1) = 391.0;    Y(s1) = 599.0;
+        X(s5) = 0.0;    Y(s5) = 324.0;
+        X(i0) = 232.0;    Y(i0) = 324.0;
+        X(i1) = 391.0;    Y(i1) = 324.0;
+        X(s2) = 621.0;    Y(s2) = 324.0;
+        X(s4) = 232.0;    Y(s4) = 0.0;
+        X(s3) = 391.0;    Y(s3) = 0.0;
+
+        // intersection indices
+        INTERSECTION-INDEX(i0) = 0;
+        INTERSECTION-INDEX(i1) = 1;
+        INTERSECTION-INDEX(s0) = 2;
+        INTERSECTION-INDEX(s1) = 3;
+        INTERSECTION-INDEX(s2) = 4;
+        INTERSECTION-INDEX(s3) = 5;
+        INTERSECTION-INDEX(s4) = 6;
+        INTERSECTION-INDEX(s5) = 7;
+
+        // source intersections
+        SOURCE(s0) = true;
+        SOURCE(s1) = true;
+        SOURCE(s2) = true;
+        SOURCE(s3) = true;
+        SOURCE(s4) = true;
+        SOURCE(s5) = true;
+        // sink intersections
+        SINK(s0) = true;
+        SINK(s1) = true;
+        SINK(s2) = true;
+        SINK(s3) = true;
+        SINK(s4) = true;
+        SINK(s5) = true;
+        // traffic lights
+        TL(i0) = true;
+        TL(i1) = true;
+
+        // arrival rates
+        ARRIVAL-RATE(s0) = 0.33;
+        ARRIVAL-RATE(s1) = 0.21;
+        ARRIVAL-RATE(s2) = 0.26;
+        ARRIVAL-RATE(s3) = 0.41;
+        ARRIVAL-RATE(s4) = 0.34;
+        ARRIVAL-RATE(s5) = 0.21;
+
+        // roads between intersections
+        LINK(i0,s0) = true;
+        LINK(s0,i0) = true;
+        LINK(i0,i1) = true;
+        LINK(i1,i0) = true;
+        LINK(i0,s4) = true;
+        LINK(s4,i0) = true;
+        LINK(i0,s5) = true;
+        LINK(s5,i0) = true;
+        LINK(i1,s1) = true;
+        LINK(s1,i1) = true;
+        LINK(i1,s2) = true;
+        LINK(s2,i1) = true;
+        LINK(i1,s3) = true;
+        LINK(s3,i1) = true;
+        LINK(i1,i0) = true;
+        LINK(i0,i1) = true;
+
+        // number of lanes
+        Nl(i0,s0) = 4;
+        Nl(s0,i0) = 4;
+        Nl(i0,i1) = 4;
+        Nl(i1,i0) = 4;
+        Nl(i0,s4) = 4;
+        Nl(s4,i0) = 4;
+        Nl(i0,s5) = 4;
+        Nl(s5,i0) = 4;
+        Nl(i1,s1) = 4;
+        Nl(s1,i1) = 4;
+        Nl(i1,s2) = 4;
+        Nl(s2,i1) = 4;
+        Nl(i1,s3) = 4;
+        Nl(s3,i1) = 4;
+        Nl(i1,i0) = 4;
+        Nl(i0,i1) = 4;
+
+        // satflow rates
+        MU(s5,i0,i1) = 1.06;
+        MU(s5,i0,s0) = 0.53;
+        MU(s5,i0,s4) = 0.53;
+        MU(i1,i0,s5) = 1.06;
+        MU(s0,i0,i1) = 0.53;
+        MU(s4,i0,i1) = 0.53;
+        MU(s0,i0,s4) = 1.06;
+        MU(i1,i0,s4) = 0.53;
+        MU(i1,i0,s0) = 0.53;
+        MU(s4,i0,s0) = 1.06;
+        MU(s4,i0,s5) = 0.53;
+        MU(s0,i0,s5) = 0.53;
+        MU(i0,i1,s2) = 1.06;
+        MU(i0,i1,s1) = 0.53;
+        MU(i0,i1,s3) = 0.53;
+        MU(s2,i1,i0) = 1.06;
+        MU(s1,i1,s2) = 0.53;
+        MU(s3,i1,s2) = 0.53;
+        MU(s1,i1,s3) = 1.06;
+        MU(s2,i1,s3) = 0.53;
+        MU(s2,i1,s1) = 0.53;
+        MU(s3,i1,s1) = 1.06;
+        MU(s3,i1,i0) = 0.53;
+        MU(s1,i1,i0) = 0.53;
+
+        // turn probs
+        BETA(s5,i0,i1) = 0.4973818849290329;
+        BETA(s5,i0,s0) = 0.2526181150709671;
+        BETA(s5,i0,s4) = 0.25;
+        BETA(i1,i0,s5) = 0.43401825096086616;
+        BETA(s0,i0,i1) = 0.31598174903913384;
+        BETA(s4,i0,i1) = 0.25000000000000006;
+        BETA(s0,i0,s4) = 0.45895944313637227;
+        BETA(i1,i0,s4) = 0.29104055686362773;
+        BETA(i1,i0,s0) = 0.25;
+        BETA(s4,i0,s0) = 0.4113998130848333;
+        BETA(s4,i0,s5) = 0.3386001869151667;
+        BETA(s0,i0,s5) = 0.25;
+        BETA(i0,i1,s2) = 0.5212932416839636;
+        BETA(i0,i1,s1) = 0.22870675831603637;
+        BETA(i0,i1,s3) = 0.25;
+        BETA(s2,i1,i0) = 0.5081311364020412;
+        BETA(s1,i1,s2) = 0.2418688635979588;
+        BETA(s3,i1,s2) = 0.24999999999999997;
+        BETA(s1,i1,s3) = 0.5349991606036044;
+        BETA(s2,i1,s3) = 0.21500083939639564;
+        BETA(s2,i1,s1) = 0.24999999999999994;
+        BETA(s3,i1,s1) = 0.506784201918879;
+        BETA(s3,i1,i0) = 0.2432157980811211;
+        BETA(s1,i1,i0) = 0.24999999999999994;
+
+        // FIXED4 scheme for intersection i0,s0,i1,s4,s5
+        NUM-ACTION-TOKENS(i0) = 2;
+        PHASE-INDEX(p0) = 0;
+        PHASE-INDEX(p1) = 1;
+        PHASE-INDEX(p2) = 2;
+        PHASE-INDEX(p3) = 3;
+        PHASE-OF(p0,i0) = true;
+        PHASE-OF(p1,i0) = true;
+        PHASE-OF(p2,i0) = true;
+        PHASE-OF(p3,i0) = true;
+        GREEN(s0,i0,i1,p0) = true;
+        GREEN(s4,i0,s5,p0) = true;
+        GREEN(s0,i0,s4,p1) = true;
+        GREEN(s4,i0,s0,p1) = true;
+        GREEN(s5,i0,s0,p2) = true;
+        GREEN(i1,i0,s4,p2) = true;
+        GREEN(i1,i0,s5,p3) = true;
+        GREEN(s5,i0,i1,p3) = true;
+        GREEN(s0,i0,s5,p0)=true; GREEN(s0,i0,s5,p1)=true;
+        GREEN(s0,i0,s5,p2)=true; GREEN(s0,i0,s5,p3)=true;
+        GREEN(s5,i0,s4,p0)=true; GREEN(s5,i0,s4,p1)=true;
+        GREEN(s5,i0,s4,p2)=true; GREEN(s5,i0,s4,p3)=true;
+        GREEN(s4,i0,i1,p0)=true; GREEN(s4,i0,i1,p1)=true;
+        GREEN(s4,i0,i1,p2)=true; GREEN(s4,i0,i1,p3)=true;
+        GREEN(i1,i0,s0,p0)=true; GREEN(i1,i0,s0,p1)=true;
+        GREEN(i1,i0,s0,p2)=true; GREEN(i1,i0,s0,p3)=true;
+        TRANSITION(p0,a0) = 0;
+        TRANSITION(p0,a1) = 1;
+        TRANSITION(p1,a0) = 1;
+        TRANSITION(p1,a1) = 2;
+        TRANSITION(p2,a0) = 2;
+        TRANSITION(p2,a1) = 3;
+        TRANSITION(p3,a0) = 3;
+        TRANSITION(p3,a1) = 0;
+        PHASE-MIN(p0) = 6;
+        PHASE-MIN(p1) = 6;
+        PHASE-MIN(p2) = 6;
+        PHASE-MIN(p3) = 6;
+        PHASE-MAX(p0) = 60;
+        PHASE-MAX(p1) = 60;
+        PHASE-MAX(p2) = 60;
+        PHASE-MAX(p3) = 60;
+        PHASE-ALL-RED-DUR(p0) = 2;
+        PHASE-ALL-RED-DUR(p1) = 4;
+        PHASE-ALL-RED-DUR(p2) = 2;
+        PHASE-ALL-RED-DUR(p3) = 4;
+        //DONE FIXED4 scheme for intersection i0,s0,i1,s4,s5
+
+        // FIXED4 scheme for intersection i1,s1,s2,s3,i0
+        NUM-ACTION-TOKENS(i1) = 2;
+        PHASE-INDEX(p4) = 0;
+        PHASE-INDEX(p5) = 1;
+        PHASE-INDEX(p6) = 2;
+        PHASE-INDEX(p7) = 3;
+        PHASE-OF(p4,i1) = true;
+        PHASE-OF(p5,i1) = true;
+        PHASE-OF(p6,i1) = true;
+        PHASE-OF(p7,i1) = true;
+        GREEN(s1,i1,s2,p4) = true;
+        GREEN(s3,i1,i0,p4) = true;
+        GREEN(s1,i1,s3,p5) = true;
+        GREEN(s3,i1,s1,p5) = true;
+        GREEN(i0,i1,s1,p6) = true;
+        GREEN(s2,i1,s3,p6) = true;
+        GREEN(s2,i1,i0,p7) = true;
+        GREEN(i0,i1,s2,p7) = true;
+        GREEN(s1,i1,i0,p4)=true; GREEN(s1,i1,i0,p5)=true;
+        GREEN(s1,i1,i0,p6)=true; GREEN(s1,i1,i0,p7)=true;
+        GREEN(i0,i1,s3,p4)=true; GREEN(i0,i1,s3,p5)=true;
+        GREEN(i0,i1,s3,p6)=true; GREEN(i0,i1,s3,p7)=true;
+        GREEN(s3,i1,s2,p4)=true; GREEN(s3,i1,s2,p5)=true;
+        GREEN(s3,i1,s2,p6)=true; GREEN(s3,i1,s2,p7)=true;
+        GREEN(s2,i1,s1,p4)=true; GREEN(s2,i1,s1,p5)=true;
+        GREEN(s2,i1,s1,p6)=true; GREEN(s2,i1,s1,p7)=true;
+        TRANSITION(p4,a0) = 0;
+        TRANSITION(p4,a1) = 1;
+        TRANSITION(p5,a0) = 1;
+        TRANSITION(p5,a1) = 2;
+        TRANSITION(p6,a0) = 2;
+        TRANSITION(p6,a1) = 3;
+        TRANSITION(p7,a0) = 3;
+        TRANSITION(p7,a1) = 0;
+        PHASE-MIN(p4) = 6;
+        PHASE-MIN(p5) = 6;
+        PHASE-MIN(p6) = 6;
+        PHASE-MIN(p7) = 6;
+        PHASE-MAX(p4) = 60;
+        PHASE-MAX(p5) = 60;
+        PHASE-MAX(p6) = 60;
+        PHASE-MAX(p7) = 60;
+        PHASE-ALL-RED-DUR(p4) = 2;
+        PHASE-ALL-RED-DUR(p5) = 4;
+        PHASE-ALL-RED-DUR(p6) = 2;
+        PHASE-ALL-RED-DUR(p7) = 4;
+        //DONE FIXED4 scheme for intersection i1,s1,s2,s3,i0
+
+        // time-delay properties
+        TIME-HEAD(t0) = true;
+        TIME-TAIL(t24) = true;
+        TIME-VAL(t0) = 0;
+        TIME-VAL(t1) = 1;
+        TIME-VAL(t2) = 2;
+        TIME-VAL(t3) = 3;
+        TIME-VAL(t4) = 4;
+        TIME-VAL(t5) = 5;
+        TIME-VAL(t6) = 6;
+        TIME-VAL(t7) = 7;
+        TIME-VAL(t8) = 8;
+        TIME-VAL(t9) = 9;
+        TIME-VAL(t10) = 10;
+        TIME-VAL(t11) = 11;
+        TIME-VAL(t12) = 12;
+        TIME-VAL(t13) = 13;
+        TIME-VAL(t14) = 14;
+        TIME-VAL(t15) = 15;
+        TIME-VAL(t16) = 16;
+        TIME-VAL(t17) = 17;
+        TIME-VAL(t18) = 18;
+        TIME-VAL(t19) = 19;
+        TIME-VAL(t20) = 20;
+        TIME-VAL(t21) = 21;
+        TIME-VAL(t22) = 22;
+        TIME-VAL(t23) = 23;
+        TIME-VAL(t24) = 24;
+        NEXT(t0,t1) = true;
+        NEXT(t1,t2) = true;
+        NEXT(t2,t3) = true;
+        NEXT(t3,t4) = true;
+        NEXT(t4,t5) = true;
+        NEXT(t5,t6) = true;
+        NEXT(t6,t7) = true;
+        NEXT(t7,t8) = true;
+        NEXT(t8,t9) = true;
+        NEXT(t9,t10) = true;
+        NEXT(t10,t11) = true;
+        NEXT(t11,t12) = true;
+        NEXT(t12,t13) = true;
+        NEXT(t13,t14) = true;
+        NEXT(t14,t15) = true;
+        NEXT(t15,t16) = true;
+        NEXT(t16,t17) = true;
+        NEXT(t17,t18) = true;
+        NEXT(t18,t19) = true;
+        NEXT(t19,t20) = true;
+        NEXT(t20,t21) = true;
+        NEXT(t21,t22) = true;
+        NEXT(t22,t23) = true;
+        NEXT(t23,t24) = true;
+    };
+}
+
+instance grid_1x2_FIXED4{
+    domain = BLX_model;
+    non-fluents = grid_1x2_FIXED4;
+    max-nondef-actions = pos-inf;
+    horizon = 200;
+    discount = 1.0;
+}
