@@ -77,6 +77,9 @@ class RDDLModelWXADD(PlanningModel):
         self._need_postprocessing = False
         self._postprocessing_kwargs = {}
 
+        #count number of bernoulli var to seperate them
+        self._ber_var_count = 0
+
     def compile(self, simulation=None):
         if simulation is not None and isinstance(simulation, bool):
             self.simulation = simulation
@@ -334,7 +337,7 @@ class RDDLModelWXADD(PlanningModel):
             # Create a Bernoulli node
             # TODO: How to assert that a Bernoulli node can only come at a leaf?
             else:
-                name = f'{dist}_params_{len(args)}_{proba}'
+                name = f'{dist}_{self._ber_var_count}_params_{len(args)}_{proba}'
                 rv, node_id = self.add_sympy_var(name,
                                                  'real',
                                                  random=True,
@@ -346,6 +349,7 @@ class RDDLModelWXADD(PlanningModel):
                 # changed to make it a boolean bernnoulli when not at leaf
                 # self._need_postprocessing = True
                 self._need_postprocessing = False
+            self._ber_var_count += 1
 
             return node_id
         
