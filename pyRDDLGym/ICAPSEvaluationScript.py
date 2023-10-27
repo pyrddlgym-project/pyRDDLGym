@@ -5,6 +5,7 @@ import os
 import sys
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+from pyRDDLGym.Core.Policies.Agents import NoOpAgent, RandomAgent
 
 from pyRDDLGym.Core.Gurobi.GurobiParameterTuning import GurobiParameterTuningReplan
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiStraightLinePlan
@@ -23,7 +24,7 @@ EPISODES = 5
 
  
 def main(method, domain, instance, do_tune):
-    assert method in ['jax', 'gurobi']
+    assert method in ['jax', 'gurobi', 'noop', 'random']
     
     # create the environment
     filename = f'{method}_{domain}_{instance}'
@@ -93,6 +94,16 @@ def main(method, domain, instance, do_tune):
             plan=GurobiStraightLinePlan(),
             rollout_horizon=params['T'],
             model_params={'NonConvex': 2, 'OutputFlag': 0})
+        ground_state = True
+    
+    elif method == 'noop':
+        policy = NoOpAgent(action_space=env.action_space, 
+                           num_actions=env.numConcurrentActions)
+        ground_state = True
+    
+    elif method == 'random':
+        policy = RandomAgent(action_space=env.action_space, 
+                             num_actions=env.numConcurrentActions)
         ground_state = True
         
     # evaluation
