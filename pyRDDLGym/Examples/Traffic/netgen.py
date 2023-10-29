@@ -1,4 +1,4 @@
-# A tool for generating instances of the Traffic domain
+"""A tool for generating instances of the Traffic domain"""
 
 import numpy as np
 from itertools import product
@@ -11,8 +11,8 @@ def dist(p0, p1): return np.linalg.norm(p1-p0)
 
 def generate_4leg_intersection(i, Ein, Nout, Nin, Wout, Win, Sout, Sin, Eout,
                                min, max, red, right_on_red=True):
-    """ Generates the non-fluents for a four-leg intersection,
-        with left, through, and right movements """
+    """Generates the non-fluents for a four-leg intersection,
+    with left, through, and right movements"""
 
     nonfluents_str = newline_indent_str*2 + f'//intersection {i}'
     nonfluents_str += newline_indent_str + '//turns' + newline_indent_str
@@ -133,7 +133,7 @@ def generate_webster_scenario(d,
                               instance_name=None,
                               horizon=1024,
                               discount=1.0):
-    """ Generates a single intersection instance for a Webster timing experiment """
+    """Generates a single intersection instance for a Webster timing experiment"""
     if instance_name is None:
         instance_name = f'single_intersection_webster_experiment'
 
@@ -268,8 +268,8 @@ def generate_green_wave_scenario(N,
                                  instance_name=None,
                                  horizon=1024,
                                  discount=1.0):
-    """ Creates an instance that has a corridor with N traffic lights
-        and a dominant flow in the West->East direction. """
+    """Creates an instance that has a corridor with N traffic lights
+    and a dominant flow in the West->East direction."""
     if instance_name is None:
         instance_name = f'green_wave_{N}_experiment'
 
@@ -444,21 +444,21 @@ def generate_grid(nrows,
                   instance_name=None,
                   horizon=200,
                   discount=1.0):
-    """ Generates a grid network.
+    """Generates a grid network.
 
-        The inflow rates are sampled from a uniform random distribution,
-        and so are the link lengths. The feeder links can be elongated
-        to fit more vehicles and provide more information to the boundary
-        lights.
+    The inflow rates are sampled from a uniform random distribution,
+    and so are the link lengths. The feeder links can be elongated
+    to fit more vehicles and provide more information to the boundary
+    lights.
 
-        Typically, through movements are assumed to get (2/4) of the lanes,
-        and left and right turns 1/4 each. The saturation flow rate for a
-        movement is obtained by multiplying the sat. flow rate per lane by
-        the assumed number of lanes.
+    Typically, through movements are assumed to get (2/4) of the lanes,
+    and left and right turns 1/4 each. The saturation flow rate for a
+    movement is obtained by multiplying the sat. flow rate per lane by
+    the assumed number of lanes.
 
-        There is a fixed probability for a left-turn to have higher demand than the
-        through movement (defaults to 0). In this case, the left turns are assumed
-        to have (2/4) of the lanes and the through movements (1/4) of the lanes.
+    There is a fixed probability for a left-turn to have higher demand than the
+    through movement (defaults to 0). In this case, the left turns are assumed
+    to have (2/4) of the lanes and the through movements (1/4) of the lanes.
     """
     # Sample link lengths uniformly
     # Optionally, make the feeder links longer to fit more vehicles
