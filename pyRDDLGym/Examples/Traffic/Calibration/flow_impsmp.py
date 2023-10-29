@@ -112,7 +112,7 @@ for (state, next_state) in model.next_state.items():
 # Set up ground truth inflow rates
 source_indices = range(16,24)
 true_source_rates = jnp.array([0.3, 0.2, 0.1, 0.4, 0.1, 0.2, 0.3])
-num_nonzero_sources = 2
+num_nonzero_sources = 7
 source_rates = true_source_rates[:num_nonzero_sources]
 s0, s1, s2 = source_indices[0], source_indices[num_nonzero_sources], source_indices[-1]
 
@@ -271,8 +271,9 @@ def parse_optimizer(config):
 
 # === REINFORCE ===
 reinforce_config = {
-    'optimizer': 'rmsprop',
-    'lr': 1e-3,
+#    'optimizer': 'rmsprop',
+    'optimizer': 'sgd',
+    'lr': 1e-4,
     'momentum': 0.1,
 }
 
@@ -619,7 +620,7 @@ class SimpleNumpyToJSONEncoder(json.JSONEncoder):
 
 if __name__ == '__main__':
     method = 'reinforce'
-    n_iters = 100
+    n_iters = 75
 
     # if disable=True, runs without jit (much slower, but can inspect the data
     # in the middle of a jitted computation). If disable=False, runs with jit
@@ -634,7 +635,7 @@ if __name__ == '__main__':
         else: raise KeyError
 
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    filename = f'{timestamp}_{method}_iters{n_iters}.json'
+    filename = f'{timestamp}_{method}_iters{n_iters}'
 
     with open(f'tmp/{filename}.json', 'w') as file:
         json.dump(algo_stats, file, cls=SimpleNumpyToJSONEncoder)
