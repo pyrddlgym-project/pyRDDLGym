@@ -640,7 +640,22 @@ class GurobiRDDLCompiler:
                     res = any(gterms)    
                     lb = ub = int(res)                
                 return res, GRB.BINARY, lb, ub, symb
-        
+            
+            # unwrap => to binary operations
+            elif op == '=>' and n == 2:
+                gterm1, gterm2 = gterms
+                if symb:
+                    not1 = self._add_bool_var(model)
+                    model.addConstr(not1 + gterm1 == 1)
+                              
+                    res = self._add_bool_var(model)
+                    model.addGenConstrOr(res, [not1, gterm2])
+                    lb, ub = 0, 1             
+                else:
+                    res = (gterm1 <= gterm2)
+                    lb = ub = int(res)
+                return res, GRB.BINARY, lb, ub, symb                
+                            
         raise RDDLNotImplementedError(
             f'Logical operator {op} with {n} arguments is not '
             f'supported in Gurobi compiler.\n' + 
