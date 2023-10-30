@@ -37,7 +37,8 @@ def main(domain, instance, method):
             controller.params = callback['best_params']
             controller.evaluate(env, ground_state=False, verbose=False, render=True)
             time_last_eval = callback['elapsed_time']
-
+            
+    env.close()
         
 if __name__ == "__main__":
     domain, instance = 'Wildfire', 0
