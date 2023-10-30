@@ -1425,7 +1425,7 @@ class JaxOfflineController(BaseAgent):
         self.train_kwargs = train_kwargs        
         self.params_given = params is not None
         
-        self.reset()
+        self.step = 0
         if not self.train_on_reset and not self.params_given:
             params = self.planner.optimize(key=self.key, **self.train_kwargs) 
         self.params = params  
