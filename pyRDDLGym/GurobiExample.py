@@ -24,6 +24,8 @@ def main(domain, instance, horizon):
     
     # evaluate the agent
     controller.evaluate(env, verbose=True, render=True)
+    
+    env.close()
 
             
 if __name__ == "__main__":

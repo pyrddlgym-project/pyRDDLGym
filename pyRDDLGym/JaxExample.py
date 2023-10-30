@@ -34,6 +34,8 @@ def main(domain, instance, method):
     
     # evaluate the agent
     controller.evaluate(env, ground_state=False, verbose=True, render=True)
+    
+    env.close()
         
         
 if __name__ == "__main__":

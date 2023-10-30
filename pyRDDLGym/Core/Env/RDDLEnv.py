@@ -18,19 +18,16 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
 
 
-def _make_dir(simlogname, domain_name, instance_name):
-    curpath = os.path.abspath(__file__)
-    for _ in range(3):
-        curpath = os.path.split(curpath)[0]
-    path = os.path.join(curpath, 'Logs', simlogname, domain_name)
+def _make_dir(log_path, domain_name, instance_name):
+    path = os.path.join(log_path, 'Logs', domain_name)
     if not os.path.exists(path):
         try:
             os.makedirs(path)
         except Exception as e:
             if not isinstance(e, FileExistsError):
                 raise RDDLLogFolderError(
-                    f'Could not create log folder for domain {domain_name} '
-                    f'of method {simlogname} at path {path}')
+                    f'Could not create Logs folder for domain {domain_name} '
+                    f'at path {path}')
     path = os.path.join(path, instance_name)
     return path
 
@@ -44,7 +41,7 @@ class RDDLEnv(gym.Env):
                  enforce_action_count_non_bool: bool=True,
                  debug: bool=False,
                  log: bool=False,
-                 simlogname: str=None,
+                 log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
                  backend_kwargs: Dict={},
                  seeds: RDDLEnvSeeder=RDDLEnvSeederFibonacci()):
@@ -58,7 +55,7 @@ class RDDLEnv(gym.Env):
         in check that number of nondef actions don't exceed max-nondef-actions
         :param debug: whether to log compilation information to a log file
         :param log: whether to log simulation data to file
-        :param simlogname: name of the file to save simulation data log
+        :param log_path: absolute path to folder where simulation logs are saved
         :param backend: the subclass of RDDLSimulator to use as backend for
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
@@ -94,7 +91,7 @@ class RDDLEnv(gym.Env):
         logger = Logger(f'{log_fname}_debug.log') if debug else None
         self.simlogger = None
         if log:
-            simlog_fname = _make_dir(simlogname, ast.domain.name, ast.instance.name)
+            simlog_fname = _make_dir(log_path, ast.domain.name, ast.instance.name)
             self.simlogger = SimLogger(f'{simlog_fname}_log.csv')
         if self.simlogger:
             self.simlogger.clear(overwrite=False)
