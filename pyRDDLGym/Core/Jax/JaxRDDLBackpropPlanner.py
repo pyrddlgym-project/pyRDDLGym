@@ -1108,7 +1108,7 @@ class JaxRDDLBackpropPlanner:
             return callback['best_params']
         
     def optimize_generator(self, key: random.PRNGKey,
-                           epochs: int=99999,
+                           epochs: int=999999,
                            train_seconds: float=120.,
                            plot_step: int=None,
                            model_params: Dict[str, object]=None,
@@ -1136,6 +1136,7 @@ class JaxRDDLBackpropPlanner:
         :param verbose: whether to print progress during training
         :param tqdm_position: position of tqdm progress bar (for multiprocessing)
         '''
+        print(f'epochs={epochs}, train_seconds={train_seconds}')
         start_time = time.time()
         elapsed_outside_loop = 0
         
@@ -1402,6 +1403,7 @@ class JaxOfflineController(BaseAgent):
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict[str, object]=None,
                  params: Dict[str, object]=None,
+                 train_on_reset: bool=False,
                  **train_kwargs) -> None:
         '''Creates a new JAX offline control policy that is trained once, then
         deployed later.
@@ -1412,18 +1414,21 @@ class JaxOfflineController(BaseAgent):
         or whenever sample_action is called
         :param params: use the specified policy parameters instead of calling
         planner.optimize()
+        :param train_on_reset: retrain policy parameters on every episode reset
         :param **train_kwargs: any keyword arguments to be passed to the planner
         for optimization
         '''
         self.planner = planner
         self.key = key
         self.eval_hyperparams = eval_hyperparams
+        self.train_on_reset = train_on_reset
+        self.train_kwargs = train_kwargs        
+        self.params_given = params is not None
         
         self.reset()
-        if params is None:
-            self.params = self.planner.optimize(key=self.key, **train_kwargs) 
-        else:
-            self.parmas = params  
+        if not self.train_on_reset and not self.params_given:
+            params = self.planner.optimize(key=self.key, **self.train_kwargs) 
+        self.params = params  
         
     def sample_action(self, state):
         self.key, subkey = random.split(self.key)
@@ -1434,6 +1439,8 @@ class JaxOfflineController(BaseAgent):
         
     def reset(self):
         self.step = 0
+        if self.train_on_reset and not self.params_given:
+            self.params = self.planner.optimize(key=self.key, **self.train_kwargs)
 
 
 class JaxOnlineController(BaseAgent):
