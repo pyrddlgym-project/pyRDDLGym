@@ -93,7 +93,8 @@ def main(method, domain, instance, do_tune):
             rddl=env.model,
             plan=GurobiStraightLinePlan(),
             rollout_horizon=params['T'],
-            model_params={'NonConvex': 2, 'OutputFlag': 0})
+            model_params={'OutputFlag': 0, 'NonConvex': 2, 
+                          'TimeLimit': train_args['train_seconds']})
         ground_state = True
     
     elif method == 'noop':
@@ -117,7 +118,8 @@ def main(method, domain, instance, do_tune):
 
 
 if __name__ == '__main__':
-    method, domain, instance, do_tune, = 'gurobi', 'Elevators_MDP_ippc2014', '5', False
-    # method, domain, instance = sys.argv[1:4]
+    method, domain, instance, do_tune, = 'gurobi', 'Wildfire_MDP_ippc2014', '5', True
+    # method, domain, instance, do_tune = sys.argv[1:5]
+    do_tune = do_tune in {'True', 'true', True, '1', 1}
     main(method, domain, instance, do_tune)
     
