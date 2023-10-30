@@ -18,18 +18,16 @@ from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
 from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
 
 
-def _make_dir(log_path, domain_name, instance_name):
-    path = os.path.join(log_path, 'Logs', domain_name)
-    if not os.path.exists(path):
+def _make_dir(log_path):
+    root_path = os.path.dirname(log_path)
+    if not os.path.exists(root_path):
         try:
-            os.makedirs(path)
+            os.makedirs(root_path)
         except Exception as e:
             if not isinstance(e, FileExistsError):
                 raise RDDLLogFolderError(
-                    f'Could not create Logs folder for domain {domain_name} '
-                    f'at path {path}')
-    path = os.path.join(path, instance_name)
-    return path
+                    f'Could not create folder at path {root_path}.')
+    return log_path
 
 
 class RDDLEnv(gym.Env):
@@ -55,7 +53,8 @@ class RDDLEnv(gym.Env):
         in check that number of nondef actions don't exceed max-nondef-actions
         :param debug: whether to log compilation information to a log file
         :param log: whether to log simulation data to file
-        :param log_path: absolute path to folder where simulation logs are saved
+        :param log_path: absolute path to file where simulation log is saved,
+        excluding the file extension
         :param backend: the subclass of RDDLSimulator to use as backend for
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
@@ -91,8 +90,8 @@ class RDDLEnv(gym.Env):
         logger = Logger(f'{log_fname}_debug.log') if debug else None
         self.simlogger = None
         if log:
-            simlog_fname = _make_dir(log_path, ast.domain.name, ast.instance.name)
-            self.simlogger = SimLogger(f'{simlog_fname}_log.csv')
+            new_log_path = _make_dir(log_path)
+            self.simlogger = SimLogger(f'{new_log_path}_log.csv')
         if self.simlogger:
             self.simlogger.clear(overwrite=False)
         
