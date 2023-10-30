@@ -659,15 +659,12 @@ class GurobiOfflineController(BaseAgent):
     
     def __init__(self, rddl: RDDLLiftedModel,
                  plan: GurobiRDDLPlan,
-                 params: Dict[str, object]=None,
                  **compiler_kwargs):
         '''Creates a new Gurobi control policy that is optimized offline in an 
         open-loop fashion.
         
         :param rddl: the RDDL model
         :param plan: the plan or policy to optimize
-        :param params: use the specified policy parameters instead of optimizing
-        them from scratch
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rollout_horizon: length of the planning horizon (uses the RDDL
         defined horizon if None)
@@ -689,11 +686,12 @@ class GurobiOfflineController(BaseAgent):
         
         # optimize the plan or policy here
         self.reset()
-        if params is None:
-            model, _, self.params = self.compiler.compile()
-            model.optimize()
-        else:
-            self.parmas = params
+        model, _, params = self.compiler.compile()
+        model.optimize()
+        self.model = model
+        self.params = params
+            
+        # check for existence of valid solution
         self.solved = model.SolCount > 0
         if not self.solved:
             warnings.warn(f'Gurobi failed to find a feasible solution '
@@ -712,6 +710,7 @@ class GurobiOfflineController(BaseAgent):
             return {}
         
         # evaluate policy at the current time step
+        self.model.update()
         action_values = self.plan.evaluate(
             self.compiler, params=self.params, step=self.step, subs=subs)
         action_values = {name: value for (name, value) in action_values.items()
