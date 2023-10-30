@@ -1,4 +1,5 @@
 from typing import Dict, List, Tuple
+import warnings
 
 import gurobipy
 from gurobipy import GRB
@@ -693,6 +694,11 @@ class GurobiOfflineController(BaseAgent):
             model.optimize()
         else:
             self.parmas = params
+        self.solved = model.SolCount > 0
+        if not self.solved:
+            warnings.warn(f'Gurobi failed to find a feasible solution '
+                          f'in the given time limit: using no-op action.',
+                          stacklevel=2)
     
     def sample_action(self, state):
         
@@ -700,6 +706,10 @@ class GurobiOfflineController(BaseAgent):
         subs = self.compiler._compile_init_subs()
         subs.update(self.compiler._compile_init_subs(state))
         subs = {name: value[0] for (name, value) in subs.items()}
+        
+        # check for existence of solution
+        if not self.solved:
+            return {}
         
         # evaluate policy at the current time step
         action_values = self.plan.evaluate(
@@ -757,6 +767,13 @@ class GurobiOnlineController(BaseAgent):
         model, _, params = self.compiler.compile(subs)
         model.optimize()
         
+        # check for existence of solution
+        if not (model.SolCount > 0):
+            warnings.warn(f'Gurobi failed to find a feasible solution '
+                          f'in the given time limit: using no-op action.',
+                          stacklevel=2)
+            return {}
+            
         # evaluate policy at the current time step with current inputs
         action_values = self.plan.evaluate(
             self.compiler, params=params, step=0, subs=subs)

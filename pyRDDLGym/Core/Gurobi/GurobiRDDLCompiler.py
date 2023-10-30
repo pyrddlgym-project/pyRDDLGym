@@ -384,8 +384,8 @@ class GurobiRDDLCompiler:
             arg, = args
             gterm, vtype, lb, ub, symb = self._gurobi(arg, model, subs)
             vtype = GurobiRDDLCompiler._at_least_int(vtype)
-            lb, ub = GurobiRDDLCompiler._fix_bounds(-ub, -lb)
-            negexpr = -gterm
+            lb, ub = GurobiRDDLCompiler._fix_bounds(-1 * ub, -1 * lb)
+            negexpr = -1 * gterm
             
             # assign negative to a new variable
             if symb: 
