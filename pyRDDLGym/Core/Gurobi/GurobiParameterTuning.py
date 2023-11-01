@@ -68,7 +68,7 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
     
     def __init__(self, env: RDDLEnv,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                     'T': (1, 40, int)
+                     'T': (1, None, int)
                  },
                  timeout_training: float=9999.,
                  timeout_tuning: float=np.inf,
@@ -92,6 +92,10 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
             pool_context, num_workers, poll_frequency,
             gp_iters, acquisition, gp_init_kwargs, gp_params)
         self.eval_trials = eval_trials
+        
+        # set upper range of lookahead horizon to environment horizon
+        if self.hyperparams_dict['T'][1] is None:
+            self.hyperparams_dict['T'] = (1, self.env.horizon, int)
     
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_replan
