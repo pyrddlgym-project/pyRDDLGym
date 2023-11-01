@@ -471,7 +471,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
                     'lr': (-5., 0., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten),
-                    'T': (1, 40, int)
+                    'T': (1, None, int)
                  },
                  eval_trials: int=5,
                  use_guess_last_epoch: bool=True,
@@ -496,6 +496,10 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         self.eval_trials = eval_trials
         self.use_guess_last_epoch = use_guess_last_epoch
         
+        # set upper range of lookahead horizon to environment horizon
+        if self.hyperparams_dict['T'][1] is None:
+            self.hyperparams_dict['T'] = (1, self.env.horizon, int)
+            
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_replan
             
