@@ -131,7 +131,7 @@ The list of examples can be obtained through the ExampleManager object:
 ExampleManager.ListExamples()
 ```
 
-And an instantiation of the ExampleManager object with a specific example will give access to the example information:
+And an instantiation of the ExampleManager with a specific example will give access to its information:
 ```python
 # get the environment info
 EnvInfo = ExampleManager.GetEnvInfo('MarsRover')
@@ -148,31 +148,33 @@ EnvInfo.get_visualizer()
 An environment can be initialized by *.rddl files directly or by the ExampleManager:
 ```python
 # set up the environment class, choose instance 0 because every example has at least one example instance
-myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
+env = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
 # set up the environment visualizer
-myEnv.set_visualizer(EnvInfo.get_visualizer())
+env.set_visualizer(EnvInfo.get_visualizer())
 ```
 
-An agent can be initilized:
+An agent can be initialized:
 ```python
-agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.numConcurrentActions)
+agent = RandomAgent(action_space=env.action_space, num_actions=env.numConcurrentActions)
 ```
 
-And the final interaction with the environment is identical to the gym standard interaction:
+And the interaction with the environment is identical to the OpenAI gym interaction:
 ```python
 total_reward = 0
-state = myEnv.reset()
-for step in range(myEnv.horizon):
-    myEnv.render()
-    action = agent.sample_action()
-    next_state, reward, done, info = myEnv.step(action)
-    total_reward += reward
+state = env.reset()
+for step in range(env.horizon):
+    env.render()
+    action = agent.sample_action(state)
+    next_state, reward, done, info = env.step(action)
     print(f'state = {state}, action = {action}, reward = {reward}')
+    total_reward += reward
     state = next_state
     if done:
         break
 print(f'episode ended with reward {total_reward}')
-myEnv.close()
+
+# release all viz resources, and finish logging if used
+env.close()
 ```
 
 __Note__: the _rddlrepository_ package contains an example manager similar to the one included with pyRDDLGym.
@@ -190,9 +192,9 @@ Writing new OpenAI gym environments only requires knowledge of RDDL, thus no Pyt
 
 Now the instantiation of the environment for the newly written problem is done as:
 ```python
-myEnv = RDDLEnv.RDDLEnv(domain=<domain path>, instance=<instance path>)
+env = RDDLEnv.RDDLEnv(domain=<domain path>, instance=<instance path>)
 # set up the environment visualizer
-myEnv.set_visualizer(<visualizer object>)
+env.set_visualizer(<visualizer object>)
 ```
 
 ## License
