@@ -129,7 +129,8 @@ class RDDLSimulator:
         self.init_values = initializer.initialize()
         
         # compute dependency graph for CPFs and sort them by evaluation order
-        sorter = RDDLLevelAnalysis(rddl, self.allow_synchronous_state, 
+        sorter = RDDLLevelAnalysis(rddl, 
+                                   allow_synchronous_state=self.allow_synchronous_state, 
                                    logger=self.logger)
         levels = sorter.compute_levels()      
         self.cpfs = []  
@@ -152,6 +153,11 @@ class RDDLSimulator:
                              for (var, values) in self.init_values.items()
                              if rddl.variable_types[var] == 'action-fluent'}
         self._pomdp = bool(rddl.observ)
+        
+        # cached for performance
+        self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
+        self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
         
     @property
     def states(self) -> Args:
@@ -263,12 +269,12 @@ class RDDLSimulator:
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
         for (i, invariant) in enumerate(self.rddl.invariants):
+            loc = self.invariant_names[i]
             sample = self._sample(invariant, self.subs)
-            RDDLSimulator._check_type(sample, bool, 'Invariant', invariant)
+            RDDLSimulator._check_type(sample, bool, loc, invariant)
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
-                    f'Invariant {i + 1} is not satisfied.\n' + 
-                    print_stack_trace(invariant))
+                    f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''        
@@ -276,18 +282,19 @@ class RDDLSimulator:
         self.subs.update(actions)
         
         for (i, precond) in enumerate(self.rddl.preconditions):
+            loc = self.precond_names[i]
             sample = self._sample(precond, self.subs)
-            RDDLSimulator._check_type(sample, bool, 'Precondition', precond)
+            RDDLSimulator._check_type(sample, bool, loc, precond)
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
-                    f'Precondition {i + 1} is not satisfied.\n' + 
-                    print_stack_trace(precond))
+                    f'{loc} is not satisfied.\n' + print_stack_trace(precond))
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
-        for terminal in self.rddl.terminals:
+        for (i, terminal) in enumerate(self.rddl.terminals):
+            loc = self.terminal_names[i]
             sample = self._sample(terminal, self.subs)
-            RDDLSimulator._check_type(sample, bool, 'Termination', terminal)
+            RDDLSimulator._check_type(sample, bool, loc, terminal)
             if bool(sample):
                 return True
         return False

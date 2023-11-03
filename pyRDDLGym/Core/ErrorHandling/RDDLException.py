@@ -10,7 +10,11 @@ def print_stack_trace(expr):
     else:
         trace = str(expr)
     return f'>> {trace}'
-    
+
+
+def print_stack_trace_root(expr, root):
+    return print_stack_trace(expr) + '\n' + f'Please check expression for {root}.' 
+
 
 class RDDLActionPreconditionNotSatisfiedError(ValueError):
     pass
