@@ -23,7 +23,7 @@ from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
     
-def main(domain, instance, method):
+def main(domain, instance):
     
     # create the environment
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
@@ -34,7 +34,7 @@ def main(domain, instance, method):
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(abs_path, 'JaxPlanConfigs', f'{domain}_{method}.cfg') 
+    config_path = os.path.join(abs_path, 'JaxPlanConfigs', f'{domain}_slp.cfg') 
     planner_args, _, train_args = load_config(config_path)
     
     # create the planning algorithm and controller
@@ -44,7 +44,7 @@ def main(domain, instance, method):
     # expand budget in config
     train_args['train_seconds'] = 60
     
-    # we will train for 10 seconds, then evaluate, then repeat
+    # train for 10 seconds, evaluate, then repeat
     eval_period = 10
     time_last_eval = 0
     for callback in planner.optimize_generator(**train_args):
@@ -56,10 +56,10 @@ def main(domain, instance, method):
     env.close()
         
 if __name__ == "__main__":
-    domain, instance = 'Wildfire', 0
-    if len(sys.argv) == 2:
-        domain = sys.argv[1]
-    elif len(sys.argv) >= 3:
-        domain, instance = sys.argv[1:3] 
-    main(domain, instance, 'slp')
+    args = sys.argv[1:]
+    if len(args) < 2:
+        print('python JaxExample2.py <domain> <instance>')
+        exit(0)
+    domain, instance = args[:2]
+    main(domain, instance)
     
