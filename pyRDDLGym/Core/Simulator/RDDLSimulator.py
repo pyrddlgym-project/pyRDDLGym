@@ -160,6 +160,11 @@ class RDDLSimulator:
     @property
     def isPOMDP(self) -> bool:
         return self._pomdp
+    
+    def states_as_arrays(self) -> Dict[str, np.array]:
+        rddl = self.rddl
+        keys = rddl.observ if self._pomdp else rddl.states 
+        return {k: v for (k, v) in self.subs.items() if k in keys}
 
     # ===========================================================================
     # error checks

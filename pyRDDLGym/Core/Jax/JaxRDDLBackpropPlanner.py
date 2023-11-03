@@ -1399,6 +1399,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             
 class JaxOfflineController(BaseAgent):
     '''A container class for a Jax policy trained offline.'''
+    use_tensor_obs = True
     
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict[str, object]=None,
@@ -1446,6 +1447,7 @@ class JaxOfflineController(BaseAgent):
 class JaxOnlineController(BaseAgent):
     '''A container class for a Jax controller continuously updated using state 
     feedback.'''
+    use_tensor_obs = True
     
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict=None, warm_start: bool=True,

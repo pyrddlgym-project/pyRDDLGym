@@ -33,13 +33,13 @@ def main(domain, instance, method):
         controller = JaxOfflineController(planner, **train_args)
     
     # evaluate the agent
-    controller.evaluate(env, ground_state=False, verbose=True, render=True)
+    controller.evaluate(env, verbose=True, render=True)
     
     env.close()
         
         
 if __name__ == "__main__":
-    domain, instance, method = 'Wildfire', 0, 'drp'
+    domain, instance, method = 'Wildfire', 0, 'slp'
     if len(sys.argv) == 2:
         domain = sys.argv[1]
     elif len(sys.argv) == 3:

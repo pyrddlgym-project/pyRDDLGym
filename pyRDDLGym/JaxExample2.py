@@ -35,7 +35,7 @@ def main(domain, instance, method):
     for callback in planner.optimize_generator(**train_args):
         if callback['elapsed_time'] - time_last_eval > eval_period:
             controller.params = callback['best_params']
-            controller.evaluate(env, ground_state=False, verbose=False, render=True)
+            controller.evaluate(env, verbose=False, render=True)
             time_last_eval = callback['elapsed_time']
             
     env.close()
