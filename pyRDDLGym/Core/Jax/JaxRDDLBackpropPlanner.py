@@ -1199,7 +1199,7 @@ class JaxRDDLBackpropPlanner:
             # if the progress bar is used
             elapsed = time.time() - start_time - elapsed_outside_loop
             if verbose:
-                iters.n = 100 * min(1, max(elapsed / train_seconds, it / epochs))
+                iters.n = int(100 * min(1, max(elapsed / train_seconds, it / epochs)))
                 iters.set_description(
                     f'Id={tqdm_position} Train={-train_loss:.6f} '
                     f'Test={-test_loss:.6f} Best={-best_loss:.6f}')
