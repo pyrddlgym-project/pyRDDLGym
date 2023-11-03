@@ -55,12 +55,13 @@ def main(domain, instance, method):
         
         
 if __name__ == "__main__":
-    domain, instance, method = 'Wildfire', 0, 'slp'
-    if len(sys.argv) == 2:
-        domain = sys.argv[1]
-    elif len(sys.argv) == 3:
-        domain, instance = sys.argv[1:3]
-    elif len(sys.argv) >= 4:
-        domain, instance, method = sys.argv[1:4]    
+    args = sys.argv[1:]
+    if len(args) < 3:
+        print('python JaxExample.py <domain> <instance> <method>')
+        args = 'Wildfire', 0, 'drp' #exit(0)
+    if args[2] not in ['drp', 'slp', 'replan']:
+        print('<method> in [drp, slp, replan]')
+        exit(0)
+    domain, instance, method = args[:3]
     main(domain, instance, method)
     
