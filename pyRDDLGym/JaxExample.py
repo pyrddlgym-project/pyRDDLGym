@@ -58,7 +58,7 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
         print('python JaxExample.py <domain> <instance> <method>')
-        args = 'Wildfire', 0, 'drp' #exit(0)
+        exit(0)
     if args[2] not in ['drp', 'slp', 'replan']:
         print('<method> in [drp, slp, replan]')
         exit(0)
