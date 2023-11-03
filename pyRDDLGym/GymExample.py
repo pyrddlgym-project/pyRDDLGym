@@ -1,3 +1,15 @@
+'''In this example, a random policy is constructed and its performance is
+evaluated on a specified domain. 
+
+The syntax for running this example is:
+
+    python GymExample.py <domain> <instance> <episodes>
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+    <episodes> is a positive integer for the number of episodes to simulate
+'''
 import sys
 
 from pyRDDLGym import ExampleManager

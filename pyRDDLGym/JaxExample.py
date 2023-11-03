@@ -1,3 +1,19 @@
+'''In this example, the user has the choice to run the Jax planner with three
+different options:
+    
+    1. slp runs the straight-line planner offline, which trains an open-loop plan
+    2. drp runs the deep reactive policy, which trains a policy network
+    3. replan runs the straight-line planner online, at every decision epoch
+    
+The syntax for running this example is:
+
+    python JaxExample.py <domain> <instance> <method>
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+    <method> is either slp, drp, or replan
+'''
 import os
 import sys
 
