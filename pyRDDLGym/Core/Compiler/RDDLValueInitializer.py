@@ -74,8 +74,8 @@ class RDDLValueInitializer:
             if default is None or dtype is None:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
-                    f'must be either a domain-defined object type in '
-                    f'{rddl.enums} or a primitive type in '
+                    f'must be either an enumerated type in '
+                    f'{rddl.enums} or an object type in '
                     f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
             
             # scalar value is just cast to the desired type
