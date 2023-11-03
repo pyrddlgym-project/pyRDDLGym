@@ -1136,7 +1136,6 @@ class JaxRDDLBackpropPlanner:
         :param verbose: whether to print progress during training
         :param tqdm_position: position of tqdm progress bar (for multiprocessing)
         '''
-        print(f'epochs={epochs}, train_seconds={train_seconds}')
         start_time = time.time()
         elapsed_outside_loop = 0
         

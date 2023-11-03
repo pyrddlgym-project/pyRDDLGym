@@ -50,7 +50,7 @@ class BaseAgent(metaclass=ABCMeta):
                 
                 # take a step in the environment
                 if self.use_tensor_obs:
-                    policy_input = env.sampler.states_as_arrays()
+                    policy_input = env.sampler.subs
                 else:
                     policy_input = state
                 action = self.sample_action(policy_input)    
