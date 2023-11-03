@@ -204,7 +204,9 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         return self.logic.Switch()
         
     def _jax_kron(self, expr, info):
-        warnings.warn('KronDelta will be ignored.', stacklevel=2)                       
+        if self.logic.verbose:
+            warnings.warn('KronDelta will be ignored.', stacklevel=2)            
+                       
         arg, = expr.args
         arg = self._jax(arg, info)
         return arg
