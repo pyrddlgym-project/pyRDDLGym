@@ -1,3 +1,18 @@
+'''In this example, the straight-line Jax planner is run for a fixed amount of
+time (60 seconds). However, every 10 seconds, the plan is visualized.
+    
+    1. slp runs the straight-line planner offline, which trains an open-loop plan
+    2. drp runs the deep reactive policy, which trains a policy network
+    3. replan runs the straight-line planner online, at every decision epoch
+    
+The syntax for running this example is:
+
+    python JaxExample2.py <domain> <instance>
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+'''
 import os
 import sys
 

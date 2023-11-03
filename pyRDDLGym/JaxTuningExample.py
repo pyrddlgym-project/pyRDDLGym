@@ -1,3 +1,19 @@
+'''This example runs hyper-parameter tuning on the Jax planner. The tuning
+is performed using a batched parallelized Bayesian optimization.
+
+The syntax is:
+
+    python JaxTuningExample.py <domain> <instance> <method> <trials> <iters> <workers>
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+    <method> is either slp, drp or replan, as described in JaxExample.py
+    <trials> is the number of trials to simulate when estimating the meta loss
+    <iters> is the number of iterations of Bayesian optimization to perform
+    <workers> is the number of parallel workers (i.e. batch size), which must
+    not exceed the number of cores available on the machine
+'''
 import os
 import sys
 

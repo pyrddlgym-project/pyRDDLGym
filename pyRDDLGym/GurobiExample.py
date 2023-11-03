@@ -1,3 +1,14 @@
+'''This example runs the Gurobi planner. 
+
+The syntax is:
+
+    python GurobiExample.py <domain> <instance> <horizon>
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+    <horizon> is a positive integer representing the lookahead horizon
+'''
 import sys
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
