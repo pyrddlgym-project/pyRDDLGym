@@ -326,8 +326,8 @@ class JaxParameterTuningSLP(JaxParameterTuning):
     
     def __init__(self, *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 0., power_ten),
-                    'lr': (-5., 0., power_ten),
+                    'std': (-5., 1., power_ten),
+                    'lr': (-5., 5., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten)
                  },
@@ -467,8 +467,8 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
     def __init__(self, 
                  *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 0., power_ten),
-                    'lr': (-5., 0., power_ten),
+                    'std': (-5., 1., power_ten),
+                    'lr': (-5., 5., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten),
                     'T': (1, None, int)
@@ -585,10 +585,10 @@ class JaxParameterTuningDRP(JaxParameterTuning):
     
     def __init__(self, *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'lr': (-6., 0., power_ten),
+                    'lr': (-7., 1., power_ten),
                     'w': (0., 5., power_ten),
                     'layers': (1., 3., int),
-                    'neurons': (1., 9., power_two_int)
+                    'neurons': (2., 9., power_two_int)
                  },
                  **kwargs) -> None:
         '''Creates a new tuning class for deep reactive policies.
