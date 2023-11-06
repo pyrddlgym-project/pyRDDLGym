@@ -5,6 +5,7 @@ numpy>=1.22
 pygame
 ply
 tqdm
+bayesian-optimization
 jax>=0.3.25
 optax>=0.1.4
 dm-haiku>=0.0.9
