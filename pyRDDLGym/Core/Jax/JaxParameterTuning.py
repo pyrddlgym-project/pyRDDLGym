@@ -308,7 +308,7 @@ def objective_slp(params, kwargs, key, index):
         train_seconds=kwargs['timeout_training'],
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
-        verbose=kwargs['verbose'],
+        verbose=False,
         return_callback=True,
         tqdm_position=index)
     total_reward = float(callback['best_return'])
@@ -568,7 +568,7 @@ def objective_drp(params, kwargs, key, index):
         train_seconds=kwargs['timeout_training'],
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: None for name in planner._action_bounds},
-        verbose=kwargs['verbose'],
+        verbose=False,
         return_callback=True,
         tqdm_position=index)
     total_reward = float(callback['best_return'])
