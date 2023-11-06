@@ -5,7 +5,18 @@ A Python toolkit for auto-generation of OpenAI Gym environments from RDDL descri
 This is currently the official parser, simulator and evaluation system for RDDL in Python, with new features and enhancements to the RDDL language.<br />
 
 <p float="left">
-<img src="banner_cpfs.jpg" width="600" height="200"/><img src="banner_sim.gif" width="200" height="200"/> 
+	<img src="Images/cartpole.gif" width="100" height="100"/>
+	<img src="Images/drones.gif" width="100" height="100"/>
+	<img src="Images/elevators.gif" width="100" height="100"/>
+	<img src="Images/mountaincar.gif" width="100" height="100"/>
+	<img src="Images/powergen.gif" width="100" height="100"/>
+</p>
+<p>
+	<img src="Images/quadcopter.gif" width="100" height="100"/>
+	<img src="Images/racecar.gif" width="100" height="100"/>
+	<img src="Images/recsys.gif" width="100" height="100"/>
+	<img src="Images/rovers.gif" width="100" height="100"/>
+	<img src="Images/wildfire.gif" width="100" height="100"/>
 </p>
 
 ## Purpose and Benefits
