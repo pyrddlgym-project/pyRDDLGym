@@ -100,7 +100,8 @@ class RDDLLevelAnalysis:
                 pass
             
             # objects are ignored
-            elif not pvars and rddl.is_object(name):
+            elif not pvars and rddl.is_object(
+                name, f'Please check expression for CPF {cpf}.'):
                 pass
             
             # variable defined in pvariables {..} scope

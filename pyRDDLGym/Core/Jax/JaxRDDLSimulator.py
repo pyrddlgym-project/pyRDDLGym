@@ -83,6 +83,11 @@ class JaxRDDLSimulator(RDDLSimulator):
                              if rddl.variable_types[var] == 'action-fluent'}
         self._pomdp = bool(rddl.observ)
         
+        # cached for performance
+        self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
+        self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
+        
     def handle_error_code(self, error, msg) -> None:
         if self.raise_error:
             errors = JaxRDDLCompiler.get_error_messages(error)
@@ -94,12 +99,13 @@ class JaxRDDLSimulator(RDDLSimulator):
     def check_state_invariants(self) -> None:
         '''Throws an exception if the state invariants are not satisfied.'''
         for (i, invariant) in enumerate(self.invariants):
+            loc = self.invariant_names[i]
             sample, self.key, error = invariant(
                 self.subs, self.model_params, self.key)
-            self.handle_error_code(error, f'invariant {i + 1}')            
+            self.handle_error_code(error, loc)            
             if not bool(sample):
                 raise RDDLStateInvariantNotSatisfiedError(
-                    f'Invariant {i + 1} is not satisfied.')
+                    f'{loc} is not satisfied.')
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
@@ -108,18 +114,20 @@ class JaxRDDLSimulator(RDDLSimulator):
         subs.update(actions)
         
         for (i, precond) in enumerate(self.preconds):
+            loc = self.precond_names[i]
             sample, self.key, error = precond(subs, self.model_params, self.key)
-            self.handle_error_code(error, f'precondition {i + 1}')            
+            self.handle_error_code(error, loc)            
             if not bool(sample):
                 raise RDDLActionPreconditionNotSatisfiedError(
-                    f'Precondition {i + 1} is not satisfied.')
+                    f'{loc} is not satisfied.')
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
         for (i, terminal) in enumerate(self.terminals):
+            loc = self.terminal_names[i]
             sample, self.key, error = terminal(
                 self.subs, self.model_params, self.key)
-            self.handle_error_code(error, f'termination {i + 1}')
+            self.handle_error_code(error, loc)
             if bool(sample):
                 return True
         return False

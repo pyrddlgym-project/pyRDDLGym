@@ -417,7 +417,7 @@ class PlanningModel(metaclass=ABCMeta):
             name = name[1:]
             if name not in self.objects_rev:
                 raise RDDLInvalidObjectError(
-                    f'Object <{name}> is not defined. {msg}')
+                    f'Object <@{name}> is not defined. {msg}')
             return True
         
         # this could either be an object or variable
@@ -514,8 +514,7 @@ class PlanningModel(metaclass=ABCMeta):
                 if obj not in index_of_obj:
                     raise RDDLInvalidObjectError(
                         f'Object <{obj}> is not valid, '
-                        f'must be one of {set(index_of_obj.keys())}.'
-                        f'\n{msg}')
+                        f'must be one of {set(index_of_obj.keys())}. {msg}')
     
     def object_counts(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Returns a tuple containing the number of objects of each type.
@@ -531,8 +530,7 @@ class PlanningModel(metaclass=ABCMeta):
                 if ptype not in objects:
                     raise RDDLTypeError(
                         f'Type <{ptype}> is not valid, '
-                        f'must be one of {set(objects.keys())}.'
-                        f'\n{msg}')
+                        f'must be one of {set(objects.keys())}. {msg}')
     
     def ground_values(self, var: str, values: Iterable[Value]) -> Iterable[Tuple[str, Value]]:
         '''Produces a sequence of pairs where the first element is the 

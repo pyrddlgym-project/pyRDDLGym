@@ -1,3 +1,19 @@
+'''In this example, the user has the choice to run the Jax planner with three
+different options:
+    
+    1. slp runs the straight-line planner offline, which trains an open-loop plan
+    2. drp runs the deep reactive policy, which trains a policy network
+    3. replan runs the straight-line planner online, at every decision epoch
+    
+The syntax for running this example is:
+
+    python JaxExample.py <domain> <instance> <method>
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+    <method> is either slp, drp, or replan
+'''
 import os
 import sys
 
@@ -33,16 +49,19 @@ def main(domain, instance, method):
         controller = JaxOfflineController(planner, **train_args)
     
     # evaluate the agent
-    controller.evaluate(env, ground_state=False, verbose=True, render=True)
+    controller.evaluate(env, verbose=True, render=True)
+    
+    env.close()
         
         
 if __name__ == "__main__":
-    domain, instance, method = 'Wildfire', 0, 'drp'
-    if len(sys.argv) == 2:
-        domain = sys.argv[1]
-    elif len(sys.argv) == 3:
-        domain, instance = sys.argv[1:3]
-    elif len(sys.argv) >= 4:
-        domain, instance, method = sys.argv[1:4]    
+    args = sys.argv[1:]
+    if len(args) < 3:
+        print('python JaxExample.py <domain> <instance> <method>')
+        exit(0)
+    if args[2] not in ['drp', 'slp', 'replan']:
+        print('<method> in [drp, slp, replan]')
+        exit(0)
+    domain, instance, method = args[:3]
     main(domain, instance, method)
     

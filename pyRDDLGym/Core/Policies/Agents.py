@@ -9,7 +9,8 @@ from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 
 class BaseAgent(metaclass=ABCMeta):
     '''Base class for policies.'''
-
+    use_tensor_obs = False  # uses internal tensor representation of state
+    
     @abstractmethod
     def sample_action(self, state: object) -> object:
         '''Samples an action from the current policy evaluated at the given state.
@@ -22,15 +23,13 @@ class BaseAgent(metaclass=ABCMeta):
         '''Resets the policy and prepares it for the next episode.'''
         pass
     
-    def evaluate(self, env: RDDLEnv, ground_state: bool=True,
-                 episodes: int=1, verbose: bool=False, render: bool=False) -> Dict[str, float]:
+    def evaluate(self, env: RDDLEnv, episodes: int=1, 
+                 verbose: bool=False, render: bool=False) -> Dict[str, float]:
         '''Evaluates the current agent on the specified environment by simulating
         roll-outs. Returns a dictionary of summary statistics of the returns
         accumulated on the roll-outs.
         
         :param env: the environment
-        :param ground_state: whether to use the grounded state from the env, 
-        or the internal tensor form (which also contains other fluent information)
         :param episodes: how many episodes (trials) to perform
         :param verbose: whether to print the transition information to console
         at each step of the simulation
@@ -50,10 +49,10 @@ class BaseAgent(metaclass=ABCMeta):
                     env.render()
                 
                 # take a step in the environment
-                if ground_state:
-                    policy_input = state
-                else:
+                if self.use_tensor_obs:
                     policy_input = env.sampler.subs
+                else:
+                    policy_input = state
                 action = self.sample_action(policy_input)    
                 next_state, reward, done, _ = env.step(action)
                 total_reward += reward * cuml_gamma

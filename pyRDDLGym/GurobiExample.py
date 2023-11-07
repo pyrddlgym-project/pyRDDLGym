@@ -1,3 +1,14 @@
+'''This example runs the Gurobi planner. 
+
+The syntax is:
+
+    python GurobiExample.py <domain> <instance> <horizon>
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+    <horizon> is a positive integer representing the lookahead horizon
+'''
 import sys
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
@@ -16,26 +27,23 @@ def main(domain, instance, horizon):
     env.set_visualizer(EnvInfo.get_visualizer())
     
     # create the controller agent
-    controller = GurobiOnlineController(
-        rddl=env.model,
-        plan=GurobiStraightLinePlan(),
-        rollout_horizon=horizon,
-        model_params={'NonConvex': 2, 'OutputFlag': 1})
+    controller = GurobiOnlineController(rddl=env.model,
+                                        plan=GurobiStraightLinePlan(),
+                                        rollout_horizon=horizon,
+                                        model_params={'NonConvex': 2, 'OutputFlag': 1})
     
     # evaluate the agent
     controller.evaluate(env, verbose=True, render=True)
+    
+    env.close()
 
             
 if __name__ == "__main__":
-    args = sys.argv
-    domain, instance, horizon = 'Wildfire', 0, 5
-    if len(args) == 2:
-        domain = args[1]
-    elif len(args) == 3:
-        domain, instance = args[1:3]
-    elif len(args) >= 4:
-        domain, instance, horizon = args[1:4]
-        horizon = int(horizon)
-    
+    args = sys.argv[1:]
+    if len(args) < 3:
+        print('python GurobiExample.py <domain> <instance> <horizon>')
+        exit(0)
+    domain, instance, horizon = args[:3]
+    horizon = int(horizon)
     main(domain, instance, horizon)
     

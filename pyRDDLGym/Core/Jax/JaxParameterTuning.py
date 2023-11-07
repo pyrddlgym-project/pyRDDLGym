@@ -308,7 +308,7 @@ def objective_slp(params, kwargs, key, index):
         train_seconds=kwargs['timeout_training'],
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
-        verbose=kwargs['verbose'],
+        verbose=False,
         return_callback=True,
         tqdm_position=index)
     total_reward = float(callback['best_return'])
@@ -326,8 +326,8 @@ class JaxParameterTuningSLP(JaxParameterTuning):
     
     def __init__(self, *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 0., power_ten),
-                    'lr': (-5., 0., power_ten),
+                    'std': (-5., 1., power_ten),
+                    'lr': (-5., 5., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten)
                  },
@@ -418,6 +418,7 @@ def objective_replan(params, kwargs, key, index):
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
                   enforce_action_constraints=True)
+    env.set_visualizer(None)
 
     # perform training
     average_reward = 0.0
@@ -467,11 +468,11 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
     def __init__(self, 
                  *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 0., power_ten),
-                    'lr': (-5., 0., power_ten),
+                    'std': (-5., 1., power_ten),
+                    'lr': (-5., 5., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten),
-                    'T': (1, 40, int)
+                    'T': (1, None, int)
                  },
                  eval_trials: int=5,
                  use_guess_last_epoch: bool=True,
@@ -496,6 +497,10 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         self.eval_trials = eval_trials
         self.use_guess_last_epoch = use_guess_last_epoch
         
+        # set upper range of lookahead horizon to environment horizon
+        if self.hyperparams_dict['T'][1] is None:
+            self.hyperparams_dict['T'] = (1, self.env.horizon, int)
+            
     def _pickleable_objective_with_kwargs(self):
         objective_fn = objective_replan
             
@@ -563,7 +568,7 @@ def objective_drp(params, kwargs, key, index):
         train_seconds=kwargs['timeout_training'],
         model_params={name: w for name in planner.compiled.model_params},
         policy_hyperparams={name: None for name in planner._action_bounds},
-        verbose=kwargs['verbose'],
+        verbose=False,
         return_callback=True,
         tqdm_position=index)
     total_reward = float(callback['best_return'])
@@ -581,10 +586,10 @@ class JaxParameterTuningDRP(JaxParameterTuning):
     
     def __init__(self, *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'lr': (-6., 0., power_ten),
+                    'lr': (-7., 1., power_ten),
                     'w': (0., 5., power_ten),
                     'layers': (1., 3., int),
-                    'neurons': (1., 9., power_two_int)
+                    'neurons': (2., 9., power_two_int)
                  },
                  **kwargs) -> None:
         '''Creates a new tuning class for deep reactive policies.
