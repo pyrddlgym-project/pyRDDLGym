@@ -41,23 +41,21 @@ def main(domain, instance, method, trials=5, iters=20, workers=4):
     planner_args, plan_args, train_args = load_config(config_path)
     
     # define algorithm to perform tuning
-    extra_kwargs = {}
     if method == 'slp':
         tuning_class = JaxParameterTuningSLP        
     elif method == 'drp':
         tuning_class = JaxParameterTuningDRP    
     elif method == 'replan':
         tuning_class = JaxParameterTuningSLPReplan
-        extra_kwargs = {'eval_trials': trials}
     
     tuning = tuning_class(env=env,
                           train_epochs=train_args['epochs'],
                           timeout_training=train_args['train_seconds'],
+                          eval_trials=trials,
                           planner_kwargs=planner_args,
                           plan_kwargs=plan_args,
                           num_workers=workers,
-                          gp_iters=iters,
-                          **extra_kwargs)
+                          gp_iters=iters)
     
     # perform tuning
     best = tuning.tune(key=train_args['key'], filename=f'gp_{method}')
