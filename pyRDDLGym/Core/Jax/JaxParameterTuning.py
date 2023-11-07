@@ -12,6 +12,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
+from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOnlineController
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
@@ -38,6 +40,7 @@ class JaxParameterTuning:
                  train_epochs: int,
                  timeout_training: float,
                  timeout_tuning: float=np.inf,
+                 eval_trials: int=5,
                  verbose: bool=True,
                  planner_kwargs: Dict={},
                  plan_kwargs: Dict={},
@@ -62,6 +65,8 @@ class JaxParameterTuning:
         trial/decision step (in seconds)
         :param timeout_tuning: the maximum amount of time to spend tuning 
         hyperparameters in general (in seconds)
+        :param eval_trials: how many trials to perform independent training
+        in order to estimate the return for each set of hyper-parameters
         :param verbose: whether to print intermediate results of tuning
         :param planner_kwargs: additional arguments to feed to the planner
         :param plan_kwargs: additional arguments to feed to the plan/policy
@@ -83,6 +88,7 @@ class JaxParameterTuning:
         self.train_epochs = train_epochs
         self.timeout_training = timeout_training
         self.timeout_tuning = timeout_tuning
+        self.eval_trials = eval_trials
         self.verbose = verbose
         self.planner_kwargs = planner_kwargs
         self.plan_kwargs = plan_kwargs
@@ -286,13 +292,11 @@ def objective_slp(params, kwargs, key, index):
         std, lr, w, wa = param_values
     else:
         std, lr, w = param_values
-        wa = None
-                      
+        wa = None                      
     if kwargs['verbose']:
-        print(f'[{index}] optimizing SLP with PRNG key={key}, ' 
-              f'std={std}, lr={lr}, w={w}, wa={wa}...')
+        print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}...')
         
-    # initialize planner
+    # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
@@ -300,22 +304,39 @@ def objective_slp(params, kwargs, key, index):
             **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
         **kwargs['planner_kwargs'])
-                    
-    # perform training
-    callback = planner.optimize(
+    policy_hparams = {name: wa for name in kwargs['wrapped_bool_actions']}  
+    model_params = {name: w for name in planner.compiled.model_params}
+    
+    # initialize policy
+    policy = JaxOfflineController(
+        planner=planner,
         key=key,
+        eval_hyperparams=policy_hparams,
+        train_on_reset=True, 
         epochs=kwargs['train_epochs'],
         train_seconds=kwargs['timeout_training'],
-        model_params={name: w for name in planner.compiled.model_params},
-        policy_hyperparams={name: wa for name in kwargs['wrapped_bool_actions']},
+        model_params=model_params,
+        policy_hyperparams=policy_hparams,
         verbose=False,
-        return_callback=True,
         tqdm_position=index)
-    total_reward = float(callback['best_return'])
-            
+    
+    # initialize env for evaluation (need fresh copy to avoid concurrency)
+    env = RDDLEnv(domain=kwargs['domain'],
+                  instance=kwargs['instance'],
+                  enforce_action_constraints=True)
+    env.set_visualizer(None)
+
+    # perform training
+    average_reward = 0.0
+    for trial in range(kwargs['eval_trials']):
+        key = np.array(policy.key)[0]
+        total_reward = policy.evaluate(env, seed=key)['mean']
+        if kwargs['verbose']:
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}')
+        average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
-        print(f'[{index}] done optimizing SLP, reward={total_reward}')
-    return total_reward
+        print(f'[{index}] average reward={average_reward}')
+    return average_reward
 
         
 def power_ten(x):
@@ -326,8 +347,8 @@ class JaxParameterTuningSLP(JaxParameterTuning):
     
     def __init__(self, *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 1., power_ten),
-                    'lr': (-5., 5., power_ten),
+                    'std': (-5., 2., power_ten),
+                    'lr': (-5., 2., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten)
                  },
@@ -367,13 +388,16 @@ class JaxParameterTuningSLP(JaxParameterTuning):
                     
         kwargs = {
             'rddl': self.env.model,
+            'domain': self.env.domain_text,
+            'instance': self.env.instance_text,
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_training': self.timeout_training,
             'train_epochs': self.train_epochs,
             'planner_kwargs': planner_kwargs,
             'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
-            'wrapped_bool_actions': self.wrapped_bool_actions
+            'wrapped_bool_actions': self.wrapped_bool_actions,
+            'eval_trials': self.eval_trials
         }
         return objective_fn, kwargs
 
@@ -396,13 +420,11 @@ def objective_replan(params, kwargs, key, index):
         std, lr, w, wa, T = param_values
     else:
         std, lr, w, T = param_values
-        wa = None
-        
+        wa = None        
     if kwargs['verbose']:
-        print(f'[{index}] optimizing MPC with PRNG key={key}, ' 
-              f'std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
+        print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
 
-    # initialize planner
+    # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxStraightLinePlan(
@@ -411,8 +433,21 @@ def objective_replan(params, kwargs, key, index):
         rollout_horizon=T,
         optimizer_kwargs={'learning_rate': lr},
         **kwargs['planner_kwargs'])
-    policy_hyperparams = {name: wa for name in kwargs['wrapped_bool_actions']}
+    policy_hparams = {name: wa for name in kwargs['wrapped_bool_actions']}
     model_params = {name: w for name in planner.compiled.model_params}
+    
+    # initialize controller
+    policy = JaxOnlineController(
+        planner=planner,
+        key=key,
+        eval_hyperparams=policy_hparams,
+        warm_start=kwargs['use_guess_last_epoch'],
+        epochs=kwargs['train_epochs'],
+        train_seconds=kwargs['timeout_training'],
+        model_params=model_params,
+        policy_hyperparams=policy_hparams,
+        verbose=False,
+        tqdm_position=index)
     
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
@@ -423,43 +458,13 @@ def objective_replan(params, kwargs, key, index):
     # perform training
     average_reward = 0.0
     for trial in range(kwargs['eval_trials']):
-        
-        # start the next trial
+        key = np.array(policy.key)[0]
+        total_reward = policy.evaluate(env, seed=key)['mean']
         if kwargs['verbose']:
-            print(f'--- [{index}] starting trial {trial + 1} with PRNG key={key}...')
-            
-        total_reward = 0.0
-        guess = None
-        env.reset(seed=np.array(key)[0])
-        for _ in range(kwargs['eval_horizon']):      
-            subs = env.sampler.subs
-            key, subkey1, subkey2 = jax.random.split(key, num=3)
-            params = planner.optimize(
-                key=subkey1,
-                epochs=kwargs['train_epochs'],
-                train_seconds=kwargs['timeout_training'],
-                model_params=model_params,
-                policy_hyperparams=policy_hyperparams,
-                subs=subs,
-                guess=guess,
-                verbose=False,
-                tqdm_position=index)
-            action = planner.get_action(subkey2, params, 0, subs)
-            if kwargs['use_guess_last_epoch']:
-                guess = planner.plan.guess_next_epoch(params)
-            
-            _, reward, done, _ = env.step(action)
-            total_reward += reward 
-            if done: 
-                break  
-            
-        # update average reward across trials
-        if kwargs['verbose']:
-            print(f'--- [{index}] done trial {trial + 1}, reward={total_reward}')
-        average_reward += total_reward / kwargs['eval_trials']
-        
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}')
+        average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
-        print(f'[{index}] done optimizing MPC, average reward={average_reward}')
+        print(f'[{index}] average reward={average_reward}')
     return average_reward
 
     
@@ -468,13 +473,12 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
     def __init__(self, 
                  *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 1., power_ten),
-                    'lr': (-5., 5., power_ten),
+                    'std': (-5., 2., power_ten),
+                    'lr': (-5., 2., power_ten),
                     'w': (0., 5., power_ten),
                     'wa': (0., 5., power_ten),
                     'T': (1, None, int)
                  },
-                 eval_trials: int=5,
                  use_guess_last_epoch: bool=True,
                  **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
@@ -484,8 +488,6 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         weight initialization (std), learning rate (lr), model weight (w), 
         action weight (wa) if wrap_sigmoid and boolean action fluents exist, and
         lookahead horizon (T)
-        :param eval_trials: how many trials to perform independent training
-        in order to estimate the return for each set of hyper-parameters
         :param use_guess_last_epoch: use the trained parameters from previous 
         decision to warm-start next decision
         :param **kwargs: keyword arguments to pass to parent class
@@ -494,7 +496,6 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         super(JaxParameterTuningSLPReplan, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
         
-        self.eval_trials = eval_trials
         self.use_guess_last_epoch = use_guess_last_epoch
         
         # set upper range of lookahead horizon to environment horizon
@@ -526,7 +527,6 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
             'verbose': self.verbose,
             'wrapped_bool_actions': self.wrapped_bool_actions,
             'eval_trials': self.eval_trials,
-            'eval_horizon': self.env.horizon,
             'use_guess_last_epoch': self.use_guess_last_epoch
         }
         return objective_fn, kwargs
@@ -549,10 +549,9 @@ def objective_drp(params, kwargs, key, index):
     lr, w, layers, neurons = param_values
                       
     if kwargs['verbose']:
-        print(f'[{index}] optimizing DRP with PRNG key={key}, ' 
-              f'lr={lr}, w={w}, layers={layers}, neurons={neurons}...')
+        print(f'[{index}] key={key}, lr={lr}, w={w}, layers={layers}, neurons={neurons}...')
            
-    # initialize planner
+    # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
         rddl=kwargs['rddl'],
         plan=JaxDeepReactivePolicy(
@@ -560,22 +559,39 @@ def objective_drp(params, kwargs, key, index):
             **kwargs['plan_kwargs']),
         optimizer_kwargs={'learning_rate': lr},
         **kwargs['planner_kwargs'])
+    policy_hparams = {name: None for name in planner._action_bounds}
+    model_params = {name: w for name in planner.compiled.model_params}
     
-    # perform training
-    callback = planner.optimize(
+    # initialize policy
+    policy = JaxOfflineController(
+        planner=planner,
         key=key,
+        eval_hyperparams=policy_hparams,
+        train_on_reset=True, 
         epochs=kwargs['train_epochs'],
         train_seconds=kwargs['timeout_training'],
-        model_params={name: w for name in planner.compiled.model_params},
-        policy_hyperparams={name: None for name in planner._action_bounds},
+        model_params=model_params,
+        policy_hyperparams=policy_hparams,
         verbose=False,
-        return_callback=True,
         tqdm_position=index)
-    total_reward = float(callback['best_return'])
-            
+    
+    # initialize env for evaluation (need fresh copy to avoid concurrency)
+    env = RDDLEnv(domain=kwargs['domain'],
+                  instance=kwargs['instance'],
+                  enforce_action_constraints=True)
+    env.set_visualizer(None)
+    
+    # perform training
+    average_reward = 0.0
+    for trial in range(kwargs['eval_trials']):
+        key = np.array(policy.key)[0]
+        total_reward = policy.evaluate(env, seed=key)['mean']
+        if kwargs['verbose']:
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}')
+        average_reward += total_reward / kwargs['eval_trials']
     if kwargs['verbose']:
-        print(f'[{index}] done optimizing DRP, reward={total_reward}')
-    return total_reward
+        print(f'[{index}] average reward={average_reward}')
+    return average_reward
 
 
 def power_two_int(x):
@@ -586,7 +602,7 @@ class JaxParameterTuningDRP(JaxParameterTuning):
     
     def __init__(self, *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'lr': (-7., 1., power_ten),
+                    'lr': (-7., 2., power_ten),
                     'w': (0., 5., power_ten),
                     'layers': (1., 3., int),
                     'neurons': (2., 9., power_two_int)
@@ -618,11 +634,14 @@ class JaxParameterTuningDRP(JaxParameterTuning):
                      
         kwargs = {
             'rddl': self.env.model,
+            'domain': self.env.domain_text,
+            'instance': self.env.instance_text,
             'hyperparams_dict': self.hyperparams_dict,
             'timeout_training': self.timeout_training,
             'train_epochs': self.train_epochs,
             'planner_kwargs': planner_kwargs,
             'plan_kwargs': plan_kwargs,
-            'verbose': self.verbose
+            'verbose': self.verbose,
+            'eval_trials': self.eval_trials
         }
         return objective_fn, kwargs
