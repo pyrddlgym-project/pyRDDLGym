@@ -61,7 +61,7 @@ class RDDLDecompiler:
         elif etype == 'matrix':
             return self._decompile_matrix(expr, enclose, level)
         else:
-            raise Exception(f'Internal error: type {etype} is undefined.')
+            return ''
     
     def _symbolic(self, value, params, aggregation):
         value = str(value)

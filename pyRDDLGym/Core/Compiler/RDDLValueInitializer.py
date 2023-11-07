@@ -74,8 +74,8 @@ class RDDLValueInitializer:
             if default is None or dtype is None:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
-                    f'must be either a domain-defined object type in '
-                    f'{rddl.enums} or a primitive type in '
+                    f'must be either an enumerated type in '
+                    f'{rddl.enums} or an object type in '
                     f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
             
             # scalar value is just cast to the desired type
@@ -86,12 +86,21 @@ class RDDLValueInitializer:
                 shape = rddl.object_counts(ptypes)
                 if var in init_values:
                     values = [(default if v is None else v) for v in init_values[var]]
-                    values = np.asarray(values, dtype=dtype)
                     values = np.reshape(values, newshape=shape, order='C')
+                    if not np.can_cast(values, dtype):
+                        raise RDDLTypeError(
+                            f'Initial values {values} for variable <{var}> '
+                            f'cannot all be cast to required type <{prange}>.')
+                    values = np.asarray(values, dtype=dtype)
                 else:
                     values = np.full(shape=shape, fill_value=default, dtype=dtype)
             else:
-                values = dtype(init_values.get(var, default))   
+                values = init_values.get(var, default)
+                if isinstance(values, str) or not np.can_cast(values, dtype):
+                    raise RDDLTypeError(
+                        f'Initial value {values} for variable <{var}> '
+                        f'cannot be cast to required type <{prange}>.')
+                values = dtype(values)
             np_init_values[var] = values
         
         # log shapes of initial values

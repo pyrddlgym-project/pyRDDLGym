@@ -2,6 +2,7 @@ from copy import deepcopy
 import math
 import numpy as np
 from typing import Dict, List, Tuple, TYPE_CHECKING
+import warnings
 
 import gurobipy
 from gurobipy import GRB
@@ -33,7 +34,8 @@ class GurobiRDDLCompiler:
                  float_range: Tuple[float, float]=(1e-15, 1e15),
                  model_params: Dict[str, object]={'NonConvex': 2},
                  piecewise_options: str='',
-                 logger: Logger=None) -> None:
+                 logger: Logger=None,
+                 verbose: bool=False) -> None:
         '''Creates a new compiler for formulating RDDL domains + instance as 
         a Gurobi mixed-integer non-linear optimization problem. In this base
         implemenation, a fixed subset of random variables are handled by
@@ -55,6 +57,7 @@ class GurobiRDDLCompiler:
         "options" parameter when creating constraints that contain piecewise
         linear approximations (e.g. cos, log, exp)
         :param logger: to log information about compilation to file
+        :param verbose: whether to dump replacement and other info to console
         '''
         self.plan = plan
         if rollout_horizon is None:
@@ -62,6 +65,7 @@ class GurobiRDDLCompiler:
         self.horizon = rollout_horizon
         self.discount = rddl.discount
         self.logger = logger
+        self.verbose = verbose
         
         # Gurobi-specific parameters
         self.epsilon = epsilon
@@ -384,8 +388,8 @@ class GurobiRDDLCompiler:
             arg, = args
             gterm, vtype, lb, ub, symb = self._gurobi(arg, model, subs)
             vtype = GurobiRDDLCompiler._at_least_int(vtype)
-            lb, ub = GurobiRDDLCompiler._fix_bounds(-ub, -lb)
-            negexpr = -gterm
+            lb, ub = GurobiRDDLCompiler._fix_bounds(-1 * ub, -1 * lb)
+            negexpr = -1 * gterm
             
             # assign negative to a new variable
             if symb: 
@@ -640,7 +644,22 @@ class GurobiRDDLCompiler:
                     res = any(gterms)    
                     lb = ub = int(res)                
                 return res, GRB.BINARY, lb, ub, symb
-        
+            
+            # unwrap => to binary operations
+            elif op == '=>' and n == 2:
+                gterm1, gterm2 = gterms
+                if symb:
+                    not1 = self._add_bool_var(model)
+                    model.addConstr(not1 + gterm1 == 1)
+                              
+                    res = self._add_bool_var(model)
+                    model.addGenConstrOr(res, [not1, gterm2])
+                    lb, ub = 0, 1             
+                else:
+                    res = (gterm1 <= gterm2)
+                    lb = ub = int(res)
+                return res, GRB.BINARY, lb, ub, symb                
+                            
         raise RDDLNotImplementedError(
             f'Logical operator {op} with {n} arguments is not '
             f'supported in Gurobi compiler.\n' + 
@@ -925,6 +944,10 @@ class GurobiRDDLCompiler:
         return self._gurobi(arg, model, subs)
     
     def _gurobi_uniform(self, expr, model, subs):
+        if self.verbose:
+            warnings.warn('Using the replacement rule: '
+                          'Uniform(a, b) --> (a + b) / 2.',  stacklevel=2)
+            
         arg1, arg2 = expr.args
         gterm1, _, lb1, ub1, symb1 = self._gurobi(arg1, model, subs)
         gterm2, _, lb2, ub2, symb2 = self._gurobi(arg2, model, subs)
@@ -942,6 +965,10 @@ class GurobiRDDLCompiler:
         return res, GRB.CONTINUOUS, lb, ub, symb
         
     def _gurobi_bernoulli(self, expr, model, subs):
+        if self.verbose:
+            warnings.warn('Using the replacement rule: '
+                          'Bernoulli(p) --> p',  stacklevel=2)
+            
         arg, = expr.args
         gterm, _, lb, ub, symb = self._gurobi(arg, model, subs)
         
@@ -957,6 +984,10 @@ class GurobiRDDLCompiler:
         return res, GRB.BINARY, lb, ub, symb
         
     def _gurobi_normal(self, expr, model, subs):
+        if self.verbose:
+            warnings.warn('Using the replacement rule: '
+                          'Normal(m, v) --> m',  stacklevel=2)
+            
         mean, _ = expr.args
         gterm, _, lb, ub, symb = self._gurobi(mean, model, subs)
         
@@ -964,6 +995,10 @@ class GurobiRDDLCompiler:
         return gterm, GRB.CONTINUOUS, lb, ub, symb
     
     def _gurobi_poisson(self, expr, model, subs):
+        if self.verbose:
+            warnings.warn('Using the replacement rule: '
+                          'Poisson(l) --> l',  stacklevel=2)
+            
         rate, = expr.args
         gterm, _, lb, ub, symb = self._gurobi(rate, model, subs)
         
@@ -971,6 +1006,10 @@ class GurobiRDDLCompiler:
         return gterm, GRB.CONTINUOUS, lb, ub, symb
     
     def _gurobi_exponential(self, expr, model, subs):
+        if self.verbose:
+            warnings.warn('Using the replacement rule: '
+                          'Exponential(l) --> l',  stacklevel=2)
+            
         scale, = expr.args
         gterm, _, lb, ub, symb = self._gurobi(scale, model, subs)
         
@@ -978,6 +1017,10 @@ class GurobiRDDLCompiler:
         return gterm, GRB.CONTINUOUS, lb, ub, symb
 
     def _gurobi_gamma(self, expr, model, subs):
+        if self.verbose:
+            warnings.warn('Using the replacement rule: '
+                          'Gamma(r, s) --> r * s',  stacklevel=2)
+            
         shape, scale = expr.args
         gterm1, _, lb1, ub1, symb1 = self._gurobi(shape, model, subs)
         gterm2, _, lb2, ub2, symb2 = self._gurobi(scale, model, subs)

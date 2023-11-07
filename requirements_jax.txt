@@ -1,10 +1,11 @@
 matplotlib>=3.5.0
 pillow>=9.2.0
 gym>=0.24.0
-numpy
+numpy>=1.22
 pygame
 ply
 tqdm
+bayesian-optimization
 jax>=0.3.25
 optax>=0.1.4
 dm-haiku>=0.0.9

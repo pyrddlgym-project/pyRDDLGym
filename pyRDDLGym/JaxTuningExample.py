@@ -1,15 +1,33 @@
+'''This example runs hyper-parameter tuning on the Jax planner. The tuning
+is performed using a batched parallelized Bayesian optimization.
+
+The syntax is:
+
+    python JaxTuningExample.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]
+    
+where:
+    <domain> is the name of a domain located in the /Examples directory
+    <instance> is the instance number
+    <method> is either slp, drp or replan, as described in JaxExample.py
+    <trials> is the number of trials to simulate when estimating the meta loss
+    (defaults to 5)
+    <iters> is the number of iterations of Bayesian optimization to perform
+    (defaults to 20)
+    <workers> is the number of parallel workers (i.e. batch size), which must
+    not exceed the number of cores available on the machine (defaults to 4)
+'''
 import os
 import sys
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningDRP
 from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLP
 from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLPReplan
-from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningDRP
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 
-def main(domain, instance, method, trials, iters, workers):
+def main(domain, instance, method, trials=5, iters=20, workers=4):
     
     # create the environment
     EnvInfo = ExampleManager.GetEnvInfo(domain)    
@@ -32,32 +50,31 @@ def main(domain, instance, method, trials, iters, workers):
         tuning_class = JaxParameterTuningSLPReplan
         extra_kwargs = {'eval_trials': trials}
     
-    tuning = tuning_class(
-        env=env,
-        train_epochs=train_args['epochs'],
-        timeout_training=train_args['train_seconds'],
-        planner_kwargs=planner_args,
-        plan_kwargs=plan_args,
-        num_workers=workers,
-        gp_iters=iters,
-        **extra_kwargs)
+    tuning = tuning_class(env=env,
+                          train_epochs=train_args['epochs'],
+                          timeout_training=train_args['train_seconds'],
+                          planner_kwargs=planner_args,
+                          plan_kwargs=plan_args,
+                          num_workers=workers,
+                          gp_iters=iters,
+                          **extra_kwargs)
     
     # perform tuning
-    best = tuning.tune(key=train_args['key'], filename='gp_' + method)
-    print(f'best parameters found = {best}')
+    best = tuning.tune(key=train_args['key'], filename=f'gp_{method}')
+    print(f'best parameters found: {best}')
 
 
 if __name__ == "__main__":
-    domain, instance, method, trials, iters, workers = 'Wildfire', 0, 'drp', 1, 20, 4
-    if len(sys.argv) == 2:
-        domain = sys.argv[1]
-    elif len(sys.argv) == 3:
-        domain, instance = sys.argv[1:3]
-    elif len(sys.argv) == 4:
-        domain, instance, method = sys.argv[1:4]
-    elif len(sys.argv) >= 7:
-        domain, instance, method, trials, iters, workers = sys.argv[1:7]
-        trials, iters, workers = int(trials), int(iters), int(workers)
-    
-    main(domain, instance, method, trials, iters, workers) 
+    args = sys.argv[1:]
+    if len(args) < 3:
+        print('python JaxTuningExample.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]')
+        exit(0)
+    if args[2] not in ['drp', 'slp', 'replan']:
+        print('<method> in [drp, slp, replan]')
+        exit(0)
+    kwargs = {'domain': args[0], 'instance': args[1], 'method': args[2]}
+    if len(args) >= 4: kwargs['trials'] = int(args[3])
+    if len(args) >= 5: kwargs['iters'] = int(args[4])
+    if len(args) >= 6: kwargs['workers'] = int(args[5])
+    main(**kwargs) 
     

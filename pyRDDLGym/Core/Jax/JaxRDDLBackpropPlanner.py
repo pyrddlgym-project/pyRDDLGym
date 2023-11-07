@@ -204,7 +204,9 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         return self.logic.Switch()
         
     def _jax_kron(self, expr, info):
-        warnings.warn('KronDelta will be ignored.', stacklevel=2)                       
+        if self.logic.verbose:
+            warnings.warn('KronDelta will be ignored.', stacklevel=2)            
+                       
         arg, = expr.args
         arg = self._jax(arg, info)
         return arg
@@ -1108,7 +1110,7 @@ class JaxRDDLBackpropPlanner:
             return callback['best_params']
         
     def optimize_generator(self, key: random.PRNGKey,
-                           epochs: int=99999,
+                           epochs: int=999999,
                            train_seconds: float=120.,
                            plot_step: int=None,
                            model_params: Dict[str, object]=None,
@@ -1199,7 +1201,7 @@ class JaxRDDLBackpropPlanner:
             # if the progress bar is used
             elapsed = time.time() - start_time - elapsed_outside_loop
             if verbose:
-                iters.n = 100 * min(1, max(elapsed / train_seconds, it / epochs))
+                iters.n = int(100 * min(1, max(elapsed / train_seconds, it / epochs)))
                 iters.set_description(
                     f'Id={tqdm_position} Train={-train_loss:.6f} '
                     f'Test={-test_loss:.6f} Best={-best_loss:.6f}')
@@ -1398,10 +1400,12 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             
 class JaxOfflineController(BaseAgent):
     '''A container class for a Jax policy trained offline.'''
+    use_tensor_obs = True
     
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict[str, object]=None,
                  params: Dict[str, object]=None,
+                 train_on_reset: bool=False,
                  **train_kwargs) -> None:
         '''Creates a new JAX offline control policy that is trained once, then
         deployed later.
@@ -1412,18 +1416,21 @@ class JaxOfflineController(BaseAgent):
         or whenever sample_action is called
         :param params: use the specified policy parameters instead of calling
         planner.optimize()
+        :param train_on_reset: retrain policy parameters on every episode reset
         :param **train_kwargs: any keyword arguments to be passed to the planner
         for optimization
         '''
         self.planner = planner
         self.key = key
         self.eval_hyperparams = eval_hyperparams
+        self.train_on_reset = train_on_reset
+        self.train_kwargs = train_kwargs        
+        self.params_given = params is not None
         
-        self.reset()
-        if params is None:
-            self.params = self.planner.optimize(key=self.key, **train_kwargs) 
-        else:
-            self.parmas = params  
+        self.step = 0
+        if not self.train_on_reset and not self.params_given:
+            params = self.planner.optimize(key=self.key, **self.train_kwargs) 
+        self.params = params  
         
     def sample_action(self, state):
         self.key, subkey = random.split(self.key)
@@ -1434,11 +1441,14 @@ class JaxOfflineController(BaseAgent):
         
     def reset(self):
         self.step = 0
+        if self.train_on_reset and not self.params_given:
+            self.params = self.planner.optimize(key=self.key, **self.train_kwargs)
 
 
 class JaxOnlineController(BaseAgent):
     '''A container class for a Jax controller continuously updated using state 
     feedback.'''
+    use_tensor_obs = True
     
     def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict=None, warm_start: bool=True,
