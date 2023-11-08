@@ -24,7 +24,8 @@ class BaseAgent(metaclass=ABCMeta):
         pass
     
     def evaluate(self, env: RDDLEnv, episodes: int=1, 
-                 verbose: bool=False, render: bool=False) -> Dict[str, float]:
+                 verbose: bool=False, render: bool=False, 
+                 seed: int=None) -> Dict[str, float]:
         '''Evaluates the current agent on the specified environment by simulating
         roll-outs. Returns a dictionary of summary statistics of the returns
         accumulated on the roll-outs.
@@ -34,6 +35,7 @@ class BaseAgent(metaclass=ABCMeta):
         :param verbose: whether to print the transition information to console
         at each step of the simulation
         :param render: visualize the domain using the env internal visualizer
+        :param seed: optional RNG seed for the environment
         '''
         gamma = env.discount
         
@@ -43,7 +45,7 @@ class BaseAgent(metaclass=ABCMeta):
             # restart episode
             total_reward, cuml_gamma = 0.0, 1.0
             self.reset()
-            state = env.reset()
+            state = env.reset(seed=seed)
             for step in range(env.horizon):
                 if render:
                     env.render()
