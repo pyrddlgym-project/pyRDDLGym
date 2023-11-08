@@ -1,5 +1,7 @@
-
 import re
+
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLParseError
+
 
 class RDDLReader(object):
 
@@ -25,25 +27,24 @@ class RDDLReader(object):
         # inspect rddl if three block are present - domain, non-fluent, instance
         m = re.search(self.domain_block, dom_txt)
         if m is None:
-            raise Exception("Syntax Error in domain block")
+            raise RDDLParseError('domain {...} block is missing or contains a syntax error.')
 
         domaintxt = m.group(0)
         m = re.search(self.nonfluent_in_domain, domaintxt)
         if m is not None:
             m = re.search(self.nonfluent_block, dom_txt)
             if m is None:
-                raise Exception("Syntax Error in non-fluents block")
+                raise RDDLParseError('non-fluents {...} block is missing or contains a syntax error.')
 
         m = re.search(self.instance_block, dom_txt)
         if m is None:
-            raise Exception("Syntax Error in instance block")
+            raise RDDLParseError('instance {...} block is missing or contains a syntax error.')
 
         self.dom_txt = dom_txt
 
     @property
     def rddltxt(self):
         return self.dom_txt
-
 
     def _removeComments(self, txt):
         txt = re.sub(self.comment, '\n', txt)

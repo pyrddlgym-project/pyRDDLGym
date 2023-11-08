@@ -22,10 +22,10 @@ def objective_replan(params, kwargs, key, index):
     ]
     T, = param_values
     if kwargs['verbose']:
-        print(f'[{index}] optimizing MPC with PRNG key={key}, T={T}...')
+        print(f'[{index}] key={key}, T={T}...', flush=True)
 
-    # initialize planner
-    planner = GurobiOnlineController(
+    # initialize policy
+    policy = GurobiOnlineController(
         rddl=kwargs['rddl'],
         plan=GurobiStraightLinePlan(**kwargs['plan_kwargs']),
         rollout_horizon=T,
@@ -40,28 +40,13 @@ def objective_replan(params, kwargs, key, index):
     # perform training
     average_reward = 0.0
     for trial in range(kwargs['eval_trials']):
-        
-        # start the next trial
+        key = np.array(policy.key)[0]
+        total_reward = policy.evaluate(env, seed=key)['mean']
         if kwargs['verbose']:
-            print(f'--- [{index}] starting trial {trial + 1} with PRNG key={key}...')
-            
-        total_reward = 0.0
-        state = env.reset(seed=np.array(key)[0])
-        for _ in range(kwargs['eval_horizon']): 
-            key, _ = jax.random.split(key)
-            action_values = planner.sample_action(state)
-            state, reward, done, _ = env.step(action_values)
-            total_reward += reward
-            if done: 
-                break  
-            
-        # update average reward across trials
-        if kwargs['verbose']:
-            print(f'--- [{index}] done trial {trial + 1}, reward={total_reward}')
-        average_reward += total_reward / kwargs['eval_trials']
-        
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
+        average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
-        print(f'[{index}] done optimizing MPC, average reward={average_reward}')
+        print(f'[{index}] average reward={average_reward}', flush=True)
     return average_reward
 
 
@@ -88,11 +73,10 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
                  gp_params: Dict={'n_restarts_optimizer': 10}) -> None:
         planner_kwargs['model_params']['TimeLimit'] = timeout_training
         super(GurobiParameterTuningReplan, self).__init__(
-            env, hyperparams_dict, -1, -1, timeout_tuning,
+            env, hyperparams_dict, -1, -1, timeout_tuning, eval_trials,
             verbose, planner_kwargs, plan_kwargs,
             pool_context, num_workers, poll_frequency,
             gp_iters, acquisition, gp_init_kwargs, gp_params)
-        self.eval_trials = eval_trials
         
         # set upper range of lookahead horizon to environment horizon
         if self.hyperparams_dict['T'][1] is None:
@@ -119,7 +103,6 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
             'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
             'eval_trials': self.eval_trials,
-            'eval_horizon': self.env.horizon
         }
         return objective_fn, kwargs
     
