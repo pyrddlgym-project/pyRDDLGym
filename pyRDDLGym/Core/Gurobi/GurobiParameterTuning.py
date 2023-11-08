@@ -22,7 +22,7 @@ def objective_replan(params, kwargs, key, index):
     ]
     T, = param_values
     if kwargs['verbose']:
-        print(f'[{index}] key={key}, T={T}...')
+        print(f'[{index}] key={key}, T={T}...', flush=True)
 
     # initialize policy
     policy = GurobiOnlineController(
@@ -43,10 +43,10 @@ def objective_replan(params, kwargs, key, index):
         key = np.array(policy.key)[0]
         total_reward = policy.evaluate(env, seed=key)['mean']
         if kwargs['verbose']:
-            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}')
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
         average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
-        print(f'[{index}] average reward={average_reward}')
+        print(f'[{index}] average reward={average_reward}', flush=True)
     return average_reward
 
 

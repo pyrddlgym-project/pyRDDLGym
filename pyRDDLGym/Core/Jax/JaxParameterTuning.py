@@ -294,7 +294,7 @@ def objective_slp(params, kwargs, key, index):
         std, lr, w = param_values
         wa = None                      
     if kwargs['verbose']:
-        print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}...')
+        print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}...', flush=True)
         
     # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
@@ -332,10 +332,10 @@ def objective_slp(params, kwargs, key, index):
         key = np.array(policy.key)[0]
         total_reward = policy.evaluate(env, seed=key)['mean']
         if kwargs['verbose']:
-            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}')
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
         average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
-        print(f'[{index}] average reward={average_reward}')
+        print(f'[{index}] average reward={average_reward}', flush=True)
     return average_reward
 
         
@@ -422,7 +422,7 @@ def objective_replan(params, kwargs, key, index):
         std, lr, w, T = param_values
         wa = None        
     if kwargs['verbose']:
-        print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}, T={T}...')
+        print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}, T={T}...', flush=True)
 
     # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
@@ -461,10 +461,10 @@ def objective_replan(params, kwargs, key, index):
         key = np.array(policy.key)[0]
         total_reward = policy.evaluate(env, seed=key)['mean']
         if kwargs['verbose']:
-            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}')
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
         average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
-        print(f'[{index}] average reward={average_reward}')
+        print(f'[{index}] average reward={average_reward}', flush=True)
     return average_reward
 
     
@@ -549,7 +549,7 @@ def objective_drp(params, kwargs, key, index):
     lr, w, layers, neurons = param_values
                       
     if kwargs['verbose']:
-        print(f'[{index}] key={key}, lr={lr}, w={w}, layers={layers}, neurons={neurons}...')
+        print(f'[{index}] key={key}, lr={lr}, w={w}, layers={layers}, neurons={neurons}...', flush=True)
            
     # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
@@ -587,10 +587,10 @@ def objective_drp(params, kwargs, key, index):
         key = np.array(policy.key)[0]
         total_reward = policy.evaluate(env, seed=key)['mean']
         if kwargs['verbose']:
-            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}')
+            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
         average_reward += total_reward / kwargs['eval_trials']
     if kwargs['verbose']:
-        print(f'[{index}] average reward={average_reward}')
+        print(f'[{index}] average reward={average_reward}', flush=True)
     return average_reward
 
 
