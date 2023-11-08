@@ -1,0 +1,14 @@
+{
+  "useGPU": false,
+  "use64bit": true,
+  "debug_nans": true,
+  "n_iters": 75,
+  "n_shards": 1,
+  "n_rollouts_per_shard": 128,
+  "method": {
+    "name": "reinforce",
+    "params": {
+      "":
+    }
+  }
+}

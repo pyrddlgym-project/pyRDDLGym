@@ -8,6 +8,8 @@ non-fluents network_3x3 {
     };
 
     non-fluents {
+        Ts = 3;
+
         //sources
         SOURCE(l-s11-i0);
         SOURCE(l-s3-i2);
@@ -1045,7 +1047,7 @@ instance network_3x3 {
     domain = BLX_model;
     non-fluents = network_3x3;
     max-nondef-actions = 9;
-    horizon = 200;
+    horizon = 256;
     discount = 1.0;
 }
 // Source link ids
