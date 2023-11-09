@@ -29,11 +29,9 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 def main(domain, instance, method, trials=5, iters=20, workers=4):
     
-    # create the environment
-    EnvInfo = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv(domain=EnvInfo.get_domain(),
-                  instance=EnvInfo.get_instance(instance),
-                  enforce_action_constraints=True)
+    # set up the environment
+    info = ExampleManager.GetEnvInfo(domain)    
+    env = RDDLEnv.build(info, instance, enforce_action_constraints=True)
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
@@ -57,7 +55,6 @@ def main(domain, instance, method, trials=5, iters=20, workers=4):
                           num_workers=workers,
                           gp_iters=iters)
     
-    # perform tuning
     best = tuning.tune(key=train_args['key'], filename=f'gp_{method}')
     print(f'best parameters found: {best}')
 

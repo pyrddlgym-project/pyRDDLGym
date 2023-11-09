@@ -20,19 +20,14 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 def main(domain, instance, horizon):
     
     # create the environment
-    EnvInfo = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv(domain=EnvInfo.get_domain(),
-                  instance=EnvInfo.get_instance(instance),
-                  enforce_action_constraints=True)
-    env.set_visualizer(EnvInfo.get_visualizer())
+    info = ExampleManager.GetEnvInfo(domain)    
+    env = RDDLEnv.build(info, instance, enforce_action_constraints=True)
     
-    # create the controller agent
+    # create the controller
     controller = GurobiOnlineController(rddl=env.model,
                                         plan=GurobiStraightLinePlan(),
                                         rollout_horizon=horizon,
                                         model_params={'NonConvex': 2, 'OutputFlag': 1})
-    
-    # evaluate the agent
     controller.evaluate(env, verbose=True, render=True)
     
     env.close()

@@ -21,14 +21,10 @@ from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
 def main(domain, instance, episodes=1, seed=42):
     
-    # get the environment info
-    EnvInfo = ExampleManager.GetEnvInfo(domain)
-    
-    # set up the environment, RNG key and visualizer
-    env = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
-                          instance=EnvInfo.get_instance(instance))
+    # set up the environment
+    info = ExampleManager.GetEnvInfo(domain)
+    env = RDDLEnv.RDDLEnv.build(info, instance)
     env.seed(seed)
-    env.set_visualizer(EnvInfo.get_visualizer())
     
     # set up an example agent
     agent = RandomAgent(action_space=env.action_space,
