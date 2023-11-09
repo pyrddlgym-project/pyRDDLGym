@@ -1203,8 +1203,8 @@ class JaxRDDLBackpropPlanner:
             if verbose:
                 iters.n = int(100 * min(1, max(elapsed / train_seconds, it / epochs)))
                 iters.set_description(
-                    f'Id:{tqdm_position}  Train:{-train_loss:15.5f}  '
-                    f'Test:{-test_loss:15.5f}  Best:{-best_loss:15.5f}')
+                    f'[{tqdm_position}] {it:6} it / {-train_loss:14.4f} train / '
+                    f'{-test_loss:14.4f} test / {-best_loss:14.4f} best')
             
             # return a callback
             start_time_outside = time.time()
