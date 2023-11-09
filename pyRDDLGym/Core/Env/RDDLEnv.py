@@ -29,10 +29,18 @@ def _make_dir(log_path):
                     f'Could not create folder at path {root_path}.')
     return log_path
 
-
+    
 class RDDLEnv(gym.Env):
     '''A gym environment class for RDDL domains.'''
     
+    @staticmethod
+    def build(env_info, env: str, **env_kwargs):
+        env = RDDLEnv(domain=env_info.get_domain(),
+                      instance=env_info.get_instance(env),
+                      **env_kwargs)
+        env.set_visualizer(env_info.get_visualizer())
+        return env
+
     def __init__(self, domain: str,
                  instance: str=None,
                  enforce_action_constraints: bool=False,
