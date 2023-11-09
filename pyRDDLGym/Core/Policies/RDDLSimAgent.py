@@ -11,9 +11,12 @@ class RDDLSimAgent:
     messages between a pyRDDLGym environment and a client that is
     designed to interact with rddlsim (https://github.com/ssanner/rddlsim)'''
 
-    def __init__(self, domain, instance, numrounds, time, port=2323):
+    def __init__(self, domain, instance, numrounds, time, port=2323,
+                 disable_viz=False):
         self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
-
+        if disable_viz:
+            self.env.set_visualizer(None)
+        
         # concatenate domain and instance files
         f = open(domain)
         self.task = f.read()
