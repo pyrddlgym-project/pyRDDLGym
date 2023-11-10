@@ -244,7 +244,7 @@ class JaxPlan:
         self._projection = None
     
     def summarize_hyperparameters(self):
-        raise NotImplementedError
+        pass
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict,
@@ -975,7 +975,7 @@ class JaxRDDLBackpropPlanner:
         self._jax_compile_rddl()        
         self._jax_compile_optimizer()
         
-    def summarize_hyperparams(self):
+    def summarize_hyperparameters(self):
         print(f'objective and relaxations:\n'
               f'    objective_fn    ={self.utility.__name__}\n'
               f'    use_symlog      ={self.use_symlog_reward}\n'
@@ -1183,7 +1183,7 @@ class JaxRDDLBackpropPlanner:
         
         # print summary of parameters:
         if verbose >= 1:
-            self.summarize_hyperparams()
+            self.summarize_hyperparameters()
             self.plan.summarize_hyperparameters()
             print(f'budget:\n'
                   f'    max_iterations={epochs}\n'
@@ -1381,8 +1381,8 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             optimizer_kwargs=optimizer_kwargs,
             **kwargs)
         
-    def summarize_hyperparams(self):
-        super(JaxRDDLArmijoLineSearchPlanner, self).summarize_hyperparams()
+    def summarize_hyperparameters(self):
+        super(JaxRDDLArmijoLineSearchPlanner, self).summarize_hyperparameters()
         print(f'line search hyper-params:\n'
               f'    beta    ={self.beta}\n'
               f'    c       ={self.c}\n'
