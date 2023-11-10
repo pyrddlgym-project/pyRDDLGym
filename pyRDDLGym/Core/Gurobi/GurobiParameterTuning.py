@@ -60,7 +60,8 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
                  eval_trials: int=5,
                  verbose: bool=True,
                  planner_kwargs: Dict={
-                     'model_params': {'NonConvex': 2, 'OutputFlag': 0}
+                     'model_params': {'NonConvex': 2, 'OutputFlag': 0},
+                     'verbose': 0,
                  },
                  plan_kwargs: Dict={},
                  pool_context: str='spawn',
