@@ -1,12 +1,10 @@
+from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('agg')
-import matplotlib.pyplot as plt
-
-import numpy as np
-from PIL import Image
-
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class ChartVisualizer(StateViz):
@@ -19,7 +17,7 @@ class ChartVisualizer(StateViz):
                  markersize=4,
                  boolcol=['red', 'green'],
                  loccol='black',
-                 scale_full_history: bool=True,
+                 scale_full_history: bool = True,
                  ranges=None) -> None:
         self._model = model
         self._figure_size = figure_size
@@ -30,11 +28,11 @@ class ChartVisualizer(StateViz):
         self._loccol = loccol
         self._scale_full_history = scale_full_history
         self._ranges = ranges
-        
+
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
-        
+
         if steps_history is None:
             steps_history = model.horizon
         self._steps = steps_history
@@ -45,17 +43,18 @@ class ChartVisualizer(StateViz):
         for (state, values) in self._model.states.items():
             values = np.atleast_1d(values)
             self._state_hist[state] = np.full(
-                shape=(len(values), self._steps), 
+                shape=(len(values), self._steps),
                 fill_value=np.nan)
             self._state_shapes[state] = self._model.object_counts(
                 self._model.param_types[state])
             self._labels[state] = list(map(
-                ','.join, self._model.variations(self._model.param_types[state])
+                ','.join, self._model.variations(
+                    self._model.param_types[state])
             ))
             self._historic_min_max[state] = (np.inf, -np.inf)
         self._step = 0
-        
-    def convert2img(self, fig, ax): 
+
+    def convert2img(self, fig, ax):
         # ax.set_position((0, 0, 1, 1))
         fig.canvas.draw()
 
@@ -68,11 +67,11 @@ class ChartVisualizer(StateViz):
         return img
 
     def render(self, state):
-        
+
         # update the state info
         if self._step >= self._steps:
             for (_, values) in self._state_hist.items():
-                values[:,:-1] = values[:, 1:]
+                values[:, :-1] = values[:, 1:]
         states = {name: np.full(shape=shape, fill_value=np.nan)
                   for (name, shape) in self._state_shapes.items()}
         for (name, value) in state.items():
@@ -81,32 +80,32 @@ class ChartVisualizer(StateViz):
         index = min(self._step, self._steps - 1)
         for (name, values) in states.items():
             self._state_hist[name][:, index] = np.ravel(values, order='C')
-            
+
         # draw color plots
         self._fig, self._ax = plt.subplots(len(self._state_hist), 1,
                                            squeeze=True,
                                            figsize=self._figure_size,
-                                           sharex=True) 
+                                           sharex=True)
         if len(self._state_hist) == 1:
             self._ax = (self._ax,)
-            
+
         for (y, (state, values)) in enumerate(self._state_hist.items()):
-            values = values[::-1,:]
-            
+            values = values[::-1, :]
+
             # title, labels and cursor line
             self._ax[y].xaxis.label.set_fontsize(self._fontsize)
             self._ax[y].yaxis.label.set_fontsize(self._fontsize)
             self._ax[y].title.set_text(state)
             self._ax[y].set_xlabel('decision epoch')
             self._ax[y].set_ylabel(state)
-            self._ax[y].axvline(x=index + 0.5, 
-                                ymin=0.0, 
+            self._ax[y].axvline(x=index + 0.5,
+                                ymin=0.0,
                                 ymax=1.0,
-                                color=self._loccol, 
-                                linestyle='--', 
-                                linewidth=2, 
+                                color=self._loccol,
+                                linestyle='--',
+                                linewidth=2,
                                 alpha=0.9)
-            
+
             # scaling of y axis
             vmin, vmax = None, None
             if self._scale_full_history:
@@ -114,68 +113,72 @@ class ChartVisualizer(StateViz):
                 valid_values = values[np.isfinite(values)]
                 vmin = min(hmin, np.min(valid_values))
                 vmax = max(hmax, np.max(valid_values))
-                self._historic_min_max[state] = (vmin, vmax)            
+                self._historic_min_max[state] = (vmin, vmax)
             if self._ranges is not None and state in self._ranges:
-                vmin, vmax = self._ranges[state]             
-            
+                vmin, vmax = self._ranges[state]
+
             # plot boolean fluent
             if self._model.variable_ranges[state] == 'bool':
-                self._ax[y].pcolormesh(values, 
-                                       edgecolors=self._loccol, 
+                self._ax[y].pcolormesh(values,
+                                       edgecolors=self._loccol,
                                        linewidth=0.5,
-                                       cmap=matplotlib.colors.ListedColormap(self._boolcol))         
+                                       cmap=matplotlib.colors.ListedColormap(self._boolcol))
                 patches = [
-                    matplotlib.patches.Patch(color=self._boolcol[0], label='false'),
-                    matplotlib.patches.Patch(color=self._boolcol[1], label='true')
+                    matplotlib.patches.Patch(
+                        color=self._boolcol[0], label='false'),
+                    matplotlib.patches.Patch(
+                        color=self._boolcol[1], label='true')
                 ]
                 self._ax[y].legend(handles=patches, loc='upper right')
-                
+
                 labels = self._labels[state]
                 self._ax[y].yaxis.set_ticks([0, len(labels)])
-                self._ax[y].yaxis.set(ticks=np.arange(0.5, len(labels), 1), 
-                                      ticklabels=labels) 
+                self._ax[y].yaxis.set(ticks=np.arange(0.5, len(labels), 1),
+                                      ticklabels=labels)
                 self._ax[y].set_yticklabels(labels,
-                                            fontdict={"fontsize": self._fontsize},
+                                            fontdict={
+                                                "fontsize": self._fontsize},
                                             rotation=30)
-            
+
             # plot real fluent
             elif self._model.variable_ranges[state] == 'real':
                 for (i, var) in enumerate(self._labels[state]):
-                    self._ax[y].plot(values[i,:], 
-                                     'o-', 
-                                     markersize=self._markersize, 
+                    self._ax[y].plot(values[i, :],
+                                     'o-',
+                                     markersize=self._markersize,
                                      label=var)
-                self._ax[y].set_xlim([0, values[i,:].size])
+                self._ax[y].set_xlim([0, values[i, :].size])
                 self._ax[y].set_ylim([vmin, vmax])
                 self._ax[y].legend(loc='upper right')
-            
+
             # plot int and object fluent
             else:
                 num_ser = len(self._labels[state])
                 if num_ser > 1:
-                    offsets = np.linspace(-0.05, 0.05, num=num_ser, endpoint=True)
+                    offsets = np.linspace(-0.05, 0.05,
+                                          num=num_ser, endpoint=True)
                 else:
                     offsets = np.zeros((num_ser,))
-                
+
                 for (i, var) in enumerate(self._labels[state]):
-                    self._ax[y].plot(np.arange(values[i,:].size) + offsets[i],
-                                     values[i,:],
+                    self._ax[y].plot(np.arange(values[i, :].size) + offsets[i],
+                                     values[i, :],
                                      linestyle=':',
                                      marker='o',
                                      markersize=self._markersize,
                                      markerfacecolor='none',
                                      label=var)
-                self._ax[y].set_xlim([0, values[i,:].size])
+                self._ax[y].set_xlim([0, values[i, :].size])
                 self._ax[y].set_ylim([vmin, vmax])
-                self._ax[y].legend(loc='upper right')
-            
+                if var != '':
+                    self._ax[y].legend(loc='upper right')
+
         self._step = self._step + 1
         plt.tight_layout()
-        
+
         img = self.convert2img(self._fig, self._ax)
-        
+
         plt.clf()
         plt.close()
 
         return img
-    
