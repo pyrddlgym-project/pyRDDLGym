@@ -1185,9 +1185,14 @@ class JaxRDDLBackpropPlanner:
         if verbose >= 1:
             self.summarize_hyperparameters()
             self.plan.summarize_hyperparameters()
-            print(f'budget:\n'
-                  f'    max_iterations={epochs}\n'
-                  f'    max_seconds   ={train_seconds}\n')
+            print(f'optimize() call hyper-params:\n'
+                  f'    max_iterations     ={epochs}\n'
+                  f'    max_seconds        ={train_seconds}\n'
+                  f'    model_params       ={model_params}\n'
+                  f'    policy_hyper_params={policy_hyperparams}\n'
+                  f'    override_subs_dict ={subs is not None}\n'
+                  f'    provide_param_guess={guess is not None}\n' 
+                  f'    plot_frequency     ={plot_step}\n')
             
         # compute a batched version of the initial values
         if subs is None:
