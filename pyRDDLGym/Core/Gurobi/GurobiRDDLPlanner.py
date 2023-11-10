@@ -30,7 +30,10 @@ class GurobiRDDLPlan:
             return (0, 1)
         else:
             return self.action_bounds.get(action, UNBOUNDED)
-                
+    
+    def summarize_hyperparameters(self):
+        pass
+        
     def params(self, compiled: GurobiRDDLCompiler,
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
@@ -175,6 +178,13 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         self.dependencies_values = dependencies_values
         self.num_cases = num_cases
     
+    def summarize_hyperparameters(self):
+        print(f'Gurobi policy hyper-params:\n'
+              f'    num_cases     ={self.num_cases}\n'
+              f'    state_bounds  ={self.state_bounds}\n'
+              f'    constraint_dep={self.dependencies_constr}\n'
+              f'    value_dep     ={self.dependencies_values}')
+        
     def _get_states_for_constraints(self, rddl):
         if self.dependencies_constr:
             return self.dependencies_constr
