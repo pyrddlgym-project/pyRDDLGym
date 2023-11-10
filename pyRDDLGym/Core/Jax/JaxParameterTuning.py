@@ -317,7 +317,7 @@ def objective_slp(params, kwargs, key, index):
         train_seconds=kwargs['timeout_training'],
         model_params=model_params,
         policy_hyperparams=policy_hparams,
-        verbose=False,
+        verbose=0,
         tqdm_position=index)
     
     # initialize env for evaluation (need fresh copy to avoid concurrency)
@@ -445,7 +445,7 @@ def objective_replan(params, kwargs, key, index):
         train_seconds=kwargs['timeout_training'],
         model_params=model_params,
         policy_hyperparams=policy_hparams,
-        verbose=False,
+        verbose=0,
         tqdm_position=index)
     
     # initialize env for evaluation (need fresh copy to avoid concurrency)
@@ -570,7 +570,7 @@ def objective_drp(params, kwargs, key, index):
         train_seconds=kwargs['timeout_training'],
         model_params=model_params,
         policy_hyperparams=policy_hparams,
-        verbose=False,
+        verbose=0,
         tqdm_position=index)
     
     # initialize env for evaluation (need fresh copy to avoid concurrency)
