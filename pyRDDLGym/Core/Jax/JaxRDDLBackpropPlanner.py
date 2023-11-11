@@ -362,7 +362,7 @@ class JaxStraightLinePlan(JaxPlan):
         self._max_constraint_iter = max_constraint_iter
         
     def summarize_hyperparameters(self):
-        print(f'policy hyper-params:\n'
+        print(f'policy hyper-parameters:\n'
               f'    initializer          ={type(self._initializer_base).__name__}\n'
               f'constraint-sat strategy (simple):\n'
               f'    wrap_sigmoid         ={self._wrap_sigmoid}\n'
@@ -703,7 +703,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         self._normalize = normalize
             
     def summarize_hyperparameters(self):
-        print(f'policy hyper-params:\n'
+        print(f'policy hyper-parameters:\n'
               f'    topology        ={self._topology}\n'
               f'    activation_fn   ={self._activations[0].__name__}\n'
               f'    initializer     ={type(self._initializer_base).__name__}\n'
@@ -946,6 +946,7 @@ class JaxRDDLBackpropPlanner:
         self._action_bounds = action_bounds
         self.use64bit = use64bit
         self._optimizer_name = optimizer
+        self._optimizer_kwargs = optimizer_kwargs
         self.clip_grad = clip_grad
         
         # set optimizer
@@ -983,12 +984,15 @@ class JaxRDDLBackpropPlanner:
               f'    model relaxation={type(self.logic).__name__}\n'
               f'    action_bounds   ={self._action_bounds}\n'
               f'    cpfs_no_gradient={self.cpfs_without_grad}\n'
-              f'training hyper-params:\n'
+              f'optimizer hyper-parameters:\n'
               f'    use_64_bit      ={self.use64bit}\n'
               f'    optimizer       ={self._optimizer_name.__name__}\n'
+              f'    optimizer args  ={self._optimizer_kwargs}\n'
               f'    clip_gradient   ={self.clip_grad}\n'
               f'    batch_size_train={self.batch_size_train}\n'
               f'    batch_size_test ={self.batch_size_test}')
+        self.plan.summarize_hyperparameters()
+        self.logic.summarize_hyperparameters()
         
     def _jax_compile_rddl(self):
         rddl = self.rddl
@@ -1184,8 +1188,7 @@ class JaxRDDLBackpropPlanner:
         # print summary of parameters:
         if verbose >= 1:
             self.summarize_hyperparameters()
-            self.plan.summarize_hyperparameters()
-            print(f'optimize() call hyper-params:\n'
+            print(f'optimize() call hyper-parameters:\n'
                   f'    max_iterations     ={epochs}\n'
                   f'    max_seconds        ={train_seconds}\n'
                   f'    model_params       ={model_params}\n'
@@ -1388,7 +1391,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
         
     def summarize_hyperparameters(self):
         super(JaxRDDLArmijoLineSearchPlanner, self).summarize_hyperparameters()
-        print(f'line search hyper-params:\n'
+        print(f'linesearch hyper-parameters:\n'
               f'    beta    ={self.beta}\n'
               f'    c       ={self.c}\n'
               f'    lr_range=({self.lrmin}, {self.lrmax})\n')

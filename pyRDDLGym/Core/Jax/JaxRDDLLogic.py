@@ -91,6 +91,14 @@ class FuzzyLogic:
         self.debias = debias
         self.eps = eps
         self.verbose = verbose
+    
+    def summarize_hyperparameters(self):
+        print(f'model relaxation:\n'
+              f'    tnorm         ={type(self.tnorm).__name__}\n'
+              f'    complement    ={type(self.complement).__name__}\n'
+              f'    sigmoid_weight={self.weight}\n'
+              f'    cpfs_to_debias={self.debias}\n'
+              f'    underflow_tol ={self.eps}')
         
     # ===========================================================================
     # logical operators

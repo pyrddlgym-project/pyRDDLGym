@@ -100,18 +100,43 @@ class JaxParameterTuning:
         self.gp_params = gp_params
         
         # create acquisition function
+        self.acq_args = None
         if acquisition is None:
             num_samples = self.gp_iters * self.num_workers
-            acquisition = JaxParameterTuning._annealing_utility(num_samples)
+            acquisition, self.acq_args = JaxParameterTuning._annealing_utility(num_samples)
         self.acquisition = acquisition
-
+    
+    def summarize_hyperparameters(self):
+        print(f'hyperparameter optimizer parameters:\n'
+              f'    tuned_hyper_parameters    ={self.hyperparams_dict}\n'
+              f'    initialization_args       ={self.gp_init_kwargs}\n'
+              f'    additional_args           ={self.gp_params}\n'
+              f'    tuning_iterations         ={self.gp_iters}\n'
+              f'    tuning_timeout            ={self.timeout_tuning}\n'
+              f'    tuning_batch_size         ={self.num_workers}\n'
+              f'    mp_pool_context_type      ={self.pool_context}\n'
+              f'    mp_pool_poll_frequency    ={self.poll_frequency}\n'
+              f'meta-objective parameters:\n'
+              f'    planning_trials_per_iter  ={self.eval_trials}\n'
+              f'    planning_iters_per_trial  ={self.train_epochs}\n'
+              f'    planning_timeout_per_trial={self.timeout_training}\n'
+              f'    acquisition_fn            ={type(self.acquisition).__name__}')
+        if self.acq_args is not None:
+            print(f'using default acquisition function:\n'
+                  f'    utility_kind ={self.acq_args[0]}\n'
+                  f'    initial_kappa={self.acq_args[1]}\n'
+                  f'    kappa_decay  ={self.acq_args[2]}')
+        
     @staticmethod
     def _annealing_utility(n_samples, n_delay_samples=0, kappa1=10.0, kappa2=1.0):
-        return UtilityFunction(
+        kappa_decay = (kappa2 / kappa1) ** (1.0 / (n_samples - n_delay_samples))
+        utility_fn = UtilityFunction(
             kind='ucb',
             kappa=kappa1,
-            kappa_decay=(kappa2 / kappa1) ** (1.0 / (n_samples - n_delay_samples)),
+            kappa_decay=kappa_decay,
             kappa_decay_delay=n_delay_samples)
+        utility_args = ['ucb', kappa1, kappa_decay]
+        return utility_fn, utility_args
     
     def _pickleable_objective_with_kwargs(self):
         raise NotImplementedError
@@ -122,9 +147,11 @@ class JaxParameterTuning:
         pid = os.getpid()
         return index, pid, params, target
 
-    def tune(self, key: jax.random.PRNGKey, filename: str, 
+    def tune(self, key: jax.random.PRNGKey, filename: str,
              save_plot: bool=False) -> Dict[str, object]:
         '''Tunes the hyper-parameters for Jax planner, returns the best found.'''
+        self.summarize_hyperparameters()
+        
         start_time = time.time()
         
         # objective function
@@ -239,6 +266,14 @@ class JaxParameterTuning:
                 writer = csv.writer(file)
                 writer.writerows(rows)
         
+        # print summary of results
+        elapsed = time.time() - start_time
+        print(f'summary of hyper-parameter optimization:\n'
+              f'    time_elapsed         ={datetime.timedelta(seconds=elapsed)}\n'
+              f'    iterations           ={it + 1}\n'
+              f'    best_hyper_parameters={best_params}\n'
+              f'    best_meta_objective  ={best_target}\n')
+        
         if save_plot:
             self._save_plot(filename)
         return best_params
@@ -314,7 +349,7 @@ def objective_slp(params, kwargs, key, index):
         planner=planner,
         key=key,
         eval_hyperparams=policy_hparams,
-        train_on_reset=True, 
+        train_on_reset=True,
         epochs=kwargs['train_epochs'],
         train_seconds=kwargs['timeout_training'],
         model_params=model_params,
@@ -470,7 +505,7 @@ def objective_replan(params, kwargs, key, index):
     
 class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
     
-    def __init__(self, 
+    def __init__(self,
                  *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
                     'std': (-5., 2., power_ten),
@@ -567,7 +602,7 @@ def objective_drp(params, kwargs, key, index):
         planner=planner,
         key=key,
         eval_hyperparams=policy_hparams,
-        train_on_reset=True, 
+        train_on_reset=True,
         epochs=kwargs['train_epochs'],
         train_seconds=kwargs['timeout_training'],
         model_params=model_params,
