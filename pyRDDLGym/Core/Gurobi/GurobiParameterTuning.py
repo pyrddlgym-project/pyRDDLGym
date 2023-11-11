@@ -106,6 +106,6 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
         }
         return objective_fn, kwargs
     
-    def tune(self, key: int, filename: str) -> Dict[str, object]:
+    def tune(self, key: int, filename: str, save_plot: bool=False) -> Dict[str, object]:
         key = jax.random.PRNGKey(key)
-        return super(GurobiParameterTuningReplan, self).tune(key, filename)
+        return super(GurobiParameterTuningReplan, self).tune(key, filename, save_plot)
