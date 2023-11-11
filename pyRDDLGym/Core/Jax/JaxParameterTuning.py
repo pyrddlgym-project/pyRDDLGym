@@ -122,7 +122,8 @@ class JaxParameterTuning:
         pid = os.getpid()
         return index, pid, params, target
 
-    def tune(self, key: jax.random.PRNGKey, filename: str) -> Dict[str, object]:
+    def tune(self, key: jax.random.PRNGKey, filename: str, 
+             save_plot: bool=False) -> Dict[str, object]:
         '''Tunes the hyper-parameters for Jax planner, returns the best found.'''
         start_time = time.time()
         
@@ -237,8 +238,9 @@ class JaxParameterTuning:
             with open(filename, 'a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerows(rows)
-            
-        self._save_plot(filename)
+        
+        if save_plot:
+            self._save_plot(filename)
         return best_params
 
     def _filename(self, name, ext):
