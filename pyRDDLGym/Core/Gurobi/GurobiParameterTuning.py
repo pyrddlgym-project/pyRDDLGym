@@ -1,3 +1,4 @@
+import gurobipy
 import jax
 import numpy as np
 from typing import Callable, Dict, Tuple
@@ -6,6 +7,9 @@ from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiStraightLinePlan
 from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiOnlineController
 from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuning
+
+# use a global instance
+GLOBAL_ENV = gurobipy.Env()
 
 
 # ===============================================================================
@@ -28,6 +32,7 @@ def objective_replan(params, kwargs, key, index):
     policy = GurobiOnlineController(
         rddl=kwargs['rddl'],
         plan=GurobiStraightLinePlan(**kwargs['plan_kwargs']),
+        env=GLOBAL_ENV,
         rollout_horizon=T,
         **kwargs['planner_kwargs'])
 
@@ -71,7 +76,7 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
             planner_kwargs['model_params']['TimeLimit'] = timeout_training
             
         super(GurobiParameterTuningReplan, self).__init__(
-            *args, 
+            *args,
             hyperparams_dict=hyperparams_dict,
             train_epochs=None,
             timeout_training=timeout_training,
