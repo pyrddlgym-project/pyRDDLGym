@@ -345,9 +345,10 @@ def objective_slp(params, kwargs, key, index):
     model_params = {name: w for name in planner.compiled.model_params}
     
     # initialize policy
+    key, subkey = jax.random.split(key)
     policy = JaxOfflineController(
         planner=planner,
-        key=key,
+        key=subkey,
         eval_hyperparams=policy_hparams,
         train_on_reset=True,
         epochs=kwargs['train_epochs'],
@@ -365,10 +366,11 @@ def objective_slp(params, kwargs, key, index):
     # perform training
     average_reward = 0.0
     for trial in range(kwargs['eval_trials']):
-        key = np.array(policy.key)[0]
-        total_reward = policy.evaluate(env, seed=key)['mean']
+        key, subkey = jax.random.split(key)
+        total_reward = policy.evaluate(env, seed=np.array(subkey)[0])['mean']
         if kwargs['verbose']:
-            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
+            print(f'    [{index}] trial {trial + 1} key={subkey}, '
+                  f'reward={total_reward}', flush=True)
         average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
         print(f'[{index}] average reward={average_reward}', flush=True)
@@ -473,9 +475,10 @@ def objective_replan(params, kwargs, key, index):
     model_params = {name: w for name in planner.compiled.model_params}
     
     # initialize controller
+    key, subkey = jax.random.split(key)
     policy = JaxOnlineController(
         planner=planner,
-        key=key,
+        key=subkey,
         eval_hyperparams=policy_hparams,
         warm_start=kwargs['use_guess_last_epoch'],
         epochs=kwargs['train_epochs'],
@@ -493,10 +496,11 @@ def objective_replan(params, kwargs, key, index):
     # perform training
     average_reward = 0.0
     for trial in range(kwargs['eval_trials']):
-        key = np.array(policy.key)[0]
-        total_reward = policy.evaluate(env, seed=key)['mean']
+        key, subkey = jax.random.split(key)
+        total_reward = policy.evaluate(env, seed=np.array(subkey)[0])['mean']
         if kwargs['verbose']:
-            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
+            print(f'    [{index}] trial {trial + 1} key={subkey}, '
+                  f'reward={total_reward}', flush=True)
         average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
         print(f'[{index}] average reward={average_reward}', flush=True)
@@ -581,8 +585,7 @@ def objective_drp(params, kwargs, key, index):
     ]
     
     # unpack hyper-parameters
-    lr, w, layers, neurons = param_values
-                      
+    lr, w, layers, neurons = param_values                      
     if kwargs['verbose']:
         print(f'[{index}] key={key}, lr={lr}, w={w}, layers={layers}, neurons={neurons}...', flush=True)
            
@@ -598,9 +601,10 @@ def objective_drp(params, kwargs, key, index):
     model_params = {name: w for name in planner.compiled.model_params}
     
     # initialize policy
+    key, subkey = jax.random.split(key)
     policy = JaxOfflineController(
         planner=planner,
-        key=key,
+        key=subkey,
         eval_hyperparams=policy_hparams,
         train_on_reset=True,
         epochs=kwargs['train_epochs'],
@@ -618,10 +622,11 @@ def objective_drp(params, kwargs, key, index):
     # perform training
     average_reward = 0.0
     for trial in range(kwargs['eval_trials']):
-        key = np.array(policy.key)[0]
-        total_reward = policy.evaluate(env, seed=key)['mean']
+        key, subkey = jax.random.split(key)
+        total_reward = policy.evaluate(env, seed=np.array(subkey)[0])['mean']
         if kwargs['verbose']:
-            print(f'    [{index}] trial {trial + 1} key={key}, reward={total_reward}', flush=True)
+            print(f'    [{index}] trial {trial + 1} key={subkey}, '
+                  f'reward={total_reward}', flush=True)
         average_reward += total_reward / kwargs['eval_trials']
     if kwargs['verbose']:
         print(f'[{index}] average reward={average_reward}', flush=True)
