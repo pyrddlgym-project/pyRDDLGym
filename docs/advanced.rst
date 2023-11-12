@@ -12,8 +12,7 @@ In pyRDDLGym, this can be done easily by specifying the backend:
 	
 	from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 	
-	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0),
-                            backend=JaxRDDLSimulator)
+	env = RDDLEnv.build(info, instance, backend=JaxRDDLSimulator)
 	
 For the purpose of simulation, the default backend and the ``JaxRDDLSimulator`` are designed to be as interchangeable as possible, so the latter can be used in place of the former with identical outputs in most cases.
 
@@ -99,10 +98,13 @@ The controller is a type of policy in pyRDDLGym, so functions such as ``sample_a
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
 
-    planner = JaxRDDLBackpropPlanner(myEnv.model, **planner_args)
+    planner = JaxRDDLBackpropPlanner(env.model, **planner_args)
     controller = JaxOfflineController(planner, **train_args)
+    controller.evaluate(env, verbose=True, render=True)
 
-This immediately begins training an open-loop plan with the specified hyper-parameters. Putting this all together into a working example:
+This immediately begins training an open-loop plan with the specified hyper-parameters. 
+
+Putting this all together into a working example:
 
 .. code-block:: python
 
@@ -110,23 +112,19 @@ This immediately begins training an open-loop plan with the specified hyper-para
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
-    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOnlineController
     from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
     # create the environment
-    EnvInfo = ExampleManager.GetEnvInfo(domain)    
-    myEnv = RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(instance))
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
+    info = ExampleManager.GetEnvInfo(domain)    
+    env = RDDLEnv.build(info, instance)
     
     # load the config file with planner settings from the JaxPlanConfigs
     planner_args, _, train_args = load_config(config_path)
     
     # create the planning algorithm, controller and begin training immediately
-    planner = JaxRDDLBackpropPlanner(myEnv.model, **planner_args)
+    planner = JaxRDDLBackpropPlanner(env.model, **planner_args)
     controller = JaxOfflineController(planner, **train_args)
-    
-    # evaluate the agent, note the ground_state flag
-    controller.evaluate(myEnv, ground_state=False, verbose=True, render=True)
+    controller.evaluate(env, verbose=True, render=True)
 
 .. note::
    The ``evaluate`` command in this above example requires ``ground_state=False`` when working with the planner.
@@ -166,8 +164,9 @@ The config should also be modified to specify the ``rollout_horizon`` to instruc
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOnlineController
 
-    planner = JaxRDDLBackpropPlanner(myEnv.model, **planner_args)
+    planner = JaxRDDLBackpropPlanner(env.model, **planner_args)
     controller = JaxOnlineController(planner, **train_args)
+    controller.evaluate(env, verbose=True, render=True)
     
 By comparing the realized return to the one obtained by the code in the previous section, we observe that re-planning can perform much better in some cases than straight-line planning.
 
@@ -311,9 +310,8 @@ Tuning of hyper-parameters can be done with only a slight modification of the pr
     from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
     # create the environment
-    EnvInfo = ExampleManager.GetEnvInfo(domain)    
-    myEnv = RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(instance))
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
+    info = ExampleManager.GetEnvInfo(domain)    
+    env = RDDLEnv.build(info, instance)
     
     # load the config file with planner settings from the JaxPlanConfigs
     # this is necessary to provide non-tunable parameters
@@ -321,16 +319,15 @@ Tuning of hyper-parameters can be done with only a slight modification of the pr
     
     # create the tuning algorithm
     tuning = JaxParameterTuningSLP(
-        env=myEnv,
+        env=env,
         train_epochs=train_args['epochs'],
         timeout_training=train_args['train_seconds'],
         planner_kwargs=planner_args,
         plan_kwargs=plan_args,
-        num_workers=workers,
-        gp_iters=iters)
+        num_workers=workers, ...)
     
     # perform tuning
-    best = tuning.tune(key=train_args['key'], filename='myOutputFile')
+    best = tuning.tune(key=train_args['key'], filename='outputfile')
     print(f'best parameters found = {best}')
 
 The ``__init__`` method requires the ``num_workers`` parameter to specify the 
@@ -470,7 +467,7 @@ Limitations
 We cite several limitations of the current baseline JAX optimizer:
 
 * Not all operations have natural differentiable relaxations. Currently, the following are not supported:
-	* nested fluents such as fluent1(fluent2(?p))
+	* nested fluents such as ``fluent1(fluent2(?p))``
 	* distributions that are not naturally reparameterizable such as Poisson, Gamma and Beta
 * Some relaxations can accumulate a high error relative to their exact counterparts, particularly when stacking CPFs via the chain rule for long roll-out horizons
 * Some relaxations may not be mathematically consistent with one another
