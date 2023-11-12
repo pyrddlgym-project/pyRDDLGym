@@ -52,32 +52,30 @@ def objective_replan(params, kwargs, key, index):
 
 class GurobiParameterTuningReplan(JaxParameterTuning):
     
-    def __init__(self, env: RDDLEnv,
+    def __init__(self, *args,
                  hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
                      'T': (1, None, int)
                  },
-                 timeout_training: float=9999.,
-                 timeout_tuning: float=np.inf,
-                 eval_trials: int=5,
-                 verbose: bool=True,
+                 timeout_training: float=None,
                  planner_kwargs: Dict={
                      'model_params': {'NonConvex': 2, 'OutputFlag': 0},
                      'verbose': 0,
                  },
-                 plan_kwargs: Dict={},
-                 pool_context: str='spawn',
-                 num_workers: int=1,
-                 poll_frequency: float=0.2,
-                 gp_iters: int=25,
-                 acquisition=None,
-                 gp_init_kwargs: Dict={},
-                 gp_params: Dict={'n_restarts_optimizer': 10}) -> None:
-        planner_kwargs['model_params']['TimeLimit'] = timeout_training
+                 **kwargs) -> None:
+        
+        # timeout for training must be set in Gurobi variables
+        if timeout_training is not None:
+            if 'model_params' not in planner_kwargs:
+                planner_kwargs['model_params'] = {}
+            planner_kwargs['model_params']['TimeLimit'] = timeout_training
+            
         super(GurobiParameterTuningReplan, self).__init__(
-            env, hyperparams_dict, -1, -1, timeout_tuning, eval_trials,
-            verbose, planner_kwargs, plan_kwargs,
-            pool_context, num_workers, poll_frequency,
-            gp_iters, acquisition, gp_init_kwargs, gp_params)
+            *args, 
+            hyperparams_dict=hyperparams_dict,
+            train_epochs=None,
+            timeout_training=timeout_training,
+            planner_kwargs=planner_kwargs,
+            **kwargs)
         
         # set upper range of lookahead horizon to environment horizon
         if self.hyperparams_dict['T'][1] is None:
@@ -88,11 +86,8 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
             
         # duplicate planner and plan keyword arguments must be removed
         plan_kwargs = self.plan_kwargs.copy()
-        plan_kwargs.pop('initializer', None)
         
         planner_kwargs = self.planner_kwargs.copy()
-        planner_kwargs.pop('rddl', None)
-        planner_kwargs.pop('plan', None)
         planner_kwargs.pop('rollout_horizon', None)
                         
         kwargs = {
