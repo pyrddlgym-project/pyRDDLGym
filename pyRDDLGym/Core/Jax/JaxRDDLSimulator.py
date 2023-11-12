@@ -22,6 +22,7 @@ class JaxRDDLSimulator(RDDLSimulator):
                  key: jax.random.PRNGKey=None,
                  raise_error: bool=True,
                  logger: Logger=None,
+                 keep_tensors: bool=False,
                  **compiler_args) -> None:
         '''Creates a new simulator for the given RDDL model with Jax as a backend.
         
@@ -32,6 +33,8 @@ class JaxRDDLSimulator(RDDLSimulator):
         middle of evaluating a Jax expression; instead they are accumulated and
         returned to the user upon complete evaluation of the expression
         :param logger: to log information about compilation to file
+        :param keep_tensors: whether the sampler takes actions and
+        returns state in numpy array form
         :param **compiler_args: keyword arguments to pass to the Jax compiler
         '''
         if key is None:
@@ -41,7 +44,8 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.compiler_args = compiler_args
         
         # generate direct sampling with default numpy RNG and operations
-        super(JaxRDDLSimulator, self).__init__(rddl, logger=logger)
+        super(JaxRDDLSimulator, self).__init__(
+            rddl, logger=logger, keep_tensors=keep_tensors)
     
     def seed(self, seed: int) -> None:
         super(JaxRDDLSimulator, self).seed(seed)
@@ -145,7 +149,9 @@ class JaxRDDLSimulator(RDDLSimulator):
         :param actions: a dict mapping current action fluents to their values
         '''
         rddl = self.rddl
-        actions = self._process_actions(actions)
+        keep_tensors = self.keep_tensors
+        if not keep_tensors:
+            actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -161,13 +167,19 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.state = {}
         for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
-            self.state.update(rddl.ground_values(state, subs[state]))
+            if keep_tensors:
+                self.state[state] = subs[state]
+            else:
+                self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
             obs = {}
             for var in rddl.observ:
-                obs.update(rddl.ground_values(var, subs[var]))
+                if keep_tensors:
+                    obs[var] = subs[var]
+                else:
+                    obs.update(rddl.ground_values(var, subs[var]))
         else:
             obs = self.state
         
