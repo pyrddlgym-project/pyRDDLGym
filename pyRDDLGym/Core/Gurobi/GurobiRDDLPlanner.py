@@ -802,5 +802,4 @@ class GurobiOnlineController(BaseAgent):
         pass
     
     def dispose(self):
-        del self.model
         del self.env
