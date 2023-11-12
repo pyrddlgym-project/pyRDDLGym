@@ -669,12 +669,14 @@ class GurobiOfflineController(BaseAgent):
     
     def __init__(self, rddl: RDDLLiftedModel,
                  plan: GurobiRDDLPlan,
+                 env: gurobipy.Env=None,
                  **compiler_kwargs):
         '''Creates a new Gurobi control policy that is optimized offline in an 
         open-loop fashion.
         
         :param rddl: the RDDL model
         :param plan: the plan or policy to optimize
+        :param env: an existing gurobi environment
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rollout_horizon: length of the planning horizon (uses the RDDL
         defined horizon if None)
@@ -696,7 +698,9 @@ class GurobiOfflineController(BaseAgent):
         
         # optimize the plan or policy here
         self.reset()
-        self.env = gurobipy.Env()
+        if env is None:
+            env = gurobipy.Env()
+        self.env = env
         model, _, params = self.compiler.compile(env=self.env)
         model.optimize()
         self.model = model
@@ -732,10 +736,6 @@ class GurobiOfflineController(BaseAgent):
                 
     def reset(self):
         self.step = 0
-    
-    def dispose(self):
-        del self.model
-        del self.env
 
 
 class GurobiOnlineController(BaseAgent): 
@@ -744,12 +744,14 @@ class GurobiOnlineController(BaseAgent):
 
     def __init__(self, rddl: RDDLLiftedModel,
                  plan: GurobiRDDLPlan,
+                 env: gurobipy.Env=None,
                  **compiler_kwargs):
         '''Creates a new Gurobi control policy that is optimized online in a 
         closed-loop fashion.
         
         :param rddl: the RDDL model
         :param plan: the plan or policy to optimize
+        :param env: an existing gurobi environment
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rollout_horizon: length of the planning horizon (uses the RDDL
         defined horizon if None)
@@ -768,7 +770,9 @@ class GurobiOnlineController(BaseAgent):
         self.rddl = rddl
         self.plan = plan
         self.compiler = GurobiRDDLCompiler(rddl=rddl, plan=plan, **compiler_kwargs)
-        self.env = gurobipy.Env()
+        if env is None:
+            env = gurobipy.Env()
+        self.env = env
         self.reset()
     
     def sample_action(self, state):
@@ -800,6 +804,3 @@ class GurobiOnlineController(BaseAgent):
         
     def reset(self):
         pass
-    
-    def dispose(self):
-        del self.env
