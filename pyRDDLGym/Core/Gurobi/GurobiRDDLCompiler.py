@@ -131,7 +131,8 @@ class GurobiRDDLCompiler:
             result[var.VarName] = (var.VType, var.LB, var.UB)
         return result
         
-    def compile(self, init_values: Dict[str, object]=None) -> \
+    def compile(self, init_values: Dict[str, object]=None,
+                env: gurobipy.Env=None) -> \
         Tuple[gurobipy.Model, List[Dict[str, object]]]:
         '''Compiles and returns the current RDDL domain as a Gurobi optimization
         problem. Also returns action variables constructed during compilation 
@@ -145,7 +146,7 @@ class GurobiRDDLCompiler:
             self.summarize_hyperparameters()
             self.plan.summarize_hyperparameters()
             
-        model = self._create_model()
+        model = self._create_model(env=env)
         subs = self._compile_init_subs(init_values)
         
         params = self.plan.params(self, model) 
@@ -197,8 +198,14 @@ class GurobiRDDLCompiler:
         else:
             return objective, all_action_vars, all_next_state_vars
     
-    def _create_model(self) -> gurobipy.Model:
-        model = gurobipy.Model()
+    def _create_model(self, env: gurobipy.Env=None) -> gurobipy.Model:
+        if env is None:
+            warnings.warn(
+                'Gurobi model created in default environment, not recommended.', 
+                stacklevel=2)
+            model = gurobipy.Model()
+        else:
+            model = gurobipy.Model(env=env)
         for (name, value) in self.model_params.items():
             model.setParam(name, value)
         return model 
