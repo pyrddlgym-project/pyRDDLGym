@@ -47,7 +47,7 @@ def objective_replan(params, kwargs, key, index):
         average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
         print(f'[{index}] average reward={average_reward}', flush=True)
-    policy.dispose()
+    del policy.env
     return average_reward
 
 
@@ -99,7 +99,7 @@ class GurobiParameterTuningReplan(JaxParameterTuning):
             'planner_kwargs': planner_kwargs,
             'plan_kwargs': plan_kwargs,
             'verbose': self.verbose,
-            'eval_trials': self.eval_trials,
+            'eval_trials': self.eval_trials
         }
         return objective_fn, kwargs
     
