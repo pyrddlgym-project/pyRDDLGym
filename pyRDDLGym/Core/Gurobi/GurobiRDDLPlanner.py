@@ -696,7 +696,8 @@ class GurobiOfflineController(BaseAgent):
         
         # optimize the plan or policy here
         self.reset()
-        model, _, params = self.compiler.compile()
+        self.env = gurobipy.Env()
+        model, _, params = self.compiler.compile(env=self.env)
         model.optimize()
         self.model = model
         self.params = params
@@ -731,6 +732,10 @@ class GurobiOfflineController(BaseAgent):
                 
     def reset(self):
         self.step = 0
+    
+    def dispose(self):
+        del self.model
+        del self.env
 
 
 class GurobiOnlineController(BaseAgent): 
@@ -763,6 +768,7 @@ class GurobiOnlineController(BaseAgent):
         self.rddl = rddl
         self.plan = plan
         self.compiler = GurobiRDDLCompiler(rddl=rddl, plan=plan, **compiler_kwargs)
+        self.env = gurobipy.Env()
         self.reset()
     
     def sample_action(self, state):
@@ -773,7 +779,7 @@ class GurobiOnlineController(BaseAgent):
         subs = {name: value[0] for (name, value) in subs.items()}     
         
         # optimize the policy parameters at the current time step
-        model, _, params = self.compiler.compile(subs)
+        model, _, params = self.compiler.compile(subs, env=self.env)
         model.optimize()
         
         # check for existence of solution
@@ -781,6 +787,7 @@ class GurobiOnlineController(BaseAgent):
             warnings.warn(f'Gurobi failed to find a feasible solution '
                           f'in the given time limit: using no-op action.',
                           stacklevel=2)
+            del model
             return {}
             
         # evaluate policy at the current time step with current inputs
@@ -788,8 +795,12 @@ class GurobiOnlineController(BaseAgent):
             self.compiler, params=params, step=0, subs=subs)
         action_values = {name: value for (name, value) in action_values.items()
                          if value != self.compiler.noop_actions[name]}
+        del model
         return action_values
         
     def reset(self):
         pass
     
+    def dispose(self):
+        del self.model
+        del self.env

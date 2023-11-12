@@ -47,6 +47,7 @@ def objective_replan(params, kwargs, key, index):
         average_reward += total_reward / kwargs['eval_trials']        
     if kwargs['verbose']:
         print(f'[{index}] average reward={average_reward}', flush=True)
+    del policy.env
     return average_reward
 
 
