@@ -4,14 +4,14 @@ Advanced Topics
 Inspecting the Model
 -------------------
 
-The compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain.
-
-This can be accessed by the ``model`` field of a ``RDDLEnv``
+The compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain, which can be accessed through the ``model`` field of a ``RDDLEnv``
 
 .. code-block:: python
 	
-	env = RDDLEnv.build(info, instance, backend=JaxRDDLSimulator)
+	env = RDDLEnv.build(info, instance)
 	model = env.model
+
+Below are some commonly-used properties of RDDL domains that can be accessed directly.
 	
 .. list-table:: Commonly-used properties accessible in ``model``
    :widths: 50 60
