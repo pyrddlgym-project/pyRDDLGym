@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
@@ -9,13 +9,14 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
 def test_xadd(
         env_name: str = 'wildfire',
+        inst: Union[int, str] = '0',
         cpf: Optional[str] = None,
         save_graph: bool = False,
         simulation: bool = False,
 ):
     env_info = ExampleManager.GetEnvInfo(env_name)
     domain = env_info.get_domain()
-    instance = env_info.get_instance(0)
+    instance = env_info.get_instance(inst)
     
     # Read and parse domain and instance
     reader = RDDLReader(domain, instance)
@@ -68,6 +69,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--env', type=str, default='wildfire',
                         help='The name of the RDDL environment')
+    parser.add_argument('--inst', type=str, default='0',
+                        help='The instance number of the RDDL environment')
     parser.add_argument('--cpf', type=str, default=None,
                         help='If specified, only print out this CPF')
     parser.add_argument('--save_graph', action='store_true',
