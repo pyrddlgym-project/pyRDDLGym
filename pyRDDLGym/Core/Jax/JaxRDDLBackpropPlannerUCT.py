@@ -8,6 +8,7 @@ from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
+from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
 from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
@@ -71,52 +72,70 @@ class JaxRDDLHybridBackpropUCTPlanner:
     '''
     
     def __init__(self, rddl: RDDLLiftedModel,
-                 actions,
-                 horizon: int,
+                 action_bounds: Dict,
+                 rollout_horizon: int,
                  alpha: float,
                  beta: float,
                  delta: float,
                  c: float=1.0 / math.sqrt(2.0),
-                 action_sample=(lambda s: {}),
                  max_sgd_updates: int=1,
-                 **sgd_kwargs) -> None:
+                 policy_hyperparams: Dict={},
+                 **planner_kwargs) -> None:
         '''Creates a new hybrid backprop + UCT-MCTS planner.
         
         :param rddl: the rddl domain to optimize
         :param actions: the set of possible actions in the domain: can be None, 
         in which case progressive widening and the action_sample distribution are
         used instead
-        :param horizon: how many steps to plan ahead
+        :param rollout_horizon: how many steps to plan ahead
         :param alpha: the growth factor for chance nodes
         :param beta: the growth factor for decision nodes
         :param delta: how much can backprop updates change the MCTS plan
         :param c: scaling factor for UCT: note that this is adapted during learning
         so the parameter here specifies only the initial guess
-        :param action_sample: action sampling distribution if actions is None
-        :param **sgd_kwargs: keywords arguments to initialize backprop planner:
-        will not use backprop if none are specified 
         :param max_sgd_updates: max number of SGD updates for backprop planner
+        :param policy_hyperparams: same as what would normally be passed to
+        planner.optimize()
+        :param **planner_kwargs: keywords arguments to initialize backprop planner:
+        will not use backprop if none are specified 
         '''
-        self.sim = JaxRDDLSimulator(rddl)  # TODO (mike): no need to compile twice
-        self.actions = actions
-        self.T = horizon
+        self.rddl = rddl
+        self.sim = JaxRDDLSimulator(rddl, keep_tensors=True)  # TODO (mike): no need to compile twice
+        self.T = rollout_horizon
         self.alpha = alpha
         self.beta = beta
         self.delta = delta
         self.c = c
-        self.action_sample = action_sample     
+        self.action_sample = self.action_bounds_to_samplers(rddl, action_bounds)     
         self.max_sgd_updates = max_sgd_updates
         
         # use progressive widening for action nodes if action space not specified
-        self.use_pw_action = self.actions is None
+        self.use_pw_action = True
         
         # optionally use a backprop planner to refine the search tree
-        if sgd_kwargs is not None and sgd_kwargs:
+        if planner_kwargs is not None and planner_kwargs:
             self.sgd = JaxRDDLBackpropPlanner(
-                rddl=rddl, rollout_horizon=self.T, **sgd_kwargs)
+                rddl=rddl, 
+                rollout_horizon=self.T, 
+                action_bounds=action_bounds,
+                **planner_kwargs)
         else:
-            self.sgd = None      
+            self.sgd = None
+        self.policy_hyperparams = policy_hyperparams
     
+    @staticmethod
+    def action_bounds_to_samplers(rddl, action_bounds):
+        samplers = {}
+        for (action, prange) in rddl.actionsranges.items():
+            ptypes = rddl.param_types[action]
+            shape = rddl.object_counts(ptypes) if ptypes else None
+            if prange == 'bool':
+                samplers[action] = (lambda _: np.random.uniform(size=shape) < 0.5)
+            else:
+                bounds = action_bounds[action]
+                samplers[action] = (lambda _: np.random.uniform(*bounds, size=shape))
+        return samplers
+        
     def _select_action(self, s, vD, t, c):
         
         # determine whether a new chance (action) node needs to be created
@@ -132,7 +151,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
             # if progressive widening is used, sample action from the sampling
             # distribution, otherwise sample a random unvisited action
             if self.use_pw_action:
-                a = self.action_sample(s)
+                a = {var: self.action_sample[var](s) for var in self.rddl.actions}
             else:
                 a = vD.unvisited.pop()
                 
@@ -157,7 +176,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
             
             # a new decision node must be created
             # here a new transition will be sampled from the environment
-            vD1 = DecisionNode(None, self.actions)
+            vD1 = DecisionNode(None, None)
             vC.add(vD1)
         else:
             
@@ -170,7 +189,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
         policy = self.action_sample
         R = 0.0
         for _ in range(t, self.T):
-            a = policy(s)
+            a = {var: policy[var](s) for var in self.rddl.actions}
             s, r, done = step_fn(a)
             R += r
             if done:
@@ -209,7 +228,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
         vD.update(ivC, R)        
         return R
         
-    def _jax_sgd(self, key, train_subs, vCs): 
+    def _jax_sgd(self, key, train_subs, test_subs, vCs): 
         
         # generate initial guess for plan from search tree
         sgd = self.sgd
@@ -220,12 +239,13 @@ class JaxRDDLHybridBackpropUCTPlanner:
         
         # run SGD updates
         model_params = sgd.compiled.model_params
+        hyper_params = self.policy_hyperparams
         params = guess
         opt_state = sgd.optimizer.init(params)        
         for epoch in range(self.max_sgd_updates):
             key, subkey = jax.random.split(key)
             params, _, opt_state, _ = sgd.update(
-                subkey, params, None, train_subs, model_params, opt_state)
+                subkey, params, hyper_params, train_subs, model_params, opt_state)
             
             # stop once the actions diverge by delta
             max_delta = 0.0
@@ -235,18 +255,19 @@ class JaxRDDLHybridBackpropUCTPlanner:
             if max_delta >= self.delta:
                 break
             
-        # clip action within trust region delta of guess
-        for var in action_names:
-            params[var] = np.clip(
-                params[var], guess[var] - self.delta, guess[var] + self.delta)
-            
         # store update in the search tree
         num_steps = len(vCs)
         for step in range(num_steps):
-            action = sgd.get_action(key, params, step, None)   
-            if var not in action:
-                action[var] = sgd.noop_actions[var]
-            vCs[step].action = action   
+            
+            # get testing action
+            action = sgd.test_policy(key, params, hyper_params, step, test_subs)
+            
+            # project action within a trust region around current estimate
+            for var in action_names:
+                if rddl.actionsranges[var] == 'real':
+                    action[var] = np.clip(
+                        action[var], guess[var] - self.delta, guess[var] + self.delta)
+            vCs[step].action = action 
                    
         return max_delta, epoch + 1
         
@@ -261,12 +282,12 @@ class JaxRDDLHybridBackpropUCTPlanner:
         :param epochs: how many iterations of MCTS to perform
         :param steps: how often to return a callback
         '''
-        root = DecisionNode(self.actions)
+        root = DecisionNode(None)
         R0 = self.c   
              
         sgd = self.sgd
         if sgd is not None:
-            train_subs, _ = sgd._batched_init_subs(s0)
+            train_subs, test_subs = sgd._batched_init_subs(s0)
             
         for it in range(epochs):
             
@@ -280,7 +301,8 @@ class JaxRDDLHybridBackpropUCTPlanner:
             max_delta = np.nan
             if sgd is not None:
                 key, subkey = jax.random.split(key)
-                max_delta, num_updates = self._jax_sgd(subkey, train_subs, vCs)                
+                max_delta, num_updates = self._jax_sgd(
+                    subkey, train_subs, test_subs, vCs)                
             
             # callback
             if it % steps == 0 or it == epochs - 1:
@@ -298,33 +320,40 @@ class JaxRDDLHybridBackpropUCTPlanner:
 
 
 if __name__ == '__main__':
-    EnvInfo = ExampleManager.GetEnvInfo('CartPole_continuous')
+    EnvInfo = ExampleManager.GetEnvInfo('Wildfire')
     rddl = RDDLEnv(EnvInfo.get_domain(), EnvInfo.get_instance(0)).model
     
-    world = JaxRDDLSimulator(rddl)
+    world = JaxRDDLSimulator(rddl, keep_tensors=True)
     planner = JaxRDDLHybridBackpropUCTPlanner(
-        rddl, None, 5, 0.5, 0.5, 1.0,
-        action_sample=(lambda s: {'force': random.uniform(-10., 10.)}),
-        plan=JaxStraightLinePlan(wrap_sigmoid=False),
-        batch_size_train=16,
-        action_bounds={'force': (-10., 10.)})
+        rddl, 
+        action_bounds={}, 
+        rollout_horizon=5, 
+        alpha=0.5, 
+        beta=0.5, 
+        delta=1.0,
+        plan=JaxStraightLinePlan(),
+        batch_size_train=32,
+        policy_hyperparams={'cut-out': 5.0, 'put-out': 5.0},
+        logic=FuzzyLogic(weight=100.),
+        optimizer_kwargs={'learning_rate': 0.1})
     
     print('starting MCTS...')
     world.reset()
     key = jax.random.PRNGKey(42)
-    for step in range(200):
-        
+    total_reward = 0
+    for step in range(100):        
         print('\n' + f'iteration {step}...')
         s0 = world.subs.copy()
         for callback in planner.search(key, s0, 200, 20):
             print(f'iter={callback["iter"]}, '
                   f'reward={callback["return"]}, '
-                  f'action={callback["action"]}, '
                   f'c={callback["c"]}, '
                   f'delta={callback["max_delta"]}, '
                   f'updates={callback["sgd_updates"]}')
-        print(f'final action {callback["action"]}')
-        
         _, reward, done = world.step(callback["action"])
+        print(f'reward = {reward}')
+        total_reward += reward
         if done:
             break
+    print(f'total reward {total_reward}')
+    
