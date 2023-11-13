@@ -31,7 +31,7 @@ class RDDLModelWXADD(PlanningModel):
             self,
             model: RDDLGroundedModel,
             context: XADD = None,
-            simulation: bool = True,
+            simulation: bool = False,
     ):
         super().__init__()
         self.model = model
@@ -126,13 +126,13 @@ class RDDLModelWXADD(PlanningModel):
             terminals.append(expr_xadd_node_id)
         self.terminals = terminals
 
-        # Skip preconditions
-        # preconditions = []
-        # for i, precondition in enumerate(self.preconditions):
-        #     expr = precondition
-        #     expr_xadd_node_id = self.expr_to_xadd(expr)
-        #     preconditions.append(expr_xadd_node_id)
-        # self.preconditions = preconditions
+        # Handle action bounds from action preconditions
+        preconditions = []
+        for i, precondition in enumerate(self.preconditions):
+            expr = precondition
+            expr_xadd_node_id = self.expr_to_xadd(expr)
+            preconditions.append(expr_xadd_node_id)
+        self.preconditions = preconditions
         
         # Also skip invariants
         # invariants = []
