@@ -26,7 +26,7 @@ This can be accessed by the ``model`` field of a ``RDDLEnv``
    * - ``max_allowed_actions``
      - ``max-nondef-actions`` as defined in the instance
    * - ``variable_types``
-   	 - dict of pvariable types (e.g. non-fluent, ...) for each variable
+     - dict of pvariable types (e.g. non-fluent, ...) for each variable
    * - ``variable_ranges``
      - dict of pvariable ranges (e.g. real, ...) for each variable
    * - ``objects``
