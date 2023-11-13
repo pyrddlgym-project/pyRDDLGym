@@ -697,7 +697,7 @@ RDDL currently supports the following discrete (int, bool or enumerated values) 
      - Yes
    * - ``Discrete(var, p)``
      - Samples an enumerated value with given probability distribution
-   	 - Yes
+     - Yes
    * - ``UnnormDiscrete(var, p)``
      - Same as ``Discrete`` but where ``p`` can be non-normalized (e.g. not sum to 1)
      - Yes
