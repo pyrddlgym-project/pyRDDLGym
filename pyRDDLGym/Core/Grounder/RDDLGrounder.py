@@ -78,6 +78,7 @@ class RDDLGrounder(Grounder):
         self.variable_types = {}
         self.variable_ranges = {}
         self.grounded_names = {}   
+        self.default_values = {}
 
     def Ground(self) -> RDDLGroundedModel:
         self._extract_objects()
@@ -129,6 +130,7 @@ class RDDLGrounder(Grounder):
         model.index_of_object = self.index_of_object
         model.enums = self.enums   
         model.grounded_names = self.grounded_names
+        model.default_values = self.default_values
         
         return model
 
@@ -268,11 +270,13 @@ class RDDLGrounder(Grounder):
                 for g in grounded:
                     if g not in self.nonfluents:
                         self.nonfluents[g] = pvariable.default
+                    self.default_values[g] = pvariable.default
                     self.gvar_to_type[g] = vtype
                 
             elif pvariable.fluent_type == 'action-fluent':
                 for g in grounded:
                     self.actions[g] = pvariable.default
+                    self.default_values[g] = pvariable.default
                     self.actionsranges[g] = pvariable.range
                     self.gvar_to_type[g] = vtype
               
@@ -293,6 +297,7 @@ class RDDLGrounder(Grounder):
                     all_grounded_state_cpfs.append(grounded_cpf)
                     next_state = g + PRIME  # update to grounded version, satisfied single-variables too (i.e. not a type)
                     self.states[g] = pvariable.default
+                    self.default_values[g] = pvariable.default
                     self.statesranges[g] = pvariable.range
                     self.nextstates[g] = next_state
                     self.prevstates[next_state] = g
@@ -318,6 +323,7 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_derived_cpfs.append(grounded_cpf)
                     self.derived[g] = pvariable.default
+                    self.default_values[g] = pvariable.default
                     self.cpfs[g] = ([], grounded_cpf.expr)
                     level = pvariable.level
                     if level is None:
@@ -344,6 +350,7 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_interim_cpfs.append(grounded_cpf)
                     self.interm[g] = pvariable.default
+                    self.default_values[g] = pvariable.default
                     self.cpfs[g] = ([], grounded_cpf.expr)
                     level = pvariable.level
                     if level is None:
@@ -370,6 +377,7 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_observ_cpfs.append(grounded_cpf)
                     self.observ[g] = pvariable.default
+                    self.default_values[g] = pvariable.default
                     self.observranges[g] = pvariable.range
                     self.cpfs[g] = ([], grounded_cpf.expr)
                     self.cpforder[0].append(g)
