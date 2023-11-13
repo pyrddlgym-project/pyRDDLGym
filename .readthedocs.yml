@@ -19,6 +19,9 @@ build:
   tools:
     python: "3.8"
 
+dependencies:
+  - python>=3.8
+  
 python:
   install:
     - requirements: requirements.txt
