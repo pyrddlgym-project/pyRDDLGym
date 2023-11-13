@@ -1,7 +1,64 @@
 Advanced Topics
 ===============
 
-Changing the Backend
+Inspecting the Model
+-------------------
+
+The compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain.
+
+This can be accessed by the ``model`` field of a ``RDDLEnv``
+
+.. code-block:: python
+	
+	env = RDDLEnv.build(info, instance, backend=JaxRDDLSimulator)
+	model = env.model
+	
+.. list-table:: Commonly-used properties accessible in ``model``
+   :widths: 50 60
+   :header-rows: 1
+   
+   * - syntax
+     - description
+   * - ``horizon``
+     - horizon as defined in the instance
+   * - ``discount``
+     - discount factor as defined in the instance
+   * - ``max_allowed_actions``
+     - ``max-nondef-actions`` as defined in the instance
+   * - ``variable_types``
+   	 - dict of pvariable types (e.g. non-fluent, ...) for each variable
+   * - ``variable_ranges``
+     - dict of pvariable ranges (e.g. real, ...) for each variable
+   * - ``objects``
+     - dict of all defined objects for each type
+   * - ``nonfluents``
+     - dict of initial values for each non-fluent
+   * - ``states``
+     - dict of initial values for each state-fluent
+   * - ``actions``
+     - dict of default values for each action-fluent
+   * - ``interm``
+     - dict of initial values for each interm-fluent
+   * - ``observ``
+     - dict of initial values for each observ-fluent
+   * - ``cpfs``
+     - dict of ``Expression`` objects for each cpf
+   * - ``reward``
+     - ``Expression`` object for reward function
+   * - ``preconditions``
+     - list of ``Expression`` objects for each action-precondition
+   * - ``invariants``
+     - list of ``Expression`` objects for each state-invariant
+
+``Expression`` objects are symbolic syntax trees that describe the flow of computations
+in each cpf, constraint relation, or the reward function of the RDDL domain.
+
+The ``args()`` function of an ``Expression`` object accesses its sub-expressions, 
+which can be either ``Expression`` instances or collections containing aggregation variables,
+types, or other information required by the engine. Similarly, the ``etype()`` argument
+provides identifying information about the expression.
+
+Changing the Simulation Backend
 -------------------
 
 By default, RDDLEnv simulates all RDDL control flow using Python and stores intermediate expressions in numpy arrays.
@@ -18,6 +75,7 @@ For the purpose of simulation, the default backend and the ``JaxRDDLSimulator`` 
 
 .. note::
    All RDDL syntax (both new and old!) is supported in the RDDL-to-JAX compiler.
+
 
 Open-Loop Planning with JAX
 -------------------
