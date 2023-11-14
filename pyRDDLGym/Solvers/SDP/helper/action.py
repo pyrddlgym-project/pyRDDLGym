@@ -1,6 +1,5 @@
 """Defines the Action class."""
 
-import abc
 from typing import Dict, List, Optional
 
 import sympy as sp
@@ -8,6 +7,8 @@ from xaddpy import XADD
 
 
 class Action:
+    """Base Action class."""
+
     def __init__(
             self,
             name: str,

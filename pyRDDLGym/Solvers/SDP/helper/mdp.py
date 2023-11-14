@@ -36,7 +36,9 @@ class MDP:
         self.cont_s_vars = set()
         self.cont_a_vars = set()
 
-        self.actions = Dict[str, Action] = {}
+        self.actions: Dict[str, Action] = {}
+        self.a_var_to_action: Dict[sp.Symbol, Action] = {}
+        self.action_to_a_var: Dict[Action, sp.Symbol] = {}
         self.cont_action_bounds: Dict[CAction, Tuple[float, float]] = {}
 
         # Cache
@@ -56,6 +58,8 @@ class MDP:
     def update_var_sets(self):
         m = self.model
         for v, vtype in m.gvar_to_type.items():
+            if v in m.nonfluents:
+                continue
             v_, v_node_id = m.add_sympy_var(v, vtype)
             if v in m.next_state.values():
                 if vtype == 'bool':
@@ -75,14 +79,12 @@ class MDP:
             self.bool_a_vars.add(action.symbol)
         else:
             self.cont_a_vars.add(action.symbol)
+        self.a_var_to_action[action.symbol] = action
+        self.action_to_a_var[action] = action.symbol
 
     @property
     def cpfs(self):
         return self.model.cpfs
-
-    @property
-    def actions(self):
-        return self.actions
 
     @property
     def prime_subs(self):
@@ -92,5 +94,12 @@ class MDP:
     def prime_subs(self, prime_subs: Dict[sp.Symbol, sp.Symbol]):
         self._prime_subs = prime_subs
 
-    def get_bounds(self, a: CAction) -> Dict[sp.Symbol, Tuple[float, float]]:
-        return {a.symbol: self.cont_action_bounds[a]}
+    def get_bounds(self, a: CAction) -> Tuple[float, float]:
+        return self.cont_action_bounds[a]
+
+    def standardize(self, dd: int) -> int:
+        """Standardizes the given XADD node."""
+        dd = self.context.make_canonical(dd)
+        if self.is_linear:
+            dd = self.context.reduce_lp(dd)
+        return dd
