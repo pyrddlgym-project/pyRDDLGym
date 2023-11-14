@@ -10,17 +10,22 @@ from pyRDDLGym.Solvers.SDP.helper import Action, MDP
 from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
 
 
-class SymbolicSolver(abc.ABCMeta):
+class SymbolicSolver:
     """Base class for a symbolic solver."""
 
-    def __init__(self, mdp: MDP, max_iter: int = 100):
+    def __init__(
+            self,
+            mdp: MDP,
+            max_iter: int = 100,
+            enable_early_convergence: bool = False,
+    ):
         self._mdp = mdp
-        self._n_curr_iter = 0
-        self._n_max_iter = max_iter
+        self.n_curr_iter = 0
+        self.n_max_iter = max_iter
+        self.enable_early_convergence = enable_early_convergence
 
-        self._level_analyzer = RDDLLevelAnalysisWXADD(self.mdp.model)
-        self.call_graph = self._level_analyzer.build_call_graph()
-        self.levels = self._level_analyzer.compute_levels()
+        self.level_analyzer = RDDLLevelAnalysisWXADD(self.mdp.model)
+        self.levels = self.level_analyzer.compute_levels()
 
     @abc.abstractmethod
     def solve(self) -> int:
@@ -76,7 +81,7 @@ class SymbolicSolver(abc.ABCMeta):
             return res
 
         # Perform regression via Delta function substitution.
-        leaf_op = DeltaFunctionSubstitution(v, q, self.context)
+        leaf_op = DeltaFunctionSubstitution(v, q, self.context, is_linear=self.mdp.is_linear)
         q = self.context.reduce_process_xadd_leaf(cpf, leaf_op, [], [])
 
         # Simplify the resulting XADD if possible.
@@ -91,14 +96,21 @@ class SymbolicSolver(abc.ABCMeta):
         """Regress a boolean variable from the value function `q`."""
         # Get the CPF for the variable.
         cpf = a.get_cpf(v)
-        dec_id = self.context._expr_to_id[self.mdp.model.ns[v]]
+        dec_id = self.context._expr_to_id[self.mdp.model.ns[str(v)]]
 
         # Convert nodes to 1 and 0.
-        cpf = self.context.unary_op(cpf, 'int')
+        cpf = self.context.unary_op(cpf, 'float')
 
         # Marginalize out the boolean variable.
-        q = self.context.apply(q, cpf, op='*')
+        q = self.context.apply(q, cpf, op='prod')
         restrict_high = self.context.op_out(q, dec_id, op='restrict_high')
         restrict_low = self.context.op_out(q, dec_id, op='restrict_low')
-        q = self.context.apply(restrict_high, restrict_low, op='+')
+        q = self.context.apply(restrict_high, restrict_low, op='add')
         return q
+
+    def flush_caches(self):
+        """Flush cache objects."""
+
+    def print(self, dd: int):
+        """Prints the value function."""
+        self.mdp.model.print(dd)

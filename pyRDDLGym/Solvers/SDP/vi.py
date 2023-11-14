@@ -10,20 +10,31 @@ from pyRDDLGym.Solvers.SDP.helper import Action, MDP
 
 class ValueIteration(SymbolicSolver):
 
-    def solve(self):
+    def solve(self) -> int:
+        """See the base class."""
         # Reset the counter.
-        self._n_curr_iter = 0
+        self.n_curr_iter = 0
 
         # Initialize the value function.
         value_dd = self.context.ZERO
 
         # Perform VI for the set number of iterations.
-        while self._n_curr_iter < self._n_max_iter:
-            # Cache
+        while self.n_curr_iter < self.n_max_iter:
+            self.n_curr_iter += 1
+
+            # Cache the current value function.
             _prev_dd = value_dd
 
             # Perform the Bellman backup.
-            value_dd, 
+            value_dd = self.bellman_backup(value_dd)
+
+            # Check for convergence.
+            if self.enable_early_convergence and value_dd == _prev_dd:
+                print(f'\nVI: Converged to solution early, at iteration {self.n_curr_iter}')
+                break
+
+        self.flush_caches()
+        return value_dd
 
     def bellman_backup(self, dd: int) -> int:
         """Performs the VI Bellman backup.
@@ -37,8 +48,17 @@ class ValueIteration(SymbolicSolver):
         max_dd = None
 
         # Iterate over each action.
-        for a in self.mdp.actions:
-            regr = self.regress(dd, a)
+        for a_name, action in self.mdp.actions.items():
+            regr = self.regress(dd, action, action.atype == 'real')
+
+            if max_dd is None:
+                max_dd = regr
+            else:
+                max_dd = self.context.apply(max_dd, regr, op='max')
+                max_dd = self.mdp.standardize(max_dd)
+
+            self.flush_caches()
+        return max_dd
 
     def regress(self, dd: int, a: Action, regress_cont: bool = True) -> int:
         # Prime the value function.
@@ -46,14 +66,14 @@ class ValueIteration(SymbolicSolver):
 
         # Discount.
         if self.mdp.discount < 1.0:
-            q = self.context.scalar_op(q, self.mdp.discount, op='*')
+            q = self.context.scalar_op(q, self.mdp.discount, op='prod')
 
         # Add the reward if it contains primed vars that need to be regressed.
         i_and_ns_vars_in_reward = self.filter_i_and_ns_vars(
             self.context.collect_vars(a.reward)
         )
         if len(i_and_ns_vars_in_reward) > 0:
-            q = self.context.apply(q, a.reward, op='+')
+            q = self.context.apply(q, a.reward, op='add')
 
         # Get variables to eliminate.
         vars_to_regress = self.filter_i_and_ns_vars(
@@ -69,34 +89,30 @@ class ValueIteration(SymbolicSolver):
 
         # Add the reward.
         if len(i_and_ns_vars_in_reward) == 0:
-            q = self.context.apply(q, a.reward, op='+')
+            q = self.context.apply(q, a.reward, op='add')
 
         # Continuous action parameter.
         if regress_cont:
             q = self.regress_action(q, a)
 
         # Standardize the node.
-        q = self.mdp.standardize_node(q)
+        q = self.mdp.standardize(q)
         return q
 
     def regress_action(self, dd: int, a: Action) -> int:
         """Regresses a continuous action parameter."""
-        # No action parameters to maximize over.
-        if len(a.params) == 0:
-            return dd
-
         # Max out the action.
         q_vars = self.context.collect_vars(dd)
-        bound_dict = self.mdp.get_bounds(a)
+        bounds = self.mdp.get_bounds(a)
 
         # Can skip if the action variable is not included in the value function.
         if a.symbol not in q_vars:
             return dd
 
         # Max out the action variable.
-        q = self.max_out_var(q, a.symbol, bound_dict)
+        dd = self.max_out_var(dd, a.symbol, bound_dict={a.symbol: bounds})
         # TODO: need to flush caches?
-        return q
+        return dd
 
     def max_out_var(
             self, dd: int, v: sp.Symbol, bound_dict: Dict[sp.Symbol, Tuple[float, float]]
