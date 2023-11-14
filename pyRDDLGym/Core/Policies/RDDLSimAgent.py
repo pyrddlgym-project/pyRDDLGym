@@ -26,6 +26,10 @@ class RDDLSimAgent:
         self.task = base64.b64encode(str.encode(self.task))
         self.task = self.task.decode("ascii")
         
+        print('domain is:')
+        print(self.task)
+        print('EOF')
+        
         # initialize RDDLSimAgent
         self.roundsleft = numrounds
         self.currentround = 0
