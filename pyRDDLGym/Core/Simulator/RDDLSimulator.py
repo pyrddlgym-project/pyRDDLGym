@@ -27,18 +27,22 @@ class RDDLSimulator:
     def __init__(self, rddl: PlanningModel,
                  allow_synchronous_state: bool=True,
                  rng: np.random.Generator=np.random.default_rng(),
-                 logger: Logger=None) -> None:
+                 logger: Logger=None,
+                 keep_tensors: bool=False) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param rddl: the RDDL model
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rng: the random number generator
         :param logger: to log information about compilation to file
+        :param keep_tensors: whether the sampler takes actions and
+        returns state in numpy array form
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
         self.rng = rng
         self.logger = logger
+        self.keep_tensors = keep_tensors
         
         self._compile()
         
@@ -307,11 +311,15 @@ class RDDLSimulator:
         '''Resets the state variables to their initial values.'''
         rddl = self.rddl
         subs = self.subs = self.init_values.copy()
+        keep_tensors = self.keep_tensors
         
         # update state
         self.state = {}
         for state in rddl.states:
-            self.state.update(rddl.ground_values(state, subs[state]))
+            if keep_tensors:
+                self.state[state] = subs[state]
+            else:
+                self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp:
@@ -328,7 +336,9 @@ class RDDLSimulator:
         :param actions: a dict mapping current action fluent to their values
         '''
         rddl = self.rddl
-        actions = self._process_actions(actions)
+        keep_tensors = self.keep_tensors
+        if not keep_tensors:
+            actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -345,13 +355,19 @@ class RDDLSimulator:
         self.state = {}
         for (state, next_state) in rddl.next_state.items():
             subs[state] = subs[next_state]
-            self.state.update(rddl.ground_values(state, subs[state]))
+            if keep_tensors:
+                self.state[state] = subs[state]
+            else:
+                self.state.update(rddl.ground_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
             obs = {}
             for var in rddl.observ:
-                obs.update(rddl.ground_values(var, subs[var]))
+                if keep_tensors:
+                    obs[var] = subs[var]
+                else:
+                    obs.update(rddl.ground_values(var, subs[var]))
         else:
             obs = self.state
         

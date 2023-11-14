@@ -242,6 +242,9 @@ class JaxPlan:
         self._train_policy = None
         self._test_policy = None
         self._projection = None
+    
+    def summarize_hyperparameters(self):
+        pass
         
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict,
@@ -349,6 +352,7 @@ class JaxStraightLinePlan(JaxPlan):
         use_new_projection = True
         '''
         super(JaxStraightLinePlan, self).__init__()
+        self._initializer_base = initializer
         self._initializer = initializer
         self._wrap_sigmoid = wrap_sigmoid
         self._min_action_prob = min_action_prob
@@ -357,6 +361,17 @@ class JaxStraightLinePlan(JaxPlan):
         self._use_new_projection = use_new_projection
         self._max_constraint_iter = max_constraint_iter
         
+    def summarize_hyperparameters(self):
+        print(f'policy hyper-parameters:\n'
+              f'    initializer          ={type(self._initializer_base).__name__}\n'
+              f'constraint-sat strategy (simple):\n'
+              f'    wrap_sigmoid         ={self._wrap_sigmoid}\n'
+              f'    wrap_sigmoid_min_prob={self._min_action_prob}\n'
+              f'    wrap_non_bool        ={self._wrap_non_bool}\n'
+              f'constraint-sat strategy (complex):\n'
+              f'    wrap_softmax         ={self._wrap_softmax}\n'
+              f'    use_new_projection   ={self._use_new_projection}')
+    
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict, horizon: int) -> None:
         rddl = compiled.rddl
@@ -683,9 +698,17 @@ class JaxDeepReactivePolicy(JaxPlan):
         super(JaxDeepReactivePolicy, self).__init__()
         self._topology = topology
         self._activations = [activation for _ in topology]
+        self._initializer_base = initializer
         self._initializer = initializer
         self._normalize = normalize
-        
+            
+    def summarize_hyperparameters(self):
+        print(f'policy hyper-parameters:\n'
+              f'    topology        ={self._topology}\n'
+              f'    activation_fn   ={self._activations[0].__name__}\n'
+              f'    initializer     ={type(self._initializer_base).__name__}\n'
+              f'    apply_layer_norm={self._normalize}')
+    
     def compile(self, compiled: JaxRDDLCompilerWithGrad,
                 _bounds: Dict, horizon: int) -> None:
         rddl = compiled.rddl
@@ -922,6 +945,8 @@ class JaxRDDLBackpropPlanner:
         self.horizon = rollout_horizon
         self._action_bounds = action_bounds
         self.use64bit = use64bit
+        self._optimizer_name = optimizer
+        self._optimizer_kwargs = optimizer_kwargs
         self.clip_grad = clip_grad
         
         # set optimizer
@@ -950,6 +975,24 @@ class JaxRDDLBackpropPlanner:
         
         self._jax_compile_rddl()        
         self._jax_compile_optimizer()
+        
+    def summarize_hyperparameters(self):
+        print(f'objective and relaxations:\n'
+              f'    objective_fn    ={self.utility.__name__}\n'
+              f'    use_symlog      ={self.use_symlog_reward}\n'
+              f'    lookahead       ={self.horizon}\n'
+              f'    model relaxation={type(self.logic).__name__}\n'
+              f'    action_bounds   ={self._action_bounds}\n'
+              f'    cpfs_no_gradient={self.cpfs_without_grad}\n'
+              f'optimizer hyper-parameters:\n'
+              f'    use_64_bit      ={self.use64bit}\n'
+              f'    optimizer       ={self._optimizer_name.__name__}\n'
+              f'    optimizer args  ={self._optimizer_kwargs}\n'
+              f'    clip_gradient   ={self.clip_grad}\n'
+              f'    batch_size_train={self.batch_size_train}\n'
+              f'    batch_size_test ={self.batch_size_test}')
+        self.plan.summarize_hyperparameters()
+        self.logic.summarize_hyperparameters()
         
     def _jax_compile_rddl(self):
         rddl = self.rddl
@@ -1099,7 +1142,7 @@ class JaxRDDLBackpropPlanner:
         their values: if None initializes all variables from the RDDL instance
         :param guess: initial policy parameters: if None will use the initializer
         specified in this instance
-        :param verbose: whether to print progress during training
+        :param verbose: not print (0), print summary (1), print progress (2)
         :param return_callback: whether to return the callback from training
         instead of the parameters
         '''
@@ -1108,7 +1151,7 @@ class JaxRDDLBackpropPlanner:
             return callback
         else:
             return callback['best_params']
-        
+    
     def optimize_generator(self, key: random.PRNGKey,
                            epochs: int=999999,
                            train_seconds: float=120.,
@@ -1117,7 +1160,7 @@ class JaxRDDLBackpropPlanner:
                            policy_hyperparams: Dict[str, object]=None,
                            subs: Dict[str, object]=None,
                            guess: Dict[str, object]=None,
-                           verbose: bool=True,
+                           verbose: int=2,
                            tqdm_position: int=None) -> Generator[Dict[str, object], None, None]:
         '''Returns a generator for computing an optimal straight-line plan. 
         Generator can be iterated over to lazily optimize the plan, yielding
@@ -1135,12 +1178,25 @@ class JaxRDDLBackpropPlanner:
         their values: if None initializes all variables from the RDDL instance
         :param guess: initial policy parameters: if None will use the initializer
         specified in this instance
-        :param verbose: whether to print progress during training
+        :param verbose: not print (0), print summary (1), print progress (2)
         :param tqdm_position: position of tqdm progress bar (for multiprocessing)
         '''
+        verbose = int(verbose)
         start_time = time.time()
         elapsed_outside_loop = 0
         
+        # print summary of parameters:
+        if verbose >= 1:
+            self.summarize_hyperparameters()
+            print(f'optimize() call hyper-parameters:\n'
+                  f'    max_iterations     ={epochs}\n'
+                  f'    max_seconds        ={train_seconds}\n'
+                  f'    model_params       ={model_params}\n'
+                  f'    policy_hyper_params={policy_hyperparams}\n'
+                  f'    override_subs_dict ={subs is not None}\n'
+                  f'    provide_param_guess={guess is not None}\n' 
+                  f'    plot_frequency     ={plot_step}\n')
+            
         # compute a batched version of the initial values
         if subs is None:
             subs = self.test_compiled.init_values
@@ -1159,12 +1215,12 @@ class JaxRDDLBackpropPlanner:
         else:
             policy_params = guess
             opt_state = self.optimizer.init(policy_params)
-        best_params, best_loss = policy_params, jnp.inf
+        best_params, best_loss, best_grad = policy_params, jnp.inf, jnp.inf
         last_iter_improve = 0
         
         # training loop
         iters = range(epochs)
-        if verbose:
+        if verbose >= 2:
             iters = tqdm(iters, total=100, position=tqdm_position)
         
         for it in iters:
@@ -1190,7 +1246,8 @@ class JaxRDDLBackpropPlanner:
             
             # record the best plan so far
             if test_loss < best_loss:
-                best_params, best_loss = policy_params, test_loss
+                best_params, best_loss, best_grad = \
+                    policy_params, test_loss, train_log['grad']
                 last_iter_improve = it
             
             # save the plan figure
@@ -1200,11 +1257,11 @@ class JaxRDDLBackpropPlanner:
             
             # if the progress bar is used
             elapsed = time.time() - start_time - elapsed_outside_loop
-            if verbose:
+            if verbose >= 2:
                 iters.n = int(100 * min(1, max(elapsed / train_seconds, it / epochs)))
                 iters.set_description(
-                    f'Id:{tqdm_position}  Train:{-train_loss:15.5f}  '
-                    f'Test:{-test_loss:15.5f}  Best:{-best_loss:15.5f}')
+                    f'[{tqdm_position}] {it:6} it / {-train_loss:14.4f} train / '
+                    f'{-test_loss:14.4f} test / {-best_loss:14.4f} best')
             
             # return a callback
             start_time_outside = time.time()
@@ -1217,6 +1274,7 @@ class JaxRDDLBackpropPlanner:
                 'best_params': best_params,
                 'last_iteration_improved': last_iter_improve,
                 'grad': train_log['grad'],
+                'best_grad': best_grad,
                 'updates': train_log['updates'],
                 'elapsed_time': elapsed,
                 **log
@@ -1231,8 +1289,18 @@ class JaxRDDLBackpropPlanner:
             if not np.isfinite(train_loss):
                 break
         
-        if verbose:
+        if verbose >= 2:
             iters.close()
+            
+        # summarize
+        if verbose >= 1:
+            grad_norm = jax.tree_map(
+                lambda x: np.array(jnp.linalg.norm(x)).item(), best_grad)
+            print(f'summary of optimization:\n'
+                  f'    time_elapsed  ={elapsed}\n'
+                  f'    iterations    ={it}\n'
+                  f'    best_objective={-best_loss}\n'
+                  f'    grad_norm     ={grad_norm}\n')
             
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
@@ -1321,6 +1389,13 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             optimizer_kwargs=optimizer_kwargs,
             **kwargs)
         
+    def summarize_hyperparameters(self):
+        super(JaxRDDLArmijoLineSearchPlanner, self).summarize_hyperparameters()
+        print(f'linesearch hyper-parameters:\n'
+              f'    beta    ={self.beta}\n'
+              f'    c       ={self.c}\n'
+              f'    lr_range=({self.lrmin}, {self.lrmax})\n')
+    
     def _jax_update(self, loss):
         optimizer = self.optimizer
         projection = self.plan.projection
@@ -1397,7 +1472,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             
         return _jax_wrapped_plan_update
 
-            
+        
 class JaxOfflineController(BaseAgent):
     '''A container class for a Jax policy trained offline.'''
     use_tensor_obs = True

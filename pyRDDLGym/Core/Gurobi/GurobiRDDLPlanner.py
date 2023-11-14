@@ -30,7 +30,10 @@ class GurobiRDDLPlan:
             return (0, 1)
         else:
             return self.action_bounds.get(action, UNBOUNDED)
-                
+    
+    def summarize_hyperparameters(self):
+        pass
+        
     def params(self, compiled: GurobiRDDLCompiler,
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
@@ -175,6 +178,13 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         self.dependencies_values = dependencies_values
         self.num_cases = num_cases
     
+    def summarize_hyperparameters(self):
+        print(f'Gurobi policy hyper-params:\n'
+              f'    num_cases     ={self.num_cases}\n'
+              f'    state_bounds  ={self.state_bounds}\n'
+              f'    constraint_dep={self.dependencies_constr}\n'
+              f'    value_dep     ={self.dependencies_values}')
+        
     def _get_states_for_constraints(self, rddl):
         if self.dependencies_constr:
             return self.dependencies_constr
@@ -659,12 +669,14 @@ class GurobiOfflineController(BaseAgent):
     
     def __init__(self, rddl: RDDLLiftedModel,
                  plan: GurobiRDDLPlan,
+                 env: gurobipy.Env=None,
                  **compiler_kwargs):
         '''Creates a new Gurobi control policy that is optimized offline in an 
         open-loop fashion.
         
         :param rddl: the RDDL model
         :param plan: the plan or policy to optimize
+        :param env: an existing gurobi environment
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rollout_horizon: length of the planning horizon (uses the RDDL
         defined horizon if None)
@@ -686,7 +698,10 @@ class GurobiOfflineController(BaseAgent):
         
         # optimize the plan or policy here
         self.reset()
-        model, _, params = self.compiler.compile()
+        if env is None:
+            env = gurobipy.Env()
+        self.env = env
+        model, _, params = self.compiler.compile(env=self.env)
         model.optimize()
         self.model = model
         self.params = params
@@ -729,12 +744,14 @@ class GurobiOnlineController(BaseAgent):
 
     def __init__(self, rddl: RDDLLiftedModel,
                  plan: GurobiRDDLPlan,
+                 env: gurobipy.Env=None,
                  **compiler_kwargs):
         '''Creates a new Gurobi control policy that is optimized online in a 
         closed-loop fashion.
         
         :param rddl: the RDDL model
         :param plan: the plan or policy to optimize
+        :param env: an existing gurobi environment
         :param allow_synchronous_state: whether state-fluent can be synchronous
         :param rollout_horizon: length of the planning horizon (uses the RDDL
         defined horizon if None)
@@ -753,6 +770,9 @@ class GurobiOnlineController(BaseAgent):
         self.rddl = rddl
         self.plan = plan
         self.compiler = GurobiRDDLCompiler(rddl=rddl, plan=plan, **compiler_kwargs)
+        if env is None:
+            env = gurobipy.Env()
+        self.env = env
         self.reset()
     
     def sample_action(self, state):
@@ -763,7 +783,7 @@ class GurobiOnlineController(BaseAgent):
         subs = {name: value[0] for (name, value) in subs.items()}     
         
         # optimize the policy parameters at the current time step
-        model, _, params = self.compiler.compile(subs)
+        model, _, params = self.compiler.compile(subs, env=self.env)
         model.optimize()
         
         # check for existence of solution
@@ -771,6 +791,7 @@ class GurobiOnlineController(BaseAgent):
             warnings.warn(f'Gurobi failed to find a feasible solution '
                           f'in the given time limit: using no-op action.',
                           stacklevel=2)
+            del model
             return {}
             
         # evaluate policy at the current time step with current inputs
@@ -778,8 +799,8 @@ class GurobiOnlineController(BaseAgent):
             self.compiler, params=params, step=0, subs=subs)
         action_values = {name: value for (name, value) in action_values.items()
                          if value != self.compiler.noop_actions[name]}
+        del model
         return action_values
         
     def reset(self):
         pass
-    

@@ -8,37 +8,118 @@ class RDDLDecompiler:
     '''Converts AST representation (e.g., Expression) to a string that represents
     the corresponding expression in RDDL.'''
     
-    def decompile_expr(self, expr: Expression) -> str:
+    def decompile_expr(self, expr: Expression, level: int=0) -> str:
         '''Converts an AST expression to a string representing valid RDDL code.
         
         :param expr: the expression to convert
+        :param level: indentation level
         '''
-        return self._decompile(expr, False, 0)
+        return self._decompile(expr, False, level)
     
-    def decompile_cpf(self, cpf: CPF) -> str:
+    def decompile_cpf(self, cpf: CPF, level: int=0) -> str:
         '''Converts a CPF object to its equivalent string as it would appear in
         the cpfs {...} block in a RDDL domain description. 
         
         :param cpf: the CPF object to convert
+        :param level: indentation level
         '''
         lhs = self._symbolic(*cpf.pvar[1], aggregation=False)
-        rhs = self.decompile_expr(cpf.expr)
+        rhs = self.decompile_expr(cpf.expr, level)
         return f'{lhs} = {rhs};'
     
-    def decompile_exprs(self, rddl) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
+    def decompile_exprs(self, rddl, level: int=0) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
         '''Converts a RDDL model to a dictionary of decompiled expression strings,
         as they would appear in the domain description file.'''
         decompiled = {}
-        decompiled['cpfs'] = {name: self.decompile_expr(expr)
+        decompiled['cpfs'] = {name: self.decompile_expr(expr, level)
                               for (name, (_, expr)) in rddl.cpfs.items()}
-        decompiled['reward'] = self.decompile_expr(rddl.reward)
-        decompiled['invariants'] = [self.decompile_expr(expr) 
+        decompiled['reward'] = self.decompile_expr(rddl.reward, level)
+        decompiled['invariants'] = [self.decompile_expr(expr, level) 
                                     for expr in rddl.invariants]
-        decompiled['preconditions'] = [self.decompile_expr(expr) 
+        decompiled['preconditions'] = [self.decompile_expr(expr, level) 
                                        for expr in rddl.preconditions]
-        decompiled['terminations'] = [self.decompile_expr(expr) 
+        decompiled['terminations'] = [self.decompile_expr(expr, level) 
                                       for expr in rddl.terminals]
         return decompiled
+    
+    def decompile_domain(self, rddl) -> str:
+        '''Converts a RDDL model to a RDDL domain description file.'''
+        decompiled = self.decompile_exprs(rddl, level=2)
+        
+        decompiled_types = ''
+        if rddl.objects:
+            decompiled_types = '\n\ttypes {'
+            for (name, values) in rddl.objects.items():
+                if name in rddl.enums:
+                    decompiled_types += f'\n\t\t{name}: {{ ' + \
+                        ', '.join([f'@{v}' for v in values]) + ' };'
+                else:
+                    decompiled_types += f'\n\t\t{name}: object;'
+            decompiled_types += '\n\t};'
+        
+        decompiled_pvars = '\n\tpvariables {'
+        for pvars in [rddl.nonfluents, rddl.derived, rddl.interm, 
+                      rddl.states, rddl.observ, rddl.actions]:
+            if pvars:
+                decompiled_pvars += '\n'
+            for name in pvars:
+                prange = rddl.variable_ranges[name]
+                ptype = rddl.variable_types[name]
+                decompiled_params = ''
+                if rddl.param_types[name]:
+                    decompiled_params = '(' + ', '.join(rddl.param_types[name]) + ')' 
+                dv = str(rddl.default_values[name])
+                if dv == 'True' or dv == 'False':
+                    dv = dv.lower()
+                if prange not in ['real', 'int', 'bool']:
+                    dv = f'@{dv}'
+                if ptype in ['interm-fluent', 'derived-fluent', 'observ-fluent']:
+                    decompiled_pvars += f'\n\t\t{name}{decompiled_params} : ' + \
+                                        f'{{ {ptype}, {prange} }};'
+                else:
+                    decompiled_pvars += f'\n\t\t{name}{decompiled_params} : ' + \
+                                        f'{{ {ptype}, {prange}, default = {dv} }};'
+        decompiled_pvars += '\n\t};'
+        
+        decompiled_cpfs = '\n\tcpfs {'
+        for (name, expr) in decompiled['cpfs'].items():
+            decompiled_cpfs += f'\n\n\t\t{name} = {expr};'
+        decompiled_cpfs += '\n\t};'
+        
+        decompiled_reward = f'\n\treward = {decompiled["reward"]};'
+        
+        decompiled_invariants = ''
+        if decompiled['invariants']:
+            decompiled_invariants = '\n\n\tstate-invariants {'
+            for expr in decompiled['invariants']:
+                decompiled_invariants += f'\n\t\t{expr};'
+            decompiled_invariants += '\n\t};'
+        
+        decompiled_preconds = ''
+        if decompiled['preconditions']:
+            decompiled_preconds = '\n\n\taction-preconditions {'
+            for expr in decompiled['preconditions']:
+                decompiled_preconds += f'\n\t\t{expr};'
+            decompiled_preconds += '\n\t};'
+        
+        decompiled_terminals = ''
+        if decompiled['terminations']:
+            decompiled_terminals = '\n\n\ttermination {'
+            for expr in decompiled['terminations']:
+                decompiled_terminals += f'\n\t\t{expr};'
+            decompiled_terminals += '\n\t};'
+        
+        decompiled_domain = (
+            f'domain {rddl.domainName()} {{'
+            f'\n{decompiled_types}'
+            f'\n{decompiled_pvars}'
+            f'\n{decompiled_cpfs}'
+            f'\n{decompiled_reward}'
+            f'{decompiled_invariants}'
+            f'{decompiled_preconds}'
+            f'{decompiled_terminals}'
+            f'\n}}')
+        return decompiled_domain
         
     def _decompile(self, expr, enclose, level):
         etype, _ = expr.etype
