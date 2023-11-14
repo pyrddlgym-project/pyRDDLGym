@@ -20,7 +20,7 @@ from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 
 if TYPE_CHECKING:
-    from pyRDDLGym.Core.Gurobi.GurobiRDDLPlan import GurobiRDDLPlan
+    from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiRDDLPlan
 
 
 class GurobiRDDLCompiler:
@@ -35,7 +35,7 @@ class GurobiRDDLCompiler:
                  model_params: Dict[str, object]={'NonConvex': 2},
                  piecewise_options: str='',
                  logger: Logger=None,
-                 verbose: bool=False) -> None:
+                 verbose: int=1) -> None:
         '''Creates a new compiler for formulating RDDL domains + instance as 
         a Gurobi mixed-integer non-linear optimization problem. In this base
         implemenation, a fixed subset of random variables are handled by
@@ -57,7 +57,8 @@ class GurobiRDDLCompiler:
         "options" parameter when creating constraints that contain piecewise
         linear approximations (e.g. cos, log, exp)
         :param logger: to log information about compilation to file
-        :param verbose: whether to dump replacement and other info to console
+        :param verbose: whether to print nothing (0), summary (1),
+        or detailed (2) messages to console
         '''
         self.plan = plan
         if rollout_horizon is None:
@@ -65,7 +66,7 @@ class GurobiRDDLCompiler:
         self.horizon = rollout_horizon
         self.discount = rddl.discount
         self.logger = logger
-        self.verbose = verbose
+        self.verbose = int(verbose)
         
         # Gurobi-specific parameters
         self.epsilon = epsilon
@@ -104,7 +105,16 @@ class GurobiRDDLCompiler:
         for (var, values) in self.init_values.items():
             if self.rddl.variable_types[var] == 'action-fluent':
                 self.noop_actions[var] = values
-                
+    
+    def summarize_hyperparameters(self):
+        print(f'Gurobi compiler hyper-params:\n'
+              f'    float_range       ={self.float_range}\n'
+              f'    float_equality_tol={self.epsilon}\n'
+              f'    lookahead_horizon ={self.horizon}\n'
+              f'Gurobi model hyper-params:\n'
+              f'    user_args         ={self.model_params}\n'
+              f'    user_args_pw      ={self.pw_options}')
+        
     # ===========================================================================
     # main compilation subroutines
     # ===========================================================================
@@ -121,7 +131,8 @@ class GurobiRDDLCompiler:
             result[var.VarName] = (var.VType, var.LB, var.UB)
         return result
         
-    def compile(self, init_values: Dict[str, object]=None) -> \
+    def compile(self, init_values: Dict[str, object]=None,
+                env: gurobipy.Env=None) -> \
         Tuple[gurobipy.Model, List[Dict[str, object]]]:
         '''Compiles and returns the current RDDL domain as a Gurobi optimization
         problem. Also returns action variables constructed during compilation 
@@ -131,7 +142,11 @@ class GurobiRDDLCompiler:
         non-fluents as defined in the RDDL file (if None, then the original
         values defined in the RDDL domain + instance are used instead)
         '''
-        model = self._create_model()
+        if self.verbose >= 1:
+            self.summarize_hyperparameters()
+            self.plan.summarize_hyperparameters()
+            
+        model = self._create_model(env=env)
         subs = self._compile_init_subs(init_values)
         
         params = self.plan.params(self, model) 
@@ -183,8 +198,14 @@ class GurobiRDDLCompiler:
         else:
             return objective, all_action_vars, all_next_state_vars
     
-    def _create_model(self) -> gurobipy.Model:
-        model = gurobipy.Model()
+    def _create_model(self, env: gurobipy.Env=None) -> gurobipy.Model:
+        if env is None:
+            warnings.warn(
+                'Gurobi model created in default environment, not recommended.', 
+                stacklevel=2)
+            model = gurobipy.Model()
+        else:
+            model = gurobipy.Model(env=env)
         for (name, value) in self.model_params.items():
             model.setParam(name, value)
         return model 
@@ -944,7 +965,7 @@ class GurobiRDDLCompiler:
         return self._gurobi(arg, model, subs)
     
     def _gurobi_uniform(self, expr, model, subs):
-        if self.verbose:
+        if self.verbose >= 2:
             warnings.warn('Using the replacement rule: '
                           'Uniform(a, b) --> (a + b) / 2.',  stacklevel=2)
             
@@ -965,7 +986,7 @@ class GurobiRDDLCompiler:
         return res, GRB.CONTINUOUS, lb, ub, symb
         
     def _gurobi_bernoulli(self, expr, model, subs):
-        if self.verbose:
+        if self.verbose >= 2:
             warnings.warn('Using the replacement rule: '
                           'Bernoulli(p) --> p',  stacklevel=2)
             
@@ -984,7 +1005,7 @@ class GurobiRDDLCompiler:
         return res, GRB.BINARY, lb, ub, symb
         
     def _gurobi_normal(self, expr, model, subs):
-        if self.verbose:
+        if self.verbose >= 2:
             warnings.warn('Using the replacement rule: '
                           'Normal(m, v) --> m',  stacklevel=2)
             
@@ -995,7 +1016,7 @@ class GurobiRDDLCompiler:
         return gterm, GRB.CONTINUOUS, lb, ub, symb
     
     def _gurobi_poisson(self, expr, model, subs):
-        if self.verbose:
+        if self.verbose >= 2:
             warnings.warn('Using the replacement rule: '
                           'Poisson(l) --> l',  stacklevel=2)
             
@@ -1006,7 +1027,7 @@ class GurobiRDDLCompiler:
         return gterm, GRB.CONTINUOUS, lb, ub, symb
     
     def _gurobi_exponential(self, expr, model, subs):
-        if self.verbose:
+        if self.verbose >= 2:
             warnings.warn('Using the replacement rule: '
                           'Exponential(l) --> l',  stacklevel=2)
             
@@ -1017,7 +1038,7 @@ class GurobiRDDLCompiler:
         return gterm, GRB.CONTINUOUS, lb, ub, symb
 
     def _gurobi_gamma(self, expr, model, subs):
-        if self.verbose:
+        if self.verbose >= 2:
             warnings.warn('Using the replacement rule: '
                           'Gamma(r, s) --> r * s',  stacklevel=2)
             

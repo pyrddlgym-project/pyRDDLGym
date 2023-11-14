@@ -9,7 +9,7 @@ Initializing environments in pyRDDLGym is done by instantiating a ``RDDEnv`` obj
 .. code-block:: python
 
     from pyRDDLGym import RDDLEnv
-    myEnv = RDDLEnv.RDDLEnv(domain="domain.rddl", instance='instance.rddl')
+    env = RDDLEnv.RDDLEnv(domain="domain.rddl", instance='instance.rddl')
 
 where ``domain.rddl`` and ``instance.rddl`` are paths pointing to RDDL files of your choosing.
 
@@ -23,36 +23,38 @@ pyRDDLGym is shipped with a number of varied domains and accompanying instances,
 are included as part of the distribution. These environments can be accessed through the
 ``ExampleManager``:
 
+To list all examples currently packaged with pyRDDLGym:
+
 .. code-block:: python
 
     from pyRDDLGym import ExampleManager
     ExampleManager.ListExamples()
 
-The ``ListExample()`` function lists all the example environments included in pyRDDLGym.
-Retrieving information about a particular domain/environment ENV is easy:
+To request more info about a domain:
 
 .. code-block:: python
 
-    EnvInfo = ExampleManager.GetEnvInfo(ENV)
+    info = ExampleManager.GetEnvInfo(ENV)
 
-This information can be used to setup an OpenAI gym environment as we did above:
-
-.. code-block:: python
-
-    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
-
-Here, the argument of the method ``get_instance(<num>)`` is the ID number of the instance (0 in this case).
-Listing all the available instances of the problem can be done as follows:
+To list all instances of a domain:
 
 .. code-block:: python
 
-    EnvInfo.list_instances()
+    info.list_instances()
 
-Last, setting up the dedicated visualizer for the example is done via
+To set up an OpenAI gym environment:
 
 .. code-block:: python
 
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
+    env = RDDLEnv.RDDLEnv(domain=info.get_domain(), instance=info.get_instance(0))
+    env.set_visualizer(info.get_visualizer())
+
+Or alternatively:
+
+.. code-block:: python
+
+    info = ExampleManager.GetEnvInfo(domain)
+    env = RDDLEnv.RDDLEnv.build(info, instance, **other_kwargs)
 
 Interacting with the Environment
 ----------------------------
@@ -68,7 +70,7 @@ To initialize a random agent for example:
 .. code-block:: python
 
     from Policies.Agents import RandomAgent
-    agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.NumConcurrentActions)
 
 Now lets see what a complete agent-environment loop looks like in pyRDDLGym.
 The example below will run the ``MarsRover`` environment for the amount of time steps specified in the instance ``horizon`` field.
@@ -80,37 +82,32 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
     from pyRDDLGym import ExampleManager
     from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
-    # get the environment info
-    EnvInfo = ExampleManager.GetEnvInfo('MarsRover')
-
-    # set up the environment class
-    # choose instance 0 because every example has at least one example instance
-    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
+    # set up the Mars Rover problem instance 0
+    info = ExampleManager.GetEnvInfo('MarsRover')
+    env = RDDLEnv.RDDLEnv.build(info, 0)
     
-    # set up the environment visualizer
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
-
-    # set up an agent
-    agent = RandomAgent(action_space=myEnv.action_space, num_actions=myEnv.NumConcurrentActions)
+    # set up a random policy
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.NumConcurrentActions)
     
     # perform a roll-out from the initial state
     # until either termination or the horizon is reached
     total_reward = 0
-    state = myEnv.reset()
-    for _ in range(myEnv.horizon):
-          myEnv.render()
-          next_state, reward, done, info = myEnv.step(agent.sample_action())
+    state = env.reset()
+    for _ in range(env.horizon):
+          env.render()
+          action = agent.sample_action(state)
+          next_state, reward, done, _ = env.step(action)
           total_reward += reward
           state = next_state
           if done:
                 break
-    myEnv.close()
+    env.close()
 
-We also provide a convenience ``evaluate`` function for policy evaluation, so it is not necessary to implement the interaction loop explicitly:
+We also provide a convenience ``evaluate`` function, so it is not necessary to implement the interaction loop above explicitly:
 
 .. code-block:: python
 	
-   total_reward = agent.evaluate(myEnv, episodes=1, render=True)['mean']
+   total_reward = agent.evaluate(env, episodes=1, render=True)['mean']
   
 The above call to ``evaluate`` returns a dictionary of summary statistics about the returns collected on different episodes, such as mean, median, standard deviation, etc.
 
@@ -174,11 +171,11 @@ Assigning a visualizer for an environment can be done by calling the environment
     from pyRDDLGym import RDDLEnv
     from pyRDDLGym import ExampleManager
 
-    EnvInfo = ExampleManager.GetEnvInfo('MarsRover')
-    myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0))
+    info = ExampleManager.GetEnvInfo('MarsRover')
+    env = RDDLEnv.RDDLEnv(domain=env.get_domain(), instance=env.get_instance(0))
 
     # set up the environment visualizer
-    myEnv.set_visualizer(EnvInfo.get_visualizer())
+    env.set_visualizer(info.get_visualizer())
 
 In order to build custom visualizations (for new user defined domains), 
 one can inherit the class ``Visualizer.StateViz.StateViz()`` and return in the ``visualizer.render()`` method a PIL image for the gym to render to the screen.
@@ -192,14 +189,14 @@ The environment initialization has the following general structure:
     class MyDomainViz(StateViz)
         # here goes the visualization implementation
 
-    myEnv = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
+    env = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
 
     # set up the environment visualizer
-    myEnv.set_visualizer(MyDomainViz)
+    env.set_visualizer(MyDomainViz)
 
 .. warning::
    The visualizer argument in ``set_visualizer`` should not contain the customary ``()`` when initializing the visualizer object, since this is done internally.
-   So, instead of writing ``myEnv.set_visualizer(MyDomainViz(**MyArgs))``, write ``myEnv.set_visualizer(MyDomainViz, viz_kwargs=MyArgs)``.
+   So, instead of writing ``env.set_visualizer(MyDomainViz(**MyArgs))``, write ``env.set_visualizer(MyDomainViz, viz_kwargs=MyArgs)``.
    
 Recording Movies
 --------------------------
@@ -208,26 +205,22 @@ A ``MovieGenerator`` class is provided to allow capture of videos of agent behav
 
 .. code-block:: python
 
-    from pyRDDLGym import RDDLEnv
-    from pyRDDLGym.Visualizer.StateViz import StateViz
-    from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
-
     # load the environment
-    myEnv = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
+    env = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
 	
     # set up the movie generator
     movie_gen = MovieGenerator('myFilePath', 'myEnvName', max_frames=1000)
     
     # set up the environment visualizer, passing a movie generator to capture frames
-    myEnv.set_visualizer(EnvInfo.get_visualizer(), movie_gen=movie_gen)
+    env.set_visualizer(info.get_visualizer(), movie_gen=movie_gen)
 
-    # interact with myEnv as usual
+    # interact with env as usual
     ...
 
     # close the environment
-    myEnv.close()
+    env.close()
 
-Upon calling ``myEnv.close()``, the images captured will be combined into video format and saved to the desired path.
+Upon calling ``env.close()``, the images captured will be combined into video format and saved to the desired path.
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
 
 Logging Data
@@ -241,8 +234,7 @@ To log information about the RDDL compilation to a file:
 
 .. code-block:: python
 	
-	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0),
-                            debug=True)
+	env = RDDLEnv.RDDLEnv(domain=info.get_domain(), instance=info.get_instance(0), debug=True)
 
 Upon executing this command, a log file is created with the name <domain name>_<instance name>.log in the installation's root directory.
 Currently, the following information is written in the generated log file:
@@ -258,8 +250,8 @@ To log simulation data to a file:
 
 .. code-block:: python
 	
-	myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), instance=EnvInfo.get_instance(0),
-                            log=True, simlogname='MyLogName')
+	env = RDDLEnv.RDDLEnv(domain=info.get_domain(), instance=info.get_instance(0), 
+                              log=True, log_path='path/to/file')
                             
 Upon interacting with the environment, a log file is created in the Logs folder in pyRDDLGym.
 

@@ -96,7 +96,8 @@ class RDDLLiftedModel(PlanningModel):
         # 1. object parameters needed to evaluate
         # 2. type (e.g. state-fluent, action-fluent)
         # 3. range (e.g. int, real, bool, type)
-        var_params, var_types, var_ranges = {}, {}, {}
+        # 4. save default values
+        var_params, var_types, var_ranges, default_values = {}, {}, {}, {}
         for pvar in self._AST.domain.pvariables: 
             
             # make sure variable is not defined more than once        
@@ -125,13 +126,17 @@ class RDDLLiftedModel(PlanningModel):
             if pvar.is_state_fluent():
                 var_types[primed_name] = 'next-state-fluent'                
             var_ranges[name] = var_ranges[primed_name] = pvar.range    
-        
+            
+            # save default value
+            default_values[name] = self._extract_default_value(pvar)
+            
         # maps each variable (as appears in RDDL) to list of grounded variations
         self.grounded_names = {var: list(self.ground_names(var, types))
                                for (var, types) in var_params.items()}        
         
         self.param_types, self.variable_types, self.variable_ranges = \
             var_params, var_types, var_ranges
+        self.default_values = default_values
     
     def _grounded_dict_to_dict_of_list(self, grounded_dict):
         new_dict = {}
@@ -166,7 +171,7 @@ class RDDLLiftedModel(PlanningModel):
                 statesranges[name] = pvar.range
                 nextstates[name] = name + PRIME
                 prevstates[name + PRIME] = name
-                default = self._extract_default_value(pvar)              
+                default = self.default_values[name]           
                 states[name] = {gname: default 
                                 for gname in self.ground_names(name, ptypes)} 
                 
@@ -220,7 +225,7 @@ class RDDLLiftedModel(PlanningModel):
         self.init_state = initstates
     
     def _value_list_or_scalar_from_default(self, pvar):
-        default = self._extract_default_value(pvar)
+        default = self.default_values[pvar.name]
         ptypes = pvar.param_types   
         if ptypes is None:
             return default
@@ -268,7 +273,7 @@ class RDDLLiftedModel(PlanningModel):
         for pvar in self._AST.domain.pvariables:
             if pvar.is_non_fluent():
                 name, ptypes = pvar.name, pvar.param_types
-                default = self._extract_default_value(pvar)      
+                default = self.default_values[name] 
                 non_fluents[name] = {gname: default
                                      for gname in self.ground_names(name, ptypes)}
         

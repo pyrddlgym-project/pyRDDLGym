@@ -29,10 +29,18 @@ def _make_dir(log_path):
                     f'Could not create folder at path {root_path}.')
     return log_path
 
-
+    
 class RDDLEnv(gym.Env):
     '''A gym environment class for RDDL domains.'''
     
+    @staticmethod
+    def build(env_info, env: str, **env_kwargs):
+        env = RDDLEnv(domain=env_info.get_domain(),
+                      instance=env_info.get_instance(env),
+                      **env_kwargs)
+        env.set_visualizer(env_info.get_visualizer())
+        return env
+
     def __init__(self, domain: str,
                  instance: str=None,
                  enforce_action_constraints: bool=False,
@@ -248,20 +256,24 @@ class RDDLEnv(gym.Env):
         return obs, reward, self.done, {}
 
     def reset(self, seed=None):
+        
+        # reset counters and internal sim state
         self.total_reward = 0
         self.currentH = 0
         obs, self.done = self.sampler.reset()
         self.state = self.sampler.states
-
-        image = self._visualizer.render(self.state)
-        if self._movie_generator is not None:
+        
+        # update movie generator
+        if self._movie_generator is not None and self._visualizer is not None:
+            image = self._visualizer.render(self.state)
+            self.image_size = image.size
             if self._movie_per_episode:
                 self._movie_generator.save_animation(
                     self._movie_generator.env_name + '_' + str(self._movies))
                 self._movies += 1
             self._movie_generator.save_frame(image)            
-        self.image_size = image.size
-
+        
+        # update random generator seed
         if seed is not None:
             self.seed(seed)
         else:
@@ -269,7 +281,7 @@ class RDDLEnv(gym.Env):
             if seed is not None:
                 self.seed(seed)
 
-        # Logging
+        # logging
         if self.simlogger:
             self.trial += 1
             text = '######################################################\n'
@@ -289,6 +301,7 @@ class RDDLEnv(gym.Env):
     def render(self, to_display=True):
         if self._visualizer is not None:
             image = self._visualizer.render(self.state)
+            self.image_size = image.size
             if to_display:
                 if not self.to_render:
                     self.to_render = True

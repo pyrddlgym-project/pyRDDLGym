@@ -24,3 +24,6 @@ TestingDomain/
 pyRDDLGym/Examples/Traffic/Calibration/img/*
 pyRDDLGym/Examples/Traffic/Calibration/tmp/*
 pyRDDLGym/Examples/Traffic/Deprecated/Experiments/*/img
+
+# macOS
+.DS_Store

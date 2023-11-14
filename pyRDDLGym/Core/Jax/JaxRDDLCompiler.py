@@ -3,9 +3,20 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 import jax.scipy as scipy 
-from tensorflow_probability.substrates import jax as tfp
+import traceback
 from typing import Callable, Dict, List
+import warnings
 
+# more robust approach - if user does not have this or broken try to continue
+try:
+    from tensorflow_probability.substrates import jax as tfp
+except Exception:
+    warnings.warn('Failed to import tensorflow-probability: '
+                  'compilation of some complex distributions will not work.',
+                  stacklevel=2)
+    traceback.print_exc()
+    tfp = None
+    
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError

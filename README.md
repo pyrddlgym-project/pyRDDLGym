@@ -5,18 +5,18 @@ A Python toolkit for auto-generation of OpenAI Gym environments from RDDL descri
 This is currently the official parser, simulator and evaluation system for RDDL in Python, with new features and enhancements to the RDDL language.<br />
 
 <p align="center">
-<img src="Images/cartpole.gif" width="100" height="100" margin=0/>
-<img src="Images/drones.gif" width="100" height="100" margin=0/>
-<img src="Images/elevators.gif" width="100" height="100" margin=0/>
-<img src="Images/mountaincar.gif" width="100" height="100" margin=0/>
-<img src="Images/powergen.gif" width="100" height="100" margin=0/>
+<img src="Images/cartpole.gif" width="120" height="120" margin=0/>
+<img src="Images/drones.gif" width="120" height="120" margin=0/>
+<img src="Images/elevators.gif" width="120" height="120" margin=0/>
+<img src="Images/mountaincar.gif" width="120" height="120" margin=0/>
+<img src="Images/powergen.gif" width="120" height="120" margin=0/>
 </p>
 <p align="center">
-<img src="Images/quadcopter.gif" width="100" height="100" margin=0/>
-<img src="Images/racecar.gif" width="100" height="100" margin=0/>
-<img src="Images/recsys.gif" width="100" height="100" margin=0/>
-<img src="Images/rovers.gif" width="100" height="100" margin=0/>
-<img src="Images/wildfire.gif" width="100" height="100" margin=0/>
+<img src="Images/quadcopter.gif" width="120" height="120" margin=0/>
+<img src="Images/racecar.gif" width="120" height="120" margin=0/>
+<img src="Images/recsys.gif" width="120" height="120" margin=0/>
+<img src="Images/rovers.gif" width="120" height="120" margin=0/>
+<img src="Images/wildfire.gif" width="120" height="120" margin=0/>
 </p>
 
 

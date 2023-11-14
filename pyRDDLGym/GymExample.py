@@ -21,21 +21,15 @@ from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
 def main(domain, instance, episodes=1, seed=42):
     
-    # get the environment info
-    EnvInfo = ExampleManager.GetEnvInfo(domain)
-    
-    # set up the environment, RNG key and visualizer
-    env = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
-                          instance=EnvInfo.get_instance(instance))
+    # create the environment
+    info = ExampleManager.GetEnvInfo(domain)
+    env = RDDLEnv.RDDLEnv.build(info, instance, enforce_action_constraints=True)
     env.seed(seed)
-    env.set_visualizer(EnvInfo.get_visualizer())
     
-    # set up an example agent
+    # set up a random policy
     agent = RandomAgent(action_space=env.action_space,
                         num_actions=env.numConcurrentActions,
                         seed=seed)
-    
-    # main evaluation loop
     agent.evaluate(env, episodes=episodes, verbose=True, render=True)
     
     # important when logging to save all traces

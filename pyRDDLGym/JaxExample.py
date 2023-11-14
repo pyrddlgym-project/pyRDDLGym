@@ -27,12 +27,9 @@ from pyRDDLGym.Examples.ExampleManager import ExampleManager
     
 def main(domain, instance, method):
     
-    # create the environment
-    EnvInfo = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv(domain=EnvInfo.get_domain(),
-                  instance=EnvInfo.get_instance(instance),
-                  enforce_action_constraints=True)
-    env.set_visualizer(EnvInfo.get_visualizer())
+    # set up the environment
+    info = ExampleManager.GetEnvInfo(domain)    
+    env = RDDLEnv.build(info, instance, enforce_action_constraints=True)
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
@@ -42,13 +39,12 @@ def main(domain, instance, method):
     # create the planning algorithm
     planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
     
-    # create the controller agent   
+    # create the controller   
     if method == 'replan':
         controller = JaxOnlineController(planner, **train_args)
     else:
         controller = JaxOfflineController(planner, **train_args)
     
-    # evaluate the agent
     controller.evaluate(env, verbose=True, render=True)
     
     env.close()
