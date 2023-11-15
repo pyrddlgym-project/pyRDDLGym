@@ -266,6 +266,26 @@ Then, an online or offline controller can be instantiated and trained using one 
    
 Details about the implementation of the deep reactive policy for planning are explained further `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
 
+Changing the Planning Algorithm
+-------------------
+
+In the introductory example given at the top of this tutorial, you may have noticed that we defined a planning algorithm (``JaxBackpropPlanner``) separately from the controller.
+The ``JaxOnlineController`` and ``JaxOfflineController`` objects are simply policy classes that provide a convenient interface between an underlying planning algorithm and the environment.
+
+Therefore, it is possible to incorporate new JAX-based planning algorithms into pyRDDLGym simply by extending the ``JaxBackpropPlanner`` class. pyRDDLGym provides one such build-in extension that
+is based on line-search, which adaptively selects a learning rate whose gradient update will provide the greatest improvement in the return objective. This optimizer can be swapped in as a replacement as follows:
+
+.. code-block:: python
+
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLArmijoLineSearchPlanner
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
+
+    planner = JaxRDDLArmijoLineSearchPlanner(env.model, **planner_args)
+    controller = JaxOfflineController(planner, **train_args)
+    controller.evaluate(env, verbose=True, render=True)
+
+Like the default planner, the line-search planner is compatible with both offline and online controllers, and both straight-line and deep reactive policy implementations.
+
 Box Constraints on Action Fluents
 -------------------
 
