@@ -125,24 +125,16 @@ Thus, RDDL types are converted to ``gym.spaces`` with the appropriate bounds as 
 
 There is no need in pyRDDLGym to specify the values of all the existing action in the RDDL domain description, only thus the agent wishes to assign non-default values, the infrastructure will construct the full action vector as necessary with the default action values according to the RDDL description.
 
-Constants
----------
-
-RDDL allows for the constants of the problem instead of being hard-coded, to be specified and in the non-fluent block of the instance.
-Meaning every instance can have different constants, e.g., different bounds on action, different static object location, etc.
-
-While these constants are not available through the state of the problem, it is possible to access them through gym (or directly through the RDDL description) with a dedicated API: ``env.non_fluents``.
-The non_fluents property returns a dictionary whose keys are the grounded non-fluents and the values are the appropriate values.
-
 Inspecting the Model
 -------------------
 
-More gnerally, the compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain, 
+The pyRDDLGym compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain, 
 which can be accessed through the ``model`` field of a ``RDDLEnv``
 
 .. code-block:: python
 	
-	env = RDDLEnv.build(info, instance)
+	info = ExampleManager.GetEnvInfo('MarsRover')
+    env = RDDLEnv.RDDLEnv.build(info, 0)
 	model = env.model
 
 Below are some commonly-used fields of ``model`` that can be accessed directly.
