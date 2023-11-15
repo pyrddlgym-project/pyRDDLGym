@@ -133,9 +133,9 @@ which can be accessed through the ``model`` field of a ``RDDLEnv``
 
 .. code-block:: python
 	
-	info = ExampleManager.GetEnvInfo('MarsRover')
+    info = ExampleManager.GetEnvInfo('MarsRover')
     env = RDDLEnv.RDDLEnv.build(info, 0)
-	model = env.model
+    model = env.model
 
 Below are some commonly-used fields of ``model`` that can be accessed directly.
 	
