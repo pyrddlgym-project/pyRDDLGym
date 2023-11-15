@@ -52,6 +52,7 @@ class RDDLSimAgent:
             sock.bind(self.address)
             sock.listen(1)
             connection, client_address = sock.accept()
+            print(f"listening at address {self.address[0]} with port {self.address[1]}...")
             with connection:
                 self.run_session(connection)
             connection.close()
