@@ -134,30 +134,6 @@ Meaning every instance can have different constants, e.g., different bounds on a
 While these constants are not available through the state of the problem, it is possible to access them through gym (or directly through the RDDL description) with a dedicated API: ``env.non_fluents``.
 The non_fluents property returns a dictionary whose keys are the grounded non-fluents and the values are the appropriate values.
 
-Termination
------------
-
-An addition made to the RDDL language during the development of this infrastructure is the termination block.
-The termination block is intended to specify terminal states in the MDP, when reached the simulation will end.
-A terminal state is a valid state of the MDP (to emphasize the difference from ``state-invariants``).
-An example of terminal state can be any state within the goal set for which the simulation should not continue, or a state where there are no possible actions and the simulation should end 
-(e.g., hitting a wall when it is not allowed). 
-When a terminal state is reached the state is returned from the environment with the ``done`` flag returned as ``True``.
-The reward is handled independently by the reward function, thus if there is a specific reward for the terminal state, it should specified in the reward formula.
-
-The termination block has the following syntax:
-
-.. code-block:: shell
-
-    termination {
-        Terminal_condition1;
-        Terminal_condition2;
-        ...
-    };
-
-where ``Terminal_condition#`` are boolean-valued expressions.
-The termination decision is a disjunction of all the conditions in the block (i.e. termination if at least one is true).
-
 Visualization
 -------------
 
