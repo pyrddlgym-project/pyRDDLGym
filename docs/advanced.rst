@@ -1,63 +1,6 @@
 Advanced Topics
 ===============
 
-Inspecting the Model
--------------------
-
-The compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain, which can be accessed through the ``model`` field of a ``RDDLEnv``
-
-.. code-block:: python
-	
-	env = RDDLEnv.build(info, instance)
-	model = env.model
-
-Below are some commonly-used properties of RDDL domains that can be accessed directly.
-	
-.. list-table:: Commonly-used properties accessible in ``model``
-   :widths: 50 60
-   :header-rows: 1
-   
-   * - syntax
-     - description
-   * - ``horizon``
-     - horizon as defined in the instance
-   * - ``discount``
-     - discount factor as defined in the instance
-   * - ``max_allowed_actions``
-     - ``max-nondef-actions`` as defined in the instance
-   * - ``variable_types``
-     - dict of pvariable types (e.g. non-fluent, ...) for each variable
-   * - ``variable_ranges``
-     - dict of pvariable ranges (e.g. real, ...) for each variable
-   * - ``objects``
-     - dict of all defined objects for each type
-   * - ``nonfluents``
-     - dict of initial values for each non-fluent
-   * - ``states``
-     - dict of initial values for each state-fluent
-   * - ``actions``
-     - dict of default values for each action-fluent
-   * - ``interm``
-     - dict of initial values for each interm-fluent
-   * - ``observ``
-     - dict of initial values for each observ-fluent
-   * - ``cpfs``
-     - dict of ``Expression`` objects for each cpf
-   * - ``reward``
-     - ``Expression`` object for reward function
-   * - ``preconditions``
-     - list of ``Expression`` objects for each action-precondition
-   * - ``invariants``
-     - list of ``Expression`` objects for each state-invariant
-
-``Expression`` objects are symbolic syntax trees that describe the flow of computations
-in each cpf, constraint relation, or the reward function of the RDDL domain.
-
-The ``args()`` function of an ``Expression`` object accesses its sub-expressions, 
-which can be either ``Expression`` instances or collections containing aggregation variables,
-types, or other information required by the engine. Similarly, the ``etype()`` argument
-provides identifying information about the expression.
-
 Changing the Simulation Backend
 -------------------
 
@@ -265,6 +208,26 @@ Then, an online or offline controller can be instantiated and trained using one 
    Other agent representations could be defined by overriding the ``JaxPlan`` class and its methods `compile` and ``guess_next_epoch``.
    
 Details about the implementation of the deep reactive policy for planning are explained further `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
+
+Changing the Planning Algorithm
+-------------------
+
+In the introductory example given at the top of this tutorial, you may have noticed that we defined a planning algorithm (``JaxBackpropPlanner``) separately from the controller.
+The ``JaxOnlineController`` and ``JaxOfflineController`` objects are simply policy classes that provide a convenient interface between an underlying planning algorithm and the environment.
+
+Therefore, it is possible to incorporate new JAX-based planning algorithms into pyRDDLGym simply by extending the ``JaxBackpropPlanner`` class. pyRDDLGym provides one such build-in extension that
+is based on line-search, which adaptively selects a learning rate whose gradient update will provide the greatest improvement in the return objective. This optimizer can be swapped in as a replacement as follows:
+
+.. code-block:: python
+
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLArmijoLineSearchPlanner
+    from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
+
+    planner = JaxRDDLArmijoLineSearchPlanner(env.model, **planner_args)
+    controller = JaxOfflineController(planner, **train_args)
+    controller.evaluate(env, verbose=True, render=True)
+
+Like the default planner, the line-search planner is compatible with both offline and online controllers, and both straight-line and deep reactive policy implementations.
 
 Box Constraints on Action Fluents
 -------------------
