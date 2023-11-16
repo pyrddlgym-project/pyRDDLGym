@@ -26,11 +26,11 @@ We recommend installing under a conda virtual environment:
     conda activate rddl
     pip install pyrddlgym
 
-Git clone
+Installing the pre-release version via git
 ---------
 .. code-block:: shell
 
-    https://github.com/ataitler/pyRDDLGym.git
+    pip install git+https://github.com/ataitler/pyRDDLGym.git
 
 Installing requirements for JAX planner
 ---------
