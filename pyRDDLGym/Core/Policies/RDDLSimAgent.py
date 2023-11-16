@@ -12,19 +12,25 @@ class RDDLSimAgent:
     designed to interact with rddlsim (https://github.com/ssanner/rddlsim)'''
 
     def __init__(self, domain, instance, numrounds, time, port=2323):
-        self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
 
         # concatenate domain and instance files
+        print(f"loading domain {domain}...")
         f = open(domain)
         self.task = f.read()
         f.close()
+        print(f"loading instance {instance}...")
         f = open(instance)
         self.task = self.task + f.read()
         f.close()
 
         # encode task
+        print(f"encoding task for sharing in TCP connections...")
         self.task = base64.b64encode(str.encode(self.task))
         self.task = self.task.decode("ascii")
+        
+        # create RDDLEnv
+        print(f"creating RDDL environment...")
+        self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
         
         # initialize RDDLSimAgent
         self.roundsleft = numrounds
@@ -41,15 +47,18 @@ class RDDLSimAgent:
     def run(self):
         ''' starts the RDDLSimAgent to wait for a planner to connect'''
 
+        print(f"establishing socket...")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         with sock:
 
             # Force the connection to this port (sometimes it stays locked after repeated runs).
             # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
+            print(f"forcing connection...")
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             sock.bind(self.address)
+            print(f"listening at address {self.address[0]} with port {self.address[1]}...")
             sock.listen(1)
             connection, client_address = sock.accept()
             with connection:

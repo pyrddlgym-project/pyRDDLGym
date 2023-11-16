@@ -70,7 +70,7 @@ To initialize a random agent for example:
 .. code-block:: python
 
     from Policies.Agents import RandomAgent
-    agent = RandomAgent(action_space=env.action_space, num_actions=env.NumConcurrentActions)
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.numConcurrentActions)
 
 Now lets see what a complete agent-environment loop looks like in pyRDDLGym.
 The example below will run the ``MarsRover`` environment for the amount of time steps specified in the instance ``horizon`` field.
@@ -87,7 +87,7 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
     env = RDDLEnv.RDDLEnv.build(info, 0)
     
     # set up a random policy
-    agent = RandomAgent(action_space=env.action_space, num_actions=env.NumConcurrentActions)
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.numConcurrentActions)
     
     # perform a roll-out from the initial state
     # until either termination or the horizon is reached
@@ -125,38 +125,64 @@ Thus, RDDL types are converted to ``gym.spaces`` with the appropriate bounds as 
 
 There is no need in pyRDDLGym to specify the values of all the existing action in the RDDL domain description, only thus the agent wishes to assign non-default values, the infrastructure will construct the full action vector as necessary with the default action values according to the RDDL description.
 
-Constants
----------
+Inspecting the Model
+-------------------
 
-RDDL allows for the constants of the problem instead of being hard-coded, to be specified and in the non-fluent block of the instance.
-Meaning every instance can have different constants, e.g., different bounds on action, different static object location, etc.
+The pyRDDLGym compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain, 
+which can be accessed through the ``model`` field of a ``RDDLEnv``
 
-While these constants are not available through the state of the problem, it is possible to access them through gym (or directly through the RDDL description) with a dedicated API: ``env.non_fluents``.
-The non_fluents property returns a dictionary whose keys are the grounded non-fluents and the values are the appropriate values.
+.. code-block:: python
+	
+    info = ExampleManager.GetEnvInfo('MarsRover')
+    env = RDDLEnv.RDDLEnv.build(info, 0)
+    model = env.model
 
-Termination
------------
+Below are some commonly-used fields of ``model`` that can be accessed directly.
+	
+.. list-table:: Commonly-used properties accessible in ``model``
+   :widths: 50 60
+   :header-rows: 1
+   
+   * - syntax
+     - description
+   * - ``horizon``
+     - horizon as defined in the instance
+   * - ``discount``
+     - discount factor as defined in the instance
+   * - ``max_allowed_actions``
+     - ``max-nondef-actions`` as defined in the instance
+   * - ``variable_types``
+     - dict of pvariable types (e.g. non-fluent, ...) for each variable
+   * - ``variable_ranges``
+     - dict of pvariable ranges (e.g. real, ...) for each variable
+   * - ``objects``
+     - dict of all defined objects for each type
+   * - ``nonfluents``
+     - dict of initial values for each non-fluent
+   * - ``states``
+     - dict of initial values for each state-fluent
+   * - ``actions``
+     - dict of default values for each action-fluent
+   * - ``interm``
+     - dict of initial values for each interm-fluent
+   * - ``observ``
+     - dict of initial values for each observ-fluent
+   * - ``cpfs``
+     - dict of ``Expression`` objects for each cpf
+   * - ``reward``
+     - ``Expression`` object for reward function
+   * - ``preconditions``
+     - list of ``Expression`` objects for each action-precondition
+   * - ``invariants``
+     - list of ``Expression`` objects for each state-invariant
 
-An addition made to the RDDL language during the development of this infrastructure is the termination block.
-The termination block is intended to specify terminal states in the MDP, when reached the simulation will end.
-A terminal state is a valid state of the MDP (to emphasize the difference from ``state-invariants``).
-An example of terminal state can be any state within the goal set for which the simulation should not continue, or a state where there are no possible actions and the simulation should end 
-(e.g., hitting a wall when it is not allowed). 
-When a terminal state is reached the state is returned from the environment with the ``done`` flag returned as ``True``.
-The reward is handled independently by the reward function, thus if there is a specific reward for the terminal state, it should specified in the reward formula.
+``Expression`` objects are symbolic syntax trees that describe the flow of computations
+in each cpf, constraint relation, or the reward function of the RDDL domain.
 
-The termination block has the following syntax:
-
-.. code-block:: shell
-
-    termination {
-        Terminal_condition1;
-        Terminal_condition2;
-        ...
-    };
-
-where ``Terminal_condition#`` are boolean-valued expressions.
-The termination decision is a disjunction of all the conditions in the block (i.e. termination if at least one is true).
+The ``args()`` function of an ``Expression`` object accesses its sub-expressions, 
+which can be either ``Expression`` instances or collections containing aggregation variables,
+types, or other information required by the engine. Similarly, the ``etype()`` argument
+provides identifying information about the expression.
 
 Visualization
 -------------
@@ -171,8 +197,9 @@ Assigning a visualizer for an environment can be done by calling the environment
     from pyRDDLGym import RDDLEnv
     from pyRDDLGym import ExampleManager
 
+    # set up the environment
     info = ExampleManager.GetEnvInfo('MarsRover')
-    env = RDDLEnv.RDDLEnv(domain=env.get_domain(), instance=env.get_instance(0))
+    env = RDDLEnv.RDDLEnv.build(info, 0)
 
     # set up the environment visualizer
     env.set_visualizer(info.get_visualizer())
@@ -183,15 +210,9 @@ The environment initialization has the following general structure:
 
 .. code-block:: python
 
-    from pyRDDLGym import RDDLEnv
-    from pyRDDLGym.Visualizer.StateViz import StateViz
-
     class MyDomainViz(StateViz)
         # here goes the visualization implementation
 
-    env = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
-
-    # set up the environment visualizer
     env.set_visualizer(MyDomainViz)
 
 .. warning::
@@ -201,12 +222,17 @@ The environment initialization has the following general structure:
 Recording Movies
 --------------------------
 
-A ``MovieGenerator`` class is provided to allow capture of videos of agent behavior:
+A ``MovieGenerator`` class is provided to allow capture of videos of the environment during interaction:
 
 .. code-block:: python
+    
+    from pyRDDLGym import RDDLEnv
+    from pyRDDLGym import ExampleManager
+    from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
 
-    # load the environment
-    env = RDDLEnv.RDDLEnv(domain='myDomain.rddl', instance='myInstance.rddl')
+    # set up the environment
+    info = ExampleManager.GetEnvInfo('MarsRover')
+    env = RDDLEnv.RDDLEnv.build(info, 0)
 	
     # set up the movie generator
     movie_gen = MovieGenerator('myFilePath', 'myEnvName', max_frames=1000)
@@ -214,14 +240,13 @@ A ``MovieGenerator`` class is provided to allow capture of videos of agent behav
     # set up the environment visualizer, passing a movie generator to capture frames
     env.set_visualizer(info.get_visualizer(), movie_gen=movie_gen)
 
-    # interact with env as usual
-    ...
-
-    # close the environment
-    env.close()
-
 Upon calling ``env.close()``, the images captured will be combined into video format and saved to the desired path.
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
+
+.. note::
+   Videos will not be saved until the environment is closed with ``env.close()``. However, still frames will be recorded
+   to disk while the interaction with the environment is taking place, in order to accommodate long interactions that could use too much memory.
+   Therefore, it is important to not delete these images while the recording is taking place, and as they are deleted automatically once recording is complete.
 
 Logging Data
 --------------------------
@@ -234,7 +259,7 @@ To log information about the RDDL compilation to a file:
 
 .. code-block:: python
 	
-	env = RDDLEnv.RDDLEnv(domain=info.get_domain(), instance=info.get_instance(0), debug=True)
+	env = RDDLEnv.RDDLEnv.build(info, instance, debug=True)
 
 Upon executing this command, a log file is created with the name <domain name>_<instance name>.log in the installation's root directory.
 Currently, the following information is written in the generated log file:
@@ -250,8 +275,7 @@ To log simulation data to a file:
 
 .. code-block:: python
 	
-	env = RDDLEnv.RDDLEnv(domain=info.get_domain(), instance=info.get_instance(0), 
-                              log=True, log_path='path/to/file')
+	env = RDDLEnv.RDDLEnv.build(info, instance, log=True, log_path='path/to/file')
                             
 Upon interacting with the environment, a log file is created in the Logs folder in pyRDDLGym.
 

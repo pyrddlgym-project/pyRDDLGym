@@ -10,18 +10,20 @@ class RDDLConstraints:
     '''Provides added functionality to understand a set of action-preconditions
     and state invariants in a RDDL file.'''
     
-    def __init__(self, simulator: RDDLSimulator, max_bound: float=np.inf) -> None:
+    def __init__(self, simulator: RDDLSimulator, max_bound: float=np.inf,
+                 inequality_tol: float=0.001) -> None:
         '''Creates a new set of state and action constraints.
         
         :param simulator: the RDDL simulator to evaluate potential non-fluent
         expressions nested in constraints
         :param max_bound: initial value for maximum possible bounds
+        :param inequality_tol: tolerance for inequality > and < comparisons
         '''
         
         self.sim = simulator
         self.rddl = simulator.rddl
         self.BigM = max_bound
-        self.epsilon = 0.001
+        self.epsilon = inequality_tol
         
         self._bounds = {}
         for (var, vtype) in self.rddl.variable_types.items():
