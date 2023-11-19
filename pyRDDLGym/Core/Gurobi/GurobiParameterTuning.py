@@ -144,25 +144,25 @@ class GurobiParameterTuningReplan:
             )
                 
         # start multiprocess evaluation
-        num_workers = self.num_workers
         best_T, best_target = None, -np.inf
         
-        for (it, batch) in enumerate(
-            np.array_split(self.lookahead_range, num_workers)):
+        for (it, i) in enumerate(range(
+            0, len(self.lookahead_range), self.num_workers)):
+            batch = self.lookahead_range[i:i + self.num_workers]
             
             # continue with next iteration
             elapsed = time.time() - start_time
             print('\n' + '*' * 25 + 
                   '\n' + f'[{datetime.timedelta(seconds=elapsed)}] ' + 
-                  f'starting iteration {it}' + 
+                  f'starting iteration {it} with batch {batch}' + 
                   '\n' + '*' * 25)
-            worker_ids = list(range(batch.size))
-            key, *subkeys = jax.random.split(key, num=batch.size + 1)
-            rows = [None] * batch.size
+            worker_ids = list(range(len(batch)))
+            key, *subkeys = jax.random.split(key, num=len(batch) + 1)
+            rows = [None] * len(batch)
             
             # create worker pool: note each iteration must wait for all workers
             # to finish before moving to the next            
-            with get_context(self.pool_context).Pool(processes=batch.size) as pool:
+            with get_context(self.pool_context).Pool(processes=len(batch)) as pool:
                 
                 # assign jobs to worker pool
                 results = [
