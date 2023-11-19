@@ -79,7 +79,8 @@ class GurobiParameterTuningReplan:
             planner_kwargs['model_params']['TimeLimit'] = timeout_training
         
         self.env = env
-        self.lookahead_range = lookahead_range
+        self.lookahead_range = [t for t in lookahead_range 
+                                if t <= self.env.horizon]
         self.timeout_training = timeout_training
         self.eval_trials = eval_trials
         self.verbose = verbose
