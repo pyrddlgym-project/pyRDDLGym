@@ -61,6 +61,7 @@ class GurobiParameterTuningReplan:
     def __init__(self, env: RDDLEnv,
                  lookahead_range: List[int]=list(range(1, 41)),
                  timeout_training: float=None,
+                 timeout_tuning: float=np.inf,
                  eval_trials: int=5,
                  verbose: bool=True,
                  planner_kwargs: Dict={
@@ -71,7 +72,26 @@ class GurobiParameterTuningReplan:
                  pool_context: str='spawn',
                  num_workers: int=4,
                  poll_frequency: float=0.2) -> None:
+        '''Creates a new instance for tuning the lookahead horizon for Gurobi
+        planners.
         
+        :param env: the RDDLEnv describing the MDP to optimize
+        :param lookahead_range: list of lookahead horizons to validate from
+        :param timeout_training: the maximum amount of time to spend training per
+        trial/decision step (in seconds)
+        :param timeout_tuning: the maximum amount of time to spend tuning 
+        hyperparameters in general (in seconds)
+        :param eval_trials: how many trials to perform independent training
+        in order to estimate the return for each set of hyper-parameters
+        :param verbose: whether to print intermediate results of tuning
+        :param planner_kwargs: additional arguments to feed to the planner
+        :param plan_kwargs: additional arguments to feed to the plan/policy
+        :param pool_context: context for multiprocessing pool (defaults to 
+        "spawn")
+        :param num_workers: how many points to evaluate in parallel
+        :param poll_frequency: how often (in seconds) to poll for completed
+        jobs, necessary if num_workers > 1
+        '''
         # timeout for training must be set in Gurobi variables
         if timeout_training is not None:
             if 'model_params' not in planner_kwargs:
@@ -82,6 +102,7 @@ class GurobiParameterTuningReplan:
         self.lookahead_range = [t for t in lookahead_range 
                                 if t <= self.env.horizon]
         self.timeout_training = timeout_training
+        self.timeout_tuning = timeout_tuning
         self.eval_trials = eval_trials
         self.verbose = verbose
         self.planner_kwargs = planner_kwargs
@@ -94,6 +115,7 @@ class GurobiParameterTuningReplan:
         print(f'hyperparameter optimizer parameters:\n'
               f'    tuned_hyper_parameters    =horizon\n'
               f'    tuning_batch_size         ={self.num_workers}\n'
+              f'    tuning_timeout            ={self.timeout_tuning}\n'
               f'    mp_pool_context_type      ={self.pool_context}\n'
               f'    mp_pool_poll_frequency    ={self.poll_frequency}\n'
               f'meta-objective parameters:\n'
@@ -151,8 +173,13 @@ class GurobiParameterTuningReplan:
             0, len(self.lookahead_range), self.num_workers)):
             batch = self.lookahead_range[i:i + self.num_workers]
             
-            # continue with next iteration
+            # check if there is enough time left for another iteration
             elapsed = time.time() - start_time
+            if elapsed >= self.timeout_tuning:
+                print(f'global time limit reached at iteration {it}, aborting')
+                break
+            
+            # continue with next iteration
             print('\n' + '*' * 25 + 
                   '\n' + f'[{datetime.timedelta(seconds=elapsed)}] ' + 
                   f'starting iteration {it} with batch {batch}' + 
