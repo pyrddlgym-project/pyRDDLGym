@@ -1,3 +1,4 @@
+from copy import deepcopy
 import gurobipy
 import jax
 import numpy as np
@@ -30,7 +31,7 @@ def objective_replan(params, kwargs, key, index):
 
     # initialize policy
     policy = GurobiOnlineController(
-        rddl=kwargs['rddl'],
+        rddl=deepcopy(kwargs['rddl']),
         plan=GurobiStraightLinePlan(**kwargs['plan_kwargs']),
         env=GLOBAL_ENV,
         rollout_horizon=T,
