@@ -212,12 +212,12 @@ class RDDLLevelAnalysis:
             graph_info = '\n\t'.join(f"{rddl.variable_types[k]} {k}: "
                                      f"{{{', '.join(v)}}}"
                                      for (k, v) in graph.items())
-            self.logger.log(f'computed fluent dependencies in CPFs:\n' 
+            self.logger.log(f'[info] computed fluent dependencies in CPFs:\n' 
                             f'\t{graph_info}\n')
             
             levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
                                       for (k, v) in result.items())
-            self.logger.log(f'computed order of CPF evaluation:\n' 
+            self.logger.log(f'[info] computed order of CPF evaluation:\n' 
                             f'\t{levels_info}\n')
         
         return result

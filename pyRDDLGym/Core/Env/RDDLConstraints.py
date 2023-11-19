@@ -47,7 +47,7 @@ class RDDLConstraints:
         if simulator.logger is not None:
             bounds_info = '\n\t'.join(
                 f'{k}: {v}' for (k, v) in self._bounds.items())
-            message = (f'computed simulation bounds:\n' 
+            message = (f'[info] computed simulation bounds:\n' 
                        f'\t{bounds_info}\n')
             simulator.logger.log(message)
         

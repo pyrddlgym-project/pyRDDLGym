@@ -110,7 +110,7 @@ class RDDLValueInitializer:
                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
             ) for (k, v) in np_init_values.items())
-            message = (f'initializing pvariable tensors:' 
+            message = (f'[info] initializing pvariable tensors:' 
                        f'\n\t{tensor_info}\n')
             self.logger.log(message)
         
