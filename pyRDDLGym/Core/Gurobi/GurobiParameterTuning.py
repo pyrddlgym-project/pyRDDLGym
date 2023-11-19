@@ -58,7 +58,7 @@ def objective_replan(T, kwargs, key, index):
 
 class GurobiParameterTuningReplan:
     
-    def __init__(self,
+    def __init__(self, env: RDDLEnv,
                  lookahead_range: List[int]=list(range(1, 41)),
                  timeout_training: float=None,
                  eval_trials: int=5,
@@ -78,6 +78,7 @@ class GurobiParameterTuningReplan:
                 planner_kwargs['model_params'] = {}
             planner_kwargs['model_params']['TimeLimit'] = timeout_training
         
+        self.env = env
         self.lookahead_range = lookahead_range
         self.timeout_training = timeout_training
         self.eval_trials = eval_trials
