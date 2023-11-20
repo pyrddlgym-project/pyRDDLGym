@@ -39,7 +39,7 @@ def objective_replan(T, kwargs, key, index):
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
-                  enforce_action_constraints=True)
+                  enforce_action_constraints=False)
     
     # perform training
     average_reward = 0.0
