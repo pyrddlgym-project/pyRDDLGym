@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import signal
 from typing import Dict, List, Tuple
 import warnings
@@ -665,18 +666,18 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
 # - just simple determinized planner
 #
 # ***********************************************************************
-def signal_handler(signum, frame):
-    raise Exception("Timed out!")
+@contextmanager
+def time_limit(seconds):
 
+    def signal_handler(signum, frame):
+        raise Exception("Timed out!")
 
-def optimize_strict_timelimit(model):
-    timeLimit = model.Params.timeLimit
     signal.signal(signal.SIGALRM, signal_handler)
-    signal.setitimer(signal.ITIMER_REAL, timeLimit)
+    signal.alarm(seconds)
     try:
-        model.optimize()
-    except:
-        pass
+        yield
+    finally:
+        signal.alarm(0)
 
     
 class GurobiOfflineController(BaseAgent):
@@ -717,7 +718,11 @@ class GurobiOfflineController(BaseAgent):
             env = gurobipy.Env()
         self.env = env
         model, _, params = self.compiler.compile(env=self.env)
-        optimize_strict_timelimit(model)
+        try:
+            with time_limit(model.Params.timeLimit):
+                model.optimize()
+        except:
+            pass
         self.model = model
         self.params = params
             
@@ -799,7 +804,11 @@ class GurobiOnlineController(BaseAgent):
         
         # optimize the policy parameters at the current time step
         model, _, params = self.compiler.compile(subs, env=self.env)
-        optimize_strict_timelimit(model)
+        try:
+            with time_limit(model.Params.timeLimit):
+                model.optimize()
+        except:
+            pass
         
         # check for existence of solution
         if not (model.SolCount > 0):
