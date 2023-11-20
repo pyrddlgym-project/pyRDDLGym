@@ -1,3 +1,4 @@
+import signal
 from typing import Dict, List, Tuple
 import warnings
 
@@ -664,6 +665,20 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
 # - just simple determinized planner
 #
 # ***********************************************************************
+def signal_handler(signum, frame):
+    raise Exception("Timed out!")
+
+
+def optimize_strict_timelimit(model):
+    timeLimit = model.Params.timeLimit
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.setitimer(signal.ITIMER_REAL, timeLimit)
+    try:
+        model.optimize()
+    except:
+        pass
+
+    
 class GurobiOfflineController(BaseAgent):
     '''A container class for a Gurobi policy trained offline.'''
     
@@ -695,14 +710,14 @@ class GurobiOfflineController(BaseAgent):
         self.rddl = rddl
         self.plan = plan
         self.compiler = GurobiRDDLCompiler(rddl=rddl, plan=plan, **compiler_kwargs)
-        
+         
         # optimize the plan or policy here
         self.reset()
         if env is None:
             env = gurobipy.Env()
         self.env = env
         model, _, params = self.compiler.compile(env=self.env)
-        model.optimize()
+        optimize_strict_timelimit(model)
         self.model = model
         self.params = params
             
@@ -784,7 +799,7 @@ class GurobiOnlineController(BaseAgent):
         
         # optimize the policy parameters at the current time step
         model, _, params = self.compiler.compile(subs, env=self.env)
-        model.optimize()
+        optimize_strict_timelimit(model)
         
         # check for existence of solution
         if not (model.SolCount > 0):
