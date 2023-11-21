@@ -18,6 +18,7 @@ from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
+from pyRDDLGym.Core.Simulator.RDDLSimulator import lngamma
 
 if TYPE_CHECKING:
     from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiRDDLPlan
@@ -951,6 +952,8 @@ class GurobiRDDLCompiler:
             return self._gurobi_exponential(expr, model, subs)
         elif name == 'Gamma':
             return self._gurobi_gamma(expr, model, subs)
+        elif name == 'Weibull':
+            return self._gurobi_weibull(expr, model, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported in Gurobi compiler.\n' + 
@@ -1055,5 +1058,34 @@ class GurobiRDDLCompiler:
             model.addConstr(res == prodexpr)
         else:
             res = lb = ub = prodexpr     
+        return res, GRB.CONTINUOUS, lb, ub, symb
+    
+    def _gurobi_weibull(self, expr, model, subs):
+        if self.verbose >= 2:
+            warnings.warn('Using the replacement rule: '
+                          'Weibull(s, l) --> l * Gamma(1 + 1/s)',  stacklevel=2)
+        
+        shape, scale = expr.args
+        gterm1, _, _, _, symb1 = self._gurobi(shape, model, subs)
+        gterm2, _, lb2, ub2, symb2 = self._gurobi(scale, model, subs)
+        
+        # check shape is non symbolic
+        if symb1:
+            raise RDDLNotImplementedError(
+                'Weibull symbolic expression for shape parameter is not '
+                'supported in Gurobi compiler.\n' + 
+                print_stack_trace(expr))
+        
+        # estimate mean as scale * Gamma(1 + 1/shape)
+        gampart = np.exp(lngamma(1. + 1. / gterm1))
+        gampart = max(min(gampart, GRB.INFINITY), -GRB.INFINITY)
+        prodexpr = gterm2 * gampart
+        symb = symb1 or symb2
+        if symb:
+            lb, ub = GurobiRDDLCompiler._fix_bounds_prod(lb2, ub2, gampart, gampart)
+            res = self._add_real_var(model, lb, ub)
+            model.addConstr(res == prodexpr)
+        else:
+            res = lb = ub = prodexpr
         return res, GRB.CONTINUOUS, lb, ub, symb
         
