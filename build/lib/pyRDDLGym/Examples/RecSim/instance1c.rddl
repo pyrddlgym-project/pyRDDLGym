@@ -1,0 +1,57 @@
+non-fluents nf_recsim_ecosystem_welfare_1c {
+	domain = recsim_ecosystem_welfare;
+	objects {
+		feature : {f1, f2};
+		item : {i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15};
+		consumer : {c1, c2, c3, c4, c5, c6, c7, c8, c9, c10};
+		provider : {pn, p1, p2, p3};
+	};
+	non-fluents {
+		CONSUMER-AFFINITY(c1, f1) = -43.14951705932617;
+		CONSUMER-AFFINITY(c1, f2) = 38.5489616394043;
+		CONSUMER-AFFINITY(c2, f1) = 19.181528091430664;
+		CONSUMER-AFFINITY(c2, f2) = -18.806482315063477;
+		CONSUMER-AFFINITY(c3, f1) = -19.127864837646484;
+		CONSUMER-AFFINITY(c3, f2) = 17.318410873413086;
+		CONSUMER-AFFINITY(c4, f1) = 7.642158508300781;
+		CONSUMER-AFFINITY(c4, f2) = -36.20130157470703;
+		CONSUMER-AFFINITY(c5, f1) = -1.0344631671905518;
+		CONSUMER-AFFINITY(c5, f2) = -35.44807052612305;
+		CONSUMER-AFFINITY(c6, f1) = 5.021791458129883;
+		CONSUMER-AFFINITY(c6, f2) = 6.348589897155762;
+		CONSUMER-AFFINITY(c7, f1) = 4.443108558654785;
+		CONSUMER-AFFINITY(c7, f2) = -19.02243423461914;
+		CONSUMER-AFFINITY(c8, f1) = 35.44076156616211;
+		CONSUMER-AFFINITY(c8, f2) = -15.210813522338867;
+		CONSUMER-AFFINITY(c9, f1) = -15.132030487060547;
+		CONSUMER-AFFINITY(c9, f2) = 21.400209426879883;
+		CONSUMER-AFFINITY(c10, f1) = -44.147483825683594;
+		CONSUMER-AFFINITY(c10, f2) = 8.17140007019043;
+		PROVIDER-COMPETENCE(p1, f1) = -1.568654179573059;
+		PROVIDER-COMPETENCE(p1, f2) = -3.77219295501709;
+		PROVIDER-COMPETENCE(p2, f1) = -1.372221827507019;
+		PROVIDER-COMPETENCE(p2, f2) = -4.517666339874268;
+		PROVIDER-COMPETENCE(p3, f1) = -8.35580825805664;
+		PROVIDER-COMPETENCE(p3, f2) = 5.5316267013549805;
+		NEXT-PROVIDER(pn, p1);
+		NEXT-PROVIDER(p1, p2);
+		NEXT-PROVIDER(p2, p3);
+		LESS(pn, p1);
+		LESS(pn, p2);
+		LESS(pn, p3);
+		LESS(p1, p2);
+		LESS(p1, p3);
+		LESS(p2, p3);
+		MAX-AFFINITY = 50.0;
+	};
+}
+instance inst_recsim_ecosystem_welfare_1c {
+	domain = recsim_ecosystem_welfare;
+	non-fluents = nf_recsim_ecosystem_welfare_1c;
+	init-state {
+		provider-satisfaction(pn) = 0.0;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}

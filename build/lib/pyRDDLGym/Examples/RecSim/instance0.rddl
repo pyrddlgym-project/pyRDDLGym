@@ -1,0 +1,49 @@
+non-fluents nf_recsim_ecosystem_welfare__1 {
+	domain = recsim_ecosystem_welfare;
+	objects {
+		feature : {f1, f2};
+		item : {i1, i2, i3, i4, i5};
+		consumer: {c1, c2, c3, c4, c5};
+		provider: {p1, p2, p3, pn}; // We need to add an extra provider for CDF computation;
+	};
+	non-fluents {
+		NEXT-PROVIDER(pn, p1);
+		NEXT-PROVIDER(p1, p2);
+		NEXT-PROVIDER(p2, p3);
+		LESS(pn, p1);
+		LESS(pn, p2);
+		LESS(pn, p3);
+		LESS(p1, p2);
+		LESS(p1, p3);
+		LESS(p2, p3);
+		PROVIDER-DISCOUNT(pn) = 0.0;
+		PROVIDER-COMPETENCE(p1, f1) = 1.0;
+		PROVIDER-COMPETENCE(p1, f2) = 1.0;
+		PROVIDER-COMPETENCE(p2, f1) = 1.0;
+		PROVIDER-COMPETENCE(p2, f2) = -1.0;
+		PROVIDER-COMPETENCE(p3, f1) = -1.0;
+		PROVIDER-COMPETENCE(p3, f2) = 1.0;
+		CONSUMER-AFFINITY(c1, f1) = 1.1;
+		CONSUMER-AFFINITY(c1, f2) = 0.9;
+		CONSUMER-AFFINITY(c2, f1) = 0.9;
+		CONSUMER-AFFINITY(c2, f2) = 1.1;
+		CONSUMER-AFFINITY(c3, f1) = 1.1;
+		CONSUMER-AFFINITY(c3, f2) = -1.1;
+		CONSUMER-AFFINITY(c4, f1) = -1.1;
+		CONSUMER-AFFINITY(c4, f2) = 1.1;
+		CONSUMER-AFFINITY(c5, f1) = -0.9;
+		CONSUMER-AFFINITY(c5, f2) = 0.9;
+		MAX-AFFINITY = 5.0;
+	};
+}
+
+instance recsim_ecosystem_welfare__0 {
+	domain = recsim_ecosystem_welfare;
+	non-fluents = nf_recsim_ecosystem_welfare__1;
+	init-state {
+		provider-satisfaction(pn) = 0.0;
+	};
+	max-nondef-actions = 1;
+	horizon  = 40;
+	discount = 1.0;
+}

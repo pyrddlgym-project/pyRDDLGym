@@ -1,0 +1,69 @@
+// //////////////////////////////////////////////////////////////////////
+// A simple DBN ( variables are not parameterized ) exhibiting use of
+// bools , ints , reals , enumerated types , intermediate variables , and
+// observation variables .
+//
+// Author : Scott Sanner ( ssanner [at] gmail .com )
+// //////////////////////////////////////////////////////////////////////
+domain propdbn {
+
+    requirements = {
+        reward-deterministic , // Reward is a deterministic function
+        integer-valued , // Uses integer variables
+        continuous , // Uses continuous variables
+        multivalued , // Uses enumerated variables
+        intermediate-nodes , // Uses intermediate nodes
+        partially-observed // Uses observation nodes
+    };
+
+    // User - defined types
+    types {
+		param : object;
+		enum_level : { @low , @medium , @high };
+    };
+
+    pvariables {
+        p(param) : { state-fluent , bool , default = false };
+		q(param) : { state-fluent , bool , default = false };
+		r(param) : { state-fluent , bool , default = false };
+
+		i1(param) : { interm-fluent , int , level = 1 };
+		i2(param) : { interm-fluent , enum_level , level = 2 };
+
+		o1(param) : { observ-fluent , bool };
+		o2(param) : { observ-fluent , real };
+
+		a : { action-fluent , bool , default = false };
+    };
+
+    cpfs {
+	
+        p'(?p) = if ( p(?p) ^ r(?p) ) then Bernoulli (.9) else Bernoulli (.3);
+
+		q'(?p) = if ( q(?p) ^ r(?p) ) then Bernoulli (.9) 
+					else if ( a ) then Bernoulli (.3) else Bernoulli (.8);
+	
+		r'(?p) = if ( ~q(?p) ) then KronDelta ( r(?p) ) else KronDelta ( r(?p) <=> q(?p) );
+
+		i1(?p) = KronDelta ( p(?p) + q(?p) + r(?p) );
+		
+		i2(?p) = Discrete ( enum_level ,
+			@low : if ( i1(?p) >= 2) then 0.5 else 0.2 ,
+			@medium : if ( i1(?p) >= 2) then 0.2 else 0.5 ,
+			@high : 0.3
+		);
+				
+		o1(?p) = Bernoulli ( ( p'(?p) + q'(?p) + r'(?p) ) / 3.0 );
+	
+		o2(?p) = switch ( i2(?p) ) {
+			case @low : i1(?p) + 1.0 + Normal (0.0 , i1(?p) * i1(?p) ) ,
+			case @medium : i1(?p) + 2.0 + Normal (0.0 , i1(?p) * i1(?p) /2.0) ,
+			case @high : i1(?p) + 3.0 + Normal (0.0 , i1(?p) * i1(?p) /4.0) 
+		};
+		
+    };
+
+    // A boolean functions as a 0/1 integer when a numerical value is needed
+    reward = ( sum_{?p : param} [p(?p) + q(?p) - r(?p) + 5* ( i2(?p) == @high )] );
+
+}

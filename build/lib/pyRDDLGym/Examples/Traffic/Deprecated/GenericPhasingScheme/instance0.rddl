@@ -1,0 +1,217 @@
+non-fluents isolated_intersection {
+    domain = BLX_model;
+
+    objects {
+        intersection : {i1, s1, s2, s3, s4};
+        phase        : {p0, p1, p2, p3, p4, p5, p6, p7};
+        action-token : {a0, a1, a2, a3, a4};
+        time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20};
+    };
+
+    non-fluents {
+        NUM-ACTION-TOKENS(i1) = 5;
+
+        // action token enumeration
+        ACTION-TOKEN-INDEX(a0) = 0;
+        ACTION-TOKEN-INDEX(a1) = 1;
+        ACTION-TOKEN-INDEX(a2) = 2;
+        ACTION-TOKEN-INDEX(a3) = 3;
+        ACTION-TOKEN-INDEX(a4) = 4;
+
+        // cartesian coordinates
+        X(i1) = 0;    Y(i1) = 0;
+        X(s1) = 100;  Y(s1) = 0;
+        X(s2) = 70;   Y(s2) = 100;
+        X(s3) = -100; Y(s3) = -100;
+        //X(s2) = 0;    Y(s2) = 100;
+        //X(s3) = -100; Y(s3) = 0;
+        X(s4) = 0;    Y(s4) = -100;
+
+        // intersection indices for identity comparison
+        INTERSECTION-INDEX(i1)  = 0;
+        INTERSECTION-INDEX(s1)  = 1;
+        INTERSECTION-INDEX(s2)  = 2;
+        INTERSECTION-INDEX(s3)  = 3;
+        INTERSECTION-INDEX(s4)  = 4;
+
+        // sink intersections
+        SINK(s1)                = true;
+        SINK(s2)                = true;
+        SINK(s3)                = true;
+        SINK(s4)                = true;
+
+        // source intersections
+        SOURCE(s1)              = true;
+        SOURCE(s2)              = true;
+        SOURCE(s3)              = true;
+        SOURCE(s4)              = true;
+
+        // traffic lights
+        TL(i1)                  = true;
+
+        // arrival rate from each source
+        ARRIVAL-RATE(s1)        = 0.5;
+        ARRIVAL-RATE(s2)        = 0.5;
+        ARRIVAL-RATE(s3)        = 0.5;
+        ARRIVAL-RATE(s4)        = 0.5;
+
+        // roads between intersections
+        LINK(s1,i1)             = true;
+        LINK(s2,i1)             = true;
+        LINK(s3,i1)             = true;
+        LINK(s4,i1)             = true;
+        LINK(i1,s1)             = true;
+        LINK(i1,s2)             = true;
+        LINK(i1,s3)             = true;
+        LINK(i1,s4)             = true;
+
+        // phase enumeration
+        PHASE-INDEX(p0)         = 0;
+        PHASE-INDEX(p1)         = 1;
+        PHASE-INDEX(p2)         = 2;
+        PHASE-INDEX(p3)         = 3;
+        PHASE-INDEX(p4)         = 4;
+        PHASE-INDEX(p5)         = 5;
+        PHASE-INDEX(p6)         = 6;
+        PHASE-INDEX(p7)         = 7;
+
+        // tie phases with traffic lights
+        PHASE-OF(p0,i1)        = true;
+        PHASE-OF(p1,i1)        = true;
+        PHASE-OF(p2,i1)        = true;
+        PHASE-OF(p3,i1)        = true;
+        PHASE-OF(p4,i1)        = true;
+        PHASE-OF(p5,i1)        = true;
+        PHASE-OF(p6,i1)        = true;
+        PHASE-OF(p7,i1)        = true;
+
+        // NEMA scheme
+        // which turns are green
+        GREEN(s1,i1,s4,p0)     = true;
+        GREEN(s3,i1,s2,p0)     = true;
+        GREEN(s1,i1,s4,p1)     = true;
+        GREEN(s1,i1,s3,p1)     = true;
+        GREEN(s3,i1,s1,p2)     = true;
+        GREEN(s3,i1,s2,p2)     = true;
+        GREEN(s1,i1,s3,p3)     = true;
+        GREEN(s3,i1,s1,p3)     = true;
+        GREEN(s2,i1,s1,p4)     = true;
+        GREEN(s4,i1,s3,p4)     = true;
+        GREEN(s4,i1,s2,p5)     = true;
+        GREEN(s4,i1,s3,p5)     = true;
+        GREEN(s2,i1,s1,p6)     = true;
+        GREEN(s2,i1,s4,p6)     = true;
+        GREEN(s4,i1,s2,p7)     = true;
+        GREEN(s2,i1,s4,p7)     = true;
+
+        // right turns always permitted
+        GREEN(s1,i1,s2,p0)=true; GREEN(s1,i1,s2,p1)=true;
+        GREEN(s1,i1,s2,p2)=true; GREEN(s1,i1,s2,p3)=true;
+        GREEN(s1,i1,s2,p4)=true; GREEN(s1,i1,s2,p5)=true;
+        GREEN(s1,i1,s2,p6)=true; GREEN(s1,i1,s2,p7)=true;
+
+        GREEN(s2,i1,s3,p0)=true; GREEN(s2,i1,s3,p1)=true;
+        GREEN(s2,i1,s3,p2)=true; GREEN(s2,i1,s3,p3)=true;
+        GREEN(s2,i1,s3,p4)=true; GREEN(s2,i1,s3,p5)=true;
+        GREEN(s2,i1,s3,p6)=true; GREEN(s2,i1,s3,p7)=true;
+
+        GREEN(s3,i1,s4,p0)=true; GREEN(s3,i1,s4,p1)=true;
+        GREEN(s3,i1,s4,p2)=true; GREEN(s3,i1,s4,p3)=true;
+        GREEN(s3,i1,s4,p4)=true; GREEN(s3,i1,s4,p5)=true;
+        GREEN(s3,i1,s4,p6)=true; GREEN(s3,i1,s4,p7)=true;
+
+        GREEN(s4,i1,s1,p0)=true; GREEN(s4,i1,s1,p1)=true;
+        GREEN(s4,i1,s1,p2)=true; GREEN(s4,i1,s1,p3)=true;
+        GREEN(s4,i1,s1,p4)=true; GREEN(s4,i1,s1,p5)=true;
+        GREEN(s4,i1,s1,p6)=true; GREEN(s4,i1,s1,p7)=true;
+        
+        // phase transitions
+        TRANSITION(p0,a0)       = 0;
+        TRANSITION(p0,a1)       = 1;
+        TRANSITION(p0,a2)       = 2;
+        TRANSITION(p0,a3)       = 3;
+        TRANSITION(p1,a0)       = 1;
+        TRANSITION(p1,a1)       = 3;
+        TRANSITION(p2,a0)       = 2;
+        TRANSITION(p2,a1)       = 3;
+        TRANSITION(p3,a0)       = 3;
+        TRANSITION(p3,a1)       = 4;
+        TRANSITION(p3,a2)       = 5;
+        TRANSITION(p3,a3)       = 6;
+        TRANSITION(p3,a4)       = 7;
+        TRANSITION(p4,a0)       = 4;
+        TRANSITION(p4,a1)       = 5;
+        TRANSITION(p4,a2)       = 6;
+        TRANSITION(p4,a3)       = 7;
+        TRANSITION(p5,a0)       = 5;
+        TRANSITION(p5,a1)       = 7;
+        TRANSITION(p6,a0)       = 6;
+        TRANSITION(p6,a1)       = 7;
+        TRANSITION(p7,a0)       = 7;
+        TRANSITION(p7,a1)       = 0;
+        TRANSITION(p7,a2)       = 1;
+        TRANSITION(p7,a3)       = 2;
+        TRANSITION(p7,a4)       = 3;
+
+        // protected-left phases have smaller min times
+        PHASE-MIN(p0)           = 4;
+        PHASE-MIN(p1)           = 4;
+        PHASE-MIN(p2)           = 4;
+        PHASE-MIN(p4)           = 4;
+        PHASE-MIN(p5)           = 4;
+        PHASE-MIN(p6)           = 4;
+
+        // time delay properties
+        TIME-HEAD(t0)           = true;
+        TIME-TAIL(t20)          = true;
+        TIME-VAL(t0)            = 0;
+        TIME-VAL(t1)            = 1;
+        TIME-VAL(t2)            = 2;
+        TIME-VAL(t3)            = 3;
+        TIME-VAL(t4)            = 4;
+        TIME-VAL(t5)            = 5;
+        TIME-VAL(t6)            = 6;
+        TIME-VAL(t7)            = 7;
+        TIME-VAL(t8)            = 8;
+        TIME-VAL(t9)            = 9;
+        TIME-VAL(t10)           = 10;
+        TIME-VAL(t11)           = 11;
+        TIME-VAL(t12)           = 12;
+        TIME-VAL(t13)           = 13;
+        TIME-VAL(t14)           = 14;
+        TIME-VAL(t15)           = 15;
+        TIME-VAL(t16)           = 16;
+        TIME-VAL(t17)           = 17;
+        TIME-VAL(t18)           = 18;
+        TIME-VAL(t19)           = 19;
+        TIME-VAL(t20)           = 20;
+        NEXT(t0,t1)             = true;
+        NEXT(t1,t2)             = true;
+        NEXT(t2,t3)             = true;
+        NEXT(t3,t4)             = true;
+        NEXT(t4,t5)             = true;
+        NEXT(t5,t6)             = true;
+        NEXT(t6,t7)             = true;
+        NEXT(t7,t8)             = true;
+        NEXT(t8,t9)             = true;
+        NEXT(t9,t10)            = true;
+        NEXT(t10,t11)           = true;
+        NEXT(t11,t12)           = true;
+        NEXT(t12,t13)           = true;
+        NEXT(t13,t14)           = true;
+        NEXT(t14,t15)           = true;
+        NEXT(t15,t16)           = true;
+        NEXT(t16,t17)           = true;
+        NEXT(t17,t18)           = true;
+        NEXT(t18,t19)           = true;
+        NEXT(t19,t20)           = true;
+    };
+}
+
+instance isolated_intersection_inst {
+    domain = BLX_model;
+    non-fluents = isolated_intersection;
+    max-nondef-actions = pos-inf;
+    horizon = 200;
+    discount = 1.0;
+}

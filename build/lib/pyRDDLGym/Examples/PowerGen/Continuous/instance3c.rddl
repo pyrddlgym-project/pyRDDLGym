@@ -1,0 +1,56 @@
+non-fluents nf_power_gen_3c {
+	domain = power_gen;
+	objects {
+		plant : {p1, p2, p3, p4, p5};
+	};
+	non-fluents {
+		MIN-CONSUMPTION = 6.0;
+		DEMAND-EXP-COEF = 0.03;
+		TEMP-VARIANCE = 7.0;
+		PROD-UNITS-MIN(p1) = 1.0;
+		PROD-UNITS-MAX(p1) = 6.0;
+		TURN-ON-COST(p1) = 6.0;
+		PROD-CHANGE-PENALTY(p1) = 1.0;
+		COST-PER-UNIT(p1) = 4.0;
+		PROD-SHAPE(p1) = 1.0;
+		PROD-SCALE(p1) = 0.000000100000000;
+		PROD-UNITS-MIN(p2) = 1.0;
+		PROD-UNITS-MAX(p2) = 6.0;
+		TURN-ON-COST(p2) = 6.0;
+		PROD-CHANGE-PENALTY(p2) = 1.0;
+		COST-PER-UNIT(p2) = 4.0;
+		PROD-SHAPE(p2) = 1.0;
+		PROD-SCALE(p2) = 0.000000100000000;
+		PROD-UNITS-MIN(p3) = 2.0;
+		PROD-UNITS-MAX(p3) = 20.0;
+		TURN-ON-COST(p3) = 60.0;
+		PROD-CHANGE-PENALTY(p3) = 2.0;
+		COST-PER-UNIT(p3) = 1.0;
+		PROD-SHAPE(p3) = 1.0;
+		PROD-SCALE(p3) = 0.001;
+		PROD-UNITS-MIN(p4) = 2.0;
+		PROD-UNITS-MAX(p4) = 20.0;
+		TURN-ON-COST(p4) = 60.0;
+		PROD-CHANGE-PENALTY(p4) = 2.0;
+		COST-PER-UNIT(p4) = 1.0;
+		PROD-SHAPE(p4) = 1.0;
+		PROD-SCALE(p4) = 0.001;
+		PROD-UNITS-MIN(p5) = 1.0;
+		PROD-UNITS-MAX(p5) = 4.0;
+		TURN-ON-COST(p5) = 4.0;
+		PROD-CHANGE-PENALTY(p5) = 0.5;
+		COST-PER-UNIT(p5) = 3.0;
+		PROD-SHAPE(p5) = 1.0;
+		PROD-SCALE(p5) = 1.0;
+	};
+}
+instance inst_power_gen_3c {
+	domain = power_gen;
+	non-fluents = nf_power_gen_3c;
+	init-state {
+		temperature = 27.796653699437393;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 100;
+	discount = 1.0;
+}

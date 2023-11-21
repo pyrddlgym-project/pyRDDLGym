@@ -1,0 +1,156 @@
+non-fluents isolated_intersection {
+    domain = BLX_model;
+
+    objects {
+        intersection : {i0};
+        link         : {l0, l1, l2, l3, l4, l5, l6, l7};
+        time         : {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20};
+    };
+
+    //             | |
+    //             | |
+    //             | |
+    //            l2 l1
+    //             | |
+    //             v ^
+    //             | |
+    //             ____
+    // --- l3 -<- | i0 | -<- l0 ---
+    // --- l4 ->- |____| ->- l7 ---
+    //             | |
+    //             v ^
+    //             | |
+    //            l5 l6
+    //             | |
+    //             | |
+    //             | |
+
+    non-fluents {
+        // cartesian coordinates
+        X(i0) = 0;    Y(i0) = 0;
+        SOURCE-X(l0) = 150;    SOURCE-Y(l0) = 0;
+        SOURCE-X(l2) = 100;    SOURCE-Y(l2) = 100;
+        SOURCE-X(l4) = -150;   SOURCE-Y(l4) = 0;
+        SOURCE-X(l6) = -100;   SOURCE-Y(l6) = -100;
+        SINK-X(l7) = 150;    SINK-Y(l7) = 0;
+        SINK-X(l1) = 100;    SINK-Y(l1) = 100;
+        SINK-X(l3) = -150;   SINK-Y(l3) = 0;
+        SINK-X(l5) = -100;   SINK-Y(l5) = -100;
+
+        // turns
+        TURN(l0,l1);
+        TURN(l0,l3);
+        TURN(l0,l5);
+        TURN(l2,l3);
+        TURN(l2,l5);
+        TURN(l2,l7);
+        TURN(l4,l5);
+        TURN(l4,l7);
+        TURN(l4,l1);
+        TURN(l6,l7);
+        TURN(l6,l1);
+        TURN(l6,l3);
+
+        // link-to
+        LINK-TO(l0,i0);
+        LINK-TO(l2,i0);
+        LINK-TO(l4,i0);
+        LINK-TO(l6,i0);
+
+        // link-from
+        LINK-FROM(i0,l1);
+        LINK-FROM(i0,l3);
+        LINK-FROM(i0,l5);
+        LINK-FROM(i0,l7);
+
+        // source links
+        SOURCE(l0);
+        SOURCE(l2);
+        SOURCE(l4);
+        SOURCE(l6);
+
+        // sink links
+        SINK(l1);
+        SINK(l3);
+        SINK(l5);
+        SINK(l7);
+
+        // arrival rate from each source
+        SOURCE-ARRIVAL-RATE(l0) = 0.3;
+        SOURCE-ARRIVAL-RATE(l2) = 0.3;
+        SOURCE-ARRIVAL-RATE(l4) = 0.3;
+        SOURCE-ARRIVAL-RATE(l6) = 0.3;
+
+        // green turns
+        GREEN(l0,l5,@WEST-EAST-LEFT);
+        GREEN(l4,l1,@WEST-EAST-LEFT);
+
+        GREEN(l0,l3,@WEST-EAST-THROUGH);
+        GREEN(l4,l7,@WEST-EAST-THROUGH);
+
+        GREEN(l2,l7,@NORTH-SOUTH-LEFT);
+        GREEN(l6,l3,@NORTH-SOUTH-LEFT);
+
+        GREEN(l2,l5,@NORTH-SOUTH-THROUGH);
+        GREEN(l6,l1,@NORTH-SOUTH-THROUGH);
+
+        // right turns are always permitted
+        GREEN(l0,l1,@ALL-RED); GREEN(l0,l1,@WEST-EAST-LEFT); GREEN(l0,l1,@ALL-RED2); GREEN(l0,l1,@WEST-EAST-THROUGH); GREEN(l0,l1,@ALL-RED3); GREEN(l0,l1,@NORTH-SOUTH-LEFT); GREEN(l0,l1,@ALL-RED4); GREEN(l0,l1,@NORTH-SOUTH-THROUGH);
+        GREEN(l2,l3,@ALL-RED); GREEN(l2,l3,@WEST-EAST-LEFT); GREEN(l2,l3,@ALL-RED2); GREEN(l2,l3,@WEST-EAST-THROUGH); GREEN(l2,l3,@ALL-RED3); GREEN(l2,l3,@NORTH-SOUTH-LEFT); GREEN(l2,l3,@ALL-RED4); GREEN(l2,l3,@NORTH-SOUTH-THROUGH);
+        GREEN(l4,l5,@ALL-RED); GREEN(l4,l5,@WEST-EAST-LEFT); GREEN(l4,l5,@ALL-RED2); GREEN(l4,l5,@WEST-EAST-THROUGH); GREEN(l4,l5,@ALL-RED3); GREEN(l4,l5,@NORTH-SOUTH-LEFT); GREEN(l4,l5,@ALL-RED4); GREEN(l4,l5,@NORTH-SOUTH-THROUGH);
+        GREEN(l6,l7,@ALL-RED); GREEN(l6,l7,@WEST-EAST-LEFT); GREEN(l6,l7,@ALL-RED2); GREEN(l6,l7,@WEST-EAST-THROUGH); GREEN(l6,l7,@ALL-RED3); GREEN(l6,l7,@NORTH-SOUTH-LEFT); GREEN(l6,l7,@ALL-RED4); GREEN(l6,l7,@NORTH-SOUTH-THROUGH);
+
+        // time delay properties
+        TIME-HEAD(t0)           = true;
+        TIME-TAIL(t20)          = true;
+        TIME-VAL(t0)            = 0;
+        TIME-VAL(t1)            = 1;
+        TIME-VAL(t2)            = 2;
+        TIME-VAL(t3)            = 3;
+        TIME-VAL(t4)            = 4;
+        TIME-VAL(t5)            = 5;
+        TIME-VAL(t6)            = 6;
+        TIME-VAL(t7)            = 7;
+        TIME-VAL(t8)            = 8;
+        TIME-VAL(t9)            = 9;
+        TIME-VAL(t10)           = 10;
+        TIME-VAL(t11)           = 11;
+        TIME-VAL(t12)           = 12;
+        TIME-VAL(t13)           = 13;
+        TIME-VAL(t14)           = 14;
+        TIME-VAL(t15)           = 15;
+        TIME-VAL(t16)           = 16;
+        TIME-VAL(t17)           = 17;
+        TIME-VAL(t18)           = 18;
+        TIME-VAL(t19)           = 19;
+        TIME-VAL(t20)           = 20;
+        NEXT(t0,t1);
+        NEXT(t1,t2);
+        NEXT(t2,t3);
+        NEXT(t3,t4);
+        NEXT(t4,t5);
+        NEXT(t5,t6);
+        NEXT(t6,t7);
+        NEXT(t7,t8);
+        NEXT(t8,t9);
+        NEXT(t9,t10);
+        NEXT(t10,t11);
+        NEXT(t11,t12);
+        NEXT(t12,t13);
+        NEXT(t13,t14);
+        NEXT(t14,t15);
+        NEXT(t15,t16);
+        NEXT(t16,t17);
+        NEXT(t17,t18);
+        NEXT(t18,t19);
+        NEXT(t19,t20);
+    };
+}
+
+instance isolated_intersection_inst_0 {
+    domain = BLX_model;
+    non-fluents = isolated_intersection;
+    max-nondef-actions = pos-inf;
+    horizon = 200;
+    discount = 1.0;
+}

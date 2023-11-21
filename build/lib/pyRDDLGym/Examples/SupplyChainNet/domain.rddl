@@ -1,0 +1,99 @@
+////////////////////////////////////////////////////////////////////
+// A modification of a typical supply chain control problem with a factory
+// and multiple warehouses. Here, there is a transportation cost of deliver-
+// ing goods between factory and warehouses, such that the allocation problem
+// can be seen as an embedded travelling salesman problem (TSP) of finding
+// the cheapest transporation route. Meanwhile, actions are continuous and
+// indicate the proportion of goods that must be shipped out of each factory
+// or warehouse to meet demand, modeled here as Poisson random variables, and
+// how many units to produce as a fraction of maximum production capacity.
+//
+// author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
+// 
+////////////////////////////////////////////////////////////////////
+domain supply_chain_network {
+
+	types {
+		warehouse : object;
+	};
+	
+	pvariables { 
+    	
+		// Constants
+		PRICE 								: { non-fluent, real, default = 0.6 };
+		PRODUCTION-COST 					: { non-fluent, real, default = 0.1 };
+		STORAGE-COST-FACTORY 				: { non-fluent, real, default = 0.03 };
+		STORAGE-COST-WAREHOUSE(warehouse) 	: { non-fluent, real, default = 0.03 };	
+		TRUCK-COST-FACTORY(warehouse) 		       : { non-fluent, real, default = 0.03 };
+		TRUCK-COST-WAREHOUSE(warehouse, warehouse) : { non-fluent, real, default = 0.03 };
+		
+		PRODUCTION-MAX						: { non-fluent, int, default = 100 };
+		TRUCK-CAPACITY           			: { non-fluent, int, default = 4 };		
+		DEMAND-RATE(warehouse)              : { non-fluent, real, default = 5.0 };	
+		
+    	// Action
+		produce 							 : { action-fluent, real, default = 0.0 };
+		ship-factory(warehouse) 			 : { action-fluent, real, default = 0.0 };
+		ship-warehouse(warehouse, warehouse) : { action-fluent, real, default = 0.0 };
+
+		// Derived and intermediate fluent		
+		ship-factory-adj(warehouse)         : { interm-fluent, real };
+		outflow-factory(warehouse)          : { interm-fluent, int };
+		outflow-factory-total               : { interm-fluent, int };
+		production                          : { interm-fluent, int };
+		
+		ship-warehouse-adj(warehouse, warehouse) : { interm-fluent, real };
+		outflow-warehouse(warehouse, warehouse)  : { interm-fluent, int };
+		outflow-warehouse-total(warehouse)  : { interm-fluent, int };
+		inflow-warehouse-total(warehouse)   : { interm-fluent, int };
+		supply(warehouse)                   : { interm-fluent, int };
+		demand(warehouse) 				    : { interm-fluent, int };
+		
+		// State
+		stock-factory 						: { state-fluent, int, default = 0 };
+		stock-warehouse(warehouse) 			: { state-fluent, int, default = 0 };		
+	};
+	
+	cpfs {
+	
+		// Update factory stock
+		ship-factory-adj(?w) = ship-factory(?w) / max[1, (sum_{?w1 : warehouse} ship-factory(?w1))];
+		outflow-factory(?w) = floor[stock-factory * ship-factory-adj(?w)];
+		outflow-factory-total = (sum_{?w : warehouse} outflow-factory(?w));
+		production = floor[PRODUCTION-MAX * produce];
+		stock-factory' = stock-factory - outflow-factory-total + production;
+		
+		// Update warehouse stock
+		ship-warehouse-adj(?s, ?d) = ship-warehouse(?s, ?d) / max[1, (sum_{?w : warehouse} ship-warehouse(?s, ?w))];
+		outflow-warehouse(?s, ?d) = floor[stock-warehouse(?s) * ship-warehouse-adj(?s, ?d)];
+		outflow-warehouse-total(?w) = (sum_{?d : warehouse} outflow-warehouse(?w, ?d));
+		inflow-warehouse-total(?w) = (sum_{?s : warehouse} outflow-warehouse(?s, ?w)) + outflow-factory(?w);
+		supply(?w) = stock-warehouse(?w) + inflow-warehouse-total(?w) - outflow-warehouse-total(?w);
+		demand(?w) = min[Poisson(DEMAND-RATE(?w)), supply(?w)];
+		stock-warehouse'(?w) = supply(?w) - demand(?w);
+	};
+  
+	// revenue from sales, minus production cost, storage cost, penalty cost, and shipping cost
+	reward = (sum_{?w : warehouse} [ PRICE * demand(?w) ])
+	         - (sum_{?w : warehouse} [ PRODUCTION-COST * production ])
+			 - (STORAGE-COST-FACTORY * stock-factory)
+			 - (sum_{?w : warehouse} [ STORAGE-COST-WAREHOUSE(?w) * stock-warehouse(?w) ])
+			 - (sum_{?w : warehouse} [ TRUCK-COST-FACTORY(?w) * (outflow-factory(?w) / TRUCK-CAPACITY) ])
+			 - (sum_{?s : warehouse, ?d : warehouse} [ TRUCK-COST-WAREHOUSE(?s, ?d) * (outflow-warehouse(?s, ?d) / TRUCK-CAPACITY) ]);
+	
+	state-invariants {
+		
+		// stock within bounds
+		stock-factory >= 0;
+		forall_{?w : warehouse} [ stock-warehouse(?w) >= 0 ];
+	};
+	
+	action-preconditions {
+
+		// Production amounts within bounds 
+		produce >= 0.0 ^ produce <= 1.0;
+		forall_{?w : warehouse} [ ship-factory(?w) >= 0.0 ^ ship-factory(?w) <= 1.0 ];
+		forall_{?s : warehouse, ?d : warehouse} [ ship-warehouse(?s, ?d) >= 0.0 ^ ship-warehouse(?s, ?d) <= 1.0 ];
+	};
+	
+}

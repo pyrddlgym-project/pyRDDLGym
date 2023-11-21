@@ -1,0 +1,4 @@
+[General]
+name=PowerGen_discrete
+description=A simple power generation problem loosely modeled on the problem of unit commitment.
+viz=PowerGenViz.PowerGenVisualizer

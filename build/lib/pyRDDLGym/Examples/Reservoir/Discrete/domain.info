@@ -1,0 +1,4 @@
+[General]
+name=Reservoir_discrete
+description=Discrete version of management of the water level in interconnected reservoirs.
+viz=ReservoirViz.ReservoirVisualizer

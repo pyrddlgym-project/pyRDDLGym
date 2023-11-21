@@ -1,0 +1,70 @@
+// //////////////////////////////////////////////////////////////////////
+// A simple model to test new language features.
+// //////////////////////////////////////////////////////////////////////
+domain newsyntax {
+
+    requirements = {
+		reward-deterministic
+    };
+
+    types {
+		enum_level : { @l1 , @l2 , @l3 };
+    };
+
+    pvariables {
+		COST(enum_level)  : { non-fluent , real , default = 1 };
+		NEXT(enum_level)  : { non-fluent , enum_level , default = @l1 };
+		TRIALS(enum_level) : { non-fluent , int , default = 20 };
+		
+        matrix(enum_level, enum_level) : { state-fluent , enum_level , default = @l1 };	
+        vector(enum_level)             : { state-fluent , enum_level , default = @l1 };	
+		scalar                         : { state-fluent , enum_level , default = @l1 };
+		biggest(enum_level)            : { state-fluent , enum_level , default = @l1 };
+		
+		mean(enum_level, enum_level)            :  { interm-fluent , real };
+		cov(enum_level, enum_level, enum_level) :  { interm-fluent , real };
+		alpha(enum_level)                       :  { interm-fluent , real };
+		prob(enum_level)            :  { interm-fluent , real };
+		
+		gaussian-fluent(enum_level, enum_level)  : { state-fluent , real , default = 0 };
+		student-fluent(enum_level)               : { state-fluent , real , default = 0 };
+		dirichlet-fluent(enum_level)             : { state-fluent , real , default = 0 };
+		multi-fluent(enum_level, enum_level)     : { state-fluent , int , default = 0 };
+		det-fluent                               : { state-fluent , real , default = 0 };
+		inv-fluent(enum_level, enum_level)       : { state-fluent , real , default = 0 };
+		
+		a : { action-fluent , bool , default = false };
+    };
+
+    cpfs {
+		
+		// nested indexing
+        matrix'(?p, ?q) = NEXT(matrix(?p, ?q));	
+		vector'(?p) = matrix'(NEXT(?p), NEXT(?p));
+		scalar' = NEXT(NEXT(NEXT(matrix'(NEXT(NEXT(NEXT(@l1))), NEXT(NEXT(NEXT(@l3)))))));
+		
+		// argmax and argmin
+		biggest'(?p) = ( argmax_{?q : enum_level } [ COST(matrix'(?p, ?q)) ] );
+		
+		// parameter (dis)equality
+		cov(?p, ?q, ?r) = if (?p == ?r) then 1.0 else 0.0;
+		
+		// multivariate normal and student
+		mean(?p, ?q) = COST(?q);
+		gaussian-fluent'(?p, ?q) = MultivariateNormal[?q]( mean(?p, _), cov(_, ?p, _) );
+		student-fluent'(?p) = MultivariateStudent[?p]( mean(@l1, _), cov(_, @l1, _), COST(@l3) );
+		
+		// other vectorized distributions
+		alpha(?p) = 10 * COST(?p);
+		dirichlet-fluent'(?p) = Dirichlet[?p]( alpha(_) );
+		prob(?p) = alpha(?p) / ( sum_{?q2 : enum_level} [ alpha(?q2) ] );
+		multi-fluent'(?p, ?q) = Multinomial[?q]( TRIALS(?p), prob(_) );	
+		
+		// matrix algebra
+		det-fluent' = ( det_{?p : enum_level, ?q : enum_level} gaussian-fluent'(?p, ?q) );
+		inv-fluent'(?p, ?q) = inverse[row=?p, col=?q][ gaussian-fluent'(?p, ?q) ];
+    };
+
+    reward = ( sum_{?p : enum_level, ?q : enum_level} [ COST(matrix(?p, ?q)) ] );
+	
+}
