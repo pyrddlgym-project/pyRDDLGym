@@ -1,0 +1,40 @@
+non-fluents Reservoir_10nf {
+	domain = reservoir_control_dis;
+
+	objects{
+		reservoir: {t1, t2, t3, t4, t5, t6, t7, t8, t9, t10};
+	};
+
+	non-fluents {
+		RES_CONNECT(t1,t5);
+		RES_CONNECT(t2,t5);
+		RES_CONNECT(t2,t6);
+		RES_CONNECT(t3,t6);
+		RES_CONNECT(t3,t7);
+		RES_CONNECT(t4,t7);
+		RES_CONNECT(t5,t8);
+		RES_CONNECT(t6,t8);
+		RES_CONNECT(t6,t9);
+		RES_CONNECT(t7,t9);
+		RES_CONNECT(t8,t10);
+		RES_CONNECT(t9,t10);
+		CONNECTED_TO_SEA(t10);
+	};
+}
+
+instance Reservoir_cont_1 {
+	domain = reservoir_control_dis;
+	non-fluents = Reservoir_10nf;
+
+	init-state{
+		rlevel(t1) = 45.0;
+		rlevel(t4) = 60.0;
+		rlevel(t8) = 40.0;
+		rlevel(t10) = 95.0;
+	};
+
+	max-nondef-actions = pos-inf;
+	horizon = 120;
+	discount = 1.0;
+}
+

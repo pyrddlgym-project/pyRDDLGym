@@ -1,0 +1,4 @@
+[General]
+name=UAV_discrete
+description=Discrete action space version of multi-UAV problem where a group of UAVs have to reach goal positions in the 3d Space.
+viz=UAVsViz.UAVsVisualizer

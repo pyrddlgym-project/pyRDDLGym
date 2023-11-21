@@ -1,0 +1,30 @@
+non-fluents HVAC_3nf {
+	domain = hvac;
+
+	objects{
+		zone: {z1, z2, z3};
+		heater: {h1, h2};
+	};
+
+	non-fluents {
+	    SIGMA(z1) = 0.1;
+	    ADJ-HEATER(h1, z1) = true;
+	    ADJ-HEATER(h2, z2) = true;
+	    ADJ-HEATER(h2, z3) = true;
+	    ADJ-ZONES(z1, z3) = true;
+	};
+}
+
+instance HVAC_2 {
+	domain = hvac;
+	non-fluents = HVAC_3nf;
+
+	init-state{
+		temp-zone(z1) = 5;
+		temp-heater(h1) = 0;
+	};
+
+	max-nondef-actions = pos-inf;
+	horizon = 120;
+	discount = 1.0;
+}

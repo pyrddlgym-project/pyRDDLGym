@@ -1,0 +1,98 @@
+////////////////////////////////////////////////////////////////////
+// A supply chain control problem.
+//
+////////////////////////////////////////////////////////////////////
+domain supply_chain {
+
+	types {
+		warehouse : object;
+	};
+	
+	pvariables { 
+    	
+		// Constants
+		PRICE 								: { non-fluent, real, default = 1.0 };
+		PRODUCTION-COST 					: { non-fluent, real, default = 0.2 };
+		PENALTY-COST 						: { non-fluent, real, default = 0.1 };
+		TRUCK-COST(warehouse) 				: { non-fluent, real, default = 0.06 };
+		STORAGE-COST-FACTORY 				: { non-fluent, real, default = 0.05 };
+		STORAGE-COST-WAREHOUSE(warehouse) 	: { non-fluent, real, default = 0.05 };
+		
+		CAPACITY-FACTORY					: { non-fluent, int, default = 20 };
+		CAPACITY-WAREHOUSE(warehouse)		: { non-fluent, int, default = 20 };
+		TRUCK-CAPACITY(warehouse) 			: { non-fluent, int, default = 5 };
+		PRODUCE-MAX							: { non-fluent, int, default = 15 };
+		
+		MAX-DEMAND 							: { non-fluent, int, default = 20 };
+		INDEX(warehouse)					: { non-fluent, int, default = 0 };
+		
+    	// Action
+		produce 							: { action-fluent, int, default = 0 };
+		ship(warehouse) 					: { action-fluent, int, default = 0 };
+
+		// State
+		demand-old(warehouse) 				: { state-fluent, int, default = 0 };
+		demand-new(warehouse) 				: { state-fluent, int, default = 0 };
+		epoch								: { state-fluent, int, default = 0 };
+		stock-factory 						: { state-fluent, int, default = 0 };
+		stock-warehouse(warehouse) 			: { state-fluent, int, default = 0 };
+		
+		// Derived and intermediate
+		outflow 							: { interm-fluent, int };
+	};
+	
+	cpfs {
+						
+		// Update old demand
+		demand-old'(?w) = demand-new(?w);
+		
+		// Update new demand -- periodic with stochastic shocks
+		demand-new'(?w) = min[floor[ (MAX-DEMAND / 2) * sin[ 2 * 3.14159265 * (epoch + 2 * INDEX(?w)) / 12 ] 
+								+ (MAX-DEMAND / 2) + Bernoulli( 0.5 ) ], MAX-DEMAND];
+		epoch' = epoch + 1;
+		
+		// Update factory stock
+		outflow = (sum_{?w : warehouse} [ ship(?w) ]);
+		stock-factory' = max[min[stock-factory + produce - outflow, CAPACITY-FACTORY], 0];
+		
+		// Update warehouse stock
+		stock-warehouse'(?w) = max[min[stock-warehouse(?w) + ship(?w) - demand-new'(?w), CAPACITY-WAREHOUSE(?w)], 0];
+	};
+  
+	// revenue from sales, minus production cost, storage cost, penalty cost, and shipping cost
+	reward = (sum_{?w : warehouse} [ PRICE * demand-new'(?w) ])
+				- (PRODUCTION-COST * produce)
+				- (STORAGE-COST-FACTORY * max[stock-factory, 0])
+				- (sum_{?w : warehouse} [ STORAGE-COST-WAREHOUSE(?w) * max[stock-warehouse(?w), 0] ])
+				+ (sum_{?w : warehouse} [ PENALTY-COST * min[stock-warehouse(?w), 0] ])
+				- (sum_{?w : warehouse} [ TRUCK-COST(?w) * ceil[ ship(?w) / TRUCK-CAPACITY(?w) ] ]);
+	
+	state-invariants {
+		
+		// Demand within bounds
+		forall_{?w : warehouse} [ demand-old(?w) >= 0 ];
+		forall_{?w : warehouse} [ demand-old(?w) <= MAX-DEMAND ];
+		forall_{?w : warehouse} [ demand-new(?w) >= 0 ];
+		forall_{?w : warehouse} [ demand-new(?w) <= MAX-DEMAND ];
+		epoch >= 0;
+		
+		// Stock within bounds
+		stock-factory >= 0;
+		stock-factory <= CAPACITY-FACTORY;		
+		forall_{?w : warehouse} [ stock-warehouse(?w) >= 0 ];
+		forall_{?w : warehouse} [ stock-warehouse(?w) <= CAPACITY-WAREHOUSE(?w) ];
+	};
+	
+	action-preconditions {
+
+		// Production amounts within bounds 
+		produce >= 0;
+		produce <= PRODUCE-MAX;		
+		
+		// Shipping amounts within bounds
+		forall_{?w : warehouse} [ ship(?w) >= 0 ];
+		forall_{?w : warehouse} [ ship(?w) <= CAPACITY-WAREHOUSE(?w) ];
+		(sum_{?w : warehouse} [ ship(?w) ]) <= stock-factory;
+	};
+	
+}

@@ -1,0 +1,46 @@
+// //////////////////////////////////////////////////////////////////////
+// A simple model to test new language features using Newtons method
+// to find the zeros of a nonlinear system of equation. For illustration,
+// I use RDDL to find the solution of the following system of equations
+//
+// (1)		x e^y = 1
+// (2)		-x^2 + y = 1
+//
+// //////////////////////////////////////////////////////////////////////
+domain newton {
+
+    requirements = {
+		reward-deterministic
+    };
+
+    types {
+		dim : { @1, @2 };
+    };
+
+    pvariables {
+		fun(dim)           : { interm-fluent , real };  
+		jac(dim, dim)      : { interm-fluent , real };
+		
+		sol(dim)           : { state-fluent , real , default = 0 }; 
+		
+		lr(dim)            : { action-fluent , real , default = 0.1 };
+    };
+
+    cpfs {
+		fun(?p) = if (?p == @1) then sol(@1) * exp[sol(@2)] - 1
+				  else               sol(@2) - pow[sol(@1), 2] - 1;
+					
+		jac(?p, ?q) = if (?p == @1 ^ ?q == @1) then      exp[sol(@2)]
+					  else if (?p == @1 ^ ?q == @2) then sol(@1) * exp[sol(@2)]
+					  else if (?p == @2 ^ ?q == @1) then (-2) * sol(@1)
+					  else                               1;
+		
+		sol'(?p) = sol(?p) - lr(?p) * ( sum_{?q : dim} [inverse[row=?p, col=?q][jac(?p, ?q)] * fun(?q)] );
+    };	
+
+    reward = -sqrt[(sum_{?p : dim} pow[sol'(?p) - sol(?p), 2])];
+	
+	action-preconditions {
+		forall_{?p : dim} [lr(?p) >= 0.01 ^ lr(?p) <= 1.0];
+	};
+}

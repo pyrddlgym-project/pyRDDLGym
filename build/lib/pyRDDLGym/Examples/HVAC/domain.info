@@ -1,0 +1,5 @@
+[General]
+name=HVAC
+description=Multi-zone and multi-heater HVAC control problem
+viz=HVACViz.HVACVisualizer
+generator=HVACInstanceGenerator.HVACInstanceGenerator

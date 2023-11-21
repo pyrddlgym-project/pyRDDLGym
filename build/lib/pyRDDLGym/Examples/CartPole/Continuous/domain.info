@@ -1,0 +1,4 @@
+[General]
+name=CartPole_continuous
+description=A simple continuous state-action MDP for the classical cart-pole system by Rich Sutton, with actions that describe the continuous force applied to the cart.
+viz=CartPoleViz.CartPoleVisualizer

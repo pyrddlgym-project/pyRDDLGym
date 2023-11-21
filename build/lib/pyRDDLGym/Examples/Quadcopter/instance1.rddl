@@ -1,0 +1,62 @@
+non-fluents quadcopter_nf_4 {
+
+	domain = quadcopter;
+	
+	objects {
+		drone : { d1, d2, d3, d4 };
+	};
+	
+	non-fluents {
+		TX(d1) = 2.0;
+		TY(d1) = 2.0;
+		TZ(d1) = 4.0;
+		ID(d1) = 1;
+		
+		TX(d2) = 2.0;
+		TY(d2) = 2.0;
+		TZ(d2) = 4.0;
+		ID(d2) = 2;
+		
+		TX(d3) = 2.0;
+		TY(d3) = 2.0;
+		TZ(d3) = 4.0;
+		ID(d3) = 3;
+		
+		TX(d4) = 2.0;
+		TY(d4) = 2.0;
+		TZ(d4) = 4.0;
+		ID(d4) = 4;
+ 	}; 
+ }
+ 
+instance quadcopter_inst_1 {
+
+	domain = quadcopter; 
+
+ 	non-fluents = quadcopter_nf_4;
+	
+	init-state{
+		x(d1) = -2;
+		y(d1) = 0;
+		z(d1) = 0;
+		
+		x(d2) = 2;
+		y(d2) = 0;
+		z(d2) = 0;
+		
+		x(d3) = 0;
+		y(d3) = -2;
+		z(d3) = 0;
+		
+		x(d4) = 0;
+		y(d4) = 2;
+		z(d4) = 0;
+	};
+	
+	max-nondef-actions = pos-inf;
+
+	horizon = 200;
+	
+	discount = 1.0;
+} 
+
