@@ -724,6 +724,33 @@ class GurobiRDDLCompiler:
                     res = lb = ub = abs(gterm)           
                 return res, vtype, lb, ub, symb
             
+            elif name == 'sgn':
+                if symb:
+                    if lb > 0:
+                        res = lb = ub = 1
+                        symb = False
+                    elif ub < 0:
+                        res = lb = ub = -1
+                        symb = False
+                    else:
+                        pos = self._add_bool_var(model)
+                        model.addConstr((pos == 1) >> (gterm >= self.epsilon))
+                        model.addConstr((pos == 0) >> (gterm <= 0))
+                        neg = self._add_bool_var(model)
+                        model.addConstr((neg == 1) >> (gterm <= -self.epsilon))
+                        model.addConstr((neg == 0) >> (gterm >= 0))
+                        res = self._add_int_var(model, lb=-1, ub=1)
+                        model.addConstr(res + neg == pos)
+                        lb, ub = -1, 1
+                else:
+                    if gterm > 0:
+                        res = lb = ub = 1
+                    elif gterm < 0:
+                        res = lb = ub = -1
+                    else:
+                        res = lb = ub = 0
+                return res, GRB.INTEGER, lb, ub, symb
+                
             elif name == 'floor':
                 if symb:
                     lb, ub = GurobiRDDLCompiler._fix_bounds(
