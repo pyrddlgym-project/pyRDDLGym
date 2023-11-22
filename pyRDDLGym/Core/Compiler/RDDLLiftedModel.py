@@ -16,6 +16,12 @@ from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 class RDDLLiftedModel(PlanningModel):
     '''Represents a RDDL domain + instance in lifted form.'''
     
+    PRIMITIVE_TYPES = {
+        'int': int,
+        'real': float,
+        'bool': bool
+    }
+    
     def __init__(self, rddl):
         super(RDDLLiftedModel, self).__init__()
         
@@ -152,12 +158,31 @@ class RDDLLiftedModel(PlanningModel):
     def _extract_default_value(self, pvar):
         prange, default = pvar.range, pvar.default
         if default is not None:
+            
+            # is an object
             if isinstance(default, str):
                 default = self.object_name(default)
-            if prange in self.objects and default not in self.objects[prange]:
-                raise RDDLTypeError(
-                    f'Default value <{default}> of variable <{pvar.name}> '
-                    f'is not an object of type <{prange}>.')         
+                if default not in self.objects.get(prange, set()):
+                    raise RDDLTypeError(
+                        f'Default value {default} of variable <{pvar.name}> '
+                        f'is not an object of type <{prange}>.')                     
+            
+            # is a primitive
+            else:
+                dtype = RDDLLiftedModel.PRIMITIVE_TYPES.get(prange, None)
+                if dtype is None:
+                    raise RDDLTypeError(
+                        f'Type <{prange}> of variable <{pvar.name}> is an object '
+                        f'or enumerated type, but assigned a default value '
+                        f'{default}.')
+                
+                # type cast
+                if not np.can_cast(default, dtype):
+                    raise RDDLTypeError(
+                        f'Default value {default} of variable <{pvar.name}> '
+                        f'cannot be cast to required type <{prange}>.')
+                default = dtype(default)
+            
         return default
     
     def _extract_states(self):
