@@ -51,8 +51,7 @@ class ChartVisualizer(StateViz):
             ))
             self._historic_min_max[state] = (np.inf, -np.inf)
         self._step = 0
-        
-        self._setup()
+        self._drawn_artists = False
     
     def _setup(self):
         
@@ -76,7 +75,7 @@ class ChartVisualizer(StateViz):
             self._ax[y].yaxis.label.set_fontsize(self._fontsize)
             if y == len(self._state_hist) - 1:
                 self._ax[y].set_xlabel('decision epoch')
-            self._ax[y].set_ylabel(state)
+            self._ax[y].set_ylabel(state, rotation=15)
             
             # plot boolean fluent
             if self._model.variable_ranges[state] == 'bool':
@@ -132,7 +131,7 @@ class ChartVisualizer(StateViz):
         plt.tight_layout()
                     
         self._backgrounds = [self._fig.canvas.copy_from_bbox(ax.bbox) for ax in self._ax]
-        
+        self._drawn_artists = True
         
     def convert2img(self, fig, ax):
         fig.canvas.draw()
@@ -146,6 +145,8 @@ class ChartVisualizer(StateViz):
         return img
 
     def render(self, state):
+        if not self._drawn_artists:
+            self._setup()
 
         # update the state info
         if self._step >= self._steps:
