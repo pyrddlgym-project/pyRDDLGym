@@ -429,6 +429,7 @@ class GurobiRDDLCompiler:
             if op == '+':
                 sumexpr, vtype, lb, ub, symb = results[0]
                 vtype = GurobiRDDLCompiler._at_least_int(vtype)
+                res = sumexpr
                 for (gterm2, vtype2, lb2, ub2, symb2) in results[1:]:
                     sumexpr = sumexpr + gterm2
                     vtype = GurobiRDDLCompiler._promote_vtype(vtype, vtype2)
@@ -448,6 +449,7 @@ class GurobiRDDLCompiler:
             elif op == '*':
                 prodexpr, vtype, lb, ub, symb = results[0]
                 vtype = GurobiRDDLCompiler._at_least_int(vtype)
+                res = prodexpr
                 for (gterm2, vtype2, lb2, ub2, symb2) in results[1:]:
                     prodexpr = prodexpr * gterm2
                     vtype = GurobiRDDLCompiler._promote_vtype(vtype, vtype2)
