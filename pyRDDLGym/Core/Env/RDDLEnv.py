@@ -311,8 +311,15 @@ class RDDLEnv(gym.Env):
                 self.window.fill(0)
                 pygameSurface = self.pilImageToSurface(image)
                 self.window.blit(pygameSurface, (0, 0))
+                pygame.display.set_caption(self.model.instanceName())
                 pygame.display.flip()
-    
+                
+                # prevents the window from freezing up midway
+                # https://www.reddit.com/r/pygame/comments/eq970n/pygame_window_freezes_seconds_into_animation/?rdt=63412
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pass
+        
             if self._movie_generator is not None:
                 self._movie_generator.save_frame(image)
     
