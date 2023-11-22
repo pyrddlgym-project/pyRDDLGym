@@ -435,12 +435,13 @@ class GurobiRDDLCompiler:
                     lb, ub = GurobiRDDLCompiler._fix_bounds(lb + lb2, ub + ub2)
                     symb = symb or symb2
                 
-                # assign sum to a new variable
-                if symb:
-                    res = self._add_var(model, vtype, lb, ub)
-                    model.addConstr(res == sumexpr)
-                else:
-                    res = lb = ub = sumexpr                   
+                    # assign sum to a new variable
+                    if symb:
+                        res = self._add_var(model, vtype, lb, ub)
+                        model.addConstr(res == sumexpr)
+                        sumexpr = res
+                    else:
+                        res = lb = ub = sumexpr                   
                 return res, vtype, lb, ub, symb
             
             # unwrap multiplication to binary operations
@@ -453,12 +454,13 @@ class GurobiRDDLCompiler:
                     lb, ub = GurobiRDDLCompiler._fix_bounds_prod(lb, ub, lb2, ub2)
                     symb = symb or symb2
                     
-                # assign product to a new variable
-                if symb: 
-                    res = self._add_var(model, vtype, lb, ub)
-                    model.addConstr(res == prodexpr)
-                else:
-                    res = lb = ub = prodexpr                    
+                    # assign product to a new variable
+                    if symb: 
+                        res = self._add_var(model, vtype, lb, ub)
+                        model.addConstr(res == prodexpr)
+                        prodexpr = res
+                    else:
+                        res = lb = ub = prodexpr                    
                 return res, vtype, lb, ub, symb
             
             # subtraction
