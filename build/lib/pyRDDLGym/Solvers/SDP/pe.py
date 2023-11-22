@@ -8,7 +8,9 @@ import sympy as sp
 
 from xaddpy.xadd.xadd import DeltaFunctionSubstitution
 
-import pdb
+from typing import Set
+
+from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import _topological_sort
 
 class PolicyEvaluation(SymbolicSolver):
 
@@ -75,9 +77,13 @@ class PolicyEvaluation(SymbolicSolver):
             q = self.context.apply(q, self.mdp.model.reward, 'add')
 
         # # Get variables to eliminate
-        # # TODO: Do we need to handle topological ordering?
-        # # graph = self.mdp.build_dbn_dependency_dag(action, vars_to_regress)        
+        ## old method of filtering vars to regress only in q
         vars_to_regress = self.filter_i_and_ns_vars(self.context.collect_vars(q), True, True)
+
+        # vars_to_regress = list(set.union(self.mdp.cont_i_vars, self.mdp.bool_i_vars, 
+        #                             self.mdp.cont_ns_vars, self.mdp.bool_ns_vars))
+        # call_graph = self.level_analyzer.build_call_graph()
+        # sorted_graph = _topological_sort(call_graph)
 
         sorted_vars_to_regress = self.sort_var_set(vars_to_regress)
 
@@ -87,9 +93,11 @@ class PolicyEvaluation(SymbolicSolver):
                 q = self.regress_cvars(q, v)
             elif v in self.mdp.bool_ns_vars or v in self.mdp.bool_i_vars:
                 q = self.regress_bvars(q, v)
-        
-        # # bernoulli noise
+
+               
+        # # # bernoulli noise
         # ber_vars_to_regress = self.filter_ber_vars(self.context.collect_vars(q))
+        
         # for v in ber_vars_to_regress:
         #     q = self.regress_ber_vars(q, v)
 
@@ -159,6 +167,31 @@ class PolicyEvaluation(SymbolicSolver):
         q = self.context.apply(q_true, q_false, 'add')
 
         return q
+    
+    
+    # def regress_ber_vars(self, q: int, v: sp.Symbol) -> int:
+    #     prob_id = int(str(v).split('_')[-1])
+    #     not_prob_id = self.context.apply(self.context.ONE, prob_id, 'subtract')
+
+    #     dec_id = self.context._expr_to_id[self.mdp.model.ns[str(v)]]
+
+    #     restrict_high = self.context.op_out(q, dec_id, 'restrict_high')
+    #     restrict_low = self.context.op_out(q, dec_id, 'restrict_low')
+
+    #     true_prob_id = self.context.apply(restrict_high, prob_id, 'prod')
+    #     false_prob_id = self.context.apply(restrict_low, not_prob_id, 'prod')
+
+    #     q = self.context.apply(true_prob_id, false_prob_id, 'add')
+
+    #     return q
+
+    # def filter_ber_vars(
+    #         self, var_set: set) -> Set[str]:
+    #     filtered_vars = set()
+    #     for v in var_set:
+    #         if str(v).startswith('#_UNIFORM'):
+    #             filtered_vars.add(v)
+    #     return filtered_vars
     
     def preload_policy(self):
         policy_cpfs = {}
