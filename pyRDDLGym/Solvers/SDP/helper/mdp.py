@@ -25,6 +25,7 @@ class MDP:
         self.context = model._context
         self.is_linear = is_linear
         self.discount = discount
+        self.max_allowed_actions = self.model.max_allowed_actions
         self._prime_subs = self.get_prime_subs()
 
         self.cont_ns_vars = set()
@@ -39,7 +40,7 @@ class MDP:
         self.actions: Dict[str, Action] = {}
         self.a_var_to_action: Dict[sp.Symbol, Action] = {}
         self.action_to_a_var: Dict[Action, sp.Symbol] = {}
-        self.cont_action_bounds: Dict[CAction, Tuple[float, float]] = {}
+        self.cont_action_bounds: Dict[sp.Symbol, Tuple[float, float]] = {}
 
         # Cache
         self.cont_regr_cache: Dict[Tuple[str, int, int], int] = {}
@@ -55,7 +56,7 @@ class MDP:
             prime_subs[s_var] = ns_var
         return prime_subs
 
-    def update_var_sets(self):
+    def update_i_and_ns_var_sets(self):
         m = self.model
         for v, vtype in m.gvar_to_type.items():
             if v in m.nonfluents:
@@ -82,6 +83,35 @@ class MDP:
         self.a_var_to_action[action.symbol] = action
         self.action_to_a_var[action] = action.symbol
 
+    def update(self) -> None:
+        """Goes through all CPFs and actions and updates them."""
+        dual_action_cpfs = {}
+        for a_name, act in self.actions.items():
+            # Update CPFs.
+            for v_name, cpf in self.model.cpfs.items():
+                # Handle Boolean next state and interm variables.
+                v = self.context._str_var_to_var[v_name]
+                if v._assumptions['bool'] and (v_name in self.model.next_state.values() or v_name in self.model.interm):
+                    cpf_a = dual_action_cpfs.get(v_name)
+                    if cpf_a is None:
+                        var_id, _ = self.context.get_dec_expr_index(v, create=False)
+                        high = cpf
+                        low = self.context.apply(self.context.ONE, high, op='subtract')
+                        cpf_a = self.context.get_inode_canon(var_id, low, high)
+                        dual_action_cpfs[v_name] = cpf_a
+                    cpf = cpf_a
+                # Boolean actions can be restricted.
+                if isinstance(act, BAction):
+                    cpf_a = act.restrict(True, cpf)
+                    act.add_cpf(v, cpf_a)
+                else:
+                    act.add_cpf(v, cpf)
+            # Update reward CPFs.
+            reward = self.model.reward
+            if isinstance(act, BAction):
+                reward = act.restrict(True, reward)
+            act.reward = reward
+            
     @property
     def cpfs(self):
         return self.model.cpfs
@@ -94,7 +124,7 @@ class MDP:
     def prime_subs(self, prime_subs: Dict[sp.Symbol, sp.Symbol]):
         self._prime_subs = prime_subs
 
-    def get_bounds(self, a: CAction) -> Tuple[float, float]:
+    def get_bounds(self, a: sp.Symbol) -> Tuple[float, float]:
         return self.cont_action_bounds[a]
 
     def standardize(self, dd: int) -> int:

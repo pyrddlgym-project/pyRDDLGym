@@ -103,7 +103,7 @@ class ValueIteration(SymbolicSolver):
         """Regresses a continuous action parameter."""
         # Max out the action.
         q_vars = self.context.collect_vars(dd)
-        bounds = self.mdp.get_bounds(a)
+        bounds = self.mdp.get_bounds(a.symbol)
 
         # Can skip if the action variable is not included in the value function.
         if a.symbol not in q_vars:

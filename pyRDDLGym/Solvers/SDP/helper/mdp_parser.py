@@ -21,7 +21,6 @@ class Parser:
 
         # Go throuah all actions and get corresponding CPFs and rewards.
         actions = model.actions
-        action_dict = {}    # To be used to restrict a CPF with a Boolean action.
         action_type = {}
         for name, val in actions.items():
             atype = 'bool' if isinstance(val, bool) else 'real'
@@ -29,33 +28,9 @@ class Parser:
             if a_symbol is None:
                 print(f'Warning: action {name} not found in RDDLModelWXADD.actions')
                 a_symbol, a_node_id = model.add_sympy_var(name, atype)
-            if atype == 'bool':
-                action_dict[a_symbol] = False
             action_type[name] = atype
-
-        for name, val in actions.items():
-            atype = action_type[name]
-            a_symbol = model.ns[name]
-            subst_dict = action_dict.copy()
-
-            if atype == 'bool':
-                action = BAction(name, a_symbol, mdp.context)
-
-                # For Boolean actions, we can restrict CPFs with the action.
-                subst_dict[a_symbol] = True
-
-                # Also, rewards can be restricted.
-                reward = action.restrict(model.reward, subst_dict)
-            else:
-                action = CAction(name, a_symbol, mdp.context)
-                reward = model.reward
-
-            for state_fluent, cpf in model.cpfs.items():
-                var_ = model.ns[state_fluent]
-                if atype == 'bool':
-                    cpf = action.restrict(cpf, subst_dict)
-                action.add_cpf(var_, cpf)            
-            action.reward = reward
+            a_cls = BAction if atype == 'bool' else CAction
+            action = a_cls(name, a_symbol, model)
 
             # Add the action to the MDP.
             mdp.add_action(action)
@@ -66,7 +41,10 @@ class Parser:
             mdp.cont_action_bounds = cont_action_bounds
 
         # Update the next state and interm variable sets.
-        mdp.update_var_sets()
+        mdp.update_i_and_ns_var_sets()
+
+        # Go through the actions and update the corresponding CPF XADDs.
+        mdp.update()
         return mdp
 
     def configure_bounds(
@@ -108,6 +86,5 @@ class Parser:
             lb = lb_dict.get(v, -float('inf'))
             ub = ub_dict.get(v, float('inf'))
             lb, ub = float(lb), float(ub)
-            action = mdp.a_var_to_action[v]
-            cont_action_bounds[action] = (lb, ub)
+            cont_action_bounds[v] = (lb, ub)
         return cont_action_bounds

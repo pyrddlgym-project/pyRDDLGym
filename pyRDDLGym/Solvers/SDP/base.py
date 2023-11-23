@@ -26,6 +26,10 @@ class SymbolicSolver:
 
         self.level_analyzer = RDDLLevelAnalysisWXADD(self.mdp.model)
         self.levels = self.level_analyzer.compute_levels()
+        self.var_to_level = {}
+        for l, var_set in self.levels.items():
+            for v in var_set:
+                self.var_to_level[v] = l
 
     @abc.abstractmethod
     def solve(self) -> int:
@@ -63,11 +67,11 @@ class SymbolicSolver:
 
     def sort_var_set(self, var_set):
         """Sorts the given variable set by level."""
-        sorted_levels = [self.levels[k] for k in reversed(sorted(self.levels.keys()))]
         return sorted(
             var_set,
-            key=lambda v: sorted_levels.index(str(v)) \
-                if str(v) in sorted_levels else float('inf'))
+            key=lambda v: self.var_to_level.get(v, float('inf')),
+            reverse=True,
+        )
 
     def regress_cvars(self, q: int, a: Action, v: sp.Symbol) -> int:
         """Regress a continuous variable from the value function `q`."""
@@ -99,7 +103,7 @@ class SymbolicSolver:
         dec_id = self.context._expr_to_id[self.mdp.model.ns[str(v)]]
 
         # Convert nodes to 1 and 0.
-        cpf = self.context.unary_op(cpf, 'float')
+        cpf = self.context.unary_op(cpf, 'int')
 
         # Marginalize out the boolean variable.
         q = self.context.apply(q, cpf, op='prod')

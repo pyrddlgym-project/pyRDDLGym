@@ -6,6 +6,9 @@ import sympy as sp
 from xaddpy import XADD
 
 
+from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
+
+
 class Action:
     """Base Action class."""
 
@@ -13,15 +16,14 @@ class Action:
             self,
             name: str,
             symbol: sp.Symbol,
-            context: XADD,
+            model: RDDLModelWXADD,
             atype: str,
-            params: Optional[List] = None,
     ):
         self.name = name
         self.symbol = symbol
-        self.context = context
+        self.model = model
+        self.context = model._context
         self.atype = atype      # action type: 'bool' or 'real'
-        self.params = [] if params is None else params
         self.cpfs = {}
         self._reward = None
 
@@ -47,19 +49,26 @@ class Action:
 
 class BAction(Action):
     """Boolean Action class."""
-    def __init__(self, name: str, symbol: sp.Symbol, context: XADD):
-        super().__init__(name, symbol, context, 'bool')
+    def __init__(self, name: str, symbol: sp.Symbol, model: RDDLModelWXADD):
+        super().__init__(name, symbol, model, 'bool')          
 
-    def restrict(self, cpf: int, subst_dict: Dict[sp.Symbol, bool]):
-        """Restricts a given CPF with this Boolean action."""
-        assert subst_dict[self.symbol]
-        return self.context.substitute(cpf, subst_dict)
+    def restrict(self, b: bool, dd: int) -> int:
+        """Restrict a given XADD with the specified value of the action."""
+        # Get the variable set of the XADD.
+        var_set = self.context.collect_vars(dd)
+        # Skip if the action variable is not in the XADD.
+        if self.symbol not in var_set:
+            return dd
+        # Prepare the substitution dictionary.
+        subst_dict = {self.symbol: b}
+        # Perform the substitution.
+        return self.context.substitute(dd, subst_dict)
 
 
 class CAction(Action):
     """Continuous Action class."""
-    def __init__(self, name: str, symbol: sp.Symbol, context: XADD):
-        super().__init__(name, symbol, context, 'real')
+    def __init__(self, name: str, symbol: sp.Symbol, model: RDDLModelWXADD):
+        super().__init__(name, symbol, model, 'real')
         self.need_bound_analysis = True
 
     @property
