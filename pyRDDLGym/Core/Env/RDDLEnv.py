@@ -96,6 +96,7 @@ class RDDLEnv(gym.Env):
         self.trial = 0
         log_fname = f'{ast.domain.name}_{ast.instance.name}'
         logger = Logger(f'{log_fname}_debug.log') if debug else None
+        self.logger = logger
         self.simlogger = None
         if log:
             new_log_path = _make_dir(log_path)

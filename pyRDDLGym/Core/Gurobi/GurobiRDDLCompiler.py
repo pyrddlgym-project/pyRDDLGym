@@ -154,9 +154,18 @@ class GurobiRDDLCompiler:
         objective, action_vars, _ = self._compile_rollout(
             model, self.plan, params, subs)
         model.setObjective(objective, GRB.MAXIMIZE)
+        
         return model, action_vars, params
     
     def _compile_rollout(self, model, plan, params, subs, value_bounds: bool=False):
+        
+        # logging
+        if self.logger is not None:
+            message = f'[info] compiling initial bound information for Gurobi:'
+            for (name, (_, _, lb, ub, _)) in subs.items():
+                message += f'\n\t{name}, bounds=({lb}, {ub})'
+            self.logger.log(message + '\n')  
+                
         objective = 0
         all_action_vars = []
         all_next_state_vars = []
@@ -193,7 +202,17 @@ class GurobiRDDLCompiler:
                 else:
                     lb += lbr * discount
                     ub += ubr * discount
-        
+            
+            # logging
+            if self.logger is not None:
+                message = f'[info] compiling bound information for Gurobi at epoch {step}:'
+                for (name, (_, _, lb, ub, _)) in subs.items():
+                    message += f'\n\t{name}, bounds=({lb}, {ub})'
+                message += f'\n\treward, bounds=({lbr}, {ubr})'
+                if value_bounds:
+                    message += f'\n\tvalue_fn, bounds=({lb}, {ub})'
+                self.logger.log(message + '\n')  
+            
         if value_bounds:
             return objective, all_action_vars, all_next_state_vars, (lb, ub)
         else:
