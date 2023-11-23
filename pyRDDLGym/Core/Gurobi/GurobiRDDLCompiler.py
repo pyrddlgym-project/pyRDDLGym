@@ -356,8 +356,24 @@ class GurobiRDDLCompiler:
         return GurobiRDDLCompiler._fix_bounds(lb, ub)
     
     @staticmethod
+    def _fix_product_underflow(a, b):
+        a1, b1 = abs(a), abs(b)
+        if (a1 <= 0 or b1 <= 0) or (a1 >= 1 or b1 >= 1):
+            return a * b
+        tiny = np.finfo(np.float64).tiny
+        if a1 < tiny / b1:
+            warnings.warn(
+                f'Underflow prevented for {a} * {b} by setting to zero.', 
+                stacklevel=2)
+            return 0.0
+        return a * b
+        
+    @staticmethod
     def _fix_bounds_prod(lb1, ub1, lb2, ub2):
-        lbub = (lb1 * lb2, lb1 * ub2, ub1 * lb2, ub1 * ub2)
+        lbub = (GurobiRDDLCompiler._fix_product_underflow(lb1, lb2), 
+                GurobiRDDLCompiler._fix_product_underflow(lb1, ub2), 
+                GurobiRDDLCompiler._fix_product_underflow(ub1, lb2), 
+                GurobiRDDLCompiler._fix_product_underflow(ub1, ub2))
         return GurobiRDDLCompiler._fix_bounds(min(lbub), max(lbub))
         
     def _gurobi_constant(self, expr, model, subs):
