@@ -103,7 +103,8 @@ class PolicyEvaluation(SymbolicSolver):
 
         # Add the rewards
         if len(i_and_ns_vars_in_reward) == 0:
-            q = self.context.apply(q, self.mdp.model.reward, 'sum')
+            q = self.context.apply(q, self.mdp.model.reward, 'add')
+            
 
         # Continuous noise?
         # TODO
@@ -201,7 +202,6 @@ class PolicyEvaluation(SymbolicSolver):
             # collect all action vars in the cpfs
             action_vars = set([str(i) for i in self.context.collect_vars(cpf_id) if str(i) in self.mdp.model.actions.keys()])
             policy_cpf = cpf_id
-
             for a in action_vars:
                 a_symbol = self.mdp.model.ns[str(a)]
                 a_type = self.mdp.actions[a].atype
