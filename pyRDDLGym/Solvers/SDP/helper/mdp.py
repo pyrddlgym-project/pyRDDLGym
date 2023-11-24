@@ -73,13 +73,11 @@ class MDP:
                     self.bool_ns_vars.add(v_)
                 else:
                     self.cont_ns_vars.add(v_)
-                self.cpfs[v_] = m.cpfs[v]
             elif v in m.interm:
                 if vtype == 'bool':
                     self.bool_i_vars.add(v_)
                 else:
                     self.cont_i_vars.add(v_)
-                self.cpfs[v_] = m.cpfs[v]
 
     def add_action(self, action: Action):
         """Adds an action to the MDP."""
@@ -95,32 +93,32 @@ class MDP:
 
     def update(self) -> None:
         """Goes through all CPFs and actions and updates them."""
-        dual_action_cpfs = {}
-        for a_name, act in self.actions.items():
-            # Update CPFs.
-            for v_name, cpf in self.model.cpfs.items():
-                # Handle Boolean next state and interm variables.
-                v = self.context._str_var_to_var[v_name]
-                if v._assumptions['bool'] and (v_name in self.model.next_state.values() or v_name in self.model.interm):
-                    cpf_a = dual_action_cpfs.get(v_name)
-                    if cpf_a is None:
-                        var_id, _ = self.context.get_dec_expr_index(v, create=False)
-                        high = cpf
-                        low = self.context.apply(self.context.ONE, high, op='subtract')
-                        cpf_a = self.context.get_inode_canon(var_id, low, high)
-                        dual_action_cpfs[v_name] = cpf_a
-                    cpf = cpf_a
+        dual_cpfs_bool = {}
+        for v_name, cpf in self.model.cpfs.items():
+            # Handle Boolean next state and interm variables.
+            v = self.context._str_var_to_var[v_name]
+            if v._assumptions['bool'] and (v_name in self.model.next_state.values() or v_name in self.model.interm):
+                cpf_ = dual_cpfs_bool.get(v_name)
+                if cpf_ is None:
+                    var_id, _ = self.context.get_dec_expr_index(v, create=False)
+                    high = cpf
+                    low = self.context.apply(self.context.ONE, high, op='subtract')
+                    cpf_ = self.context.get_inode_canon(var_id, low, high)
+                    dual_cpfs_bool[v_name] = cpf_
+                cpf = cpf_
+
+            # Update CPFs and reward.
+            self.cpfs[v] = cpf
+            for a_name, act in self.actions.items():
                 # Boolean actions can be restricted.
                 if isinstance(act, BAction):
-                    cpf_a = act.restrict(True, cpf)
-                    act.add_cpf(v, cpf_a)
+                    cpf_ = act.restrict(True, cpf)
+                    act.add_cpf(v, cpf_)
+                    reward = act.restrict(True, self.reward)
                 else:
                     act.add_cpf(v, cpf)
-            # Update reward CPFs.
-            reward = self.model.reward
-            if isinstance(act, BAction):
-                reward = act.restrict(True, reward)
-            act.reward = reward
+                    reward = self.reward
+                act.reward = reward
 
     @property
     def prime_subs(self):
