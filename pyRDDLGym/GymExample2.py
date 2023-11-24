@@ -28,7 +28,7 @@ def main(domain, instance, episodes=1, seed=42):
     
     # set up an example agent
     agent = RandomAgent(action_space=env.action_space,
-                        num_actions=env.numConcurrentActions,
+                        num_actions=env.max_allowed_actions,
                         seed=seed)
     
     # main evaluation loop, same as the following line:
