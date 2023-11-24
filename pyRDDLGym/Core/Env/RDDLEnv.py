@@ -2,8 +2,8 @@ import copy
 import gym
 from gym.spaces import Discrete, Dict, Box
 import numpy as np
-import pygame
 import os
+import pygame
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEpisodeAlreadyEndedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -47,6 +47,7 @@ class RDDLEnv(gym.Env):
                  instance: str=None,
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
+                 vectorized: bool=False,
                  debug: bool=False,
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
@@ -60,6 +61,8 @@ class RDDLEnv(gym.Env):
         action constraints are violated
         :param enforce_action_count_non_bool: whether to include non-bool actions
         in check that number of nondef actions don't exceed max-nondef-actions
+        :param vectorized: whether actions and states are represented as
+        dictionaries of numpy arrays (if True), or as dictionaries of scalars
         :param debug: whether to log compilation information to a log file
         :param log_path: absolute path to file where simulation log is saved,
         excluding the file extension, None means no logging
@@ -74,7 +77,8 @@ class RDDLEnv(gym.Env):
         self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
         self.enforce_action_count_non_bool = enforce_action_count_non_bool
-
+        self.vectorized = vectorized
+        
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
         domain = reader.rddltxt
@@ -102,8 +106,10 @@ class RDDLEnv(gym.Env):
             self.simlogger.clear(overwrite=False)
         
         # define the simulation backend  
-        self.sampler = backend(self.model, logger=logger, **backend_kwargs)
-        self.vectorized = self.sampler.keep_tensors
+        self.sampler = backend(self.model, 
+                               logger=logger, 
+                               keep_tensors=self.vectorized, 
+                               **backend_kwargs)
         
         # impute the bounds on fluents from the constraints
         self.bounds = RDDLConstraints(self.sampler).bounds
@@ -115,8 +121,8 @@ class RDDLEnv(gym.Env):
         self.actionsranges = self.model.groundactionsranges()
         self.default_actions = self.model.groundactions()
             
-        self.action_space = self._rddl_to_gym_bounds(self.actionsranges)        
-        self.observation_space = self._rddl_to_gym_bounds(self.statesranges)
+        self.action_space = self._rddl_to_gym_bounds_grounded(self.actionsranges)        
+        self.observation_space = self._rddl_to_gym_bounds_grounded(self.statesranges)
 
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)
@@ -133,7 +139,7 @@ class RDDLEnv(gym.Env):
         self.done = False
         self.seeds = iter(seeds)
     
-    def _rddl_to_gym_bounds(self, ranges):
+    def _rddl_to_gym_bounds_grounded(self, ranges):
         result = Dict()
         for (var, prange) in ranges.items():
             
@@ -162,7 +168,8 @@ class RDDLEnv(gym.Env):
             # unknown type
             else:
                 raise RDDLTypeError(
-                    f'Type <{prange}> of fluent <{var}> is not valid.')
+                    f'Type <{prange}> of fluent <{var}> is not valid, '
+                    f'must be an enumerated or primitive type (real, int, bool).')
         return result
         
     def seed(self, seed=None):
@@ -233,9 +240,9 @@ class RDDLEnv(gym.Env):
         
         # reset counters and internal state
         sampler = self.sampler
-        self.currentH = 0
         obs, self.done = sampler.reset()
         self.state = sampler.states
+        self.currentH = 0
         
         # update movie generator
         if self._movie_generator is not None and self._visualizer is not None:
