@@ -46,7 +46,6 @@ class RDDLEnv(gym.Env):
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
                  debug: bool=False,
-                 log: bool=False,
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
                  backend_kwargs: Dict={},
@@ -60,9 +59,8 @@ class RDDLEnv(gym.Env):
         :param enforce_action_count_non_bool: whether to include non-bool actions
         in check that number of nondef actions don't exceed max-nondef-actions
         :param debug: whether to log compilation information to a log file
-        :param log: whether to log simulation data to file
         :param log_path: absolute path to file where simulation log is saved,
-        excluding the file extension
+        excluding the file extension, None means no logging
         :param backend: the subclass of RDDLSimulator to use as backend for
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
@@ -75,110 +73,53 @@ class RDDLEnv(gym.Env):
         self.enforce_action_constraints = enforce_action_constraints
         self.enforce_action_count_non_bool = enforce_action_count_non_bool
 
-        # time budget for applications limiting time on episodes.
-        # hardcoded so cannot be changed externally for the purpose of the competition.
-        # TODO: add it to the API after the competition
-        self.budget = 240
         self.seeds = iter(seeds)
 
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
         domain = reader.rddltxt
-
-        # parse RDDL file
         parser = RDDLParser(lexer=None, verbose=False)
         parser.build()
         rddl = parser.parse(domain)
-        self.model = RDDLLiftedModel(rddl)
         
-        # for logging
+        # define the RDDL model
+        self.model = RDDLLiftedModel(rddl)
+        self.horizon = self.model.horizon
+        self.discount = self.model.discount
+        self.max_allowed_actions = self.model.max_allowed_actions 
+                
+        # for logging compilation data
         ast = self.model._AST
-        self.trial = 0
         log_fname = f'{ast.domain.name}_{ast.instance.name}'
         logger = Logger(f'{log_fname}_debug.log') if debug else None
         self.logger = logger
+        
+        # for logging simulation data
         self.simlogger = None
-        if log:
+        if log_path is not None and log_path:
             new_log_path = _make_dir(log_path)
             self.simlogger = SimLogger(f'{new_log_path}_log.csv')
-        if self.simlogger:
             self.simlogger.clear(overwrite=False)
         
-        # define the model sampler and bounds    
+        # define the simulation backend  
         self.sampler = backend(self.model, logger=logger, **backend_kwargs)
-        bounds = RDDLConstraints(self.sampler).bounds
-
-        # set roll-out parameters
-        self.horizon = self.model.horizon
-        self.discount = self.model.discount
-        self.max_allowed_actions = self.model.max_allowed_actions
-            
-        self.currentH = 0
-        self.done = False
-
-        # set default actions
-        self.defaultAction = self.model.groundactions()
-
+        
+        # impute the bounds on fluents from the constraints
+        self.bounds = RDDLConstraints(self.sampler).bounds
+        
         # define the actions bounds
         self.actionsranges = self.model.groundactionsranges()
-        action_space = Dict()
-        for act in self.defaultAction:
-            act_range = self.actionsranges[act]
-            if act_range in self.model.enums:
-                action_space[act] = Discrete(len(self.model.objects[act_range]))            
-            elif act_range == 'real':
-                action_space[act] = Box(low=bounds[act][0],
-                                        high=bounds[act][1],
-                                        dtype=np.float32)
-            elif act_range == 'bool':
-                action_space[act] = Discrete(2)
-            elif act_range == 'int':
-                high = bounds[act][1]
-                if high == np.inf:
-                    high = np.iinfo(np.int32).max
-                low = bounds[act][0]
-                if low == -np.inf:
-                    low = np.iinfo(np.int32).min
-                action_space[act] = Discrete(int(high - low + 1), start=int(low))
-            else:
-                raise RDDLTypeError(
-                    f'Unknown action value type <{act_range}> in environment.')
-        self.action_space = action_space
+        self.action_space = self._rddl_to_gym_bounds(self.actionsranges)
+        self.default_actions = self.model.groundactions()
 
         # define the states bounds
         if self.sampler.isPOMDP:
-            search_dict = self.model.groundobserv()
-            ranges = self.model.groundobservranges()
+            statesranges = self.model.groundobservranges()
         else:
-            search_dict = self.model.groundstates()
-            ranges = self.model.groundstatesranges()
-            
-        state_space = Dict()
-        for state in search_dict:
-            state_range = ranges[state]
-            if state_range in self.model.enums:
-                state_space[state] = Discrete(len(self.model.objects[state_range]))          
-            elif state_range == 'real':
-                state_space[state] = Box(low=bounds[state][0],
-                                         high=bounds[state][1],
-                                         dtype=np.float32)
-            elif state_range == 'bool':
-                state_space[state] = Discrete(2)
-            elif state_range == 'int':
-                high = bounds[state][1]
-                if high == np.inf:
-                    high = np.iinfo(np.int32).max
-                low = bounds[state][0]
-                if low == -np.inf:
-                    low = np.iinfo(np.int32).min
-                state_space[state] = Discrete(int(high - low + 1), start=int(low))
-            else:
-                raise RDDLTypeError(
-                    f'Unknown state value type <{state_range}> in environment.')
-        self.observation_space = state_space
+            statesranges = self.model.groundstatesranges()
+        self.observation_space = self._rddl_to_gym_bounds(statesranges)
 
         # set the visualizer
-        # the next line should be changed for the default behaviour - TextVix
         self._visualizer = ChartVisualizer(self.model)
         self._movie_generator = None
         self.state = None
@@ -186,7 +127,44 @@ class RDDLEnv(gym.Env):
         self.window = None
         self.to_render = False
         self.image_size = None
+        
+        # set roll-out parameters           
+        self.trial = 0
+        self.currentH = 0
+        self.done = False
     
+    def _rddl_to_gym_bounds(self, ranges):
+        result = Dict()
+        for (var, prange) in ranges.items():
+            
+            # enumerated values converted to Discrete space
+            if prange in self.model.enums:
+                result[var] = Discrete(len(self.model.objects[prange])) 
+            
+            # real values define a box
+            elif prange == 'real':
+                low, high = self.bounds[var]
+                result[var] = Box(low=low, high=high, dtype=np.float32)
+            
+            # boolean values converted to Discrete space
+            elif prange == 'bool':
+                result[var] = Discrete(2)
+            
+            # integer values converted to Discrete space
+            elif prange == 'int':
+                low, high = self.bounds[var]
+                if high == np.inf:
+                    high = np.iinfo(np.int32).max
+                if low == -np.inf:
+                    low = np.iinfo(np.int32).min
+                result[var] = Discrete(int(high - low + 1), start=int(low))
+            
+            # unknown type
+            else:
+                raise RDDLTypeError(
+                    f'Type <{prange}> of fluent <{var}> is not valid.')
+        return result
+        
     def seed(self, seed=None):
         # super(RDDLEnv, self).seed(seed)
         self.sampler.seed(seed)
@@ -204,65 +182,59 @@ class RDDLEnv(gym.Env):
         if self.done:
             return self.state, 0.0, self.done, {}
 
-        # make sure the action length is of currect size
+        # make sure the action length is of correct size
         if self.enforce_action_count_non_bool:
             action_length = len(actions)
         else:
             action_length = len([
                 action 
                 for action in actions 
-                if self.model.groundactionsranges()[action] == 'bool'
+                if self.actionsranges[action] == 'bool'
             ])
         if action_length > self.max_allowed_actions:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Invalid action, expected at most '
-                f'{self.max_allowed_actions} entries, '
-                f'but got {action_length}.')
+                f'Invalid action provided: expected {self.max_allowed_actions} '
+                f'entries, but got {action_length}.')
         
-        # set full action vector
         # values are clipped to be inside the feasible action space
-        clipped_actions = copy.deepcopy(self.defaultAction)
+        clipped_actions = copy.deepcopy(self.default_actions)
         for act in actions:
-            if str(self.action_space[act]) == 'Discrete(2)':
-                if self.actionsranges[act] == 'bool':
-                    clipped_actions[act] = bool(actions[act])
+            if self.actionsranges[act] == 'bool':
+                clipped_actions[act] = bool(actions[act])
             else:
                 clipped_actions[act] = actions[act]
                 
         # check action constraints
+        sampler = self.sampler
         if self.enforce_action_constraints:
-            self.sampler.check_action_preconditions(clipped_actions)
+            sampler.check_action_preconditions(clipped_actions)
         
         # sample next state and reward
-        obs, reward, self.done = self.sampler.step(clipped_actions)
-        state = self.sampler.states
+        obs, reward, self.done = sampler.step(clipped_actions)
+        self.state = sampler.states
             
         # check if the state invariants are satisfied
         if not self.done:
-            self.sampler.check_state_invariants()               
+            sampler.check_state_invariants()               
 
         # log to file
         if self.simlogger is not None:
-            self.simlogger.log(
-                obs, clipped_actions, reward, self.done, self.currentH)
+            self.simlogger.log(obs, clipped_actions, reward, self.done, self.currentH)
         
         # update step horizon
         self.currentH += 1
         if self.currentH == self.horizon:
             self.done = True
 
-        # for visualization purposes
-        self.state = state
-
         return obs, reward, self.done, {}
 
     def reset(self, seed=None):
         
-        # reset counters and internal sim state
-        self.total_reward = 0
+        # reset counters and internal state
+        sampler = self.sampler
         self.currentH = 0
-        obs, self.done = self.sampler.reset()
-        self.state = self.sampler.states
+        obs, self.done = sampler.reset()
+        self.state = sampler.states
         
         # update movie generator
         if self._movie_generator is not None and self._visualizer is not None:
@@ -329,11 +301,11 @@ class RDDLEnv(gym.Env):
     def close(self):
         if self.simlogger:
             self.simlogger.close()
-                        
+        
+        # close rendering and save animation  
         if self.to_render:
             pygame.display.quit()
-            pygame.quit()
-    
+            pygame.quit()    
             if self._movie_generator is not None:
                 self._movie_generator.save_animation(
                     self._movie_generator.env_name + '_' + str(self._movies))
@@ -346,7 +318,3 @@ class RDDLEnv(gym.Env):
     @property
     def non_fluents(self):
         return self.model.groundnonfluents()
-
-    @property
-    def Budget(self):
-        return self.budget
