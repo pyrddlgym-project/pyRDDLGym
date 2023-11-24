@@ -48,8 +48,7 @@ The following features have been omitted (or marked as deprecated) from the RDDL
 
 Several RDDL environments are included as examples with pyRDDLGym:
 
-- CartPole Continuous
-- CartPole discrete
+- CartPole
 - Elevators
 - MarsRover
 - MountainCar
@@ -57,9 +56,7 @@ Several RDDL environments are included as examples with pyRDDLGym:
 - Quadcopter
 - RaceCar
 - RecSim
-- UAV continuous
-- UAV discrete
-- UAV mixed
+- UAV
 - Wildfire
 - Supply Chain
 
