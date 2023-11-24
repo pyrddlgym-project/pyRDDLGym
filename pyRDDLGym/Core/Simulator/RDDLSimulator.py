@@ -310,6 +310,8 @@ class RDDLSimulator:
                     f'Value array for action <{var}> must be of shape '
                     f'{np.shape(default_values)}, got array of shape '
                     f'{np.shape(values)}.')
+            
+            # accumulate count of non-default actions
             if enforce_for_non_bool or prange == 'bool':
                 total_non_default += np.count_nonzero(values != default_values)
         
