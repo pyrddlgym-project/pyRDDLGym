@@ -5,8 +5,10 @@ import numpy as np
 import pygame
 import os
 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEpisodeAlreadyEndedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError, RDDLLogFolderError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLLogFolderError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Debug.Logger import Logger, SimLogger
@@ -164,7 +166,6 @@ class RDDLEnv(gym.Env):
         return result
         
     def seed(self, seed=None):
-        # super(RDDLEnv, self).seed(seed)
         self.sampler.seed(seed)
         return [seed]
     
@@ -178,7 +179,9 @@ class RDDLEnv(gym.Env):
 
     def step(self, actions):
         if self.done:
-            return self.state, 0.0, self.done, {}
+            raise RDDLEpisodeAlreadyEndedError(
+                'The step() function has been called during an episode '
+                f'that has already ended. Please call reset().')
 
         # make sure the action length is of correct size
         if self.enforce_action_count_non_bool:
