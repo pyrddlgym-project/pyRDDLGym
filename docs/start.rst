@@ -275,7 +275,7 @@ To log simulation data to a file:
 
 .. code-block:: python
 	
-	env = RDDLEnv.RDDLEnv.build(info, instance, log=True, log_path='path/to/file')
+	env = RDDLEnv.RDDLEnv.build(info, instance, log_path='path/to/file')
                             
 Upon interacting with the environment, a log file is created in the Logs folder in pyRDDLGym.
 
