@@ -1,12 +1,11 @@
-import copy
 import gym
 from gym.spaces import Discrete, Dict, Box
 import numpy as np
 import os
 import pygame
+import typing
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEpisodeAlreadyEndedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLLogFolderError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
@@ -51,7 +50,7 @@ class RDDLEnv(gym.Env):
                  debug: bool=False,
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
-                 backend_kwargs: Dict={},
+                 backend_kwargs: typing.Dict={},
                  seeds: RDDLEnvSeeder=RDDLEnvSeederFibonacci()):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
@@ -73,10 +72,11 @@ class RDDLEnv(gym.Env):
         :param seeds: an instance of RDDLEnvSeeder for generating RNG seeds
         '''
         super(RDDLEnv, self).__init__()
+        
         self.domain_text = domain
         self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
-        self.enforce_action_count_non_bool = enforce_action_count_non_bool
+        self.enforce_count_non_bool = enforce_action_count_non_bool
         self.vectorized = vectorized
         
         # read and parse domain and instance
@@ -111,19 +111,30 @@ class RDDLEnv(gym.Env):
                                keep_tensors=self.vectorized, 
                                **backend_kwargs)
         
-        # impute the bounds on fluents from the constraints
-        self.bounds = RDDLConstraints(self.sampler).bounds
+        # compute the bounds on fluents from the constraints
+        self._bounds = RDDLConstraints(
+            self.sampler, vectorized=self.vectorized).bounds
+        self._shapes = {var: np.shape(values[0]) 
+                       for (var, values) in self._bounds.items()}
         
+        # construct the gym observation space
         if self.sampler.isPOMDP:
-            self.statesranges = self.model.groundobservranges()
+            statesranges = self.model.observranges
         else:
-            self.statesranges = self.model.groundstatesranges()
-        self.actionsranges = self.model.groundactionsranges()
-        self.default_actions = self.model.groundactions()
-            
-        self.action_space = self._rddl_to_gym_bounds_grounded(self.actionsranges)        
-        self.observation_space = self._rddl_to_gym_bounds_grounded(self.statesranges)
-
+            statesranges = self.model.statesranges
+        if not self.vectorized:
+            statesranges = self.model.ground_ranges_from_dict(statesranges)    
+        self.observation_space = self._rddl_to_gym_bounds(statesranges)
+        
+        # construct the gym action space      
+        if self.vectorized:
+            self._actionsranges = self.model.actionsranges
+            self._noop_actions = self.sampler.noop_actions
+        else:
+            self._actionsranges = self.sampler.grounded_actionsranges
+            self._noop_actions = self.sampler.grounded_noop_actions
+        self.action_space = self._rddl_to_gym_bounds(self._actionsranges)
+        
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)
         self._movie_generator = None
@@ -139,31 +150,45 @@ class RDDLEnv(gym.Env):
         self.done = False
         self.seeds = iter(seeds)
     
-    def _rddl_to_gym_bounds_grounded(self, ranges):
+    def _rddl_to_gym_bounds(self, ranges):
         result = Dict()
         for (var, prange) in ranges.items():
             
             # enumerated values converted to Discrete space
             if prange in self.model.enums:
-                result[var] = Discrete(len(self.model.objects[prange])) 
+                num_objects = len(self.model.objects[prange])
+                if self.vectorized:
+                    result[var] = Box(0, num_objects - 1,
+                                      shape=self._shapes[var], 
+                                      dtype=np.int32)
+                else:
+                    result[var] = Discrete(num_objects) 
             
             # real values define a box
             elif prange == 'real':
-                low, high = self.bounds[var]
-                result[var] = Box(low=low, high=high, dtype=np.float32)
+                low, high = self._bounds[var]
+                result[var] = Box(low, high, dtype=np.float32)
             
             # boolean values converted to Discrete space
             elif prange == 'bool':
-                result[var] = Discrete(2)
+                if self.vectorized:
+                    result[var] = Box(0, 1, 
+                                      shape=self._shapes[var],
+                                      dtype=np.int32)
+                else:
+                    result[var] = Discrete(2)
             
             # integer values converted to Discrete space
             elif prange == 'int':
-                low, high = self.bounds[var]
-                if high == np.inf:
-                    high = np.iinfo(np.int32).max
-                if low == -np.inf:
-                    low = np.iinfo(np.int32).min
-                result[var] = Discrete(int(high - low + 1), start=int(low))
+                low, high = self._bounds[var]
+                low = np.maximum(low, np.iinfo(np.int32).min)
+                high = np.minimum(high, np.iinfo(np.int32).max)
+                if self.vectorized:
+                    result[var] = Box(low, high,
+                                      shape=self._shapes[var], 
+                                      dtype=np.int32)
+                else:
+                    result[var] = Discrete(int(high - low + 1), start=int(low))
             
             # unknown type
             else:
@@ -187,38 +212,29 @@ class RDDLEnv(gym.Env):
     def step(self, actions):
         if self.done:
             raise RDDLEpisodeAlreadyEndedError(
-                'The step() function has been called during an episode '
-                f'that has already ended. Please call reset().')
+                'The step() function has been called even though the '
+                f'current episode has terminated: please call reset().')            
 
-        # make sure the action length is of correct size
-        if self.enforce_action_count_non_bool:
-            action_length = len(actions)
-        else:
-            action_length = len([
-                action 
-                for action in actions 
-                if self.actionsranges[action] == 'bool'
-            ])
-        if action_length > self.max_allowed_actions:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Invalid number of non-default actions provided: '
-                f'expected {self.max_allowed_actions}, but got {action_length}.')
-        
-        # values are clipped to be inside the feasible action space
-        clipped_actions = copy.deepcopy(self.default_actions)
-        for act in actions:
-            if self.actionsranges[act] == 'bool':
-                clipped_actions[act] = bool(actions[act])
+        # cast non-boolean actions to boolean
+        fixed_actions = self._noop_actions.copy()
+        for (var, values) in actions.items():
+            if self._actionsranges.get(var, '') == 'bool':
+                if np.shape(values):
+                    fixed_actions[var] = np.asarray(values, dtype=bool)
+                else:
+                    fixed_actions[var] = bool(values)
             else:
-                clipped_actions[act] = actions[act]
-                
+                fixed_actions[var] = values
+        actions = fixed_actions
+
         # check action constraints
         sampler = self.sampler
+        sampler.check_default_action_count(actions, self.enforce_count_non_bool)
         if self.enforce_action_constraints:
-            sampler.check_action_preconditions(clipped_actions)
+            sampler.check_action_preconditions(actions)
         
         # sample next state and reward
-        obs, reward, self.done = sampler.step(clipped_actions)
+        obs, reward, self.done = sampler.step(actions)
         self.state = sampler.states
             
         # check if the state invariants are satisfied
@@ -227,7 +243,13 @@ class RDDLEnv(gym.Env):
 
         # log to file
         if self.simlogger is not None:
-            self.simlogger.log(obs, clipped_actions, reward, self.done, self.currentH)
+            if self.vectorized:
+                log_obs = self.model.ground_values_from_dict(obs)
+                log_action = self.model.ground_values_from_dict(actions)
+            else:
+                log_obs = obs
+                log_action = actions
+            self.simlogger.log(log_obs, log_action, reward, self.done, self.currentH)
         
         # update step horizon
         self.currentH += 1
@@ -242,13 +264,16 @@ class RDDLEnv(gym.Env):
         sampler = self.sampler
         obs, self.done = sampler.reset()
         self.state = sampler.states
+        self.trial += 1
         self.currentH = 0
         
         # update movie generator
         if self._movie_generator is not None and self._visualizer is not None:
-            state = self.state
             if self.vectorized:
-                state = self.model.ground_values_from_dict(state)
+                state = self.model.ground_values_from_dict(self.state)
+            else:
+                state = self.state
+                
             image = self._visualizer.render(state)
             self.image_size = image.size
             if self._movie_per_episode:
@@ -267,13 +292,9 @@ class RDDLEnv(gym.Env):
 
         # logging
         if self.simlogger:
-            self.trial += 1
-            text = '######################################################\n'
-            if seed is not None:
-                text += f'New Trial, seed={seed}\n'
-            else:
-                text += f'New Trial\n'
-            text += '######################################################'
+            text = (f'######################################################\n'
+                    f'New Trial, seed={seed}\n'
+                    f'######################################################')
             self.simlogger.log_free(text)
 
         return obs
@@ -283,10 +304,14 @@ class RDDLEnv(gym.Env):
             pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
     def render(self, to_display=True):
+        image = None
         if self._visualizer is not None:
-            state = self.state
             if self.vectorized:
-                state = self.model.ground_values_from_dict(state)
+                state = self.model.ground_values_from_dict(self.state)
+            else:
+                state = self.state
+            
+            # update the screen
             image = self._visualizer.render(state)
             self.image_size = image.size
             if to_display:
@@ -302,11 +327,11 @@ class RDDLEnv(gym.Env):
                 pygame.display.flip()
                 
                 # prevents the window from freezing up midway
-                # https://www.reddit.com/r/pygame/comments/eq970n/pygame_window_freezes_seconds_into_animation/?rdt=63412
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         pass
-        
+            
+            # capture frame to disk
             if self._movie_generator is not None:
                 self._movie_generator.save_frame(image)
     
@@ -320,15 +345,9 @@ class RDDLEnv(gym.Env):
         if self.to_render:
             pygame.display.quit()
             pygame.quit()    
+            
+            # prepare the animation from captured frames
             if self._movie_generator is not None:
                 self._movie_generator.save_animation(
                     self._movie_generator.env_name + '_' + str(self._movies))
                 self._movies += 1
-
-    @property
-    def numConcurrentActions(self):
-        return self.max_allowed_actions
-    
-    @property
-    def non_fluents(self):
-        return self.model.groundnonfluents()
