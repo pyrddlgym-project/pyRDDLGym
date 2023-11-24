@@ -73,8 +73,6 @@ class RDDLEnv(gym.Env):
         self.enforce_action_constraints = enforce_action_constraints
         self.enforce_action_count_non_bool = enforce_action_count_non_bool
 
-        self.seeds = iter(seeds)
-
         # read and parse domain and instance
         reader = RDDLReader(domain, instance)
         domain = reader.rddltxt
@@ -103,21 +101,20 @@ class RDDLEnv(gym.Env):
         
         # define the simulation backend  
         self.sampler = backend(self.model, logger=logger, **backend_kwargs)
+        self.vectorized = self.sampler.keep_tensors
         
         # impute the bounds on fluents from the constraints
         self.bounds = RDDLConstraints(self.sampler).bounds
         
-        # define the actions bounds
-        self.actionsranges = self.model.groundactionsranges()
-        self.action_space = self._rddl_to_gym_bounds(self.actionsranges)
-        self.default_actions = self.model.groundactions()
-
-        # define the states bounds
         if self.sampler.isPOMDP:
-            statesranges = self.model.groundobservranges()
+            self.statesranges = self.model.groundobservranges()
         else:
-            statesranges = self.model.groundstatesranges()
-        self.observation_space = self._rddl_to_gym_bounds(statesranges)
+            self.statesranges = self.model.groundstatesranges()
+        self.actionsranges = self.model.groundactionsranges()
+        self.default_actions = self.model.groundactions()
+            
+        self.action_space = self._rddl_to_gym_bounds(self.actionsranges)        
+        self.observation_space = self._rddl_to_gym_bounds(self.statesranges)
 
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)
@@ -132,6 +129,7 @@ class RDDLEnv(gym.Env):
         self.trial = 0
         self.currentH = 0
         self.done = False
+        self.seeds = iter(seeds)
     
     def _rddl_to_gym_bounds(self, ranges):
         result = Dict()
