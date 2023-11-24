@@ -194,8 +194,8 @@ class RDDLEnv(gym.Env):
             ])
         if action_length > self.max_allowed_actions:
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Invalid action provided: expected {self.max_allowed_actions} '
-                f'entries, but got {action_length}.')
+                f'Invalid number of non-default actions provided: '
+                f'expected {self.max_allowed_actions}, but got {action_length}.')
         
         # values are clipped to be inside the feasible action space
         clipped_actions = copy.deepcopy(self.default_actions)
@@ -239,7 +239,10 @@ class RDDLEnv(gym.Env):
         
         # update movie generator
         if self._movie_generator is not None and self._visualizer is not None:
-            image = self._visualizer.render(self.state)
+            state = self.state
+            if self.vectorized:
+                state = self.model.ground_values_from_dict(state)
+            image = self._visualizer.render(state)
             self.image_size = image.size
             if self._movie_per_episode:
                 self._movie_generator.save_animation(
@@ -274,7 +277,10 @@ class RDDLEnv(gym.Env):
 
     def render(self, to_display=True):
         if self._visualizer is not None:
-            image = self._visualizer.render(self.state)
+            state = self.state
+            if self.vectorized:
+                state = self.model.ground_values_from_dict(state)
+            image = self._visualizer.render(state)
             self.image_size = image.size
             if to_display:
                 if not self.to_render:
