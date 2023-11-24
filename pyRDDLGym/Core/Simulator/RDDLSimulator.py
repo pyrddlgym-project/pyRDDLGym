@@ -163,6 +163,9 @@ class RDDLSimulator:
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
         self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
         
+        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
+        
     @property
     def states(self) -> Args:
         return self.state.copy()
@@ -280,9 +283,45 @@ class RDDLSimulator:
                 raise RDDLStateInvariantNotSatisfiedError(
                     f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
     
+    def check_default_action_count(self, actions: Args, 
+                                   enforce_for_non_bool: bool=True) -> None:
+        '''Throws an exception if the actions do not satisfy max-nondef-actions.'''     
+        if self.keep_tensors:
+            action_ranges = self.rddl.actionsranges
+            noop_actions = self.noop_actions
+        else:
+            action_ranges = self.grounded_actionsranges
+            noop_actions = self.grounded_noop_actions
+            
+        total_non_default = 0
+        for (var, values) in actions.items():
+            
+            # check that action is valid
+            prange = action_ranges.get(var, None)
+            if prange is None:
+                raise RDDLInvalidActionError(
+                    f'<{var}> is not a valid action fluent, '
+                    f'must be one of {set(action_ranges.keys())}.')
+            
+            # check that action shape is valid
+            default_values = noop_actions[var]
+            if np.shape(values) != np.shape(default_values):
+                raise RDDLInvalidActionError(
+                    f'Value array for action <{var}> must be of shape '
+                    f'{np.shape(default_values)}, got array of shape '
+                    f'{np.shape(values)}.')
+            if enforce_for_non_bool or prange == 'bool':
+                total_non_default += np.count_nonzero(values != default_values)
+        
+        if total_non_default > self.rddl.max_allowed_actions:
+            raise RDDLInvalidActionError(
+                f'Expected at most {self.rddl.max_allowed_actions} '
+                f'non-default actions, got {total_non_default}.')
+        
     def check_action_preconditions(self, actions: Args) -> None:
-        '''Throws an exception if the action preconditions are not satisfied.'''        
-        actions = self._process_actions(actions)
+        '''Throws an exception if the action preconditions are not satisfied.'''     
+        if not self.keep_tensors:   
+            actions = self._process_actions(actions)
         self.subs.update(actions)
         
         for (i, precond) in enumerate(self.rddl.preconditions):
