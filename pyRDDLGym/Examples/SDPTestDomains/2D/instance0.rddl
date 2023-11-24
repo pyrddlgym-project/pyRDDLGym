@@ -1,0 +1,22 @@
+non-fluents robot2d {
+    domain = robot_linear_2d;
+    objects {};
+}
+
+// Specify three power plants with default settings
+instance inst_robot2d {
+
+	domain = robot_linear_2d;
+
+	//	non-fluents = robot2d;
+
+	init-state {
+		x = 0.0;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 4;
+	discount = 1.0;
+}

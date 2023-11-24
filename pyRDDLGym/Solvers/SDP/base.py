@@ -40,7 +40,7 @@ class SymbolicSolver:
         """Performs the Bellman backup."""
 
     @abc.abstractmethod
-    def regress(self, *args, **kwargs):
+    def regress_bool_actions(self, *args, **kwargs):
         """Regresses the value function."""
 
     @property
@@ -73,10 +73,8 @@ class SymbolicSolver:
             reverse=True,
         )
 
-    def regress_cvars(self, q: int, a: Action, v: sp.Symbol) -> int:
+    def regress_cvars(self, q: int, cpf: int, v: sp.Symbol) -> int:
         """Regress a continuous variable from the value function `q`."""
-        # Get the CPF for the variable.
-        cpf = a.get_cpf(v)
 
         # Check the regression cache.
         key = (str(v), cpf, q)
@@ -96,10 +94,8 @@ class SymbolicSolver:
         self.mdp.cont_regr_cache[key] = q
         return q
 
-    def regress_bvars(self, q: int, a: Action, v: sp.Symbol) -> int:
+    def regress_bvars(self, q: int, cpf: int, v: sp.Symbol) -> int:
         """Regress a boolean variable from the value function `q`."""
-        # Get the CPF for the variable.
-        cpf = a.get_cpf(v)
         dec_id = self.context._expr_to_id[self.mdp.model.ns[str(v)]]
 
         # Convert nodes to 1 and 0.
@@ -118,3 +114,7 @@ class SymbolicSolver:
     def print(self, dd: int):
         """Prints the value function."""
         self.mdp.model.print(dd)
+
+    def export(self, dd: int, fname: str):
+        """Exports the decision diagram to a text file."""
+        self.mdp.context.export_xadd(fname)

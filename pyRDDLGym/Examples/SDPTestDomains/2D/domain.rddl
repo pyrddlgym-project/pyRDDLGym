@@ -1,0 +1,86 @@
+domain robot_linear_2d {
+
+    requirements = {
+        reward-deterministic
+    };
+
+    types {}; 
+
+    pvariables {
+
+        // States
+        x  : { state-fluent, real, default = 0 };     // robot x position
+        y  : { state-fluent, real, default = 0 };     // rover y position
+        g  : { state-fluent, bool, default = false };
+
+        // actions
+        ax  : { action-fluent, real, default = 0 };    // move along the x-axis
+        ay  : { action-fluent, real, default = 0 };    // move along the x-axis
+    };
+
+    cpfs {
+        // Check if already reached in previous steps
+        g' = if (g) then 
+            true 
+            else if (x > 20) then 
+                if (y > 20) then 
+                    true
+                else false
+            else false;
+
+        // Move
+        x' = x + ax;
+        y' = y + ay;
+
+    };
+
+    // R = 1 if reached the GOAL in the current time step; otherwise 0
+    reward = if (g) 
+            then 0 
+            else if (x > 20)
+                then
+                    if (y > 20)
+                        then
+                            if (ay >= 0) 
+                                then
+                                    if (ax >= 0)
+                                        then [99 - (ay + ax)]
+                                        else [(99 - ay) + ax]
+                                    else if (ax >= 0) 
+                                        then [(99 - ax) + ay]
+                                        else [99 + ax + ay]
+                        else
+                            if (ay >= 0)
+                                then
+                                    if (ax >= 0)
+                                        then [-(ax + ay)]
+                                        else [ax - ay]
+                                    else if (ax >= 0)
+                                        then [-ax + ay]
+                                        else [ax + ay]
+                    else if (ay >= 0)
+                        then
+                            if (ax >= 0)
+                                then [-(ax + ay)]
+                                else [ax - ay]
+                        else
+                            if (ax >= 0)
+                                then [-ax + ay]
+                                else [ax + ay];
+                
+                    
+    state-invariants {
+        x >= -500000;
+        x <= 500000;
+        y >= -500000;
+        y <= 500000;
+    };
+
+    action-preconditions {
+        ax >= -1000000;
+        ax <= 1000000;
+        ay >= -1000000;
+        ay <= 1000000;
+    };
+
+}

@@ -1,0 +1,4 @@
+[General]
+name=RobotLinear_1D
+description=Robot Linear in 1D for testing SDP solutions
+viz=TextViz.TextVisualizer

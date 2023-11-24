@@ -64,6 +64,10 @@ class BAction(Action):
         # Perform the substitution.
         return self.context.substitute(dd, subst_dict)
 
+    @property
+    def cpfs(self) -> Dict[sp.Symbol, int]:
+        return self.cpfs
+
 
 class CAction(Action):
     """Continuous Action class."""

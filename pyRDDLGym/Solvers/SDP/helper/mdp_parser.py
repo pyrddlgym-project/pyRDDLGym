@@ -1,6 +1,6 @@
 """Implements a parser that converts an XADD RDDL model into an MDP."""
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 import sympy as sp
 from xaddpy import XADD
@@ -18,6 +18,14 @@ class Parser:
     ) -> MDP:
         """Parses the RDDL model into an MDP object."""
         mdp = MDP(model, is_linear, discount)
+        # Configure the bounds of continuous states.
+        cont_s_vars = set()
+        for s in model.states:
+            if model.gvar_to_type[s] != 'real':
+                continue
+            cont_s_vars.add(model.ns[s])
+        cont_state_bounds = self.configure_bounds(mdp, model.invariants, cont_s_vars)
+        mdp.cont_state_bounds = cont_state_bounds
 
         # Go throuah all actions and get corresponding CPFs and rewards.
         actions = model.actions
@@ -37,7 +45,7 @@ class Parser:
 
         # Configure the bounds of continuous actions.
         if len(mdp.cont_a_vars) > 0:
-            cont_action_bounds = self.configure_bounds(mdp, model.preconditions)
+            cont_action_bounds = self.configure_bounds(mdp, model.preconditions, mdp.cont_a_vars)
             mdp.cont_action_bounds = cont_action_bounds
 
         # Update the next state and interm variable sets.
@@ -48,22 +56,19 @@ class Parser:
         return mdp
 
     def configure_bounds(
-            self, mdp: MDP, preconditions: List[int]
+            self, mdp: MDP, conditions: List[int], var_set: Set[sp.Symbol],
     ) -> Dict[CAction, Tuple[float, float]]:
-        """Configures the bounds over continuous actions."""
+        """Configures the bounds over continuous variables."""
         context = mdp.context
-
-        # Get the continuous action variables.
-        a_var_set = mdp.cont_a_vars
 
         # Bounds dictionaries to be updated.
         lb_dict: Dict[sp.Symbol, List[sp.Basic]] = {}
         ub_dict: Dict[sp.Symbol, List[sp.Basic]] = {}
 
-        # Iterate over preconditions.
-        for p in preconditions:
+        # Iterate over conditions (state invariants or action preconditions).
+        for p in conditions:
             # Instantiate the leaf operation object.
-            leaf_op = BoundAnalysis(context=mdp.context, var_set=a_var_set)
+            leaf_op = BoundAnalysis(context=mdp.context, var_set=var_set)
 
             # Perform recursion.
             context.reduce_process_xadd_leaf(p, leaf_op, [], [])
@@ -81,10 +86,11 @@ class Parser:
                 ub_dict[v] = v_min_ub
 
         # Convert the bounds dictionaries into a dictionary of tuples.
-        cont_action_bounds = {}
-        for v in a_var_set:
+        bounds = {}
+        for v in var_set:
             lb = lb_dict.get(v, -float('inf'))
             ub = ub_dict.get(v, float('inf'))
             lb, ub = float(lb), float(ub)
-            cont_action_bounds[v] = (lb, ub)
-        return cont_action_bounds
+            bounds[v] = (lb, ub)
+        context.update_bounds(bounds)
+        return bounds

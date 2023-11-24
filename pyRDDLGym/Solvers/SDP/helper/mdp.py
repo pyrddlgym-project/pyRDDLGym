@@ -25,6 +25,7 @@ class MDP:
         self.context = model._context
         self.is_linear = is_linear
         self.discount = discount
+        self.cpfs = {}
         self.max_allowed_actions = self.model.max_allowed_actions
         self._prime_subs = self.get_prime_subs()
 
@@ -38,8 +39,13 @@ class MDP:
         self.cont_a_vars = set()
 
         self.actions: Dict[str, Action] = {}
+        self.bool_actions: Dict[str, BAction] = {}
+        self.cont_actions: Dict[str, CAction] = {}
         self.a_var_to_action: Dict[sp.Symbol, Action] = {}
         self.action_to_a_var: Dict[Action, sp.Symbol] = {}
+
+        # Bounds
+        self.cont_state_bounds: Dict[sp.Symbol, Tuple[float, float]] = {}
         self.cont_action_bounds: Dict[sp.Symbol, Tuple[float, float]] = {}
 
         # Cache
@@ -67,19 +73,23 @@ class MDP:
                     self.bool_ns_vars.add(v_)
                 else:
                     self.cont_ns_vars.add(v_)
+                self.cpfs[v_] = m.cpfs[v]
             elif v in m.interm:
                 if vtype == 'bool':
                     self.bool_i_vars.add(v_)
                 else:
                     self.cont_i_vars.add(v_)
+                self.cpfs[v_] = m.cpfs[v]
 
     def add_action(self, action: Action):
         """Adds an action to the MDP."""
         self.actions[action.name] = action
         if isinstance(action, BAction):
             self.bool_a_vars.add(action.symbol)
+            self.bool_actions[action.name] = action
         else:
             self.cont_a_vars.add(action.symbol)
+            self.cont_actions[action.name] = action
         self.a_var_to_action[action.symbol] = action
         self.action_to_a_var[action] = action.symbol
 
@@ -111,14 +121,14 @@ class MDP:
             if isinstance(act, BAction):
                 reward = act.restrict(True, reward)
             act.reward = reward
-            
-    @property
-    def cpfs(self):
-        return self.model.cpfs
 
     @property
     def prime_subs(self):
         return self._prime_subs
+
+    @property
+    def reward(self) -> int:
+        return self.model.reward
 
     @prime_subs.setter
     def prime_subs(self, prime_subs: Dict[sp.Symbol, sp.Symbol]):
