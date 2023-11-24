@@ -135,12 +135,12 @@ class RDDLModelWXADD(PlanningModel):
         self.preconditions = preconditions
         
         # Also skip invariants
-        # invariants = []
-        # for i, invariant in enumerate(self.invariants):
-        #     expr = invariant
-        #     expr_xadd_node_id = self.expr_to_xadd(expr)
-        #     invariants.append(expr_xadd_node_id)
-        # self.invariants = invariants      
+        invariants = []
+        for i, invariant in enumerate(self.invariants):
+            expr = invariant
+            expr_xadd_node_id = self.expr_to_xadd(expr)
+            invariants.append(expr_xadd_node_id)
+        self.invariants = invariants      
 
     def expr_to_xadd(self, expr: Expression) -> int:
         node_id = self._op_to_node_id.get(expr)

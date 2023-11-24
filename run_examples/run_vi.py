@@ -42,7 +42,11 @@ def run_vi(args: argparse.Namespace):
         max_iter=args.max_iter,
         enable_early_convergence=args.enable_early_convergence,
     )
-    vi.solve()
+    value_dd = vi.solve()
+
+    # Export the solution to a file.
+
+    # Visualize the solution XADD.
 
 
 if __name__ == "__main__":

@@ -1,0 +1,48 @@
+domain robot_linear_1d {
+
+    requirements = {
+        reward-deterministic
+    };
+
+    types {}; 
+
+    pvariables {
+
+        // Constants
+        GOAL: { non-fluent, real, default = 20 };           // The goal position
+
+        // States
+        x  : { state-fluent, real, default = 0 };     // rover x position
+        g  : { state-fluent, bool, default = false };
+
+        // actions
+        a  : { action-fluent, real, default = 0 };    // move along the x-axis
+    };
+
+    cpfs {
+        // Check if already reached in previous steps
+        g' = if (g) then true else if (x > 20) then true else false;
+
+        // Stay put if reached; otherwise move
+        x' = x + a;
+
+    };
+
+    // R = 1 if reached the GOAL in the current time step; otherwise 0
+    reward = if (g) 
+            then 0 
+            else if (x > 20) 
+            then [if (a >= 0) 
+                    then 99 - a 
+                  else 99 + a] 
+            else [if (a >= 0) then -a else a];
+
+    state-invariants {
+    };
+
+    action-preconditions {
+        a >= -30;
+        a <= 60;
+    };
+
+}

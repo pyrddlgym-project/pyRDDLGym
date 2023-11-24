@@ -1,0 +1,28 @@
+non-fluents robot1d {
+    domain = robot_linear_1d;
+
+    objects {};
+
+	non-fluents { 
+		GOAL = 20.0;
+	};
+
+}
+
+// Specify three power plants with default settings
+instance inst_robot1d {
+
+	domain = robot_linear_1d;
+
+	non-fluents = robot1d;
+
+	init-state {
+		x = 0.0;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 8;
+	discount = 1.0;
+}
