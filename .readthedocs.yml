@@ -11,8 +11,8 @@ sphinx:
   fail_on_warning: false
 
 # Optionally build your docs in additional formats such as PDF
-formats:
-  - pdf
+# formats:
+#  - pdf
 
 build:
   os: "ubuntu-22.04"
