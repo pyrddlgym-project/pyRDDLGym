@@ -52,14 +52,14 @@ an open loop plan (a sequence of controls that will be optimized directly):
 .. code-block:: python
 	
     from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiStraightLinePlan
-   	
-   	plan = GurobiStraightLinePlan()
+    plan = GurobiStraightLinePlan()
    
 Finally, create the controller, which is an instance of the ``BaseAgent`` class. This means we
 can call ``evaluate(env)`` to directly begin optimization on the environment!
  
 .. code-block:: python
-	
+
+    from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiOnlineController
     controller = GurobiOnlineController(rddl=model, plan=plan, rollout_horizon=5)
     controller.evaluate(env, verbose=True, render=True)
  
@@ -109,3 +109,14 @@ To understand the second approach, you can alternatively pass these parameters a
 
 An online and offline controller type are provided in pyRDDLGym, which mirror the functionality of the JAX
 planner discussed previously.
+
+Current Limitations
+-------------------
+
+We cite several limitations of the current baseline JAX optimizer:
+
+* Stochastic variables introduce computational difficulties since mixed-integer problems are inherently deterministic.
+	* The Gurobi planner currently applies determinization, where stochastic variables are substituted with their means. We hope to incorporate more sophisticated techniques from optimization to better deal with stochasticity.
+* Discrete non-linear domains can require exponential computation time.
+	* The Gurobi planner uses piecewise linear functions to approximate non-linearities, and quadratic expressions in other cases. Non-linear mixed-integer programs cannot be solved in polynomial time, so the plananer can get stuck if the state/action dimension are high.
+	* We recommend reducing the planning horizon, simplying the RDDL description as much as possible, and tweaking the parameters of the Gurobi model if the planner does not make progress on your problem.
