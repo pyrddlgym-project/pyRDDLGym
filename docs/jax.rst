@@ -1,5 +1,9 @@
-Advanced Topics
+Baselines: The Differentiable JAX Planner
 ===============
+
+In this tutorial, we discuss how the pure-python simulation backend can be swapped out with a
+more performant JAX compilation. We also discuss how to use this backend to perform gradient-based 
+optimization in sufficiently-smooth environments that support the computation of gradients.
 
 Changing the Simulation Backend
 -------------------
