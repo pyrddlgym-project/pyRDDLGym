@@ -494,8 +494,9 @@ We cite several limitations of the current baseline JAX optimizer:
 * Not all operations have natural differentiable relaxations. Currently, the following are not supported:
 	* nested fluents such as ``fluent1(fluent2(?p))``
 	* distributions that are not naturally reparameterizable such as Poisson, Gamma and Beta
-* Some relaxations can accumulate a high error relative to their exact counterparts, particularly when stacking CPFs via the chain rule for long roll-out horizons
-* Some relaxations may not be mathematically consistent with one another
+* Some relaxations can accumulate high error
+	* this is particularly problematic when stacking CPFs for long roll-out horizons, so we recommend reducing or tuning the rollout-horizon for best results
+* Some relaxations may not be mathematically consistent with one another:
 	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
 	* if this is a concern, it is recommended to override some operations in ``ProductLogic`` to suit the user's needs
 * Termination conditions and state/action constraints are not considered in the optimization (but can be checked at test-time).
