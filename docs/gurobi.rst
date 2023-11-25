@@ -115,8 +115,8 @@ Current Limitations
 
 We cite several limitations of the current baseline JAX optimizer:
 
-* Stochastic variables introduce computational difficulties since mixed-integer problems are inherently deterministic.
-	* The Gurobi planner currently applies determinization, where stochastic variables are substituted with their means. We hope to incorporate more sophisticated techniques from optimization to better deal with stochasticity.
+* Stochastic variables introduce computational difficulties since mixed-integer problems are inherently deterministic
+	* the planner currently applies determinization, where stochastic variables are substituted with their means (we hope to incorporate more sophisticated techniques from optimization to better deal with stochasticity)
 * Discrete non-linear domains can require exponential computation time.
-	* The Gurobi planner uses piecewise linear functions to approximate non-linearities, and quadratic expressions in other cases. Non-linear mixed-integer programs cannot be solved in polynomial time, so the plananer can get stuck if the state/action dimension are high.
-	* We recommend reducing the planning horizon, simplying the RDDL description as much as possible, and tweaking the parameters of the Gurobi model if the planner does not make progress on your problem.
+	* the planner uses piecewise linear functions to approximate non-linearities, and quadratic expressions in other cases
+	* if the planner does not make progress, we recommend reducing the planning horizon, simplying the RDDL description as much as possible, or tweaking the parameters of the Gurobi model.
