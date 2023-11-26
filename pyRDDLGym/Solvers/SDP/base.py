@@ -6,7 +6,7 @@ import sympy as sp
 from xaddpy import XADD
 from xaddpy.xadd.xadd import DeltaFunctionSubstitution
 
-from pyRDDLGym.Solvers.SDP.helper import Action, MDP
+from pyRDDLGym.Solvers.SDP.helper import SingleAction, MDP
 from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
 
 

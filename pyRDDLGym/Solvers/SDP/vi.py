@@ -5,7 +5,7 @@ import sympy as sp
 from xaddpy.xadd.xadd import XADD, XADDLeafMinOrMax
 
 from pyRDDLGym.Solvers.SDP.base import SymbolicSolver
-from pyRDDLGym.Solvers.SDP.helper import Action, BAction, CAction, MDP
+from pyRDDLGym.Solvers.SDP.helper import SingleAction, BAction, CAction, MDP
 
 
 class ValueIteration(SymbolicSolver):

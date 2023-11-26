@@ -1,23 +1,46 @@
 """Implements a parser that converts an XADD RDDL model into an MDP."""
 
+import itertools
 from typing import Dict, List, Set, Tuple
 
 import sympy as sp
 from xaddpy import XADD
 
-from pyRDDLGym.Solvers.SDP.helper.action import BAction, CAction
+from pyRDDLGym.Solvers.SDP.helper.action import BAction, CAction, ConcurrentAction
 from pyRDDLGym.Solvers.SDP.helper.mdp import MDP
 from pyRDDLGym.Solvers.SDP.helper.xadd_utils import BoundAnalysis
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 
 
+def _truncated_powerset(iterable, max_size: int):
+    """Returns the powerset of an iterable."""
+    s = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(s, r) for r in range(1, max_size + 1)
+    )
+
+
 class Parser:
 
     def parse(
-            self, model: RDDLModelWXADD, discount: float = 1.0, is_linear: bool = False,
+            self,
+            model: RDDLModelWXADD,
+            discount: float = 1.0,
+            concurrency: int = 1,
+            is_linear: bool = False,
     ) -> MDP:
-        """Parses the RDDL model into an MDP object."""
-        mdp = MDP(model, is_linear, discount)
+        """Parses the RDDL model into an MDP object.
+
+        Args:
+            model: The RDDL model compiled in XADD.
+            discount: The discount factor.
+            concurrency: The number of concurrent boolean actions.
+            is_linear: Whether the MDP is linear or not.
+        Returns:
+            The MDP object.
+        """
+        mdp = MDP(model, is_linear, discount, concurrency)
+
         # Configure the bounds of continuous states.
         cont_s_vars = set()
         for s in model.states:
@@ -28,19 +51,36 @@ class Parser:
         mdp.cont_state_bounds = cont_state_bounds
 
         # Go throuah all actions and get corresponding CPFs and rewards.
+        # For Boolean actions, we have to handle concurrency using `ConcurrentBAction`
+        # class.
         actions = model.actions
-        action_type = {}
+        bool_actions, cont_actions = [], []
         for name, val in actions.items():
             atype = 'bool' if isinstance(val, bool) else 'real'
             a_symbol = model.ns.get(name)
             if a_symbol is None:
                 print(f'Warning: action {name} not found in RDDLModelWXADD.actions')
                 a_symbol, a_node_id = model.add_sympy_var(name, atype)
-            action_type[name] = atype
-            a_cls = BAction if atype == 'bool' else CAction
-            action = a_cls(name, a_symbol, model)
+            if atype == 'bool':
+                bool_actions.append(BAction(name, a_symbol, model))
+            else:
+                cont_actions.append(CAction(name, a_symbol, model))            
 
-            # Add the action to the MDP.
+        # Add concurrent actions for Boolean actions.
+        if mdp.max_allowed_actions > 1 and len(bool_actions) > 1:
+            # Need to consider all combinations of boolean actions.
+            total_bool_actions = _truncated_powerset(bool_actions, mdp.max_allowed_actions)
+            for actions in total_bool_actions:
+                names = tuple(a.name for a in actions)
+                symbols = tuple(a.symbol for a in actions)
+                action = ConcurrentAction(names, symbols, model)
+                mdp.add_action(action)
+        else:
+            for action in bool_actions:
+                mdp.add_action(action)
+
+        # Add continuous actions.
+        for action in cont_actions:
             mdp.add_action(action)
 
         # Configure the bounds of continuous actions.
