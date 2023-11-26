@@ -35,7 +35,12 @@ def run_vi(args: argparse.Namespace):
     xadd_model.compile()
 
     mdp_parser = Parser()
-    mdp = mdp_parser.parse(xadd_model, xadd_model.discount, args.is_linear)
+    mdp = mdp_parser.parse(
+        xadd_model,
+        xadd_model.discount,
+        concurrency=rddl_ast.instance.max_nondef_actions,
+        is_linear=args.is_linear,
+    )
 
     vi = ValueIteration(
         mdp=mdp,

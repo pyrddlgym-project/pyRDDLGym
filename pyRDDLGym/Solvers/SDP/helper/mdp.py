@@ -1,10 +1,10 @@
 """Defines the MDP class."""
 
 import sympy as sp
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
-from pyRDDLGym.Solvers.SDP.helper import Action, BAction, CAction
+from pyRDDLGym.Solvers.SDP.helper import Action, BAction, CAction, ConcurrentAction
 
 
 class MDP:
@@ -14,19 +14,21 @@ class MDP:
         model: The RDDL model compiled in XADD.
         is_linear: Whether the MDP is linear or not.
         discount: The discount factor.
+        concurrency: The number of concurrent boolean actions.
     """
     def __init__(
             self,
             model: RDDLModelWXADD,
             is_linear: bool = False,
             discount: float = 1.0,
+            concurrency: int = 1,
     ):
         self.model = model
         self.context = model._context
         self.is_linear = is_linear
         self.discount = discount
         self.cpfs = {}
-        self.max_allowed_actions = self.model.max_allowed_actions
+        self.max_allowed_actions = concurrency
         self._prime_subs = self.get_prime_subs()
 
         self.cont_ns_vars = set()
@@ -39,7 +41,7 @@ class MDP:
         self.cont_a_vars = set()
 
         self.actions: Dict[str, Action] = {}
-        self.bool_actions: Dict[str, BAction] = {}
+        self.bool_actions: Dict[str, Union[BAction, ConcurrentAction]] = {}
         self.cont_actions: Dict[str, CAction] = {}
         self.a_var_to_action: Dict[sp.Symbol, Action] = {}
         self.action_to_a_var: Dict[Action, sp.Symbol] = {}
@@ -85,15 +87,21 @@ class MDP:
         if isinstance(action, BAction):
             self.bool_a_vars.add(action.symbol)
             self.bool_actions[action.name] = action
-        else:
+        elif isinstance(action, ConcurrentAction):
+            self.bool_a_vars.update(set(action.symbol))
+            self.bool_actions[action.name] = action
+        elif isinstance(action, CAction):
             self.cont_a_vars.add(action.symbol)
             self.cont_actions[action.name] = action
-        self.a_var_to_action[action.symbol] = action
-        self.action_to_a_var[action] = action.symbol
+        else:
+            raise ValueError(f'{action} is not a valid action type.')
+        # self.a_var_to_action[action.symbol] = action
+        # self.action_to_a_var[action] = action.symbol
 
     def update(self) -> None:
         """Goes through all CPFs and actions and updates them."""
         dual_cpfs_bool = {}
+        action_subst_dict = {a: False for a in self.bool_a_vars}
         for v_name, cpf in self.model.cpfs.items():
             # Handle Boolean next state and interm variables.
             v = self.context._str_var_to_var[v_name]
@@ -111,10 +119,10 @@ class MDP:
             self.cpfs[v] = cpf
             for a_name, act in self.actions.items():
                 # Boolean actions can be restricted.
-                if isinstance(act, BAction):
-                    cpf_ = act.restrict(True, cpf)
+                if isinstance(act, BAction) or isinstance(act, ConcurrentAction):
+                    cpf_ = act.restrict(cpf, action_subst_dict)
                     act.add_cpf(v, cpf_)
-                    reward = act.restrict(True, self.reward)
+                    reward = act.restrict(self.reward, action_subst_dict)
                 else:
                     act.add_cpf(v, cpf)
                     reward = self.reward
