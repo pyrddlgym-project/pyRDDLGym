@@ -42,6 +42,7 @@ def run_vi(args: argparse.Namespace):
         concurrency=rddl_ast.instance.max_nondef_actions,
         is_linear=args.is_linear,
         include_noop=not args.skip_noop,
+        is_vi=True,
     )
 
     vi_solver = ValueIteration(

@@ -1,0 +1,4 @@
+[General]
+name=PiramidSimple2D
+description=PiramidSimple domain for testing SDP solutions (https://github.com/ssanner/xadd-inference/blob/master/src/camdp/ex/contact/piramidSimple2d.cmdp)
+viz=TextViz.TextVisualizer

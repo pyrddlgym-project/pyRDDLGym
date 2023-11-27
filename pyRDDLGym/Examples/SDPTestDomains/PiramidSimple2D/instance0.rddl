@@ -1,0 +1,19 @@
+non-fluents piramid2d {
+    domain = piramid_simple_2d;
+    objects {};
+}
+
+instance inst_piramid_simple_2d {
+
+	domain = piramid_simple_2d;
+
+	init-state {
+		x = 0.0;
+		y = 0.0;
+	};
+
+  	max-nondef-actions = 1;
+
+	horizon  = 8;
+	discount = 1.0;
+}

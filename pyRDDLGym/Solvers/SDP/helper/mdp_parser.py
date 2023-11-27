@@ -29,6 +29,7 @@ class Parser:
             concurrency: int = 1,
             is_linear: bool = False,
             include_noop: bool = True,
+            is_vi: bool = True,
     ) -> MDP:
         """Parses the RDDL model into an MDP object.
 
@@ -38,6 +39,7 @@ class Parser:
             concurrency: The number of concurrent boolean actions.
             is_linear: Whether the MDP is linear or not.
             include_noop: Whether to include the no-op action or not. Defaults to True.
+            is_vi: Whether solving Value Iteration (VI).
 
         Returns:
             The MDP object.
@@ -70,7 +72,7 @@ class Parser:
                 cont_actions.append(CAction(name, a_symbol, model))            
 
         # Add concurrent actions for Boolean actions.
-        if bool_actions:
+        if is_vi:
             # Need to consider all combinations of boolean actions.
             # Note: there's always an implicit no-op action with which
             # none of the boolean actions are set to True.
@@ -105,7 +107,7 @@ class Parser:
         mdp.update_i_and_ns_var_sets()
 
         # Go through the actions and update the corresponding CPF XADDs.
-        mdp.update()
+        mdp.update(is_vi=is_vi)
         return mdp
 
     def configure_bounds(

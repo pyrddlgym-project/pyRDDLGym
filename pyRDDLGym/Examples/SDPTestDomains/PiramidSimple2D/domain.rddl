@@ -1,0 +1,64 @@
+domain piramid_simple_2d {
+
+    requirements = {
+        reward-deterministic
+    };
+
+    types {}; 
+
+    pvariables {
+
+        // States
+        x  : { state-fluent, real, default = 0 };     // robot x position
+        y  : { state-fluent, real, default = 0 };     // rover y position
+
+        // actions
+        takepic : { action-fluent, bool, default = false };
+        move    : { action-fluent, bool, default = false };
+        ax      : { action-fluent, real, default = 0 };    // move along the x-axis
+        ay      : { action-fluent, real, default = 0 };    // move along the y-axis
+    };
+
+    cpfs {
+        x' = if (takepic)
+                then x
+                else if (move)
+                    then if (x + ax < 50)
+                        then if (ax + ay < 8)
+                            then [x + ax]
+                            else [x]
+                        else [x]
+                else [x];
+        
+        y' = if (takepic)
+                then y
+                else if (move)
+                    then if (y + ay < 50)
+                        then if (ax + ay < 8)
+                            then [y + ay]
+                            else [y]
+                        else [y]
+                else [y];
+    };
+
+    reward = if (takepic)
+                then if (x + y > 75)
+                    then [-0.4 + 0.005 * (x + y)]
+                    else [0]
+                else 0;
+                    
+    state-invariants {
+        x >= -50;
+        x <= 50;
+        y >= -50;
+        y <= 50;
+    };
+
+    action-preconditions {
+        ax >= -8;
+        ax <= 8;
+        ay >= -8;
+        ay <= 8;
+    };
+
+}
