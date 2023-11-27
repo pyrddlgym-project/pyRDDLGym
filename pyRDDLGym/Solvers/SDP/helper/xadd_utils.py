@@ -93,7 +93,8 @@ class ValueAssertion(XADDLeafOperation):
 
     def process_xadd_leaf(
             self,
-            *args,
+            decisions: List[sp.Basic],
+            decision_values: List[bool],
             leaf_val: sp.Basic,
     ) -> int:
         """Processes an XADD partition to assert the type.

@@ -3,10 +3,6 @@ non-fluents robot1d {
 
     objects {};
 
-	non-fluents { 
-		GOAL = 20.0;
-	};
-
 }
 
 // Specify three power plants with default settings

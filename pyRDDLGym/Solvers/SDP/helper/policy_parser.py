@@ -56,12 +56,13 @@ class PolicyParser:
                 a_symbol, a_xadd = self._parse_policy_for_single_action(policy_dict, a_name)
                 parsed_policy_dict[a_symbol] = a_xadd
             policy = Policy(parsed_policy_dict, policy_fname)
-        except:
+        except Exception as e:
+            print(str(e))
             raise RuntimeError(f'Failed to load policy from {policy_fname}.')
 
         # Assert concurrency.
         if assert_concurrency:
-            self._assert_concurrency(parsed_policy_dict)
+            self._assert_concurrency(parsed_policy_dict, concurrency)
         return policy
 
     def _validate_action_fluents(self, a_vars):
@@ -76,7 +77,7 @@ class PolicyParser:
         action_set_from_policy = set(policy_dict.keys())
         assert len(action_set_from_model.symmetric_difference(action_set_from_policy)) == 0, \
             'Action set from the policy does not match with the model.'
-        for a, val in policy_dict:
+        for a, val in policy_dict.items():
             assert isinstance(val, str), f'Value for action {a} must be a string file path.'
             assert val.endswith('.xadd'), f'Value for action {a} must be a string file path ending with .xadd.'
             assert os.path.exists(val), f'Value for action {a} must be a string file path that exists.'
@@ -88,7 +89,7 @@ class PolicyParser:
         a_type = self.model.gvar_to_type[a_name]
 
         # Parse the XADD from file.
-        a_dd = self.context.import_xadd(path)
+        a_dd = self.context.import_xadd(path, locals=self.model.ns)
         a_var = self.model.ns[a_name]
 
         # Boolean action should condition on itself being True or False.

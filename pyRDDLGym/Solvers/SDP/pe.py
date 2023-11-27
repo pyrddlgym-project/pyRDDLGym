@@ -1,6 +1,6 @@
 """Defines the Policy Evaluation solver."""
 
-from typing import Dict
+from typing import Dict, Optional
 
 import sympy as sp
 from xaddpy.xadd.xadd import DeltaFunctionSubstitution
@@ -15,11 +15,14 @@ class PolicyEvaluation(SymbolicSolver):
     def __init__(self, policy: Policy, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.policy = policy
+        self.reward: Optional[int] = None
         self._embed_policy_to_cpfs()
 
     def _embed_policy_to_cpf(self, cpf: int, policy: Policy) -> int:
         """Embeds the policy into a single CPF."""
         cpf_ = cpf
+        var_set = self.context.collect_vars(cpf)
+
         for a_var in policy.actions:
             pi_a = policy[a_var]    # pi(a|s).
             # Boolean actions.
@@ -36,6 +39,8 @@ class PolicyEvaluation(SymbolicSolver):
                 restrict_low = self.context.op_out(cpf_, var_id, op='restrict_low')
                 cpf_ = self.context.apply(restrict_high, restrict_low, op='add')
             else:
+                if a_var not in var_set:
+                    continue
                 leaf_op = DeltaFunctionSubstitution(
                     a_var, cpf_, self.context, is_linear=self.mdp.is_linear)
                 cpf_ = self.context.reduce_process_xadd_leaf(pi_a, leaf_op, [], [])
@@ -51,8 +56,7 @@ class PolicyEvaluation(SymbolicSolver):
             cpfs[v] = self._embed_policy_to_cpf(cpf, policy)
 
         # Update the reward CPF.
-        reward = self.mdp.reward
-        self.mdp.reward = self._embed_policy_to_cpf(reward, policy)
+        self.reward = self._embed_policy_to_cpf(self.mdp.reward, policy)
 
     def bellman_backup(self, dd: int) -> int:
         """Performs the policy evaluation Bellman backup.
@@ -64,5 +68,5 @@ class PolicyEvaluation(SymbolicSolver):
             The new value function XADD ID.
         """
         # Regress the value function.
-        regr = self.regress(dd, reward=self.mdp.reward, cpfs=self.mdp.cpfs)
+        regr = self.regress(dd, reward=self.reward, cpfs=self.mdp.cpfs)
         return regr

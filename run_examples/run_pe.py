@@ -41,7 +41,6 @@ def run_pe(args: argparse.Namespace):
         xadd_model.discount,
         concurrency=rddl_ast.instance.max_nondef_actions,
         is_linear=args.is_linear,
-        include_noop=not args.skip_noop,
         is_vi=False,
     )
 
@@ -50,7 +49,7 @@ def run_pe(args: argparse.Namespace):
         mdp=mdp,
         policy_fname=args.policy_fpath,
         assert_concurrency=args.assert_concurrency,
-        concurrency=rddl_ast.instance.max_nondef_actions,
+        concurrency=mdp.max_allowed_actions,
     )
 
     pe_solver = PolicyEvaluation(
@@ -92,8 +91,6 @@ if __name__ == "__main__":
                         help='Whether to enable early convergence')
     parser.add_argument('--is_linear', action='store_true',
                         help='Whether the MDP is linear or not')
-    parser.add_argument('--skip_noop', action='store_true',
-                        help='Whether to skip the noop action')
     parser.add_argument('--assert_concurrency', action='store_true',
                         help='Whether to assert concurrency or not')
     parser.add_argument('--save_graph', action='store_true',
