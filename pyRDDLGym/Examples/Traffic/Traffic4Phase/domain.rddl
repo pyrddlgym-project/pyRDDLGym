@@ -1,11 +1,12 @@
-////////////////////////////////////////// QTM ////////////////////////////////////////////////
+////////////////////////////////////////// QTM //////////////////////////////////////////////////////////
 //
-//  Implementation of the BLX (van den Berg - Lin - Xi) model / QTM (Queue Transmission Model)
-//  of queue and platoon dynamics in a traffic network.
+//  Implementation of the BLX (van den Berg - Lin - Xi) model / QTM (Queue Transmission Model).
 //
-//  The propagation time along a link determined by the free-flow speed along that link, and
-//  the distance from the upstream link entrance to the end of the queue at entrance time.
-//  Incoming flows are split along different turning directions according to turning proportions.
+//  The model represents queues and platoon flows in a traffic network. The propagation time of
+//  a platoon along a link is approximated by the quotient D/v, where D is the distance from the
+//  upstream link entrance to the end of the queue (at entrance time) and v is the freeflow propagation
+//  speed along the link. Incoming flows are split along different turning directions according to
+//  fixed turning proportions.
 //
 //  The model takes into account undersaturated, saturated, and oversaturated conditions:
 //      * Undersaturated: The queue + arriving flow is small enough to be released
@@ -14,9 +15,10 @@
 //      * Oversaturated:  The downstream link does not have enough capacity to fit
 //                        the entirety of the queue, causing a spillback.
 //
-//  This implementation uses a fixed signal-phase order, and the action consists of a concurrently
-//  chosen boolean for each intersection: whether or not to extend the current signal phase or
-//  switch to the next one in the fixed order.
+//  This implementation uses a fixed signal-phase order, with four phases (protected left followed
+//  by through phase, for NS and EW directions). The action consists of a concurrently chosen boolean
+//  for each intersection: whether or not to extend the current signal phase (if not, switch to the next 
+//  phase in the fixed order).
 //
 //  Authors: Ayal Taitler (ataitler@gmail.com)
 //           Ilia Smirnov (iliathesmirnov@gmail.com)
@@ -31,7 +33,7 @@
 //      time mixed integer linear programming formulation for traffic signal control,"
 //      Transportation Research Record, pp. 128-138 2595(1), 2016
 //
-///////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 domain BLX_model {
 
@@ -149,6 +151,7 @@ domain BLX_model {
         // Then the inflow is split so that
         //      (1-gamma) of the inflow will arrive in tau time-steps, and
         //         gamma of the inflow will arrive in (tau+1) time-steps.
+        // i.e. the inflow is linearly interpolated.
         // For example, if Ts=4s and the propagation time is 7s, then
         //         (1/4) of the inflow will arrive in 1 time-step and
         //         (3/4) will arrive in 2 time-steps

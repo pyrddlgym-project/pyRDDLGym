@@ -1,0 +1,25 @@
+non-fluents sum_of_half_spaces_dim1_nsummands3 {
+    domain = sum_of_half_spaces;
+
+    objects {
+		summand : {s1, s2, s3};
+        dimension : {d1};
+	};
+	
+	non-fluents {
+        W(s1,d1) = 0.3;
+        W(s2,d1) = 1.5;
+        W(s3,d1) = -0.7;
+        B(s1,d1) = 0.455;
+        B(s2,d1) = 0.1;
+        B(s3,d1) = -0.89;
+	};
+}
+
+instance sum_of_half_spaces_dim1_nsummands3_inst0 {
+	domain = sum_of_half_spaces;
+	non-fluents = sum_of_half_spaces_dim1_nsummands3;
+	max-nondef-actions = 1;
+	horizon  = 1;
+	discount = 1.0;
+}

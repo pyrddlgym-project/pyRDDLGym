@@ -1,0 +1,53 @@
+{ "useGPU": false,
+  "use64bit": true,
+  "debug_nans": true,
+  "enable_jit": true,
+  "seed": 3264,
+  "action_dim": 9,
+  "n_iters": 50,
+  "models": {
+    "id": "sum_of_half_spaces",
+    "params": {
+      "n_summands": 10,
+      "instance_idx": 0,
+      "specs": {
+        "train_model": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1024
+          }
+        },
+        "eval_model": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 32
+          }
+        }
+      }
+    }
+  },
+  "bijector": {
+    "id": "identity",
+    "params": {}
+  },
+  "policy": {
+    "id": "multivar_normal_with_linear_parametrization",
+    "params": {}
+  },
+  "optimizer": {
+    "id": "adagrad",
+    "params": {
+      "learning_rate": 0.7
+    }
+  },
+  "algorithm": {
+    "id": "reinforce",
+    "params": {
+      "batch_size": 1024,
+      "eval_batch_size": 32,
+      "epsilon": 0.0,
+      "verbose": true
+    }
+  },
+  "save_to": "/home/ilia/Programming/storage/tmp"
+}
