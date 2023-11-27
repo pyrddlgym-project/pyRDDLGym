@@ -70,6 +70,8 @@ class BAction(SingleAction):
 
     def restrict(self, dd: int, subst_dict: Dict[sp.Symbol, bool]) -> int:
         """Restrict a given XADD by setting the action value as True."""
+        # Make a copy to prevent in-place updates.
+        subst_dict = subst_dict.copy()
         # Get the variable set of the XADD.
         var_set = self.context.collect_vars(dd)
         # Skip if no action variable is in the XADD.
