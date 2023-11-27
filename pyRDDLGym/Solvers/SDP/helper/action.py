@@ -62,27 +62,6 @@ class SingleAction(Action):
         self._reward = None
 
 
-
-class BAction(SingleAction):
-    """Boolean Action class."""
-    def __init__(self, name: str, symbol: sp.Symbol, model: RDDLModelWXADD):
-        super().__init__(name, symbol, model, 'bool')          
-
-    def restrict(self, dd: int, subst_dict: Dict[sp.Symbol, bool]) -> int:
-        """Restrict a given XADD by setting the action value as True."""
-        # Make a copy to prevent in-place updates.
-        subst_dict = subst_dict.copy()
-        # Get the variable set of the XADD.
-        var_set = self.context.collect_vars(dd)
-        # Skip if no action variable is in the XADD.
-        if len(set(subst_dict.keys()).intersection(var_set)) == 0:
-            return dd
-        # Prepare the substitution dictionary.
-        subst_dict.update({self.symbol: True})
-        # Perform the substitution.
-        return self.context.substitute(dd, subst_dict)
-
-
 class CAction(SingleAction):
     """Continuous Action class."""
     def __init__(self, name: str, symbol: sp.Symbol, model: RDDLModelWXADD):
@@ -108,25 +87,19 @@ class CAction(SingleAction):
         self._lb = lb
 
 
-class ConcurrentAction(Action):
-    """Concurrent Boolean Action class."""
+class BActions(Action):
+    """Boolean Action class that supports concurrency."""
     def __init__(
             self,
             names: Tuple[str],
             symbols: Tuple[sp.Symbol],
             model: RDDLModelWXADD,
     ):
-        self.name = '_'.join(names)
+        self.name = '_'.join(names) if names else 'noop'
         self._symbol = symbols
         self.model = model
         self.context = model._context
         self._reward = None
-
-    def add_cpf(self, *args, **kwargs):
-        return super().add_cpf(*args, **kwargs)
-
-    def get_cpf(self, *args, **kwargs):
-        return super().get_cpf(*args, **kwargs)
 
     def restrict(self, dd: int, subst_dict: Dict[sp.Symbol, bool]) -> int:
         """Restrict a given XADD by setting the action values as True."""

@@ -6,17 +6,17 @@ from typing import Dict, List, Set, Tuple
 import sympy as sp
 from xaddpy import XADD
 
-from pyRDDLGym.Solvers.SDP.helper.action import BAction, CAction, ConcurrentAction
+from pyRDDLGym.Solvers.SDP.helper.action import SingleAction, CAction, BActions
 from pyRDDLGym.Solvers.SDP.helper.mdp import MDP
 from pyRDDLGym.Solvers.SDP.helper.xadd_utils import BoundAnalysis
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 
 
-def _truncated_powerset(iterable, max_size: int):
+def _truncated_powerset(iterable, max_size: int, include_noop: bool):
     """Returns the powerset of an iterable."""
     s = list(iterable)
     return itertools.chain.from_iterable(
-        itertools.combinations(s, r) for r in range(1, max_size + 1)
+        itertools.combinations(s, r) for r in range(1 - int(include_noop), max_size + 1)
     )
 
 
@@ -28,6 +28,7 @@ class Parser:
             discount: float = 1.0,
             concurrency: int = 1,
             is_linear: bool = False,
+            include_noop: bool = True,
     ) -> MDP:
         """Parses the RDDL model into an MDP object.
 
@@ -36,6 +37,8 @@ class Parser:
             discount: The discount factor.
             concurrency: The number of concurrent boolean actions.
             is_linear: Whether the MDP is linear or not.
+            include_noop: Whether to include the no-op action or not. Defaults to True.
+
         Returns:
             The MDP object.
         """
@@ -62,18 +65,25 @@ class Parser:
                 print(f'Warning: action {name} not found in RDDLModelWXADD.actions')
                 a_symbol, a_node_id = model.add_sympy_var(name, atype)
             if atype == 'bool':
-                bool_actions.append(BAction(name, a_symbol, model))
+                bool_actions.append(SingleAction(name, a_symbol, model, 'bool'))
             else:
                 cont_actions.append(CAction(name, a_symbol, model))            
 
         # Add concurrent actions for Boolean actions.
-        if mdp.max_allowed_actions > 1 and len(bool_actions) > 1:
+        if bool_actions:
             # Need to consider all combinations of boolean actions.
-            total_bool_actions = _truncated_powerset(bool_actions, mdp.max_allowed_actions)
+            # Note: there's always an implicit no-op action with which
+            # none of the boolean actions are set to True.
+            total_bool_actions = tuple(
+                _truncated_powerset(
+                    bool_actions,
+                    mdp.max_allowed_actions,
+                    include_noop=include_noop,
+            ))
             for actions in total_bool_actions:
                 names = tuple(a.name for a in actions)
                 symbols = tuple(a.symbol for a in actions)
-                action = ConcurrentAction(names, symbols, model)
+                action = BActions(names, symbols, model)
                 mdp.add_action(action)
         else:
             for action in bool_actions:
@@ -87,6 +97,9 @@ class Parser:
         if len(mdp.cont_a_vars) > 0:
             cont_action_bounds = self.configure_bounds(mdp, model.preconditions, mdp.cont_a_vars)
             mdp.cont_action_bounds = cont_action_bounds
+
+        # Update the state variable sets.
+        mdp.update_state_var_sets()
 
         # Update the next state and interm variable sets.
         mdp.update_i_and_ns_var_sets()

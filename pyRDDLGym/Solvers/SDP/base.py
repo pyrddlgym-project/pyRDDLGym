@@ -30,13 +30,35 @@ class SymbolicSolver:
         for l, var_set in self.levels.items():
             for v in var_set:
                 self.var_to_level[v] = l
-
-    @abc.abstractmethod
+    
     def solve(self) -> int:
-        """Returns the solution XADD ID of the value function."""
+        """See the base class."""
+        # Reset the counter.
+        self.n_curr_iter = 0
+
+        # Initialize the value function.
+        value_dd = self.context.ZERO
+
+        # Perform VI for the set number of iterations.
+        while self.n_curr_iter < self.n_max_iter:
+            self.n_curr_iter += 1
+
+            # Cache the current value function.
+            _prev_dd = value_dd
+
+            # Perform the Bellman backup.
+            value_dd = self.bellman_backup(value_dd)
+
+            # Check for convergence.
+            if self.enable_early_convergence and value_dd == _prev_dd:
+                print(f'\nVI: Converged to solution early, at iteration {self.n_curr_iter}')
+                break
+
+        self.flush_caches()
+        return value_dd
 
     @abc.abstractmethod
-    def bellman_backup(self) -> int:
+    def bellman_backup(self, dd: int) -> int:
         """Performs the Bellman backup."""
 
     @abc.abstractmethod
