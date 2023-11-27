@@ -7,7 +7,7 @@ from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
-from pyRDDLGym.Solvers.SDP.helper import Parser, PolicyParser, Policy
+from pyRDDLGym.Solvers.SDP.helper import MDPParser, PolicyParser, Policy
 from pyRDDLGym.Solvers.SDP.pe import PolicyEvaluation
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 
@@ -35,7 +35,7 @@ def run_pe(args: argparse.Namespace):
     xadd_model = RDDLModelWXADD(model, simulation=False)
     xadd_model.compile()
 
-    mdp_parser = Parser()
+    mdp_parser = MDPParser()
     mdp = mdp_parser.parse(
         xadd_model,
         xadd_model.discount,

@@ -20,7 +20,7 @@ def _truncated_powerset(iterable, max_size: int, include_noop: bool):
     )
 
 
-class Parser:
+class MDPParser:
 
     def parse(
             self,
