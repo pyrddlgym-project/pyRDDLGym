@@ -8,9 +8,6 @@ domain robot_linear_1d {
 
     pvariables {
 
-        // Constants
-        GOAL: { non-fluent, real, default = 20 };           // The goal position
-
         // States
         x  : { state-fluent, real, default = 0 };     // rover x position
         g  : { state-fluent, bool, default = false };
@@ -21,7 +18,7 @@ domain robot_linear_1d {
 
     cpfs {
         // Check if already reached in previous steps
-        g' = if (g) then true else if (x > 20) then true else false;
+        g' = if (g) then true else if (x >= 20) then true else false;
 
         // Stay put if reached; otherwise move
         x' = x + a;
@@ -31,7 +28,7 @@ domain robot_linear_1d {
     // R = 1 if reached the GOAL in the current time step; otherwise 0
     reward = if (g) 
             then 0 
-            else if (x > 20) 
+            else if (x >= 20) 
             then [if (a >= 0) 
                     then 99 - a 
                   else 99 + a] 

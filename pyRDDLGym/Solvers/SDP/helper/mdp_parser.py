@@ -1,7 +1,7 @@
 """Implements a parser that converts an XADD RDDL model into an MDP."""
 
 import itertools
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Union
 
 import sympy as sp
 from xaddpy import XADD
@@ -26,7 +26,7 @@ class Parser:
             self,
             model: RDDLModelWXADD,
             discount: float = 1.0,
-            concurrency: int = 1,
+            concurrency: Union[str, int] = 1,
             is_linear: bool = False,
             include_noop: bool = True,
             is_vi: bool = True,
@@ -44,6 +44,8 @@ class Parser:
         Returns:
             The MDP object.
         """
+        if concurrency == 'pos-inf':
+            concurrency = int(1e9)
         mdp = MDP(model, is_linear, discount, concurrency)
 
         # Configure the bounds of continuous states.
