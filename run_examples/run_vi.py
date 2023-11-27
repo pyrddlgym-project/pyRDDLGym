@@ -1,6 +1,7 @@
 """An example VI run."""
 
 import argparse
+import os
 
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 from pyRDDLGym.Core.Parser.parser import RDDLParser
@@ -50,8 +51,17 @@ def run_vi(args: argparse.Namespace):
     value_dd = vi.solve()
 
     # Export the solution to a file.
+    env_path = env_info.path_to_env
+    sol_dir = os.path.join(env_path, 'sdp', 'vi')
+    os.makedirs(sol_dir, exist_ok=True)
+    sol_fpath = os.path.join(sol_dir, f'value_dd_iter_{args.max_iter}.xadd')
+    mdp.context.export_xadd(value_dd, fname=sol_fpath)
 
     # Visualize the solution XADD.
+    if args.save_graph:
+        graph_fpath = os.path.join(os.path.dirname(sol_fpath),
+                                   f'value_dd_iter_{args.max_iter}.pdf')
+        mdp.context.save_graph(value_dd, file_name=graph_fpath)
 
 
 if __name__ == "__main__":
@@ -69,6 +79,8 @@ if __name__ == "__main__":
                         help='Whether to enable early convergence')
     parser.add_argument('--is_linear', action='store_true',
                         help='Whether the MDP is linear or not')
+    parser.add_argument('--save_graph', action='store_true',
+                        help='Whether to save the XADD graph to a file')
     args = parser.parse_args()
 
     run_vi(args)
