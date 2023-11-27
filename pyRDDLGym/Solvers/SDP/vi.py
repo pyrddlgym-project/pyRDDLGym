@@ -2,10 +2,10 @@
 from typing import Dict, List, Optional, Set, Tuple
 
 import sympy as sp
-from xaddpy.xadd.xadd import XADD, XADDLeafMinOrMax
+from xaddpy.xadd.xadd import XADDLeafMinOrMax
 
 from pyRDDLGym.Solvers.SDP.base import SymbolicSolver
-from pyRDDLGym.Solvers.SDP.helper import SingleAction, BAction, CAction, MDP
+from pyRDDLGym.Solvers.SDP.helper import CAction
 
 
 class ValueIteration(SymbolicSolver):
@@ -14,32 +14,6 @@ class ValueIteration(SymbolicSolver):
     def __init__(self, annotate: bool = False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.annotate = annotate
-
-    def solve(self) -> int:
-        """See the base class."""
-        # Reset the counter.
-        self.n_curr_iter = 0
-
-        # Initialize the value function.
-        value_dd = self.context.ZERO
-
-        # Perform VI for the set number of iterations.
-        while self.n_curr_iter < self.n_max_iter:
-            self.n_curr_iter += 1
-
-            # Cache the current value function.
-            _prev_dd = value_dd
-
-            # Perform the Bellman backup.
-            value_dd = self.bellman_backup(value_dd)
-
-            # Check for convergence.
-            if self.enable_early_convergence and value_dd == _prev_dd:
-                print(f'\nVI: Converged to solution early, at iteration {self.n_curr_iter}')
-                break
-
-        self.flush_caches()
-        return value_dd
 
     def bellman_backup(self, dd: int) -> int:
         """Performs the VI Bellman backup.

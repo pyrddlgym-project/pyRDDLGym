@@ -1,10 +1,10 @@
 """Defines the MDP class."""
 
 import sympy as sp
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple
 
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
-from pyRDDLGym.Solvers.SDP.helper import Action, BAction, CAction, ConcurrentAction
+from pyRDDLGym.Solvers.SDP.helper import Action, CAction, BActions
 
 
 class MDP:
@@ -41,7 +41,7 @@ class MDP:
         self.cont_a_vars = set()
 
         self.actions: Dict[str, Action] = {}
-        self.bool_actions: Dict[str, Union[BAction, ConcurrentAction]] = {}
+        self.bool_actions: Dict[str, BActions] = {}
         self.cont_actions: Dict[str, CAction] = {}
         self.a_var_to_action: Dict[sp.Symbol, Action] = {}
         self.action_to_a_var: Dict[Action, sp.Symbol] = {}
@@ -64,6 +64,18 @@ class MDP:
             prime_subs[s_var] = ns_var
         return prime_subs
 
+    def update_state_var_sets(self):
+        m = self.model
+        for v, vtype in m.gvar_to_type.items():
+            if v in m.nonfluents:
+                continue
+            v_, v_node_id = m.add_sympy_var(v, vtype)
+            if v in m.states:
+                if vtype == 'bool':
+                    self.bool_s_vars.add(v_)
+                else:
+                    self.cont_s_vars.add(v_)
+
     def update_i_and_ns_var_sets(self):
         m = self.model
         for v, vtype in m.gvar_to_type.items():
@@ -84,10 +96,7 @@ class MDP:
     def add_action(self, action: Action):
         """Adds an action to the MDP."""
         self.actions[action.name] = action
-        if isinstance(action, BAction):
-            self.bool_a_vars.add(action.symbol)
-            self.bool_actions[action.name] = action
-        elif isinstance(action, ConcurrentAction):
+        if isinstance(action, BActions):
             self.bool_a_vars.update(set(action.symbol))
             self.bool_actions[action.name] = action
         elif isinstance(action, CAction):
@@ -95,8 +104,6 @@ class MDP:
             self.cont_actions[action.name] = action
         else:
             raise ValueError(f'{action} is not a valid action type.')
-        # self.a_var_to_action[action.symbol] = action
-        # self.action_to_a_var[action] = action.symbol
 
     def update(self) -> None:
         """Goes through all CPFs and actions and updates them."""
@@ -119,7 +126,7 @@ class MDP:
             self.cpfs[v] = cpf
             for a_name, act in self.actions.items():
                 # Boolean actions can be restricted.
-                if isinstance(act, BAction) or isinstance(act, ConcurrentAction):
+                if isinstance(act, BActions):
                     cpf_ = act.restrict(cpf, action_subst_dict)
                     act.add_cpf(v, cpf_)
                     reward = act.restrict(self.reward, action_subst_dict)

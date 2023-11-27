@@ -1,3 +1,3 @@
-from .action import Action, SingleAction, BAction, CAction, ConcurrentAction
+from .action import Action, SingleAction, CAction, BActions
 from .mdp import MDP
 from .mdp_parser import Parser

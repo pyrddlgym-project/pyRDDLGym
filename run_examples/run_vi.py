@@ -41,14 +41,15 @@ def run_vi(args: argparse.Namespace):
         xadd_model.discount,
         concurrency=rddl_ast.instance.max_nondef_actions,
         is_linear=args.is_linear,
+        include_noop=not args.skip_noop,
     )
 
-    vi = ValueIteration(
+    vi_solver = ValueIteration(
         mdp=mdp,
         max_iter=args.max_iter,
         enable_early_convergence=args.enable_early_convergence,
     )
-    value_dd = vi.solve()
+    value_dd = vi_solver.solve()
 
     # Export the solution to a file.
     env_path = env_info.path_to_env
@@ -69,9 +70,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--env', type=str, default='marsrover',
+    parser.add_argument('--env', type=str, default='RobotLinear_1D',
                         help='The name of the RDDL environment')
-    parser.add_argument('--inst', type=str, default='1c',
+    parser.add_argument('--inst', type=str, default='0',
                         help='The instance number of the RDDL environment')
     parser.add_argument('--max_iter', type=int, default=100,
                         help='The maximum number of iterations')
@@ -79,6 +80,8 @@ if __name__ == "__main__":
                         help='Whether to enable early convergence')
     parser.add_argument('--is_linear', action='store_true',
                         help='Whether the MDP is linear or not')
+    parser.add_argument('--skip_noop', action='store_true',
+                        help='Whether to skip the noop action')
     parser.add_argument('--save_graph', action='store_true',
                         help='Whether to save the XADD graph to a file')
     args = parser.parse_args()
