@@ -105,7 +105,7 @@ class MDP:
         else:
             raise ValueError(f'{action} is not a valid action type.')
 
-    def update(self) -> None:
+    def update(self, is_vi: bool) -> None:
         """Goes through all CPFs and actions and updates them."""
         dual_cpfs_bool = {}
         action_subst_dict = {a: False for a in self.bool_a_vars}
@@ -125,14 +125,14 @@ class MDP:
             # Update CPFs and reward.
             self.cpfs[v] = cpf
             for a_name, act in self.actions.items():
-                # Boolean actions can be restricted.
-                if isinstance(act, BActions):
-                    cpf_ = act.restrict(cpf, action_subst_dict)
-                    act.add_cpf(v, cpf_)
+                cpf_ = cpf
+                # Boolean actions can be restricted for VI.
+                if is_vi and isinstance(act, BActions):
+                    cpf_ = act.restrict(cpf_, action_subst_dict)
                     reward = act.restrict(self.reward, action_subst_dict)
                 else:
-                    act.add_cpf(v, cpf)
                     reward = self.reward
+                act.add_cpf(v, cpf_)
                 act.reward = reward
 
     @property

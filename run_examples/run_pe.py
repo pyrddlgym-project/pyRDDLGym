@@ -7,13 +7,13 @@ from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
 from pyRDDLGym.Core.Parser.parser import RDDLParser
 from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
-from pyRDDLGym.Solvers.SDP.helper import MDP, Parser
-from pyRDDLGym.Solvers.SDP.vi import ValueIteration
+from pyRDDLGym.Solvers.SDP.helper import Parser, PolicyParser, Policy
+from pyRDDLGym.Solvers.SDP.pe import PolicyEvaluation
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 
 
-def run_vi(args: argparse.Namespace):
-    """Runs VI."""
+def run_pe(args: argparse.Namespace):
+    """Runs PE."""
     env_info = ExampleManager.GetEnvInfo(args.env)
     domain = env_info.get_domain()
     instance = env_info.get_instance(args.inst)
@@ -42,19 +42,28 @@ def run_vi(args: argparse.Namespace):
         concurrency=rddl_ast.instance.max_nondef_actions,
         is_linear=args.is_linear,
         include_noop=not args.skip_noop,
-        is_vi=True,
+        is_vi=False,
     )
 
-    vi_solver = ValueIteration(
+    policy_parser = PolicyParser()
+    policy = policy_parser.parse(
+        mdp=mdp,
+        policy_fname=args.policy_fpath,
+        assert_concurrency=args.assert_concurrency,
+        concurrency=rddl_ast.instance.max_nondef_actions,
+    )
+
+    pe_solver = PolicyEvaluation(
+        policy=policy,
         mdp=mdp,
         max_iter=args.max_iter,
         enable_early_convergence=args.enable_early_convergence,
     )
-    value_dd = vi_solver.solve()
+    value_dd = pe_solver.solve()
 
     # Export the solution to a file.
     env_path = env_info.path_to_env
-    sol_dir = os.path.join(env_path, 'sdp', 'vi')
+    sol_dir = os.path.join(env_path, 'sdp', 'pe')
     os.makedirs(sol_dir, exist_ok=True)
     sol_fpath = os.path.join(sol_dir, f'value_dd_iter_{args.max_iter}.xadd')
     mdp.context.export_xadd(value_dd, fname=sol_fpath)
@@ -75,6 +84,8 @@ if __name__ == "__main__":
                         help='The name of the RDDL environment')
     parser.add_argument('--inst', type=str, default='0',
                         help='The instance number of the RDDL environment')
+    parser.add_argument('--policy_fpath', type=str,
+                        help='The file path to the policy')
     parser.add_argument('--max_iter', type=int, default=100,
                         help='The maximum number of iterations')
     parser.add_argument('--enable_early_convergence', action='store_true',
@@ -83,8 +94,10 @@ if __name__ == "__main__":
                         help='Whether the MDP is linear or not')
     parser.add_argument('--skip_noop', action='store_true',
                         help='Whether to skip the noop action')
+    parser.add_argument('--assert_concurrency', action='store_true',
+                        help='Whether to assert concurrency or not')
     parser.add_argument('--save_graph', action='store_true',
                         help='Whether to save the XADD graph to a file')
     args = parser.parse_args()
 
-    run_vi(args)
+    run_pe(args)

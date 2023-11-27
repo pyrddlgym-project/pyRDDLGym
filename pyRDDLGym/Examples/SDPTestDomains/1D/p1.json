@@ -1,0 +1,4 @@
+{
+    "action-fluents": ["a"],
+    "a": "pyRDDLGym/Examples/SDPTestDomains/1D/policy/a.xadd"
+}

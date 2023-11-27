@@ -45,57 +45,6 @@ class ValueIteration(SymbolicSolver):
         max_dd = self.regress_continuous_actions(max_dd)
         return max_dd
 
-    def regress(self, value_dd: int, reward: int, cpfs: Dict[sp.Symbol, int]) -> int:
-        """Regresses the value function.
-        
-        Args:
-            value_dd: The current value function XADD ID.
-            reward: The reward XADD ID.
-            cpfs: The dictionary mapping variables to their corresponding CPF XADD IDs.
-        Returns:
-            The ID of the regressed value function.
-        """
-        # Prime the value function.
-        q = self.context.substitute(value_dd, self.mdp.prime_subs)
-
-        # Discount.
-        if self.mdp.discount < 1.0:
-            q = self.context.scalar_op(q, self.mdp.discount, op='prod')
-
-        # Add the reward if it contains primed vars that need to be regressed.
-        i_and_ns_vars_in_reward = self.filter_i_and_ns_vars(
-            self.context.collect_vars(reward)
-        )
-        if len(i_and_ns_vars_in_reward) > 0:
-            q = self.context.apply(q, reward, op='add')
-
-        # Get variables to eliminate.
-        all_vars = self.context._bool_var_set.union(self.context._cont_var_set)
-        vars_to_regress = self.filter_i_and_ns_vars(
-            all_vars, allow_bool=True, allow_cont=True)
-        var_order = self.sort_var_set(vars_to_regress)
-
-        # Regress each variable.
-        for v in var_order:
-            # If not in the current value function, skip.
-            var_set = self.context.collect_vars(q)
-            if v not in var_set:
-                continue
-
-            # Otherwise, regress.
-            if v in self.mdp.cont_ns_vars or v in self.mdp.cont_i_vars:
-                q = self.regress_cvars(q, cpfs[v], v)
-            elif v in self.mdp.bool_ns_vars or v in self.mdp.bool_i_vars:
-                q = self.regress_bvars(q, cpfs[v], v)
-
-        # Add the reward.
-        if len(i_and_ns_vars_in_reward) == 0:
-            q = self.context.apply(q, reward, op='add')
-
-        # Standardize the node.
-        q = self.mdp.standardize(q)
-        return q
-
     # TODO: Implement heuristic ordering.
     def get_action_variable_ordering(self, actions: Set[CAction]) -> List[CAction]:
         return list(actions)
