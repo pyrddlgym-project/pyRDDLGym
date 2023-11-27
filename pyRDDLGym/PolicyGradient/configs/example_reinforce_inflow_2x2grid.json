@@ -1,0 +1,53 @@
+{ "useGPU": false,
+  "use64bit": true,
+  "debug_nans": true,
+  "enable_jit": true,
+  "seed": 3264,
+  "action_dim": 8,
+  "n_iters": 30,
+  "models": {
+    "id": "inflow_calibration_grid_2x2",
+    "params": {
+      "true_rates": [0.3, 0.2, 0.1, 0.4, 0.1, 0.2, 0.3, 0.2],
+      "specs": {
+        "train_model": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 4
+          }
+        },
+        "eval_model": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 32
+          }
+        }
+      }
+    }
+  },
+  "bijector": {
+    "id": "simplex",
+    "params": {
+      "max_rate": 0.4
+    }
+  },
+  "policy": {
+    "id": "multivar_normal_with_linear_parametrization",
+    "params": {}
+  },
+  "optimizer": {
+    "id": "adagrad",
+    "params": {
+      "learning_rate": 0.7
+    }
+  },
+  "algorithm": {
+    "id": "reinforce",
+    "params": {
+      "batch_size": 32,
+      "eval_batch_size": 32,
+      "verbose": true
+    }
+  },
+  "save_to": "/home/ilia/Programming/storage/tmp"
+}

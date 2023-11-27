@@ -241,8 +241,11 @@ class JaxRDDLCompiler:
             states = {var: values 
                       for (var, values) in subs.items()
                       if rddl.variable_types[var] == 'state-fluent'}
-            actions = policy(subkey, policy_params, hyperparams, step, states)
-            subs.update(actions)
+            # @@@@@
+            actions = {var: values for (var, values) in subs.items() if rddl.variable_types[var] == 'action-fluent'}
+            #actions = policy(subkey, policy_params, hyperparams, step, states)
+            #subs.update(actions)
+            # END @@@@@
             
             # check action preconditions
             precond_check = True

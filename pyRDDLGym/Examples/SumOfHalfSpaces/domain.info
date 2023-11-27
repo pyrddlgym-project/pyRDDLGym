@@ -1,0 +1,4 @@
+[General]
+name=SumOfHalfSpaces
+description=An artificial environment for quick testing and analysis. The reward is defined by a sum of half-spaces.
+viz=StateViz.StateViz

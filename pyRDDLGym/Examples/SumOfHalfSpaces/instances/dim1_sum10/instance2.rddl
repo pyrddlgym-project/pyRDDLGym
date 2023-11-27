@@ -1,0 +1,37 @@
+non-fluents sum_of_half_spaces_dim1_nsummands10 {
+    domain = sum_of_half_spaces;
+    
+    objects {
+        summand : {s0, s1, s2, s3, s4, s5, s6, s7, s8, s9};
+        dimension : {d0};
+    };
+    
+    non-fluents {
+        W(s0,d0) = -0.9219201862746288;
+        W(s1,d0) = -0.7865890537111269;
+        W(s2,d0) = -0.5775759938962768;
+        W(s3,d0) = 0.48553555244703894;
+        W(s4,d0) = -0.8150736143294341;
+        W(s5,d0) = -0.5973740057859347;
+        W(s6,d0) = -0.7531057765658334;
+        W(s7,d0) = 2.3282926482241253;
+        W(s8,d0) = -0.8905456622014754;
+        W(s9,d0) = 0.9397146245743936;
+        B(s0,d0) = -1.608184620871452;
+        B(s1,d0) = 1.822689146249023;
+        B(s2,d0) = -1.1695034513554092;
+        B(s3,d0) = 3.821597687403217;
+        B(s4,d0) = -1.9370690447559067;
+        B(s5,d0) = -3.9563848168171067;
+        B(s6,d0) = 0.6347855133950686;
+        B(s7,d0) = 3.601876945251499;
+        B(s8,d0) = -0.26654716401788914;
+        B(s9,d0) = 3.384320153593081;
+    };
+}
+instance sum_of_half_spaces_dim1_nsummands10_inst {
+    domain = sum_of_half_spaces;
+    non-fluents = sum_of_half_spaces_dim1_nsummands10;
+    max-nondef-actions = 1;
+    horizon = 1;
+    discount = 1.0;}

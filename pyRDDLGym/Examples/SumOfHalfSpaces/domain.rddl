@@ -1,0 +1,52 @@
+////////////////////////////////////////////////////////////////////
+//
+// A simple artificial environment for fast iteration of experiments.
+// The reward (objective) is defined as a sum of N step functions.
+// A step-function jump occurs at a hyperplane, which partitions
+// the space into two half-spaces and the hyperplane; the step
+// function takes the value of +1 at all points of one of the
+// half-spaces, -1 at all points of the other half-space, and 0
+// along the hyperplane.
+//
+// Thus, the objective takes the form
+//
+//     R(a) = \sum_i sgn( w_i . (a - b_i) )
+//
+// where a, w_i and b_i are M-dimensional vectors, and the sum has
+// N terms(the . denotes dot product)
+//
+// Author: Ilia Smirnov (iliathesmirnov@gmail.com)
+//         Following a suggestion of Martin Mladenov
+// 
+////////////////////////////////////////////////////////////////////
+domain sum_of_half_spaces {
+
+	types {
+		summand : object;
+        dimension: object;
+	};
+	
+	pvariables { 
+        // Action bounds
+        A-RANGE-MIN(dimension)   : { non-fluent, real, default=-10.0 };
+        A-RANGE-MAX(dimension)   : { non-fluent, real, default=10.0 };
+
+        // Objective parameters
+        B(summand, dimension)    : { non-fluent, real, default=0.0 };
+        W(summand, dimension)    : { non-fluent, real, default=1.0 };
+
+        // Action
+        a(dimension)    : { action-fluent, real, default=0.0 };
+	};
+	
+	cpfs {};
+  
+    // sum_i sgn(w_i . (a_i - b_i))
+    reward = (sum_{?s : summand} [ (sum_{?d : dimension} [
+                 sgn[ W(?s,?d) * (a(?d) - B(?s,?d)) ]
+             ]) ]);
+
+    action-preconditions {
+        forall_{?d : dimension} [ a(?d) >= A-RANGE-MIN(?d) ^ a(?d) <= A-RANGE-MAX(?d) ];
+    };
+}

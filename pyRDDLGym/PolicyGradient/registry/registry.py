@@ -1,0 +1,46 @@
+import optax
+from tensorflow_probability.substrates import jax as tfp
+import pyRDDLGym.PolicyGradient.algorithms
+import pyRDDLGym.PolicyGradient.bijectors
+import pyRDDLGym.PolicyGradient.policies
+import pyRDDLGym.Examples.Traffic.Calibration.instances.inflow_calibration_models
+import pyRDDLGym.Examples.SumOfHalfSpaces.instances.model
+
+model_lookup_table = {
+    'inflow_calibration': pyRDDLGym.Examples.Traffic.Calibration.instances.inflow_calibration_models.InflowCalibrationModel,
+    'inflow_calibration_grid_2x2': pyRDDLGym.Examples.Traffic.Calibration.instances.inflow_calibration_models.InflowCalibration2x2GridModel,
+    'inflow_calibration_grid_3x3': pyRDDLGym.Examples.Traffic.Calibration.instances.inflow_calibration_models.InflowCalibration3x3GridModel,
+    'inflow_calibration_grid_4x4': pyRDDLGym.Examples.Traffic.Calibration.instances.inflow_calibration_models.InflowCalibration4x4GridModel,
+    'inflow_calibration_grid_6x6': pyRDDLGym.Examples.Traffic.Calibration.instances.inflow_calibration_models.InflowCalibration6x6GridModel,
+    'sum_of_half_spaces': pyRDDLGym.Examples.SumOfHalfSpaces.instances.model.SumOfHalfSpacesModel,
+}
+
+bijector_lookup_table = {
+    'identity': pyRDDLGym.PolicyGradient.bijectors.identity.Identity,
+    'simplex': pyRDDLGym.PolicyGradient.bijectors.simplex.SimplexBijector,
+}
+
+policy_lookup_table = {
+    'multivar_normal_with_linear_parametrization': pyRDDLGym.PolicyGradient.policies.normal.MultivarNormalLinearParametrization,
+    'multivar_normal_with_mlp_parametrization': pyRDDLGym.PolicyGradient.policies.normal.MultivarNormalMLPParametrization,
+}
+
+optimizer_lookup_table = {
+    'sgd': optax.sgd,
+    'sgd_with_momentum': optax.sgd,
+    'adagrad': optax.adagrad,
+    'adabelief': optax.adabelief,
+    'adam': optax.adam,
+    'rmsprop': optax.rmsprop,
+}
+
+algorithm_lookup_table = {
+    'reinforce': pyRDDLGym.PolicyGradient.algorithms.reinforce.reinforce,
+    'impsmp': pyRDDLGym.PolicyGradient.algorithms.impsmp.impsmp,
+    'impsmp_analyze_1d_samples': pyRDDLGym.PolicyGradient.algorithms.impsmp.impsmp_analyze_1d_samples,
+    'impsmp_analyze_2d_samples': pyRDDLGym.PolicyGradient.algorithms.impsmp.impsmp_analyze_2d_samples,
+    'impsmp_with_subsampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_with_subsampling.impsmp_with_subsampling,
+    'impsmp_per_parameter': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter.impsmp_per_parameter,
+    'impsmp_per_parameter_analyze_1d_sampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_analyze_1d_sampling.impsmp_per_parameter_analyze_1d_sampling,
+    'impsmp_per_parameter_analyze_2d_sampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_analyze_2d_sampling.impsmp_per_parameter_analyze_2d_sampling,
+}
