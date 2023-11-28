@@ -28,7 +28,7 @@ def main(domain, instance, episodes=1, seed=42):
     
     # set up a random policy
     agent = RandomAgent(action_space=env.action_space,
-                        num_actions=env.numConcurrentActions,
+                        num_actions=env.max_allowed_actions,
                         seed=seed)
     agent.evaluate(env, episodes=episodes, verbose=True, render=True)
     

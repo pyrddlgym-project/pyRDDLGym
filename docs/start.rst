@@ -70,7 +70,7 @@ To initialize a random agent for example:
 .. code-block:: python
 
     from Policies.Agents import RandomAgent
-    agent = RandomAgent(action_space=env.action_space, num_actions=env.numConcurrentActions)
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
 
 Now lets see what a complete agent-environment loop looks like in pyRDDLGym.
 The example below will run the ``MarsRover`` environment for the amount of time steps specified in the instance ``horizon`` field.
@@ -87,7 +87,7 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
     env = RDDLEnv.RDDLEnv.build(info, 0)
     
     # set up a random policy
-    agent = RandomAgent(action_space=env.action_space, num_actions=env.numConcurrentActions)
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
     
     # perform a roll-out from the initial state
     # until either termination or the horizon is reached
@@ -124,6 +124,25 @@ Thus, RDDL types are converted to ``gym.spaces`` with the appropriate bounds as 
 - bool -> Discrete(2)
 
 There is no need in pyRDDLGym to specify the values of all the existing action in the RDDL domain description, only thus the agent wishes to assign non-default values, the infrastructure will construct the full action vector as necessary with the default action values according to the RDDL description.
+
+Tensor Representation
+-------------------
+
+Some algorithms require a tensor representation of states and/or actions. The ``RDDLEnv`` class provides a ``vectorized`` option
+to work directly with the tensor representations of state and action fluents. With this option, for example, a ``bool`` action fluent
+``put-out(?x, ?y)`` taking two parameters ``?x`` and ``?y`` with 3 objects each would be provided as a boolean-valued 
+3-by-3 matrix (rank 2 tensor). State fluents would also be returned in an equivalent format. 
+
+This option can be enabled simply as
+
+.. code-block:: python
+
+    info = ExampleManager.GetEnvInfo(domain)
+    env = RDDLEnv.RDDLEnv.build(info, instance, vectorized=True)
+
+With this option enabled, the bounds of the ``observation_space`` and ``action_space`` 
+of the gym environment are instances of ``gym.spaces.Box`` with the correct shape and dtype.
+
 
 Inspecting the Model
 -------------------
@@ -275,7 +294,7 @@ To log simulation data to a file:
 
 .. code-block:: python
 	
-	env = RDDLEnv.RDDLEnv.build(info, instance, log=True, log_path='path/to/file')
+	env = RDDLEnv.RDDLEnv.build(info, instance, log_path='path/to/file')
                             
 Upon interacting with the environment, a log file is created in the Logs folder in pyRDDLGym.
 

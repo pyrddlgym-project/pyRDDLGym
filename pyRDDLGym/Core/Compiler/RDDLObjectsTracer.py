@@ -24,6 +24,7 @@ class RDDLTracedObjects:
         self._cached_objects_in_scope = []
         self._cached_object_type = []
         self._cached_is_fluent = []
+        self._cached_is_fluent_cpf = {}
         self._cached_sim_info = []
         self._expr_from_id = {}
         
@@ -49,6 +50,10 @@ class RDDLTracedObjects:
         '''Returns whether the expression is fluent or non-fluent.'''
         return self._cached_is_fluent[expr.id]
     
+    def cached_is_fluent_cpf(self, name: str) -> bool:
+        '''Returns whether the CPF given by name is a fluent expression.'''
+        return self._cached_is_fluent_cpf[name]
+    
     def cached_sim_info(self, expr: Expression) -> object:
         '''Returns compiled info that is specific to the expression.'''
         return self._cached_sim_info[expr.id]
@@ -58,15 +63,6 @@ class RDDLTracedObjects:
         exist.'''
         return self._expr_from_id.get(identifier, None)
     
-    def is_traced(self, expr: Expression) -> bool:
-        '''Determines whether the expression has already been traced.'''
-        if expr is None:
-            return False
-        _id = expr.id
-        if _id is None:
-            return False
-        return self._current_id >= _id
-
 
 def py_enum(**enums):
     return type('Enum', (), enums)
@@ -157,6 +153,7 @@ class RDDLObjectsTracer:
                 # trace the expression
                 out._current_root = f'CPF {cpf}'
                 self._trace(expr, objects, out)
+                out._cached_is_fluent_cpf[cpf] = out.cached_is_fluent(expr)
 
                 # for domain-object valued check that type matches expression output
                 cpf_range = rddl.variable_ranges[cpf]
@@ -185,6 +182,15 @@ class RDDLObjectsTracer:
             out._current_root = f'Termination {i + 1}'
             self._trace(expr, [], out)
             RDDLObjectsTracer._check_not_object(expr, expr, out, out._current_root)
+        
+        # log the fluent types
+        if self.logger is not None:
+            message = f'[info] computed whether each CPF expression is fluent:\n'
+            for cpfs in levels.values():
+                for cpf in cpfs:
+                    is_fluent = out._cached_is_fluent_cpf[cpf]
+                    message += f'\t{cpf}: {is_fluent}\n'
+            self.logger.log(message)
             
         return out
         
@@ -293,9 +299,17 @@ class RDDLObjectsTracer:
             
             # check if pvar is fluent
             primed_var = rddl.next_state.get(var, var)
-            _, cpf_expr = rddl.cpfs.get(primed_var, (None, None))
-            if out.is_traced(cpf_expr):
-                is_fluent = out.cached_is_fluent(cpf_expr)
+            if primed_var in rddl.cpfs:
+                is_fluent = out._cached_is_fluent_cpf.get(primed_var, None)
+                if is_fluent is None:
+                    is_fluent = True
+                    if self.logger is not None:
+                        message = (
+                            f'[warning] cannot establish whether CPF is fluent:'
+                            f'\n\taddress of expression ={str(expr)}'
+                            f'\n\tCPF to check          ={primed_var}\n'
+                        )
+                        self.logger.log(message)
             else:
                 is_fluent = rddl.variable_types[var] != 'non-fluent'
 
@@ -477,7 +491,7 @@ class RDDLObjectsTracer:
         # log information about the new transformation
         if self.logger is not None:
             message = (
-                f'computing info for pvariable tensor transformation:' 
+                f'[info] computing info for pvariable tensor transformation:' 
                 f'\n\taddress of expression   ={super(Expression, expr).__str__()}'
                 f'\n\tvariable                ={var}'
                 f'\n\tvariable evaluated at   ={list(zip(args, args_types))}'
@@ -628,7 +642,7 @@ class RDDLObjectsTracer:
         
         # log information about aggregation operation
         if self.logger is not None:
-            message = (f'computing object info for aggregation:'
+            message = (f'[info] computing object info for aggregation:'
                        f'\n\taggregation variables(s)      ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'
                        f'\n\tfree object(s) in inner scope ={new_objects}'
@@ -760,7 +774,7 @@ class RDDLObjectsTracer:
         # log cases ordering
         if self.logger is not None:
             active_expr = [i for (i, e) in enumerate(expressions) if e is not None]
-            message = (f'computing case info for {expr.etype[1]}:'
+            message = (f'[info] computing case info for {expr.etype[1]}:'
                        f'\n\tenum type ={enum_type}'
                        f'\n\tcases     ={active_expr}'
                        f'\n\tdefault   ={default_expr is not None}\n')
@@ -1010,7 +1024,7 @@ class RDDLObjectsTracer:
         
         # log information about matrix operation
         if self.logger is not None:
-            message = (f'computing object info for matrix operation:'
+            message = (f'[info] computing object info for matrix operation:'
                        f'\n\tmatrix operation              =det'
                        f'\n\tdimension variables(s)        ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'
@@ -1068,7 +1082,7 @@ class RDDLObjectsTracer:
         
         # log information about matrix operation
         if self.logger is not None:
-            message = (f'computing object info for matrix operation:'
+            message = (f'[info] computing object info for matrix operation:'
                        f'\n\tmatrix operation              ={op}'
                        f'\n\tdimension variables(s)        ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'

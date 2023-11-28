@@ -86,3 +86,7 @@ class RDDLInstanceNotExist(ValueError):
 
 class RDDLLogFolderError(ValueError):
     pass
+
+
+class RDDLEpisodeAlreadyEndedError(RuntimeError):
+    pass
