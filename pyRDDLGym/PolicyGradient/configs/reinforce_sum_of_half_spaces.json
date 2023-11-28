@@ -3,7 +3,7 @@
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 9,
+  "action_dim": 1,
   "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
@@ -14,7 +14,7 @@
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 1024
+            "n_rollouts": 128
           }
         },
         "eval_model": {
@@ -49,5 +49,5 @@
       "verbose": true
     }
   },
-  "save_to": "/home/ilia/Programming/storage/tmp"
+  "save_to": "/tmp"
 }
