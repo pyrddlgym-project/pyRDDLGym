@@ -176,17 +176,17 @@ class JaxRDDLCompiler:
             printed_terminals = '\n\n'.join(v for v in printed['terminations'])
             printed_params = '\n'.join(f'{k}: {v}' for (k, v) in info.items())
             message = (
-                f'compiled JAX CPFs:\n\n'
+                f'[info] compiled JAX CPFs:\n\n'
                 f'{printed_cpfs}\n\n'
-                f'compiled JAX reward:\n\n'
+                f'[info] compiled JAX reward:\n\n'
                 f'{printed_reward}\n\n'
-                f'compiled JAX invariants:\n\n'
+                f'[info] compiled JAX invariants:\n\n'
                 f'{printed_invariants}\n\n'
-                f'compiled JAX preconditions:\n\n'
+                f'[info] compiled JAX preconditions:\n\n'
                 f'{printed_preconds}\n\n'
-                f'compiled JAX terminations:\n\n'
+                f'[info] compiled JAX terminations:\n\n'
                 f'{printed_terminals}\n'
-                f'model parameters:\n'
+                f'[info] model parameters:\n'
                 f'{printed_params}\n'
             )
             self.logger.log(message)

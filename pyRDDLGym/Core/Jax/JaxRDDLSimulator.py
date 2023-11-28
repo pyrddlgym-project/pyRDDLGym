@@ -92,6 +92,9 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
         self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
         
+        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
+        
     def handle_error_code(self, error, msg) -> None:
         if self.raise_error:
             errors = JaxRDDLCompiler.get_error_messages(error)
@@ -113,7 +116,8 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
-        actions = self._process_actions(actions)
+        if not self.keep_tensors:
+            actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         

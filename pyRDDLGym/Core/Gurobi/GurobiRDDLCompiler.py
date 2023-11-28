@@ -18,6 +18,7 @@ from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Debug.Logger import Logger
 from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
+from pyRDDLGym.Core.Simulator.RDDLSimulator import lngamma
 
 if TYPE_CHECKING:
     from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiRDDLPlan
@@ -153,9 +154,18 @@ class GurobiRDDLCompiler:
         objective, action_vars, _ = self._compile_rollout(
             model, self.plan, params, subs)
         model.setObjective(objective, GRB.MAXIMIZE)
+        
         return model, action_vars, params
     
     def _compile_rollout(self, model, plan, params, subs, value_bounds: bool=False):
+        
+        # logging
+        if self.logger is not None:
+            message = f'[info] compiling initial bound information for Gurobi:'
+            for (name, (_, _, lb, ub, _)) in subs.items():
+                message += f'\n\t{name}, bounds=({lb}, {ub})'
+            self.logger.log(message + '\n')  
+                
         objective = 0
         all_action_vars = []
         all_next_state_vars = []
@@ -192,7 +202,17 @@ class GurobiRDDLCompiler:
                 else:
                     lb += lbr * discount
                     ub += ubr * discount
-        
+            
+            # logging
+            if self.logger is not None:
+                message = f'[info] compiling bound information for Gurobi at epoch {step}:'
+                for (name, (_, _, lb, ub, _)) in subs.items():
+                    message += f'\n\t{name}, bounds=({lb}, {ub})'
+                message += f'\n\treward, bounds=({lbr}, {ubr})'
+                if value_bounds:
+                    message += f'\n\tvalue_fn, bounds=({lb}, {ub})'
+                self.logger.log(message + '\n')  
+            
         if value_bounds:
             return objective, all_action_vars, all_next_state_vars, (lb, ub)
         else:
@@ -336,8 +356,24 @@ class GurobiRDDLCompiler:
         return GurobiRDDLCompiler._fix_bounds(lb, ub)
     
     @staticmethod
+    def _fix_product_underflow(a, b):
+        a1, b1 = abs(a), abs(b)
+        if (a1 <= 0 or b1 <= 0) or (a1 >= 1 or b1 >= 1):
+            return a * b
+        tiny = np.finfo(np.float64).tiny
+        if a1 < tiny / b1:
+            warnings.warn(
+                f'Underflow prevented for {a} * {b} by setting to zero.', 
+                stacklevel=2)
+            return 0.0
+        return a * b
+        
+    @staticmethod
     def _fix_bounds_prod(lb1, ub1, lb2, ub2):
-        lbub = (lb1 * lb2, lb1 * ub2, ub1 * lb2, ub1 * ub2)
+        lbub = (GurobiRDDLCompiler._fix_product_underflow(lb1, lb2), 
+                GurobiRDDLCompiler._fix_product_underflow(lb1, ub2), 
+                GurobiRDDLCompiler._fix_product_underflow(ub1, lb2), 
+                GurobiRDDLCompiler._fix_product_underflow(ub1, ub2))
         return GurobiRDDLCompiler._fix_bounds(min(lbub), max(lbub))
         
     def _gurobi_constant(self, expr, model, subs):
@@ -428,36 +464,40 @@ class GurobiRDDLCompiler:
             if op == '+':
                 sumexpr, vtype, lb, ub, symb = results[0]
                 vtype = GurobiRDDLCompiler._at_least_int(vtype)
+                res = sumexpr
                 for (gterm2, vtype2, lb2, ub2, symb2) in results[1:]:
                     sumexpr = sumexpr + gterm2
                     vtype = GurobiRDDLCompiler._promote_vtype(vtype, vtype2)
                     lb, ub = GurobiRDDLCompiler._fix_bounds(lb + lb2, ub + ub2)
                     symb = symb or symb2
                 
-                # assign sum to a new variable
-                if symb:
-                    res = self._add_var(model, vtype, lb, ub)
-                    model.addConstr(res == sumexpr)
-                else:
-                    res = lb = ub = sumexpr                   
+                    # assign sum to a new variable
+                    if symb:
+                        res = self._add_var(model, vtype, lb, ub)
+                        model.addConstr(res == sumexpr)
+                        sumexpr = res
+                    else:
+                        res = lb = ub = sumexpr                   
                 return res, vtype, lb, ub, symb
             
             # unwrap multiplication to binary operations
             elif op == '*':
                 prodexpr, vtype, lb, ub, symb = results[0]
                 vtype = GurobiRDDLCompiler._at_least_int(vtype)
+                res = prodexpr
                 for (gterm2, vtype2, lb2, ub2, symb2) in results[1:]:
                     prodexpr = prodexpr * gterm2
                     vtype = GurobiRDDLCompiler._promote_vtype(vtype, vtype2)
                     lb, ub = GurobiRDDLCompiler._fix_bounds_prod(lb, ub, lb2, ub2)
                     symb = symb or symb2
                     
-                # assign product to a new variable
-                if symb: 
-                    res = self._add_var(model, vtype, lb, ub)
-                    model.addConstr(res == prodexpr)
-                else:
-                    res = lb = ub = prodexpr                    
+                    # assign product to a new variable
+                    if symb: 
+                        res = self._add_var(model, vtype, lb, ub)
+                        model.addConstr(res == prodexpr)
+                        prodexpr = res
+                    else:
+                        res = lb = ub = prodexpr                    
                 return res, vtype, lb, ub, symb
             
             # subtraction
@@ -723,6 +763,33 @@ class GurobiRDDLCompiler:
                     res = lb = ub = abs(gterm)           
                 return res, vtype, lb, ub, symb
             
+            elif name == 'sgn':
+                if symb:
+                    if lb > 0:
+                        res = lb = ub = 1
+                        symb = False
+                    elif ub < 0:
+                        res = lb = ub = -1
+                        symb = False
+                    else:
+                        pos = self._add_bool_var(model)
+                        model.addConstr((pos == 1) >> (gterm >= self.epsilon))
+                        model.addConstr((pos == 0) >> (gterm <= 0))
+                        neg = self._add_bool_var(model)
+                        model.addConstr((neg == 1) >> (gterm <= -self.epsilon))
+                        model.addConstr((neg == 0) >> (gterm >= 0))
+                        res = self._add_int_var(model, lb=-1, ub=1)
+                        model.addConstr(res + neg == pos)
+                        lb, ub = -1, 1
+                else:
+                    if gterm > 0:
+                        res = lb = ub = 1
+                    elif gterm < 0:
+                        res = lb = ub = -1
+                    else:
+                        res = lb = ub = 0
+                return res, GRB.INTEGER, lb, ub, symb
+                
             elif name == 'floor':
                 if symb:
                     lb, ub = GurobiRDDLCompiler._fix_bounds(
@@ -951,6 +1018,8 @@ class GurobiRDDLCompiler:
             return self._gurobi_exponential(expr, model, subs)
         elif name == 'Gamma':
             return self._gurobi_gamma(expr, model, subs)
+        elif name == 'Weibull':
+            return self._gurobi_weibull(expr, model, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported in Gurobi compiler.\n' + 
@@ -1055,5 +1124,34 @@ class GurobiRDDLCompiler:
             model.addConstr(res == prodexpr)
         else:
             res = lb = ub = prodexpr     
+        return res, GRB.CONTINUOUS, lb, ub, symb
+    
+    def _gurobi_weibull(self, expr, model, subs):
+        if self.verbose >= 2:
+            warnings.warn('Using the replacement rule: '
+                          'Weibull(s, l) --> l * Gamma(1 + 1/s)',  stacklevel=2)
+        
+        shape, scale = expr.args
+        gterm1, _, _, _, symb1 = self._gurobi(shape, model, subs)
+        gterm2, _, lb2, ub2, symb2 = self._gurobi(scale, model, subs)
+        
+        # check shape is non symbolic
+        if symb1:
+            raise RDDLNotImplementedError(
+                'Weibull symbolic expression for shape parameter is not '
+                'supported in Gurobi compiler.\n' + 
+                print_stack_trace(expr))
+        
+        # estimate mean as scale * Gamma(1 + 1/shape)
+        gampart = np.exp(lngamma(1. + 1. / gterm1))
+        gampart = max(min(gampart, GRB.INFINITY), -GRB.INFINITY)
+        prodexpr = gterm2 * gampart
+        symb = symb1 or symb2
+        if symb:
+            lb, ub = GurobiRDDLCompiler._fix_bounds_prod(lb2, ub2, gampart, gampart)
+            res = self._add_real_var(model, lb, ub)
+            model.addConstr(res == prodexpr)
+        else:
+            res = lb = ub = prodexpr
         return res, GRB.CONTINUOUS, lb, ub, symb
         
