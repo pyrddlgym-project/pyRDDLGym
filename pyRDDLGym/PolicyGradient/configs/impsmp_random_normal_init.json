@@ -55,6 +55,7 @@
       "epsilon": 0.0,
       "est_Z": true,
       "hmc" : {
+        "num_chains": 1,
         "num_burnin_iters_per_chain": 512,
         "init_step_size": 0.003,
         "num_leapfrog_steps": 50,
