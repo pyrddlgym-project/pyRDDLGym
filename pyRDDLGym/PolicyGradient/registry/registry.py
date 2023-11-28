@@ -26,12 +26,28 @@ policy_lookup_table = {
 }
 
 optimizer_lookup_table = {
+    'adabelief': optax.adabelief,
+    'adafactor': optax.adafactor,
+    'adagrad': optax.adagrad,
+    'adam': optax.adam,
+    'adamw': optax.adamw,
+    'adamax': optax.adamax,
+    'adamaxw': optax.adamaxw,
+    'amsgrad': optax.amsgrad,
+    'fromage': optax.fromage,
+    'lamb': optax.lamb,
+    'lars': optax.lars,
+    'lion': optax.lion,
+    'noisy_sgd': optax.noisy_sgd,
+    'novograd': optax.novograd,
+    'optimistic_gradient_descent': optax.optimistic_gradient_descent,
+    'dpsgd': optax.dpsgd,
+    'radam': optax.radam,
+    'rmsprop': optax.rmsprop,
     'sgd': optax.sgd,
     'sgd_with_momentum': optax.sgd,
-    'adagrad': optax.adagrad,
-    'adabelief': optax.adabelief,
-    'adam': optax.adam,
-    'rmsprop': optax.rmsprop,
+    'sm3': optax.sm3,
+    'yogi': optax.yogi,
 }
 
 algorithm_lookup_table = {
