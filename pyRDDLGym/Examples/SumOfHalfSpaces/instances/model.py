@@ -36,7 +36,7 @@ class SumOfHalfSpacesModel:
                               f'Examples/SumOfHalfSpaces/instances/dim{action_dim}_sum{n_summands}')
 
         self.instance_path = filepath
-        EnvInfo = ExampleManager.GetEnvInfo('sum_of_half_spaces')
+        EnvInfo = ExampleManager.GetEnvInfo('SumOfHalfSpaces')
         self.rddl_env = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(),
                                         instance=self.instance_path)
         self.model = self.rddl_env.model
