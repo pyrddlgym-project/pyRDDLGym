@@ -50,14 +50,15 @@
   "algorithm": {
     "id": "impsmp_analyze_2d_samples",
     "params": {
-      "batch_size": 1024,
+      "batch_size": 32768,
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "est_Z": true,
       "img_path": "2d_hmc_samples.png",
       "hmc" : {
+        "num_chains": 1024,
         "num_burnin_iters_per_chain": 512,
-        "init_step_size": 0.01,
+        "init_step_size": 0.003,
         "num_leapfrog_steps": 50,
         "init_distribution": {
           "type": "normal",

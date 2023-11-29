@@ -9,7 +9,7 @@
     "id": "sum_of_half_spaces",
     "params": {
       "n_summands": 10,
-      "instance_idx": 0,
+      "instance_idx": 1,
       "specs": {
         "hmc_model": {
           "is_relaxed": true,
@@ -56,8 +56,9 @@
       "est_Z": true,
       "img_path": "1d_hmc_samples.png",
       "hmc" : {
+        "num_chains": 1024,
         "num_burnin_iters_per_chain": 512,
-        "init_step_size": 0.01,
+        "init_step_size": 0.003,
         "num_leapfrog_steps": 50,
         "init_distribution": {
           "type": "normal",

@@ -99,10 +99,6 @@ def impsmp_inner_loop(key, theta, samples,
         factors = losses / (rho + epsilon)
         scores = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
 
-        #@@@
-        batch_stats['scores'] = scores
-        #@@@ END
-
         # the mean of scores along axis 0 is equal to
         #    (dJ_fr + dJ_(fr+1) + ... + dJ_to) * (1/train_model.n_rollouts)
         # additionally dividing the mean by 'n_shards' results in overall division by 'batch_size'
@@ -125,32 +121,12 @@ def impsmp_inner_loop(key, theta, samples,
 
     return key, dJ_hat, batch_stats
 
-@functools.partial(jax.jit, static_argnames=('batch_size', 'eval_n_shards', 'eval_batch_size', 'policy', 'model'))
-def update_impsmp_stats(key, it, batch_size, eval_n_shards, eval_batch_size, algo_stats, batch_stats, theta, policy, model):
-    """Updates the REINFORCE with Importance Sampling statistics
-    using the statistics returned from the computation of dJ_hat
-    for the current sample as well as the current policy params theta"""
-    # evaluate
+@functools.partial(jax.jit, static_argnames=('eval_n_shards', 'eval_batch_size', 'policy', 'model'))
+def evaluate_policy(key, it, algo_stats, eval_n_shards, eval_batch_size, theta, policy, model):
     key, subkey = jax.random.split(key)
     policy_mean, policy_cov = policy.apply(subkey, theta)
     eval_actions = policy.sample(subkey, theta, (model.n_rollouts,))
     eval_rewards = model.compute_loss(subkey, eval_actions)
-
-    # calculate the covariance matrices
-    dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
-    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
-
-    algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
-    algo_stats['dJ_hat_max']         = algo_stats['dJ_hat_max'].at[it].set(jnp.max(dJ_hat))
-    algo_stats['dJ_hat_min']         = algo_stats['dJ_hat_min'].at[it].set(jnp.min(dJ_hat))
-    algo_stats['dJ_hat_norm']        = algo_stats['dJ_hat_norm'].at[it].set(jnp.linalg.norm(dJ_hat))
-    algo_stats['dJ_covar']           = algo_stats['dJ_covar'].at[it].set(dJ_covar)
-    algo_stats['dJ_covar_max']       = algo_stats['dJ_covar_max'].at[it].set(jnp.max(dJ_covar))
-    algo_stats['dJ_covar_min']       = algo_stats['dJ_covar_min'].at[it].set(jnp.min(dJ_covar))
-    algo_stats['dJ_covar_diag_max']  = algo_stats['dJ_covar_diag_max'].at[it].set(jnp.max(jnp.diag(dJ_covar)))
-    algo_stats['dJ_covar_diag_mean'] = algo_stats['dJ_covar_diag_mean'].at[it].set(jnp.mean(jnp.diag(dJ_covar)))
-    algo_stats['dJ_covar_diag_min']  = algo_stats['dJ_covar_diag_min'].at[it].set(jnp.min(jnp.diag(dJ_covar)))
-
     algo_stats['policy_mean']             = algo_stats['policy_mean'].at[it].set(policy_mean)
     algo_stats['policy_cov']              = algo_stats['policy_cov'].at[it].set(jnp.diag(policy_cov))
     algo_stats['transformed_policy_mean'] = algo_stats['transformed_policy_mean'].at[it].set(jnp.mean(eval_actions, axis=0))
@@ -158,6 +134,27 @@ def update_impsmp_stats(key, it, batch_size, eval_n_shards, eval_batch_size, alg
     algo_stats['reward_mean']             = algo_stats['reward_mean'].at[it].set(jnp.mean(eval_rewards))
     algo_stats['reward_std']              = algo_stats['reward_std'].at[it].set(jnp.std(eval_rewards))
     algo_stats['reward_sterr']            = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
+    return key, algo_stats
+
+@functools.partial(jax.jit, static_argnames=('batch_size',))
+def update_impsmp_stats(key, it, batch_size, algo_stats, batch_stats):
+    """Updates the REINFORCE with Importance Sampling statistics
+    using the statistics returned from the computation of dJ_hat
+    for the current sample as well as the current policy params theta"""
+    # calculate the covariance matrices
+    dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
+    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
+
+    algo_stats['dJ']                  = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
+    algo_stats['dJ_hat_max']          = algo_stats['dJ_hat_max'].at[it].set(jnp.max(dJ_hat))
+    algo_stats['dJ_hat_min']          = algo_stats['dJ_hat_min'].at[it].set(jnp.min(dJ_hat))
+    algo_stats['dJ_hat_norm']         = algo_stats['dJ_hat_norm'].at[it].set(jnp.linalg.norm(dJ_hat))
+    algo_stats['dJ_covar']            = algo_stats['dJ_covar'].at[it].set(dJ_covar)
+    algo_stats['dJ_covar_max']        = algo_stats['dJ_covar_max'].at[it].set(jnp.max(dJ_covar))
+    algo_stats['dJ_covar_min']        = algo_stats['dJ_covar_min'].at[it].set(jnp.min(dJ_covar))
+    algo_stats['dJ_covar_diag_max']   = algo_stats['dJ_covar_diag_max'].at[it].set(jnp.max(jnp.diag(dJ_covar)))
+    algo_stats['dJ_covar_diag_mean']  = algo_stats['dJ_covar_diag_mean'].at[it].set(jnp.mean(jnp.diag(dJ_covar)))
+    algo_stats['dJ_covar_diag_min']   = algo_stats['dJ_covar_diag_min'].at[it].set(jnp.min(jnp.diag(dJ_covar)))
 
     algo_stats['sample_rewards']      = algo_stats['sample_rewards'].at[it].set(batch_stats['sample_rewards'])
     algo_stats['sample_reward_mean']  = algo_stats['sample_reward_mean'].at[it].set(jnp.mean(batch_stats['sample_rewards']))
@@ -200,15 +197,17 @@ def impsmp(key, n_iters, config, bijector, policy, optimizer, models):
     n_shards = int(batch_size // train_model.n_rollouts)
     eval_n_shards = int(eval_batch_size // eval_model.n_rollouts)
     assert n_shards > 0, (
-         '[reinforce] Please check that batch_size >= train_model.n_rollouts.'
+        f'[impsmp] Please check that batch_size >= train_model.n_rollouts.'
         f' batch_size={batch_size}, train_model.n_rollouts={train_model.n_rollouts}')
     assert eval_n_shards > 0, (
-        '[reinforce] Please check that eval_batch_size >= eval_model.n_rollouts.'
+        f'[impsmp] Please check that eval_batch_size >= eval_model.n_rollouts.'
         f' eval_batch_size={eval_batch_size}, eval_model.n_rollouts={eval_model.n_rollouts}')
 
     hmc_config = config['hmc']
     hmc_config['num_iters_per_chain'] = int(batch_size // hmc_config['num_chains'])
-    assert hmc_config['num_iters_per_chain'] > 0
+    assert hmc_config['num_iters_per_chain'] > 0, (
+        f'[impsmp] Please chekc that batch_size >= hmc["num_chains"].'
+        f' batch_size={batch_size}, hmc["num_chains"]={hmc_config["num_chains"]}')
 
     epsilon = config.get('epsilon', 1e-12)
 
@@ -264,6 +263,9 @@ def impsmp(key, n_iters, config, bijector, policy, optimizer, models):
     for it in range(n_iters):
         try:
             subt0 = timer()
+            key, algo_stats = evaluate_policy(key, it, algo_stats, eval_n_shards, eval_batch_size,
+                                              policy.theta, policy, eval_model)
+
             key, *subkeys = jax.random.split(key, num=5)
 
             log_density = functools.partial(
@@ -312,9 +314,7 @@ def impsmp(key, n_iters, config, bijector, policy, optimizer, models):
             # update stats and printout results for the current iteration
             batch_stats['acceptance_rate'] = jnp.mean(is_accepted)
             batch_stats['hmc_step_size'] = hmc_step_size
-            key, algo_stats = update_impsmp_stats(key, it, batch_size, eval_n_shards, eval_batch_size,
-                                                  algo_stats, batch_stats, policy.theta,
-                                                  policy, eval_model)
+            key, algo_stats = update_impsmp_stats(key, it, batch_size, algo_stats, batch_stats)
             print_impsmp_report(it, algo_stats, is_accepted, subt0, timer())
         except FloatingPointError:
             hmc_step_size = hmc_step_size / 2
@@ -349,8 +349,7 @@ def impsmp_analyze_1d_samples(key, n_iters, config, bijector, policy, optimizer,
     assert hmc_model.n_rollouts == 1
 
     hmc_config = config['hmc']
-    hmc_config['num_chains'] = hmc_model.n_rollouts
-    hmc_config['num_iters_per_chain'] = int(batch_size // hmc_model.n_rollouts)
+    hmc_config['num_iters_per_chain'] = int(batch_size // hmc_config["num_chains"])
     assert hmc_config['num_iters_per_chain'] > 0
 
     epsilon = config.get('epsilon', 1e-12)
@@ -360,7 +359,7 @@ def impsmp_analyze_1d_samples(key, n_iters, config, bijector, policy, optimizer,
 
     # initialize HMC
     key, subkey = jax.random.split(key)
-    hmc_initializer = init_hmc_state(subkey, (hmc_config['num_chains'], action_dim), hmc_config['init_distribution'])
+    hmc_initializer = init_hmc_state(subkey, (hmc_config['num_chains'], 1, action_dim), hmc_config['init_distribution'])
     hmc_step_size = hmc_config['init_step_size']
 
     # initialize unconstraining bijector
@@ -376,13 +375,17 @@ def impsmp_analyze_1d_samples(key, n_iters, config, bijector, policy, optimizer,
 
     log_density = functools.partial(
         unnormalized_log_rho, subkeys[0], policy.theta, policy, hmc_model, epsilon)
+    parallel_log_density = jax.vmap(log_density, in_axes=0, out_axes=0)
+    def log_density_summed_across_events(X):
+        return jnp.sum(parallel_log_density(X), axis=(-1,-2))
 
     lowerbnd = config.get('lowerbnd', -5.)
     upperbnd = config.get('upperbnd', 5.)
     step = config.get('step', 0.1)
-    n_pts = int((upperbnd-lowerbnd)/step)
 
-    test_range = jnp.arange(lowerbnd, upperbnd, step).reshape(n_pts, hmc_config["num_chains"], 1)
+    flat_test_range = jnp.arange(lowerbnd, upperbnd, step)
+    test_range = flat_test_range.reshape(-1, 1, 1)
+    n_pts = len(test_range)
 
     batch_compute_loss = jax.vmap(hmc_model.compute_loss, (None, 0), 0)
     losses = batch_compute_loss(subkeys[0], test_range).flatten()
@@ -399,15 +402,14 @@ def impsmp_analyze_1d_samples(key, n_iters, config, bijector, policy, optimizer,
     batch_dpi_infty_norm = jax.vmap(get_infty_norm, 0, 0)
     dpi_infty_norm = batch_dpi_infty_norm(dpi)
 
-    batch_compute_density = jax.vmap(log_density, (0,), 0)
-    rho = batch_compute_density(test_range).flatten()
+    rho = parallel_log_density(test_range).flatten()
     rho = jnp.exp(rho)
 
     assert jnp.isclose(losses * dpi_infty_norm, rho).all()
 
-    ax[0].plot(losses, label='|relaxed loss|')
-    ax[0].plot(dpi_infty_norm, label='|dpi|')
-    ax[0].plot(rho, label='Instrumental density')
+    ax[0].plot(flat_test_range, losses, label='|relaxed loss|')
+    ax[0].plot(flat_test_range, dpi_infty_norm, label='|dpi|')
+    ax[0].plot(flat_test_range, rho, label='Instrumental density')
 
     ax[0].legend()
     ax[0].grid(visible=True)
@@ -415,7 +417,7 @@ def impsmp_analyze_1d_samples(key, n_iters, config, bijector, policy, optimizer,
     adaptive_hmc_kernel = tfp.mcmc.TransformedTransitionKernel(
         inner_kernel = tfp.mcmc.SimpleStepSizeAdaptation(
             inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
-                target_log_prob_fn=log_density,
+                target_log_prob_fn=log_density_summed_across_events,
                 num_leapfrog_steps=hmc_config['num_leapfrog_steps'],
                 step_size=hmc_step_size),
             num_adaptation_steps=int(hmc_config['num_burnin_iters_per_chain'] * 0.8)),
@@ -430,7 +432,10 @@ def impsmp_analyze_1d_samples(key, n_iters, config, bijector, policy, optimizer,
         trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
 
 
-    ax[1].hist(samples.flatten())
+    samples = samples.reshape(batch_size, 1, action_dim)
+
+    n, bins, patches = ax[1].hist(samples.flatten(), bins=flat_test_range)
+    ax[1].plot(flat_test_range, np.max(n)/np.max(rho) * rho, linestyle='dashed')
     ax[1].set_xlim(lowerbnd, upperbnd)
 
     plt.suptitle(
@@ -466,8 +471,7 @@ def impsmp_analyze_2d_samples(key, n_iters, config, bijector, policy, optimizer,
     assert hmc_model.n_rollouts == 1
 
     hmc_config = config['hmc']
-    hmc_config['num_chains'] = hmc_model.n_rollouts
-    hmc_config['num_iters_per_chain'] = int(batch_size // hmc_model.n_rollouts)
+    hmc_config['num_iters_per_chain'] = int(batch_size // hmc_config['num_chains'])
     assert hmc_config['num_iters_per_chain'] > 0
 
     epsilon = config.get('epsilon', 1e-12)
@@ -477,7 +481,7 @@ def impsmp_analyze_2d_samples(key, n_iters, config, bijector, policy, optimizer,
 
     # initialize HMC
     key, subkey = jax.random.split(key)
-    hmc_initializer = init_hmc_state(subkey, (hmc_config['num_chains'], action_dim), hmc_config['init_distribution'])
+    hmc_initializer = init_hmc_state(subkey, (hmc_config['num_chains'], 1, action_dim), hmc_config['init_distribution'])
     hmc_step_size = hmc_config['init_step_size']
 
     # initialize unconstraining bijector
@@ -493,6 +497,10 @@ def impsmp_analyze_2d_samples(key, n_iters, config, bijector, policy, optimizer,
 
     log_density = functools.partial(
         unnormalized_log_rho, subkeys[0], policy.theta, policy, hmc_model, epsilon)
+    parallel_log_density = jax.vmap(log_density, in_axes=0, out_axes=0)
+    def log_density_summed_across_events(X):
+        return jnp.sum(parallel_log_density(X), axis=(-1,-2))
+
 
     lowerbnd = config.get('lowerbnd', -5.)
     upperbnd = config.get('upperbnd', 5.)
@@ -514,7 +522,7 @@ def impsmp_analyze_2d_samples(key, n_iters, config, bijector, policy, optimizer,
     adaptive_hmc_kernel = tfp.mcmc.TransformedTransitionKernel(
         inner_kernel = tfp.mcmc.SimpleStepSizeAdaptation(
             inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
-                target_log_prob_fn=log_density,
+                target_log_prob_fn=log_density_summed_across_events,
                 num_leapfrog_steps=hmc_config['num_leapfrog_steps'],
                 step_size=hmc_step_size),
             num_adaptation_steps=int(hmc_config['num_burnin_iters_per_chain'] * 0.8)),
@@ -529,10 +537,12 @@ def impsmp_analyze_2d_samples(key, n_iters, config, bijector, policy, optimizer,
         kernel=adaptive_hmc_kernel,
         trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
 
+    samples = samples.reshape(batch_size, 1, action_dim)
+
     bins = np.zeros(shape=(n_pts, n_pts))
     coords = np.floor((samples - lowerbnd)/step).astype(np.int32)
-    print(samples[:100])
-    for sample, (cx, cy) in zip(samples, np.squeeze(coords)):
+    for chain in coords:
+        cx, cy = np.squeeze(chain)
         bins[cx, cy] += 1
     ax[1].set_title(str(batch_size) + ' Samples')
     ax[1].imshow(bins, interpolation='none', origin='lower', extent=(lowerbnd,upperbnd,lowerbnd,upperbnd))
@@ -542,12 +552,12 @@ def impsmp_analyze_2d_samples(key, n_iters, config, bijector, policy, optimizer,
         f'Comparison of the instrumental density and the distribution of {batch_size} HMC samples\n'
         f'Env: Dim=2, Summands={train_model.n_summands}\n'
         f'HMC Settings: '
-        f'Burnin={hmc_config["num_burnin_iters_per_chain"]}, '
+        f'Num chains={hmc_config["num_chains"]}, '
+        f'Burnin/Chain={hmc_config["num_burnin_iters_per_chain"]}, '
+        f'Iters/Chain={hmc_config["num_iters_per_chain"]}, '
         f'Step size={hmc_step_size}, '
         f'Num leapfrog steps={hmc_config["num_leapfrog_steps"]}'
     )
-
-    plt.tight_layout()
 
     img_path = config.get('img_path', '2d_HMC_results.png')
     plt.savefig(img_path)
