@@ -364,8 +364,8 @@ class RDDLLiftedModel(PlanningModel):
                 objects = []
             if len(types) != len(objects):
                 raise RDDLInvalidNumberOfArgumentsError(
-                    f'CPF <{name}> expects {len(types)} parameter(s), '
-                    f'got {len(objects)}.')
+                    f'l.h.s. of expression for CPF <{name}> requires '
+                    f'{len(types)} parameter(s), got {objects}.')
             
             # CPFs are stored as dictionary that associates cpf name with a pair 
             # the first element is the type argument list
