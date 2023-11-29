@@ -46,7 +46,7 @@ def reinforce_inner_loop(key, theta, n_shards, batch_size, epsilon, policy, mode
     batch_stats = {
         'actions': jnp.empty(shape=(batch_size, policy.action_dim)),
         'dJ': jnp.empty(shape=(batch_size, policy.n_params)),
-        'dJ_covar': None
+        'dJ_covar': None,
     }
 
     # compute dJ hat for the current sample, dividing the computation up
@@ -79,7 +79,21 @@ def reinforce_inner_loop(key, theta, n_shards, batch_size, epsilon, policy, mode
     return key, dJ_hat, batch_stats
 
 @functools.partial(jax.jit, static_argnames=('eval_n_shards', 'eval_batch_size', 'policy', 'model'))
-def update_reinforce_stats(key, it, eval_n_shards, eval_batch_size, algo_stats, batch_stats, theta, policy, model):
+def evaluate_policy(key, it, algo_stats, eval_n_shards, eval_batch_size, theta, policy, model):
+    key, subkey = jax.random.split(key)
+    policy_mean, policy_cov = policy.apply(subkey, theta)
+    actions = policy.sample(subkey, theta, (model.n_rollouts,))
+    rewards = model.compute_loss(subkey, actions)
+
+    algo_stats['reward_mean']        = algo_stats['reward_mean'].at[it].set(jnp.mean(rewards))
+    algo_stats['reward_std']         = algo_stats['reward_std'].at[it].set(jnp.std(rewards))
+    algo_stats['reward_sterr']       = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
+    algo_stats['policy_mean']        = algo_stats['policy_mean'].at[it].set(policy_mean)
+    algo_stats['policy_cov']         = algo_stats['policy_cov'].at[it].set(jnp.diag(policy_cov))
+    return key, algo_stats
+
+@jax.jit
+def update_reinforce_stats(key, it, algo_stats, batch_stats):
     """Updates the REINFORCE statistics using the statistics returned
     from the computation of dJ_hat for the current sample as well as
     the current policy mean/cov """
@@ -94,17 +108,6 @@ def update_reinforce_stats(key, it, eval_n_shards, eval_batch_size, algo_stats, 
     algo_stats['dJ_covar_diag_max']  = algo_stats['dJ_covar_diag_max'].at[it].set(jnp.max(jnp.diag(batch_stats['dJ_covar'])))
     algo_stats['dJ_covar_diag_min']  = algo_stats['dJ_covar_diag_min'].at[it].set(jnp.min(jnp.diag(batch_stats['dJ_covar'])))
     algo_stats['dJ_covar_diag_mean'] = algo_stats['dJ_covar_diag_mean'].at[it].set(jnp.mean(jnp.diag(batch_stats['dJ_covar'])))
-
-    key, subkey = jax.random.split(key)
-    policy_mean, policy_cov = policy.apply(subkey, theta)
-    actions = policy.sample(subkey, theta, (model.n_rollouts,))
-    rewards = model.compute_loss(subkey, actions)
-
-    algo_stats['reward_mean']        = algo_stats['reward_mean'].at[it].set(jnp.mean(rewards))
-    algo_stats['reward_std']         = algo_stats['reward_std'].at[it].set(jnp.std(rewards))
-    algo_stats['reward_sterr']       = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
-    algo_stats['policy_mean']        = algo_stats['policy_mean'].at[it].set(policy_mean)
-    algo_stats['policy_cov']         = algo_stats['policy_cov'].at[it].set(jnp.diag(policy_cov))
     algo_stats['transformed_policy_sample_mean'] = algo_stats['transformed_policy_sample_mean'].at[it].set(jnp.squeeze(jnp.mean(batch_stats['actions'], axis=0)))
     algo_stats['transformed_policy_sample_cov']  = algo_stats['transformed_policy_sample_cov'].at[it].set(jnp.squeeze(jnp.std(batch_stats['actions'], axis=0))**2)
     return key, algo_stats
@@ -118,9 +121,8 @@ def print_reinforce_report(it, algo_stats, subt0, subt1):
     print(f'Transformed action sample statistics [[Means], [StDevs]] =')
     print(algo_stats['transformed_policy_sample_mean'][it])
     print(algo_stats['transformed_policy_sample_cov'][it])
-    print(algo_stats['dJ_hat_min'][it], '<= dJ <=', algo_stats['dJ_hat_max'][it])
-    print('|dJ_hat|', algo_stats['dJ_hat_norm'][it])
-    print(algo_stats['dJ_covar_diag_min'][it], '<=', algo_stats["dJ_covar_diag_mean"][it], ' <=', algo_stats["dJ_covar_diag_max"][it])
+    print(algo_stats['dJ_hat_min'][it], '<= dJ <=', algo_stats['dJ_hat_max'][it], f':: dJ norm={algo_stats["dJ_hat_norm"][it]}')
+    print('dJ covar:', algo_stats['dJ_covar_diag_min'][it], '<= Mean', algo_stats["dJ_covar_diag_mean"][it], ' <=', algo_stats["dJ_covar_diag_max"][it])
     print(f'Eval. reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
 
@@ -174,6 +176,9 @@ def reinforce(key, n_iters, config, bijector, policy, optimizer, models):
     # run REINFORCE
     for it in range(n_iters):
         subt0 = timer()
+
+        key, algo_stats = evaluate_policy(key, it, algo_stats, eval_n_shards, eval_batch_size, policy.theta, policy, eval_model)
+
         key, dJ_hat, batch_stats = reinforce_inner_loop(
             key, policy.theta,
             n_shards, batch_size, epsilon, policy, train_model)
@@ -182,7 +187,7 @@ def reinforce(key, n_iters, config, bijector, policy, optimizer, models):
         policy.theta = optax.apply_updates(policy.theta, updates)
 
         # update statistics and print out report for current iteration
-        key, algo_stats = update_reinforce_stats(key, it, eval_n_shards, eval_batch_size, algo_stats, batch_stats, policy.theta, policy, eval_model)
+        key, algo_stats = update_reinforce_stats(key, it, algo_stats, batch_stats)
         if config.get('verbose', False):
             print_reinforce_report(it, algo_stats, subt0, timer())
 
