@@ -77,9 +77,13 @@ class RDDLLiftedModel(PlanningModel):
             # make sure types do not share an object - record type of each object
             for obj in objects[name]:
                 if obj in objects_rev:
-                    raise RDDLInvalidObjectError(
-                        f'Types <{name}> and <{objects_rev[obj]}> '
-                        f'can not share the same object <{obj}>.')
+                    if objects_rev[obj] == name:
+                        raise RDDLInvalidObjectError(
+                            f'Type <{name}> contains duplicated object <{obj}>.')
+                    else:
+                        raise RDDLInvalidObjectError(
+                            f'Types <{name}> and <{objects_rev[obj]}> '
+                            f'can not share the same object <{obj}>.')
                 objects_rev[obj] = name
         
         # check that all types in instance are declared in domain
