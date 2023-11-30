@@ -29,7 +29,7 @@ def flatten_dJ_shard(dJ_shard, ifrom, ito, flat_dJ_shard):
     return flat_dJ_shard
 
 def init_hmc_state(key, n_chains, action_dim, policy, config):
-    shape = (n_chains, action_dim, 2, action_dim)
+    shape = (n_chains, action_dim, 2, 1, action_dim)
     if config['type'] == 'uniform':
         return jax.random.uniform(
             key,
@@ -45,37 +45,33 @@ def init_hmc_state(key, n_chains, action_dim, policy, config):
         return policy.sample(key, policy.theta, shape[:-1])
     else:
         raise ValueError('[init_hmc_state] Unrecognized distribution type')
-    # repeat the initializer per-parameter
-    # this adds two axes to the initial HMC state,
-    # one corresponding the action_dim, and one distinguishing mean vs. var
-    # (together, they parametrize m1, ..., md, v1, ..., vd)
-    #init_state = jnp.stack([init_state] * action_dim, axis=1)
-    #init_state = jnp.stack([init_state] * 2, axis=2)
-    #return init_state
+
+
 
 @functools.partial(jax.jit, static_argnames=('policy', 'model'))
 def unnormalized_rho(key, theta, policy, model, a):
     dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=3), dpi)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=2), dpi)
+    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
+    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=2), dpi)
+    dpi = jax.tree_util.tree_map(lambda x: x[0], dpi)
     dpi_abs = jax.tree_util.tree_map(lambda x: jnp.abs(x), dpi)
 
     # compute losses over the first three axes, which index
-    # (chain_idx, action_dim_idx, mean_or_var_idx, action_dim_idx)
+    # (chain_idx, action_dim_idx, mean_or_var_idx, 1, action_dim_idx)
     #            |<---   parameter indices   --->|
 
-    compute_loss_axis_1 = jax.vmap(model.compute_loss, (None, 1), 1)
-    compute_loss_axes_1_2 = jax.vmap(compute_loss_axis_1, (None, 1), 1)
+    compute_loss_axis_0 = jax.vmap(model.compute_loss, (None, 0), 0)
+    compute_loss_axes_0_1 = jax.vmap(compute_loss_axis_0, (None, 0), 0)
 
-    losses = compute_loss_axes_1_2(key, a)[:,:,:,0]
-
-    density = jnp.abs(losses) * dpi_abs['linear']['w']
+    losses = compute_loss_axes_0_1(key, a)[..., 0]
+    losses = jnp.abs(losses)
+    density = losses * dpi_abs['linear']['w']
     return density
 
 @functools.partial(jax.jit, static_argnames=('policy', 'model', 'epsilon'))
 def unnormalized_log_rho(key, theta, policy, model, epsilon, a):
     density = unnormalized_rho(key, theta, policy, model, a)
-    return jnp.log(density)
+    return jnp.log(density + epsilon)
 
 
 @functools.partial(
@@ -91,31 +87,33 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
                                     n_shards, batch_size, epsilon, est_Z,
                                     policy, hmc_model, train_model):
     batch_stats = {
-        'sample_rewards': jnp.empty(shape=(batch_size,)),
+        'sample_rewards': jnp.empty(shape=(batch_size, policy.n_params)),
+        'scores': jnp.empty(shape=(batch_size, policy.n_params)),
         'dJ': jnp.empty(shape=(batch_size, policy.n_params)),
     }
 
     dJ_hat = jax.tree_util.tree_map(lambda theta_item: jnp.zeros(theta_item.shape), theta)
     Zinv = 0.
 
-    num_chains = samples.shape[1]
+    jacobian = jax.jacrev(policy.pdf, argnums=1)
 
     for si in range(n_shards):
         key, subkey = jax.random.split(key)
 
         actions = samples[si*train_model.n_rollouts:(si+1)*train_model.n_rollouts]
 
-        pi = policy.pdf(key, theta, actions)
-        dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, actions)
-        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=2, axis2=4), dpi)
-        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=2, axis2=3), dpi)
+        pi = policy.pdf(key, theta, actions)[..., 0]
+        dpi = jacobian(key, theta, actions)
+        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=4), dpi)
+        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=3), dpi)
+        dpi = jax.tree_util.tree_map(lambda x: x[:,0,:,:], dpi)
         dpi_abs = jax.tree_util.tree_map(lambda x: jnp.abs(x), dpi)
 
         compute_loss_axis_1 = jax.vmap(train_model.compute_loss, (None, 1), 1)
         compute_loss_axes_1_2 = jax.vmap(compute_loss_axis_1, (None, 1), 1)
         batch_compute_loss = jax.vmap(compute_loss_axes_1_2, (None, 1), 1)
 
-        losses = batch_compute_loss(key, actions)[:,:,:,:,0]
+        losses = batch_compute_loss(key, actions)[..., 0]
 
         batch_unnormalized_rho = jax.vmap(unnormalized_rho, (None, None, None, None, 0), 0)
         rho = batch_unnormalized_rho(key, theta, policy, hmc_model, actions)
@@ -130,13 +128,14 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
 
         # estimate of the normalizing factor Z of the density rho
         if est_Z:
-            Zinv += jnp.sum(pi/(rho + epsilon), axis=(0,1))
+            Zinv += jnp.sum(pi/(rho + epsilon), axis=(0,))
 
         # collect statistics for the shard
-        per_shard = num_chains * train_model.n_rollouts
+        per_shard = train_model.n_rollouts
         ifrom, ito = si*per_shard, (si+1)*per_shard
         batch_stats['dJ'] = flatten_dJ_shard(scores, ifrom, ito, batch_stats['dJ'])
-        #batch_stats['sample_rewards'] = batch_stats['sample_rewards'].at[ifrom:ito].set(losses.flatten())
+        batch_stats['scores'] = batch_stats['scores'].at[ifrom:ito].set(scores['linear']['w'].reshape(-1, policy.n_params))
+        batch_stats['sample_rewards'] = batch_stats['sample_rewards'].at[ifrom:ito].set(losses.reshape(-1, policy.n_params))
 
     if est_Z:
         Zinv = (Zinv / batch_size) + epsilon
@@ -185,12 +184,15 @@ def update_impsmp_stats(key, it, batch_size, eval_n_shards, eval_batch_size, alg
     algo_stats['acceptance_rate']     = algo_stats['acceptance_rate'].at[it].set(batch_stats['acceptance_rate'])
     algo_stats['hmc_step_size']       = algo_stats['hmc_step_size'].at[it].set(batch_stats['hmc_step_size'])
 
+    algo_stats['scores']              = algo_stats['scores'].at[it].set(batch_stats['scores'])
+    algo_stats['avg_abs_score']       = algo_stats['avg_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
+
     return key, algo_stats
 
-def print_impsmp_report(it, algo_stats, is_accepted, subt0, subt1):
+def print_impsmp_report(it, algo_stats, is_accepted, batch_size, num_chains, subt0, subt1):
     """Prints out the results for the current REINFORCE with Importance Sampling iteration"""
     print(f'Iter {it} :: Importance Sampling :: Runtime={subt1-subt0}s')
-    print(f'HMC step size={algo_stats["hmc_step_size"][it]:.4f} :: HMC acceptance rate={algo_stats["acceptance_rate"][it]*100:.2f}%')
+    print(f'Batch size={batch_size} :: Num.Chains={num_chains} :: HMC step size={algo_stats["hmc_step_size"][it]:.4f} :: HMC acceptance rate={algo_stats["acceptance_rate"][it]*100:.2f}%')
     print('Untransformed parametrized policy [Mean, Diag(Cov)] =')
     print(algo_stats['policy_mean'][it])
     print(algo_stats['policy_cov'][it])
@@ -198,7 +200,8 @@ def print_impsmp_report(it, algo_stats, is_accepted, subt0, subt1):
     print(algo_stats['transformed_policy_mean'][it])
     print(algo_stats['transformed_policy_cov'][it])
     print(f'{algo_stats["dJ_hat_min"][it]} <= dJ_hat <= {algo_stats["dJ_hat_max"][it]} :: Norm={algo_stats["dJ_hat_norm"][it]}')
-    print(algo_stats['dJ_covar_diag_min'][it], '<=', algo_stats['dJ_covar_diag_mean'][it], '<=', algo_stats['dJ_covar_diag_max'][it])
+    print(f'dJ cov: {algo_stats["dJ_covar_diag_min"][it]} <= Mean {algo_stats["dJ_covar_diag_mean"][it]} <= {algo_stats["dJ_covar_diag_max"][it]}')
+    print(f'Average abs. score={algo_stats["avg_abs_score"][it]}')
     print(f'HMC sample reward={algo_stats["sample_reward_mean"][it]:.3f} \u00B1 {algo_stats["sample_reward_sterr"][it]:.3f} '
           f':: Eval reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
@@ -218,16 +221,17 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
     n_shards = int(batch_size // (hmc_model.n_rollouts * train_model.n_rollouts))
     eval_n_shards = int(eval_batch_size // eval_model.n_rollouts)
     assert n_shards > 0, (
-         '[reinforce] Please check that batch_size >= (hmc_model.n_rollouts * train_model.n_rollouts).'
+         '[impsmp_per_parameter] Please check that batch_size >= (hmc_model.n_rollouts * train_model.n_rollouts).'
         f' batch_size={batch_size}, hmc_model.n_rollouts={hmc_model.n_rollouts}, train_model.n_rollouts={train_model.n_rollouts}')
     assert eval_n_shards > 0, (
-        '[reinforce] Please check that eval_batch_size >= eval_model.n_rollouts.'
+        '[impsmp_per_parameter] Please check that eval_batch_size >= eval_model.n_rollouts.'
         f' eval_batch_size={eval_batch_size}, eval_model.n_rollouts={eval_model.n_rollouts}')
 
     hmc_config = config['hmc']
-    hmc_config['num_chains'] = hmc_model.n_rollouts
-    hmc_config['num_iters_per_chain'] = int(batch_size // hmc_model.n_rollouts)
-    assert hmc_config['num_iters_per_chain'] > 0
+    hmc_config['num_iters_per_chain'] = int(batch_size // hmc_config["num_chains"])
+    assert hmc_config['num_iters_per_chain'] > 0, (
+        f'[impsmp_per_parameter] Please check that batch_size >= hmc["num_chains"].'
+        f' batch_size={batch_size}, hmc["num_chains"]={hmc_config["num_chains"]}')
 
     epsilon = config.get('epsilon', 1e-12)
 
@@ -244,7 +248,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
         'reward_mean': jnp.empty(shape=(n_iters,)),
         'reward_std': jnp.empty(shape=(n_iters,)),
         'reward_sterr': jnp.empty(shape=(n_iters,)),
-        'sample_rewards': jnp.empty(shape=(n_iters, batch_size)),
+        'sample_rewards': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
         'sample_reward_mean': jnp.empty(shape=(n_iters,)),
         'sample_reward_std': jnp.empty(shape=(n_iters,)),
         'sample_reward_sterr': jnp.empty(shape=(n_iters,)),
@@ -260,6 +264,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
         'dJ_covar_diag_max': jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_mean': jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_min': jnp.empty(shape=(n_iters,)),
+        'scores': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
+        'avg_abs_score': jnp.empty(shape=(n_iters,)),
     }
 
     # initialize HMC
@@ -283,11 +289,12 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
 
             log_density = functools.partial(
                 unnormalized_log_rho, subkeys[1], policy.theta, policy, hmc_model, epsilon)
+            parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
 
             adaptive_hmc_kernel = tfp.mcmc.TransformedTransitionKernel(
                 inner_kernel = tfp.mcmc.SimpleStepSizeAdaptation(
                     inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
-                        target_log_prob_fn=log_density,
+                        target_log_prob_fn=parallel_log_density_over_chains,
                         num_leapfrog_steps=hmc_config['num_leapfrog_steps'],
                         step_size=hmc_step_size),
                     num_adaptation_steps=int(hmc_config['num_burnin_iters_per_chain'] * 0.8)),
@@ -300,6 +307,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
                 current_state=hmc_initializer,
                 kernel=adaptive_hmc_kernel,
                 trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
+
+            samples = samples.reshape(batch_size, action_dim, 2, 1, action_dim)
 
             # compute dJ_hat
             key, dJ_hat, batch_stats = impsmp_per_parameter_inner_loop(
@@ -326,7 +335,9 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
             key, algo_stats = update_impsmp_stats(key, it, batch_size, eval_n_shards, eval_batch_size,
                                                   algo_stats, batch_stats, policy.theta,
                                                   policy, eval_model)
-            print_impsmp_report(it, algo_stats, is_accepted, subt0, timer())
+            print_impsmp_report(it, algo_stats, is_accepted,
+                                batch_size, hmc_config["num_chains"],
+                                subt0, timer())
         except FloatingPointError:
             hmc_step_size = hmc_step_size / 2
             if hmc_step_size < 1e-4:
@@ -336,7 +347,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
             print(f'[impsmp] Iteration {it}. Caught FloatingPointError exception. Reducing step size to {hmc_step_size}')
 
     algo_stats.update({
-        'algorithm': 'ImpSmp',
+        'algorithm': 'ImpSmpPerParameter',
         'n_iters': n_iters,
         'config': config,
         'action_dim': action_dim,

@@ -21,7 +21,7 @@
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 256
+            "n_rollouts": 4
           }
         },
         "eval_model": {
@@ -44,27 +44,26 @@
   "optimizer": {
     "id": "adagrad",
     "params": {
-      "learning_rate": 0.9
+      "learning_rate": 0.7
     }
   },
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 1024,
+      "batch_size": 4,
       "eval_batch_size": 32,
-      "epsilon": 0.0,
+      "epsilon": 1e-12,
       "est_Z": true,
       "hmc" : {
+        "num_chains": 4,
         "num_burnin_iters_per_chain": 512,
         "init_step_size": 0.01,
         "num_leapfrog_steps": 50,
-        "init_distribution": {
-          "type": "current_policy"
-        },
-        "reinit_strategy": "random_sample"
+        "init_distribution": {},
+        "reinit_strategy": "random_last_chain_elt"
       },
       "verbose": true
     }
   },
-  "save_to": "/home/ilia/Programming/storage/tmp"
+  "save_to": "/tmp"
 }
