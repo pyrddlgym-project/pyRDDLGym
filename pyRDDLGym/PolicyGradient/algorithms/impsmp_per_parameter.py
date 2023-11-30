@@ -326,8 +326,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
                 hmc_initializer = jax.random.choice(
                     subkeys[3],
                     a=samples,
-                    shape=(hmc_config["num_chains"],)
-                )
+                    shape=(hmc_config["num_chains"],),
+                    replace=False)
             else:
                 raise ValueError('[impsmp] Unrecognized HMC reinitialization strategy '
                                 f'{hmc_config["reinit_strategy"]}. Expect "random_sample" '

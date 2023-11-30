@@ -312,7 +312,11 @@ def impsmp(key, n_iters, config, bijector, policy, optimizer, models):
             if hmc_config['reinit_strategy'] == 'random_sample':
                 hmc_initializer = init_hmc_state(subkeys[3], (hmc_config['num_chains'], 1, action_dim), hmc_config['init_distribution'])
             elif hmc_config['reinit_strategy'] == 'random_prev_chain_elt':
-                hmc_initializer = jax.random.choice(subkeys[3], samples)
+                hmc_initializer = jax.random.choice(
+                    subkeys[3],
+                    a=samples,
+                    shape=(hmc_config["num_chains"],),
+                    replace=False)
             else:
                 raise ValueError('[impsmp] Unrecognized HMC reinitialization strategy '
                                 f'{hmc_config["reinit_strategy"]}. Expect "random_sample" '
