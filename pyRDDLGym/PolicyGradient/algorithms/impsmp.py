@@ -73,6 +73,7 @@ def impsmp_inner_loop(key, theta, samples,
                       n_shards, batch_size, epsilon, est_Z, policy, hmc_model, train_model):
     batch_stats = {
         'sample_rewards': jnp.empty(shape=(batch_size,)),
+        'scores': jnp.empty(shape=(batch_size, policy.n_params)),
         'dJ': jnp.empty(shape=(batch_size, policy.n_params)),
     }
 
@@ -112,6 +113,7 @@ def impsmp_inner_loop(key, theta, samples,
         per_shard = num_chains * train_model.n_rollouts
         ifrom, ito = si*per_shard, (si+1)*per_shard
         batch_stats['dJ'] = flatten_dJ_shard(scores, ifrom, ito, batch_stats['dJ'])
+        batch_stats['scores'] = batch_stats['scores'].at[ifrom:ito].set(scores['linear']['w'].reshape(batch_size, -1))
         batch_stats['sample_rewards'] = batch_stats['sample_rewards'].at[ifrom:ito].set(losses.flatten())
 
     if est_Z:
@@ -162,6 +164,8 @@ def update_impsmp_stats(key, it, batch_size, algo_stats, batch_stats):
     algo_stats['sample_reward_sterr'] = algo_stats['sample_reward_sterr'].at[it].set(algo_stats['sample_reward_std'][it] / jnp.sqrt(batch_size))
     algo_stats['acceptance_rate']     = algo_stats['acceptance_rate'].at[it].set(batch_stats['acceptance_rate'])
     algo_stats['hmc_step_size']       = algo_stats['hmc_step_size'].at[it].set(batch_stats['hmc_step_size'])
+    algo_stats['scores']              = algo_stats['scores'].at[it].set(batch_stats['scores'])
+    algo_stats['mean_abs_score']      = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
 
     return key, algo_stats
 
@@ -176,7 +180,8 @@ def print_impsmp_report(it, algo_stats, is_accepted, subt0, subt1):
     print(algo_stats['transformed_policy_mean'][it])
     print(algo_stats['transformed_policy_cov'][it])
     print(f'{algo_stats["dJ_hat_min"][it]} <= dJ_hat <= {algo_stats["dJ_hat_max"][it]} :: dJ norm={algo_stats["dJ_hat_norm"][it]}')
-    print('dJ covar:', algo_stats['dJ_covar_diag_min'][it], '<= Mean', algo_stats['dJ_covar_diag_mean'][it], '<=', algo_stats['dJ_covar_diag_max'][it])
+    print(f'dJ diag(covar):', algo_stats['dJ_covar_diag_min'][it], '<= Mean', algo_stats['dJ_covar_diag_mean'][it], '<=', algo_stats['dJ_covar_diag_max'][it])
+    print(f'Mean absolute score={algo_stats["mean_abs_score"][it]}')
     print(f'HMC sample reward={algo_stats["sample_reward_mean"][it]:.3f} \u00B1 {algo_stats["sample_reward_sterr"][it]:.3f} '
           f':: Eval reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
@@ -243,6 +248,8 @@ def impsmp(key, n_iters, config, bijector, policy, optimizer, models):
         'dJ_covar_diag_max': jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_mean': jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_min': jnp.empty(shape=(n_iters,)),
+        'scores': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
+        'mean_abs_score': jnp.empty(shape=(n_iters,)),
     }
 
     # initialize HMC
