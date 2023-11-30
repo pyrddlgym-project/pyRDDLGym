@@ -206,7 +206,7 @@ def impsmp(key, n_iters, config, bijector, policy, optimizer, models):
     hmc_config = config['hmc']
     hmc_config['num_iters_per_chain'] = int(batch_size // hmc_config['num_chains'])
     assert hmc_config['num_iters_per_chain'] > 0, (
-        f'[impsmp] Please chekc that batch_size >= hmc["num_chains"].'
+        f'[impsmp] Please check that batch_size >= hmc["num_chains"].'
         f' batch_size={batch_size}, hmc["num_chains"]={hmc_config["num_chains"]}')
 
     epsilon = config.get('epsilon', 1e-12)
@@ -449,7 +449,7 @@ def impsmp_analyze_1d_samples(key, n_iters, config, bijector, policy, optimizer,
 
     plt.tight_layout()
 
-    img_path = config.get('img_path', '1d_HMC_results.png')
+    img_path = config.get('img_path', '/tmp/1d_HMC_results.png')
     plt.savefig(img_path)
     print('Saved 1d instrumental density and HMC sample histogram to', img_path)
     return key, {}
@@ -559,7 +559,7 @@ def impsmp_analyze_2d_samples(key, n_iters, config, bijector, policy, optimizer,
         f'Num leapfrog steps={hmc_config["num_leapfrog_steps"]}'
     )
 
-    img_path = config.get('img_path', '2d_HMC_results.png')
+    img_path = config.get('img_path', '/tmp/2d_HMC_results.png')
     plt.savefig(img_path)
     print('Saved 2d instrumental density and HMC histogram to', img_path)
     return key, {}

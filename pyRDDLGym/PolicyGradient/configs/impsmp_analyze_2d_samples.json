@@ -56,7 +56,7 @@
       "est_Z": true,
       "img_path": "2d_hmc_samples.png",
       "hmc" : {
-        "num_chains": 1024,
+        "num_chains": 32768,
         "num_burnin_iters_per_chain": 512,
         "init_step_size": 0.003,
         "num_leapfrog_steps": 50,
