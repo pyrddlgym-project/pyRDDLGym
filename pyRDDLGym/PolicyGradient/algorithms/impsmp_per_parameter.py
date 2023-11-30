@@ -185,7 +185,7 @@ def update_impsmp_stats(key, it, batch_size, eval_n_shards, eval_batch_size, alg
     algo_stats['hmc_step_size']       = algo_stats['hmc_step_size'].at[it].set(batch_stats['hmc_step_size'])
 
     algo_stats['scores']              = algo_stats['scores'].at[it].set(batch_stats['scores'])
-    algo_stats['avg_abs_score']       = algo_stats['avg_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
+    algo_stats['mean_abs_score']       = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
 
     return key, algo_stats
 
@@ -201,7 +201,7 @@ def print_impsmp_report(it, algo_stats, is_accepted, batch_size, num_chains, sub
     print(algo_stats['transformed_policy_cov'][it])
     print(f'{algo_stats["dJ_hat_min"][it]} <= dJ_hat <= {algo_stats["dJ_hat_max"][it]} :: Norm={algo_stats["dJ_hat_norm"][it]}')
     print(f'dJ cov: {algo_stats["dJ_covar_diag_min"][it]} <= Mean {algo_stats["dJ_covar_diag_mean"][it]} <= {algo_stats["dJ_covar_diag_max"][it]}')
-    print(f'Average abs. score={algo_stats["avg_abs_score"][it]}')
+    print(f'Mean abs. score={algo_stats["mean_abs_score"][it]}')
     print(f'HMC sample reward={algo_stats["sample_reward_mean"][it]:.3f} \u00B1 {algo_stats["sample_reward_sterr"][it]:.3f} '
           f':: Eval reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
@@ -265,7 +265,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
         'dJ_covar_diag_mean': jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_min': jnp.empty(shape=(n_iters,)),
         'scores': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
-        'avg_abs_score': jnp.empty(shape=(n_iters,)),
+        'mean_abs_score': jnp.empty(shape=(n_iters,)),
     }
 
     # initialize HMC
@@ -323,7 +323,11 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
             if hmc_config['reinit_strategy'] == 'random_sample':
                 hmc_initializer = init_hmc_state(subkeys[3], hmc_config['num_chains'], action_dim, policy, hmc_config['init_distribution'])
             elif hmc_config['reinit_strategy'] == 'random_prev_chain_elt':
-                hmc_initializer = jax.random.choice(subkeys[3], samples)
+                hmc_initializer = jax.random.choice(
+                    subkeys[3],
+                    a=samples,
+                    shape=(hmc_config["num_chains"],)
+                )
             else:
                 raise ValueError('[impsmp] Unrecognized HMC reinitialization strategy '
                                 f'{hmc_config["reinit_strategy"]}. Expect "random_sample" '
