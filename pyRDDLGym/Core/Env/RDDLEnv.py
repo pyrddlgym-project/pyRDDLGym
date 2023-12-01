@@ -242,16 +242,18 @@ class RDDLEnv(gym.Env):
         sampler = self.sampler
         sampler.check_default_action_count(actions, self.enforce_count_non_bool)
         if self.enforce_action_constraints:
-            sampler.check_action_preconditions(actions)
+            sampler.check_action_preconditions(actions, silent=False)
         
         # sample next state and reward
         obs, reward, self.done = sampler.step(actions)
         self.state = sampler.states
             
         # check if the state invariants are satisfied
-        if not self.done:
-            sampler.check_state_invariants()               
-
+        if self.done:
+            out_of_bounds = False
+        else:
+            out_of_bounds = sampler.check_state_invariants(silent=True)
+            
         # log to file
         if self.simlogger is not None:
             if self.vectorized:
@@ -267,9 +269,9 @@ class RDDLEnv(gym.Env):
         if self.currentH == self.horizon:
             self.done = True
 
-        return obs, reward, self.done, {}
+        return obs, reward, self.done, out_of_bounds, {}
 
-    def reset(self, seed=None):
+    def reset(self, seed=None, options=None):
         
         # reset counters and internal state
         sampler = self.sampler
@@ -308,7 +310,7 @@ class RDDLEnv(gym.Env):
                     f'######################################################')
             self.simlogger.log_free(text)
 
-        return obs
+        return obs, {}
 
     def pilImageToSurface(self, pilImage):
         return pygame.image.fromstring(
