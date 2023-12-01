@@ -275,15 +275,18 @@ class RDDLSimulator:
                 
         return new_actions
     
-    def check_state_invariants(self) -> None:
+    def check_state_invariants(self, silent: bool=False) -> bool:
         '''Throws an exception if the state invariants are not satisfied.'''
         for (i, invariant) in enumerate(self.rddl.invariants):
             loc = self.invariant_names[i]
             sample = self._sample(invariant, self.subs)
             RDDLSimulator._check_type(sample, bool, loc, invariant)
             if not bool(sample):
-                raise RDDLStateInvariantNotSatisfiedError(
-                    f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
+                if not silent:
+                    raise RDDLStateInvariantNotSatisfiedError(
+                        f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
+                return False
+        return True
     
     def check_default_action_count(self, actions: Args, 
                                    enforce_for_non_bool: bool=True) -> None:
@@ -322,7 +325,7 @@ class RDDLSimulator:
                 f'Expected at most {self.rddl.max_allowed_actions} '
                 f'non-default actions, got {total_non_default}.')
         
-    def check_action_preconditions(self, actions: Args) -> None:
+    def check_action_preconditions(self, actions: Args, silent: bool=False) -> bool:
         '''Throws an exception if the action preconditions are not satisfied.'''     
         actions = self._process_actions(actions)
         self.subs.update(actions)
@@ -332,8 +335,11 @@ class RDDLSimulator:
             sample = self._sample(precond, self.subs)
             RDDLSimulator._check_type(sample, bool, loc, precond)
             if not bool(sample):
-                raise RDDLActionPreconditionNotSatisfiedError(
-                    f'{loc} is not satisfied.\n' + print_stack_trace(precond))
+                if not silent:
+                    raise RDDLActionPreconditionNotSatisfiedError(
+                        f'{loc} is not satisfied.\n' + print_stack_trace(precond))
+                return False
+        return True
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
