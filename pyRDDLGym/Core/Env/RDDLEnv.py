@@ -1,15 +1,18 @@
 import gym
-from gym.spaces import Discrete, Dict, Box
+from gym.spaces import Box, Dict, Discrete, MultiBinary, MultiDiscrete
 import numpy as np
 import os
 import pygame
 import typing
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLEpisodeAlreadyEndedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLLogFolderError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
+from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Debug.Logger import Logger, SimLogger
 from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
 from pyRDDLGym.Core.Env.RDDLEnvSeeder import RDDLEnvSeeder, RDDLEnvSeederFibonacci
@@ -115,7 +118,7 @@ class RDDLEnv(gym.Env):
         self._bounds = RDDLConstraints(
             self.sampler, vectorized=self.vectorized).bounds
         self._shapes = {var: np.shape(values[0]) 
-                       for (var, values) in self._bounds.items()}
+                        for (var, values) in self._bounds.items()}
         
         # construct the gym observation space
         if self.sampler.isPOMDP:
@@ -124,7 +127,7 @@ class RDDLEnv(gym.Env):
             statesranges = self.model.statesranges
         if not self.vectorized:
             statesranges = self.model.ground_ranges_from_dict(statesranges)    
-        self.observation_space = self._rddl_to_gym_bounds(statesranges)
+        self.observation_space = self._rddl_to_gym_bounds_obs(statesranges)
         
         # construct the gym action space      
         if self.vectorized:
@@ -133,7 +136,7 @@ class RDDLEnv(gym.Env):
         else:
             self._actionsranges = self.sampler.grounded_actionsranges
             self._noop_actions = self.sampler.grounded_noop_actions
-        self.action_space = self._rddl_to_gym_bounds(self._actionsranges)
+        self.action_space = self._rddl_to_gym_bounds_act(self._actionsranges)
         
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)
@@ -150,7 +153,7 @@ class RDDLEnv(gym.Env):
         self.done = False
         self.seeds = iter(seeds)
     
-    def _rddl_to_gym_bounds(self, ranges):
+    def _rddl_to_gym_bounds_obs(self, ranges):
         result = Dict()
         for (var, prange) in ranges.items():
             
@@ -196,7 +199,13 @@ class RDDLEnv(gym.Env):
                     f'Type <{prange}> of fluent <{var}> is not valid, '
                     f'must be an enumerated or primitive type (real, int, bool).')
         return result
-        
+    
+    def _rddl_to_gym_bounds_act(self, ranges):
+        return (self._rddl_to_gym_bounds_obs(ranges), None)
+    
+    def _gym_to_rddl_actions(self, gym_actions):
+        return gym_actions
+    
     def seed(self, seed=None):
         self.sampler.seed(seed)
         return [seed]
@@ -213,8 +222,10 @@ class RDDLEnv(gym.Env):
         if self.done:
             raise RDDLEpisodeAlreadyEndedError(
                 'The step() function has been called even though the '
-                f'current episode has terminated: please call reset().')            
-
+                'current episode has terminated: please call reset().')            
+            
+        actions = self._gym_to_rddl_actions(actions)
+        
         # cast non-boolean actions to boolean
         fixed_actions = self._noop_actions.copy()
         for (var, values) in actions.items():
@@ -351,3 +362,150 @@ class RDDLEnv(gym.Env):
                 self._movie_generator.save_animation(
                     self._movie_generator.env_name + '_' + str(self._movies))
                 self._movies += 1
+
+
+class RDDLEnvCompact(RDDLEnv):
+    '''A gym environment class for RDDL domains with a compact action space.
+    Most suitable for RL implementations.'''
+    
+    @staticmethod
+    def build(env_info, env: str, **env_kwargs):
+        env = RDDLEnvCompact(domain=env_info.get_domain(),
+                             instance=env_info.get_instance(env),
+                             **env_kwargs)
+        env.set_visualizer(env_info.get_visualizer())
+        return env
+    
+    def __init__(self, *args, **kwargs):
+        super(RDDLEnvCompact, self).__init__(*args, vectorized=True, **kwargs)
+        
+        self.action_space, self._action_info = self._rddl_to_gym_bounds_act(
+            self._actionsranges)
+    
+    def _rddl_to_gym_bounds_act(self, ranges):
+        
+        # collect information about action ranges
+        enum_shape = []
+        real_bounds = ([], [])
+        int_bounds = ([], [])
+        count_enum, count_real, count_int, count_bool = 0, 0, 0, 0
+        locational = {}
+        for (var, prange) in ranges.items():
+            shape = self._shapes[var]
+            num_elements = np.prod(shape, dtype=np.int64)
+            if prange in self.model.enums:
+                num_objects = len(self.model.objects[prange])
+                enum_shape.extend([num_objects] * num_elements)
+                locational[var] = ('finite', (count_enum, num_elements, shape))
+                count_enum += num_elements
+            elif prange == 'real':
+                low, high = self._bounds[var]
+                low = np.ravel(low, order='C').tolist()
+                high = np.ravel(high, order='C').tolist()
+                real_bounds[0].extend(low)
+                real_bounds[1].extend(high)
+                locational[var] = ('real', (count_real, num_elements, shape))
+                count_real += num_elements
+            elif prange == 'int':
+                low, high = self._bounds[var]
+                low = np.ravel(low, order='C').tolist()
+                high = np.ravel(high, order='C').tolist()
+                int_bounds[0].extend(low)
+                int_bounds[1].extend(high)
+                locational[var] = ('int', (count_int, num_elements, shape))
+                count_int += num_elements
+            elif prange == 'bool':
+                locational[var] = ('finite', (count_bool, num_elements, shape))
+                count_bool += num_elements
+            else:
+                raise RDDLTypeError(
+                    f'Type <{prange}> of fluent <{var}> is not valid, '
+                    f'must be an enumerated or primitive type (real, int, bool).')
+        
+        # simplify real space
+        if real_bounds[0]:
+            low, high = real_bounds
+            real_space = Box(np.asarray(low), np.asarray(high), dtype=np.float32)
+        else:
+            real_space = None
+        
+        # simplify int space
+        if int_bounds[0]:
+            low, high = int_bounds
+            int_space = Box(np.asarray(low), np.asarray(high), dtype=np.int32)
+        else:
+            int_space = None
+            
+        # simplify finite space
+        finite_dims = enum_shape.copy()
+        if count_bool == 1:
+            finite_dims.append(2)
+        elif count_bool > 1:
+            if self.max_allowed_actions == 1:
+                finite_dims.append(count_bool + 1)
+            elif self.max_allowed_actions >= count_bool:
+                finite_dims.extend([2] * count_bool)
+            else:
+                raise RDDLNotImplementedError(
+                    'Simplification of bool action space with max-nondef-actions '
+                    'other than 1 or pos-inf is not currently supported.')  
+        if len(finite_dims) == 1:
+            finite_space = Discrete(finite_dims[0])
+        elif len(finite_dims) > 1:
+            if all(dim == 2 for dim in finite_dims):
+                finite_space = MultiBinary(len(finite_dims))
+            else:
+                finite_space = MultiDiscrete(finite_dims)
+        else:
+            finite_space = None
+        
+        # simplify space
+        combined_space = {}
+        if real_space is not None:
+            combined_space['real'] = real_space
+        if int_space is not None:
+            combined_space['int'] = int_space
+        if finite_space is not None:
+            combined_space['finite'] = finite_space
+        if not combined_space:
+            raise RDDLInvalidActionError(
+                'RDDL action specification resulted in an empty action space.')
+        keys = list(combined_space.keys())
+        if len(combined_space) == 1:
+            combined_space = next(iter(combined_space.values()))
+            
+        return combined_space, (locational, keys, count_bool)
+
+    def _gym_to_rddl_actions(self, gym_actions):
+        locational, keys, count_bool = self._action_info
+        if len(keys) == 1:
+            gym_actions = {keys[0]: gym_actions}        
+        bool_constraint = count_bool > 1 and self.max_allowed_actions == 1
+        
+        # process all actions except if active max-nondef-actions constraint
+        actions = {}
+        for (var, prange) in self._actionsranges.items():
+            key, (start, count, shape) = locational[var]
+            action = gym_actions[key]
+            if not (bool_constraint and prange == 'bool'):
+                action = action[start:start + count]
+                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                    prange, RDDLValueInitializer.INT)
+                actions[var] = np.reshape(action, shape, order='C').astype(dtype)
+        
+        # process the active max-nondef-actions constraint
+        if bool_constraint:
+            index = np.atleast_1d(gym_actions['finite'])[-1]
+            for (var, prange) in self._actionsranges.items():
+                if prange == 'bool':
+                    _, (start, count, shape) = locational[var]
+                    offset = index - start
+                    if 0 <= offset < count:
+                        default_value = self.model.default_values[var]
+                        action = np.full(shape=count, fill_value=default_value, dtype=bool)
+                        action[offset] ^= True
+                        actions[var] = np.reshape(action, shape, order='C')
+                        break
+        
+        return actions
+              
