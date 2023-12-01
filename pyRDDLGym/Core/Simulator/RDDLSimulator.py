@@ -249,27 +249,29 @@ class RDDLSimulator:
     
     def _process_actions(self, actions):
         rddl = self.rddl
-        new_actions = {action: np.copy(value) 
-                       for (action, value) in self.noop_actions.items()}
         
         # override new_actions with any new actions
-        for (action, value) in actions.items(): 
-            
-            # objects are converted to their canonical indices
-            value = rddl.index_of_object.get(value, value)
-            
-            # parse action string and assign to the correct coordinates
-            if action in new_actions:
-                new_actions[action] = value
-            else:
-                var, objects = rddl.parse(action)
-                tensor = new_actions.get(var, None)
-                if tensor is None: 
-                    raise RDDLInvalidActionError(
-                        f'<{action}> is not a valid action-fluent, ' 
-                        f'must be one of {set(new_actions.keys())}.')
-                RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
-                tensor[rddl.indices(objects)] = value
+        if self.keep_tensors:
+            new_actions = self.noop_actions.copy()
+            for (action, value) in actions.items(): 
+                if action in new_actions:
+                    new_actions[action] = value
+        else:            
+            new_actions = {action: np.copy(value) 
+                           for (action, value) in self.noop_actions.items()}
+            for (action, value) in actions.items(): 
+                value = rddl.index_of_object.get(value, value)
+                if action in new_actions:
+                    new_actions[action] = value
+                else:
+                    var, objects = rddl.parse(action)
+                    tensor = new_actions.get(var, None)
+                    if tensor is None: 
+                        raise RDDLInvalidActionError(
+                            f'<{action}> is not a valid action-fluent, ' 
+                            f'must be one of {set(new_actions.keys())}.')
+                    RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
+                    tensor[rddl.indices(objects)] = value
                 
         return new_actions
     
@@ -322,8 +324,7 @@ class RDDLSimulator:
         
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''     
-        if not self.keep_tensors:   
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         self.subs.update(actions)
         
         for (i, precond) in enumerate(self.rddl.preconditions):
@@ -378,8 +379,7 @@ class RDDLSimulator:
         '''
         rddl = self.rddl
         keep_tensors = self.keep_tensors
-        if not keep_tensors:
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         

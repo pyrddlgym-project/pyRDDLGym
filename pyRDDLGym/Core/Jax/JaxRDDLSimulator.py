@@ -116,8 +116,7 @@ class JaxRDDLSimulator(RDDLSimulator):
     
     def check_action_preconditions(self, actions: Args) -> None:
         '''Throws an exception if the action preconditions are not satisfied.'''
-        if not self.keep_tensors:
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -154,8 +153,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         '''
         rddl = self.rddl
         keep_tensors = self.keep_tensors
-        if not keep_tensors:
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
