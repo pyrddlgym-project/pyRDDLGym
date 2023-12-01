@@ -252,7 +252,7 @@ class RDDLEnv(gym.Env):
         if self.done:
             out_of_bounds = False
         else:
-            out_of_bounds = sampler.check_state_invariants(silent=True)
+            out_of_bounds = not sampler.check_state_invariants(silent=True)
             
         # log to file
         if self.simlogger is not None:
