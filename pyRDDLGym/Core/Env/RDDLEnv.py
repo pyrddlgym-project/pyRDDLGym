@@ -420,9 +420,11 @@ class RDDLEnvCompact(RDDLEnv):
                     f'must be an enumerated or primitive type (real, int, bool).')
         
         # simplify real space
+        required_entries = {'real': 0, 'int': 0, 'finite': 0}
         if real_bounds[0]:
             low, high = real_bounds
             real_space = Box(np.asarray(low), np.asarray(high), dtype=np.float32)
+            required_entries['real'] = len(low)
         else:
             real_space = None
         
@@ -430,6 +432,7 @@ class RDDLEnvCompact(RDDLEnv):
         if int_bounds[0]:
             low, high = int_bounds
             int_space = Box(np.asarray(low), np.asarray(high), dtype=np.int32)
+            required_entries['int'] = len(low)
         else:
             int_space = None
             
@@ -455,6 +458,7 @@ class RDDLEnvCompact(RDDLEnv):
                 finite_space = MultiDiscrete(finite_dims)
         else:
             finite_space = None
+        required_entries['finite'] = len(finite_dims)
         
         # simplify space
         combined_space = {}
@@ -471,39 +475,58 @@ class RDDLEnvCompact(RDDLEnv):
         if len(combined_space) == 1:
             combined_space = next(iter(combined_space.values()))
             
-        return combined_space, (locational, keys, count_bool)
-
-    def _gym_to_rddl_actions(self, gym_actions):
-        locational, keys, count_bool = self._action_info
-        if len(keys) == 1:
-            gym_actions = {keys[0]: gym_actions}        
-        bool_constraint = count_bool > 1 and self.max_allowed_actions == 1
+        return combined_space, (locational, keys, count_bool, required_entries)
+    
+    def _gym_to_rddl_actions_error(self, gym_actions, act_space):
+        given_space = {k: np.shape(v) for k, v in gym_actions.items()}        
+        required_space = {k: v.shape for k, v in act_space.items()}            
+        raise RDDLInvalidActionError(
+            f'Action dictionary requires signature {required_space}, '
+            f'got {given_space}.')
         
+    def _gym_to_rddl_actions(self, gym_actions):
+        locational, keys, count_bool, required_entries = self._action_info
+        act_space = self.action_space
+        if len(keys) == 1:
+            gym_actions = {keys[0]: gym_actions}  
+            act_space = {keys[0]: act_space}      
+        
+        # check the validity of gym_actions
+        for (var, value) in gym_actions.items():
+            required_count = required_entries.get(var, -1)
+            if required_count != np.size(value):
+                self._gym_to_rddl_actions_error(gym_actions, act_space)
+            
         # process all actions except if active max-nondef-actions constraint
+        bool_constraint = count_bool > 1 and self.max_allowed_actions == 1
         actions = {}
         for (var, prange) in self._actionsranges.items():
             key, (start, count, shape) = locational[var]
-            action = np.atleast_1d(gym_actions[key])
+            action = gym_actions.get(key, None)
+            if action is None:
+                self._gym_to_rddl_actions_error(gym_actions, act_space)
+            action = np.atleast_1d(action)
             if not (bool_constraint and prange == 'bool'):
                 action = action[start:start + count]
                 dtype = RDDLValueInitializer.NUMPY_TYPES.get(
                     prange, RDDLValueInitializer.INT)
-                if action.size != count:
-                    raise RDDLInvalidActionError(
-                        f'{prange} action tensor does not contain enough elements.')
                 actions[var] = np.reshape(action, shape, order='C').astype(dtype)
         
         # process the active max-nondef-actions constraint
         if bool_constraint:
-            index = np.atleast_1d(gym_actions['finite'])[-1]
+            key = 'finite'
+            action = gym_actions.get(key, None)
+            if action is None:
+                self._gym_to_rddl_actions_error(gym_actions, act_space)
+            index = np.atleast_1d(action)[-1]
             for (var, prange) in self._actionsranges.items():
                 if prange == 'bool':
                     _, (start, count, shape) = locational[var]
-                    offset = index - start
-                    if 0 <= offset < count:
+                    set_bit = index - start
+                    if 0 <= set_bit < count:
                         default_value = self.model.default_values[var]
                         action = np.full(shape=count, fill_value=default_value, dtype=bool)
-                        action[offset] ^= True
+                        action[set_bit] ^= True
                         actions[var] = np.reshape(action, shape, order='C')
                         break
         
