@@ -483,11 +483,14 @@ class RDDLEnvCompact(RDDLEnv):
         actions = {}
         for (var, prange) in self._actionsranges.items():
             key, (start, count, shape) = locational[var]
-            action = gym_actions[key]
+            action = np.atleast_1d(gym_actions[key])
             if not (bool_constraint and prange == 'bool'):
                 action = action[start:start + count]
                 dtype = RDDLValueInitializer.NUMPY_TYPES.get(
                     prange, RDDLValueInitializer.INT)
+                if action.size != count:
+                    raise RDDLInvalidActionError(
+                        f'{prange} action tensor does not contain enough elements.')
                 actions[var] = np.reshape(action, shape, order='C').astype(dtype)
         
         # process the active max-nondef-actions constraint
