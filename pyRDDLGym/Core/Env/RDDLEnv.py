@@ -136,7 +136,7 @@ class RDDLEnv(gym.Env):
         else:
             self._actionsranges = self.sampler.grounded_actionsranges
             self._noop_actions = self.sampler.grounded_noop_actions
-        self.action_space = self._rddl_to_gym_bounds_act(self._actionsranges)
+        self.action_space, self._action_info = self._rddl_to_gym_bounds_act(self._actionsranges)
         
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)
@@ -379,9 +379,6 @@ class RDDLEnvCompact(RDDLEnv):
     def __init__(self, *args, **kwargs):
         super(RDDLEnvCompact, self).__init__(*args, vectorized=True, **kwargs)
         
-        self.action_space, self._action_info = self._rddl_to_gym_bounds_act(
-            self._actionsranges)
-    
     def _rddl_to_gym_bounds_act(self, ranges):
         
         # collect information about action ranges
