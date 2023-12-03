@@ -254,7 +254,8 @@ class RDDLObjectsTracer:
             if index_of_var is None:
                 raise RDDLInvalidObjectError(
                     f'Free variable <{var}> is not defined in outer scope, '
-                    f'must be one of {set(obj_to_index.keys())}.')
+                    f'must be one of {set(obj_to_index.keys())}. '
+                    f'Please check expression for <{out._current_root}>.')
             
             # create an array whose shape matches objects
             # along axis equal to index_of_var_in_objects values are (0, 1, ...)
@@ -281,7 +282,8 @@ class RDDLObjectsTracer:
             if enum_type not in rddl.enums:
                 raise RDDLInvalidObjectError(
                     f'Object <{var}> must be of a domain-defined object type, '
-                    f'got type <{enum_type}>.')
+                    f'got type <{enum_type}>. '
+                    f'Please check expression for <{out._current_root}>.')
             
             # map to canonical index - for pvariable fill an array with it
             const = rddl.index_of_object[literal]
