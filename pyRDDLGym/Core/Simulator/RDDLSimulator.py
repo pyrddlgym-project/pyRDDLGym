@@ -249,39 +249,44 @@ class RDDLSimulator:
     
     def _process_actions(self, actions):
         rddl = self.rddl
-        new_actions = {action: np.copy(value) 
-                       for (action, value) in self.noop_actions.items()}
         
         # override new_actions with any new actions
-        for (action, value) in actions.items(): 
-            
-            # objects are converted to their canonical indices
-            value = rddl.index_of_object.get(value, value)
-            
-            # parse action string and assign to the correct coordinates
-            if action in new_actions:
-                new_actions[action] = value
-            else:
-                var, objects = rddl.parse(action)
-                tensor = new_actions.get(var, None)
-                if tensor is None: 
-                    raise RDDLInvalidActionError(
-                        f'<{action}> is not a valid action-fluent, ' 
-                        f'must be one of {set(new_actions.keys())}.')
-                RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
-                tensor[rddl.indices(objects)] = value
+        if self.keep_tensors:
+            new_actions = self.noop_actions.copy()
+            for (action, value) in actions.items(): 
+                if action in new_actions:
+                    new_actions[action] = value
+        else:            
+            new_actions = {action: np.copy(value) 
+                           for (action, value) in self.noop_actions.items()}
+            for (action, value) in actions.items(): 
+                value = rddl.index_of_object.get(value, value)
+                if action in new_actions:
+                    new_actions[action] = value
+                else:
+                    var, objects = rddl.parse(action)
+                    tensor = new_actions.get(var, None)
+                    if tensor is None: 
+                        raise RDDLInvalidActionError(
+                            f'<{action}> is not a valid action-fluent, ' 
+                            f'must be one of {set(new_actions.keys())}.')
+                    RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
+                    tensor[rddl.indices(objects)] = value
                 
         return new_actions
     
-    def check_state_invariants(self) -> None:
+    def check_state_invariants(self, silent: bool=False) -> bool:
         '''Throws an exception if the state invariants are not satisfied.'''
         for (i, invariant) in enumerate(self.rddl.invariants):
             loc = self.invariant_names[i]
             sample = self._sample(invariant, self.subs)
             RDDLSimulator._check_type(sample, bool, loc, invariant)
             if not bool(sample):
-                raise RDDLStateInvariantNotSatisfiedError(
-                    f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
+                if not silent:
+                    raise RDDLStateInvariantNotSatisfiedError(
+                        f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
+                return False
+        return True
     
     def check_default_action_count(self, actions: Args, 
                                    enforce_for_non_bool: bool=True) -> None:
@@ -320,10 +325,9 @@ class RDDLSimulator:
                 f'Expected at most {self.rddl.max_allowed_actions} '
                 f'non-default actions, got {total_non_default}.')
         
-    def check_action_preconditions(self, actions: Args) -> None:
+    def check_action_preconditions(self, actions: Args, silent: bool=False) -> bool:
         '''Throws an exception if the action preconditions are not satisfied.'''     
-        if not self.keep_tensors:   
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         self.subs.update(actions)
         
         for (i, precond) in enumerate(self.rddl.preconditions):
@@ -331,8 +335,11 @@ class RDDLSimulator:
             sample = self._sample(precond, self.subs)
             RDDLSimulator._check_type(sample, bool, loc, precond)
             if not bool(sample):
-                raise RDDLActionPreconditionNotSatisfiedError(
-                    f'{loc} is not satisfied.\n' + print_stack_trace(precond))
+                if not silent:
+                    raise RDDLActionPreconditionNotSatisfiedError(
+                        f'{loc} is not satisfied.\n' + print_stack_trace(precond))
+                return False
+        return True
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
@@ -378,8 +385,7 @@ class RDDLSimulator:
         '''
         rddl = self.rddl
         keep_tensors = self.keep_tensors
-        if not keep_tensors:
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         

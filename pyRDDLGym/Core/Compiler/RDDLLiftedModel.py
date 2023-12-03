@@ -77,9 +77,13 @@ class RDDLLiftedModel(PlanningModel):
             # make sure types do not share an object - record type of each object
             for obj in objects[name]:
                 if obj in objects_rev:
-                    raise RDDLInvalidObjectError(
-                        f'Types <{name}> and <{objects_rev[obj]}> '
-                        f'can not share the same object <{obj}>.')
+                    if objects_rev[obj] == name:
+                        raise RDDLInvalidObjectError(
+                            f'Type <{name}> contains duplicated object <{obj}>.')
+                    else:
+                        raise RDDLInvalidObjectError(
+                            f'Types <{name}> and <{objects_rev[obj]}> '
+                            f'can not share the same object <{obj}>.')
                 objects_rev[obj] = name
         
         # check that all types in instance are declared in domain
@@ -360,8 +364,8 @@ class RDDLLiftedModel(PlanningModel):
                 objects = []
             if len(types) != len(objects):
                 raise RDDLInvalidNumberOfArgumentsError(
-                    f'CPF <{name}> expects {len(types)} parameter(s), '
-                    f'got {len(objects)}.')
+                    f'l.h.s. of expression for CPF <{name}> requires '
+                    f'{len(types)} parameter(s), got {objects}.')
             
             # CPFs are stored as dictionary that associates cpf name with a pair 
             # the first element is the type argument list

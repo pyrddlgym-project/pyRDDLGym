@@ -103,7 +103,7 @@ class JaxRDDLSimulator(RDDLSimulator):
                 errors = '\n'.join(f'{i + 1}. {s}' for (i, s) in enumerate(errors))
                 raise RDDLInvalidExpressionError(message + errors)
     
-    def check_state_invariants(self) -> None:
+    def check_state_invariants(self, silent: bool=False) -> bool:
         '''Throws an exception if the state invariants are not satisfied.'''
         for (i, invariant) in enumerate(self.invariants):
             loc = self.invariant_names[i]
@@ -111,13 +111,15 @@ class JaxRDDLSimulator(RDDLSimulator):
                 self.subs, self.model_params, self.key)
             self.handle_error_code(error, loc)            
             if not bool(sample):
-                raise RDDLStateInvariantNotSatisfiedError(
-                    f'{loc} is not satisfied.')
+                if not silent:
+                    raise RDDLStateInvariantNotSatisfiedError(
+                        f'{loc} is not satisfied.')
+                return False
+        return True
     
-    def check_action_preconditions(self, actions: Args) -> None:
+    def check_action_preconditions(self, actions: Args, silent: bool=False) -> bool:
         '''Throws an exception if the action preconditions are not satisfied.'''
-        if not self.keep_tensors:
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -126,8 +128,11 @@ class JaxRDDLSimulator(RDDLSimulator):
             sample, self.key, error = precond(subs, self.model_params, self.key)
             self.handle_error_code(error, loc)            
             if not bool(sample):
-                raise RDDLActionPreconditionNotSatisfiedError(
-                    f'{loc} is not satisfied.')
+                if not silent:
+                    raise RDDLActionPreconditionNotSatisfiedError(
+                        f'{loc} is not satisfied.')
+                return False
+        return True
     
     def check_terminal_states(self) -> bool:
         '''return True if a terminal state has been reached.'''
@@ -154,8 +159,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         '''
         rddl = self.rddl
         keep_tensors = self.keep_tensors
-        if not keep_tensors:
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         

@@ -577,6 +577,7 @@ def _test_random():
     print('testing random')
     key = random.PRNGKey(42)
     _bernoulli, _ = logic.bernoulli()
+    _discrete, _ = logic.discrete()
     
     def bern(n):
         prob = jnp.asarray([0.3] * n)
@@ -585,6 +586,16 @@ def _test_random():
     
     samples = bern(5000)
     print(jnp.mean(samples))
+    
+    def disc(n):
+        prob = jnp.asarray([0.1, 0.4, 0.5])
+        prob = jnp.tile(prob, (n, 1))
+        sample = _discrete(key, prob, w)
+        return sample
+        
+    samples = disc(5000)
+    samples = jnp.round(samples)
+    print([jnp.mean(samples == i) for i in range(3)])
 
 
 def _test_rounding():

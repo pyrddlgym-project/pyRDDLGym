@@ -5,22 +5,10 @@ In this tutorial, we discuss the limitations of the JAX planner and present an a
 framework that automatically compiles RDDL code into a Gurobi mixed-integer program (MIP)
 that can be optimized to compute optimal controls.
 
-Limitations of the JAX Planner
--------------------
-
-While the JAX planner is highly scalable and adaptable to high dimensional problems, and its 
-automatic continuous model relaxations even allow many discrete problems to be quickly optimized,
-it's performance suffers when the problem structure is entirely discrete. 
-
-To diagnose this issue, it is advisable to compare the training loss to the test loss at the time of convergence.
-A low, or drastically improving, training loss with a similar test loss indicates that the continuous model relaxation
-is accurate around the optimal plan or policy. On the other hand, a low training loss coupled with a high test loss 
-indicates that the continuous model relaxation is poor, and it is likely that the solution obtained will be poor as well.
-
 Setting up the Gurobi Planner
 -------------------
 
-The Gurobi planner can optimize many discrete state/action problems where the JAX planner performs poorly as indicated above.
+The Gurobi planner can optimize many discrete state/action problems where the JAX planner could perform poorly.
 To run the Gurobi planner, you will need to install a valid academic or institutional 
 `Gurobi license <https://www.gurobi.com/academia/academic-program-and-licenses/>`_, as well as the Gurobi python package
 version 10.0.1 or later

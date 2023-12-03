@@ -500,6 +500,10 @@ We cite several limitations of the current baseline JAX optimizer:
 	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
 	* if this is a concern, it is recommended to override some operations in ``ProductLogic`` to suit the user's needs
 * Termination conditions and state/action constraints are not considered in the optimization (but can be checked at test-time).
+* The optimizer can fail to make progress when the structure of the problem is largely discrete:
+	* to diagnose this, compare the training loss to the test loss over time, and at the time of convergence
+	* a low, or drastically improving, training loss with a similar test loss indicates that the continuous model relaxation is likely accurate around the optimum
+	* on the other hand, a low training loss and a high test loss indicates that the continuous model relaxation is poor, in which case the optimality of the solution should be questioned.
 
 The goal of the JAX optimizer was not to replicate the state-of-the-art, but to provide a simple baseline that can be easily built-on.
 However, we welcome any suggestions or modifications about how to improve this algorithm on a broader subset of RDDL.
