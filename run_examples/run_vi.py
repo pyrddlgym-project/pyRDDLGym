@@ -50,20 +50,22 @@ def run_vi(args: argparse.Namespace):
         max_iter=args.max_iter,
         enable_early_convergence=args.enable_early_convergence,
     )
-    value_dd = vi_solver.solve()
+    res = vi_solver.solve()
 
     # Export the solution to a file.
     env_path = env_info.path_to_env
     sol_dir = os.path.join(env_path, 'sdp', 'vi')
     os.makedirs(sol_dir, exist_ok=True)
-    sol_fpath = os.path.join(sol_dir, f'value_dd_iter_{args.max_iter}.xadd')
-    mdp.context.export_xadd(value_dd, fname=sol_fpath)
+    for i in range(args.max_iter):
+        sol_fpath = os.path.join(sol_dir, f'value_dd_iter_{i+1}.xadd')
+        value_dd = res['value_dd'][i]
+        mdp.context.export_xadd(value_dd, fname=sol_fpath)
 
-    # Visualize the solution XADD.
-    if args.save_graph:
-        graph_fpath = os.path.join(os.path.dirname(sol_fpath),
-                                   f'value_dd_iter_{args.max_iter}.pdf')
-        mdp.context.save_graph(value_dd, file_name=graph_fpath)
+        # Visualize the solution XADD.
+        if args.save_graph:
+            graph_fpath = os.path.join(os.path.dirname(sol_fpath),
+                                    f'value_dd_iter_{i+1}.pdf')
+            mdp.context.save_graph(value_dd, file_name=graph_fpath)
 
 
 if __name__ == "__main__":

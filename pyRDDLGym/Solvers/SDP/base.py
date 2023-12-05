@@ -1,6 +1,7 @@
 """Defines the base class for a symbolic solver."""
 import abc
-from typing import Dict, Set
+import time
+from typing import Any, Dict, Set
 
 import symengine.lib.symengine_wrapper as core
 from xaddpy import XADD
@@ -32,8 +33,14 @@ class SymbolicSolver:
             for v in var_set:
                 self.var_to_level[v] = l
     
-    def solve(self) -> int:
+    def solve(self) -> Dict[str, Any]:
         """See the base class."""
+        # Result dict.
+        res = dict(
+            value_dd=[],    # Value function ID per iteration.
+            time=[],        # Time per iteration.
+        )
+
         # Reset the counter.
         self.n_curr_iter = 0
 
@@ -48,7 +55,14 @@ class SymbolicSolver:
             _prev_dd = value_dd
 
             # Perform the Bellman backup.
+            # Time the Bellman backup.
+            stime = time.time()
             value_dd = self.bellman_backup(value_dd)
+            etime = time.time()
+
+            # Record the results.
+            res['value_dd'].append(value_dd)
+            res['time'].append(etime - stime)
 
             # Check for convergence.
             if self.enable_early_convergence and value_dd == _prev_dd:
@@ -56,7 +70,7 @@ class SymbolicSolver:
                 break
 
         self.flush_caches()
-        return value_dd
+        return res
 
     @abc.abstractmethod
     def bellman_backup(self, dd: int) -> int:
