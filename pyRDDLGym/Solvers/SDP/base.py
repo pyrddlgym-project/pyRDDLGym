@@ -27,6 +27,7 @@ class SymbolicSolver:
     ):
         self._mdp = mdp
         self._prev_dd = None
+        self._max_dd = None
         self._value_dd = self.context.ZERO
         self.n_curr_iter = 0
         self.n_max_iter = max_iter
@@ -86,6 +87,9 @@ class SymbolicSolver:
             if self.enable_early_convergence and self.value_dd == self._prev_dd:
                 print(f'\nVI: Converged to solution early, at iteration {self.n_curr_iter}')
                 break
+
+            # Flush caches.
+            self.flush_caches()
 
         self.flush_caches()
         return res
@@ -247,6 +251,10 @@ class SymbolicSolver:
         if self._prev_dd is not None:
             self.context.add_special_node(self._prev_dd)
         self.context.add_special_node(self.value_dd)
+
+        # Add the max XADD if not None.
+        if self._max_dd is not None:
+            self.context.add_special_node(self._max_dd)
 
         # Flush the caches.
         self.mdp.cont_regr_cache.clear()
