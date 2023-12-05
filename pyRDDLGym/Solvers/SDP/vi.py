@@ -36,13 +36,20 @@ class ValueIteration(SymbolicSolver):
                 max_dd = self.context.apply(max_dd, regr, op='max')
                 max_dd = self.mdp.standardize(max_dd)
 
+            # Flush caches.
+            self._max_dd = max_dd
             self.flush_caches()
 
         # Handle the case when there are no boolean actions.
         if max_dd is None:
             max_dd = self.regress(dd, self.mdp.reward, self.mdp.cpfs)
+
         # Max out continuous actions.
         max_dd = self.regress_continuous_actions(max_dd)
+        self._max_dd = max_dd
+
+        # Flush caches.
+        self.flush_caches()
         return max_dd
 
     # TODO: Implement heuristic ordering.
