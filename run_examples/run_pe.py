@@ -74,6 +74,7 @@ def run_pe(args: argparse.Namespace):
             graph_fpath = os.path.join(os.path.dirname(sol_fpath),
                                     f'value_dd_iter_{i+1}.pdf')
             mdp.context.save_graph(value_dd, file_name=graph_fpath)
+    print(f'Times per iterations: {res["time"]}')
 
 
 if __name__ == "__main__":
