@@ -62,6 +62,8 @@ class SymbolicSolver:
             # Record the results.
             res['value_dd'].append(value_dd)
             res['time'].append(etime - stime)
+            # Print out the intermediate results.
+            print(f'{self.__class__.__name__}: Iteration {self.n_curr_iter}, Time: {etime - stime}')
 
             # Check for convergence.
             if self.enable_early_convergence and value_dd == _prev_dd:
