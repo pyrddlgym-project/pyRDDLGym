@@ -5,18 +5,17 @@ from pyRDDLGym.Visualizer.visualize_dbn import RDDL2Graph
 
 def test_dbn_visualization(args: argparse.Namespace):
     domains = [
-        'cartpole discrete',
-        'cartpole continuous',
-        'marsrover', 
-        # 'mountaincar',    # Takes too long to create DBN graph for this
-        'powergen continuous',
-        'powergen discrete',
-        'racecar',
-        'uavcontinuous', 
-        'uavdiscrete',
-        'uavmixed',
-        'wildfire',
-        'supplychain', 
+        'CartPole_discrete',
+        'CartPole_continuous',
+        'MarsRover', 
+        # 'MountainCar',    # Takes too long to create DBN graph for this
+        # 'PowerGen_discrete',
+        'RaceCar',
+        # 'UAV_continuous', # Normal distribution not handled yet.
+        # 'UAV_discrete',   # Normal distribution not handled yet.
+        # 'UAV_mixed',      # Normal distribution not handled yet.
+        'Wildfire',
+        'SupplyChain', 
     ]
     
     for domain in domains:

@@ -3,8 +3,9 @@
 import json
 import os
 from typing import Dict, Optional, Tuple
-import sympy as sp
-from sympy.logic import boolalg
+
+import symengine.lib.symengine_wrapper as core
+from xaddpy.xadd.xadd import VAR_TYPE
 
 from pyRDDLGym.Solvers.SDP.helper.mdp import MDP
 from pyRDDLGym.Solvers.SDP.helper.policy import Policy
@@ -82,7 +83,7 @@ class PolicyParser:
             assert val.endswith('.xadd'), f'Value for action {a} must be a string file path ending with .xadd.'
             assert os.path.exists(val), f'Value for action {a} must be a string file path that exists.'
 
-    def _parse_policy_for_single_action(self, policy_dict, a_name) -> Tuple[sp.Symbol, int]:
+    def _parse_policy_for_single_action(self, policy_dict, a_name) -> Tuple[VAR_TYPE, int]:
         """Parses the policy for a single action."""
         assert a_name in policy_dict, f'Action {a_name} not found in the policy.'
         path = policy_dict[a_name]
@@ -142,21 +143,21 @@ class PolicyParser:
         # Check leaf value types.
         leaf_op = ValueAssertion(
             self.context,
-            fn=lambda x: not isinstance(x, boolalg.BooleanAtom),
+            fn=lambda x: not isinstance(x, core.BooleanAtom),
             msg='Continuous action leaf {leaf_val} is a Boolean value.'
         )
         self.context.reduce_process_xadd_leaf(a_dd, leaf_op, [], [])
 
     def _assert_concurrency(
             self,
-            policy: Dict[sp.Symbol, int],
+            policy: Dict[VAR_TYPE, int],
             concurrency: int,
     ):
         """Asserts the concurrency is satisfied for the given policy."""
         bool_dd = self.context.ZERO
 
         for a, dd in policy.items():
-            a_name = self.model._sympy_var_name_to_var_name[str(a)]
+            a_name = self.model._sym_var_name_to_var_name[str(a)]
             a_type = self.model.gvar_to_type[a_name]
             if a_type == 'bool':
                 a_true_dd = self.context.unary_op(dd, op='ceil')

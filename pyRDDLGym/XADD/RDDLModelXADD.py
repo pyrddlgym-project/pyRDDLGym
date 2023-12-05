@@ -1,8 +1,9 @@
 from typing import Set, Sized, Tuple
 
-import sympy as sp
+import symengine.lib.symengine_wrapper as core
 from xaddpy.xadd import XADD
-from xaddpy.xadd.xadd import ControlFlow, DeltaFunctionSubstitution
+from xaddpy.xadd.xadd import ControlFlow, DeltaFunctionSubstitution, VAR_TYPE
+from xaddpy.utils.symengine import BooleanVar, RandomVar
 
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel, RDDLGroundedModel
 from pyRDDLGym.Core.ErrorHandling.RDDLException import (
@@ -37,9 +38,9 @@ class RDDLModelWXADD(PlanningModel):
         self.model = model
         self._context: XADD = XADD() if context is None else context
         self._var_name_to_node_id = {}
-        self._sympy_var_to_node_id = {}
-        self._sympy_var_name_to_var_name = {}
-        self._var_name_to_sympy_var_name = {}
+        self._sym_var_to_node_id = {}
+        self._sym_var_name_to_var_name = {}
+        self._var_name_to_sym_var_name = {}
         self._op_to_node_id = {}
         self._node_id_to_op = {}
         self._curr_pvar = None
@@ -173,7 +174,7 @@ class RDDLModelWXADD(PlanningModel):
 
     def constant_to_xadd(self, expr: Expression) -> int:
         assert expr.etype[0] == 'constant'
-        const = sp.sympify(expr.args, locals=self.ns)
+        const = core.sympify(expr.args)
         return self._context.convert_to_xadd(const)
 
     def pvar_to_xadd(self, expr: Expression) -> int:
@@ -182,36 +183,37 @@ class RDDLModelWXADD(PlanningModel):
         var_type = self.gvar_to_type[var]
         if var in self.nonfluents:
             var_ = self.nonfluents[var]
-            node_id = self._context.convert_to_xadd(sp.S(var_))
+            node_id = self._context.convert_to_xadd(core.S(var_))
             self._var_name_to_node_id[var] = node_id            
         else:
-            var_, node_id = self.add_sympy_var(var, var_type)
+            var_, node_id = self.add_sym_var(var, var_type)
         return node_id
 
-    def add_sympy_var(
+    def add_sym_var(
             self,
             var_name: str,
             var_type: str,
             random: bool = False,
             **kwargs,
-    ) -> Tuple[sp.Symbol, int]:
-        if var_name in self._var_name_to_sympy_var_name:
+    ) -> Tuple[core.Symbol, int]:
+        if var_name in self._var_name_to_sym_var_name:
             var_ = self.ns[var_name]
             node_id = self._var_name_to_node_id[var_name]
             return var_, node_id
+        var_ = core.Symbol(var_name.replace('-', '_'))
+        if var_type == 'bool':
+            var_ = BooleanVar(var_)
+        elif random:
+            var_ = RandomVar(var_)
         var_ = self.ns.setdefault(
             var_name,
-            sp.Symbol(
-                var_name.replace('-', '_'),
-                bool=var_type == 'bool',
-                random=random
-            )
+            var_
         )
         node_id = self._context.convert_to_xadd(var_, **kwargs)
-        self._sympy_var_to_node_id[var_] = node_id
+        self._sym_var_to_node_id[var_] = node_id
         self._var_name_to_node_id[var_name] = node_id
-        self._sympy_var_name_to_var_name[str(var_)] = var_name
-        self._var_name_to_sympy_var_name[var_name] = str(var_)
+        self._sym_var_name_to_var_name[str(var_)] = var_name
+        self._var_name_to_sym_var_name[var_name] = str(var_)
         return var_, node_id
 
     def aggr_to_xadd(self, expr: Expression) -> int:
@@ -224,7 +226,7 @@ class RDDLModelWXADD(PlanningModel):
         this expression.
         
         For example, for an 'exists' operation,
-            1) create a unique sympy variable associated with this expression
+            1) create a unique symengine variable associated with this expression
                 The variable name should be unique but should be identical for 
                 identical operations). 
                 An exists operation can be uniquely identified by 
@@ -248,18 +250,18 @@ class RDDLModelWXADD(PlanningModel):
 
         # Aggregations that return Booleans
         if op == 'exists' or op == 'forall':
-            var_sp = sp.Symbol(f'exists{postfix}_{num_aggregations}', bool=True)
+            var_sym = BooleanVar(f'exists{postfix}_{num_aggregations}')
 
         # Aggregations that return int/float values
         elif op in ('sum', 'prod', 'avg', 'minimum', 'maximum'):
-            var_sp = sp.Symbol(f'{op}{postfix}_{num_aggregations}')
+            var_sym = core.Symbol(f'{op}{postfix}_{num_aggregations}')
         else:
             raise RDDLNotImplementedError
 
         # TODO: Scope doesn't contain alls
-        self._aggr_to_scope[var_sp] = [self.ns[var.split('/')[0]] for var in expr.scope]
-        node_id = self._context.get_leaf_node(var_sp)
-        return node_id        
+        self._aggr_to_scope[var_sym] = [self.ns[var.split('/')[0]] for var in expr.scope]
+        node_id = self._context.get_leaf_node(var_sym)
+        return node_id
 
     def control_to_xadd(self, expr: Expression) -> int:
         """
@@ -324,7 +326,7 @@ class RDDLModelWXADD(PlanningModel):
             # Sample a Bernoulli rv by sampling a uniform rv
             if self.simulation:
                 num_rv = self._num_uniform
-                unif_rv = sp.Symbol(UNIFORM_VAR_NAME.format(num=num_rv), random=True)
+                unif_rv = RandomVar(UNIFORM_VAR_NAME.format(num=num_rv))
                 uniform = self._context.convert_to_xadd(
                     unif_rv,
                     params=(0, 1),  # rv ~ Uniform(0, 1)
@@ -336,7 +338,7 @@ class RDDLModelWXADD(PlanningModel):
             # TODO: How to assert that a Bernoulli node can only come at a leaf?
             else:
                 name = f'{dist}_params_{len(args)}_{proba}'
-                rv, node_id = self.add_sympy_var(name,
+                rv, node_id = self.add_sym_var(name,
                                                  'real',
                                                  random=True,
                                                  params=(proba,),
@@ -359,7 +361,7 @@ class RDDLModelWXADD(PlanningModel):
         elif dist == 'exponential':
             assert len(args) == 1
             num_rv = self._num_uniform
-            unif_rv = sp.Symbol(UNIFORM_VAR_NAME.format(num=num_rv), random=True)
+            unif_rv = RandomVar(UNIFORM_VAR_NAME.format(num=num_rv))
             uniform = self._context.convert_to_xadd(
                 unif_rv,
                 params=(0, 1),  # rv ~ Uniform(0, 1)
@@ -378,7 +380,7 @@ class RDDLModelWXADD(PlanningModel):
             assert len(args) == 2
             mean, var = args
             num_rv = self._num_gaussian
-            gauss_rv = sp.Symbol(GAUSSIAN_VAR_NAME.format(num=num_rv), random=True)
+            gauss_rv = RandomVar(GAUSSIAN_VAR_NAME.format(num=num_rv))
             gaussian = self._context.convert_to_xadd(
                 gauss_rv,
                 params=(0, 1),  # rv ~ Normal(0, 1)
@@ -523,7 +525,7 @@ class RDDLModelWXADD(PlanningModel):
         """Returns the set containing variables existing in the current node (in str type)"""
         var_set = self._context.collect_vars(node_id)
         var_set = var_set.difference(self._context._random_var_set)
-        return set(self._sympy_var_name_to_var_name[str(v)] for v in var_set)
+        return set(self._sym_var_name_to_var_name[str(v)] for v in var_set)
     
     @property
     def vars_in_rew(self) -> Set[str]:
