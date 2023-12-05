@@ -1,6 +1,7 @@
 import os.path
 import argparse
 from datetime import datetime
+from copy import deepcopy
 import numpy as np
 import json
 import jax
@@ -32,31 +33,16 @@ def main(config):
         linewidth=9999,
         formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
+    saved_dict = {
+        'configuration_file': deepcopy(config)
+    }
+
     # initialize master random generator key
     seed = config.get('seed', 3264)
     key = jax.random.PRNGKey(seed)
 
     action_dim = config['action_dim']
     n_iters = config['n_iters']
-
-    # configure the model(s)
-    # (note: frequently, the training and evaluation models
-    # are configured separately, even if both are not relaxed,
-    # because jitted functions (e.g. compiled rollouts) require
-    # the shapes of the arguments to be immutable)
-    model_config = config['models']
-    model_cls = registry.model_lookup_table[model_config['id']]
-    model_params = model_config['params']
-    model_specs = model_params.pop('specs')
-    models = {}
-    for model_key, spec in model_specs.items():
-        key, subkey = jax.random.split(key)
-        spec['compiler_kwargs']['use64bit'] = use64bit
-        spec.update(model_params)
-        models[model_key] = model_cls(
-            key=subkey,
-            action_dim=action_dim,
-            **spec)
 
     # configure the bijector
     bijector_config = config['bijector']
@@ -76,6 +62,25 @@ def main(config):
         action_dim=action_dim,
         bijector=bijector,
         **policy_params)
+
+    # configure the model(s)
+    # (note: frequently, the training and evaluation models
+    # are configured separately, even if both are not relaxed,
+    # because jitted functions (e.g. compiled rollouts) require
+    # the shapes of the arguments to be immutable)
+    model_config = config['models']
+    model_cls = registry.model_lookup_table[model_config['id']]
+    model_params = model_config['params']
+    model_specs = model_params.pop('specs')
+    models = {}
+    for model_key, spec in model_specs.items():
+        key, subkey = jax.random.split(key)
+        spec['compiler_kwargs']['use64bit'] = use64bit
+        spec.update(model_params)
+        models[model_key] = model_cls(
+            key=subkey,
+            action_dim=action_dim,
+            **spec)
 
     # configure the optimizer
     optimizer_config = config['optimizer']
@@ -106,8 +111,9 @@ def main(config):
         filename = f'{timestamp}_{algorithm_config["id"]}_{model_config["id"]}_a{action_dim}_iters{n_iters}'
         path = os.path.join(save_to, f'{filename}.json')
 
+        saved_dict.update(algo_stats)
         with open(path, 'w') as file:
-            json.dump(algo_stats, file, cls=SimpleNumpyToJSONEncoder)
+            json.dump(saved_dict, file, cls=SimpleNumpyToJSONEncoder)
         print('Saved results to', path)
 
 

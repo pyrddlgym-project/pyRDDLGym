@@ -19,10 +19,17 @@
             "weight": 20.0
           }
         },
+        "mixing_model": {
+          "is_relaxed": true,
+          "compiler_kwargs": {
+            "n_rollouts": 1,
+            "weight": 1.0
+          }
+        },
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 4
+            "n_rollouts": 32
           }
         },
         "eval_model": {
@@ -51,14 +58,14 @@
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 4,
+      "batch_size": 32,
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "log_cutoff": -1000.0,
       "est_Z": true,
       "hmc" : {
         "sampler_type": "nuts",
-        "num_chains": 4,
+        "num_chains": 32,
         "num_burnin_iters_per_chain": 1024,
         "init_step_size": {
           "type": "constant",
@@ -70,7 +77,9 @@
           "min": -5.0,
           "max": 5.0
         },
-        "reinit_strategy": "random_prev_chain_elt"
+        "reinit_strategy": "random_prev_chain_elt_with_intermixing",
+        "reinit_step_size": 0.5,
+        "reinit_num_burnin_iters_per_chain": 1024
       },
       "track_next_sample_correlation": false,
       "verbose": true

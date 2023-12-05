@@ -3,6 +3,7 @@ from tensorflow_probability.substrates import jax as tfp
 import pyRDDLGym.PolicyGradient.algorithms
 import pyRDDLGym.PolicyGradient.bijectors
 import pyRDDLGym.PolicyGradient.policies
+import pyRDDLGym.PolicyGradient.samplers
 import pyRDDLGym.Examples.Traffic.Calibration.instances.inflow_calibration_models
 import pyRDDLGym.Examples.SumOfHalfSpaces.instances.model
 
@@ -18,6 +19,11 @@ model_lookup_table = {
 bijector_lookup_table = {
     'identity': pyRDDLGym.PolicyGradient.bijectors.identity.Identity,
     'simplex': pyRDDLGym.PolicyGradient.bijectors.simplex.SimplexBijector,
+}
+
+sampler_factory_lookup_table = {
+    'hmc': pyRDDLGym.PolicyGradient.samplers.hmc.init_hmc_sampler,
+    'nuts': pyRDDLGym.PolicyGradient.samplers.nuts.init_nuts_sampler,
 }
 
 policy_lookup_table = {

@@ -3,7 +3,7 @@
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 4,
+  "action_dim": 2,
   "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
@@ -16,13 +16,13 @@
           "is_relaxed": true,
           "compiler_kwargs": {
             "n_rollouts": 1,
-            "weight": 5.0
+            "weight": 20.0
           }
         },
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 128
+            "n_rollouts": 32
           }
         },
         "eval_model": {
@@ -51,15 +51,15 @@
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 128,
+      "batch_size": 32,
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "log_cutoff": -1000.0,
       "est_Z": true,
       "hmc" : {
         "sampler_type": "nuts",
-        "num_chains": 1,
-        "num_burnin_iters_per_chain": 250,
+        "num_chains": 32,
+        "num_burnin_iters_per_chain": 1024,
         "init_step_size": {
             "type": "constant",
             "value": 0.1
