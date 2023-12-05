@@ -2,11 +2,12 @@
 import abc
 from typing import Dict, Set
 
-import sympy as sp
+import symengine.lib.symengine_wrapper as core
 from xaddpy import XADD
-from xaddpy.xadd.xadd import DeltaFunctionSubstitution
+from xaddpy.utils.symengine import BooleanVar
+from xaddpy.xadd.xadd import DeltaFunctionSubstitution, VAR_TYPE
 
-from pyRDDLGym.Solvers.SDP.helper import SingleAction, MDP
+from pyRDDLGym.Solvers.SDP.helper import MDP
 from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
 
 
@@ -95,7 +96,7 @@ class SymbolicSolver:
             reverse=True,
         )
 
-    def regress(self, value_dd: int, reward: int, cpfs: Dict[sp.Symbol, int]) -> int:
+    def regress(self, value_dd: int, reward: int, cpfs: Dict[VAR_TYPE, int]) -> int:
         """Regresses the value function.
         
         Args:
@@ -146,7 +147,7 @@ class SymbolicSolver:
         q = self.mdp.standardize(q)
         return q
 
-    def regress_cvars(self, q: int, cpf: int, v: sp.Symbol) -> int:
+    def regress_cvars(self, q: int, cpf: int, v: core.Symbol) -> int:
         """Regress a continuous variable from the value function `q`."""
 
         # Check the regression cache.
@@ -167,7 +168,7 @@ class SymbolicSolver:
         self.mdp.cont_regr_cache[key] = q
         return q
 
-    def regress_bvars(self, q: int, cpf: int, v: sp.Symbol) -> int:
+    def regress_bvars(self, q: int, cpf: int, v: BooleanVar) -> int:
         """Regress a boolean variable from the value function `q`."""
         dec_id = self.context._expr_to_id[self.mdp.model.ns[str(v)]]
 

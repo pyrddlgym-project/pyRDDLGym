@@ -23,7 +23,7 @@ class RDDLLevelAnalysisWXADD(RDDLLevelAnalysis):
         else:
             var_set = self._context.collect_vars(expr)
             for v in var_set:
-                v_name = self._model._sympy_var_name_to_var_name.get(str(v), str(v))
+                v_name = self._model._sym_var_name_to_var_name.get(str(v), str(v))
                 if v_name not in self._model.nonfluents and v not in self._model.rvs:
                     # self._check_is_fluent(cpf, v_name)
                     graph.setdefault(cpf, set()).add(v_name)

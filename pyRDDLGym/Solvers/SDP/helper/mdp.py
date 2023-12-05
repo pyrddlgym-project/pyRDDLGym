@@ -1,7 +1,9 @@
 """Defines the MDP class."""
 
-import sympy as sp
 from typing import Dict, Tuple
+
+import symengine.lib.symengine_wrapper as core
+from xaddpy.xadd.xadd import VAR_TYPE
 
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 from pyRDDLGym.Solvers.SDP.helper import Action, CAction, BActions
@@ -43,24 +45,24 @@ class MDP:
         self.actions: Dict[str, Action] = {}
         self.bool_actions: Dict[str, BActions] = {}
         self.cont_actions: Dict[str, CAction] = {}
-        self.a_var_to_action: Dict[sp.Symbol, Action] = {}
-        self.action_to_a_var: Dict[Action, sp.Symbol] = {}
+        self.a_var_to_action: Dict[VAR_TYPE, Action] = {}
+        self.action_to_a_var: Dict[Action, VAR_TYPE] = {}
 
         # Bounds
-        self.cont_state_bounds: Dict[sp.Symbol, Tuple[float, float]] = {}
-        self.cont_action_bounds: Dict[sp.Symbol, Tuple[float, float]] = {}
+        self.cont_state_bounds: Dict[core.Symbol, Tuple[float, float]] = {}
+        self.cont_action_bounds: Dict[core.Symbol, Tuple[float, float]] = {}
 
         # Cache
         self.cont_regr_cache: Dict[Tuple[str, int, int], int] = {}
 
-    def get_prime_subs(self) -> Dict[sp.Symbol, sp.Symbol]:
+    def get_prime_subs(self) -> Dict[VAR_TYPE, VAR_TYPE]:
         """Returns the substitution dictionary for the primed variables."""
         m = self.model
         s_to_ns = m.next_state
         prime_subs = {}
         for s, ns in s_to_ns.items():
             s_var = m.ns[s]
-            ns_var, var_node_id = m.add_sympy_var(ns, m.gvar_to_type[ns])
+            ns_var, var_node_id = m.add_sym_var(ns, m.gvar_to_type[ns])
             prime_subs[s_var] = ns_var
         return prime_subs
 
@@ -69,7 +71,7 @@ class MDP:
         for v, vtype in m.gvar_to_type.items():
             if v in m.nonfluents:
                 continue
-            v_, v_node_id = m.add_sympy_var(v, vtype)
+            v_, v_node_id = m.add_sym_var(v, vtype)
             if v in m.states:
                 if vtype == 'bool':
                     self.bool_s_vars.add(v_)
@@ -81,7 +83,7 @@ class MDP:
         for v, vtype in m.gvar_to_type.items():
             if v in m.nonfluents:
                 continue
-            v_, v_node_id = m.add_sympy_var(v, vtype)
+            v_, v_node_id = m.add_sym_var(v, vtype)
             if v in m.next_state.values():
                 if vtype == 'bool':
                     self.bool_ns_vars.add(v_)
@@ -112,7 +114,9 @@ class MDP:
         for v_name, cpf in self.model.cpfs.items():
             # Handle Boolean next state and interm variables.
             v = self.context._str_var_to_var[v_name]
-            if v._assumptions['bool'] and (v_name in self.model.next_state.values() or v_name in self.model.interm):
+            if v.is_Boolean and (
+                (v_name in self.model.next_state.values() or v_name in self.model.interm)
+            ):
                 cpf_ = dual_cpfs_bool.get(v_name)
                 if cpf_ is None:
                     var_id, _ = self.context.get_dec_expr_index(v, create=False)
@@ -144,10 +148,10 @@ class MDP:
         return self.model.reward
 
     @prime_subs.setter
-    def prime_subs(self, prime_subs: Dict[sp.Symbol, sp.Symbol]):
+    def prime_subs(self, prime_subs: Dict[VAR_TYPE, VAR_TYPE]):
         self._prime_subs = prime_subs
 
-    def get_bounds(self, a: sp.Symbol) -> Tuple[float, float]:
+    def get_bounds(self, a: core.Symbol) -> Tuple[float, float]:
         return self.cont_action_bounds[a]
 
     def standardize(self, dd: int) -> int:

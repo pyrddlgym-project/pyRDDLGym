@@ -1,7 +1,7 @@
 """Defines the Value Iteration solver."""
 from typing import Dict, List, Optional, Set, Tuple
 
-import sympy as sp
+import symengine.lib.symengine_wrapper as core
 from xaddpy.xadd.xadd import XADDLeafMinOrMax
 
 from pyRDDLGym.Solvers.SDP.base import SymbolicSolver
@@ -75,7 +75,7 @@ class ValueIteration(SymbolicSolver):
         return dd
 
     def max_out_var(
-            self, dd: int, v: sp.Symbol, bound_dict: Dict[sp.Symbol, Tuple[float, float]]
+            self, dd: int, v: core.Symbol, bound_dict: Dict[core.Symbol, Tuple[float, float]]
     ) -> int:
         """Maxes out a continuous variable from an XADD node."""
         max_op = XADDLeafMinOrMax(

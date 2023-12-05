@@ -3,8 +3,10 @@
 import abc
 from typing import Dict, Tuple, Union
 
-import sympy as sp
+import symengine.lib.symengine_wrapper as core
 from xaddpy import XADD
+from xaddpy.utils.symengine import BooleanVar
+from xaddpy.xadd.xadd import VAR_TYPE
 
 from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 
@@ -12,16 +14,16 @@ from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
 class Action(metaclass=abc.ABCMeta):
     """The base action class."""
 
-    def add_cpf(self, v: sp.Symbol, cpf: int):
+    def add_cpf(self, v: VAR_TYPE, cpf: int):
         """Adds a CPF XADD node ID to the action."""
         self.cpfs[v] = cpf
 
-    def get_cpf(self, v: sp.Symbol) -> int:
+    def get_cpf(self, v: VAR_TYPE) -> int:
         """Gets the CPF XADD node ID given a variable."""
         return self.cpfs[v]
 
     @property
-    def symbol(self) -> Union[sp.Symbol, Tuple[sp.Symbol]]:
+    def symbol(self) -> Union[VAR_TYPE, Tuple[VAR_TYPE, ...]]:
         assert hasattr(self, '_symbol'), 'Action symbol not set'
         return self._symbol
 
@@ -38,7 +40,7 @@ class Action(metaclass=abc.ABCMeta):
         return self.name
 
     @property
-    def cpfs(self) -> Dict[sp.Symbol, int]:
+    def cpfs(self) -> Dict[VAR_TYPE, int]:
         if not hasattr(self, '_cpfs'):
             self._cpfs = {}
         return self._cpfs
@@ -50,7 +52,7 @@ class SingleAction(Action):
     def __init__(
             self,
             name: str,
-            symbol: sp.Symbol,
+            symbol: VAR_TYPE,
             model: RDDLModelWXADD,
             atype: str,
     ):
@@ -64,7 +66,7 @@ class SingleAction(Action):
 
 class CAction(SingleAction):
     """Continuous Action class."""
-    def __init__(self, name: str, symbol: sp.Symbol, model: RDDLModelWXADD):
+    def __init__(self, name: str, symbol: core.Symbol, model: RDDLModelWXADD):
         super().__init__(name, symbol, model, 'real')
         self.need_bound_analysis = True
 
@@ -91,8 +93,8 @@ class BActions(Action):
     """Boolean Action class that supports concurrency."""
     def __init__(
             self,
-            names: Tuple[str],
-            symbols: Tuple[sp.Symbol],
+            names: Tuple[str, ...],
+            symbols: Tuple[VAR_TYPE, ...],
             model: RDDLModelWXADD,
     ):
         self.name = '_'.join(names) if names else 'noop'
@@ -101,7 +103,7 @@ class BActions(Action):
         self.context = model._context
         self._reward = None
 
-    def restrict(self, dd: int, subst_dict: Dict[sp.Symbol, bool]) -> int:
+    def restrict(self, dd: int, subst_dict: Dict[VAR_TYPE, bool]) -> int:
         """Restrict a given XADD by setting the action values as True."""
         # Make a copy to prevent in-place updates.
         subst_dict = subst_dict.copy()

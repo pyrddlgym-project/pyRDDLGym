@@ -1,8 +1,7 @@
 """Defines the Policy Evaluation solver."""
 
-from typing import Dict, Optional
+from typing import Optional
 
-import sympy as sp
 from xaddpy.xadd.xadd import DeltaFunctionSubstitution
 
 from pyRDDLGym.Solvers.SDP.base import SymbolicSolver

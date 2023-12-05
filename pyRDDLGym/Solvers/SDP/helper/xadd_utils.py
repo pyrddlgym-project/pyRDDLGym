@@ -2,11 +2,9 @@
 
 from typing import Callable, Dict, List, Set, Union
 
-import sympy as sp
-import sympy.core.relational as relational
-from sympy.logic import boolalg
+import symengine.lib.symengine_wrapper as core
 from xaddpy.utils.util import get_bound
-from xaddpy.xadd.xadd import XADD, XADDLeafOperation
+from xaddpy.xadd.xadd import XADD, XADDLeafOperation, VAR_TYPE
 
 
 class BoundAnalysis(XADDLeafOperation):
@@ -20,18 +18,18 @@ class BoundAnalysis(XADDLeafOperation):
     def __init__(
             self,
             context: XADD,
-            var_set: Set[sp.Symbol],
+            var_set: Set[VAR_TYPE],
     ):
         super().__init__(context)
         self.var_set = var_set
-        self.lb_dict: Dict[sp.Symbol, Union[sp.Basic, int, float]] = {}
-        self.ub_dict: Dict[sp.Symbol, Union[sp.Basic, int, float]] = {}
+        self.lb_dict: Dict[VAR_TYPE, Union[core.Basic, int, float]] = {}
+        self.ub_dict: Dict[VAR_TYPE, Union[core.Basic, int, float]] = {}
 
     def process_xadd_leaf(
             self,
-            decisions: List[sp.Basic],
+            decisions: List[core.Basic],
             decision_values: List[bool],
-            leaf_val: sp.Basic,
+            leaf_val: core.Basic,
     ) -> int:
         """Processes an XADD partition to configure bounds.
 
@@ -42,7 +40,7 @@ class BoundAnalysis(XADDLeafOperation):
         Returns:
             The ID of the leaf node passed.
         """
-        assert isinstance(leaf_val, boolalg.BooleanAtom) or isinstance(leaf_val, bool)
+        assert isinstance(leaf_val, core.BooleanAtom) or isinstance(leaf_val, bool)
         # False leaf node represents an invalid partition.
         if not leaf_val:
             return self._context.get_leaf_node(leaf_val)
@@ -54,9 +52,10 @@ class BoundAnalysis(XADDLeafOperation):
                 if v not in dec_expr.atoms():
                     continue
                 assert dec_expr not in self._context._bool_var_set
-                lhs, rhs, gt = dec_expr.lhs, dec_expr.rhs, isinstance(dec_expr, relational.GreaterThan)
-                gt = (gt and is_true) or (not gt and not is_true)
-                expr = lhs >= rhs if gt else lhs <= rhs
+                lhs, rhs = dec_expr.args
+                lt = dec_expr.is_Relational and isinstance(dec_expr, core.LessThan)
+                lt = (lt and is_true) or (not lt and not is_true)
+                expr = lhs <= rhs if lt else lhs >= rhs
 
                 # Get bounds over `v`.
                 bound_expr, is_ub = get_bound(v, expr)
@@ -84,7 +83,7 @@ class ValueAssertion(XADDLeafOperation):
     def __init__(
             self,
             context: XADD,
-            fn: Callable[[sp.Basic], bool],
+            fn: Callable[[core.Basic], bool],
             msg: str = None,
     ):
         super().__init__(context)
@@ -93,9 +92,9 @@ class ValueAssertion(XADDLeafOperation):
 
     def process_xadd_leaf(
             self,
-            decisions: List[sp.Basic],
+            decisions: List[core.Basic],
             decision_values: List[bool],
-            leaf_val: sp.Basic,
+            leaf_val: core.Basic,
     ) -> int:
         """Processes an XADD partition to assert the type.
 

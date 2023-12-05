@@ -3,8 +3,7 @@
 import itertools
 from typing import Dict, List, Set, Tuple, Union
 
-import sympy as sp
-from xaddpy import XADD
+import symengine.lib.symengine_wrapper as core
 
 from pyRDDLGym.Solvers.SDP.helper.action import SingleAction, CAction, BActions
 from pyRDDLGym.Solvers.SDP.helper.mdp import MDP
@@ -67,7 +66,7 @@ class MDPParser:
             a_symbol = model.ns.get(name)
             if a_symbol is None:
                 print(f'Warning: action {name} not found in RDDLModelWXADD.actions')
-                a_symbol, a_node_id = model.add_sympy_var(name, atype)
+                a_symbol, a_node_id = model.add_sym_var(name, atype)
             if atype == 'bool':
                 bool_actions.append(SingleAction(name, a_symbol, model, 'bool'))
             else:
@@ -113,14 +112,14 @@ class MDPParser:
         return mdp
 
     def configure_bounds(
-            self, mdp: MDP, conditions: List[int], var_set: Set[sp.Symbol],
+            self, mdp: MDP, conditions: List[int], var_set: Set[core.Symbol],
     ) -> Dict[CAction, Tuple[float, float]]:
         """Configures the bounds over continuous variables."""
         context = mdp.context
 
         # Bounds dictionaries to be updated.
-        lb_dict: Dict[sp.Symbol, List[sp.Basic]] = {}
-        ub_dict: Dict[sp.Symbol, List[sp.Basic]] = {}
+        lb_dict: Dict[core.Symbol, List[core.Basic]] = {}
+        ub_dict: Dict[core.Symbol, List[core.Basic]] = {}
 
         # Iterate over conditions (state invariants or action preconditions).
         for p in conditions:

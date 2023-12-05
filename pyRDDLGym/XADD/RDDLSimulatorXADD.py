@@ -74,10 +74,10 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
             return super()._sample(expr, subs)
         else:
             subs = {
-                self.var_name_to_sympy_var[self.var_name_to_sympy_var_name.get(v, v)]: val 
+                self.var_name_to_sym_var[self.var_name_to_sym_var_name.get(v, v)]: val 
                 for v, val in subs.items() 
                 if not v in self._model.nonfluents 
-                and self.var_name_to_sympy_var.get(self.var_name_to_sympy_var_name.get(v, v))
+                and self.var_name_to_sym_var.get(self.var_name_to_sym_var_name.get(v, v))
             }
             
             # If there exists a random variable, sample it first
@@ -149,13 +149,13 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
         raise NotImplementedError
 
     @property
-    def sympy_var_name_to_var_name(self):
-        return self._model._sympy_var_name_to_var_name
+    def sym_var_name_to_var_name(self):
+        return self._model._sym_var_name_to_var_name
 
     @property
-    def var_name_to_sympy_var_name(self):
-        return self._model._var_name_to_sympy_var_name
+    def var_name_to_sym_var_name(self):
+        return self._model._var_name_to_sym_var_name
     
     @property
-    def var_name_to_sympy_var(self):
+    def var_name_to_sym_var(self):
         return self.context._str_var_to_var
