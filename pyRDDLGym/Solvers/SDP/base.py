@@ -1,7 +1,8 @@
 """Defines the base class for a symbolic solver."""
 import abc
 import time
-from typing import Any, Dict, Set
+import psutil
+from typing import Any, Dict, List, Optional, Set
 
 import sympy as sp
 from xaddpy import XADD
@@ -9,6 +10,9 @@ from xaddpy.xadd.xadd import DeltaFunctionSubstitution
 
 from pyRDDLGym.Solvers.SDP.helper import SingleAction, MDP
 from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
+
+
+FLUSH_PERCENT_MINIMUM = 0.3
 
 
 class SymbolicSolver:
@@ -21,6 +25,9 @@ class SymbolicSolver:
             enable_early_convergence: bool = False,
     ):
         self._mdp = mdp
+        self._prev_dd = None
+        self._max_dd = None
+        self._value_dd = self.context.ZERO
         self.n_curr_iter = 0
         self.n_max_iter = max_iter
         self.enable_early_convergence = enable_early_convergence
@@ -31,7 +38,17 @@ class SymbolicSolver:
         for l, var_set in self.levels.items():
             for v in var_set:
                 self.var_to_level[v] = l
-    
+
+    @property
+    def value_dd(self) -> int:
+        """Returns the value function XADD ID at current iteration."""
+        return self._value_dd
+
+    @value_dd.setter
+    def value_dd(self, value_dd: int):
+        """Sets the value function XADD ID at current iteration."""
+        self._value_dd = value_dd
+
     def solve(self) -> Dict[str, Any]:
         """See the base class."""
         # Result dict.
@@ -44,31 +61,34 @@ class SymbolicSolver:
         self.n_curr_iter = 0
 
         # Initialize the value function.
-        value_dd = self.context.ZERO
+        self.value_dd = self.context.ZERO
 
         # Perform VI for the set number of iterations.
         while self.n_curr_iter < self.n_max_iter:
             self.n_curr_iter += 1
 
             # Cache the current value function.
-            _prev_dd = value_dd
+            self._prev_dd = self.value_dd
 
             # Perform the Bellman backup.
             # Time the Bellman backup.
             stime = time.time()
-            value_dd = self.bellman_backup(value_dd)
+            self.value_dd = self.bellman_backup(self.value_dd)
             etime = time.time()
 
             # Record the results.
-            res['value_dd'].append(value_dd)
+            res['value_dd'].append(self.value_dd)
             res['time'].append(etime - stime)
             # Print out the intermediate results.
             print(f'{self.__class__.__name__}: Iteration {self.n_curr_iter}, Time: {etime - stime}')
 
             # Check for convergence.
-            if self.enable_early_convergence and value_dd == _prev_dd:
+            if self.enable_early_convergence and self.value_dd == self._prev_dd:
                 print(f'\nVI: Converged to solution early, at iteration {self.n_curr_iter}')
                 break
+
+            # Flush caches.
+            self.flush_caches()
 
         self.flush_caches()
         return res
@@ -197,8 +217,55 @@ class SymbolicSolver:
         q = self.context.apply(restrict_high, restrict_low, op='add')
         return q
 
-    def flush_caches(self):
+    def flush_caches(self, special_nodes: Optional[List[int]] = None) -> None:
         """Flush cache objects."""
+        # Check whether the memory usage is too high.
+        available_memory = psutil.virtual_memory().available
+        total_memory = psutil.virtual_memory().total
+        available_memory_ratio = available_memory / total_memory
+        if available_memory_ratio > FLUSH_PERCENT_MINIMUM:
+            return  # No need to flush.
+
+        # Print out current memory usage information.
+        print(
+            (
+                f"Before flush: {len(self.context._id_to_node)} nodes in use,"
+                f" free memory: {available_memory / 10e6} MB ="
+                f" {available_memory_ratio * 100:.2f}% available memory."
+            )
+        )
+
+        # Add special nodes.
+        self.context.clear_special_nodes()
+        if special_nodes is not None:
+            for n in special_nodes:
+                self.context.add_special_node(n)
+
+        for a_name, action in self.mdp.actions.items():
+            self.context.add_special_node(action.reward)
+            for var_name, cpf in action.cpfs.items():
+                self.context.add_special_node(cpf)
+
+        # Add value function XADDs.
+        if self._prev_dd is not None:
+            self.context.add_special_node(self._prev_dd)
+        self.context.add_special_node(self.value_dd)
+
+        # Flush the caches.
+        self.mdp.cont_regr_cache.clear()
+        self.context.flush_caches()
+
+        # Print out memory usage after flushing.
+        available_memory = psutil.virtual_memory().available
+        total_memory = psutil.virtual_memory().total
+        available_memory_ratio = available_memory / total_memory
+        print(
+            (
+                f"After flush: {len(self.context._id_to_node)} nodes in use,"
+                f" free memory: {available_memory / 10e6} MB ="
+                f" {available_memory_ratio * 100:.2f}% available memory."
+            )
+        )
 
     def print(self, dd: int):
         """Prints the value function."""
@@ -206,4 +273,4 @@ class SymbolicSolver:
 
     def export(self, dd: int, fname: str):
         """Exports the decision diagram to a text file."""
-        self.mdp.context.export_xadd(fname)
+        self.mdp.context.export_xadd(dd, fname)
