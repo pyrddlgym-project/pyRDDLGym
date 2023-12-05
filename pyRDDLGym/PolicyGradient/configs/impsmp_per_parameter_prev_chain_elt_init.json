@@ -3,25 +3,26 @@
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 9,
+  "action_dim": 4,
   "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
       "n_summands": 10,
-      "instance_idx": 0,
+      "instance_idx": 2,
+      "reward_shift": 0.0,
       "specs": {
         "hmc_model": {
           "is_relaxed": true,
           "compiler_kwargs": {
             "n_rollouts": 1,
-            "weight": 5.0
+            "weight": 20.0
           }
         },
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 4
+            "n_rollouts": 1024
           }
         },
         "eval_model": {
@@ -50,24 +51,29 @@
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 4,
+      "batch_size": 32768,
       "eval_batch_size": 32,
-      "epsilon": 1e-12,
+      "epsilon": 0.0,
+      "log_cutoff": -1000.0,
       "est_Z": true,
       "hmc" : {
-        "num_chains": 4,
-        "num_burnin_iters_per_chain": 512,
-        "init_step_size": 0.05,
-        "num_leapfrog_steps": 50,
+        "sampler_type": "nuts",
+        "num_chains": 16,
+        "num_burnin_iters_per_chain": 1024,
+        "init_step_size": {
+            "type": "constant",
+            "value": 0.5
+        },
+        "max_tree_depth": 12,
         "init_distribution": {
-            "type": "normal",
-            "mean": 0.0,
-            "var": 2.0
+            "type": "uniform",
+            "min": -5.0,
+            "max": 5.0
         },
         "reinit_strategy": "random_prev_chain_elt"
       },
       "verbose": true
     }
   },
-  "save_to": "/tmp"
+  "save_to": "/home/ilia/Programming/storage/tmp"
 }
