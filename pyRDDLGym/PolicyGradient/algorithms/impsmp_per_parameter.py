@@ -29,11 +29,12 @@ def flatten_dJ_shard(dJ_shard, ifrom, ito, flat_dJ_shard):
         ip0 = ip1
     return flat_dJ_shard
 
-def compute_next_sample_corr(D, batch_size):
+def compute_next_sample_corr(D):
+    sample_size = len(D)
     D = D - jnp.mean(D)
     K = jnp.correlate(D, D, 'full')
-    K = K / K[batch_size-1]
-    return K[batch_size]
+    K = K / K[sample_size-1]
+    return K[sample_size]
 
 
 def init_hmc_state(key, n_chains, action_dim, policy, config):
@@ -190,6 +191,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         'eval_batch_size',
         'policy',
         'model',
+        'track_next_sample_correlation',
         'divergence_threshold',))
 def update_impsmp_stats(
     key,
@@ -205,6 +207,7 @@ def update_impsmp_stats(
     theta,
     policy,
     model,
+    track_next_sample_correlation,
     divergence_threshold):
     """Updates the REINFORCE with Importance Sampling statistics
     using the statistics returned from the computation of dJ_hat
@@ -257,19 +260,19 @@ def update_impsmp_stats(
     num_divergent_chains = jnp.sum(num_divergent_samples_per_chain > 0)
     algo_stats['num_divergent_chains'] = algo_stats['num_divergent_chains'].at[it].set(num_divergent_chains)
 
-    next_sample_correlation = jnp.apply_along_axis(
-        compute_next_sample_corr,
-        axis=0,
-        arr=samples,
-        batch_size=batch_size)
-    algo_stats['next_sample_correlation_per_chain'] = algo_stats['next_sample_correlation_per_chain'].at[it].set(next_sample_correlation)
-    algo_stats['next_sample_correlation_min'] = algo_stats['next_sample_correlation_min'].at[it].set(jnp.min(next_sample_correlation))
-    algo_stats['next_sample_correlation_mean'] = algo_stats['next_sample_correlation_mean'].at[it].set(jnp.mean(next_sample_correlation))
-    algo_stats['next_sample_correlation_max'] = algo_stats['next_sample_correlation_max'].at[it].set(jnp.max(next_sample_correlation))
+    if track_next_sample_correlation:
+        next_sample_correlation = jnp.apply_along_axis(
+            compute_next_sample_corr,
+            axis=0,
+            arr=samples)
+        algo_stats['next_sample_correlation_per_chain'] = algo_stats['next_sample_correlation_per_chain'].at[it].set(next_sample_correlation)
+        algo_stats['next_sample_correlation_min'] = algo_stats['next_sample_correlation_min'].at[it].set(jnp.min(next_sample_correlation))
+        algo_stats['next_sample_correlation_mean'] = algo_stats['next_sample_correlation_mean'].at[it].set(jnp.mean(next_sample_correlation))
+        algo_stats['next_sample_correlation_max'] = algo_stats['next_sample_correlation_max'].at[it].set(jnp.max(next_sample_correlation))
 
     return key, algo_stats
 
-def print_impsmp_report(it, algo_stats, is_accepted, batch_size, num_chains, subt0, subt1):
+def print_impsmp_report(it, algo_stats, is_accepted, batch_size, num_chains, track_next_sample_correlation, subt0, subt1):
     """Prints out the results for the current REINFORCE with Importance Sampling iteration"""
     print(f'Iter {it} :: Importance Sampling :: Runtime={subt1-subt0}s')
     print(f'Batch size={batch_size} :: Num.Chains={num_chains} :: HMC step size={algo_stats["hmc_step_size"][it]:.4f} :: HMC acceptance rate={algo_stats["acceptance_rate"][it]*100:.2f}%')
@@ -281,9 +284,10 @@ def print_impsmp_report(it, algo_stats, is_accepted, batch_size, num_chains, sub
     print(algo_stats['transformed_policy_cov'][it])
     print(f'Num. divergent chains={algo_stats["num_divergent_chains"][it]}')
     print(f'{algo_stats["dJ_hat_min"][it]} <= dJ_hat <= {algo_stats["dJ_hat_max"][it]} :: Norm={algo_stats["dJ_hat_norm"][it]}')
-    print(f'dJ cov: {algo_stats["dJ_covar_diag_min"][it]} <= Mean {algo_stats["dJ_covar_diag_mean"][it]} <= {algo_stats["dJ_covar_diag_max"][it]}')
+    print(f'dJ cov: {algo_stats["dJ_covar_diag_min"][it]} <= (Mean) {algo_stats["dJ_covar_diag_mean"][it]} <= {algo_stats["dJ_covar_diag_max"][it]}')
     print(f'Mean abs. score={algo_stats["mean_abs_score"][it]} \u00B1 {algo_stats["std_abs_score"][it]:.3f}')
-    print(f'Next sample corr.: {algo_stats["next_sample_correlation_min"][it]:.4f} <= (Mean) {algo_stats["next_sample_correlation_mean"][it]:.4f} <= {algo_stats["next_sample_correlation_max"][it]:.4f}')
+    if track_next_sample_correlation:
+        print(f'Next sample corr.: {algo_stats["next_sample_correlation_min"][it]:.4f} <= (Mean) {algo_stats["next_sample_correlation_mean"][it]:.4f} <= {algo_stats["next_sample_correlation_max"][it]:.4f}')
     print(f'HMC sample reward={algo_stats["sample_reward_mean"][it]:.3f} \u00B1 {algo_stats["sample_reward_sterr"][it]:.3f} '
           f':: Eval reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
@@ -327,6 +331,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
     epsilon = config.get('epsilon', 1e-12)
     log_cutoff = config.get('log_cutoff', -1000.)
     divergence_threshold = config.get('divergence_threshold', 10.)
+    track_next_sample_correlation = config.get('track_next_sample_correlation', False)
 
     # initialize stats collection
     algo_stats = {
@@ -357,11 +362,14 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
         'mean_abs_score': jnp.empty(shape=(n_iters,)),
         'std_abs_score': jnp.empty(shape=(n_iters,)),
         'num_divergent_chains': jnp.empty(shape=(n_iters,)),
-        'next_sample_correlation_per_chain': jnp.empty(shape=(n_iters, hmc_config['num_chains'], action_dim, 2, action_dim)),
-        'next_sample_correlation_min': jnp.empty(shape=(n_iters,)),
-        'next_sample_correlation_mean': jnp.empty(shape=(n_iters,)),
-        'next_sample_correlation_max': jnp.empty(shape=(n_iters,)),
     }
+    if track_next_sample_correlation:
+        algo_stats.update({
+            'next_sample_correlation_per_chain': jnp.empty(shape=(n_iters, hmc_config['num_chains'], action_dim, 2, action_dim)),
+            'next_sample_correlation_min': jnp.empty(shape=(n_iters,)),
+            'next_sample_correlation_mean': jnp.empty(shape=(n_iters,)),
+            'next_sample_correlation_max': jnp.empty(shape=(n_iters,)),
+        })
 
     if hmc_config['init_distribution']['type'] == 'normal':
         hmc_config['init_distribution']['std'] = jnp.sqrt(hmc_config['init_distribution']['var'])
@@ -438,21 +446,22 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
                     shape=(hmc_config["num_chains"],),
                     replace=False)
 
-            elif hmc_config['reinit_strategy'] == 'random_prev_chain_elt_with_interphase':
-                key, hmc_initializer = jax.random.choice(
+            elif hmc_config['reinit_strategy'] == 'random_prev_chain_elt_with_intermixing':
+                hmc_initializer = jax.random.choice(
                     subkeys[3],
                     a=samples,
                     shape=(hmc_config["num_chains"],),
                     replace=False)
 
-                intermediate_hmc_kernel = tfp.mcmc.TransformedTransitionKernel(
-                    inner_kernel=tfp.mcmc.SimpleStepSizeAdaptation(
-                        inner_kernel=tfp.mcmc.HamiltonianMonteCarlo(
-                            target_log_prob_fn=parallel_log_density_over_chains,
-                            num_leapfrog_steps=hmc_config['num_leapfrog_steps'],
-                            step_size=hmc_config['reinit_step_size']),
-                        num_adaptation_steps=int(hmc_config['reinit_num_burnin_iters_per_chain'] * 0.8)),
-                    bijector=unconstraining_bijector)
+                log_density = functools.partial(
+                    unnormalized_log_rho, subkeys[1], policy.theta, policy, models['mixing_model'], log_cutoff)
+                parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
+
+                intermediate_hmc_kernel = sampler_factory(
+                    target_log_prob_fn=parallel_log_density_over_chains,
+                    step_size=hmc_config['reinit_step_size'],
+                    unconstraining_bijector=unconstraining_bijector,
+                    **hmc_config)
 
                 hmc_initializer, _ = tfp.mcmc.sample_chain(
                     seed=subkeys[3],
@@ -475,9 +484,11 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
                                                   algo_stats, batch_stats,
                                                   samples, is_accepted,
                                                   policy.theta, policy, eval_model,
+                                                  track_next_sample_correlation,
                                                   divergence_threshold)
             print_impsmp_report(it, algo_stats, is_accepted,
                                 batch_size, hmc_config['num_chains'],
+                                track_next_sample_correlation,
                                 subt0, timer())
 
             key, hmc_step_size = generate_hmc_step_size(key, hmc_config["init_step_size"])
@@ -489,5 +500,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
         'action_dim': action_dim,
         'batch_size': batch_size,
         'eval_batch_size': eval_batch_size,
+        'hmc_model_weight': hmc_model.weight,
     })
     return key, algo_stats
