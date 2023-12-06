@@ -39,7 +39,9 @@ class SymbolicSolver:
         for l, var_set in self.levels.items():
             for v in var_set:
                 self.var_to_level[v] = l
-    
+
+        self.special_nodes = []
+
     @property
     def value_dd(self) -> int:
         """Returns the value function XADD ID at current iteration."""
@@ -78,6 +80,7 @@ class SymbolicSolver:
             etime = time.time()
 
             # Record the results.
+            self.special_nodes.append(self.value_dd)
             res['value_dd'].append(self.value_dd)
             res['time'].append(etime - stime)
             # Print out the intermediate results.
@@ -241,6 +244,8 @@ class SymbolicSolver:
         if special_nodes is not None:
             for n in special_nodes:
                 self.context.add_special_node(n)
+        for n in self.special_nodes:
+            self.context.add_special_node(n)
 
         for a_name, action in self.mdp.actions.items():
             self.context.add_special_node(action.reward)
