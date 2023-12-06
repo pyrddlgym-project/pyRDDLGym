@@ -78,7 +78,7 @@ if __name__ == "__main__":
                         help='The name of the RDDL environment')
     parser.add_argument('--inst', type=str, default='0',
                         help='The instance number of the RDDL environment')
-    parser.add_argument('--max_iter', type=int, default=100,
+    parser.add_argument('--max_iter', type=int, default=10,
                         help='The maximum number of iterations')
     parser.add_argument('--enable_early_convergence', action='store_true',
                         help='Whether to enable early convergence')
