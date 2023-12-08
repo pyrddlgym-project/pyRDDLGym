@@ -1,0 +1,63 @@
+domain reservoir_control_sdp {
+
+	requirements = {
+		concurrent,           // different reservoirs are controlled independently
+		reward-deterministic, // this domain does not use a stochastic reward
+		constrained-state     // this domain uses state constraints
+	};
+
+	types {
+		reservoir: object;
+	};
+
+    pvariables {
+
+		// Constants
+        TOP_RES(reservoir): { non-fluent, real, default = 100.0 }; // Overflowing amount
+        MAX_LEVEL(reservoir): { non-fluent, real, default = 55.0 };  // The upper bound for desired reservoir level
+		MIN_LEVEL(reservoir): { non-fluent, real, default = 45.0 };  // The lower bound for desired reservoir level
+        RELEASE_VALUE(reservoir): {non-fluent, real, default = 5.0 }; // 
+        RAIN_VALUE(reservoir): {non-fluent, real, default = 8.0 };
+        // RAIN_VALUE_EXCESS(reservoir): {non-fluent, real, default = 2.0 };
+        RAIN_PROP(reservoir): {non-fluent, real, default=0.5};
+        // RAIN_PROP_EXCESS(reservoir): {non-fluent, real, default=0.2};
+        COST_OVERMAX(reservoir) : { non-fluent, real, default =  -1.0 };
+        COST_UNDERMIN(reservoir) : { non-fluent, real, default =  -1.0 };
+        MAINTAIN_REWARD(reservoir) : { non-fluent, real, default =  0.0 };
+        RES_CONNECT(reservoir, reservoir): { non-fluent, bool, default = false }; // Indicates 2nd reservoir is forward connected to 1st reservoir
+
+        // State fluents
+        rlevel(reservoir): {state-fluent, real, default = 100.0 }; // Reservoir level
+
+        // Action fluents
+        release(reservoir): { action-fluent, bool, default = false}; // Action to set outflow of reservoir
+    };
+
+    cpfs {
+        rlevel'(?r) = min[TOP_RES(?r), 
+                            max[0, 
+                                rlevel(?r) 
+                                + (if (Bernoulli(RAIN_PROP(?r))) then RAIN_VALUE(?r) else 0)
+                                // + RAIN_VALUE_EXCESS(?r) * Bernoulli(RAIN_PROP_EXCESS(?r))
+                                - release(?r) * RELEASE_VALUE(?r) 
+                                + sum_{?in : reservoir} [
+                                                        RES_CONNECT(?in, ?r) * release(?in) * RELEASE_VALUE(?in)
+                                                        ]
+                                ]
+                         ];
+
+    };
+
+
+     reward = (sum_{?r: reservoir} [if (rlevel(?r) > MAX_LEVEL(?r))
+                                        then COST_OVERMAX(?r)
+                                   else if (rlevel(?r) < MIN_LEVEL(?r))
+                                        then COST_UNDERMIN(?r)
+                                   else MAINTAIN_REWARD(?r)
+                                   ]);    
+
+	state-invariants {
+
+	};
+
+}
