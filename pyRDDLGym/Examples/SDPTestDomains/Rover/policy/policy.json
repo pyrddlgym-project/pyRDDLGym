@@ -1,0 +1,7 @@
+{
+    "action-fluents": ["move_east___a1", "move_west___a1", "move_north___a1", "move_south___a1"],
+    "move_east___a1": "pyRDDLGym/Examples/SDPTestDomains/Rover/policy/move_east___a1.xadd",
+    "move_west___a1": "pyRDDLGym/Examples/SDPTestDomains/Rover/policy/move_west___a1.xadd",
+    "move_south___a1": "pyRDDLGym/Examples/SDPTestDomains/Rover/policy/move_south___a1.xadd",
+    "move_north___a1": "pyRDDLGym/Examples/SDPTestDomains/Rover/policy/move_north___a1.xadd"
+}

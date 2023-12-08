@@ -1,0 +1,4 @@
+[General]
+name=Rover_SDP
+description=Rover Navigation.
+viz=TextViz.TextVisualizer

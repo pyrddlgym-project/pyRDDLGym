@@ -1,0 +1,99 @@
+////////////////////////////////////////////////////////////////////
+//Simple 2D navigaiton with discrete actions
+//
+////////////////////////////////////////////////////////////////////
+domain rover_discrete {
+
+    requirements = {
+        reward-deterministic
+    };
+
+    types {
+		agent : object;
+	}; 
+
+    pvariables {
+
+
+        // minerals constants
+        MINERAL_POS_X_MIN(agent): { non-fluent, real, default = 8 };            // goal x location
+        MINERAL_POS_Y_MIN(agent): { non-fluent, real, default = 8 };            // goal y location
+        MINERAL_POS_X_MAX(agent): { non-fluent, real, default = 10 };            // goal x location
+        MINERAL_POS_Y_MAX(agent): { non-fluent, real, default = 10 };            // goal y location
+
+
+        BASE_POS_X_MIN(agent): { non-fluent, real, default = 0 };            // goal x location
+        BASE_POS_Y_MIN(agent): { non-fluent, real, default = 0 };            // goal y location
+        BASE_POS_X_MAX(agent): { non-fluent, real, default = 2 };            // goal x location
+        BASE_POS_Y_MAX(agent): { non-fluent, real, default = 2 };            // goal y location
+
+        MAX_POS_X(agent): { non-fluent, real, default = 10 };            // goal x location
+        MAX_POS_Y(agent): { non-fluent, real, default = 10 };            // goal y location
+        MIN_POS_X(agent): { non-fluent, real, default = 0 };            // goal x location
+        MIN_POS_Y(agent): { non-fluent, real, default = 0 };            // goal y location
+
+        MOVE_DISTANCE(agent) : { non-fluent, real, default = 1 };
+        GOAL_REWARD(agent) : { non-fluent, real, default = 1 };   
+
+        in_mine(agent): {interm-fluent, bool};
+        in_base(agent): {interm-fluent, bool};           
+
+        // states
+        pos_x(agent)    : { state-fluent, real, default = 0 };          // rover x position
+        pos_y(agent)    : { state-fluent, real, default = 0 };          // rover y position
+        has_mineral(agent) : { state-fluent, bool, default = false }; 
+
+        // actions
+        move_east(agent)     : { action-fluent, bool, default = false };     // force input in +x direction
+        move_west(agent)      : { action-fluent, bool, default = false };     // force input in -x direction
+        move_north(agent)     : { action-fluent, bool, default = false };     // force input in +y direction
+        move_south(agent)      : { action-fluent, bool, default = false };     // force input in -y direction
+
+       
+    };
+
+    cpfs {
+
+        in_mine(?a) = ( (pos_x(?a) >= MINERAL_POS_X_MIN(?a)) ^ (pos_x(?a) <= MINERAL_POS_X_MAX(?a)) ^
+                        (pos_y(?a) >= MINERAL_POS_Y_MIN(?a)) ^ (pos_y(?a) <= MINERAL_POS_Y_MAX(?a)) );
+
+        in_base(?a) = ( (pos_x(?a) >= BASE_POS_X_MIN(?a)) ^ (pos_x(?a) <= BASE_POS_X_MAX(?a)) ^
+                        (pos_y(?a) >= BASE_POS_Y_MIN(?a)) ^ (pos_y(?a) <= BASE_POS_Y_MAX(?a)) );   
+
+
+        has_mineral'(?a) = if (in_mine(?a)) then true
+                           else if (in_base(?a)) then false
+                           else has_mineral(?a);
+
+        pos_x'(?a) = max [
+                            min[
+                                if (move_east(?a)) then pos_x(?a) + MOVE_DISTANCE(?a)
+                                else if (move_west(?a)) then pos_x(?a) - MOVE_DISTANCE(?a)
+                                else pos_x(?a), 
+                                MAX_POS_X(?a)
+                                ],
+                            MIN_POS_X(?a)
+                        ];
+
+        pos_y'(?a) = max [
+                    min[
+                        if (move_north(?a)) then pos_y(?a) + MOVE_DISTANCE(?a)
+                        else if (move_south(?a)) then pos_y(?a) - MOVE_DISTANCE(?a)
+                        else pos_y(?a), 
+                        MAX_POS_Y(?a)
+                        ],
+                    MIN_POS_Y(?a)
+                ];
+
+    };
+
+    // negative distance to the goal
+    reward = sum_{?a : agent}[ if (in_base(?a) ^ has_mineral(?a)) then GOAL_REWARD(?a) else 0 ];
+
+    state-invariants {
+    };
+
+    action-preconditions {
+    };
+
+}
