@@ -118,8 +118,10 @@ class PolicyParser:
 
         # Boolean action should only depend on state fluents.
         s_vars = self.mdp.cont_s_vars.union(self.mdp.bool_s_vars)
-        assert len(var_set.difference(s_vars)) == 0, \
-            'Boolean action should only depend on state fluents.'
+        assert len(var_set.difference(s_vars)) == 1, (
+            'Boolean action should only depend on state fluents plus the action'
+            f'variable, but found {var_set.difference(s_vars)}'
+        )
 
         # Check leaf value types.
         leaf_op = ValueAssertion(
