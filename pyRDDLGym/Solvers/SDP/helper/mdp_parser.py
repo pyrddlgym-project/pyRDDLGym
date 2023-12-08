@@ -90,7 +90,10 @@ class MDPParser:
                 mdp.add_action(action)
         else:
             for action in bool_actions:
-                mdp.add_action(action)
+                name, symbol = action.name, action.symbol
+                mdp.add_action(
+                    BActions((name,), (symbol,), model)
+                )
 
         # Add continuous actions.
         for action in cont_actions:

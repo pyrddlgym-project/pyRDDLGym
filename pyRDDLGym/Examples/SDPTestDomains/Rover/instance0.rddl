@@ -1,0 +1,35 @@
+////////////////////////////////////////////////////////////////////
+//
+////////////////////////////////////////////////////////////////////
+
+non-fluents rover_d {
+    domain = rover_discrete;
+
+    objects {
+		agent : {a1};
+	};
+
+	non-fluents {
+		MOVE_DISTANCE(a1)=1;
+	};
+
+}
+
+// Specify three power plants with default settings
+instance inst_mars_rover {
+
+	domain = rover_discrete;
+
+	non-fluents = rover_d;
+
+	init-state{
+		pos_x(a1) = 0;
+		pos_y(a1) = 0;
+	};
+
+  	// State-action constraints above are sufficient
+	max-nondef-actions = pos-inf;
+
+	horizon  = 40;
+	discount = 1.0;
+}

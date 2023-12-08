@@ -244,6 +244,7 @@ class SymbolicSolver:
         if special_nodes is not None:
             for n in special_nodes:
                 self.context.add_special_node(n)
+
         for n in self.special_nodes:
             self.context.add_special_node(n)
 

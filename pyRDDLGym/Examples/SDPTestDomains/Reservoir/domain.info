@@ -1,0 +1,4 @@
+[General]
+name=ReservoirControl_SDP
+description=Discrete version of management of the water level in interconnected reservoirs.
+viz=TextViz.TextVisualizer
