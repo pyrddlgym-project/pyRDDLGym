@@ -20,6 +20,7 @@ class SumOfHalfSpacesModel:
                  n_summands,
                  instance_idx,
                  is_relaxed,
+                 reward_shift,
                  compiler_kwargs):
         """.
         """
@@ -42,12 +43,13 @@ class SumOfHalfSpacesModel:
         self.model = self.rddl_env.model
         self.action_dim = action_dim
         self.n_summands = n_summands
-        assert self.action_dim == self.rddl_env.numConcurrentActions
+        assert self.action_dim == self.rddl_env.max_allowed_actions
 
         if is_relaxed:
             self.compile_relaxed(compiler_kwargs)
         else:
             self.compile(compiler_kwargs)
+        self.reward_shift = reward_shift
 
 
     def compile(self, compiler_kwargs):
@@ -89,6 +91,7 @@ class SumOfHalfSpacesModel:
         use64bit = compiler_kwargs.get('use64bit', True)
 
         self.n_rollouts = n_rollouts
+        self.weight = weight
 
         self.compiler = JaxRDDLCompilerWithGrad(
             rddl=self.model,
@@ -119,8 +122,7 @@ class SumOfHalfSpacesModel:
             subs[next_state] = subs[state]
         self.subs = subs
 
-    def compute_loss(self, key, actions):
-        print(actions.shape)
+    def compute_loss(self, key, actions, shift=False):
         self.subs.update({'a': actions})
         rollouts = self.sampler(
             key,
@@ -128,4 +130,4 @@ class SumOfHalfSpacesModel:
             hyperparams=None,
             subs=self.subs,
             model_params=self.compiler.model_params)
-        return rollouts['reward'][..., 0]
+        return rollouts['reward'][..., 0] + shift * self.reward_shift
