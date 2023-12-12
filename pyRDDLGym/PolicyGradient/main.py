@@ -43,6 +43,7 @@ def main(config):
 
     action_dim = config['action_dim']
     n_iters = config['n_iters']
+    batch_size = config['algorithm']['params']['batch_size']
 
     # configure the bijector
     bijector_config = config['bijector']
@@ -93,6 +94,19 @@ def main(config):
     algorithm_fn = registry.algorithm_lookup_table[algorithm_config['id']]
     algorithm_params = algorithm_config['params']
 
+    # configure the sampler (if used)
+    if 'sampler' in algorithm_params:
+        sampler_config = algorithm_params['sampler']
+        sampler_cls = registry.sampler_lookup_table[sampler_config['type']]
+        sampler_params = sampler_config['params']
+        sampler = sampler_cls(
+            batch_size=batch_size,
+            action_dim=action_dim,
+            policy=policy,
+            config=sampler_params)
+    else:
+        sampler = None
+
     # run
     with jax.disable_jit(disable=not enable_jit):
         key, algo_stats = algorithm_fn(
@@ -101,6 +115,7 @@ def main(config):
             config=algorithm_params,
             bijector=bijector,
             policy=policy,
+            sampler=sampler,
             optimizer=optimizer,
             models=models)
 
