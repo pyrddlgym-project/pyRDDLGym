@@ -4,11 +4,9 @@ import jax.numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from enum import Enum
-
 import functools
 from time import perf_counter as timer
 
-import pyRDDLGym.PolicyGradient.samplers as samplers
 
 def cos_sim(A, B):
     return jnp.dot(A, B) / (jnp.linalg.norm(A) * jnp.linalg.norm(B))
@@ -36,52 +34,6 @@ def compute_next_sample_corr(D):
     K = K / K[sample_size-1]
     return K[sample_size]
 
-
-def init_hmc_state(key, n_chains, action_dim, policy, config):
-    key, subkey = jax.random.split(key)
-    shape = (n_chains, action_dim, 2, 1, action_dim)
-    if config['type'] == 'uniform':
-        init_state = jax.random.uniform(
-            key,
-            shape=shape,
-            minval=config['min'],
-            maxval=config['max'])
-    elif config['type'] == 'normal':
-        init_state = jax.random.normal(
-            key,
-            shape=shape)
-        init_state = config['mean'] + init_state * config['std']
-    elif config['type'] == 'current_policy':
-        init_state = policy.sample(key, policy.theta, shape[:-1])
-    else:
-        raise ValueError('[init_hmc_state] Unrecognized distribution type')
-    return key, init_state
-
-def generate_hmc_step_size(key, config):
-    key, subkey = jax.random.split(key)
-    if config['type'] == 'constant':
-        step_size = config['value']
-    elif config['type'] == 'uniform':
-        step_size = jax.random.uniform(
-            subkey,
-            minval=config['min'],
-            maxval=config['max'])
-    elif config['type'] == 'discrete_uniform':
-        index = jax.random.randint(
-            subkey,
-            shape=(),
-            minval=0, maxval=len(config['values']))
-        step_size = config['values'][index]
-    elif config['type'] == 'log_uniform':
-        log_step_size = jax.random.uniform(
-            subkey,
-            shape=(),
-            minval=jnp.log(config['min']),
-            maxval=jnp.log(config['max']))
-        step_size = jnp.exp(log_step_size)
-    else:
-        raise ValueError(f'[parse_hmc_step_size] Unrecognized step size type {config["type"]}')
-    return key, step_size
 
 
 
@@ -219,7 +171,6 @@ def update_impsmp_stats(
     eval_actions = policy.sample(subkey, theta, (model.n_rollouts,))
     eval_rewards = model.compute_loss(subkey, eval_actions, False)
 
-    # calculate the covariance matrices
     dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
     dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
 
@@ -292,7 +243,7 @@ def print_impsmp_report(it, algo_stats, is_accepted, batch_size, num_chains, tra
           f':: Eval reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
 
-def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, models):
+def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimizer, models):
     """Runs the REINFORCE with Importance Sampling algorithm"""
 
     # parse config
@@ -313,18 +264,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
         '[impsmp_per_parameter] Please check that eval_batch_size >= eval_model.n_rollouts.'
         f' eval_batch_size={eval_batch_size}, eval_model.n_rollouts={eval_model.n_rollouts}')
 
-    hmc_config = config['hmc']
-    hmc_config['num_iters_per_chain'] = int(batch_size // hmc_config["num_chains"])
-    assert hmc_config['num_iters_per_chain'] > 0, (
-        f'[impsmp_per_parameter] Please check that batch_size >= hmc["num_chains"].'
-        f' batch_size={batch_size}, hmc["num_chains"]={hmc_config["num_chains"]}')
-
-    if hmc_config['sampler_type'] == 'hmc':
-        sampler_factory = samplers.hmc.init_hmc_sampler
-    elif hmc_config['sampler_type'] == 'nuts':
-        sampler_factory = samplers.nuts.init_nuts_sampler
-    else:
-        raise ValueError(f'[impsmp_per_parameter] Unrecognized sampler type {hmc_config["sampler_type"]}')
 
     est_Z = config.get('est_Z', True)
 
@@ -365,18 +304,15 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
     }
     if track_next_sample_correlation:
         algo_stats.update({
-            'next_sample_correlation_per_chain': jnp.empty(shape=(n_iters, hmc_config['num_chains'], action_dim, 2, action_dim)),
+            'next_sample_correlation_per_chain': jnp.empty(shape=(n_iters, sampler.config['num_chains'], action_dim, 2, action_dim)),
             'next_sample_correlation_min': jnp.empty(shape=(n_iters,)),
             'next_sample_correlation_mean': jnp.empty(shape=(n_iters,)),
             'next_sample_correlation_max': jnp.empty(shape=(n_iters,)),
         })
 
-    if hmc_config['init_distribution']['type'] == 'normal':
-        hmc_config['init_distribution']['std'] = jnp.sqrt(hmc_config['init_distribution']['var'])
-
     # initialize HMC
-    key, hmc_initializer = init_hmc_state(key, hmc_config['num_chains'], action_dim, policy, hmc_config['init_distribution'])
-    key, hmc_step_size = generate_hmc_step_size(key, hmc_config['init_step_size'])
+    key = sampler.generate_initial_state(key)
+    key = sampler.generate_step_size(key)
 
     # initialize optimizer
     opt_state = optimizer.init(policy.theta)
@@ -395,28 +331,22 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
             unnormalized_log_rho, subkeys[1], policy.theta, policy, hmc_model, log_cutoff)
         parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
 
-        adaptive_hmc_kernel = sampler_factory(
-            target_log_prob_fn=parallel_log_density_over_chains,
-            step_size=hmc_step_size,
-            unconstraining_bijector=unconstraining_bijector,
-            **hmc_config)
-
+        #@@
+        key = sampler.generate_step_size(key)
+        key = sampler.prep(key,
+                           target_log_prob_fn=parallel_log_density_over_chains,
+                           unconstraining_bijector=unconstraining_bijector)
         try:
-            samples, is_accepted = tfp.mcmc.sample_chain(
-                seed=subkeys[2],
-                num_results=hmc_config['num_iters_per_chain'],
-                num_burnin_steps=hmc_config['num_burnin_iters_per_chain'],
-                current_state=hmc_initializer,
-                kernel=adaptive_hmc_kernel,
-                trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
+            key, samples, is_accepted = sampler.sample(key)
         except FloatingPointError:
             for stat_name, stat in algo_stats.items():
                 algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
-            key, hmc_initializer = init_hmc_state(key, hmc_config['num_chains'], action_dim, policy, hmc_config['init_distribution'])
-            key, hmc_step_size = generate_hmc_step_size(key, hmc_config["init_step_size"])
+
+            key = sampler.generate_initial_state(key)
+            key = sampler.generate_step_size(key)
 
             print(f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception.'
-                  f' hmc_initializer was resampled from the initial distribution.')
+                  f' The sampler has been reinitialized.')
 
         else:
             samples = samples.reshape(batch_size, action_dim, 2, 1, action_dim)
@@ -430,56 +360,52 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
             updates, opt_state = optimizer.update(dJ_hat, opt_state)
             policy.theta = optax.apply_updates(policy.theta, updates)
 
-            # initialize the next chain at a random point of the current chain
-            if hmc_config['reinit_strategy'] == 'random_sample':
-                key, hmc_initializer = init_hmc_state(
-                    key,
-                    hmc_config['num_chains'],
-                    action_dim,
-                    policy,
-                    hmc_config['init_distribution'])
+            # initialize the next chain
+            if config['reinit_strategy'] == 'random_sample':
+                key = sampler.generate_initial_state(key)
 
-            elif hmc_config['reinit_strategy'] == 'random_prev_chain_elt':
-                hmc_initializer = jax.random.choice(
-                    subkeys[3],
-                    a=samples,
-                    shape=(hmc_config["num_chains"],),
-                    replace=False)
+            elif config['reinit_strategy'] == 'random_prev_chain_elt':
+                sampler.set_initial_state(
+                    jax.random.choice(
+                        subkeys[3],
+                        a=samples,
+                        shape=(sampler.config["num_chains"],),
+                        replace=False))
 
-            elif hmc_config['reinit_strategy'] == 'random_prev_chain_elt_with_intermixing':
-                hmc_initializer = jax.random.choice(
-                    subkeys[3],
-                    a=samples,
-                    shape=(hmc_config["num_chains"],),
-                    replace=False)
+            #elif config['reinit_strategy'] == 'random_prev_chain_elt_with_intermixing':
+            #    hmc_initializer = jax.random.choice(
+            #        subkeys[3],
+            #        a=samples,
+            #        shape=(sampler.config["num_chains"],),
+            #        replace=False)
 
-                log_density = functools.partial(
-                    unnormalized_log_rho, subkeys[1], policy.theta, policy, models['mixing_model'], log_cutoff)
-                parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
+            #    log_density = functools.partial(
+            #        unnormalized_log_rho, subkeys[1], policy.theta, policy, models['mixing_model'], log_cutoff)
+            #    parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
 
-                intermediate_hmc_kernel = sampler_factory(
-                    target_log_prob_fn=parallel_log_density_over_chains,
-                    step_size=hmc_config['reinit_step_size'],
-                    unconstraining_bijector=unconstraining_bijector,
-                    **hmc_config)
+            #    intermediate_hmc_kernel = sampler_factory(
+            #        target_log_prob_fn=parallel_log_density_over_chains,
+            #        step_size=sampler.config['reinit_step_size'],
+            #        unconstraining_bijector=unconstraining_bijector,
+            #        **hmc_config)
 
-                hmc_initializer, _ = tfp.mcmc.sample_chain(
-                    seed=subkeys[3],
-                    num_results=1,
-                    num_burnin_steps=hmc_config['reinit_num_burnin_iters_per_chain'],
-                    current_state=hmc_initializer,
-                    kernel=intermediate_hmc_kernel,
-                    trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
-                hmc_initializer = hmc_initializer[0]
+            #    hmc_initializer, _ = tfp.mcmc.sample_chain(
+            #        seed=subkeys[3],
+            #        num_results=1,
+            #        num_burnin_steps=sampler.config['reinit_num_burnin_iters_per_chain'],
+            #        current_state=hmc_initializer,
+            #        kernel=intermediate_hmc_kernel,
+            #        trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
+            #    hmc_initializer = hmc_initializer[0]
             else:
-                raise ValueError('[impsmp_per_parameter] Unrecognized HMC reinitialization strategy '
+                raise ValueError('[impsmp_per_parameter] Unrecognized sampler reinitialization strategy '
                                 f'{hmc_config["reinit_strategy"]}. Expect "random_sample" '
                                  'or "random_prev_chain_elt"')
 
             # update stats and printout results for the current iteration
-            batch_stats['hmc_step_size'] = hmc_step_size
+            batch_stats['hmc_step_size'] = sampler.step_size
             key, algo_stats = update_impsmp_stats(key, it,
-                                                  hmc_config['num_chains'], hmc_config['num_iters_per_chain'],
+                                                  sampler.config['num_chains'], sampler.config['num_iters_per_chain'],
                                                   eval_n_shards, eval_batch_size,
                                                   algo_stats, batch_stats,
                                                   samples, is_accepted,
@@ -487,11 +413,9 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, optimizer, mode
                                                   track_next_sample_correlation,
                                                   divergence_threshold)
             print_impsmp_report(it, algo_stats, is_accepted,
-                                batch_size, hmc_config['num_chains'],
+                                batch_size, sampler.config['num_chains'],
                                 track_next_sample_correlation,
                                 subt0, timer())
-
-            key, hmc_step_size = generate_hmc_step_size(key, hmc_config["init_step_size"])
 
     algo_stats.update({
         'algorithm': 'ImpSmpPerParameter',

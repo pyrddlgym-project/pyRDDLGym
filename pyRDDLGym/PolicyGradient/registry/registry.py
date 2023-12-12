@@ -21,9 +21,9 @@ bijector_lookup_table = {
     'simplex': pyRDDLGym.PolicyGradient.bijectors.simplex.SimplexBijector,
 }
 
-sampler_factory_lookup_table = {
-    'hmc': pyRDDLGym.PolicyGradient.samplers.hmc.init_hmc_sampler,
-    'nuts': pyRDDLGym.PolicyGradient.samplers.nuts.init_nuts_sampler,
+sampler_lookup_table = {
+    'hmc': pyRDDLGym.PolicyGradient.samplers.hmc.HMCSampler,
+    'nuts': pyRDDLGym.PolicyGradient.samplers.hmc.NoUTurnSampler,
 }
 
 policy_lookup_table = {
@@ -65,4 +65,5 @@ algorithm_lookup_table = {
     'impsmp_per_parameter': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter.impsmp_per_parameter,
     'impsmp_per_parameter_analyze_1d_sampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_analyze_1d_sampling.impsmp_per_parameter_analyze_1d_sampling,
     'impsmp_per_parameter_analyze_2d_sampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_analyze_2d_sampling.impsmp_per_parameter_analyze_2d_sampling,
+    'impsmp_per_parameter_multi_cossim': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_multi_cossim.impsmp_per_parameter_multi_cossim,
 }

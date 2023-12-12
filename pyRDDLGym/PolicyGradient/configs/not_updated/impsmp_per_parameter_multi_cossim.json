@@ -1,0 +1,129 @@
+{ "useGPU": false,
+  "use64bit": true,
+  "debug_nans": true,
+  "enable_jit": true,
+  "seed": 3264,
+  "action_dim": 9,
+  "n_iters": 10,
+  "models": {
+    "id": "sum_of_half_spaces",
+    "params": {
+      "n_summands": 10,
+      "instance_idx": 2,
+      "reward_shift": 0.0,
+      "specs": {
+        "hmc_model": {
+          "is_relaxed": true,
+          "compiler_kwargs": {
+            "n_rollouts": 1,
+            "weight": 20.0
+          }
+        },
+        "train_model4": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 4
+          }
+        },
+        "train_model16": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 16
+          }
+        },
+        "train_model32": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 32
+          }
+        },
+        "train_model128": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 128
+          }
+        },
+        "train_model1024": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1024
+          }
+        },
+        "train_model8192": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1024
+          }
+        },
+        "train_model16384": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1024
+          }
+        },
+        "train_model32768": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1024
+          }
+        },
+        "train_model65536": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1024
+          }
+        },
+        "train_model131072": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1024
+          }
+        },
+        "eval_model": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 32
+          }
+        }
+      }
+    }
+  },
+  "bijector": {
+    "id": "identity",
+    "params": {}
+  },
+  "policy": {
+    "id": "multivar_normal_with_linear_parametrization",
+    "params": {}
+  },
+  "optimizer": {
+    "id": "adagrad",
+    "params": {
+      "learning_rate": 0.7
+    }
+  },
+  "algorithm": {
+    "id": "impsmp_per_parameter_multi_cossim",
+    "params": {
+      "eval_batch_size": 32,
+      "epsilon": 0.0,
+      "log_cutoff": -1000.0,
+      "est_Z": true,
+      "hmc" : {
+        "sampler_type": "nuts",
+        "init_step_size": {
+            "type": "constant",
+            "value": 0.1
+        },
+        "init_distribution": {
+            "type": "uniform",
+            "min": -5.0,
+            "max": 5.0
+        },
+        "reinit_strategy": "random_sample"
+      },
+      "verbose": true
+    }
+  },
+  "save_to": "/home/ilia/Programming/storage/tmp"
+}

@@ -46,8 +46,9 @@ def reinforce_inner_loop(key, theta, n_shards, batch_size, epsilon, policy, mode
     batch_stats = {
         'actions': jnp.empty(shape=(batch_size, policy.action_dim)),
         'dJ': jnp.empty(shape=(batch_size, policy.n_params)),
-        'dJ_covar': None,
     }
+
+    jacobian = jax.jacrev(policy.pdf, argnums=1)
 
     # compute dJ hat for the current sample, dividing the computation up
     # into shards of size model.n_rollouts (for example, this can be
@@ -58,7 +59,7 @@ def reinforce_inner_loop(key, theta, n_shards, batch_size, epsilon, policy, mode
         key, subkey = jax.random.split(key)
         actions = policy.sample(subkey, theta, (model.n_rollouts,))
         pi = policy.pdf(subkey, theta, actions)
-        dpi = jax.jacrev(policy.pdf, argnums=1)(subkey, theta, actions)
+        dpi = jacobian(subkey, theta, actions)
         rewards = jnp.squeeze(model.compute_loss(subkey, actions))
         factors = rewards / (pi + epsilon)
 
@@ -72,9 +73,6 @@ def reinforce_inner_loop(key, theta, n_shards, batch_size, epsilon, policy, mode
         # collect statistics for the batch
         batch_stats['dJ'] = flatten_dJ_shard(dJ_shard, shard_fr, shard_to, batch_stats['dJ'])
         batch_stats['actions'] = batch_stats['actions'].at[shard_fr:shard_to].set(actions)
-
-
-    batch_stats['dJ_covar'] = jnp.cov(batch_stats['dJ'], rowvar=False)
 
     return key, dJ_hat, batch_stats
 
@@ -98,16 +96,17 @@ def update_reinforce_stats(key, it, algo_stats, batch_stats):
     from the computation of dJ_hat for the current sample as well as
     the current policy mean/cov """
     dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
+    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
 
     algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
     algo_stats['dJ_hat_max']         = algo_stats['dJ_hat_max'].at[it].set(jnp.max(dJ_hat))
     algo_stats['dJ_hat_min']         = algo_stats['dJ_hat_min'].at[it].set(jnp.min(dJ_hat))
     algo_stats['dJ_hat_norm']        = algo_stats['dJ_hat_norm'].at[it].set(jnp.linalg.norm(dJ_hat))
-    algo_stats['dJ_covar_max']       = algo_stats['dJ_covar_max'].at[it].set(jnp.max(batch_stats['dJ_covar']))
-    algo_stats['dJ_covar_min']       = algo_stats['dJ_covar_min'].at[it].set(jnp.min(batch_stats['dJ_covar']))
-    algo_stats['dJ_covar_diag_max']  = algo_stats['dJ_covar_diag_max'].at[it].set(jnp.max(jnp.diag(batch_stats['dJ_covar'])))
-    algo_stats['dJ_covar_diag_min']  = algo_stats['dJ_covar_diag_min'].at[it].set(jnp.min(jnp.diag(batch_stats['dJ_covar'])))
-    algo_stats['dJ_covar_diag_mean'] = algo_stats['dJ_covar_diag_mean'].at[it].set(jnp.mean(jnp.diag(batch_stats['dJ_covar'])))
+    algo_stats['dJ_covar_max']       = algo_stats['dJ_covar_max'].at[it].set(jnp.max(dJ_covar))
+    algo_stats['dJ_covar_min']       = algo_stats['dJ_covar_min'].at[it].set(jnp.min(dJ_covar))
+    algo_stats['dJ_covar_diag_max']  = algo_stats['dJ_covar_diag_max'].at[it].set(jnp.max(jnp.diag(dJ_covar)))
+    algo_stats['dJ_covar_diag_min']  = algo_stats['dJ_covar_diag_min'].at[it].set(jnp.min(jnp.diag(dJ_covar)))
+    algo_stats['dJ_covar_diag_mean'] = algo_stats['dJ_covar_diag_mean'].at[it].set(jnp.mean(jnp.diag(dJ_covar)))
     algo_stats['transformed_policy_sample_mean'] = algo_stats['transformed_policy_sample_mean'].at[it].set(jnp.squeeze(jnp.mean(batch_stats['actions'], axis=0)))
     algo_stats['transformed_policy_sample_cov']  = algo_stats['transformed_policy_sample_cov'].at[it].set(jnp.squeeze(jnp.std(batch_stats['actions'], axis=0))**2)
     return key, algo_stats

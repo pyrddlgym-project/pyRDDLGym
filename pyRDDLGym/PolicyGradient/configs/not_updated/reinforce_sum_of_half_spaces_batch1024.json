@@ -3,21 +3,15 @@
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 1,
+  "action_dim": 9,
   "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
       "n_summands": 10,
       "instance_idx": 0,
+      "reward_shift": 0.0,
       "specs": {
-        "hmc_model": {
-          "is_relaxed": true,
-          "compiler_kwargs": {
-            "n_rollouts": 1,
-            "weight": 5.0
-          }
-        },
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
@@ -48,26 +42,13 @@
     }
   },
   "algorithm": {
-    "id": "impsmp",
+    "id": "reinforce",
     "params": {
       "batch_size": 1024,
       "eval_batch_size": 32,
       "epsilon": 0.0,
-      "est_Z": true,
-      "hmc" : {
-        "num_chains": 1,
-        "num_burnin_iters_per_chain": 512,
-        "init_step_size": 0.003,
-        "num_leapfrog_steps": 50,
-        "init_distribution": {
-          "type": "normal",
-          "mean": 0.0,
-          "var": 5.0
-        },
-        "reinit_strategy": "random_sample"
-      },
       "verbose": true
     }
   },
-  "save_to": "/tmp"
+  "save_to": "/home/ilia/Programming/storage/tmp"
 }
