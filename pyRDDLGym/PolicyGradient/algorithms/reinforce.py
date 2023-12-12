@@ -125,7 +125,7 @@ def print_reinforce_report(it, algo_stats, subt0, subt1):
     print(f'Eval. reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
 
-def reinforce(key, n_iters, config, bijector, policy, optimizer, models):
+def reinforce(key, n_iters, config, bijector, policy, sampler, optimizer, models):
     """Runs the REINFORCE algorithm"""
 
     action_dim = policy.action_dim
