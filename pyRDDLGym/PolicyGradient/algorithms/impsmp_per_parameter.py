@@ -193,23 +193,23 @@ def update_impsmp_stats(
     algo_stats['reward_std']              = algo_stats['reward_std'].at[it].set(jnp.std(eval_rewards))
     algo_stats['reward_sterr']            = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
 
-    algo_stats['sample_rewards']      = algo_stats['sample_rewards'].at[it].set(batch_stats['sample_rewards'])
-    algo_stats['sample_reward_mean']  = algo_stats['sample_reward_mean'].at[it].set(jnp.mean(batch_stats['sample_rewards']))
-    algo_stats['sample_reward_std']   = algo_stats['sample_reward_std'].at[it].set(jnp.std(batch_stats['sample_rewards']))
-    algo_stats['sample_reward_sterr'] = algo_stats['sample_reward_sterr'].at[it].set(algo_stats['sample_reward_std'][it] / jnp.sqrt(batch_size))
-    algo_stats['acceptance_rate']     = algo_stats['acceptance_rate'].at[it].set(jnp.mean(is_accepted))
-    algo_stats['hmc_step_size']       = algo_stats['hmc_step_size'].at[it].set(batch_stats['hmc_step_size'])
+    #algo_stats['sample_rewards']      = algo_stats['sample_rewards'].at[it].set(batch_stats['sample_rewards'])
+    #algo_stats['sample_reward_mean']  = algo_stats['sample_reward_mean'].at[it].set(jnp.mean(batch_stats['sample_rewards']))
+    #algo_stats['sample_reward_std']   = algo_stats['sample_reward_std'].at[it].set(jnp.std(batch_stats['sample_rewards']))
+    #algo_stats['sample_reward_sterr'] = algo_stats['sample_reward_sterr'].at[it].set(algo_stats['sample_reward_std'][it] / jnp.sqrt(batch_size))
+    #algo_stats['acceptance_rate']     = algo_stats['acceptance_rate'].at[it].set(jnp.mean(is_accepted))
+    #algo_stats['hmc_step_size']       = algo_stats['hmc_step_size'].at[it].set(batch_stats['hmc_step_size'])
 
     algo_stats['scores']              = algo_stats['scores'].at[it].set(batch_stats['scores'])
     algo_stats['mean_abs_score']      = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
     algo_stats['std_abs_score']       = algo_stats['std_abs_score'].at[it].set(jnp.std(jnp.abs(batch_stats['scores'])))
 
 
-    samples = samples.reshape(num_samples_per_chain, num_chains, policy.action_dim, 2, policy.action_dim)
+    #samples = samples.reshape(num_samples_per_chain, num_chains, policy.action_dim, 2, policy.action_dim)
 
-    num_divergent_samples_per_chain = jnp.sum(jnp.abs(samples) > divergence_threshold, axis=0)
-    num_divergent_chains = jnp.sum(num_divergent_samples_per_chain > 0)
-    algo_stats['num_divergent_chains'] = algo_stats['num_divergent_chains'].at[it].set(num_divergent_chains)
+    #num_divergent_samples_per_chain = jnp.sum(jnp.abs(samples) > divergence_threshold, axis=0)
+    #num_divergent_chains = jnp.sum(num_divergent_samples_per_chain > 0)
+    #algo_stats['num_divergent_chains'] = algo_stats['num_divergent_chains'].at[it].set(num_divergent_chains)
 
     if track_next_sample_correlation:
         next_sample_correlation = jnp.apply_along_axis(
@@ -310,7 +310,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             'next_sample_correlation_max': jnp.empty(shape=(n_iters,)),
         })
 
-    # initialize HMC
+    # initialize sampler
     key = sampler.generate_initial_state(key)
     key = sampler.generate_step_size(key)
 
@@ -329,15 +329,15 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
 
         log_density = functools.partial(
             unnormalized_log_rho, subkeys[1], policy.theta, policy, hmc_model, log_cutoff)
-        parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
+        #parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
+        parallel_log_density_over_chains = log_density
 
-        #@@
         key = sampler.generate_step_size(key)
         key = sampler.prep(key,
                            target_log_prob_fn=parallel_log_density_over_chains,
                            unconstraining_bijector=unconstraining_bijector)
         try:
-            key, samples, is_accepted = sampler.sample(key)
+            key, samples, is_accepted = sampler.sample(key, policy.theta)
         except FloatingPointError:
             for stat_name, stat in algo_stats.items():
                 algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
@@ -405,7 +405,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             # update stats and printout results for the current iteration
             batch_stats['hmc_step_size'] = sampler.step_size
             key, algo_stats = update_impsmp_stats(key, it,
-                                                  sampler.config['num_chains'], sampler.config['num_iters_per_chain'],
+            #                                      sampler.config['num_chains'], sampler.config['num_iters_per_chain'],
+                                                  1, 1,
                                                   eval_n_shards, eval_batch_size,
                                                   algo_stats, batch_stats,
                                                   samples, is_accepted,
@@ -413,7 +414,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
                                                   track_next_sample_correlation,
                                                   divergence_threshold)
             print_impsmp_report(it, algo_stats, is_accepted,
-                                batch_size, sampler.config['num_chains'],
+#                                batch_size, sampler.config['num_chains'],
+                                batch_size, 1,
                                 track_next_sample_correlation,
                                 subt0, timer())
 

@@ -12,10 +12,17 @@
       "instance_idx": 0,
       "reward_shift": 0.0,
       "specs": {
+        "hmc_model": {
+          "is_relaxed": true,
+          "compiler_kwargs": {
+            "n_rollouts": 1,
+            "weight": 20.0
+          }
+        },
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 128
+            "n_rollouts": 4
           }
         },
         "eval_model": {
@@ -42,11 +49,20 @@
     }
   },
   "algorithm": {
-    "id": "reinforce",
+    "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 128,
+      "batch_size": 4,
       "eval_batch_size": 32,
       "epsilon": 0.0,
+      "log_cutoff": -1000.0,
+      "est_Z": true,
+      "sampler": {
+        "type": "rejection_sampling",
+        "params": {
+          "rejection_threshold": 25000
+        }
+      },
+      "reinit_strategy": "random_sample",
       "verbose": true
     }
   },
