@@ -3,6 +3,11 @@ import jax.numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 
+VALID_SAMPLING_PDF_TYPES = (
+    'cur_policy',
+    'uniform',
+)
+
 class RejectionSampler:
     def __init__(self,
                  n_iters,
@@ -16,6 +21,9 @@ class RejectionSampler:
         self.config = config
         self.init_state = None
         self.step_size = None
+
+        self.sampling_pdf_type = self.config['sampling_pdf_type']
+        assert self.sampling_pdf_type in VALID_SAMPLING_PDF_TYPES
 
         self.sample_shape = (self.action_dim, 2,
                              1, self.action_dim)
@@ -45,12 +53,16 @@ class RejectionSampler:
     def body_fn(self, val):
         key, M, theta, sample, passed = val
         key, *subkeys = jax.random.split(key, num=4)
-        actions = self.policy.sample(subkeys[0], theta, self.actions_shape)
-        policy_pdf = self.policy.pdf(subkeys[1], theta, actions)[..., 0]
+        if self.sampling_pdf_type == 'cur_policy':
+            actions = self.policy.sample(subkeys[0], theta, self.actions_shape)
+            sampling_pdf = self.policy.pdf(subkeys[1], theta, actions)[..., 0]
+        elif self.sampling_pdf_type == 'uniform':
+            actions = jax.random.uniform(subkeys[1], shape=self.sample_shape, minval=-5.0, maxval=5.0)
+            sampling_pdf = 0.1**(self.action_dim) * jnp.ones(shape=(self.action_dim, 2))
         instrumental_pdf = jnp.exp(self.target_log_prob_fn(actions))
 
-        u = jax.random.uniform(subkeys[2], shape=policy_pdf.shape)
-        acceptance_criterion = u < instrumental_pdf / (M * policy_pdf)
+        u = jax.random.uniform(subkeys[2], shape=sampling_pdf.shape)
+        acceptance_criterion = u < instrumental_pdf / (M * sampling_pdf)
 
         # accept if meet criterion and not previously accepted
         acceptance_criterion = jnp.logical_and(acceptance_criterion,
@@ -73,13 +85,13 @@ class RejectionSampler:
         key, *subkeys = jax.random.split(key, num=self.batch_size+1)
         subkeys = jnp.asarray(subkeys)
         samples = jax.jit(jax.vmap(_gen_one_sample_per_param, (0, None, None), 0))(
-            subkeys, theta, self.config['rejection_threshold'])
+            subkeys, theta, self.config['rejection_rate'])
 
-        return key, samples, jnp.array([1])
+        return key, samples, None
 
     def update_stats(self, it, samples, is_accepted):
-        """Included to have a consistent interface with HMC"""
+        """Included to have a consistent interface with that of HMC"""
         pass
 
     def print_report(self, it):
-        print(f'Rejection Sampler :: Batch={self.batch_size} :: Rej.threshold={self.config["rejection_threshold"]}')
+        print(f'Rejection Sampler :: Batch={self.batch_size} :: Rej.rate={self.config["rejection_rate"]}')

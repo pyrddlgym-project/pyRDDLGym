@@ -62,7 +62,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     batch_stats = {}
     jacobian = jax.jacrev(policy.pdf, argnums=1)
 
-    def _shard(key, actions):
+    def compute_dJ_hat_summands_for_shard(key, actions):
         key, subkey = jax.random.split(key)
 
         pi = policy.pdf(key, theta, actions)[..., 0]
@@ -82,15 +82,15 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         rho = batch_unnormalized_rho(key, theta, policy, sampling_model, actions)
 
         factors = losses / (rho + epsilon)
-        scores = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
+        dJ_summands = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
 
-        return key, (pi, rho, losses, scores)
+        return key, (pi, rho, losses, dJ_summands)
 
     sharded_actions = jnp.split(samples, n_shards)
     sharded_actions = jnp.stack(sharded_actions)
-    key, (pi, rho, losses, scores) = jax.lax.scan(_shard, key, sharded_actions)
+    key, (pi, rho, losses, dJ_summands) = jax.lax.scan(compute_dJ_hat_summands_for_shard, key, sharded_actions)
 
-    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,1)), scores)
+    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,1)), dJ_summands)
 
     # estimate of the normalizing factor Z of the density rho
     if est_Z:
@@ -99,7 +99,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         batch_stats['Zinv'] = Zinv.reshape(policy.n_params)
 
     #FIXME: The below assumes a linear policy parametrization
-    batch_stats['dJ'] = scores['linear']['w'].reshape(batch_size, policy.n_params)
+    batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(batch_size, policy.n_params)
     batch_stats['sample_losses'] = losses.reshape(batch_size, policy.n_params)
 
     return key, dJ_hat, batch_stats
@@ -187,7 +187,6 @@ def print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, subt1):
 
 def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimizer, models):
     """Runs the REINFORCE with Importance Sampling algorithm"""
-
     # parse config
     action_dim = policy.action_dim
     batch_size = config['batch_size']
@@ -338,7 +337,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
                                                   samples, is_accepted,
                                                   policy.theta, policy, eval_model)
             sampler.update_stats(it, samples, is_accepted)
-            print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, timer())
+            if config['verbose']:
+                print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, timer())
 
     algo_stats.update({
         'algorithm': 'ImpSmpPerParameter',
