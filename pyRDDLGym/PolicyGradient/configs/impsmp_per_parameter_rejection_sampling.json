@@ -51,7 +51,7 @@
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 4,
+      "batch_size": 32,
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "log_cutoff": -1000.0,
@@ -59,7 +59,7 @@
       "sampler": {
         "type": "rejection_sampling",
         "params": {
-          "rejection_threshold": 25000
+          "rejection_threshold": 100
         }
       },
       "reinit_strategy": "random_sample",

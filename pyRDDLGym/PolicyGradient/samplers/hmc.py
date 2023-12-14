@@ -97,14 +97,16 @@ class HMCSampler:
              unconstraining_bijector):
 
         num_leapfrog_steps = self.config['num_leapfrog_steps']
-        num_burnin_steps = self.config['num_burin_iters_per_chain']
+        num_burnin_steps = self.config['num_burnin_iters_per_chain']
         num_adaptation_steps = self.config.get('num_adaptation_steps')
 
         if num_adaptation_steps is None:
-            num_adaptation_steps = int(num_burin_steps * 0.8)
+            num_adaptation_steps = int(num_burnin_steps * 0.8)
+
+        parallel_log_density_over_chains = jax.vmap(target_log_prob_fn, 0, 0)
 
         hmc_sampler = tfp.mcmc.HamiltonianMonteCarlo(
-            target_log_prob_fn=target_log_prob_fn,
+            target_log_prob_fn=parallel_log_density_over_chains,
             step_size=self.step_size,
             num_leapfrog_steps=num_leapfrog_steps)
 
@@ -117,7 +119,7 @@ class HMCSampler:
             bijector=unconstraining_bijector)
         return key
 
-    def sample(self, key):
+    def sample(self, key, theta):
         key, subkey = jax.random.split(key)
         return key, *tfp.mcmc.sample_chain(
             seed=subkey,
@@ -140,8 +142,10 @@ class NoUTurnSampler(HMCSampler):
         if num_adaptation_steps is None:
             num_adaptation_steps = int(num_burnin_iters_per_chain * 0.8)
 
+        parallel_log_density_over_chains = jax.vmap(target_log_prob_fn, 0, 0)
+
         nuts = tfp.mcmc.NoUTurnSampler(
-            target_log_prob_fn=target_log_prob_fn,
+            target_log_prob_fn=parallel_log_density_over_chains,
             step_size=self.step_size,
             max_tree_depth=max_tree_depth)
 

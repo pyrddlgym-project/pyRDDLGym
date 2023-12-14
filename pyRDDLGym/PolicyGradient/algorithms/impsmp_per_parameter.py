@@ -329,12 +329,10 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
 
         log_density = functools.partial(
             unnormalized_log_rho, subkeys[1], policy.theta, policy, hmc_model, log_cutoff)
-        #parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
-        parallel_log_density_over_chains = log_density
 
         key = sampler.generate_step_size(key)
         key = sampler.prep(key,
-                           target_log_prob_fn=parallel_log_density_over_chains,
+                           target_log_prob_fn=log_density,
                            unconstraining_bijector=unconstraining_bijector)
         try:
             key, samples, is_accepted = sampler.sample(key, policy.theta)
