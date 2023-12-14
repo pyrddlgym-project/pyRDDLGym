@@ -100,6 +100,7 @@ def main(config):
         sampler_cls = registry.sampler_lookup_table[sampler_config['type']]
         sampler_params = sampler_config['params']
         sampler = sampler_cls(
+            n_iters=n_iters,
             batch_size=batch_size,
             action_dim=action_dim,
             policy=policy,

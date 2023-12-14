@@ -27,14 +27,6 @@ def flatten_dJ_shard(dJ_shard, ifrom, ito, flat_dJ_shard):
         ip0 = ip1
     return flat_dJ_shard
 
-def compute_next_sample_corr(D):
-    sample_size = len(D)
-    D = D - jnp.mean(D)
-    K = jnp.correlate(D, D, 'full')
-    K = K / K[sample_size-1]
-    return K[sample_size]
-
-
 
 
 @functools.partial(jax.jit, static_argnames=('policy', 'model'))
@@ -71,11 +63,11 @@ def unnormalized_log_rho(key, theta, policy, model, log_cutoff, a):
         'epsilon',
         'est_Z',
         'policy',
-        'hmc_model',
+        'sampling_model',
         'train_model',))
 def impsmp_per_parameter_inner_loop(key, theta, samples,
                                     n_shards, batch_size, epsilon, est_Z,
-                                    policy, hmc_model, train_model):
+                                    policy, sampling_model, train_model):
     batch_stats = {
         'sample_rewards': jnp.empty(shape=(batch_size, policy.n_params)),
         'scores': jnp.empty(shape=(batch_size, policy.n_params)),
@@ -106,7 +98,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         losses = batch_compute_loss(key, actions, True)[..., 0]
 
         batch_unnormalized_rho = jax.vmap(unnormalized_rho, (None, None, None, None, 0), 0)
-        rho = batch_unnormalized_rho(key, theta, policy, hmc_model, actions)
+        rho = batch_unnormalized_rho(key, theta, policy, sampling_model, actions)
 
         factors = losses / (rho + epsilon)
         scores = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
@@ -137,19 +129,15 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
 @functools.partial(
     jax.jit,
     static_argnames=(
-        'num_chains',
-        'num_samples_per_chain',
+        'batch_size',
         'eval_n_shards',
         'eval_batch_size',
         'policy',
-        'model',
-        'track_next_sample_correlation',
-        'divergence_threshold',))
+        'model',))
 def update_impsmp_stats(
     key,
     it,
-    num_chains,
-    num_samples_per_chain,
+    batch_size,
     eval_n_shards,
     eval_batch_size,
     algo_stats,
@@ -158,13 +146,10 @@ def update_impsmp_stats(
     is_accepted,
     theta,
     policy,
-    model,
-    track_next_sample_correlation,
-    divergence_threshold):
+    model):
     """Updates the REINFORCE with Importance Sampling statistics
     using the statistics returned from the computation of dJ_hat
     for the current sample as well as the current policy params theta"""
-    batch_size = num_chains * num_samples_per_chain
 
     key, subkey = jax.random.split(key)
     policy_mean, policy_cov = policy.apply(subkey, theta)
@@ -193,53 +178,31 @@ def update_impsmp_stats(
     algo_stats['reward_std']              = algo_stats['reward_std'].at[it].set(jnp.std(eval_rewards))
     algo_stats['reward_sterr']            = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
 
-    #algo_stats['sample_rewards']      = algo_stats['sample_rewards'].at[it].set(batch_stats['sample_rewards'])
-    #algo_stats['sample_reward_mean']  = algo_stats['sample_reward_mean'].at[it].set(jnp.mean(batch_stats['sample_rewards']))
-    #algo_stats['sample_reward_std']   = algo_stats['sample_reward_std'].at[it].set(jnp.std(batch_stats['sample_rewards']))
-    #algo_stats['sample_reward_sterr'] = algo_stats['sample_reward_sterr'].at[it].set(algo_stats['sample_reward_std'][it] / jnp.sqrt(batch_size))
-    #algo_stats['acceptance_rate']     = algo_stats['acceptance_rate'].at[it].set(jnp.mean(is_accepted))
-    #algo_stats['hmc_step_size']       = algo_stats['hmc_step_size'].at[it].set(batch_stats['hmc_step_size'])
+    algo_stats['sample_rewards']      = algo_stats['sample_rewards'].at[it].set(batch_stats['sample_rewards'])
+    algo_stats['sample_reward_mean']  = algo_stats['sample_reward_mean'].at[it].set(jnp.mean(batch_stats['sample_rewards']))
+    algo_stats['sample_reward_std']   = algo_stats['sample_reward_std'].at[it].set(jnp.std(batch_stats['sample_rewards']))
+    algo_stats['sample_reward_sterr'] = algo_stats['sample_reward_sterr'].at[it].set(algo_stats['sample_reward_std'][it] / jnp.sqrt(batch_size))
 
     algo_stats['scores']              = algo_stats['scores'].at[it].set(batch_stats['scores'])
     algo_stats['mean_abs_score']      = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
     algo_stats['std_abs_score']       = algo_stats['std_abs_score'].at[it].set(jnp.std(jnp.abs(batch_stats['scores'])))
 
-
-    #samples = samples.reshape(num_samples_per_chain, num_chains, policy.action_dim, 2, policy.action_dim)
-
-    #num_divergent_samples_per_chain = jnp.sum(jnp.abs(samples) > divergence_threshold, axis=0)
-    #num_divergent_chains = jnp.sum(num_divergent_samples_per_chain > 0)
-    #algo_stats['num_divergent_chains'] = algo_stats['num_divergent_chains'].at[it].set(num_divergent_chains)
-
-    if track_next_sample_correlation:
-        next_sample_correlation = jnp.apply_along_axis(
-            compute_next_sample_corr,
-            axis=0,
-            arr=samples)
-        algo_stats['next_sample_correlation_per_chain'] = algo_stats['next_sample_correlation_per_chain'].at[it].set(next_sample_correlation)
-        algo_stats['next_sample_correlation_min'] = algo_stats['next_sample_correlation_min'].at[it].set(jnp.min(next_sample_correlation))
-        algo_stats['next_sample_correlation_mean'] = algo_stats['next_sample_correlation_mean'].at[it].set(jnp.mean(next_sample_correlation))
-        algo_stats['next_sample_correlation_max'] = algo_stats['next_sample_correlation_max'].at[it].set(jnp.max(next_sample_correlation))
-
     return key, algo_stats
 
-def print_impsmp_report(it, algo_stats, is_accepted, batch_size, num_chains, track_next_sample_correlation, subt0, subt1):
+def print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, subt1):
     """Prints out the results for the current REINFORCE with Importance Sampling iteration"""
     print(f'Iter {it} :: Importance Sampling :: Runtime={subt1-subt0}s')
-    print(f'Batch size={batch_size} :: Num.Chains={num_chains} :: HMC step size={algo_stats["hmc_step_size"][it]:.4f} :: HMC acceptance rate={algo_stats["acceptance_rate"][it]*100:.2f}%')
+    sampler.print_report(it)
     print(f'Untransformed parametrized policy [Mean, Diag(Cov)] =')
     print(algo_stats['policy_mean'][it])
     print(algo_stats['policy_cov'][it])
     print(f'Transformed action sample statistics [Mean, StDev] =')
     print(algo_stats['transformed_policy_mean'][it])
     print(algo_stats['transformed_policy_cov'][it])
-    print(f'Num. divergent chains={algo_stats["num_divergent_chains"][it]}')
     print(f'{algo_stats["dJ_hat_min"][it]} <= dJ_hat <= {algo_stats["dJ_hat_max"][it]} :: Norm={algo_stats["dJ_hat_norm"][it]}')
     print(f'dJ cov: {algo_stats["dJ_covar_diag_min"][it]} <= (Mean) {algo_stats["dJ_covar_diag_mean"][it]} <= {algo_stats["dJ_covar_diag_max"][it]}')
     print(f'Mean abs. score={algo_stats["mean_abs_score"][it]} \u00B1 {algo_stats["std_abs_score"][it]:.3f}')
-    if track_next_sample_correlation:
-        print(f'Next sample corr.: {algo_stats["next_sample_correlation_min"][it]:.4f} <= (Mean) {algo_stats["next_sample_correlation_mean"][it]:.4f} <= {algo_stats["next_sample_correlation_max"][it]:.4f}')
-    print(f'HMC sample reward={algo_stats["sample_reward_mean"][it]:.3f} \u00B1 {algo_stats["sample_reward_sterr"][it]:.3f} '
+    print(f'Sample reward={algo_stats["sample_reward_mean"][it]:.3f} \u00B1 {algo_stats["sample_reward_sterr"][it]:.3f} '
           f':: Eval reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
 
@@ -251,15 +214,15 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
     batch_size = config['batch_size']
     eval_batch_size = config['eval_batch_size']
 
-    hmc_model = models['hmc_model']
+    sampling_model = models['sampling_model']
     train_model = models['train_model']
     eval_model = models['eval_model']
 
-    n_shards = int(batch_size // (hmc_model.n_rollouts * train_model.n_rollouts))
-    eval_n_shards = int(eval_batch_size // eval_model.n_rollouts)
+    n_shards = int(batch_size / (sampling_model.n_rollouts * train_model.n_rollouts))
+    eval_n_shards = int(eval_batch_size / eval_model.n_rollouts)
     assert n_shards > 0, (
-         '[impsmp_per_parameter] Please check that batch_size >= (hmc_model.n_rollouts * train_model.n_rollouts).'
-        f' batch_size={batch_size}, hmc_model.n_rollouts={hmc_model.n_rollouts}, train_model.n_rollouts={train_model.n_rollouts}')
+         '[impsmp_per_parameter] Please check that batch_size >= (sampling_model.n_rollouts * train_model.n_rollouts).'
+        f' batch_size={batch_size}, sampling_model.n_rollouts={sampling_model.n_rollouts}, train_model.n_rollouts={train_model.n_rollouts}')
     assert eval_n_shards > 0, (
         '[impsmp_per_parameter] Please check that eval_batch_size >= eval_model.n_rollouts.'
         f' eval_batch_size={eval_batch_size}, eval_model.n_rollouts={eval_model.n_rollouts}')
@@ -269,8 +232,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
 
     epsilon = config.get('epsilon', 1e-12)
     log_cutoff = config.get('log_cutoff', -1000.)
-    divergence_threshold = config.get('divergence_threshold', 10.)
-    track_next_sample_correlation = config.get('track_next_sample_correlation', False)
 
     # initialize stats collection
     algo_stats = {
@@ -285,8 +246,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'sample_reward_mean': jnp.empty(shape=(n_iters,)),
         'sample_reward_std': jnp.empty(shape=(n_iters,)),
         'sample_reward_sterr': jnp.empty(shape=(n_iters,)),
-        'acceptance_rate': jnp.empty(shape=(n_iters,)),
-        'hmc_step_size': jnp.empty(shape=(n_iters,)),
         'dJ': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
         'dJ_hat_max': jnp.empty(shape=(n_iters,)),
         'dJ_hat_min': jnp.empty(shape=(n_iters,)),
@@ -300,15 +259,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'scores': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
         'mean_abs_score': jnp.empty(shape=(n_iters,)),
         'std_abs_score': jnp.empty(shape=(n_iters,)),
-        'num_divergent_chains': jnp.empty(shape=(n_iters,)),
     }
-    if track_next_sample_correlation:
-        algo_stats.update({
-            'next_sample_correlation_per_chain': jnp.empty(shape=(n_iters, sampler.config['num_chains'], action_dim, 2, action_dim)),
-            'next_sample_correlation_min': jnp.empty(shape=(n_iters,)),
-            'next_sample_correlation_mean': jnp.empty(shape=(n_iters,)),
-            'next_sample_correlation_max': jnp.empty(shape=(n_iters,)),
-        })
 
     # initialize sampler
     key = sampler.generate_initial_state(key)
@@ -328,7 +279,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         key, *subkeys = jax.random.split(key, num=5)
 
         log_density = functools.partial(
-            unnormalized_log_rho, subkeys[1], policy.theta, policy, hmc_model, log_cutoff)
+            unnormalized_log_rho, subkeys[1], policy.theta, policy, sampling_model, log_cutoff)
 
         key = sampler.generate_step_size(key)
         key = sampler.prep(key,
@@ -353,7 +304,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             key, dJ_hat, batch_stats = impsmp_per_parameter_inner_loop(
                 key, policy.theta, samples,
                 n_shards, batch_size, epsilon, est_Z,
-                policy, hmc_model, train_model)
+                policy, sampling_model, train_model)
 
             updates, opt_state = optimizer.update(dJ_hat, opt_state)
             policy.theta = optax.apply_updates(policy.theta, updates)
@@ -401,21 +352,14 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
                                  'or "random_prev_chain_elt"')
 
             # update stats and printout results for the current iteration
-            batch_stats['hmc_step_size'] = sampler.step_size
             key, algo_stats = update_impsmp_stats(key, it,
-            #                                      sampler.config['num_chains'], sampler.config['num_iters_per_chain'],
-                                                  1, 1,
+                                                  batch_size,
                                                   eval_n_shards, eval_batch_size,
                                                   algo_stats, batch_stats,
                                                   samples, is_accepted,
-                                                  policy.theta, policy, eval_model,
-                                                  track_next_sample_correlation,
-                                                  divergence_threshold)
-            print_impsmp_report(it, algo_stats, is_accepted,
-#                                batch_size, sampler.config['num_chains'],
-                                batch_size, 1,
-                                track_next_sample_correlation,
-                                subt0, timer())
+                                                  policy.theta, policy, eval_model)
+            sampler.update_stats(it, samples, is_accepted)
+            print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, timer())
 
     algo_stats.update({
         'algorithm': 'ImpSmpPerParameter',
@@ -424,6 +368,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'action_dim': action_dim,
         'batch_size': batch_size,
         'eval_batch_size': eval_batch_size,
-        'hmc_model_weight': hmc_model.weight,
+        'sampling_model_weight': sampling_model.weight,
+        'sampler_stats': sampler.stats,
     })
     return key, algo_stats

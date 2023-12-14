@@ -1,4 +1,5 @@
 import jax
+import jax.numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 
 VALID_INIT_DISTR_TYPES = (
@@ -14,9 +15,18 @@ VALID_STEP_SIZE_DISTR_TYPES = (
     'log_uniform',
 )
 
+def compute_next_sample_corr(D):
+    sample_size = len(D)
+    D = D - jnp.mean(D)
+    K = jnp.correlate(D, D, 'full')
+    K = K / K[sample_size-1]
+    return K[sample_size]
+
+
 
 class HMCSampler:
     def __init__(self,
+                 n_iters,
                  batch_size,
                  action_dim,
                  policy,
@@ -36,6 +46,23 @@ class HMCSampler:
 
         assert self.config['init_distribution']['type'] in VALID_INIT_DISTR_TYPES
         assert self.config['step_size_distribution']['type'] in VALID_STEP_SIZE_DISTR_TYPES
+
+        self.divergence_threshold = self.config.get('divergence_threshold', 10.)
+        self.track_next_sample_correlation = self.config.get('track_next_sample_correlation', False)
+
+        self.stats = {
+            'step_size': jnp.empty(shape=(n_iters,)),
+            'acceptance_rate': jnp.empty(shape=(n_iters,)),
+            'num_divergent_chains': jnp.empty(shape=(n_iters,)),
+        }
+
+        if self.track_next_sample_correlation:
+            self.stats.update({
+                'next_sample_correlation_per_chain': jnp.empty(shape=(n_iters, self.config['num_chains'], action_dim, 2, action_dim)),
+                'next_sample_correlation_min': jnp.empty(shape=(n_iters,)),
+                'next_sample_correlation_mean': jnp.empty(shape=(n_iters,)),
+                'next_sample_correlation_max': jnp.empty(shape=(n_iters,)),
+            })
 
     def generate_initial_state(self, key):
         key, subkey = jax.random.split(key)
@@ -129,6 +156,35 @@ class HMCSampler:
             kernel=self.sampler,
             trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
 
+    def update_stats(self, it, samples, is_accepted):
+        self.stats['acceptance_rate'] = self.stats['acceptance_rate'].at[it].set(jnp.mean(is_accepted))
+        self.stats['step_size'] = self.stats['step_size'].at[it].set(self.step_size)
+
+        num_chains = self.config['num_chains']
+        num_samples_per_chain = self.config['num_iters_per_chain']
+
+        samples = samples.reshape(num_chains, num_samples_per_chain, self.action_dim, 2, self.action_dim)
+        num_divergent_samples_per_chain = jnp.sum(jnp.abs(samples) > self.divergence_threshold, axis=1)
+        num_divergent_chains = jnp.sum(num_divergent_samples_per_chain > 0)
+        self.stats['num_divergent_chains'] = self.stats['num_divergent_chains'].at[it].set(num_divergent_chains)
+
+        if self.track_next_sample_correlation:
+            next_sample_correlation = jnp.apply_along_axis(
+                compute_next_sample_corr,
+                axis=1,
+                arr=samples)
+            self.stats['next_sample_correlation_per_chain'] = self.stats['next_sample_correlation_per_chain'].at[it].set(next_sample_correlation)
+            self.stats['next_sample_correlation_min'] = self.stats['next_sample_correlation_min'].at[it].set(next_sample_correlation)
+            self.stats['next_sample_correlation_mean'] = self.stats['next_sample_correlation_mean'].at[it].set(next_sample_correlation)
+            self.stats['next_sample_correlation_max'] = self.stats['next_sample_correlation_max'].at[it].set(next_sample_correlation)
+
+    def print_report(self, it):
+        print(f'HMC :: Batch={self.batch_size} :: Chains={self.config["num_chains"]} :: Init.distr={self.config["init_distribution"]["type"]}')
+        print(f'       Burnin={self.config["num_burnin_iters_per_chain"]} :: Step size={self.stats["step_size"][it]} :: Num.leapfrog={self.config["num_leapfrog_steps"]}')
+        print(f'       Acceptance rate={self.stats["acceptance_rate"][it]} :: Num.div.chains={self.stats["num_divergent_chains"][it]}')
+        if self.track_next_sample_correlation:
+            print(f'Next sample corr.: {self.stats["next_sample_correlation_min"][it]} <= (Mean) {self.stats["next_sample_correlation_mean"][it]} <= {self.stats["next_sample_correlation_max"][it]}')
+
 
 class NoUTurnSampler(HMCSampler):
     def prep(self,
@@ -157,3 +213,8 @@ class NoUTurnSampler(HMCSampler):
             inner_kernel=nuts_with_adaptive_step_size,
             bijector=unconstraining_bijector)
         return key
+
+    def print_report(self, it):
+        print(f'NUTS :: Batch={self.batch_size} :: Chains={self.config["num_chains"]} :: Init.distr={self.config["init_distribution"]["type"]}')
+        print(f'        Burnin={self.config["num_burnin_iters_per_chain"]} :: Step size={self.stats["step_size"][it]} :: Max.tree depth={self.config["max_tree_depth"]}')
+        print(f'        Acceptance rate={self.stats["acceptance_rate"][it]} :: Num.div.chains={self.stats["num_divergent_chains"][it]}')

@@ -12,7 +12,7 @@
       "instance_idx": 0,
       "reward_shift": 0.0,
       "specs": {
-        "hmc_model": {
+        "sampling_model": {
           "is_relaxed": true,
           "compiler_kwargs": {
             "n_rollouts": 1,
