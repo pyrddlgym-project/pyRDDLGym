@@ -125,7 +125,13 @@ def main(config):
     if save_to is not None:
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         filename = f'{timestamp}_{algorithm_config["id"]}_{model_config["id"]}_a{action_dim}_iters{n_iters}'
+
         path = os.path.join(save_to, f'{filename}.json')
+        if os.path.isfile(path):
+            disambiguator = 1
+            while os.path.isfile(path):
+                path = os.path.join(save_to, f'{filename}-{disambiguator}.json')
+                disambiguator = disambiguator + 1
 
         saved_dict.update(algo_stats)
         with open(path, 'w') as file:
@@ -142,6 +148,8 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--instance-index', type=int, help='Override the instance index setting.')
     parser.add_argument('-l', '--learning-rate', type=float, help='Override the learning rate setting.')
     parser.add_argument('-b', '--batch-size', type=int, help='Override the batch size setting.')
+
+    parser.add_argument('--verbose', type=int, help='Override the verbose printout setting.')
     args = parser.parse_args()
 
     with open(args.config_path, 'r') as jsonfile:
@@ -157,5 +165,7 @@ if __name__ == '__main__':
         config['algorithm']['params']['batch_size'] = args.batch_size
     if args.save_to is not None:
         config['save_to'] = args.save_to
+    if args.verbose is not None:
+        config['algorithm']['params']['verbose'] = args.verbose
 
     main(config)

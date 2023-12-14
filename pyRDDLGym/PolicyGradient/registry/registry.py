@@ -24,7 +24,7 @@ bijector_lookup_table = {
 sampler_lookup_table = {
     'hmc': pyRDDLGym.PolicyGradient.samplers.hmc.HMCSampler,
     'nuts': pyRDDLGym.PolicyGradient.samplers.hmc.NoUTurnSampler,
-    'rejection_sampling': pyRDDLGym.PolicyGradient.samplers.rejection_sampler.RejectionSampler,
+    'rejection_sampler': pyRDDLGym.PolicyGradient.samplers.rejection_sampler.RejectionSampler,
 }
 
 policy_lookup_table = {
