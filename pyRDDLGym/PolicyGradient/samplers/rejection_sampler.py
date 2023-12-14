@@ -5,6 +5,7 @@ from tensorflow_probability.substrates import jax as tfp
 
 class RejectionSampler:
     def __init__(self,
+                 n_iters,
                  batch_size,
                  action_dim,
                  policy,
@@ -20,6 +21,8 @@ class RejectionSampler:
                              1, self.action_dim)
         self.actions_shape = self.sample_shape[:-1]
         self.batch_shape = (self.batch_size,) + self.sample_shape
+
+        self.stats = {}
 
     def prep(self,
              key,
@@ -73,3 +76,10 @@ class RejectionSampler:
             subkeys, theta, self.config['rejection_threshold'])
 
         return key, samples, jnp.array([1])
+
+    def update_stats(self, it, samples, is_accepted):
+        """Included to have a consistent interface with HMC"""
+        pass
+
+    def print_report(self, it):
+        print(f'Rejection Sampler :: Batch={self.batch_size} :: Rej.threshold={self.config["rejection_threshold"]}')

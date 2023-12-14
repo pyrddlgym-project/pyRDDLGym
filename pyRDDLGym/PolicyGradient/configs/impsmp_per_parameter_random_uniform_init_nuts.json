@@ -4,7 +4,7 @@
   "enable_jit": true,
   "seed": 3264,
   "action_dim": 2,
-  "n_iters": 50,
+  "n_iters": 5,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
@@ -12,7 +12,7 @@
       "instance_idx": 0,
       "reward_shift": 0.0,
       "specs": {
-        "hmc_model": {
+        "sampling_model": {
           "is_relaxed": true,
           "compiler_kwargs": {
             "n_rollouts": 1,
