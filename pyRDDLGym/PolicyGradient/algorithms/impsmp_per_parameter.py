@@ -17,16 +17,6 @@ def scalar_mult(alpha, v):
 weighting_map_inner = jax.vmap(scalar_mult, in_axes=0, out_axes=0)
 weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
 
-def flatten_dJ_shard(dJ_shard, ifrom, ito, flat_dJ_shard):
-    ip0 = 0
-    per_shard = ito - ifrom
-    for leaf in jax.tree_util.tree_leaves(dJ_shard):
-        leaf = leaf.reshape(per_shard, -1)
-        ip1 = ip0 + leaf.shape[1]
-        flat_dJ_shard = flat_dJ_shard.at[ifrom:ito, ip0:ip1].set(leaf)
-        ip0 = ip1
-    return flat_dJ_shard
-
 
 
 @functools.partial(jax.jit, static_argnames=('policy', 'model'))
@@ -68,21 +58,12 @@ def unnormalized_log_rho(key, theta, policy, model, log_cutoff, a):
 def impsmp_per_parameter_inner_loop(key, theta, samples,
                                     n_shards, batch_size, epsilon, est_Z,
                                     policy, sampling_model, train_model):
-    batch_stats = {
-        'sample_rewards': jnp.empty(shape=(batch_size, policy.n_params)),
-        'scores': jnp.empty(shape=(batch_size, policy.n_params)),
-        'dJ': jnp.empty(shape=(batch_size, policy.n_params)),
-    }
 
-    dJ_hat = jax.tree_util.tree_map(lambda theta_item: jnp.zeros(theta_item.shape), theta)
-    Zinv = 0.
-
+    batch_stats = {}
     jacobian = jax.jacrev(policy.pdf, argnums=1)
 
-    for si in range(n_shards):
+    def _shard(key, actions):
         key, subkey = jax.random.split(key)
-
-        actions = samples[si*train_model.n_rollouts:(si+1)*train_model.n_rollouts]
 
         pi = policy.pdf(key, theta, actions)[..., 0]
         dpi = jacobian(key, theta, actions)
@@ -103,26 +84,23 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         factors = losses / (rho + epsilon)
         scores = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
 
-        # the mean of scores along axis 0 is equal to
-        #    (dJ_fr + dJ_(fr+1) + ... + dJ_to) * (1/model.n_rollouts)
-        # additionally dividing the mean by 'n_shards' results in overall division by 'batch_size'
-        dJ_hat = jax.tree_util.tree_map(lambda x, y: x+jnp.mean(y, axis=(0,1))/n_shards, dJ_hat, scores)
+        return key, (pi, rho, losses, scores)
 
-        # estimate of the normalizing factor Z of the density rho
-        if est_Z:
-            Zinv += jnp.sum(pi/(rho + epsilon), axis=(0,))
+    sharded_actions = jnp.split(samples, n_shards)
+    sharded_actions = jnp.stack(sharded_actions)
+    key, (pi, rho, losses, scores) = jax.lax.scan(_shard, key, sharded_actions)
 
-        # collect statistics for the shard
-        per_shard = train_model.n_rollouts
-        ifrom, ito = si*per_shard, (si+1)*per_shard
-        batch_stats['dJ'] = flatten_dJ_shard(scores, ifrom, ito, batch_stats['dJ'])
-        batch_stats['scores'] = batch_stats['scores'].at[ifrom:ito].set(scores['linear']['w'].reshape(-1, policy.n_params))
-        batch_stats['sample_rewards'] = batch_stats['sample_rewards'].at[ifrom:ito].set(losses.reshape(-1, policy.n_params))
+    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,1)), scores)
 
+    # estimate of the normalizing factor Z of the density rho
     if est_Z:
-        Zinv = (Zinv / batch_size) + epsilon
-        dJ_hat = jax.tree_util.tree_map(lambda x: x / Zinv, dJ_hat)
-        batch_stats['dJ'] = jax.tree_util.tree_map(lambda x: x / (Zinv.reshape(policy.n_params,)), batch_stats['dJ'])
+        Zinv = jnp.mean(pi/(rho + epsilon), axis=(0,1))
+        dJ_hat = jax.tree_util.tree_map(lambda item: item / Zinv, dJ_hat)
+        batch_stats['Zinv'] = Zinv.reshape(policy.n_params)
+
+    #FIXME: The below assumes a linear policy parametrization
+    batch_stats['dJ'] = scores['linear']['w'].reshape(batch_size, policy.n_params)
+    batch_stats['sample_losses'] = losses.reshape(batch_size, policy.n_params)
 
     return key, dJ_hat, batch_stats
 
@@ -178,14 +156,15 @@ def update_impsmp_stats(
     algo_stats['reward_std']              = algo_stats['reward_std'].at[it].set(jnp.std(eval_rewards))
     algo_stats['reward_sterr']            = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
 
-    algo_stats['sample_rewards']      = algo_stats['sample_rewards'].at[it].set(batch_stats['sample_rewards'])
-    algo_stats['sample_reward_mean']  = algo_stats['sample_reward_mean'].at[it].set(jnp.mean(batch_stats['sample_rewards']))
-    algo_stats['sample_reward_std']   = algo_stats['sample_reward_std'].at[it].set(jnp.std(batch_stats['sample_rewards']))
-    algo_stats['sample_reward_sterr'] = algo_stats['sample_reward_sterr'].at[it].set(algo_stats['sample_reward_std'][it] / jnp.sqrt(batch_size))
+    algo_stats['sample_losses']      = algo_stats['sample_losses'].at[it].set(batch_stats['sample_losses'])
+    algo_stats['sample_loss_mean']  = algo_stats['sample_loss_mean'].at[it].set(jnp.mean(batch_stats['sample_losses']))
+    algo_stats['sample_loss_std']   = algo_stats['sample_loss_std'].at[it].set(jnp.std(batch_stats['sample_losses']))
+    algo_stats['sample_loss_sterr'] = algo_stats['sample_loss_sterr'].at[it].set(algo_stats['sample_loss_std'][it] / jnp.sqrt(batch_size))
 
-    algo_stats['scores']              = algo_stats['scores'].at[it].set(batch_stats['scores'])
-    algo_stats['mean_abs_score']      = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
-    algo_stats['std_abs_score']       = algo_stats['std_abs_score'].at[it].set(jnp.std(jnp.abs(batch_stats['scores'])))
+    algo_stats['mean_abs_score']      = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['dJ'])))
+    algo_stats['std_abs_score']       = algo_stats['std_abs_score'].at[it].set(jnp.std(jnp.abs(batch_stats['dJ'])))
+
+    algo_stats['Zinv']                = algo_stats['Zinv'].at[it].set(batch_stats['Zinv'])
 
     return key, algo_stats
 
@@ -202,8 +181,8 @@ def print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, subt1):
     print(f'{algo_stats["dJ_hat_min"][it]} <= dJ_hat <= {algo_stats["dJ_hat_max"][it]} :: Norm={algo_stats["dJ_hat_norm"][it]}')
     print(f'dJ cov: {algo_stats["dJ_covar_diag_min"][it]} <= (Mean) {algo_stats["dJ_covar_diag_mean"][it]} <= {algo_stats["dJ_covar_diag_max"][it]}')
     print(f'Mean abs. score={algo_stats["mean_abs_score"][it]} \u00B1 {algo_stats["std_abs_score"][it]:.3f}')
-    print(f'Sample reward={algo_stats["sample_reward_mean"][it]:.3f} \u00B1 {algo_stats["sample_reward_sterr"][it]:.3f} '
-          f':: Eval reward={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
+    print(f'Sample loss={algo_stats["sample_loss_mean"][it]:.3f} \u00B1 {algo_stats["sample_loss_sterr"][it]:.3f} '
+          f':: Eval loss={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
 
 def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimizer, models):
@@ -242,10 +221,10 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'reward_mean': jnp.empty(shape=(n_iters,)),
         'reward_std': jnp.empty(shape=(n_iters,)),
         'reward_sterr': jnp.empty(shape=(n_iters,)),
-        'sample_rewards': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
-        'sample_reward_mean': jnp.empty(shape=(n_iters,)),
-        'sample_reward_std': jnp.empty(shape=(n_iters,)),
-        'sample_reward_sterr': jnp.empty(shape=(n_iters,)),
+        'sample_losses': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
+        'sample_loss_mean': jnp.empty(shape=(n_iters,)),
+        'sample_loss_std': jnp.empty(shape=(n_iters,)),
+        'sample_loss_sterr': jnp.empty(shape=(n_iters,)),
         'dJ': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
         'dJ_hat_max': jnp.empty(shape=(n_iters,)),
         'dJ_hat_min': jnp.empty(shape=(n_iters,)),
@@ -256,7 +235,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'dJ_covar_diag_max': jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_mean': jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_min': jnp.empty(shape=(n_iters,)),
-        'scores': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
+        'Zinv': jnp.empty(shape=(n_iters, policy.n_params)),
         'mean_abs_score': jnp.empty(shape=(n_iters,)),
         'std_abs_score': jnp.empty(shape=(n_iters,)),
     }
