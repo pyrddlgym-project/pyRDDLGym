@@ -45,7 +45,7 @@ class BaseAgent(metaclass=ABCMeta):
             # restart episode
             total_reward, cuml_gamma = 0.0, 1.0
             self.reset()
-            state = env.reset(seed=seed)
+            state, *_ = env.reset(seed=seed)
             for step in range(env.horizon):
                 if render:
                     env.render()
@@ -56,7 +56,7 @@ class BaseAgent(metaclass=ABCMeta):
                 else:
                     policy_input = state
                 action = self.sample_action(policy_input)    
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, *_ = env.step(action)
                 total_reward += reward * cuml_gamma
                 cuml_gamma *= gamma
                 
