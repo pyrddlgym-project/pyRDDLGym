@@ -1,5 +1,5 @@
 import gym
-from gym.spaces import Box, Dict, Discrete, MultiBinary, MultiDiscrete
+from gym.spaces import Box, Dict, Discrete, MultiDiscrete
 import numpy as np
 import os
 import pygame
@@ -139,7 +139,7 @@ class RDDLEnv(gym.Env):
         else:
             self._actionsranges = self.sampler.grounded_actionsranges
             self._noop_actions = self.sampler.grounded_noop_actions
-        self.action_space = self._rddl_to_gym_bounds_act(self._actionsranges)
+        self.action_space, self._action_info = self._rddl_to_gym_bounds_act(self._actionsranges)
         
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)
@@ -389,134 +389,147 @@ class RDDLEnvCompact(RDDLEnv):
     
     def __init__(self, *args, **kwargs):
         super(RDDLEnvCompact, self).__init__(*args, vectorized=True, **kwargs)
-        
-        self.action_space, self._action_info = self._rddl_to_gym_bounds_act(
-            self._actionsranges)
     
     def _rddl_to_gym_bounds_act(self, ranges):
         
+        # compute whether or not a constraint must be placed on boolean actions
+        count_bool = 0
+        for (var, prange) in ranges.items():
+            if prange == 'bool':
+                count_bool += np.prod(self._shapes[var], dtype=np.int64)   
+        if self.max_allowed_actions < count_bool:
+            if self.max_allowed_actions != 1:
+                raise RDDLNotImplementedError(
+                    'Simplification of bool action space with max-nondef-actions '
+                    'other than 1 or pos-inf is not currently supported.')  
+            bool_constraint = True
+        else:
+            bool_constraint = False
+                
         # collect information about action ranges
-        enum_shape = []
-        real_bounds = ([], [])
-        int_bounds = ([], [])
-        count_enum, count_real, count_int, count_bool = 0, 0, 0, 0
         locational = {}
+        count_disc, count_cont, count_bool = 0, 0, 0
+        disc_start, disc_nelem = [], []
+        cont_low, cont_high = [], []
         for (var, prange) in ranges.items():
             shape = self._shapes[var]
-            num_elements = np.prod(shape, dtype=np.int64)
-            if prange in self.model.enums:
+            num_elements = np.prod(shape, dtype=np.int64)  
+            
+            # boolean actions without constraint are stored as Discrete
+            if prange == 'bool':
+                if bool_constraint:
+                    locational[var] = ('discrete', (count_bool, num_elements, shape))
+                    count_bool += num_elements
+                else:
+                    disc_start.extend([0] * num_elements)
+                    disc_nelem.extend([2] * num_elements)  
+                    locational[var] = ('discrete', (count_disc, num_elements, shape))
+                    count_disc += num_elements
+            
+            # integer actions are stored as Discrete
+            elif prange == 'int':
+                low, high = self._bounds[var]
+                low = np.ravel(low, order='C')
+                high = np.ravel(high, order='C')
+                low = np.maximum(low, np.iinfo(np.int32).min).astype(np.int32)
+                high = np.minimum(high, np.iinfo(np.int32).max).astype(np.int32)
+                disc_start.extend(low.tolist())
+                disc_nelem.extend((high - low + 1).tolist())                
+                locational[var] = ('discrete', (count_disc, num_elements, shape))
+                count_disc += num_elements
+            
+            # enum-valued actions are stored as Discrete
+            elif prange in self.model.enums:
                 num_objects = len(self.model.objects[prange])
-                enum_shape.extend([num_objects] * num_elements)
-                locational[var] = ('finite', (count_enum, num_elements, shape))
-                count_enum += num_elements
+                disc_start.extend([0] * num_elements)
+                disc_nelem.extend([num_objects] * num_elements)
+                locational[var] = ('discrete', (count_disc, num_elements, shape))
+                count_disc += num_elements
+            
+            # real actions are stored as Box
             elif prange == 'real':
                 low, high = self._bounds[var]
                 low = np.ravel(low, order='C').tolist()
                 high = np.ravel(high, order='C').tolist()
-                real_bounds[0].extend(low)
-                real_bounds[1].extend(high)
-                locational[var] = ('real', (count_real, num_elements, shape))
-                count_real += num_elements
-            elif prange == 'int':
-                low, high = self._bounds[var]
-                low = np.ravel(low, order='C').tolist()
-                high = np.ravel(high, order='C').tolist()
-                int_bounds[0].extend(low)
-                int_bounds[1].extend(high)
-                locational[var] = ('int', (count_int, num_elements, shape))
-                count_int += num_elements
-            elif prange == 'bool':
-                locational[var] = ('finite', (count_bool, num_elements, shape))
-                count_bool += num_elements
+                cont_low.extend(low)
+                cont_high.extend(high)
+                locational[var] = ('continuous', (count_cont, num_elements, shape))
+                count_cont += num_elements
+            
+            # not a valid action type
             else:
                 raise RDDLTypeError(
                     f'Type <{prange}> of fluent <{var}> is not valid, '
                     f'must be an enumerated or primitive type (real, int, bool).')
         
-        # simplify real space
-        if real_bounds[0]:
-            low, high = real_bounds
-            real_space = Box(np.asarray(low), np.asarray(high), dtype=np.float32)
-        else:
-            real_space = None
+        # boolean actions with constraint are stored in the last place instead
+        if bool_constraint:
+            disc_start.append(0)
+            disc_nelem.append(count_bool + 1)
+            count_disc += 1
         
-        # simplify int space
-        if int_bounds[0]:
-            low, high = int_bounds
-            int_space = Box(np.asarray(low), np.asarray(high), dtype=np.int32)
+        # discrete space
+        if len(disc_nelem) == 1:
+            disc_space = Discrete(disc_nelem[0])
+        elif len(disc_nelem) > 1:
+            disc_space = MultiDiscrete(disc_nelem)
         else:
-            int_space = None
-            
-        # simplify finite space
-        finite_dims = enum_shape.copy()
-        if count_bool == 1:
-            finite_dims.append(2)
-        elif count_bool > 1:
-            if self.max_allowed_actions == 1:
-                finite_dims.append(count_bool + 1)
-            elif self.max_allowed_actions >= count_bool:
-                finite_dims.extend([2] * count_bool)
-            else:
-                raise RDDLNotImplementedError(
-                    'Simplification of bool action space with max-nondef-actions '
-                    'other than 1 or pos-inf is not currently supported.')  
-        if len(finite_dims) == 1:
-            finite_space = Discrete(finite_dims[0])
-        elif len(finite_dims) > 1:
-            if all(dim == 2 for dim in finite_dims):
-                finite_space = MultiBinary(len(finite_dims))
-            else:
-                finite_space = MultiDiscrete(finite_dims)
+            disc_space = None
+        
+        # real space
+        if count_cont:
+            cont_space = Box(np.asarray(cont_low), np.asarray(cont_high), dtype=np.float32)
         else:
-            finite_space = None
+            cont_space = None
         
         # simplify space
-        combined_space = {}
-        if real_space is not None:
-            combined_space['real'] = real_space
-        if int_space is not None:
-            combined_space['int'] = int_space
-        if finite_space is not None:
-            combined_space['finite'] = finite_space
+        combined_space = Dict()
+        if disc_space is not None:
+            combined_space['discrete'] = disc_space
+        if cont_space is not None:
+            combined_space['continuous'] = cont_space
         if not combined_space:
             raise RDDLInvalidActionError(
                 'RDDL action specification resulted in an empty action space.')
         keys = list(combined_space.keys())
-        if len(combined_space) == 1:
-            combined_space = next(iter(combined_space.values()))
+        if len(keys) == 1:
+            combined_space = combined_space[keys[0]]
             
-        return combined_space, (locational, keys, count_bool)
+        return combined_space, (locational, keys, bool_constraint, np.asarray(disc_start))
 
     def _gym_to_rddl_actions(self, gym_actions):
-        locational, keys, count_bool = self._action_info
+        locational, keys, bool_constraint, disc_start = self._action_info
         if len(keys) == 1:
-            gym_actions = {keys[0]: gym_actions}        
-        bool_constraint = count_bool > 1 and self.max_allowed_actions == 1
+            gym_actions = {keys[0]: gym_actions}  
         
         # process all actions except if active max-nondef-actions constraint
         actions = {}
         for (var, prange) in self._actionsranges.items():
-            key, (start, count, shape) = locational[var]
-            action = gym_actions[key]
             if not (bool_constraint and prange == 'bool'):
-                action = action[start:start + count]
-                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
-                    prange, RDDLValueInitializer.INT)
-                actions[var] = np.reshape(action, shape, order='C').astype(dtype)
+                key, (start, count, shape) = locational[var]
+                action_key = gym_actions.get(key, {})
+                if action_key:
+                    action = np.atleast_1d(action_key)[start:start + count]
+                    if key == 'discrete':
+                        action = action + disc_start[start:start + count]
+                    dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                        prange, RDDLValueInitializer.INT)
+                    actions[var] = np.reshape(action, shape, order='C').astype(dtype)
         
         # process the active max-nondef-actions constraint
-        if bool_constraint:
-            index = np.atleast_1d(gym_actions['finite'])[-1]
+        action_key = gym_actions.get('discrete', {})
+        if bool_constraint and action_key:
+            index = np.atleast_1d(action_key)[-1]
             for (var, prange) in self._actionsranges.items():
                 if prange == 'bool':
-                    _, (start, count, shape) = locational[var]
-                    offset = index - start
-                    if 0 <= offset < count:
+                    _, (start, count, shape) = locational[var]                    
+                    index_in_var = index - start
+                    if 0 <= index_in_var < count:
                         default_value = self.model.default_values[var]
                         action = np.full(shape=count, fill_value=default_value, dtype=bool)
-                        action[offset] ^= True
+                        action[index_in_var] ^= True
                         actions[var] = np.reshape(action, shape, order='C')
                         break
-        
+            
         return actions
               
