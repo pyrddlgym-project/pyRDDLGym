@@ -45,7 +45,12 @@ class BaseAgent(metaclass=ABCMeta):
             # restart episode
             total_reward, cuml_gamma = 0.0, 1.0
             self.reset()
-            state, *_ = env.reset(seed=seed)
+            if env.new_gym_api:
+                state, _ = env.reset(seed=seed)
+            else:
+                state = env.reset(seed=seed)
+            
+            # simulate to end of horizon
             for step in range(env.horizon):
                 if render:
                     env.render()
@@ -55,8 +60,11 @@ class BaseAgent(metaclass=ABCMeta):
                     policy_input = env.sampler.subs
                 else:
                     policy_input = state
-                action = self.sample_action(policy_input)    
-                next_state, reward, done, *_ = env.step(action)
+                action = self.sample_action(policy_input)   
+                if env.new_gym_api: 
+                    next_state, reward, done, _, _ = env.step(action)
+                else:
+                    next_state, reward, done, _ = env.step(action)
                 total_reward += reward * cuml_gamma
                 cuml_gamma *= gamma
                 
