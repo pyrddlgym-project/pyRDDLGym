@@ -49,6 +49,7 @@ class RDDLEnv(gym.Env):
                  instance: str=None,
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
+                 new_gym_api: bool=False,
                  vectorized: bool=False,
                  debug: bool=False,
                  log_path: str=None,
@@ -63,6 +64,7 @@ class RDDLEnv(gym.Env):
         action constraints are violated
         :param enforce_action_count_non_bool: whether to include non-bool actions
         in check that number of nondef actions don't exceed max-nondef-actions
+        :param new_gym_api: whether to use the new Gym API for step()
         :param vectorized: whether actions and states are represented as
         dictionaries of numpy arrays (if True), or as dictionaries of scalars
         :param debug: whether to log compilation information to a log file
@@ -80,6 +82,7 @@ class RDDLEnv(gym.Env):
         self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
         self.enforce_count_non_bool = enforce_action_count_non_bool
+        self.new_gym_api = new_gym_api
         self.vectorized = vectorized
         
         # read and parse domain and instance
@@ -268,8 +271,11 @@ class RDDLEnv(gym.Env):
         self.currentH += 1
         if self.currentH == self.horizon:
             self.done = True
-
-        return obs, reward, self.done, out_of_bounds, {}
+        
+        if self.new_gym_api:
+            return obs, reward, self.done, out_of_bounds, {}
+        else:
+            return obs, reward, self.done, {}
 
     def reset(self, seed=None, options=None):
         
@@ -309,8 +315,11 @@ class RDDLEnv(gym.Env):
                     f'New Trial, seed={seed}\n'
                     f'######################################################')
             self.simlogger.log_free(text)
-
-        return obs, {}
+            
+        if self.new_gym_api:
+            return obs, {}
+        else:
+            return obs
 
     def pilImageToSurface(self, pilImage):
         return pygame.image.fromstring(
