@@ -112,9 +112,9 @@ class RDDLEnv(gym.Env):
             self.simlogger.clear(overwrite=False)
         
         # define the simulation backend  
-        self.sampler = backend(self.model, 
-                               logger=logger, 
-                               keep_tensors=self.vectorized, 
+        self.sampler = backend(self.model,
+                               logger=logger,
+                               keep_tensors=self.vectorized,
                                **backend_kwargs)
         
         # compute the bounds on fluents from the constraints
@@ -165,7 +165,7 @@ class RDDLEnv(gym.Env):
                 num_objects = len(self.model.objects[prange])
                 if self.vectorized:
                     result[var] = Box(0, num_objects - 1,
-                                      shape=self._shapes[var], 
+                                      shape=self._shapes[var],
                                       dtype=np.int32)
                 else:
                     result[var] = Discrete(num_objects) 
@@ -178,7 +178,7 @@ class RDDLEnv(gym.Env):
             # boolean values converted to Discrete space
             elif prange == 'bool':
                 if self.vectorized:
-                    result[var] = Box(0, 1, 
+                    result[var] = Box(0, 1,
                                       shape=self._shapes[var],
                                       dtype=np.int32)
                 else:
@@ -191,7 +191,7 @@ class RDDLEnv(gym.Env):
                 high = np.minimum(high, np.iinfo(np.int32).max)
                 if self.vectorized:
                     result[var] = Box(low, high,
-                                      shape=self._shapes[var], 
+                                      shape=self._shapes[var],
                                       dtype=np.int32)
                 else:
                     result[var] = Discrete(int(high - low + 1), start=int(low))
@@ -494,6 +494,18 @@ class RDDLEnvCompact(RDDLEnv):
         keys = list(combined_space.keys())
         if len(keys) == 1:
             combined_space = combined_space[keys[0]]
+        
+        # log information
+        if self.logger is not None:
+            act_info = '\n\t'.join(
+                f'{act}: action_tensor={key}, start={start}, count={count}, shape={shape}'
+                for (act, (key, (start, count, shape))) in locational.items())
+            bound_info = (f'\tdiscrete_start={disc_start}, discrete_n={disc_nelem}\n'
+                          f'\tcontinuous_low={cont_low}, continuous_high={cont_high}')
+            self.logger.log(f'[info] computed gym action space:\n' 
+                            f'{bound_info}\n'
+                            f'\t{act_info}\n'
+                            f'[info] final space: {combined_space}\n')
             
         return combined_space, (locational, keys, bool_constraint, np.asarray(disc_start))
 
