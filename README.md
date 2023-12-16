@@ -21,11 +21,11 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 
 
 ## Purpose and Benefits
-* describe your environment in RDDL, and let pyRDDLGym convert it to a standard OpenAI Gym environment for training and testing your reinforcement learning and planning algorithms in Python
+* describe your environment in RDDL, leverage automated translation tools to convert it to a standard OpenAI gym environment in your existing workflow
 * compiler tools to help you understand the structure of your problem
 * visualization and video recording tools for monitoring and documenting the behavior of your algorithm
 * support for new language features (i.e. multivariate distributions) not present in older RDDL implementations
-* out-of-the-box planning algorithms in Gurobi and JAX that you use as baselines, or build upon.
+* out-of-the-box planning algorithms in Gurobi, JAX, and support for stable-baselines RL that you can use as baselines or build upon.
 
 ## Paper
 
