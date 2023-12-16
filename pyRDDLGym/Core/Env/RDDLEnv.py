@@ -166,6 +166,10 @@ class RDDLEnv(gym.Env):
         self.currentH = 0
         self.done = False
         self.seeds = iter(seeds)
+            
+    # ===========================================================================
+    # observation and action spaces
+    # ===========================================================================
     
     def _rddl_to_gym_bounds_obs(self, ranges):
         result = Dict()
@@ -377,6 +381,10 @@ class RDDLEnv(gym.Env):
                         break
             
         return actions
+            
+    # ===========================================================================
+    # core functions
+    # ===========================================================================
     
     def seed(self, seed=None):
         self.sampler.seed(seed)
@@ -441,6 +449,10 @@ class RDDLEnv(gym.Env):
         if self.currentH == self.horizon:
             self.done = True
         
+        # produce array outputs for vectorized option
+        if self.vectorized:
+            obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
+            
         if self.new_gym_api:
             return obs, reward, self.done, out_of_bounds, {}
         else:
@@ -484,6 +496,10 @@ class RDDLEnv(gym.Env):
                     f'New Trial, seed={seed}\n'
                     f'######################################################')
             self.simlogger.log_free(text)
+            
+        # produce array outputs for vectorized option
+        if self.vectorized:
+            obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
             
         if self.new_gym_api:
             return obs, {}
