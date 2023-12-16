@@ -111,6 +111,24 @@ We also provide a convenience ``evaluate`` function, so it is not necessary to i
   
 The above call to ``evaluate`` returns a dictionary of summary statistics about the returns collected on different episodes, such as mean, median, standard deviation, etc.
 
+New vs Old Gym API
+------
+
+The new and old Gym APIs return the transition information from ``step()`` and ``reset()`` in slightly different 
+format. The new API output of ``step()`` produces a tuple of the form ``state, reward, done, fail, info``
+where ``fail`` determines whether the agent is out of bounds or failed the episode. Similarly, ``reset()`` in the 
+new API produces ``state, info``.
+
+pyRDDLGym offers a convenient flag to switch between the old and the new API:
+
+.. code-block:: python
+
+    info = ExampleManager.GetEnvInfo(domain)
+    env = RDDLEnv.RDDLEnv.build(info, instance, new_gym_api=True)
+
+pyRDDLGym computes the auxiliary ``fail`` information by evaluating whether the state invariants
+are satisfied in the current state.
+
 Spaces
 ------
 
