@@ -120,6 +120,8 @@ To run the JAX planner, the following additional packages are required:
 To run the Gurobi planner, you will need to obtain a valid Gurobi license. 
 Then, follow the instructions [here](https://support.gurobi.com/hc/en-us/articles/360044290292-How-do-I-install-Gurobi-for-Python-). We require Gurobi 10+.
 
+To run the stable-baselines3 in pyRDDLGym, you will need this package along with any of its requirements.
+
 ### Installing via pip
 pip install pyRDDLGym
 
