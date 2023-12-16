@@ -67,16 +67,49 @@ instance of one's choosing (assuming the action space simplifies to a ``Discrete
 .. code-block:: python
 
     from pyRDDLGym import ExampleManager, RDDLEnv
-    from stable_baselines3 import DQN
+    from stable_baselines3 import PPO
     
     # build the environment
     info = ExampleManager.GetEnvInfo(domain)
     env = RDDLEnv.RDDLEnv.build(info, instance, new_gym_api=True, compact_action_space=True)
     
     # train a DQN agent
-    model = DQN("MultiInputPolicy", env, ...)
+    model = PPO('MultiInputPolicy', env, ...)
     model.learn(total_timesteps=int(2e5))
+
+Note that, at the time of this writing, the ``new_gym_api`` flag must be set since the 
+stable-baselines implementation assumes the newest version of gym.
+
+Below is a complete worked example for solving CartPole using PPO:
+
+.. code-block:: python
     
+	from stable_baselines3 import PPO
+    from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+    from pyRDDLGym.Examples.ExampleManager import ExampleManager
+
+    # set up the environment
+    info = ExampleManager.GetEnvInfo('CartPole_discrete')    
+    env = RDDLEnv.build(info, 0, new_gym_api=True, compact_action_space=True)
+    
+    # train the agent
+    model = PPO('MultiInputPolicy', env, verbose=1)
+    model.learn(total_timesteps=40000)
+    
+    # evaluate
+    total_reward = 0
+    state, _ = env.reset()
+    for step in range(env.horizon):
+        env.render()
+        action, _ = model.predict(state)
+        state, reward, done, *_ = env.step(action)
+        total_reward += reward
+        if done:
+            break
+    print(f'episode ended with return {total_reward}')
+    env.close()
+
+
 Limitations
 -------------------
 
