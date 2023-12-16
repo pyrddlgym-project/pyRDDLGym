@@ -1,8 +1,8 @@
 Baselines: Reinforcement Learning with Stable Baselines
 ===============
 
-While it is not the intended use case of RDDL, pyRDDLGym also provides convenience
-wrappers that can work with RL implementations, notably stable-baselines3.
+While it is not the intended use case of RDDL (being model-free), pyRDDLGym also provides convenience
+wrappers that can work with (deep) RL implementations, notably stable-baselines3.
 
 Simplifying the Action Space
 -------------------
@@ -49,5 +49,38 @@ a (4,) array of float type.
 
 .. note::
    When ``compact_action_space`` is set to True, the ``vectorized`` option is required 
-   and is automatically set to True (see Tensor Representation section in Getting Started section).
+   and is automatically set to True (see Tensor Representation section in Getting Started section). 
+
+.. warning::
+   The action simplification rules apply ``max-nondef-actions`` only to boolean actions, 
+   and assume this value is either 1 or greater than or equal to the total number of boolean actions.
+   Any other scenario is currently not supported in pyRDDLGym and will raise an exception.
    
+Running Stable Baselines
+-------------------
+
+By fixing the action space as described above, most pyRDDLGym environments can be used directly
+in stable-baselines3 RL implementations without considerable modification to the workflow.
+For example, the following code example trains a Deep Q-Network (DQN) on a domain and 
+instance of one's choosing (assuming the action space simplifies to a ``Discrete``):
+
+.. code-block:: python
+
+    from pyRDDLGym import ExampleManager, RDDLEnv
+    from stable_baselines3 import DQN
+    
+    # build the environment
+    info = ExampleManager.GetEnvInfo(domain)
+    env = RDDLEnv.RDDLEnv.build(info, instance, new_gym_api=True, compact_action_space=True)
+    
+    # train a DQN agent
+    model = DQN("MultiInputPolicy", env, ...)
+    model.learn(total_timesteps=int(2e5))
+    
+Limitations
+-------------------
+
+We cite several limitations of using stable-baselines in pyRDDLGym:
+
+* The required action space in the stable-baselines agent implementation must be compatible with the action space produced by pyRDDLGym
+* Only special types of constraints on boolean actions are supported (as described above).
