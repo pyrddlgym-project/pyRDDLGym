@@ -84,7 +84,7 @@ Below is a complete worked example for solving CartPole using PPO:
 
 .. code-block:: python
     
-	from stable_baselines3 import PPO
+    from stable_baselines3 import PPO
     from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
     from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
