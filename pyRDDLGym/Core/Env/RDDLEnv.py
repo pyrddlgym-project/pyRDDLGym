@@ -542,4 +542,3 @@ class RDDLEnv(gym.Env):
                 self._movie_generator.save_animation(
                     self._movie_generator.env_name + '_' + str(self._movies))
                 self._movies += 1
-              
