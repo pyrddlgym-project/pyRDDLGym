@@ -16,19 +16,21 @@
           "is_relaxed": true,
           "compiler_kwargs": {
             "n_rollouts": 1,
-            "weight": 20.0
+            "weight": 10.0
           }
         },
         "train_model": {
-          "is_relaxed": false,
+          "is_relaxed": true,
           "compiler_kwargs": {
-            "n_rollouts": 4
+            "n_rollouts": 4,
+            "weight": 10.0
           }
         },
         "eval_model": {
-          "is_relaxed": false,
+          "is_relaxed": true,
           "compiler_kwargs": {
-            "n_rollouts": 32
+            "n_rollouts": 32,
+            "weight": 10.0
           }
         }
       }
@@ -45,7 +47,7 @@
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 0.7
+      "learning_rate": 2.0
     }
   },
   "algorithm": {

@@ -148,6 +148,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--instance-index', type=int, help='Override the instance index setting.')
     parser.add_argument('-l', '--learning-rate', type=float, help='Override the learning rate setting.')
     parser.add_argument('-b', '--batch-size', type=int, help='Override the batch size setting.')
+    parser.add_argument('--num-iters', type=int, help='Override the number of training iterations setting.')
 
     parser.add_argument('--verbose', type=int, help='Override the verbose printout setting.')
     args = parser.parse_args()
@@ -155,6 +156,8 @@ if __name__ == '__main__':
     with open(args.config_path, 'r') as jsonfile:
         config = json.load(jsonfile)
 
+    if args.num_iters is not None:
+        config['n_iters'] = args.num_iters
     if args.dimension is not None:
         config['action_dim'] = args.dimension
     if args.instance_index is not None:
