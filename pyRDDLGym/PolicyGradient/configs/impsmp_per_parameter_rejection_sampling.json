@@ -43,7 +43,7 @@
     "params": {}
   },
   "optimizer": {
-    "id": "adagrad",
+    "id": "adabelief",
     "params": {
       "learning_rate": 0.7
     }
@@ -57,9 +57,10 @@
       "log_cutoff": -1000.0,
       "est_Z": true,
       "sampler": {
-        "type": "rejection_sampling",
+        "type": "rejection_sampler",
         "params": {
-          "rejection_threshold": 5000
+          "proposal_pdf_type": "cur_policy",
+          "rejection_rate": 1000
         }
       },
       "reinit_strategy": "random_sample",

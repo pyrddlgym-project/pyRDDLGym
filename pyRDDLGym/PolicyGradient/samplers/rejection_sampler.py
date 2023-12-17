@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 
-VALID_SAMPLING_PDF_TYPES = (
+VALID_PROPOSAL_PDF_TYPES = (
     'cur_policy',
     'uniform',
 )
@@ -22,8 +22,8 @@ class RejectionSampler:
         self.init_state = None
         self.step_size = None
 
-        self.sampling_pdf_type = self.config['sampling_pdf_type']
-        assert self.sampling_pdf_type in VALID_SAMPLING_PDF_TYPES
+        self.proposal_pdf_type = self.config['proposal_pdf_type']
+        assert self.proposal_pdf_type in VALID_PROPOSAL_PDF_TYPES
 
         self.sample_shape = (self.action_dim, 2,
                              1, self.action_dim)
@@ -53,10 +53,10 @@ class RejectionSampler:
     def body_fn(self, val):
         key, M, theta, sample, passed = val
         key, *subkeys = jax.random.split(key, num=4)
-        if self.sampling_pdf_type == 'cur_policy':
+        if self.proposal_pdf_type == 'cur_policy':
             actions = self.policy.sample(subkeys[0], theta, self.actions_shape)
             sampling_pdf = self.policy.pdf(subkeys[1], theta, actions)[..., 0]
-        elif self.sampling_pdf_type == 'uniform':
+        elif self.proposal_pdf_type == 'uniform':
             actions = jax.random.uniform(subkeys[1], shape=self.sample_shape, minval=-5.0, maxval=5.0)
             sampling_pdf = 0.1**(self.action_dim) * jnp.ones(shape=(self.action_dim, 2))
         instrumental_pdf = jnp.exp(self.target_log_prob_fn(actions))
@@ -94,4 +94,4 @@ class RejectionSampler:
         pass
 
     def print_report(self, it):
-        print(f'Rejection Sampler :: Batch={self.batch_size} :: Rej.rate={self.config["rejection_rate"]}')
+        print(f'Rejection Sampler :: Batch={self.batch_size} :: Rej.rate={self.config["rejection_rate"]} :: Proposal pdf={self.config["proposal_pdf_type"]}')
