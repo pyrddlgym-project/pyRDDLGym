@@ -1,10 +1,10 @@
-{ "useGPU": false,
+{ "useGPU": true,
   "use64bit": true,
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
   "action_dim": 9,
-  "n_iters": 50,
+  "n_iters": 200,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
@@ -12,16 +12,25 @@
       "instance_idx": 0,
       "reward_shift": 0.0,
       "specs": {
-        "train_model": {
-          "is_relaxed": false,
+        "sampling_model": {
+          "is_relaxed": true,
           "compiler_kwargs": {
-            "n_rollouts": 128
+            "n_rollouts": 1,
+            "weight": 10.0
+          }
+        },
+        "train_model": {
+          "is_relaxed": true,
+          "compiler_kwargs": {
+            "n_rollouts": 128,
+            "weight": 10.0
           }
         },
         "eval_model": {
-          "is_relaxed": false,
+          "is_relaxed": true,
           "compiler_kwargs": {
-            "n_rollouts": 32
+            "n_rollouts": 32,
+            "weight": 10.0
           }
         }
       }
@@ -36,17 +45,28 @@
     "params": {}
   },
   "optimizer": {
-    "id": "adagrad",
+    "id": "adabelief",
     "params": {
-      "learning_rate": 0.7
+      "learning_rate": 0.3
     }
   },
   "algorithm": {
-    "id": "reinforce",
+    "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 1024,
+      "batch_size": 512,
+      "subsample_size": 4,
       "eval_batch_size": 32,
       "epsilon": 0.0,
+      "log_cutoff": -1000.0,
+      "est_Z": true,
+      "sampler": {
+        "type": "rejection_sampler",
+        "params": {
+          "proposal_pdf_type": "cur_policy",
+          "rejection_rate": 1000
+        }
+      },
+      "reinit_strategy": "random_sample",
       "verbose": true
     }
   },
