@@ -70,7 +70,6 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=4), dpi)
         dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=3), dpi)
         dpi = jax.tree_util.tree_map(lambda x: x[:,0,:,:], dpi)
-        dpi_abs = jax.tree_util.tree_map(lambda x: jnp.abs(x), dpi)
 
         compute_loss_axis_1 = jax.vmap(train_model.compute_loss, (None, 1, None), 1)
         compute_loss_axes_1_2 = jax.vmap(compute_loss_axis_1, (None, 1, None), 1)
@@ -90,13 +89,15 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     sharded_actions = jnp.stack(sharded_actions)
     key, (pi, rho, losses, dJ_summands) = jax.lax.scan(compute_dJ_hat_summands_for_shard, key, sharded_actions)
 
-    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,1)), dJ_summands)
+    batch_stats['scores'] = dJ_summands['linear']['w'].reshape(batch_size, policy.n_params)
 
     # estimate of the normalizing factor Z of the density rho
     if est_Z:
         Zinv = jnp.mean(pi/(rho + epsilon), axis=(0,1))
-        dJ_hat = jax.tree_util.tree_map(lambda item: item / Zinv, dJ_hat)
+        dJ_summands = jax.tree_util.tree_map(lambda item: item / Zinv, dJ_summands)
         batch_stats['Zinv'] = Zinv.reshape(policy.n_params)
+
+    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,1)), dJ_summands)
 
     #FIXME: The below assumes a linear policy parametrization
     batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(batch_size, policy.n_params)
@@ -111,7 +112,8 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         'eval_n_shards',
         'eval_batch_size',
         'policy',
-        'model',))
+        'model',
+        'est_Z'))
 def update_impsmp_stats(
     key,
     it,
@@ -124,7 +126,8 @@ def update_impsmp_stats(
     is_accepted,
     theta,
     policy,
-    model):
+    model,
+    est_Z):
     """Updates the REINFORCE with Importance Sampling statistics
     using the statistics returned from the computation of dJ_hat
     for the current sample as well as the current policy params theta"""
@@ -161,14 +164,15 @@ def update_impsmp_stats(
     algo_stats['sample_loss_std']   = algo_stats['sample_loss_std'].at[it].set(jnp.std(batch_stats['sample_losses']))
     algo_stats['sample_loss_sterr'] = algo_stats['sample_loss_sterr'].at[it].set(algo_stats['sample_loss_std'][it] / jnp.sqrt(batch_size))
 
-    algo_stats['mean_abs_score']      = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['dJ'])))
-    algo_stats['std_abs_score']       = algo_stats['std_abs_score'].at[it].set(jnp.std(jnp.abs(batch_stats['dJ'])))
+    algo_stats['mean_abs_score']      = algo_stats['mean_abs_score'].at[it].set(jnp.mean(jnp.abs(batch_stats['scores'])))
+    algo_stats['std_abs_score']       = algo_stats['std_abs_score'].at[it].set(jnp.std(jnp.abs(batch_stats['scores'])))
 
-    algo_stats['Zinv']                = algo_stats['Zinv'].at[it].set(batch_stats['Zinv'])
+    if est_Z:
+        algo_stats['Zinv'] = algo_stats['Zinv'].at[it].set(batch_stats['Zinv'])
 
     return key, algo_stats
 
-def print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, subt1):
+def print_impsmp_report(it, algo_stats, batch_size, sampler, est_Z, subt0, subt1):
     """Prints out the results for the current REINFORCE with Importance Sampling iteration"""
     print(f'Iter {it} :: Importance Sampling :: Runtime={subt1-subt0}s')
     sampler.print_report(it)
@@ -180,6 +184,8 @@ def print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, subt1):
     print(algo_stats['transformed_policy_cov'][it])
     print(f'{algo_stats["dJ_hat_min"][it]} <= dJ_hat <= {algo_stats["dJ_hat_max"][it]} :: Norm={algo_stats["dJ_hat_norm"][it]}')
     print(f'dJ cov: {algo_stats["dJ_covar_diag_min"][it]} <= (Mean) {algo_stats["dJ_covar_diag_mean"][it]} <= {algo_stats["dJ_covar_diag_max"][it]}')
+    if est_Z:
+        print(f'Z={1/algo_stats["Zinv"][it]}')
     print(f'Mean abs. score={algo_stats["mean_abs_score"][it]} \u00B1 {algo_stats["std_abs_score"][it]:.3f}')
     print(f'Sample loss={algo_stats["sample_loss_mean"][it]:.3f} \u00B1 {algo_stats["sample_loss_sterr"][it]:.3f} '
           f':: Eval loss={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
@@ -224,7 +230,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'sample_loss_mean': jnp.empty(shape=(n_iters,)),
         'sample_loss_std': jnp.empty(shape=(n_iters,)),
         'sample_loss_sterr': jnp.empty(shape=(n_iters,)),
-        'dJ': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
+        #'dJ': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
+        'dJ': jnp.empty(shape=(n_iters, 4, policy.n_params)),
         'dJ_hat_max': jnp.empty(shape=(n_iters,)),
         'dJ_hat_min': jnp.empty(shape=(n_iters,)),
         'dJ_hat_norm': jnp.empty(shape=(n_iters,)),
@@ -335,10 +342,11 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
                                                   eval_n_shards, eval_batch_size,
                                                   algo_stats, batch_stats,
                                                   samples, is_accepted,
-                                                  policy.theta, policy, eval_model)
+                                                  policy.theta, policy, eval_model,
+                                                  est_Z)
             sampler.update_stats(it, samples, is_accepted)
             if config['verbose']:
-                print_impsmp_report(it, algo_stats, batch_size, sampler, subt0, timer())
+                print_impsmp_report(it, algo_stats, batch_size, sampler, est_Z, subt0, timer())
 
     algo_stats.update({
         'algorithm': 'ImpSmpPerParameter',
