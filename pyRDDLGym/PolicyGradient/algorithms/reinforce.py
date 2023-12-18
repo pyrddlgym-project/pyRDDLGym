@@ -11,68 +11,68 @@ def scalar_mult(alpha, v):
 weighting_map = jax.vmap(
     scalar_mult, in_axes=0, out_axes=0)
 
-def flatten_dJ_shard(dJ_shard, shard_fr, shard_to, flat_dJ_shard):
+def flatten_dJ(dJ, batch_size, n_params):
     ip0 = 0
-    for leaf in jax.tree_util.tree_leaves(dJ_shard):
-        leaf = leaf.reshape(shard_to-shard_fr, -1)
-        ip1 = ip0 + leaf.shape[1]
-        flat_dJ_shard = flat_dJ_shard.at[shard_fr:shard_to, ip0:ip1].set(leaf)
+    flat_dJ = jnp.empty(shape=(batch_size, n_params))
+    for leaf in jax.tree_util.tree_leaves(dJ):
+        leaf = leaf.reshape(batch_size, -1)
+        ip1 = ip0 + leaf[0].flatten().shape[0]
+        flat_dJ = flat_dJ.at[:, ip0:ip1].set(leaf)
         ip0 = ip1
-    return flat_dJ_shard
+    return flat_dJ
 
-
-@functools.partial(jax.jit, static_argnames=('n_shards', 'batch_size', 'epsilon', 'policy', 'model'))
-def reinforce_inner_loop(key, theta, n_shards, batch_size, epsilon, policy, model):
+@functools.partial(
+    jax.jit,
+    static_argnames=('n_shards', 'batch_size', 'epsilon', 'policy', 'model'))
+def reinforce_inner_loop(key, theta, batch_size, n_shards, epsilon, policy, model):
     """Computes an estimate of dJ^pi over a sample B using the REINFORCE formula
 
-    dJ hat = 1/|B| * sum_{b in B} r(a_b) * grad pi(a_b) / pi(a_b)
+        dJ hat = 1/|B| * sum_{b in B} r(a_b) * grad pi(a_b) / pi(a_b)
 
     where dJ denotes the gradient of J^pi with respect to theta
 
     Args:
         key: JAX random key
         theta: Current policy pi parameters
-        subs: Values of the RDDL nonfluents used to run the RDDL model
+        batch_size: Total number of samples
+        n_shards: Number of shards to divide the batch into
+        epsilon: Small numerical stability constant
+        policy: Object carrying static policy parameters
+                (the values of the parameters are passed separately
+                 in theta)
+        model: Training RDDL model
 
     Returns:
         key: Mutated JAX random key
         dJ_hat: dJ estimator
         batch_stats: Dictionary of statistics for the current sample
+            'dJ': Individual summands of the dJ estimator
+            'actions': Sampled actions
     """
-    # initialize the estimator
-    dJ_hat = jax.tree_util.tree_map(lambda leaf: jnp.zeros(leaf.shape), theta)
-
-    # initialize the batch stats
-    batch_stats = {
-        'actions': jnp.empty(shape=(batch_size, policy.action_dim)),
-        'dJ': jnp.empty(shape=(batch_size, policy.n_params)),
-    }
-
+    batch_stats = {}
     jacobian = jax.jacrev(policy.pdf, argnums=1)
 
     # compute dJ hat for the current sample, dividing the computation up
     # into shards of size model.n_rollouts (for example, this can be
     # useful for fiting the computation into GPU VRAM)
-    for si in range(n_shards):
-        shard_fr, shard_to = si*(model.n_rollouts), (si+1)*(model.n_rollouts)
-
+    def compute_dJ_hat_summands_for_shard(key, _):
         key, subkey = jax.random.split(key)
         actions = policy.sample(subkey, theta, (model.n_rollouts,))
         pi = policy.pdf(subkey, theta, actions)
         dpi = jacobian(subkey, theta, actions)
-        rewards = jnp.squeeze(model.compute_loss(subkey, actions))
+        rewards = model.compute_loss(subkey, actions)
         factors = rewards / (pi + epsilon)
 
-        dJ_shard = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
+        dJ_summands = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
 
-        # update the dJ estimator dJ_hat
-        dJ_shard_find_mean_fn = lambda x: jnp.mean(x, axis=0)
-        accumulant = jax.tree_util.tree_map(dJ_shard_find_mean_fn, dJ_shard)
-        dJ_hat = jax.tree_util.tree_map(lambda x, y: x+(y/n_shards), dJ_hat, accumulant)
+        return key, (actions, rewards, dJ_summands)
 
-        # collect statistics for the batch
-        batch_stats['dJ'] = flatten_dJ_shard(dJ_shard, shard_fr, shard_to, batch_stats['dJ'])
-        batch_stats['actions'] = batch_stats['actions'].at[shard_fr:shard_to].set(actions)
+    key, (actions, rewards, dJ_summands) = jax.lax.scan(compute_dJ_hat_summands_for_shard, key, [None] * n_shards, length=n_shards)
+
+    dJ_hat = jax.tree_util.tree_map(lambda term: jnp.mean(term, axis=(0,1)), dJ_summands)
+
+    batch_stats['dJ'] = flatten_dJ(dJ_summands, batch_size, policy.n_params)
+    batch_stats['actions'] = actions.reshape(batch_size, policy.action_dim)
 
     return key, dJ_hat, batch_stats
 
@@ -180,7 +180,7 @@ def reinforce(key, n_iters, config, bijector, policy, sampler, optimizer, models
 
         key, dJ_hat, batch_stats = reinforce_inner_loop(
             key, policy.theta,
-            n_shards, batch_size, epsilon, policy, train_model)
+            batch_size, n_shards, epsilon, policy, train_model)
 
         updates, opt_state = optimizer.update(dJ_hat, opt_state)
         policy.theta = optax.apply_updates(policy.theta, updates)
