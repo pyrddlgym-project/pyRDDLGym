@@ -48,15 +48,16 @@ def unnormalized_log_rho(key, theta, policy, model, log_cutoff, a):
 @functools.partial(
     jax.jit,
     static_argnames=(
-        'n_shards',
         'batch_size',
+        'subsample_size',
+        'n_shards',
         'epsilon',
         'est_Z',
         'policy',
         'sampling_model',
         'train_model',))
 def impsmp_per_parameter_inner_loop(key, theta, samples,
-                                    n_shards, batch_size, epsilon, est_Z,
+                                    batch_size, subsample_size, n_shards, epsilon, est_Z,
                                     policy, sampling_model, train_model):
 
     batch_stats = {}
@@ -89,18 +90,22 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     sharded_actions = jnp.stack(sharded_actions)
     key, (pi, rho, losses, dJ_summands) = jax.lax.scan(compute_dJ_hat_summands_for_shard, key, sharded_actions)
 
-    batch_stats['scores'] = dJ_summands['linear']['w'].reshape(batch_size, policy.n_params)
+    key, subkey = jax.random.split(key)
+    dJ_summands = jax.tree_util.tree_map(lambda term: term.reshape(batch_size, policy.action_dim, 2), dJ_summands)
+    dJ_summands = jax.tree_util.tree_map(lambda term: jax.random.choice(key, term, shape=(subsample_size,), replace=False, axis=0), dJ_summands)
+    #FIXME: The below assumes a linear policy parametrization
+    batch_stats['scores'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
 
-    # estimate of the normalizing factor Z of the density rho
+    # estimate of the normalizing factors Z
     if est_Z:
         Zinv = jnp.mean(pi/(rho + epsilon), axis=(0,1))
         dJ_summands = jax.tree_util.tree_map(lambda item: item / Zinv, dJ_summands)
         batch_stats['Zinv'] = Zinv.reshape(policy.n_params)
 
-    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,1)), dJ_summands)
+    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,)), dJ_summands)
 
     #FIXME: The below assumes a linear policy parametrization
-    batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(batch_size, policy.n_params)
+    batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
     batch_stats['sample_losses'] = losses.reshape(batch_size, policy.n_params)
 
     return key, dJ_hat, batch_stats
@@ -159,7 +164,7 @@ def update_impsmp_stats(
     algo_stats['reward_std']              = algo_stats['reward_std'].at[it].set(jnp.std(eval_rewards))
     algo_stats['reward_sterr']            = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
 
-    algo_stats['sample_losses']      = algo_stats['sample_losses'].at[it].set(batch_stats['sample_losses'])
+    algo_stats['sample_losses']     = algo_stats['sample_losses'].at[it].set(batch_stats['sample_losses'])
     algo_stats['sample_loss_mean']  = algo_stats['sample_loss_mean'].at[it].set(jnp.mean(batch_stats['sample_losses']))
     algo_stats['sample_loss_std']   = algo_stats['sample_loss_std'].at[it].set(jnp.std(batch_stats['sample_losses']))
     algo_stats['sample_loss_sterr'] = algo_stats['sample_loss_sterr'].at[it].set(algo_stats['sample_loss_std'][it] / jnp.sqrt(batch_size))
@@ -196,6 +201,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
     # parse config
     action_dim = policy.action_dim
     batch_size = config['batch_size']
+    subsample_size = config.get('subsample_size', batch_size)
     eval_batch_size = config['eval_batch_size']
 
     sampling_model = models['sampling_model']
@@ -210,7 +216,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
     assert eval_n_shards > 0, (
         '[impsmp_per_parameter] Please check that eval_batch_size >= eval_model.n_rollouts.'
         f' eval_batch_size={eval_batch_size}, eval_model.n_rollouts={eval_model.n_rollouts}')
-
 
     est_Z = config.get('est_Z', True)
 
@@ -230,8 +235,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'sample_loss_mean': jnp.empty(shape=(n_iters,)),
         'sample_loss_std': jnp.empty(shape=(n_iters,)),
         'sample_loss_sterr': jnp.empty(shape=(n_iters,)),
-        #'dJ': jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
-        'dJ': jnp.empty(shape=(n_iters, 4, policy.n_params)),
+        'dJ': jnp.empty(shape=(n_iters, subsample_size, policy.n_params)),
         'dJ_hat_max': jnp.empty(shape=(n_iters,)),
         'dJ_hat_min': jnp.empty(shape=(n_iters,)),
         'dJ_hat_norm': jnp.empty(shape=(n_iters,)),
@@ -287,8 +291,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
 
             # compute dJ_hat
             key, dJ_hat, batch_stats = impsmp_per_parameter_inner_loop(
-                key, policy.theta, samples,
-                n_shards, batch_size, epsilon, est_Z,
+                key, policy.theta, samples, batch_size, subsample_size,
+                n_shards, epsilon, est_Z,
                 policy, sampling_model, train_model)
 
             updates, opt_state = optimizer.update(dJ_hat, opt_state)

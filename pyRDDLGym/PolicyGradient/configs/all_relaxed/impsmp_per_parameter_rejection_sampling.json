@@ -4,7 +4,7 @@
   "enable_jit": true,
   "seed": 3264,
   "action_dim": 9,
-  "n_iters": 50,
+  "n_iters": 200,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
@@ -47,7 +47,7 @@
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 2.0
+      "learning_rate": 0.3
     }
   },
   "algorithm": {

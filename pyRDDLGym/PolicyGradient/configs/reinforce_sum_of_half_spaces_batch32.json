@@ -36,7 +36,7 @@
     "params": {}
   },
   "optimizer": {
-    "id": "adagrad",
+    "id": "adabelief",
     "params": {
       "learning_rate": 0.7
     }
