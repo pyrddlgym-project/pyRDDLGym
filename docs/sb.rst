@@ -61,7 +61,7 @@ Running Stable Baselines
 
 By fixing the action space as described above, most pyRDDLGym environments can be used directly
 in stable-baselines3 RL implementations without considerable modification to the workflow.
-For example, the following code example trains a Deep Q-Network (DQN) on a domain and 
+For example, the following code example trains a PPO on a domain and 
 instance of one's choosing (assuming the action space simplifies to a ``Discrete``):
 
 .. code-block:: python
@@ -73,12 +73,12 @@ instance of one's choosing (assuming the action space simplifies to a ``Discrete
     info = ExampleManager.GetEnvInfo(domain)
     env = RDDLEnv.RDDLEnv.build(info, instance, new_gym_api=True, compact_action_space=True)
     
-    # train a DQN agent
+    # train the agent
     model = PPO('MultiInputPolicy', env, ...)
-    model.learn(total_timesteps=int(2e5))
+    model.learn(total_timesteps=40000)
 
-Note that, at the time of this writing, the ``new_gym_api`` flag must be set since the 
-stable-baselines implementation assumes the newest version of gym.
+.. note::
+   The ``new_gym_api`` flag must be set, since the stable-baselines implementation requires the new gym API.
 
 Below is a complete worked example for solving CartPole using PPO:
 
