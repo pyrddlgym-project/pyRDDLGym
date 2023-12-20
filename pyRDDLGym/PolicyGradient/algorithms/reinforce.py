@@ -15,7 +15,7 @@ def flatten_dJ(dJ, batch_size, n_params):
     ip0 = 0
     flat_dJ = jnp.empty(shape=(batch_size, n_params))
     for leaf in jax.tree_util.tree_leaves(dJ):
-        leaf = leaf.reshape(batch_size, -1)
+        leaf = leaf.reshape(batch_size, n_params)
         ip1 = ip0 + leaf[0].flatten().shape[0]
         flat_dJ = flat_dJ.at[:, ip0:ip1].set(leaf)
         ip0 = ip1
@@ -90,15 +90,22 @@ def evaluate_policy(key, it, algo_stats, eval_n_shards, eval_batch_size, theta, 
     algo_stats['policy_cov']         = algo_stats['policy_cov'].at[it].set(jnp.diag(policy_cov))
     return key, algo_stats
 
-@jax.jit
-def update_reinforce_stats(key, it, algo_stats, batch_stats):
+@functools.partial(
+    jax.jit,
+    static_argnames=(
+        'batch_size',
+        'save_dJ')
+    )
+def update_reinforce_stats(key, it, algo_stats, batch_stats, batch_size, save_dJ):
     """Updates the REINFORCE statistics using the statistics returned
     from the computation of dJ_hat for the current sample as well as
     the current policy mean/cov """
     dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
-    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
+    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False).reshape(batch_size, batch_size)
 
-    algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
+    if save_dJ:
+        algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
+
     algo_stats['dJ_hat_max']         = algo_stats['dJ_hat_max'].at[it].set(jnp.max(dJ_hat))
     algo_stats['dJ_hat_min']         = algo_stats['dJ_hat_min'].at[it].set(jnp.min(dJ_hat))
     algo_stats['dJ_hat_norm']        = algo_stats['dJ_hat_norm'].at[it].set(jnp.linalg.norm(dJ_hat))
@@ -145,6 +152,7 @@ def reinforce(key, n_iters, config, bijector, policy, sampler, optimizer, models
         f' eval_batch_size={eval_batch_size}, eval_model.n_rollouts={eval_model.n_rollouts}')
 
     epsilon = config.get('epsilon', 1e-12)
+    save_dJ = config.get('save_dJ', False)
 
     # initialize stats collection
     algo_stats = {
@@ -158,7 +166,6 @@ def reinforce(key, n_iters, config, bijector, policy, sampler, optimizer, models
         'policy_cov':         jnp.empty(shape=(n_iters, action_dim)),
         'transformed_policy_sample_mean': jnp.empty(shape=(n_iters, action_dim)),
         'transformed_policy_sample_cov':  jnp.empty(shape=(n_iters, action_dim)),
-        'dJ':                 jnp.empty(shape=(n_iters, batch_size, policy.n_params)),
         'dJ_hat_max':         jnp.empty(shape=(n_iters,)),
         'dJ_hat_min':         jnp.empty(shape=(n_iters,)),
         'dJ_hat_norm':        jnp.empty(shape=(n_iters,)),
@@ -168,6 +175,9 @@ def reinforce(key, n_iters, config, bijector, policy, sampler, optimizer, models
         'dJ_covar_diag_min':  jnp.empty(shape=(n_iters,)),
         'dJ_covar_diag_mean': jnp.empty(shape=(n_iters,)),
     }
+
+    if save_dJ:
+        algo_stats['dJ'] = jnp.empty(shape=(n_iters, batch_size, policy.n_params))
 
     # initialize optimizer
     opt_state = optimizer.init(policy.theta)
@@ -186,7 +196,7 @@ def reinforce(key, n_iters, config, bijector, policy, sampler, optimizer, models
         policy.theta = optax.apply_updates(policy.theta, updates)
 
         # update statistics and print out report for current iteration
-        key, algo_stats = update_reinforce_stats(key, it, algo_stats, batch_stats)
+        key, algo_stats = update_reinforce_stats(key, it, algo_stats, batch_stats, batch_size, save_dJ)
         if config.get('verbose', False):
             print_reinforce_report(it, algo_stats, subt0, timer())
 

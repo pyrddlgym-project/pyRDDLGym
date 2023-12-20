@@ -37,6 +37,7 @@ def unnormalized_rho(key, theta, policy, model, a):
     losses = compute_loss_axes_0_1(key, a, True)[..., 0]
     losses = jnp.abs(losses)
     density = losses * dpi_abs['linear']['w']
+
     return density
 
 @functools.partial(jax.jit, static_argnames=('policy', 'model', 'log_cutoff'))
@@ -66,8 +67,8 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     def compute_dJ_hat_summands_for_shard(key, actions):
         key, subkey = jax.random.split(key)
 
-        pi = policy.pdf(key, theta, actions)[..., 0]
-        dpi = jacobian(key, theta, actions)
+        pi = policy.pdf(subkey, theta, actions)[..., 0]
+        dpi = jacobian(subkey, theta, actions)
         dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=4), dpi)
         dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=3), dpi)
         dpi = jax.tree_util.tree_map(lambda x: x[:,0,:,:], dpi)
@@ -76,10 +77,10 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         compute_loss_axes_1_2 = jax.vmap(compute_loss_axis_1, (None, 1, None), 1)
         batch_compute_loss = jax.vmap(compute_loss_axes_1_2, (None, 1, None), 1)
 
-        losses = batch_compute_loss(key, actions, True)[..., 0]
+        losses = batch_compute_loss(subkey, actions, True)[..., 0]
 
         batch_unnormalized_rho = jax.vmap(unnormalized_rho, (None, None, None, None, 0), 0)
-        rho = batch_unnormalized_rho(key, theta, policy, sampling_model, actions)
+        rho = batch_unnormalized_rho(subkey, theta, policy, sampling_model, actions)
 
         factors = losses / (rho + epsilon)
         dJ_summands = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
@@ -114,6 +115,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     jax.jit,
     static_argnames=(
         'batch_size',
+        'subsample_size',
         'eval_n_shards',
         'eval_batch_size',
         'policy',
@@ -123,6 +125,7 @@ def update_impsmp_stats(
     key,
     it,
     batch_size,
+    subsample_size,
     eval_n_shards,
     eval_batch_size,
     algo_stats,
@@ -143,7 +146,7 @@ def update_impsmp_stats(
     eval_rewards = model.compute_loss(subkey, eval_actions, False)
 
     dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
-    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
+    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False).reshape(subsample_size, subsample_size)
 
     algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
     algo_stats['dJ_hat_max']         = algo_stats['dJ_hat_max'].at[it].set(jnp.max(dJ_hat))
@@ -342,7 +345,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
 
             # update stats and printout results for the current iteration
             key, algo_stats = update_impsmp_stats(key, it,
-                                                  batch_size,
+                                                  batch_size, subsample_size,
                                                   eval_n_shards, eval_batch_size,
                                                   algo_stats, batch_stats,
                                                   samples, is_accepted,
