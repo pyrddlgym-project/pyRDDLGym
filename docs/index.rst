@@ -14,5 +14,6 @@ Welcome to pyRDDLGym's documentation!
     start
     jax
     gurobi
+    prost
     sb
     rddl
