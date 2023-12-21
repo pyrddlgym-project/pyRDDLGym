@@ -2,18 +2,18 @@ Baselines: The PROST Planner
 ===============
 
 The PROST planner is an alternative to the Gurobi nonlinear solver that works 
-particularly well when the action space is finite. As discussed `in this paper 
-<https://ai.dmi.unibas.ch/papers/keller-eyerich-icaps2012.pdf>`_ PROST uses
+for stochastic problems with finite action spaces. As discussed `in this paper 
+<https://ai.dmi.unibas.ch/papers/keller-eyerich-icaps2012.pdf>`_, PROST uses
 a Monte-Carlo tree search with the UCT heuristic, as well as other problem-tailored
 heuristics to improve the efficacy of the search.
 
 The RDDLSimAgent Class
 -------------------
 
-Originally, PROST requires a TCP connection with a server that provides the environment interaction. 
+PROST requires a TCP connection with a server that provides the environment interaction. 
 Originally, the Java RDDL simulator was used to establish such a connection.
 However pyRDDLGym provides the replacement ``RDDLSimAgent`` class, which establishes an identical server-side port 
-that listens for any messages passed by client planners connected to that port. The following code
+that listens for any messages (i.e. actions) passed by client planners connected to that port. The following code
 establishes this connection by reading the domain and instance RDDL files at the specified path,
 creating the OpenAI gym environment, and exposing this environment through TCP connections.
 
