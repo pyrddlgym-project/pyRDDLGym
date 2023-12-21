@@ -65,7 +65,7 @@ once the experiment finishes.
 
 A complete list of ``<prost args>`` arguments can be found 
 `here <https://github.com/prost-planner/prost/blob/master/src/search/main.cc>`_.
-To run the IPC 2014 version of PROST, simply set this argument to ``[IPC2014]``. 
+For example, to run the IPC 2014 version of PROST, simply set this argument to ``[IPC2014]``. 
 
 Any PROST-specific issues should be directed to Thomas Keller by filing a bug report
 `here <https://github.com/prost-planner/prost>`_.
