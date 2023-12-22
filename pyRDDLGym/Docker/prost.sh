@@ -13,4 +13,4 @@ echo "Starting RDDL gym server..."
 sleep 5
 
 echo "Starting PROST with arguments $2..."
-( cd $WORKSPACE/prost && ./prost.py domain.rddl "[PROST -se $2]" ) > $PROST_OUT/prost.log 2>&1
+( cd $WORKSPACE/prost && ./prost.py domain.rddl "[PROST $2]" ) > $PROST_OUT/prost.log 2>&1

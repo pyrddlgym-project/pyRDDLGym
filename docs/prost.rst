@@ -66,7 +66,7 @@ once the experiment finishes.
 
 A complete list of ``<prost args>`` arguments can be found 
 `here <https://github.com/prost-planner/prost/blob/master/src/search/main.cc>`_.
-For example, to run the IPC 2014 version of PROST, simply set this argument to ``[IPC2014]``. 
+For example, to run the IPC 2014 version of PROST with default parameters, set this argument to ``-se [IPC2014]``. 
 Additional notes about PROST command line arguments from Thomas Keller can be found 
 `here <https://github.com/ataitler/pyRDDLGym/tree/main/pyRDDLGym/Docker/PROST_Command_Line_Option_Notes_Thomas_Keller.txt>`_.
 
