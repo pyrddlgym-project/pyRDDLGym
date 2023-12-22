@@ -21,6 +21,7 @@ weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
 
 @functools.partial(jax.jit, static_argnames=('policy', 'model'))
 def unnormalized_rho(key, theta, policy, model, a):
+    pi = policy.pdf(key, theta, a)[..., 0]
     dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
     dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
     dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=2), dpi)
@@ -97,9 +98,12 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     #FIXME: The below assumes a linear policy parametrization
     batch_stats['scores'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
 
+    importance_weights = pi / (rho + epsilon)
+    batch_stats['effective_sample_size'] = jnp.sum(importance_weights, axis=(0,1))**2 / jnp.sum(importance_weights*importance_weights, axis=(0,1))
+
     # estimate of the normalizing factors Z
     if est_Z:
-        Zinv = jnp.mean(pi/(rho + epsilon), axis=(0,1))
+        Zinv = jnp.mean(importance_weights, axis=(0,1))
         dJ_summands = jax.tree_util.tree_map(lambda item: item / Zinv, dJ_summands)
         batch_stats['Zinv'] = Zinv.reshape(policy.n_params)
 
@@ -109,7 +113,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
     batch_stats['sample_losses'] = losses.reshape(batch_size, policy.n_params)
 
-    return key, dJ_hat, batch_stats
+    return key, dJ_hat, batch_stats, importance_weights
 
 @functools.partial(
     jax.jit,
@@ -120,7 +124,8 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
         'eval_batch_size',
         'policy',
         'model',
-        'est_Z'))
+        'est_Z',
+        'save_dJ'))
 def update_impsmp_stats(
     key,
     it,
@@ -135,7 +140,8 @@ def update_impsmp_stats(
     theta,
     policy,
     model,
-    est_Z):
+    est_Z,
+    save_dJ):
     """Updates the REINFORCE with Importance Sampling statistics
     using the statistics returned from the computation of dJ_hat
     for the current sample as well as the current policy params theta"""
@@ -146,9 +152,10 @@ def update_impsmp_stats(
     eval_rewards = model.compute_loss(subkey, eval_actions, False)
 
     dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
-    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False).reshape(subsample_size, subsample_size)
+    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
 
-    algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
+    if save_dJ:
+        algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])
     algo_stats['dJ_hat_max']         = algo_stats['dJ_hat_max'].at[it].set(jnp.max(dJ_hat))
     algo_stats['dJ_hat_min']         = algo_stats['dJ_hat_min'].at[it].set(jnp.min(dJ_hat))
     algo_stats['dJ_hat_norm']        = algo_stats['dJ_hat_norm'].at[it].set(jnp.linalg.norm(dJ_hat))
@@ -178,6 +185,8 @@ def update_impsmp_stats(
     if est_Z:
         algo_stats['Zinv'] = algo_stats['Zinv'].at[it].set(batch_stats['Zinv'])
 
+    algo_stats['effective_sample_size'] = algo_stats['effective_sample_size'].at[it].set(batch_stats['effective_sample_size'])
+
     return key, algo_stats
 
 def print_impsmp_report(it, algo_stats, batch_size, sampler, est_Z, subt0, subt1):
@@ -195,6 +204,7 @@ def print_impsmp_report(it, algo_stats, batch_size, sampler, est_Z, subt0, subt1
     if est_Z:
         print(f'Z={1/algo_stats["Zinv"][it]}')
     print(f'Mean abs. score={algo_stats["mean_abs_score"][it]} \u00B1 {algo_stats["std_abs_score"][it]:.3f}')
+    print(f'Effective sample size={algo_stats["effective_sample_size"][it]}')
     print(f'Sample loss={algo_stats["sample_loss_mean"][it]:.3f} \u00B1 {algo_stats["sample_loss_sterr"][it]:.3f} '
           f':: Eval loss={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
@@ -224,6 +234,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
 
     epsilon = config.get('epsilon', 1e-12)
     log_cutoff = config.get('log_cutoff', -1000.)
+    save_dJ = config.get('save_dJ', False)
 
     # initialize stats collection
     algo_stats = {
@@ -238,7 +249,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'sample_loss_mean': jnp.empty(shape=(n_iters,)),
         'sample_loss_std': jnp.empty(shape=(n_iters,)),
         'sample_loss_sterr': jnp.empty(shape=(n_iters,)),
-        'dJ': jnp.empty(shape=(n_iters, subsample_size, policy.n_params)),
         'dJ_hat_max': jnp.empty(shape=(n_iters,)),
         'dJ_hat_min': jnp.empty(shape=(n_iters,)),
         'dJ_hat_norm': jnp.empty(shape=(n_iters,)),
@@ -251,7 +261,10 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'Zinv': jnp.empty(shape=(n_iters, policy.n_params)),
         'mean_abs_score': jnp.empty(shape=(n_iters,)),
         'std_abs_score': jnp.empty(shape=(n_iters,)),
+        'effective_sample_size': jnp.empty(shape=(n_iters, action_dim, 2)),
     }
+    if save_dJ:
+        algo_stats['dJ'] = jnp.empty(shape=(n_iters, subsample_size, policy.n_params)),
 
     # initialize sampler
     key = sampler.generate_initial_state(key)
@@ -350,7 +363,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
                                                   algo_stats, batch_stats,
                                                   samples, is_accepted,
                                                   policy.theta, policy, eval_model,
-                                                  est_Z)
+                                                  est_Z, save_dJ)
             sampler.update_stats(it, samples, is_accepted)
             if config['verbose']:
                 print_impsmp_report(it, algo_stats, batch_size, sampler, est_Z, subt0, timer())
