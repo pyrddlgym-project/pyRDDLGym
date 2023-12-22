@@ -1,0 +1,24 @@
+Notes from Thomas Keller on Prost command line parameters and time settings:
+===
+
+The deliberation time is a parameter of the search engine and not a global one, so if you want to run for instance the IPC 2014 configuration with a seed of 1 and timeout of 2 seconds you'll need to run something like:
+
+"[PROST -s 1 -se [IPC2014 -t 2]]"
+
+The Prost command line consists of two types of parameters: those that are of a primitive data types or string (like -t, which requires a double) and others that describe an object, e.g., the planner itself ("PROST") or a search engine (like -se of the planner or -h of an THTS initializer object). The parser recognizes an object if it is surrounded by brackets ([]). Every object has its own list of options, so a line like
+
+[PROST -se [THTS -act [UCB1] -out [UMC] -backup [PB] -init [Expand -h
+[IDS]]]]
+
+creates (at least, I didn't check any missing default parameters) 7 objects: the prost planner, a THTS search engine, a UCB1 action selection, an UMC outcome selection, a partial Bellman backup function, an initializer that expands new nodes and an IDS search engine that is used by the initializer.
+
+If you want to change the timeouts of different components, you could use
+
+[PROST -se [THTS -t 2.0 -act [UCB1] -out [UMC] -backup [PB] -init
+[Expand -h [IDS -t 0.1]]]]
+
+to end up with a search engine where the THTS component takes 2 seconds deliberation time and the IDS search engine opts for 0.1 seconds.
+
+That said, I agree it is kind of confusing because the -t parameters are not doing exactly the same kind of thing.
+
+Regarding the remaining time from the server: Prost is always ignoring that value and you only need to make sure the server doesn't terminate before Prost does. For the competitions, I always rewrote the time code to take the time from the server into account. Since all of my experiments have been conducted with a fixed deliberation time, that code never made it into the planner.
