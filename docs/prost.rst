@@ -42,27 +42,40 @@ The first step is to download the Docker files from `here <https://github.com/at
 (if you have already installed a recent version of pyRDDLGym through pip or git commands, 
 simply locate the installation folder and navigate to the Docker sub-folder).
 
-Once inside the Docker folder, build the Docker image (this will take a while) with the necessary prerequisite packages
+Navigate to the Docker folder, and build the Docker image (this will take a while) from the provided ``DOCKERFILE``:
 
 .. code-block:: shell
 	
-    docker build -t prost .
+    docker build -t <docker name> .
 
-Once the Docker image is built, a container can be created for a specified domain and instance RDDL file and run. 
-Fortunately, pyRDDLGym provides a convenient bash script ``runprost.sh`` 
-that automates the process of instantiating a ``RDDLSimAgent`` server and a PROST client:
+Once the image is built, a container can be created for a specified domain and instance RDDL file and run. 
+To do this, it is necessary to mount a local directory containing a RDDL domain and instance file into the /RDDL directory of the container
+when calling ``docker run``, i.e.:
 
 .. code-block:: shell
 	
-    bash runprost.sh prost <rddl dir> <rounds> <prost args> <output dir>
-	
+    docker run --name <docker name> --mount type=bind,source=<rddl dir>,target=/RDDL prost <rounds> "<prost args>"
+
 where ``<rddl dir>`` is a directory on the local machine containing a valid 
-``domain.rddl`` and ``instance.rddl`` file,
-``<rounds>`` is the number of rounds/episodes to evaluate on the server, 
-``<prost args>`` is a set of arguments passed to PROST, such as time limit, 
-search parameters, etc., and ``<output dir>`` is a valid directory on the local 
-machine into which all logs and simulation results from PROST are to be copied 
-once the experiment finishes.
+``domain.rddl`` and ``instance.rddl`` file, 
+``<rounds>`` is the number of rounds/episodes to evaluate on the server, and
+``<prost args>`` is a set of arguments to pass to PROST, 
+which is typically of the form ``[PROST -se [...] ...]`` (see below for details).
+
+To save the logs and simulation results to a local directory, 
+copy the /OUTPUTS directory in the container using ``docker cp``:
+
+.. code-block:: shell
+	 
+    docker cp <docker name>:/OUTPUTS/ <output dir>
+, 
+where ``<output dir>`` is a valid directory on the local machine.
+
+pyRDDLGym provides a convenient bash script ``runprost.sh`` in the Docker folder that automates the above:
+
+.. code-block:: shell
+	
+    bash runprost.sh <docker name> <rddl dir> <rounds> <prost args> <output dir>
 
 A complete list of ``<prost args>`` arguments can be found 
 `here <https://github.com/prost-planner/prost/blob/master/src/search/main.cc>`_.
