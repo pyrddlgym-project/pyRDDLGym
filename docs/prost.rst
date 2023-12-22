@@ -19,15 +19,16 @@ creating the OpenAI gym environment, and exposing this environment through TCP c
 
 .. code-block:: python
 	
-	from pyRDDLGym.Core.Policies.RDDLSimAgent import RDDLSimAgent
+    from pyRDDLGym.Core.Policies.RDDLSimAgent import RDDLSimAgent
 	
-	server = RDDLSimAgent(<domain-path>, <instance-path>, <numrounds>, <time>, port=2323)
+    server = RDDLSimAgent(<domain-path>, <instance-path>, <numrounds>, <time>, port=2323)
+    server.run()	
 	
 The ``numrounds`` specifies the number of epsiodes/rounds of simulation to perform,
 and ``time`` specifies the time the server connection should remain open. The optional ``port``
 parameter allows multiple connections to be established in parallel at different ports, 
-which is useful for parallel processing applications. 
-
+which is useful for parallel processing applications. Finally, the ``run()`` command starts the server
+to listen in on the specified port.
 
 The Docker Image
 -------------------
@@ -45,7 +46,7 @@ Once inside the Docker folder, build the Docker image (this will take a while) w
 
 .. code-block:: shell
 	
-	docker build -t prost .
+    docker build -t prost .
 
 Once the Docker image is built, a container can be created for a specified domain and instance RDDL file and run. 
 Fortunately, pyRDDLGym provides a convenient bash script ``runprost.sh`` 
@@ -53,7 +54,7 @@ that automates the process of instantiating a ``RDDLSimAgent`` server and a PROS
 
 .. code-block:: shell
 	
-	bash runprost.sh prost <rddl dir> <rounds> <prost args> <output dir>
+    bash runprost.sh prost <rddl dir> <rounds> <prost args> <output dir>
 	
 where ``<rddl dir>`` is a directory on the local machine containing a valid 
 ``domain.rddl`` and ``instance.rddl`` file,
@@ -66,6 +67,8 @@ once the experiment finishes.
 A complete list of ``<prost args>`` arguments can be found 
 `here <https://github.com/prost-planner/prost/blob/master/src/search/main.cc>`_.
 For example, to run the IPC 2014 version of PROST, simply set this argument to ``[IPC2014]``. 
+Additional notes about PROST command line arguments from Thomas Keller can be found 
+`here <https://github.com/ataitler/pyRDDLGym/tree/main/pyRDDLGym/Docker/PROST_Command_Line_Option_Notes_Thomas_Keller.txt>`_.
 
 Any PROST-specific issues should be directed to Thomas Keller by filing a bug report
 `here <https://github.com/prost-planner/prost>`_.
