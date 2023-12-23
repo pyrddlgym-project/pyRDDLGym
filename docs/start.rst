@@ -227,7 +227,7 @@ Visualization
 pyRDDLGym visualization is just like regular Gym, which can be done by calling ``env.render()``.
 Every domain has a default visualizer assigned to it, which is either a graphical ``ChartVisualizer`` that plots the state trajectory over time, or a custom domain-dependent implementation.
 
-Assigning a visualizer for an environment can be done by calling the environment method ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object.
+Assigning a visualizer for an environment can be done by calling the environment method ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object. For example, to assign the default viz:
 
 .. code-block:: python
 
@@ -247,6 +247,13 @@ To override the default visualizer instance with the ``ChartVisualizer``, simply
 
     from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
     env.set_visualizer(ChartVisualizer)
+
+Similarly, to override the default visualizer instance with the ``TextVisualizer``, which produces a textual representation of the state in much the same way we print the state information to console or a log file:
+
+.. code-block:: python
+
+    from pyRDDLGym.Visualizer.TextViz import TextVisualizer
+    env.set_visualizer(TextVisualizer)
 
 In order to build custom visualizations (for new user defined domains), 
 one can inherit the class ``Visualizer.StateViz.StateViz()`` and return in the ``visualizer.render()`` method a PIL image for the gym to render to the screen.
