@@ -23,8 +23,13 @@
 // Unlike the original Java version, unit committment has been
 // added by generalizing the cost non-fluents of the original
 // version. For example, a nuclear plant could be defined with
-// a high fixed cost and a smaller variable cost of energy 
-// production and high capacity.
+// a high fixed cost and a smaller operating cost of energy 
+// production and high capacity. The fixed cost is incurred
+// whenever the resource is committed (i.e. brought into
+// operation) if it is not already committed. 
+//
+// A second change is made to the demand, which is now Weibull
+// and is more interesting probabilistically.
 //
 // This version is in RDDL 2.0 format.
 //
