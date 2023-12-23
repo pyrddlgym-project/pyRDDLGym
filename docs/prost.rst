@@ -1,21 +1,21 @@
 Baselines: The PROST Planner
 ===============
 
-The PROST planner is an alternative to the Gurobi nonlinear solver that works 
-for stochastic problems with finite action spaces. As discussed `in this paper 
-<https://ai.dmi.unibas.ch/papers/keller-eyerich-icaps2012.pdf>`_, PROST uses
-a Monte-Carlo tree search with the UCT heuristic, as well as other problem-tailored
-heuristics to improve the efficacy of the search.
+The PROST planner, introduced `in this paper 
+<https://ai.dmi.unibas.ch/papers/keller-eyerich-icaps2012.pdf>`_, works well for 
+stochastic problems with finite action spaces. It uses a Monte-Carlo UCT search 
+that is heavily informed by the problem structure in order to improve the search.
 
 The RDDLSimAgent Class
 -------------------
 
-PROST requires a TCP connection with a server that provides the environment interaction. 
-Originally, the Java RDDL simulator was used to establish such a connection.
-However pyRDDLGym provides the replacement ``RDDLSimAgent`` class, which establishes an identical server-side port 
-that listens for any messages (i.e. actions) passed by client planners connected to that port. The following code
-establishes this connection by reading the domain and instance RDDL files at the specified path,
-creating the OpenAI gym environment, and exposing this environment through TCP connections.
+PROST requires a TCP connection with a server that provides the environment interaction, 
+which was originally provided by the Java version of RDDL.
+pyRDDLGym provides the replacement ``RDDLSimAgent`` class, which establishes an identical server
+that listens for any messages (i.e. actions) passed by client planners connected to that port. 
+
+The following code establishes this connection by reading the domain and instance RDDL files at the specified path,
+and exposing the resulting Gym environment through a TCP connection:
 
 .. code-block:: python
 	
@@ -36,21 +36,21 @@ The Docker Image
 While PROST and other planners can be used to establish connections with the ``RDDLSimAgent`` instance,
 the setup of the PROST planner in most environments (especially, i.e. Windows machines) is quite difficult.
 To automate the process of setting up the PROST planner in a standard environment, 
-we provide a generic Docker image that can be used to run PROST easily and reproducibly on most machines and OS.
+pyRDDLGym provides a generic Docker image that can run PROST with minimal effort on the user side and on most OS.
 
 The first step is to download the Docker files from `here <https://github.com/ataitler/pyRDDLGym/tree/main/pyRDDLGym/Docker>`_
 (if you have already installed a recent version of pyRDDLGym through pip or git commands, 
 simply locate the installation folder and navigate to the Docker sub-folder).
 
-Navigate to the Docker folder, and build the Docker image (this will take a while) from the provided ``DOCKERFILE``:
+Navigate to the Docker folder, and build the Docker image from the provided ``DOCKERFILE``:
 
 .. code-block:: shell
 	
     docker build -t <docker name> .
 
-Once the image is built, a container can be created for a specified domain and instance RDDL file and run. 
-To do this, it is necessary to mount a local directory containing a RDDL domain and instance file into the /RDDL directory of the container
-when calling ``docker run``, i.e.:
+This may take a while. Once built, a container can be created for a specified domain and instance RDDL file. 
+To do this, mount a local directory containing a RDDL domain and instance file into the /RDDL directory of the container
+when calling ``docker run``:
 
 .. code-block:: shell
 	
@@ -59,7 +59,7 @@ when calling ``docker run``, i.e.:
 where ``<rddl dir>`` is a directory on the local machine containing a valid 
 ``domain.rddl`` and ``instance.rddl`` file, 
 ``<rounds>`` is the number of rounds/episodes to evaluate on the server, and
-``<prost args>`` is a set of arguments to pass to PROST, 
+``<prost args>`` is the arguments to pass to PROST, 
 which is typically of the form ``[PROST -se [...] ...]`` (see below for details).
 
 To save the logs and simulation results to a local directory, 
@@ -68,10 +68,10 @@ copy the /OUTPUTS directory in the container using ``docker cp``:
 .. code-block:: shell
 	 
     docker cp <docker name>:/OUTPUTS/ <output dir>
-, 
+
 where ``<output dir>`` is a valid directory on the local machine.
 
-pyRDDLGym provides a convenient bash script ``runprost.sh`` in the Docker folder that automates the above:
+pyRDDLGym provides a convenient bash script ``runprost.sh`` in the Docker folder that automates the two previous commands:
 
 .. code-block:: shell
 	
