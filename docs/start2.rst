@@ -4,8 +4,8 @@ Going into Details
 Inspecting the Model
 -------------------
 
-The pyRDDLGym compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain, 
-which can be accessed through the ``model`` field of a ``RDDLEnv``
+The pyRDDLGym compiler provides a convenient API for querying a variety of properties about RDDL constructs in a domain.
+These can be accessed through the ``model`` field of a ``RDDLEnv``:
 
 .. code-block:: python
 	
@@ -55,10 +55,11 @@ Below are some commonly used fields of ``model`` that can be accessed directly.
 ``Expression`` objects are symbolic syntax trees that describe the flow of computations
 in each cpf, constraint relation, or the reward function of the RDDL domain.
 
-The ``args()`` function of an ``Expression`` object accesses its sub-expressions, 
+The ``args()`` function of an ``Expression`` object provides its sub-expressions, 
 which can be ``Expression`` instances or collections containing aggregation variables,
-types, or other information required by the engine. Similarly, the ``etype()`` argument
-provides identifying information about the expression.
+types, or other information required by the engine. 
+
+Similarly, the ``etype()`` argument provides identifying information about the expression.
 
 New vs Old API
 ------
@@ -86,11 +87,12 @@ Tensor Representation
 Some algorithms require a tensor representation of states and/or actions. 
 The ``RDDLEnv`` class provides a ``vectorized`` option
 to work directly with the tensor representations of state and action fluents. 
-With this option, for example, a ``bool`` action fluent
-``put-out(?x, ?y)`` taking two parameters ``?x`` and ``?y`` with 3 objects each would be provided as a boolean-valued 
+
+For example, a ``bool`` action fluent ``put-out(?x, ?y)`` taking two parameters 
+``?x`` and ``?y``, with 3 objects each, would be provided as a boolean-valued 
 3-by-3 matrix. State fluents also follow this format.
 
-The tensor representation option can be enabled as follows:
+This option can be enabled as follows:
 
 .. code-block:: python
 
@@ -104,7 +106,7 @@ Building a Custom Visualizer
 -------------
 
 In order to build custom visualizations (for new user defined domains), 
-one can inherit the class ``Visualizer.StateViz.StateViz()`` and override the 
+inherit the class ``Visualizer.StateViz.StateViz()`` and override the 
 ``visualizer.render()`` function to produce a PIL image to render to the screen:
 
 .. code-block:: python
@@ -130,9 +132,9 @@ or diagnosis:
 	
 	env = RDDLEnv.RDDLEnv.build(info, instance, debug=True)
 
-Upon executing this command, a log file is created with the name 
-<domain name>_<instance name>.log in the installation's root directory.
-Currently, the following information is written in the generated log file:
+A log file will be created with the name <domain name>_<instance name>.log in the installation's root directory.
+
+Currently, the following information is logged:
 
 * description of pvariables as they are stored in memory (e.g., parameters, data type, data shape)
 * dependency graph between CPFs
