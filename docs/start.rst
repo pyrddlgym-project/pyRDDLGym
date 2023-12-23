@@ -20,11 +20,10 @@ where ``domain.rddl`` and ``instance.rddl`` are paths pointing to RDDL files of 
 Built-in Environments
 -----------------
 
-pyRDDLGym is shipped with a number of varied domains and accompanying instances, whose RDDL files
-are included as part of the distribution. These environments can be accessed through the
-``ExampleManager``.
+pyRDDLGym ships with the RDDL files for many interesting domains and accompanying instances.
+These domains and instances can be accessed through the ``ExampleManager``. 
 
-To list all examples currently packaged with pyRDDLGym:
+For example, to list all domains currently packaged with pyRDDLGym:
 
 .. code-block:: python
 
@@ -35,7 +34,7 @@ To request more info about a domain:
 
 .. code-block:: python
 
-    info = ExampleManager.GetEnvInfo(<domain-name>)
+    info = ExampleManager.GetEnvInfo("domain-name")
 
 To then list all instances of a domain:
 
@@ -43,7 +42,7 @@ To then list all instances of a domain:
 
     info.list_instances()
 
-To then set up an OpenAI gym environment with the default visualizer:
+To then set up a Gym environment with the default visualizer:
 
 .. code-block:: python
 
@@ -60,12 +59,13 @@ Policies
 ----------------------------
 
 A policy interacts with an environment by providing actions or controls in each state.
-We provide two simple policies as part of pyRDDLGym:
+pyRDDLGym provides two simple policies 
+(in addition to Baselines discussed in future sections, many of which are also policies):
 
 - **NoOpAgent** - returns the default action values specified in the RDDL domain.
 - **RandomAgent** - samples a random action according to the env.action_space and the maximum number of allowed concurrent actions as specified in the RDDL file.
 
-To initialize a random policy for example:
+For example, to initialize a random policy:
 
 .. code-block:: python
 
@@ -73,15 +73,16 @@ To initialize a random policy for example:
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
 
 .. note::
-   Random policies only respect box constraints, due to limitations on OpenAI gym spaces.
-   To handle complex constraints, it is recommended to implement a custom ``Agent``. 
+   Random policies respect only box constraints, due to limitations on OpenAI gym spaces.
+   To handle complex nonlinear constraints, it is recommended to implement a custom ``Agent``
+   with domain-specific logic.
    
 Interacting with an Environment
 ----------------------------
 
 Now lets see what a complete agent-environment loop looks like in pyRDDLGym.
-The example below will run the ``MarsRover`` environment for a single episode or trial.
-If the ``env.render()`` function is used, we will also see a window pop up rendering the environment:
+The example below will run the ``MarsRover`` environment for a single episode/trial.
+The ``env.render()`` function displays a pop-up window rendering the current state to the screen:
 
 .. code-block:: python
 
@@ -89,7 +90,7 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
     from pyRDDLGym import ExampleManager
     from pyRDDLGym.Core.Policies.Agents import RandomAgent
 
-    # set up the Mars Rover problem instance 0
+    # set up the Mars Rover instance 0
     info = ExampleManager.GetEnvInfo('MarsRover')
     env = RDDLEnv.RDDLEnv.build(info, 0)
     
@@ -97,7 +98,6 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
     
     # perform a roll-out from the initial state
-    # until either termination or the horizon is reached
     total_reward = 0
     state = env.reset()
     for _ in range(env.horizon):
@@ -110,30 +110,33 @@ If the ``env.render()`` function is used, we will also see a window pop up rende
                 break
     env.close()
 
-The convenience ``evaluate`` function replaces the above interaction ``for`` loop with a single command:
+Alternatively, the ``evaluate()`` bypasses the need to write out the ``for`` loop above:
 
 .. code-block:: python
 	
    total_reward = agent.evaluate(env, episodes=1, render=True)['mean']
   
-The ``evaluate`` returns a dictionary of summary statistics about the 
-returns collected on different episodes, such as mean, median, standard deviation, etc.
+The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
+total rewards collected across episodes, such as mean, median, standard deviation, etc.
 
 Spaces
 ------
 
-The state and action spaces of pyRDDLGym are standard ``gym.spaces``, 
-accessible through the standard API: ``env.state_space`` and ``env.action_space``.
-State/action spaces are of type ``gym.spaces.Dict``, where each key-value pair 
-consists of the fluent name and its current value.
+The state and action spaces of a ``RDDLEnv`` are standard ``gym.spaces`` and are
+accessible via ``env.state_space`` and ``env.action_space``, respectively.
+In most cases, state and action spaces are ``gym.spaces.Dict`` objects, whose key-value pairs
+are fluent names and their current values.
 
-Thus, RDDL types are converted to ``gym.spaces`` with the appropriate bounds as 
-specified in the RDDL ``action-preconditions`` and ``state-invariants`` fields. 
-The conversion is as following:
+In order to compute meaningful bounds on RDDL variables, pyRDDLGym parses and analyzes the 
+``action-preconditions`` and ``state-invariants`` expressions. If constraints are box constraints,
+the conversion happens as follows:
 
 - real -> Box with bounds as specified in action-preconditions, or with np.inf and symmetric bounds
 - int -> Discrete with bounds as specified in action-preconditions, or with np.inf and symmetric bounds
 - bool -> Discrete(2)
+
+.. note::
+   Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gym.
 
 .. note::
    When passing an action dictionary to a ``RDDLEnv``, for example to the ``step()`` function,
@@ -143,12 +146,12 @@ The conversion is as following:
 Visualization
 -------------
 
-pyRDDLGym visualization is just like regular Gym, which can be done by calling ``env.render()``.
 Every domain has a default visualizer assigned to it, which is either a graphical 
 ``ChartVisualizer`` that plots the state trajectory over time, or a custom domain-dependent implementation.
 
 Assigning a visualizer for an environment can be done by calling 
 ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object.
+
 For example, to assign the ``ChartVisualizer``:
 
 .. code-block:: python
@@ -163,6 +166,9 @@ state similar to the standard console output:
 
     from pyRDDLGym.Visualizer.TextViz import TextVisualizer
     env.set_visualizer(TextVisualizer)
+
+All visualizers can be activated in an environment by calling ``env.render()``
+on each call to ``env.step()`` or ``env.reset()``, just like regular Gym.
 
 Recording Movies
 --------------------------
@@ -189,31 +195,30 @@ Upon calling ``env.close()``, the images captured will be combined into video fo
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
 
 .. note::
-   Videos will not be saved until the environment is closed with ``env.close()``. However, still frames will be recorded
-   to disk while the interaction with the environment is taking place, in order to 
-   accommodate long interactions that could use too much memory.
+   Videos will not be saved until the environment is closed with ``env.close()``. However, frames will be recorded
+   to disk continuously while the environment interaction is taking place (to save RAM), which will be used to generate the video.
    Therefore, it is important to not delete these images while the recording is 
    taking place, which will be deleted automatically once recording is complete.
 
 Logging Simulation Data
 --------------------------
 
-The record of all past interactions with an environment can be logged to a machine
-readable file, such as a CSV. To write to a CSV file:
+A record of all past interactions with an environment can be logged to a machine
+readable CSV file for later analysis:
 
 .. code-block:: python
 	
 	env = RDDLEnv.RDDLEnv.build(info, instance, log_path='path/to/file.csv')
                             
-Upon interacting with the environment, a log file is created at the specified path
-which can be later parsed using standard CSV packages. Similar to movie generation,
-logging will continue until ``env.close()`` is called.
+Upon interacting with the environment, pyRDDLGym appends the new observations to the log file at the
+specified path. Logging continues until ``env.close()`` is called.
 
 Writing Custom Domains
 --------------------------
 
-Writing new user defined domains is as easy as writing a few lines of text in a mathematical fashion!
-It is only required to specify the lifted constants, variables (all are referred as fluents in RDDL),
-behavior/dynamic of the problem and generating an instance with the actual objects and initial state in RDDL - and pyRDDLGym will do the rest.
-The syntax for building RDDL domains is described here: :ref:`rddl-description`.
+Writing new domains is as easy as writing a few lines of text in a mathematical fashion!
+It is only required to specify two ``.rddl`` files, one containing the lifted domain description,
+and another containing the instance specification, and pointing the ``RDDLEnv`` initialization
+to these two files as discussed at the beginning of this page.
 
+The syntax required for building RDDL domains is described here: :ref:`rddl-description`.
