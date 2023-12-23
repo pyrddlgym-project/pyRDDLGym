@@ -57,9 +57,6 @@ domain supply_chain {
 		demand-new(warehouse) 				: { state-fluent, int, default = 0 };
 		stock-factory 						: { state-fluent, int, default = 0 };
 		stock-warehouse(warehouse) 			: { state-fluent, int, default = 0 };
-		
-		// Derived and intermediate
-		outflow 							: { interm-fluent, int };
 	};
 	
 	cpfs {
@@ -70,8 +67,8 @@ domain supply_chain {
 									+ (MAX-DEMAND / 2) + Bernoulli( 0.5 ) ], MAX-DEMAND];
 		
 		// Update factory stock
-		outflow = (sum_{?w : warehouse} ship(?w));
-		stock-factory' = max[min[stock-factory + produce - outflow, CAPACITY-FACTORY], 0];
+		stock-factory' = max[min[stock-factory + produce - (sum_{?w : warehouse} ship(?w)), 
+								 CAPACITY-FACTORY], 0];
 		
 		// Update warehouse stock
 		stock-warehouse'(?w) = min[stock-warehouse(?w) + ship(?w) - demand-new'(?w), CAPACITY-WAREHOUSE(?w)];
