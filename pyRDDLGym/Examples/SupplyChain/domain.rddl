@@ -5,7 +5,7 @@
 // to meet demand. Demand is a nonstationary function that depends
 // on time and contains stochastic shocks, i.e. for warehouse i at time t:
 //
-// demand(i, t) = floor[D/2 * sin[2 pi (t + 2i) / 12 ] + D/2 + e(i, t) ]
+// 		demand(i,t) = floor[D/2 * sin[2 pi (t + 2i) / 12] + D/2 + e(i,t)]
 //
 // where D is an upper level of demand, and e(i, t) is a Bernoulli(0.5)
 // random variable.
