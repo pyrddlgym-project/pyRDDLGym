@@ -72,10 +72,17 @@ For example, to initialize a random policy:
     from Policies.Agents import RandomAgent
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
 
+All policies must implement a ``sample_action`` function for sampling an
+action in each state:
+
+.. code-block:: python
+
+    action = agent.sample_action(state)
+ 
 .. note::
-   Random policies respect only box constraints, due to limitations on OpenAI gym spaces.
-   To handle complex nonlinear constraints, it is recommended to implement a custom ``Agent``
-   with domain-specific logic.
+   Random policies respect only box constraints, due to limitations in Gym.
+   To handle arbitrary nonlinear constraints, implement a custom ``Agent``
+   with its own ``sample_action`` function.
    
 Interacting with an Environment
 ----------------------------
