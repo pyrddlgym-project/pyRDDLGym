@@ -1,14 +1,12 @@
 Baselines: The Gurobi MIP Planner
 ===============
 
-In this tutorial, we discuss the limitations of the JAX planner and present an alternative 
-framework that automatically compiles RDDL code into a Gurobi mixed-integer program (MIP)
-that can be optimized to compute optimal controls.
+In this tutorial, we discuss the compilation of RDDL into a Gurobi mixed-integer program (MIP) for computing optimal actions.
+The Gurobi planner can optimize discrete state/action problems where the JAX planner could perform poorly.
 
 Setting up the Gurobi Planner
 -------------------
 
-The Gurobi planner can optimize many discrete state/action problems where the JAX planner could perform poorly.
 To run the Gurobi planner, you will need to install a valid academic or institutional 
 `Gurobi license <https://www.gurobi.com/academia/academic-program-and-licenses/>`_, as well as the Gurobi python package
 version 10.0.1 or later
@@ -43,7 +41,7 @@ an open loop plan (a sequence of controls that will be optimized directly):
     plan = GurobiStraightLinePlan()
    
 Finally, create the controller, which is an instance of the ``BaseAgent`` class. This means we
-can call ``evaluate(env)`` to directly begin optimization on the environment!
+can call ``evaluate(env)`` to directly begin optimization on the environment
  
 .. code-block:: python
 
@@ -78,16 +76,16 @@ Passing Parameters to the Gurobi Backend
 Gurobi is by its nature highly `configurable <https://www.gurobi.com/documentation/current/refman/parameters.html>`_. 
 Parameters can be passed to the Gurobi model through a ``gurobi.env`` file, or directly through the pyRDDLGym interface.
 
-To understand the first approach, suppose we wish to subject each Gurobi optimization to a time limit of 60 seconds, 
-as to print progress during optimization to console. You can specify this by creating a ``gurobi.env`` file in the same
-directory where your launch script is located, with the following content:
+To understand the first approach, suppose we wish to instruct Gurobi to limit each optimization to 60 seconds, 
+and to print progress during optimization to console. Create a ``gurobi.env`` file in the same
+directory where the launch script is located, and with the following content:
 
 .. code-block:: shell
 
     TimeLimit 60
     OutputFlag 1
  
-To understand the second approach, you can alternatively pass these parameters as a dictionary to the 
+In the second approach, you can alternatively pass these parameters as a dictionary to the 
 ``model_params`` argument of the controller instance:
 
 .. code-block:: python
