@@ -4,7 +4,7 @@
   "enable_jit": true,
   "seed": 3264,
   "action_dim": 9,
-  "n_iters": 200,
+  "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
@@ -47,7 +47,7 @@
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 0.3
+      "learning_rate": 0.9
     }
   },
   "algorithm": {
@@ -57,11 +57,13 @@
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "log_cutoff": -1000.0,
+      "importance_weight_ub": 3,
       "est_Z": true,
       "sampler": {
         "type": "rejection_sampler",
         "params": {
           "proposal_pdf_type": "cur_policy",
+          "sample_shape_type": "one_per_parameter",
           "rejection_rate": 1000
         }
       },

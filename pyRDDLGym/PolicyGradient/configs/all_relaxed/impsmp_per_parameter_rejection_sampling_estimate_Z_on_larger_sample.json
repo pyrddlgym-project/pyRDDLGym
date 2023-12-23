@@ -22,7 +22,7 @@
         "train_model": {
           "is_relaxed": true,
           "compiler_kwargs": {
-            "n_rollouts": 128,
+            "n_rollouts": 32,
             "weight": 10.0
           }
         },
@@ -47,22 +47,24 @@
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 0.3
+      "learning_rate": 0.9
     }
   },
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 512,
+      "batch_size": 8192,
       "subsample_size": 4,
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "log_cutoff": -1000.0,
+      "importance_weight_ub": 3,
       "est_Z": true,
       "sampler": {
         "type": "rejection_sampler",
         "params": {
           "proposal_pdf_type": "cur_policy",
+          "sample_shape_type": "one_per_parameter",
           "rejection_rate": 1000
         }
       },

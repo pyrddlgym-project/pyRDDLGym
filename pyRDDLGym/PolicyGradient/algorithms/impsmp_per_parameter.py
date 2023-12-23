@@ -19,8 +19,13 @@ weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
 
 
 
-@functools.partial(jax.jit, static_argnames=('policy', 'model'))
-def unnormalized_rho(key, theta, policy, model, a):
+@functools.partial(
+    jax.jit,
+    static_argnames=(
+        'policy',
+        'model',
+        'importance_weight_ub'))
+def unnormalized_rho(key, theta, policy, model, importance_weight_ub, a):
     pi = policy.pdf(key, theta, a)[..., 0]
     dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
     dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
@@ -39,11 +44,22 @@ def unnormalized_rho(key, theta, policy, model, a):
     losses = jnp.abs(losses)
     density = losses * dpi_abs['linear']['w']
 
+    density = jnp.where(
+        pi / density < importance_weight_ub,
+        density,
+        pi / importance_weight_ub)
+
     return density
 
-@functools.partial(jax.jit, static_argnames=('policy', 'model', 'log_cutoff'))
-def unnormalized_log_rho(key, theta, policy, model, log_cutoff, a):
-    density = unnormalized_rho(key, theta, policy, model, a)
+@functools.partial(
+    jax.jit,
+    static_argnames=(
+        'policy',
+        'model',
+        'log_cutoff',
+        'importance_weight_ub'))
+def unnormalized_log_rho(key, theta, policy, model, log_cutoff, importance_weight_ub, a):
+    density = unnormalized_rho(key, theta, policy, model, importance_weight_ub, a)
     return jnp.maximum(log_cutoff, jnp.log(density))
 
 
@@ -55,11 +71,13 @@ def unnormalized_log_rho(key, theta, policy, model, log_cutoff, a):
         'n_shards',
         'epsilon',
         'est_Z',
+        'importance_weight_ub',
         'policy',
         'sampling_model',
         'train_model',))
 def impsmp_per_parameter_inner_loop(key, theta, samples,
-                                    batch_size, subsample_size, n_shards, epsilon, est_Z,
+                                    batch_size, subsample_size, n_shards,
+                                    epsilon, est_Z, importance_weight_ub,
                                     policy, sampling_model, train_model):
 
     batch_stats = {}
@@ -80,8 +98,8 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
 
         losses = batch_compute_loss(subkey, actions, True)[..., 0]
 
-        batch_unnormalized_rho = jax.vmap(unnormalized_rho, (None, None, None, None, 0), 0)
-        rho = batch_unnormalized_rho(subkey, theta, policy, sampling_model, actions)
+        batch_unnormalized_rho = jax.vmap(unnormalized_rho, (None, None, None, None, None, 0), 0)
+        rho = batch_unnormalized_rho(subkey, theta, policy, sampling_model, importance_weight_ub, actions)
 
         factors = losses / (rho + epsilon)
         dJ_summands = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
@@ -100,6 +118,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
 
     importance_weights = pi / (rho + epsilon)
     batch_stats['effective_sample_size'] = jnp.sum(importance_weights, axis=(0,1))**2 / jnp.sum(importance_weights*importance_weights, axis=(0,1))
+    batch_stats['importance_weight_range'] = jnp.array([jnp.min(importance_weights), jnp.max(importance_weights)])
 
     # estimate of the normalizing factors Z
     if est_Z:
@@ -113,7 +132,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples,
     batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
     batch_stats['sample_losses'] = losses.reshape(batch_size, policy.n_params)
 
-    return key, dJ_hat, batch_stats, importance_weights
+    return key, dJ_hat, batch_stats
 
 @functools.partial(
     jax.jit,
@@ -186,6 +205,7 @@ def update_impsmp_stats(
         algo_stats['Zinv'] = algo_stats['Zinv'].at[it].set(batch_stats['Zinv'])
 
     algo_stats['effective_sample_size'] = algo_stats['effective_sample_size'].at[it].set(batch_stats['effective_sample_size'])
+    algo_stats['importance_weight_range'] = algo_stats['importance_weight_range'].at[it].set(batch_stats['importance_weight_range'])
 
     return key, algo_stats
 
@@ -204,7 +224,11 @@ def print_impsmp_report(it, algo_stats, batch_size, sampler, est_Z, subt0, subt1
     if est_Z:
         print(f'Z={1/algo_stats["Zinv"][it]}')
     print(f'Mean abs. score={algo_stats["mean_abs_score"][it]} \u00B1 {algo_stats["std_abs_score"][it]:.3f}')
-    print(f'Effective sample size={algo_stats["effective_sample_size"][it]}')
+
+    ess = algo_stats['effective_sample_size'][it]
+    ess_min, ess_mean, ess_max = jnp.min(ess), jnp.mean(ess), jnp.max(ess)
+    print(f'Effective sample size: {ess_min} <= (Mean) {ess_mean} <= {ess_max}')
+    print(f'Importance weight range: {algo_stats["importance_weight_range"][it]}')
     print(f'Sample loss={algo_stats["sample_loss_mean"][it]:.3f} \u00B1 {algo_stats["sample_loss_sterr"][it]:.3f} '
           f':: Eval loss={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
@@ -221,16 +245,20 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
     train_model = models['train_model']
     eval_model = models['eval_model']
 
+    assert batch_size % (sampling_model.n_rollouts * train_model.n_rollouts) == 0
     n_shards = int(batch_size / (sampling_model.n_rollouts * train_model.n_rollouts))
-    eval_n_shards = int(eval_batch_size / eval_model.n_rollouts)
     assert n_shards > 0, (
          '[impsmp_per_parameter] Please check that batch_size >= (sampling_model.n_rollouts * train_model.n_rollouts).'
         f' batch_size={batch_size}, sampling_model.n_rollouts={sampling_model.n_rollouts}, train_model.n_rollouts={train_model.n_rollouts}')
+
+    assert eval_batch_size % eval_model.n_rollouts == 0
+    eval_n_shards = int(eval_batch_size / eval_model.n_rollouts)
     assert eval_n_shards > 0, (
         '[impsmp_per_parameter] Please check that eval_batch_size >= eval_model.n_rollouts.'
         f' eval_batch_size={eval_batch_size}, eval_model.n_rollouts={eval_model.n_rollouts}')
 
     est_Z = config.get('est_Z', True)
+    importance_weight_ub = config['importance_weight_ub']
 
     epsilon = config.get('epsilon', 1e-12)
     log_cutoff = config.get('log_cutoff', -1000.)
@@ -262,6 +290,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'mean_abs_score': jnp.empty(shape=(n_iters,)),
         'std_abs_score': jnp.empty(shape=(n_iters,)),
         'effective_sample_size': jnp.empty(shape=(n_iters, action_dim, 2)),
+        'importance_weight_range': jnp.empty(shape=(n_iters, 2)),
     }
     if save_dJ:
         algo_stats['dJ'] = jnp.empty(shape=(n_iters, subsample_size, policy.n_params)),
@@ -284,7 +313,13 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         key, *subkeys = jax.random.split(key, num=5)
 
         log_density = functools.partial(
-            unnormalized_log_rho, subkeys[1], policy.theta, policy, sampling_model, log_cutoff)
+            unnormalized_log_rho,
+            subkeys[1],
+            policy.theta,
+            policy,
+            sampling_model,
+            log_cutoff,
+            importance_weight_ub)
 
         key = sampler.generate_step_size(key)
         key = sampler.prep(key,
@@ -308,7 +343,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             # compute dJ_hat
             key, dJ_hat, batch_stats = impsmp_per_parameter_inner_loop(
                 key, policy.theta, samples, batch_size, subsample_size,
-                n_shards, epsilon, est_Z,
+                n_shards, epsilon, est_Z, importance_weight_ub,
                 policy, sampling_model, train_model)
 
             updates, opt_state = optimizer.update(dJ_hat, opt_state)
