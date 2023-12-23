@@ -241,6 +241,13 @@ Assigning a visualizer for an environment can be done by calling the environment
     # set up the environment visualizer
     env.set_visualizer(info.get_visualizer())
 
+To override the default visualizer instance with the ``ChartVisualizer``, simply replace the last line above with
+
+.. code-block:: python
+
+    from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
+    env.set_visualizer(ChartVisualizer)
+
 In order to build custom visualizations (for new user defined domains), 
 one can inherit the class ``Visualizer.StateViz.StateViz()`` and return in the ``visualizer.render()`` method a PIL image for the gym to render to the screen.
 The environment initialization has the following general structure:
