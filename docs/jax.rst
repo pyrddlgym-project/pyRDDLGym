@@ -2,12 +2,12 @@ Baselines: The Gradient-Based JAX Planner
 ===============
 
 In this tutorial, we discuss how a RDDL model can be compiled into a differentiable simulator using JAX. 
-We also show how gradient descent can be used to estimate optimal actions/controls.
+We also show how gradient ascent can be used to estimate optimal actions/controls.
 
 Changing the Simulation Backend
 -------------------
 
-By default, ``RDDLEnv`` simulates using Python and stores intermediate expressions in NumPy arrays.
+By default, ``RDDLEnv`` simulates using Python and stores the outputs of intermediate expressions in NumPy arrays.
 However, if additional structure such as gradients are required, or if simulation is slow, 
 the environment can be compiled using JAX by changing the backend:
 
@@ -16,7 +16,7 @@ the environment can be compiled using JAX by changing the backend:
 	from pyRDDLGym.Core.Jax.JaxRDDLSimulator import JaxRDDLSimulator
 	env = RDDLEnv.build(info, instance, backend=JaxRDDLSimulator)
 	
-which is designed to be interchangeable with the default backend.
+This is designed to be interchangeable with the default backend.
 
 .. note::
    All RDDL syntax (both new and old) is supported in the RDDL-to-JAX compiler.
@@ -33,7 +33,8 @@ that maximize accumulated reward over a fixed horizon
 	s_{t + 1} = f(s_t, a_t)
 	
 If the state and action spaces are continuous, and f and R are differentiable functions, 
-it is possible to apply gradient ascent to optimize the actions directly.
+it is possible to apply gradient ascent to optimize the actions directly as described 
+`in this paper <https://proceedings.neurips.cc/paper/2017/file/98b17f068d5d9b7668e19fb8ae470841-Paper.pdf>`_.
 Given a learning rate :math:`\eta > 0` and "guess" :math:`a_\tau`, gradient ascent produces an estimate of the optimal 
 action :math:`a_\tau'` at time :math:`\tau` as
 
@@ -46,15 +47,12 @@ where the gradient of the reward at all times :math:`t \geq \tau` can be compute
 .. math::
 
 	\nabla_{a_\tau} R(s_t, a_t) = \frac{\mathrm{d}R(s_t,a_t)}{\mathrm{d}s_t} \frac{\mathrm{d}s_t}{\mathrm{d}a_\tau} + \frac{\mathrm{d}R(s_t,a_t)}{\mathrm{d}a_t}\frac{\mathrm{d}a_t}{\mathrm{d}a_\tau}.
-	
-This approach is further described 
-`in this paper <https://proceedings.neurips.cc/paper/2017/file/98b17f068d5d9b7668e19fb8ae470841-Paper.pdf>`_.
 
 We now describe the process of creating a differentiable planner for solving the above problem.
 
 First, a configuration file with extension ``.cfg`` is created to store and pass hyper-parameter settings to the planner.
 It is also possible to pass parameters directly to the planner, but this is highly discouraged since the
-planner is quite complex and requires a large number of parameters. A number of sample configuration files for different 
+planner is quite complex and often requires many parameters. A number of sample configuration files for different 
 environments are provided in the ``JaxPlanConfigs`` directory of pyRDDLGym. 
 
 The typical structure of the configuration file is:
@@ -87,8 +85,9 @@ There are three sections, corresponding to model, optimizer and training hyper-p
 * the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, the ``optax`` SGD optimizer and its hyper-parameters, etc.
 * the ``[Training]`` section indicates budget on iterations or time, hyper-parameters for the policy, etc.
 
-Configuration files can be loaded through a convenience function which returns the 
-parsed parameters for the planner, the plan/policy, and the training arguments:
+Configuration files can be loaded through a convenience function that returns the 
+parsed parameters for the planner, the plan/policy, and the training arguments, 
+which need to be passed to other downstream objects as we soon show:
 
 .. code-block:: python
 
@@ -137,35 +136,10 @@ Open-Loop Replanning with Periodic Revision
 -------------------
 
 In domains with stochastic transitions, an open-loop plan could be sub-optimal 
-since it does correct for any deviations in the state from its anticipated trajectory during optimization.
+since it does not correct for deviations in the state from its expected course as anticipated during optimization.
 One solution is to recompute the plan periodically or after each decision epoch, and is often called "replanning".
 
-Another problem of planning in stochastic domains is that the gradients are no longer well-defined.
-pyRDDLGym works around this problem by using the reparameterization trick.
-To illustrate this, if :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)`, then 
-after reparametization :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, and backpropagation can now be performed.
-The reparameterization trick also works for general probability distributions, assuming there exists a closed-form function f such that
-
-.. math::
-
-    s_{t+1} = f(s_t, a_t, \xi_t)
-    
-where :math:`\xi_t` are random variables drawn from some concrete distribution independent of states or actions. 
-For a detailed discussion of reparameterization in the context of planning, 
-please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
-or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
-
-pyRDDLGym will automatically perform reparameterization as needed assuming it is possible.
-However, some probability distributions, such as the Beta distribution, do not have tractable reparameterizations.
-For a small subset, like the Bernoulli and Discrete distribution, pyRDDLGym offers efficient 
-approximations (see the Gumbel-softmax discussion below). 
-
-.. warning::
-   For general non-reparameterizable distributions, the result of the gradient calculation 
-   is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
-
-Replanning is easy by modifying the previous example. Instead of creating an 
-``JaxOfflineController``, create an ``JaxOnlineController``:
+To perform replanning, simply replace the ``JaxOfflineController`` with an ``JaxOnlineController``:
 
 .. code-block:: python
 
@@ -176,24 +150,21 @@ Replanning is easy by modifying the previous example. Instead of creating an
     controller = JaxOnlineController(planner, **train_args)
     controller.evaluate(env, verbose=True, render=True)
 
-By comparing the realized return to the one obtained earlier, 
-we observe that replanning performs much better in some cases than straight-line planning.
-
 .. note::
-   For replanning, we recommend specifying the ``rollout_horizon`` in the the configuration file to instruct 
-   the planner to limit its simulation lookahead horizon during optimization, otherwise it will default to the 
-   full horizon as defined in the RDDL environment which can lead to slower optimization times.
+   For replanning, we recommend specifying the ``rollout_horizon`` in the configuration file explicitly, 
+   otherwise it will default to the full horizon as defined in the RDDL environment.
 
 Policy Networks for Closed-Loop Planning
 -------------------
 
 An alternative approach to replanning is to learn a policy network 
-:math:`a_t \gets \pi_\theta(s_t)` mapping the state to action, which is typically parameterized as a feed-forward neural network.
+:math:`a_t \gets \pi_\theta(s_t)` that maps the state to action, such as a feed-forward neural network
+as explained `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
 
 To do this, the configuration file must set the [Optimizer] method to ``JaxDeepReactivePolicy``, 
 and must specify the number of layers, the number of neurons, and an activation function to use:
 
-.. code-block:: python
+.. code-block:: shell
 
     [Model]
     logic='FuzzyLogic'
@@ -215,14 +186,11 @@ and must specify the number of layers, the number of neurons, and an activation 
     epochs=500
     train_seconds=30
 
-Then an online or offline controller can be instantiated and trained using one of the previous code examples given.
+Then an online or offline controller can be instantiated and trained as described above.
 
 .. note::
    ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
-   Other agent representations could be defined by overriding the ``JaxPlan`` class and its abstract methods.
-   
-Details about the implementation of the deep reactive policy for planning are explained 
-`in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
+   Other agent representations could be defined by overriding this class and its abstract methods.
 
 Box Constraints on Action Fluents
 -------------------
@@ -262,9 +230,10 @@ hyper-parameter that controls the sharpness of the approximation.
    ``policy_hyperparams`` for each boolean action fluent when interfacing with the planner.
    
 At test time, the action is aliased by evaluating the expression :math:`a > 0.5`, or equivalently :math:`\theta > 0`.
-The use of sigmoid for boolean actions can be controlled by setting ``wrap_sigmoid`` to True.
-Non-boolean action fluents can also be wrapped in a similar way, bypassing the projected gradient trick, 
-by setting ``wrap_non_bool = True``. This approach is `equation 6 in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
+The use of sigmoid for boolean actions can be controlled by setting ``wrap_sigmoid = True``.
+
+Non-boolean actions can also be wrapped, bypassing the projected gradient trick, 
+by setting ``wrap_non_bool = True``. This follows `equation 6 in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
    
 Concurrency Constraints on Action Fluents
 -------------------
@@ -275,7 +244,7 @@ Specifically, if the ``max-nondef-actions`` property in the RDDL instance is les
 than the total number of boolean action fluents, then ``JaxRDDLBackpropPlanner`` will automatically 
 apply a projected gradient step to ensure ``max_nondef_actions`` is satisfied at each optimization step.
 
-Two methods are provided to ensure constraint satisfaction: one is a simplified new projection technique and the other is 
+Two methods are provided to ensure constraint satisfaction: one is a simplified new projection technique and the old method is 
 described `in this paper <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_
 The choice of method can be controlled through the ``use_new_projection`` argument of the planner. 
 
@@ -295,7 +264,7 @@ symlog transform to the sampled rewards during backprop:
     \mathrm{symlog}(x) = \mathrm{sign}(x) * \ln(|x| + 1)
 
 which compresses the magnitudes of large positive and negative outcomes.
-The use of symlog can be enabled by setting ``use_symlog_reward`` to True in ``JaxBackpropPlanner``.
+The use of symlog can be enabled by setting ``use_symlog_reward = True`` in ``JaxBackpropPlanner``.
 
 Utility Optimization
 -------------------
@@ -303,13 +272,14 @@ Utility Optimization
 By default, the JAX planner will optimize the expected sum of future reward, which may not be desirable for risk-sensitive applications.
 Following the framework `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_, 
 it is possible to optimize a non-linear utility of the return instead.
+
 For example, the entropic utility with risk-aversion parameter :math:`\beta` is
 
 .. math::
     
     U(a_1, \dots a_T) = -\frac{1}{\beta} \log \mathbb{E}\left[e^{-\beta \sum_t R(s_t, a_t)} \right]
 
-and can be passed to the planner as follows:
+This can be passed to the planner as follows:
 
 .. code-block:: python
 
@@ -324,10 +294,8 @@ and can be passed to the planner as follows:
 Changing the Planning Algorithm
 -------------------
 
-In the introductory example given at the top of this tutorial, you may have noticed that we 
-defined the planning algorithm or training loop (``JaxBackpropPlanner``) separately from the controller.
-Therefore, it is possible to incorporate new planning algorithms into pyRDDLGym simply 
-by extending the ``JaxBackpropPlanner`` class. 
+In the introductory example, you may have noticed that we defined the planning algorithm separately from the controller.
+Therefore, it is possible to incorporate new planning algorithms into pyRDDLGym simply by extending the ``JaxBackpropPlanner`` class. 
 
 pyRDDLGym currently provides one such extension based on backtracking line-search, which 
 adaptively selects a learning rate at each iteration whose gradient update 
@@ -344,20 +312,21 @@ This optimizer can be used as a drop-in replacement for ``JaxRDDLBackpropPlanner
     controller = JaxOfflineController(planner, **train_args)
     controller.evaluate(env, verbose=True, render=True)
 
-Like the default planner, the line-search planner is compatible with both offline and online controllers, 
-and both straight-line and deep reactive policy implementations.
+Like the default planner, the line-search planner is compatible with offline and online controllers, 
+and straight-line plan and deep reactive policy.
 
 Automatically Tuning Hyper-Parameters
 -------------------
 
-The JAX planner requires many hyper-parameters, many of which can significantly affect performance.
-pyRDDLGym provides a Bayesian optimization algorithm for automatically tuning key hyper-parameters, with the following features:
+The JAX planner requires many hyper-parameters, a number of which can significantly affect performance.
+pyRDDLGym provides a Bayesian optimization algorithm for automatically tuning key hyper-parameters. 
+It:
 
 * supports multi-processing by evaluating multiple hyper-parameter settings in parallel
 * leverages Bayesian optimization to perform more efficient search than random or grid search
 * supports straight-line planning and deep reactive policies
 
-Tuning of hyper-parameters can be done with only a slight modification of the previous codes:
+Tuning of hyper-parameters can be done with slight modification of the above codes:
 
 .. code-block:: python
 
@@ -391,7 +360,43 @@ number of parallel processes and the ``gp_iters`` to specify the number of itera
 
 Upon executing this code, a dictionary of the best hyper-parameters (e.g. learning rate, policy network architecture, model hyper-parameters, etc.) is returned.
 A log of the previous sets of hyper-parameters suggested by the algorithm is also recorded in the specified output file.
-Deep reactive policies and replanning can be tuned by replacing ``JaxParameterTuningSLP`` with ``JaxParameterTuningDRP`` and ``JaxParameterTuningSLPReplan``, respectively.
+Deep reactive policies and replanning can be tuned by replacing ``JaxParameterTuningSLP`` with 
+``JaxParameterTuningDRP`` and ``JaxParameterTuningSLPReplan``, respectively.
+
+Reparameterizing Stochastic Transitions
+-------------------
+
+A common problem of planning in stochastic domains is that the gradients are no longer well-defined.
+pyRDDLGym works around this problem by using the reparameterization trick.
+
+To illustrate, we can write :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
+although the latter is amenable to backpropagation while the first is not. 
+The reparameterization trick also works generally, assuming there exists a closed-form function f such that
+
+.. math::
+
+    s_{t+1} = f(s_t, a_t, \xi_t)
+    
+and :math:`\xi_t` are random variables drawn from some distribution independent of states or actions. 
+For a detailed discussion of reparameterization in the context of planning, 
+please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
+or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
+
+pyRDDLGym automatically performs reparameterization whenever possible. For some special cases,
+such as the Bernoulli and Discrete distribution, it applies the Gumbel-softmax trick 
+as described `in this paper <https://arxiv.org/pdf/1611.01144.pdf>`_. 
+Defining K independent samples from a standard Gumbel distribution :math:`g_1, \dots g_K`, we reparameterize the 
+random variable :math:`X` with probability mass function :math:`p_1, \dots p_K` as
+
+.. math::
+
+    X = \arg\!\max_{i=1\dots K} \left(g_i + \log p_i \right)
+
+where the argmax is approximated using the softmax function.
+
+.. warning::
+   For general non-reparameterizable distributions, the result of the gradient calculation 
+   is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
 Dealing with Non-Differentiable Expressions
 -------------------
@@ -411,8 +416,8 @@ For instance, consider the following problem of classifying points (x, y) in 2D-
 Relational expressions such as ``x > 0`` and ``y > 0`` and logical expressions such as ``and`` and ``or`` do not have obvious derivatives. 
 To complicate matters further, the ``if`` statement depends on both ``x`` and ``y`` so it does not have partial derivatives with respect to ``x`` nor ``y``.
 
-``JaxRDDLBackpropPlanner`` works around these limitations by replacing such operations with JAX expressions that support derivatives.
-Specifically, the ``classify`` function above could be written as follows:
+``JaxRDDLBackpropPlanner`` works around these limitations by approximating such operations with JAX expressions that support derivatives.
+For instance, the ``classify`` function above could be implemented as follows:
  
 .. code-block:: python
 
@@ -429,34 +434,40 @@ Specifically, the ``classify`` function above could be written as follows:
         q1 = And(Gre(x1, 0, w), Gre(x2, 0, w), w)
         q2 = And(Not(Gre(x1, 0, w), w), Not(Gre(x2, 0, w), w), w)
         cond = Or(q1, q2, w)
-        pred = If(cond, +1, -1, w)
-        return pred
+        return If(cond, +1, -1, w)
 
-For illustration, calling ``approximate_classify`` with ``x=0.5``, ``y=1.5`` and ``w=10`` returns 0.98661363, which is very close to 1.
+Calling ``approximate_classify`` with ``x=0.5``, ``y=1.5`` and ``w=10`` returns 0.98661363, which is very close to 1.
 
-It is possible to gain more control over how pyRDDLGym performs differentiable relaxations.
-The abstract class ``FuzzyLogic`` can be sub-classed to specify how each mathematical operation should be approximated in JAX.
-This logic can be passed to the planner as an optimal argument:
+The ``FuzzyLogic`` instance can be passed to a planner:
 
 .. code-block:: python
     
     from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
     planner = JaxRDDLBackpropPlanner(model, ..., logic=FuzzyLogic())
+    
+By default, ``FuzzyLogic`` uses the `product t-norm <https://en.wikipedia.org/wiki/T-norm_fuzzy_logics#Motivation>`_
+to approximate the logical operations, the standard complement :math:`\sim a \approx 1 - a`, and
+sigmoid approximations for other relational and functional operations.
 
-Customizing the Differentiable Relaxations
--------------------
+The latter introduces model hyper-parameters :math:`w`, which control the "sharpness" of the operation.
+Higher values mean the approximation approaches its exact counterpart, 
+at the cost of sparse and possibly numerically unstable gradients. 
+These can be retrieved and modified at run-time, such as during optimization, as follows:
 
-As of the time of this writing, pyRDDLGym only contains one implementation of differentiable logic, 
-``ProductLogic``, which is based on the `product t-norm fuzzy logic <https://en.wikipedia.org/wiki/T-norm_fuzzy_logics#Motivation>`_.
-The mathematical operations and their substitutions are summarized in the following table.
-Here, the user-specified parameter :math:`w` specifies the "sharpness" of the operation -- higher values mean the approximation becomes closer to its exact counterpart. 
+.. code-block:: python
 
-.. list-table:: Differentiable Mathematical Operations in ``ProductLogic``
+    model_params = planner.compiled.model_params
+    model_params[key] = ...
+    planner.optimize(..., model_params=model_params)
+
+The following table summarizes the default rules used in ``FuzzyLogic``.
+
+.. list-table:: Default Differentiable Mathematical Operations
    :widths: 60 60
    :header-rows: 1
 
    * - Exact RDDL Operation
-     - ``ProductLogic`` Operation
+     - Approximate Operation
    * - :math:`a \text{ ^ } b`
      - :math:`a * b`
    * - :math:`\sim a`
@@ -477,48 +488,10 @@ Here, the user-specified parameter :math:`w` specifies the "sharpness" of the op
      - Gumbel-Softmax trick
    * - Discrete(type, {cases ...} )
      - Gumbel-Softmax trick
-    
-The Gumbel-softmax trick, which is useful for (approximately) reparameterizing discrete distributions on the finite support, 
-works by sampling K standard Gumbel random variables :math:`g_1, \dots g_K`.
-Then, a random variable :math:`X` with probability mass function :math:`p_1, \dots p_K` can be reparameterized as
 
-.. math::
-
-    X = \arg\!\max_{i=1\dots K} \left(g_i + \log p_i \right)
-
-where the approximation rule in the above table is used for argmax.
-Further details about Gumbel-softmax can be found `in this paper <https://arxiv.org/pdf/1611.01144.pdf>`_.
-
-Any operation(s) can be replaced by the user by sub-classing ``FuzzyLogic``.
-For example, the RDDL operation :math:`a \text{ ^ } b` can be replaced with a user-specified one by sub-classing as follows:
-
-.. code-block:: python
- 
-    class NewLogic(FuzzyLogic):
-        
-        def And(self):
-            
-            def jax_and_operation(a, b, param):
-                ...
-            
-            new_parameter = (('weight', 'logical_and') 
-            
-            return jax_and_operation, new_parameter
-
-Here, ``jax_and_operation`` represents an inner jax expression that computes the value of ``a ^ b``, and is returned as part of the ``And()`` call.
-The ``new_parameter`` describes any new parameters that are introduced that must be passed to the ``jax_and_operation``.
-These take the form ``((<param_type>, <expr_type>), <default_value>)``, where the inner tuple forms a key ``<param_type>_<expr_type>`` 
-used to refer to parameters inside the compiled jax expression, and ``<default_value>`` is a default numeric value of the parameter(s).
-A new instance of ``NewLogic`` can then be passed to ``JaxRDDLBackpropPlanner`` as described above.
-
-The parameters of JAX logic expressions can be modified at run-time (e.g. during training). 
-To do this, retrieve the parameters in the computation graph, modify them as needed, then pass them back to the planner:
-
-.. code-block:: python
-
-    model_params = planner.compiled.model_params
-    model_params[key] = ...
-    planner.optimize(..., model_params=model_params)
+It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
+passing different values to the ``tnorm`` or ``complement`` arguments to replace the product t-norm logic and
+standard complement, respectively.
 
 Limitations
 -------------------
