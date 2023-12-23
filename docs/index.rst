@@ -12,6 +12,7 @@ Welcome to pyRDDLGym's documentation!
     introduction
     install
     start
+    start2
     jax
     gurobi
     prost
