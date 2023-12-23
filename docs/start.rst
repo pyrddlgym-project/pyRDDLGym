@@ -87,6 +87,23 @@ action in each state:
 Interacting with an Environment
 ----------------------------
 
+Interaction with an environment is done by calling ``env.step()`` 
+and ``env.reset()``, just like regular Gym.
+
+All fluent values are passed and received as Python ``dict`` objects,
+whose keys are valid fluent names as defined in the RDDL domain description.
+
+The structure of the keys for parameterized fluents deserves attention, since the keys 
+need to specify not only the fluent name, but also the objects assigned to their parameters.
+In pyRDDLGym, the fluent name must be followed by ``___`` (3 underscores), then the 
+list of objects separated by ``__`` (2 underscores). To illustrate, for the fluent
+``put-out(?x, ?y)``, the required key for objects ``(x1, y1)`` is ``put-out___x1__y1``.
+
+.. note::
+   When passing an action dictionary to a ``RDDLEnv``,
+   any missing key-value pairs in the dictionary will be assigned the default (or no-op) values
+   as specified in the RDDL domain description.
+
 Now lets see what a complete agent-environment loop looks like in pyRDDLGym.
 The example below will run the ``MarsRover`` environment for a single episode/trial.
 The ``env.render()`` function displays a pop-up window rendering the current state to the screen:
@@ -134,21 +151,17 @@ accessible via ``env.state_space`` and ``env.action_space``, respectively.
 In most cases, state and action spaces are ``gym.spaces.Dict`` objects, whose key-value pairs
 are fluent names and their current values.
 
-In order to compute meaningful bounds on RDDL variables, pyRDDLGym parses and analyzes the 
-``action-preconditions`` and ``state-invariants`` expressions. If constraints are box constraints,
-the conversion happens as follows:
+To compute bounds on RDDL fluents, pyRDDLGym analyzes the 
+``action-preconditions`` and ``state-invariants`` expressions. 
+For box constraints, the conversion happens as follows:
 
-- real -> Box with bounds as specified in action-preconditions, or with np.inf and symmetric bounds
-- int -> Discrete with bounds as specified in action-preconditions, or with np.inf and symmetric bounds
-- bool -> Discrete(2)
+- real -> ``Box(l, u)`` where ``(l, u)`` are the bounds on the fluent
+- int -> ``Discrete(l, u)`` where ``(l, u)`` are the bounds on the fluent
+- bool -> ``Discrete(2)``
 
 .. note::
    Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gym.
-
-.. note::
-   When passing an action dictionary to a ``RDDLEnv``, for example to the ``step()`` function,
-   any missing key-value pairs in the dictionary will be assigned the default (or no-op) values
-   as specified in the RDDL domain description.
+   If no valid box bounds for a fluent are available, they are set to ``[-np.inf, np.inf]``
 
 Visualization
 -------------
