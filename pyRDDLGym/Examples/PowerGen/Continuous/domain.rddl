@@ -20,12 +20,18 @@
 //
 //   http://en.wikipedia.org/wiki/Power_system_simulation
 //
+// Unlike the original Java version, unit committment has been
+// added by generalizing the cost non-fluents of the original
+// version. For example, a nuclear plant could be defined with
+// a high fixed cost and a smaller variable cost of energy 
+// production and high capacity.
+//
 // This version is in RDDL 2.0 format.
 //
-// Author: Scott Sanner (ssanner@gmail.com)
-//
-// Changes to continuous problem by Ayal Taitler and commitment
-// added by Mike Gimelfarb.
+// Author(s): 
+//		Scott Sanner (ssanner@gmail.com)
+// 		Mike Gimelfarb (mgimelfarb@yahoo.ca)
+//		Ayal Taitler (ataitler@gmail.com)
 //
 ////////////////////////////////////////////////////////////////////
 domain power_gen {

@@ -32,7 +32,6 @@ non-fluents rover2 {
 
 }
 
-// Specify three power plants with default settings
 instance inst_mars_rover_0 {
 
 	domain = mars_rover_science_mission;
@@ -51,9 +50,7 @@ instance inst_mars_rover_0 {
         pos-y(d2) = 3;
 	};
 
-  	// State-action constraints above are sufficient
 	max-nondef-actions = pos-inf;
-
 	horizon  = 40;
 	discount = 1.0;
 }
