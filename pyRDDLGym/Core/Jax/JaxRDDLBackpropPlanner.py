@@ -329,7 +329,7 @@ class JaxStraightLinePlan(JaxPlan):
                  min_action_prob: float=0.001,
                  wrap_non_bool: bool=False,
                  wrap_softmax: bool=False,
-                 use_new_projection: bool=True,
+                 use_new_projection: bool=False,
                  max_constraint_iter: int=999) -> None:
         '''Creates a new straight line plan in JAX.
         
