@@ -81,6 +81,15 @@ class JaxRDDLCompiler:
         tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=self.levels)
         self.traced = tracer.trace()
         
+        # extract the box constraints on actions
+        simulator = RDDLSimulatorPrecompiled(
+            rddl=self.rddl,
+            init_values=self.init_values,
+            levels=self.levels,
+            trace_info=self.traced)  
+        constraints = RDDLConstraints(simulator, vectorized=True)
+        self.constraints = constraints
+        
         # basic operations
         self.NEGATIVE = lambda x, param: jnp.negative(x)  
         self.ARITHMETIC_OPS = {
@@ -226,19 +235,11 @@ class JaxRDDLCompiler:
     def _jax_inequality_constraints(self): 
         rddl = self.rddl
         
-        # extract the box constraints on actions
-        simulator = RDDLSimulatorPrecompiled(
-            rddl=rddl,
-            init_values=self.init_values,
-            levels=self.levels,
-            trace_info=self.traced)  
-        constraints = RDDLConstraints(simulator, vectorized=True)
-        
         # extract the non-box constraints on actions
         constraints = [constr 
                        for (i, expr) in enumerate(rddl.preconditions)
                        for constr in self._extract_inequality_constraint(expr)
-                       if not constraints.is_box_preconditions[i]]
+                       if not self.constraints.is_box_preconditions[i]]
         
         # compile them to JAX and write as h(s, a) >= 0
         op = self.ARITHMETIC_OPS['-']        
