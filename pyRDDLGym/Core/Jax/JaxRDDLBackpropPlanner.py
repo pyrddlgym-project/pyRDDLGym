@@ -514,6 +514,7 @@ class JaxStraightLinePlan(JaxPlan):
                     actions[var] = action > bool_threshold
                 else:
                     action = _jax_non_bool_param_to_action(var, action, hyperparams)
+                    action = jnp.clip(action, *bounds[var])
                     if ranges[var] == 'int':
                         action = jnp.round(action).astype(compiled.INT)
                     actions[var] = action
@@ -854,9 +855,10 @@ class JaxDeepReactivePolicy(JaxPlan):
                 if prange == 'bool':
                     new_action = action > 0.5
                 elif prange == 'int':
+                    action = jnp.clip(action, *bounds[var])
                     new_action = jnp.round(action).astype(compiled.INT)
                 else:
-                    new_action = action
+                    new_action = jnp.clip(action, *bounds[var])
                 new_actions[var] = new_action
             return new_actions
         
