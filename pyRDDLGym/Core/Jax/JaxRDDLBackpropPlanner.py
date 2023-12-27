@@ -287,8 +287,8 @@ class JaxPlan:
         self._projection = value
     
     def _calculate_action_info(self, compiled: JaxRDDLCompilerWithGrad,
-                               user_bounds: Dict, horizon: int):
-        shapes, bounds = {}, {}
+                               user_bounds: Dict[str, object], horizon: int):
+        shapes, bounds, bounds_safe, cond_lists = {}, {}, {}, {}
         for (name, prange) in compiled.rddl.variable_ranges.items():
             if compiled.rddl.variable_types[name] != 'action-fluent':
                 continue
@@ -298,20 +298,28 @@ class JaxPlan:
                     f'Invalid range <{prange}. of action-fluent <{name}>, '
                     f'must be one of {set(compiled.JAX_TYPES.keys())}.')
                 
-            # clip boolean to (0, 1), otherwise use the user action bounds
+            # clip boolean to (0, 1), otherwise use the RDDL action bounds
+            # or the user defined action bounds if provided
             shapes[name] = (horizon,) + np.shape(compiled.init_values[name])
             if prange == 'bool':
                 lower, upper = None, None
             else:
-                lower, upper = user_bounds.get(name, (-jnp.inf, jnp.inf))
-                if lower is None: 
-                    lower = -jnp.inf
-                if upper is None: 
-                    upper = jnp.inf
+                lower, upper = compiled.constraints.bounds[name]
+                lower, upper = user_bounds.get(name, (lower, upper))
+                lower = np.asarray(lower, dtype=np.float32)
+                upper = np.asarray(upper, dtype=np.float32)
+                lower_finite = np.isfinite(lower)
+                upper_finite = np.isfinite(upper)
+                bounds_safe[name] = (np.where(lower_finite, lower, 0.0),
+                                     np.where(upper_finite, upper, 0.0))
+                cond_lists[name] = [lower_finite & upper_finite,
+                                    lower_finite & ~upper_finite,
+                                    ~lower_finite & upper_finite,
+                                    ~lower_finite & ~upper_finite]
             bounds[name] = (lower, upper)
             warnings.warn(f'Bounds of action fluent <{name}> set to '
                           f'{bounds[name]}', stacklevel=2)
-        return shapes, bounds
+        return shapes, bounds, bounds_safe, cond_lists
     
     def _count_bool_actions(self, rddl: RDDLLiftedModel):
         constraint = rddl.max_allowed_actions
@@ -326,7 +334,7 @@ class JaxStraightLinePlan(JaxPlan):
     
     def __init__(self, initializer: initializers.Initializer=initializers.normal(),
                  wrap_sigmoid: bool=True,
-                 min_action_prob: float=1e-4,
+                 min_action_prob: float=1e-5,
                  wrap_non_bool: bool=False,
                  wrap_softmax: bool=False,
                  use_new_projection: bool=False,
@@ -377,7 +385,8 @@ class JaxStraightLinePlan(JaxPlan):
         rddl = compiled.rddl
         
         # calculate the correct action box bounds
-        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
+        shapes, bounds, bounds_safe, cond_lists = self._calculate_action_info(
+            compiled, _bounds, horizon)
         self.bounds = bounds
         
         # action concurrency check
@@ -412,7 +421,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_bool_action_to_param(var, action, hyperparams):
             if wrap_sigmoid:
                 weight = hyperparams[var]
-                return (-1.0 / weight) * jnp.log(1.0 / action - 1.0)
+                return (-1.0 / weight) * jnp.log1p(1.0 / action - 2.0)
             else:
                 return action
             
@@ -420,15 +429,16 @@ class JaxStraightLinePlan(JaxPlan):
         
         def _jax_non_bool_param_to_action(var, param, hyperparams):
             if wrap_non_bool:
-                lower, upper = bounds[var]
-                if lower > -jnp.inf and upper < jnp.inf:
-                    action = lower + (upper - lower) * jax.nn.sigmoid(param)
-                elif lower > -jnp.inf:
-                    action = lower + (jax.nn.elu(param) + 1.0)
-                elif upper < jnp.inf:
-                    action = upper - (jax.nn.elu(-param) + 1.0)
-                else:
-                    action = param
+                lower, upper = bounds_safe[var]
+                action = jnp.select(
+                    condlist=cond_lists[var],
+                    choicelist=[
+                        lower + (upper - lower) * jax.nn.sigmoid(param),
+                        lower + (jax.nn.elu(param) + 1.0),
+                        upper - (jax.nn.elu(-param) + 1.0),
+                        param
+                    ]
+                )
             else:
                 action = param
             return action
@@ -504,6 +514,7 @@ class JaxStraightLinePlan(JaxPlan):
                     actions[var] = action > bool_threshold
                 else:
                     action = _jax_non_bool_param_to_action(var, action, hyperparams)
+                    action = jnp.clip(action, *bounds[var])
                     if ranges[var] == 'int':
                         action = jnp.round(action).astype(compiled.INT)
                     actions[var] = action
@@ -714,7 +725,8 @@ class JaxDeepReactivePolicy(JaxPlan):
         rddl = compiled.rddl
         
         # calculate the correct action box bounds
-        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
+        shapes, bounds, bounds_safe, cond_lists = self._calculate_action_info(
+            compiled, _bounds, horizon)
         shapes = {var: value[1:] for (var, value) in shapes.items()}
         self.bounds = bounds
         
@@ -775,15 +787,16 @@ class JaxDeepReactivePolicy(JaxPlan):
                     if not use_constraint_satisfaction:
                         actions[var] = jax.nn.sigmoid(output)
                 else:
-                    lower, upper = bounds[var]
-                    if lower > -jnp.inf and upper < jnp.inf:
-                        action = lower + (upper - lower) * jax.nn.sigmoid(output)
-                    elif lower > -jnp.inf:
-                        action = lower + (jax.nn.elu(output) + 1.0)
-                    elif upper < jnp.inf:
-                        action = upper - (jax.nn.elu(-output) + 1.0)
-                    else:
-                        action = output
+                    lower, upper = bounds_safe[var]
+                    action = jnp.select(
+                        condlist=cond_lists[var],
+                        choicelist=[
+                            lower + (upper - lower) * jax.nn.sigmoid(output),
+                            lower + (jax.nn.elu(output) + 1.0),
+                            upper - (jax.nn.elu(-output) + 1.0),
+                            output
+                        ]
+                    )
                     actions[var] = action
             
             # for constraint satisfaction wrap bool actions with softmax
@@ -842,9 +855,10 @@ class JaxDeepReactivePolicy(JaxPlan):
                 if prange == 'bool':
                     new_action = action > 0.5
                 elif prange == 'int':
+                    action = jnp.clip(action, *bounds[var])
                     new_action = jnp.round(action).astype(compiled.INT)
                 else:
-                    new_action = action
+                    new_action = jnp.clip(action, *bounds[var])
                 new_actions[var] = new_action
             return new_actions
         
@@ -898,7 +912,7 @@ class JaxRDDLBackpropPlanner:
                  batch_size_test: int=None,
                  rollout_horizon: int=None,
                  use64bit: bool=False,
-                 action_bounds: Dict[str, Tuple[float, float]]={},
+                 action_bounds: Dict[str, Tuple[np.ndarray, np.ndarray]]={},
                  optimizer: Callable[..., optax.GradientTransformation]=optax.rmsprop,
                  optimizer_kwargs: Dict[str, object]={'learning_rate': 0.1},
                  clip_grad: float=None,
@@ -1187,6 +1201,9 @@ class JaxRDDLBackpropPlanner:
         
         # print summary of parameters:
         if verbose >= 1:
+            print('==============================================\n'
+                  'JAX PLANNER PARAMETER SUMMARY\n'
+                  '==============================================')
             self.summarize_hyperparameters()
             print(f'optimize() call hyper-parameters:\n'
                   f'    max_iterations     ={epochs}\n'
