@@ -26,6 +26,8 @@ from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
 from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
 from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
+from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorPrecompiled
 
 
 class JaxRDDLCompiler:
@@ -78,6 +80,15 @@ class JaxRDDLCompiler:
         # trace expressions to cache information to be used later
         tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=self.levels)
         self.traced = tracer.trace()
+        
+        # extract the box constraints on actions
+        simulator = RDDLSimulatorPrecompiled(
+            rddl=self.rddl,
+            init_values=self.init_values,
+            levels=self.levels,
+            trace_info=self.traced)  
+        constraints = RDDLConstraints(simulator, vectorized=True)
+        self.constraints = constraints
         
         # basic operations
         self.NEGATIVE = lambda x, param: jnp.negative(x)  
@@ -207,14 +218,64 @@ class JaxRDDLCompiler:
     def _compile_reward(self, info):
         return self._jax(self.rddl.reward, info, dtype=self.REAL)
     
+    def _extract_inequality_constraint(self, expr):
+        result = []
+        etype, op = expr.etype
+        if etype == 'relational':
+            left, right = expr.args
+            if op == '<' or op == '<=':
+                result.append((right, left))
+            elif op == '>' or op == '>=':
+                result.append((left, right))
+        elif etype == 'boolean' and op == '^':
+            for arg in expr.args:
+                result.extend(self._extract_constraint(arg))
+        return result
+    
+    def _jax_inequality_constraints(self): 
+        rddl = self.rddl
+        
+        # extract the non-box constraints on actions
+        constraints = [constr 
+                       for (i, expr) in enumerate(rddl.preconditions)
+                       for constr in self._extract_inequality_constraint(expr)
+                       if not self.constraints.is_box_preconditions[i]]
+        
+        # compile them to JAX and write as h(s, a) >= 0
+        op = self.ARITHMETIC_OPS['-']        
+        jax_constrs = []
+        for (left, right) in constraints:
+            jax_lhs = self._jax(left, {})
+            jax_rhs = self._jax(right, {})
+            jax_constr = self._jax_binary(jax_lhs, jax_rhs, op, '', at_least_int=True)
+            jax_constrs.append(jax_constr)
+        return jax_constrs
+    
     def compile_rollouts(self, policy: Callable,
                          n_steps: int, 
                          n_batch: int,
-                         check_constraints: bool=False):
+                         check_constraints: bool=False,
+                         constraint_func: bool=False):
         '''Compiles the current RDDL into a wrapped function that samples multiple
         rollouts (state trajectories) in batched form for the given policy. The
         wrapped function takes the policy parameters and RNG key as input, and
         returns a dictionary of all logged information from the rollouts.
+        
+        constraint_func provides the option to compile nonlinear constraints:
+        
+            1. f(s, a) ?? g(s, a)
+            2. f1(s, a) ^ f2(s, a) ^ ... ?? g(s, a)
+            3. forall_{?p1, ...} f(s, a, ?p1, ...) ?? g(s, a) where f is of the
+               form 1 or 2 above.
+        
+        and where ?? is <, <=, > or >= into JAX expressions h(s, a) representing 
+        the constraints of the form: 
+            
+            h(s, a) >= 0
+                
+        for which a penalty or barrier-type method can be used to enforce 
+        constraint satisfaction. A list is returned containing values for all
+        non-box inequality constraints.
         
         :param policy: a Jax compiled function that takes the policy parameters, 
         decision epoch, state dict, and an RNG key and returns an action dict
@@ -223,6 +284,8 @@ class JaxRDDLCompiler:
         :param check_constraints: whether state, action and termination 
         conditions should be checked on each time step: this info is stored in the
         returned log and does not raise an exception
+        :param constraint_func: produces the h(s, a) function described above
+        in addition to the usual outputs
         '''
         NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
         
@@ -230,6 +293,11 @@ class JaxRDDLCompiler:
         reward_fn, cpfs = self.reward, self.cpfs
         preconds, invariants, terminals = \
             self.preconditions, self.invariants, self.termination
+            
+        if constraint_func:
+            inequality_fns = self._jax_inequality_constraints()
+        else:
+            inequality_fns = None
         
         # do a single step update from the RDDL model
         def _jax_wrapped_single_step(key, policy_params, hyperparams, 
@@ -252,6 +320,14 @@ class JaxRDDLCompiler:
                     precond_check = jnp.logical_and(precond_check, sample)
                     errors |= err
             
+            # compute h(s, a) constraint functions
+            inequalities = []
+            if constraint_func:
+                for constraint in inequality_fns:
+                    sample, key, err = constraint(subs, model_params, key)
+                    inequalities.append(sample)
+                    errors |= err
+                
             # calculate CPFs in topological order
             for (name, cpf) in cpfs.items():
                 subs[name], key, err = cpf(subs, model_params, key)
@@ -281,6 +357,7 @@ class JaxRDDLCompiler:
                     terminated_check = jnp.logical_or(terminated_check, sample)
                     errors |= err
             
+            # prepare the return value
             log = {
                 'pvar': subs,
                 'action': actions,
@@ -289,7 +366,10 @@ class JaxRDDLCompiler:
                 'precondition': precond_check,
                 'invariant': invariant_check,
                 'termination': terminated_check
-            }
+            }            
+            if constraint_func:
+                log['inequalities'] = inequalities
+                
             return log, subs
         
         # do a batched step update from the RDDL model

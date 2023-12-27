@@ -179,7 +179,6 @@ and must specify the number of layers, the number of neurons, and an activation 
     optimizer_kwargs={'learning_rate': 0.01}
     batch_size_train=1
     batch_size_test=1
-    action_bounds={'power-x': (-0.0999, 0.0999), 'power-y': (-0.0999, 0.0999)}
 
     [Training]
     key=42
@@ -197,9 +196,12 @@ Box Constraints on Action Fluents
 
 Currently, the JAX planner supports two different kind of actions constraints: box constraints and concurrency constraints. 
 
-Box constraints are useful for bounding each action fluent independently into some range, 
-and can be specified by passing a dictionary of bounds for each action fluent into the ``action_bounds`` argument. 
-The syntax for specifying box constraints in the [Optimizer] section of the configuration file is:
+Box constraints are useful for bounding each action fluent independently into some range.
+Box constraints typically do not need to be specified manually, since they are automatically 
+parsed from the ``action_preconditions`` as defined in the RDDL domain description file.
+However, if the user wishes, it is possible to override these bounds
+by passing a dictionary of bounds for each action fluent into the ``action_bounds`` argument. 
+The syntax for specifying optional box constraints in the [Optimizer] section of the configuration file is:
 
 .. code-block:: shell
 	
@@ -207,11 +209,12 @@ The syntax for specifying box constraints in the [Optimizer] section of the conf
 	...
     action_bounds={ <action_name1>: (lower1, upper1), <action_name2>: (lower2, upper2), ... }
    
-where ``lower#`` and ``upper#`` can be any floating point value, including positive and negative infinity. 
-Passing ``None`` as a value to ``lower`` or ``upper`` indicates that a bound is not enforced, 
-i.e. ``(10.0, None)`` indicates an action must be at least 10.
+where ``lower#`` and ``upper#`` can be any list or nested list.
 
-The bounds on actions are enforced by default using the projected gradient method.
+By default, the box constraints on actions are enforced using the projected gradient method.
+An alternative approach is to map the trainable action parameters to the box via a differentiable transformation, 
+as described by `equation 6 in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
+In the JAX planner, it is possible to switch to the transformation method by setting ``wrap_non_bool = True``. 
 
 Boolean Actions
 -------------------
@@ -232,9 +235,6 @@ hyper-parameter that controls the sharpness of the approximation.
 At test time, the action is aliased by evaluating the expression :math:`a > 0.5`, or equivalently :math:`\theta > 0`.
 The use of sigmoid for boolean actions can be controlled by setting ``wrap_sigmoid = True``.
 
-Non-boolean actions can also be wrapped, bypassing the projected gradient trick, 
-by setting ``wrap_non_bool = True``. This follows `equation 6 in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
-   
 Concurrency Constraints on Action Fluents
 -------------------
 
