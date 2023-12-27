@@ -994,7 +994,7 @@ class JaxRDDLBackpropPlanner:
               f'    use_symlog      ={self.use_symlog_reward}\n'
               f'    lookahead       ={self.horizon}\n'
               f'    model relaxation={type(self.logic).__name__}\n'
-              f'    user action_bounds   ={self._action_bounds}\n'
+              f'    action_bounds   ={self._action_bounds}\n'
               f'    cpfs_no_gradient={self.cpfs_without_grad}\n'
               f'optimizer hyper-parameters:\n'
               f'    use_64_bit      ={self.use64bit}\n'
@@ -1199,6 +1199,9 @@ class JaxRDDLBackpropPlanner:
         
         # print summary of parameters:
         if verbose >= 1:
+            print('==============================================\n'
+                  'JAX PLANNER PARAMETER SUMMARY\n'
+                  '==============================================')
             self.summarize_hyperparameters()
             print(f'optimize() call hyper-parameters:\n'
                   f'    max_iterations     ={epochs}\n'
