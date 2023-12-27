@@ -334,7 +334,7 @@ class JaxStraightLinePlan(JaxPlan):
     
     def __init__(self, initializer: initializers.Initializer=initializers.normal(),
                  wrap_sigmoid: bool=True,
-                 min_action_prob: float=1e-4,
+                 min_action_prob: float=1e-5,
                  wrap_non_bool: bool=False,
                  wrap_softmax: bool=False,
                  use_new_projection: bool=False,
@@ -421,7 +421,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_bool_action_to_param(var, action, hyperparams):
             if wrap_sigmoid:
                 weight = hyperparams[var]
-                return (-1.0 / weight) * jnp.log(1.0 / action - 1.0)
+                return (-1.0 / weight) * jnp.log1p(1.0 / action - 2.0)
             else:
                 return action
             
