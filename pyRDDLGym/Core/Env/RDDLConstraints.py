@@ -12,7 +12,7 @@ class RDDLConstraints:
     
     def __init__(self, simulator: RDDLSimulator,
                  max_bound: float=np.inf,
-                 inequality_tol: float=0.001,
+                 inequality_tol: float=1e-5,
                  vectorized: bool=False) -> None:
         '''Creates a new set of state and action constraints.
         

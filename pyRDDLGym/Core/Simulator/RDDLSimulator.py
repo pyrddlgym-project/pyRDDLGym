@@ -337,7 +337,8 @@ class RDDLSimulator:
             if not bool(sample):
                 if not silent:
                     raise RDDLActionPreconditionNotSatisfiedError(
-                        f'{loc} is not satisfied.\n' + print_stack_trace(precond))
+                        f'{loc} is not satisfied for actions {actions}\n' + 
+                        print_stack_trace(precond))
                 return False
         return True
     
