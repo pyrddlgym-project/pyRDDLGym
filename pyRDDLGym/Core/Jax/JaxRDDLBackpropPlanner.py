@@ -298,23 +298,24 @@ class JaxPlan:
                     f'Invalid range <{prange}. of action-fluent <{name}>, '
                     f'must be one of {set(compiled.JAX_TYPES.keys())}.')
                 
-            # clip boolean to (0, 1), otherwise use the user action bounds
+            # clip boolean to (0, 1), otherwise use the RDDL action bounds
+            # or the user defined action bounds if provided
             shapes[name] = (horizon,) + np.shape(compiled.init_values[name])
             if prange == 'bool':
                 lower, upper = None, None
             else:
                 lower, upper = compiled.constraints.bounds[name]
                 lower, upper = user_bounds.get(name, (lower, upper))
+                lower = np.asarray(lower, dtype=np.float32)
+                upper = np.asarray(upper, dtype=np.float32)
                 lower_finite = np.isfinite(lower)
                 upper_finite = np.isfinite(upper)
                 bounds_safe[name] = (np.where(lower_finite, lower, 0.0),
                                      np.where(upper_finite, upper, 0.0))
-                cond_lists[name] = [
-                    lower_finite & upper_finite,
-                    lower_finite & ~upper_finite,
-                    ~lower_finite & upper_finite,
-                    ~lower_finite & ~upper_finite
-                ]
+                cond_lists[name] = [lower_finite & upper_finite,
+                                    lower_finite & ~upper_finite,
+                                    ~lower_finite & upper_finite,
+                                    ~lower_finite & ~upper_finite]
             bounds[name] = (lower, upper)
             warnings.warn(f'Bounds of action fluent <{name}> set to '
                           f'{bounds[name]}', stacklevel=2)
