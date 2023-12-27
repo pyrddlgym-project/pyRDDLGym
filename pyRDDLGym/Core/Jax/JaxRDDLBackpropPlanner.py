@@ -287,8 +287,8 @@ class JaxPlan:
         self._projection = value
     
     def _calculate_action_info(self, compiled: JaxRDDLCompilerWithGrad,
-                               user_bounds: Dict, horizon: int):
-        shapes, bounds = {}, {}
+                               user_bounds: Dict[str, object], horizon: int):
+        shapes, bounds, bounds_safe, cond_lists = {}, {}, {}, {}
         for (name, prange) in compiled.rddl.variable_ranges.items():
             if compiled.rddl.variable_types[name] != 'action-fluent':
                 continue
@@ -303,15 +303,26 @@ class JaxPlan:
             if prange == 'bool':
                 lower, upper = None, None
             else:
-                lower, upper = user_bounds.get(name, (-jnp.inf, jnp.inf))
-                if lower is None: 
-                    lower = -jnp.inf
-                if upper is None: 
-                    upper = jnp.inf
+                lower, upper = compiled.constraints.bounds[name]
+                lower_finite = np.isfinite(lower)
+                upper_finite = np.isfinite(upper)
+                bounds_safe[name] = (np.where(lower_finite, lower, 0.0),
+                                     np.where(upper_finite, upper, 0.0))
+                cond_lists[name] = [
+                    lower_finite & upper_finite,
+                    lower_finite & ~upper_finite,
+                    ~lower_finite & upper_finite,
+                    ~lower_finite & ~upper_finite
+                ]
+                # lower, upper = user_bounds.get(name, (-jnp.inf, jnp.inf))
+                # if lower is None: 
+                #     lower = -jnp.inf
+                # if upper is None: 
+                #     upper = jnp.inf
             bounds[name] = (lower, upper)
             warnings.warn(f'Bounds of action fluent <{name}> set to '
                           f'{bounds[name]}', stacklevel=2)
-        return shapes, bounds
+        return shapes, bounds, bounds_safe, cond_lists
     
     def _count_bool_actions(self, rddl: RDDLLiftedModel):
         constraint = rddl.max_allowed_actions
@@ -377,7 +388,8 @@ class JaxStraightLinePlan(JaxPlan):
         rddl = compiled.rddl
         
         # calculate the correct action box bounds
-        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
+        shapes, bounds, bounds_safe, cond_lists = self._calculate_action_info(
+            compiled, _bounds, horizon)
         self.bounds = bounds
         
         # action concurrency check
@@ -420,15 +432,16 @@ class JaxStraightLinePlan(JaxPlan):
         
         def _jax_non_bool_param_to_action(var, param, hyperparams):
             if wrap_non_bool:
-                lower, upper = bounds[var]
-                if lower > -jnp.inf and upper < jnp.inf:
-                    action = lower + (upper - lower) * jax.nn.sigmoid(param)
-                elif lower > -jnp.inf:
-                    action = lower + (jax.nn.elu(param) + 1.0)
-                elif upper < jnp.inf:
-                    action = upper - (jax.nn.elu(-param) + 1.0)
-                else:
-                    action = param
+                lower, upper = bounds_safe[var]
+                action = jnp.select(
+                    condlist=cond_lists[var],
+                    choicelist=[
+                        lower + (upper - lower) * jax.nn.sigmoid(param),
+                        lower + (jax.nn.elu(param) + 1.0),
+                        upper - (jax.nn.elu(-param) + 1.0),
+                        param
+                    ]
+                )
             else:
                 action = param
             return action
@@ -714,7 +727,8 @@ class JaxDeepReactivePolicy(JaxPlan):
         rddl = compiled.rddl
         
         # calculate the correct action box bounds
-        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
+        shapes, bounds, bounds_safe, cond_lists = self._calculate_action_info(
+            compiled, _bounds, horizon)
         shapes = {var: value[1:] for (var, value) in shapes.items()}
         self.bounds = bounds
         
@@ -775,15 +789,16 @@ class JaxDeepReactivePolicy(JaxPlan):
                     if not use_constraint_satisfaction:
                         actions[var] = jax.nn.sigmoid(output)
                 else:
-                    lower, upper = bounds[var]
-                    if lower > -jnp.inf and upper < jnp.inf:
-                        action = lower + (upper - lower) * jax.nn.sigmoid(output)
-                    elif lower > -jnp.inf:
-                        action = lower + (jax.nn.elu(output) + 1.0)
-                    elif upper < jnp.inf:
-                        action = upper - (jax.nn.elu(-output) + 1.0)
-                    else:
-                        action = output
+                    lower, upper = bounds_safe[var]
+                    action = jnp.select(
+                        condlist=cond_lists[var],
+                        choicelist=[
+                            lower + (upper - lower) * jax.nn.sigmoid(output),
+                            lower + (jax.nn.elu(output) + 1.0),
+                            upper - (jax.nn.elu(-output) + 1.0),
+                            output
+                        ]
+                    )
                     actions[var] = action
             
             # for constraint satisfaction wrap bool actions with softmax
