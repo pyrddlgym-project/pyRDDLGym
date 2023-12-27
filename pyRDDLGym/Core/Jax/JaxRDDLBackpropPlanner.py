@@ -304,6 +304,7 @@ class JaxPlan:
                 lower, upper = None, None
             else:
                 lower, upper = compiled.constraints.bounds[name]
+                lower, upper = user_bounds.get(name, (lower, upper))
                 lower_finite = np.isfinite(lower)
                 upper_finite = np.isfinite(upper)
                 bounds_safe[name] = (np.where(lower_finite, lower, 0.0),
@@ -314,11 +315,6 @@ class JaxPlan:
                     ~lower_finite & upper_finite,
                     ~lower_finite & ~upper_finite
                 ]
-                # lower, upper = user_bounds.get(name, (-jnp.inf, jnp.inf))
-                # if lower is None: 
-                #     lower = -jnp.inf
-                # if upper is None: 
-                #     upper = jnp.inf
             bounds[name] = (lower, upper)
             warnings.warn(f'Bounds of action fluent <{name}> set to '
                           f'{bounds[name]}', stacklevel=2)
@@ -913,7 +909,7 @@ class JaxRDDLBackpropPlanner:
                  batch_size_test: int=None,
                  rollout_horizon: int=None,
                  use64bit: bool=False,
-                 action_bounds: Dict[str, Tuple[float, float]]={},
+                 action_bounds: Dict[str, Tuple[np.ndarray, np.ndarray]]={},
                  optimizer: Callable[..., optax.GradientTransformation]=optax.rmsprop,
                  optimizer_kwargs: Dict[str, object]={'learning_rate': 0.1},
                  clip_grad: float=None,
@@ -997,7 +993,7 @@ class JaxRDDLBackpropPlanner:
               f'    use_symlog      ={self.use_symlog_reward}\n'
               f'    lookahead       ={self.horizon}\n'
               f'    model relaxation={type(self.logic).__name__}\n'
-              f'    action_bounds   ={self._action_bounds}\n'
+              f'    user action_bounds   ={self._action_bounds}\n'
               f'    cpfs_no_gradient={self.cpfs_without_grad}\n'
               f'optimizer hyper-parameters:\n'
               f'    use_64_bit      ={self.use64bit}\n'
