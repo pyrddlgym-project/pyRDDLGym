@@ -30,6 +30,11 @@ parameter allows multiple connections to be established in parallel at different
 which is useful for parallel processing applications. Finally, the ``run()`` command starts the server
 to listen in on the specified port.
 
+.. note::
+   The handling of the ``RDDLSimAgent`` is already taken care of in the docker image, which we describe below. 
+   However, the above instructions are provided for reference in order to run other algorithms requiring TCP, 
+   such as legacy code intended to run the original Java RDDL simulator.
+
 The Docker Image
 -------------------
 
