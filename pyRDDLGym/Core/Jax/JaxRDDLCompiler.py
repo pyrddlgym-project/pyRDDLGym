@@ -382,11 +382,7 @@ class JaxRDDLCompiler:
                 in_axes=(0, None, None, None, 0, None)
             ) 
             log, subs = batched_step(
-                keys, 
-                policy_params, hyperparams, 
-                step, subs, 
-                model_params
-            )            
+                keys, policy_params, hyperparams, step, subs,  model_params)            
             carry = (key, policy_params, hyperparams, subs, model_params)
             return carry, log            
             
@@ -1596,8 +1592,11 @@ class JaxRDDLCompiler:
             sample_df = sample_df[..., jnp.newaxis, jnp.newaxis]
             sample_df = jnp.broadcast_to(sample_df, shape=sample_mean.shape + (1,))
             key, subkey = random.split(key)
-            Z = random.t(key=subkey, df=sample_df, shape=jnp.shape(sample_df),
-                         dtype=self.REAL)   
+            Z = random.t(
+                key=subkey, 
+                df=sample_df, 
+                shape=jnp.shape(sample_df),
+                dtype=self.REAL)   
             
             # compute L s.t. cov = L * L' and reparameterize
             L = jnp.linalg.cholesky(sample_cov)
