@@ -1,7 +1,7 @@
 
 # pyRDDLGym
 
-A Python toolkit for auto-generation of OpenAI Gym environments from RDDL description files.
+A Python toolkit for auto-generation of OpenAI Gym environments from Relational Dynamic Influence Diagram Language (RDDL) description files.
 This is currently the official parser, simulator and evaluation system for RDDL in Python, with new features and enhancements to the RDDL language.<br />
 
 <p align="center">
