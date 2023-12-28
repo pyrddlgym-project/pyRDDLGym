@@ -23,7 +23,7 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 ## Purpose and Benefits
 
 * Describe your environment in RDDL ([web-based intro](https://ataitler.github.io/IPPC2023/pyrddlgym_rddl_tutorial.html)), ([full tutorial](https://github.com/ataitler/pyRDDLGym?tab=readme-ov-file#tutorial)), ([language spec](https://pyrddlgym.readthedocs.io/en/latest/rddl.html)) and use it with your existing workflow for OpenAI gym environments
-* Compact, easily modifiable representation language for discrete time control in dynamic stochastic environments, 
+* Compact, easily modifiable representation language for discrete time control in dynamic stochastic environments
     * e.g., [a few lines of RDDL](https://github.com/ataitler/pyRDDLGym/blob/main/pyRDDLGym/Examples/CartPole/Continuous/domain.rddl#L61) for CartPole vs. [200 lines in direct Python for Gym](https://github.com/openai/gym/blob/master/gym/envs/classic_control/cartpole.py#L130)
 * Object-oriented relational (template) specification allows easy scaling of model instances from 1 object to 1000's of objects without changing the domain model
     * e.g., [Wildfire](https://ataitler.github.io/IPPC2023/pyrddlgym_rddl_tutorial.html), [Reservoir Control](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing)
