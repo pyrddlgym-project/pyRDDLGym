@@ -33,16 +33,16 @@ domain supply_chain {
 		PI                                  : { non-fluent, real, default = 3.14159265 };
 		
 		PRICE 								: { non-fluent, real, default = 1.0 };
-		PRODUCTION-COST 					: { non-fluent, real, default = 0.2 };
-		PENALTY-COST 						: { non-fluent, real, default = 0.1 };
-		TRUCK-COST(warehouse) 				: { non-fluent, real, default = 0.06 };
-		STORAGE-COST-FACTORY 				: { non-fluent, real, default = 0.05 };
-		STORAGE-COST-WAREHOUSE(warehouse) 	: { non-fluent, real, default = 0.05 };
+		PRODUCTION-COST 					: { non-fluent, real, default = 0.1 };
+		PENALTY-COST 						: { non-fluent, real, default = 0.5 };
+		TRUCK-COST(warehouse) 				: { non-fluent, real, default = 0.05 };
+		STORAGE-COST-FACTORY 				: { non-fluent, real, default = 0.1 };
+		STORAGE-COST-WAREHOUSE(warehouse) 	: { non-fluent, real, default = 0.1 };
 		
-		CAPACITY-FACTORY					: { non-fluent, int, default = 20 };
-		CAPACITY-WAREHOUSE(warehouse)		: { non-fluent, int, default = 20 };
+		CAPACITY-FACTORY					: { non-fluent, int, default = 100 };
+		CAPACITY-WAREHOUSE(warehouse)		: { non-fluent, int, default = 100 };
 		TRUCK-CAPACITY(warehouse) 			: { non-fluent, int, default = 5 };
-		PRODUCE-MAX							: { non-fluent, int, default = 15 };
+		PRODUCE-MAX							: { non-fluent, int, default = 50 };
 		
 		MAX-DEMAND 							: { non-fluent, int, default = 20 };
 		INDEX(warehouse)					: { non-fluent, int, default = 0 };
@@ -55,23 +55,30 @@ domain supply_chain {
 		epoch								: { state-fluent, int, default = 0 };
 		demand-old(warehouse) 				: { state-fluent, int, default = 0 };
 		demand-new(warehouse) 				: { state-fluent, int, default = 0 };
-		stock-factory 						: { state-fluent, int, default = 0 };
+		stock-factory 						: { state-fluent, int, default = 10 };
 		stock-warehouse(warehouse) 			: { state-fluent, int, default = 0 };
+		
+		// Interm
+		ship-sat(warehouse)                 : { interm-fluent, int };
 	};
 	
 	cpfs {
 		
+		ship-sat(?w) = if(( sum_{?w1 : warehouse} ship(?w1) ) <= stock-factory)
+							then ship(?w)
+							else 0;
+							
 		// Update new demand -- periodic with stochastic shocks
 		demand-old'(?w) = demand-new(?w);
 		demand-new'(?w) = min[floor[ (MAX-DEMAND / 2) * sin[ 2 * PI * (epoch + 2 * INDEX(?w)) / 12 ] 
 									+ (MAX-DEMAND / 2) + Bernoulli( 0.5 ) ], MAX-DEMAND];
 		
 		// Update factory stock
-		stock-factory' = max[min[stock-factory + produce - (sum_{?w : warehouse} ship(?w)), 
+		stock-factory' = max[min[stock-factory + produce - (sum_{?w : warehouse} ship-sat(?w)), 
 								 CAPACITY-FACTORY], 0];
 		
 		// Update warehouse stock
-		stock-warehouse'(?w) = min[stock-warehouse(?w) + ship(?w) - demand-new'(?w), CAPACITY-WAREHOUSE(?w)];
+		stock-warehouse'(?w) = min[stock-warehouse(?w) + ship-sat(?w) - demand-new'(?w), CAPACITY-WAREHOUSE(?w)];
 		
 		// Time advances
 		epoch' = epoch + 1;
@@ -83,7 +90,7 @@ domain supply_chain {
 				- (STORAGE-COST-FACTORY * max[stock-factory, 0])
 				- (sum_{?w : warehouse} [ STORAGE-COST-WAREHOUSE(?w) * max[stock-warehouse(?w), 0] ])
 				+ (sum_{?w : warehouse} [ PENALTY-COST * min[stock-warehouse(?w), 0] ])
-				- (sum_{?w : warehouse} [ TRUCK-COST(?w) * ceil[ ship(?w) / TRUCK-CAPACITY(?w) ] ]);
+				- (sum_{?w : warehouse} [ TRUCK-COST(?w) * ceil[ ship-sat(?w) / TRUCK-CAPACITY(?w) ] ]);
 	
 	state-invariants {
 		
@@ -114,7 +121,7 @@ domain supply_chain {
 		
 		// Shipping amounts within bounds
 		forall_{?w : warehouse} [ ship(?w) >= 0 ];
-		( sum_{?w : warehouse} ship(?w) ) <= stock-factory;
+		// ( sum_{?w : warehouse} ship(?w) ) <= stock-factory;
 	};
 	
 }
