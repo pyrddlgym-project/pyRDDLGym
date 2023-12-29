@@ -1063,9 +1063,8 @@ class JaxRDDLBackpropPlanner:
         # optimization
         self.update = jax.jit(self._jax_update(train_loss))
     
-    def _jax_loss(self, rollouts, use_symlog=False):
+    def _jax_wrapped_returns_fn(self, use_symlog):
         gamma = self.rddl.discount
-        utility_fn = self.utility
         
         # apply discounting of future reward and then optional symlog transform
         def _jax_wrapped_returns(rewards):
@@ -1077,6 +1076,12 @@ class JaxRDDLBackpropPlanner:
             if use_symlog:
                 returns = jnp.sign(returns) * jnp.log1p(jnp.abs(returns))
             return returns
+        
+        return _jax_wrapped_returns
+        
+    def _jax_loss(self, rollouts, use_symlog=False): 
+        utility_fn = self.utility        
+        _jax_wrapped_returns = self._jax_wrapped_returns_fn(use_symlog)
         
         # the loss is the average cumulative reward across all roll-outs
         def _jax_wrapped_plan_loss(key, policy_params, hyperparams,
@@ -1294,6 +1299,7 @@ class JaxRDDLBackpropPlanner:
                 'best_grad': best_grad,
                 'updates': train_log['updates'],
                 'elapsed_time': elapsed,
+                'key': key,
                 **log
             }
             elapsed_outside_loop += (time.time() - start_time_outside)
@@ -1317,7 +1323,7 @@ class JaxRDDLBackpropPlanner:
                   f'    time_elapsed  ={elapsed}\n'
                   f'    iterations    ={it}\n'
                   f'    best_objective={-best_loss}\n'
-                  f'    grad_norm     ={grad_norm}\n')
+                  f'    grad_norm     ={grad_norm}')
             
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
@@ -1458,7 +1464,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             loss_and_grad_fn = jax.value_and_grad(loss, argnums=1, has_aux=True)
             (old_f, log), old_g = loss_and_grad_fn(
                 key, old_x, hyperparams, subs, model_params)            
-            old_norm_g2 = jax.tree_map(lambda x: jnp.sum(x ** 2), old_g)
+            old_norm_g2 = jax.tree_map(lambda x: jnp.sum(jnp.square(x)), old_g)
             old_norm_g2 = jax.tree_util.tree_reduce(jnp.add, old_norm_g2)
             log['grad'] = old_g
             
