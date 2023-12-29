@@ -224,9 +224,9 @@ class JaxRDDLCompiler:
         if etype == 'relational':
             left, right = expr.args
             if op == '<' or op == '<=':
-                result.append((right, left))
-            elif op == '>' or op == '>=':
                 result.append((left, right))
+            elif op == '>' or op == '>=':
+                result.append((right, left))
         elif etype == 'boolean' and op == '^':
             for arg in expr.args:
                 result.extend(self._extract_constraint(arg))
@@ -271,7 +271,7 @@ class JaxRDDLCompiler:
         and where ?? is <, <=, > or >= into JAX expressions h(s, a) representing 
         the constraints of the form: 
             
-            h(s, a) >= 0
+            h(s, a) <= 0
                 
         for which a penalty or barrier-type method can be used to enforce 
         constraint satisfaction. A list is returned containing values for all
