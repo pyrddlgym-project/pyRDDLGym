@@ -325,7 +325,7 @@ class JaxRDDLCompiler:
         if constraint_func:
             inequality_fns, equality_fns = self._jax_nonlinear_constraints()
         else:
-            inequality_fns, equality_fns = None
+            inequality_fns, equality_fns = None, None
         
         # do a single step update from the RDDL model
         def _jax_wrapped_single_step(key, policy_params, hyperparams, 
