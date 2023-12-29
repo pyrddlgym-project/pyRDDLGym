@@ -229,27 +229,54 @@ class JaxRDDLCompiler:
                 result.append((right, left))
         elif etype == 'boolean' and op == '^':
             for arg in expr.args:
-                result.extend(self._extract_constraint(arg))
+                result.extend(self._extract_inequality_constraint(arg))
         return result
     
-    def _jax_inequality_constraints(self): 
+    def _extract_equality_constraint(self, expr):
+        result = []
+        etype, op = expr.etype
+        if etype == 'relational':
+            left, right = expr.args
+            if op == '==':
+                result.append((left, right))
+        elif etype == 'boolean' and op == '^':
+            for arg in expr.args:
+                result.extend(self._extract_equality_constraint(arg))
+        return result
+            
+    def _jax_nonlinear_constraints(self): 
         rddl = self.rddl
         
-        # extract the non-box constraints on actions
-        constraints = [constr 
-                       for (i, expr) in enumerate(rddl.preconditions)
-                       for constr in self._extract_inequality_constraint(expr)
-                       if not self.constraints.is_box_preconditions[i]]
+        # extract the non-box inequality constraints on actions
+        inequalities = [constr 
+                        for (i, expr) in enumerate(rddl.preconditions)
+                        for constr in self._extract_inequality_constraint(expr)
+                        if not self.constraints.is_box_preconditions[i]]
         
-        # compile them to JAX and write as h(s, a) >= 0
+        # compile them to JAX and write as h(s, a) <= 0
         op = self.ARITHMETIC_OPS['-']        
-        jax_constrs = []
-        for (left, right) in constraints:
+        jax_inequalities = []
+        for (left, right) in inequalities:
             jax_lhs = self._jax(left, {})
             jax_rhs = self._jax(right, {})
             jax_constr = self._jax_binary(jax_lhs, jax_rhs, op, '', at_least_int=True)
-            jax_constrs.append(jax_constr)
-        return jax_constrs
+            jax_inequalities.append(jax_constr)
+        
+        # extract the non-box equality constraints on actions
+        equalities = [constr 
+                      for (i, expr) in enumerate(rddl.preconditions)
+                      for constr in self._extract_equality_constraint(expr)
+                      if not self.constraints.is_box_preconditions[i]]
+        
+        # compile them to JAX and write as g(s, a) == 0
+        jax_equalities = []
+        for (left, right) in equalities:
+            jax_lhs = self._jax(left, {})
+            jax_rhs = self._jax(right, {})
+            jax_constr = self._jax_binary(jax_lhs, jax_rhs, op, '', at_least_int=True)
+            jax_equalities.append(jax_constr)
+            
+        return jax_inequalities, jax_equalities
     
     def compile_rollouts(self, policy: Callable,
                          n_steps: int, 
@@ -272,6 +299,7 @@ class JaxRDDLCompiler:
         the constraints of the form: 
             
             h(s, a) <= 0
+            g(s, a) == 0
                 
         for which a penalty or barrier-type method can be used to enforce 
         constraint satisfaction. A list is returned containing values for all
@@ -295,9 +323,9 @@ class JaxRDDLCompiler:
             self.preconditions, self.invariants, self.termination
             
         if constraint_func:
-            inequality_fns = self._jax_inequality_constraints()
+            inequality_fns, equality_fns = self._jax_nonlinear_constraints()
         else:
-            inequality_fns = None
+            inequality_fns, equality_fns = None
         
         # do a single step update from the RDDL model
         def _jax_wrapped_single_step(key, policy_params, hyperparams, 
@@ -320,12 +348,16 @@ class JaxRDDLCompiler:
                     precond_check = jnp.logical_and(precond_check, sample)
                     errors |= err
             
-            # compute h(s, a) constraint functions
-            inequalities = []
+            # compute h(s, a) <= 0 and g(s, a) == 0 constraint functions
+            inequalities, equalities = [], []
             if constraint_func:
                 for constraint in inequality_fns:
                     sample, key, err = constraint(subs, model_params, key)
                     inequalities.append(sample)
+                    errors |= err
+                for constraint in equality_fns:
+                    sample, key, err = constraint(subs, model_params, key)
+                    equalities.append(sample)
                     errors |= err
                 
             # calculate CPFs in topological order
@@ -369,6 +401,7 @@ class JaxRDDLCompiler:
             }            
             if constraint_func:
                 log['inequalities'] = inequalities
+                log['equalities'] = equalities
                 
             return log, subs
         
