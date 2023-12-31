@@ -77,8 +77,8 @@ domain pong_mdp {
 	state-invariants {
 		forall_{?b : ball} [ball-x(?b) >= 0.0];
 		forall_{?b : ball} [ball-y(?b) >= 0.0];
-		forall_{?b : ball} [vel-x(?b) >= -1.0 ^ vel-x(?b) <= 1.0 ^ abs[vel-x(?b)] >= 0.03];
-		forall_{?b : ball} [vel-y(?b) >= -1.0 ^ vel-y(?b) <= 1.0 ^ abs[vel-y(?b)] >= 0.03];
+		forall_{?b : ball} [vel-x(?b) >= -1.0 ^ vel-x(?b) <= 1.0];
+		forall_{?b : ball} [vel-y(?b) >= -1.0 ^ vel-y(?b) <= 1.0];
 		paddle-y >= 0.0 ^ paddle-y <= 1.0 - PADDLE-H;
 	};
 
