@@ -67,6 +67,8 @@ class Expression(object):
             return ('matrix', 'inverse')
         elif self._expr[0] == 'pinverse':
             return ('matrix', 'pinverse')
+        elif self._expr[0] == 'cholesky':
+            return ('matrix', 'cholesky')
         elif self._expr[0] == 'if':
             return ('control', 'if')
         elif self._expr[0] == 'switch':
@@ -95,7 +97,7 @@ class Expression(object):
             return self._expr[1][1]
         elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists', 'argmin', 'argmax']:
             return self._expr[1]
-        elif self._expr[0] in ['det', 'inverse', 'pinverse']:
+        elif self._expr[0] in ['det', 'inverse', 'pinverse', 'cholesky']:
             return self._expr[1]
         # elif self._expr[0] == 'if':
         elif self._expr[0] in ['if', 'switch']:

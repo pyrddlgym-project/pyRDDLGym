@@ -1240,6 +1240,8 @@ class RDDLSimulator:
             return self._sample_matrix_inv(expr, subs, pseudo=False)
         elif op == 'pinverse':
             return self._sample_matrix_inv(expr, subs, pseudo=True)
+        elif op == 'cholesky':
+            return self._sample_matrix_cholesky(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operator {op} is not supported.\n' + 
@@ -1260,7 +1262,18 @@ class RDDLSimulator:
         indices = self.traced.cached_sim_info(expr)
         sample = np.moveaxis(sample, source=(-2, -1), destination=indices)
         return sample        
-
+    
+    def _sample_matrix_cholesky(self, expr, subs):
+        _, arg = expr.args
+        sample_arg = self._sample(arg, subs)
+        op = np.linalg.cholesky
+        sample = op(sample_arg)
+        
+        # matrix dimensions are last two axes, move them to the correct position
+        indices = self.traced.cached_sim_info(expr)
+        sample = np.moveaxis(sample, source=(-2, -1), destination=indices)
+        return sample  
+    
     
 def lngamma(x):
     xmin = np.min(x)

@@ -275,7 +275,7 @@ class RDDLDecompiler:
             agg = self._symbolic(op, params, aggregation=True)
             decompiled = self._decompile(arg, False, level)        
             return f'{agg}[ {decompiled} ]'
-        elif op == 'inverse' or op == 'pinverse':
+        elif op == 'inverse' or op == 'pinverse' or op == 'cholesky':
             pvars, arg = expr.args
             prow, pcol = pvars
             params = f'row={prow}, col={pcol}'
