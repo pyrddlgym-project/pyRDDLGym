@@ -108,6 +108,7 @@ class RDDLlex(object):
             'det': 'DET',
             'inverse': 'INVERSE',
             'pinverse': 'PSEUDOINVERSE',
+            'cholesky': 'CHOLESKY',
             'row': 'ROW',
             'col': 'COLUMN'
         }
@@ -752,7 +753,8 @@ class RDDLParser(object):
     def p_matrix_expr(self, p):
         '''matrix_expr : DET UNDERSCORE LCURLY typed_var COMMA typed_var RCURLY expr %prec AGG_OPER
                        | INVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK
-                       | PSEUDOINVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK'''
+                       | PSEUDOINVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK
+                       | CHOLESKY LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK'''
         if len(p) == 9:
             p[0] = (p[1], (p[4], p[6], p[8]))
         elif len(p) == 14:

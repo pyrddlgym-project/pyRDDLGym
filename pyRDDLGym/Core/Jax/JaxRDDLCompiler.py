@@ -1700,6 +1700,8 @@ class JaxRDDLCompiler:
             return self._jax_matrix_inv(expr, info, pseudo=False)
         elif op == 'pinverse':
             return self._jax_matrix_inv(expr, info, pseudo=True)
+        elif op == 'cholesky':
+            return self._jax_matrix_cholesky(expr, info)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operation {op} is not supported.\n' + 
@@ -1729,4 +1731,18 @@ class JaxRDDLCompiler:
             return sample, key, error
         
         return _jax_wrapped_matrix_operation_inv
+    
+    def _jax_matrix_cholesky(self, expr, info):
+        _, arg = expr.args
+        jax_arg = self._jax(arg, info)
+        indices = self.traced.cached_sim_info(expr)
+        op = jnp.linalg.cholesky
+        
+        def _jax_wrapped_matrix_operation_cholesky(x, params, key):
+            sample_arg, key, error = jax_arg(x, params, key)
+            sample = op(sample_arg)
+            sample = jnp.moveaxis(sample, source=(-2, -1), destination=indices)
+            return sample, key, error
+        
+        return _jax_wrapped_matrix_operation_cholesky
             

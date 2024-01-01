@@ -987,6 +987,8 @@ class RDDLObjectsTracer:
             self._trace_matrix_inv(expr, objects, out, pseudo=False)
         elif op == 'pinverse':
             self._trace_matrix_inv(expr, objects, out, pseudo=True)
+        elif op == 'cholesky':
+            self._trace_matrix_inv(expr, objects, out, pseudo=False)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: matrix operation {op} is not supported.\n' + 
