@@ -830,7 +830,8 @@ class JaxDeepReactivePolicy(JaxPlan):
             subs = {var: value
                     for (var, value) in subs.items()
                     if var in rddl.states}
-            flat_subs = jax.tree_map(jnp.ravel, subs) 
+            flat_subs = jax.tree_map(jnp.ravel, subs)
+            flat_subs = jax.tree_map(jnp.atleast_1d, flat_subs)
             states = list(flat_subs.values())
             state = jnp.concatenate(states)
             return state
