@@ -295,6 +295,7 @@ class JaxPlan:
             if compiled.rddl.variable_types[name] != 'action-fluent':
                 continue
             
+            # check invalid type
             if prange not in compiled.JAX_TYPES:
                 raise RDDLTypeError(
                     f'Invalid range <{prange}. of action-fluent <{name}>, '
@@ -1022,9 +1023,7 @@ class JaxRDDLBackpropPlanner:
         self.compiled.compile()
         
         # Jax compilation of the exact RDDL for testing
-        self.test_compiled = JaxRDDLCompiler(
-            rddl=rddl,
-            use64bit=self.use64bit)
+        self.test_compiled = JaxRDDLCompiler(rddl=rddl, use64bit=self.use64bit)
         self.test_compiled.compile()
         
     def _jax_compile_optimizer(self):
@@ -1127,13 +1126,13 @@ class JaxRDDLBackpropPlanner:
         
         # batched subs
         init_train, init_test = {}, {}
-        for (name, value) in subs.items():            
-            if name not in self.test_compiled.init_values:
+        for (name, value) in subs.items():
+            init_value = self.test_compiled.init_values.get(name, None)
+            if init_value is None:
                 raise RDDLUndefinedVariableError(
-                    f'Variable <{name}> in subs is not a valid p-variable, '
+                    f'Variable <{name}> in subs argument is not a valid p-variable, '
                     f'must be one of {set(self.test_compiled.init_values.keys())}.')
-            correct_shape = np.shape(self.test_compiled.init_values[name])
-            value = np.reshape(value, newshape=correct_shape)[np.newaxis, ...]
+            value = np.reshape(value, newshape=np.shape(init_value))[np.newaxis, ...]
             train_value = np.repeat(value, repeats=n_train, axis=0)
             train_value = train_value.astype(self.compiled.REAL)
             init_train[name] = train_value
