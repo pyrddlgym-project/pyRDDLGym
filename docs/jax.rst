@@ -104,6 +104,9 @@ Next, a planning algorithm must be initialized by feeding the parameters above, 
 Finally, a controller must be initialized, which is a policy that calls the planning algorithm above to produce optimal actions. 
 The controller is a policy instance in pyRDDLGym, so the usual ``sample_action()`` and ``evaluate()`` functions allow easy interaction with the environment.
 
+.. note::
+   To run the JAX planner successfully, the ``vectorized`` flag must be set to True in the ``RDDLEnv``.
+
 .. code-block:: python
 
     from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
@@ -122,7 +125,7 @@ Putting this all together into a working example:
 
     # create the environment
     info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance)
+    env = RDDLEnv.build(info, instance, vectorized=True)
     
     # load the config file with planner settings from the JaxPlanConfigs
     planner_args, _, train_args = load_config(config_path)
@@ -337,7 +340,7 @@ Tuning of hyper-parameters can be done with slight modification of the above cod
 
     # create the environment
     info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance)
+    env = RDDLEnv.build(info, instance, vectorized=True)
     
     # load the config file to provide the non-tunable parameters
     planner_args, plan_args, train_args = load_config(config_path)
