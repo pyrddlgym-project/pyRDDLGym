@@ -18,6 +18,7 @@ import warnings
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax import JaxRDDLLogic
@@ -1025,12 +1026,6 @@ class JaxRDDLBackpropPlanner:
             rddl=rddl,
             use64bit=self.use64bit)
         self.test_compiled.compile()
-    
-        # calculate grounded no-op actions
-        self.noop_actions = {}
-        for (var, values) in self.test_compiled.init_values.items():
-            if rddl.variable_types[var] == 'action-fluent':
-                self.noop_actions.update(rddl.ground_values(var, values))
         
     def _jax_compile_optimizer(self):
         
@@ -1341,14 +1336,20 @@ class JaxRDDLBackpropPlanner:
         weights for sigmoid wrapping boolean actions
         :param subs: the dict of pvariables
         '''
+        
+        # check compatibility of the subs dictionary
+        for var in subs.keys():
+            if PlanningModel.FLUENT_SEP in var or PlanningModel.OBJECT_SEP in var:
+                raise Exception(f'State dictionary passed to the JAX policy is '
+                                f'grounded, since it contains the key <{var}>, '
+                                f'but a vectorized environment is required: '
+                                f'please make sure vectorized=True in the RDDLEnv.')
+        
+        # cast device arrays to numpy
         actions = self.test_policy(key, params, policy_hyperparams, step, subs)
-        grounded_actions = {}
-        for (var, action) in actions.items():
-            for (ground_var, ground_act) in self.rddl.ground_values(var, action):
-                if ground_act != self.noop_actions[ground_var]:
-                    grounded_actions[ground_var] = ground_act
-        return grounded_actions
-    
+        actions = jax.tree_map(np.asarray, actions)
+        return actions      
+            
     def _plot_actions(self, key, params, hyperparams, subs, it):
         rddl = self.rddl
         try:

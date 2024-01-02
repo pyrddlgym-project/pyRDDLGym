@@ -362,6 +362,7 @@ def objective_slp(params, kwargs, key, index):
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
+                  vectorized=True,
                   enforce_action_constraints=True)
 
     # perform training
@@ -492,6 +493,7 @@ def objective_replan(params, kwargs, key, index):
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
+                  vectorized=True,
                   enforce_action_constraints=True)
 
     # perform training
@@ -618,6 +620,7 @@ def objective_drp(params, kwargs, key, index):
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
+                  vectorized=True,
                   enforce_action_constraints=True)
     
     # perform training
