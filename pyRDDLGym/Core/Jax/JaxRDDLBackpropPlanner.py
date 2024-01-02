@@ -15,7 +15,8 @@ from tqdm import tqdm
 from typing import Callable, Dict, Generator, Set, Sequence, Tuple
 import warnings
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
@@ -832,7 +833,6 @@ class JaxDeepReactivePolicy(JaxPlan):
                     for (var, value) in subs.items()
                     if var in rddl.states}
             flat_subs = jax.tree_map(jnp.ravel, subs)
-            flat_subs = jax.tree_map(jnp.atleast_1d, flat_subs)
             states = list(flat_subs.values())
             state = jnp.concatenate(states)
             return state
@@ -1127,8 +1127,13 @@ class JaxRDDLBackpropPlanner:
         
         # batched subs
         init_train, init_test = {}, {}
-        for (name, value) in subs.items():
-            value = np.asarray(value)[np.newaxis, ...]
+        for (name, value) in subs.items():            
+            if name not in self.test_compiled.init_values:
+                raise RDDLUndefinedVariableError(
+                    f'Variable <{name}> in subs is not a valid p-variable, '
+                    f'must be one of {set(self.test_compiled.init_values.keys())}.')
+            correct_shape = np.shape(self.test_compiled.init_values[name])
+            value = np.reshape(value, newshape=correct_shape)[np.newaxis, ...]
             train_value = np.repeat(value, repeats=n_train, axis=0)
             train_value = train_value.astype(self.compiled.REAL)
             init_train[name] = train_value
@@ -1218,6 +1223,19 @@ class JaxRDDLBackpropPlanner:
         # compute a batched version of the initial values
         if subs is None:
             subs = self.test_compiled.init_values
+        else:
+            # if some p-variables are not provided, add their default values
+            subs = subs.copy()
+            added_pvars_to_subs = []
+            for (var, value) in self.test_compiled.init_values.items():
+                if var not in subs:
+                    subs[var] = value
+                    added_pvars_to_subs.append(var)
+            if added_pvars_to_subs:
+                warnings.warn(f'p-variables {added_pvars_to_subs} not in '
+                              f'provided subs, using their initial values '
+                              f'from the RDDL files.', 
+                              stacklevel=2)
         train_subs, test_subs = self._batched_init_subs(subs)
         
         # initialize, model parameters
