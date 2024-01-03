@@ -113,7 +113,8 @@ class MDP:
         action_subst_dict = {a: False for a in self.bool_a_vars}
         for v_name, cpf in self.model.cpfs.items():
             # Handle Boolean next state and interm variables.
-            v = self.context._str_var_to_var[v_name]
+            s_v_name = self.model._var_name_to_sym_var_name[v_name]
+            v = self.context._str_var_to_var[s_v_name]
             if v.is_Boolean and (
                 (v_name in self.model.next_state.values() or v_name in self.model.interm)
             ):

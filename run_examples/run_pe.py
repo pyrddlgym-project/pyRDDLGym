@@ -57,6 +57,7 @@ def run_pe(args: argparse.Namespace):
         mdp=mdp,
         max_iter=args.max_iter,
         enable_early_convergence=args.enable_early_convergence,
+        perform_reduce_lp=args.reduce_lp,
     )
     res = pe_solver.solve()
 
@@ -94,6 +95,8 @@ if __name__ == "__main__":
                         help='Whether to enable early convergence')
     parser.add_argument('--is_linear', action='store_true',
                         help='Whether the MDP is linear or not')
+    parser.add_argument('--reduce_lp', action='store_true',
+                        help='Whether to perform the reduce LP function.')
     parser.add_argument('--assert_concurrency', action='store_true',
                         help='Whether to assert concurrency or not')
     parser.add_argument('--save_graph', action='store_true',
