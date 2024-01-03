@@ -80,33 +80,34 @@ instance of one's choosing (assuming the action space simplifies to a ``Discrete
 .. note::
    The ``new_gym_api`` flag must be set, since the stable-baselines implementation requires the new gym API.
 
-Below is a complete worked example for solving CartPole using PPO:
+The trained RL agent could then be wrapped in a ``BaseAgent`` class, so the ``evaluate()`` function becomes available.
+Below is a complete worked example for solving CartPole using PPO. 
+Note the ``use_tensor_obs`` is required since the environment is vectorized.
 
 .. code-block:: python
     
     from stable_baselines3 import PPO
     from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+    from pyRDDLGym.Core.Policies.Agents import BaseAgent
     from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
     # set up the environment
     info = ExampleManager.GetEnvInfo('CartPole_discrete')    
     env = RDDLEnv.build(info, 0, new_gym_api=True, compact_action_space=True)
     
-    # train the agent
+    # train the PPO agent
     model = PPO('MultiInputPolicy', env, verbose=1)
     model.learn(total_timesteps=40000)
     
+    # wrapper to hold trained PPO agent
+    class PPOAgent(BaseAgent):
+        use_tensor_obs = True
+        
+        def sample_action(self, state):
+            return model.predict(state)[0]
+            
     # evaluate
-    total_reward = 0
-    state, _ = env.reset()
-    for step in range(env.horizon):
-        env.render()
-        action, _ = model.predict(state)
-        state, reward, done, *_ = env.step(action)
-        total_reward += reward
-        if done:
-            break
-    print(f'episode ended with return {total_reward}')
+    PPOAgent().evaluate(env, episodes=1, verbose=True, render=True)
     env.close()
 
 
