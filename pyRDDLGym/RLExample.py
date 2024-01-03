@@ -25,7 +25,6 @@ def main(domain, instance, steps):
                         enforce_action_constraints=True, 
                         new_gym_api=True, 
                         compact_action_space=True)
-    env.reset()
     
     # train the PPO agent
     model = PPO('MultiInputPolicy', env, verbose=1)
