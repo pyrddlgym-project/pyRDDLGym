@@ -281,6 +281,11 @@ class RDDLModelWXADD(PlanningModel):
         condition = args[0]
         true_branch = args[1]
         false_branch = args[2]
+        # Handle Bernoulli nodes in the decision.
+        # if self._need_postprocessing:
+        #     condition = self.postprocess(
+        #         condition,
+        #         **self._postprocessing_kwargs)
         leaf_op = ControlFlow(
             true_branch=true_branch,
             false_branch=false_branch,
@@ -326,13 +331,14 @@ class RDDLModelWXADD(PlanningModel):
             # Sample a Bernoulli rv by sampling a uniform rv
             if self.simulation:
                 num_rv = self._num_uniform
-                unif_rv = RandomVar(UNIFORM_VAR_NAME.format(num=num_rv))
-                uniform = self._context.convert_to_xadd(
-                    unif_rv,
+                unif_rv, unif_rv_id = self.add_sym_var(
+                    UNIFORM_VAR_NAME.format(num=num_rv),
+                    var_type='random',
+                    random=True,
                     params=(0, 1),  # rv ~ Uniform(0, 1)
                     type='UNIFORM'
                 )
-                node_id = self._context.apply(uniform, proba, '<=')
+                node_id = self._context.apply(unif_rv_id, proba, '<=')
                 self._num_uniform += 1
             # Create a Bernoulli node
             # TODO: How to assert that a Bernoulli node can only come at a leaf?
@@ -344,8 +350,9 @@ class RDDLModelWXADD(PlanningModel):
                                                  params=(proba,),
                                                  type='BERNOULLI')
                 # Need to postprocess the node to make leaf nodes 
-                # represent Bernoulli probabilities
-                self._need_postprocessing = True
+                # represent Bernoulli probabilities for Boolean variables.
+                if self.model.pvar_to_type[self._curr_pvar] == 'bool':
+                    self._need_postprocessing = True
             return node_id
         
         elif dist == 'Binomial':

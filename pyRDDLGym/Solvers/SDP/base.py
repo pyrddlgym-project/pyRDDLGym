@@ -11,6 +11,7 @@ from xaddpy.xadd.xadd import DeltaFunctionSubstitution, VAR_TYPE
 
 from pyRDDLGym.Solvers.SDP.helper import MDP
 from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
+from pyRDDLGym.XADD.helper import get_bernoulli_node_id
 
 
 FLUSH_PERCENT_MINIMUM = 0.3
@@ -24,6 +25,7 @@ class SymbolicSolver:
             mdp: MDP,
             max_iter: int = 100,
             enable_early_convergence: bool = False,
+            perform_reduce_lp: bool = True,
     ):
         self._mdp = mdp
         self._prev_dd = None
@@ -32,6 +34,7 @@ class SymbolicSolver:
         self.n_curr_iter = 0
         self.n_max_iter = max_iter
         self.enable_early_convergence = enable_early_convergence
+        self.perform_reduce_lp = perform_reduce_lp
 
         self.level_analyzer = RDDLLevelAnalysisWXADD(self.mdp.model)
         self.levels = self.level_analyzer.compute_levels()
@@ -65,6 +68,9 @@ class SymbolicSolver:
 
         # Initialize the value function.
         self.value_dd = self.context.ZERO
+
+        # Update the reduce_lp setting.
+        self.context.perform_reduce_lp = self.perform_reduce_lp
 
         # Perform VI for the set number of iterations.
         while self.n_curr_iter < self.n_max_iter:
@@ -183,11 +189,30 @@ class SymbolicSolver:
             q = self.context.apply(q, reward, op='add')
 
         # Standardize the node.
-        q = self.mdp.standardize(q)
+        q = self.standardize(q)
         return q
 
     def regress_cvars(self, q: int, cpf: int, v: core.Symbol) -> int:
-        """Regress a continuous variable from the value function `q`."""
+        """Regress a continuous variable from the value function `q`.
+        
+        After regressing the continuous variable via DeltaFunctionSubstitution,
+        we check whether the resulting XADD contains Bernoulli variables.
+
+        If so, we do the following to average out the Bernoulli variables:
+            for each Bernoulli variable:
+                Q <- p * Q subs(bern_var = 1) + (1 - p) * Q subs(bern_var = 0)
+            where p is the Bernoulli parameter, which itself can be an XADD whose
+            leaf values are the Bernoulli probabilities. `subs(bern_var = val)` 
+            denotes the substitution operation that replaces all Bernoulli
+            variables with val, which is either 0 or 1.
+
+        Args:
+            q: The value function XADD ID.
+            cpf: The CPF XADD ID.
+            v: The continuous variable to regress.
+        Returns:
+            The ID of the regressed value function.
+        """
 
         # Check the regression cache.
         key = (str(v), cpf, q)
@@ -198,10 +223,29 @@ class SymbolicSolver:
         # Perform regression via Delta function substitution.
         leaf_op = DeltaFunctionSubstitution(v, q, self.context, is_linear=self.mdp.is_linear)
         q = self.context.reduce_process_xadd_leaf(cpf, leaf_op, [], [])
+        q = self.standardize(q)
 
-        # Simplify the resulting XADD if possible.
-        if self.mdp.is_linear:
-            q = self.context.reduce_lp(q)
+        # Handle Bernoulli variables if there is one.
+        var_set = self.context.collect_vars(q)
+        bern_var_set = {v for v in var_set if str(v).startswith('Bernoulli')}
+        for v in bern_var_set:
+            # Get the Bernoulli parameter.
+            bern_p = get_bernoulli_node_id(v)
+            bern_1_p = self.context.apply(self.context.ONE, bern_p, op='subtract')
+
+            # Substitute the Bernoulli variable with 1.
+            q_v_true = self.context.substitute(q, {v: self.context.ONE})
+
+            # Substitute the Bernoulli variable with 0.
+            q_v_false = self.context.substitute(q, {v: self.context.ZERO})
+
+            # Marginalize out the Bernoully variable.
+            q_v_true = self.context.apply(q_v_true, bern_p, op='prod')
+            q_v_false = self.context.apply(q_v_false, bern_1_p, op='prod')
+            q = self.context.apply(q_v_true, q_v_false, op='add')
+
+            # Standardize the node.
+            q = self.standardize(q)
 
         # Cache and return the result.
         self.mdp.cont_regr_cache[key] = q
@@ -209,7 +253,8 @@ class SymbolicSolver:
 
     def regress_bvars(self, q: int, cpf: int, v: BooleanVar) -> int:
         """Regress a boolean variable from the value function `q`."""
-        dec_id = self.context._expr_to_id[self.mdp.model.ns[str(v)]]
+        v_name = self.mdp.model._sym_var_name_to_var_name[str(v)]
+        dec_id = self.context._expr_to_id[self.mdp.model.ns[v_name]]
 
         # Convert leaf nodes to float values.
         cpf = self.context.unary_op(cpf, 'float')
@@ -277,6 +322,12 @@ class SymbolicSolver:
                 f" {available_memory_ratio * 100:.2f}% available memory."
             )
         )
+
+    def standardize(self, dd: int) -> int:
+        dd = self.context.make_canonical(dd)
+        if self.mdp.is_linear and self.perform_reduce_lp:
+            dd = self.context.reduce_lp(dd)
+        return dd
 
     def print(self, dd: int):
         """Prints the value function."""

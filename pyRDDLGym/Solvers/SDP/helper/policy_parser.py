@@ -90,7 +90,7 @@ class PolicyParser:
         a_type = self.model.gvar_to_type[a_name]
 
         # Parse the XADD from file.
-        a_dd = self.context.import_xadd(path, locals=self.model.ns)
+        a_dd = self.context.import_xadd(path)
         a_var = self.model.ns[a_name]
 
         # Boolean action should condition on itself being True or False.
