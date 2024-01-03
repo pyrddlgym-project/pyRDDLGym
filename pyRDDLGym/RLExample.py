@@ -13,6 +13,7 @@ import sys
 from stable_baselines3 import PPO
 
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+from pyRDDLGym.Core.Policies.Agents import BaseAgent
 from pyRDDLGym.Examples.ExampleManager import ExampleManager
 
     
@@ -20,32 +21,25 @@ def main(domain, instance, steps):
     
     # set up the environment
     info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance, enforce_action_constraints=True, 
-                        new_gym_api=True, compact_action_space=True)
+    env = RDDLEnv.build(info, instance, 
+                        enforce_action_constraints=True, 
+                        new_gym_api=True, 
+                        compact_action_space=True)
     env.reset()
     
-    # train the agent
+    # train the PPO agent
     model = PPO('MultiInputPolicy', env, verbose=1)
     model.learn(total_timesteps=steps)
     
+    # container to hold trained PPO agent
+    class PPOAgent(BaseAgent):
+        use_tensor_obs = True
+        
+        def sample_action(self, state):
+            return model.predict(state)[0]
+        
     # evaluate
-    total_reward = 0
-    state, _ = env.reset()
-    for step in range(env.horizon):
-        env.render()
-        action, _ = model.predict(state)
-        next_state, reward, done, *_ = env.step(action)
-        print(f'step       = {step}\n'
-              f'state      = {state}\n'
-              f'action     = {action}\n'
-              f'next state = {next_state}\n'
-              f'reward     = {reward}\n')
-        total_reward += reward
-        state = next_state
-        if done:
-            break
-    print(f'episode ended with return {total_reward}')
-    
+    PPOAgent().evaluate(env, episodes=1, verbose=True, render=True)
     env.close()
         
         
