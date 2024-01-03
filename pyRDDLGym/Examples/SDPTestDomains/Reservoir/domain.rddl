@@ -38,6 +38,8 @@ domain reservoir_control_sdp {
                             0, 
                             rlevel(?r) 
                             + Bernoulli(RAIN_PROP(?r)) * RAIN_VALUE(?r)
+                            // Alternatively, following also works, but leads to more complicated decision ordering. 
+                            // + (if (Bernoulli(RAIN_PROP(?r))) then RAIN_VALUE(?r) else 0)     
                             - release(?r) * RELEASE_VALUE(?r) 
                             + sum_{?in : reservoir} [
                                 RES_CONNECT(?in, ?r) * release(?in) * RELEASE_VALUE(?in)

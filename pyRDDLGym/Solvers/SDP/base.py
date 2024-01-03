@@ -233,15 +233,24 @@ class SymbolicSolver:
             bern_p = get_bernoulli_node_id(v)
             bern_1_p = self.context.apply(self.context.ONE, bern_p, op='subtract')
 
-            # Substitute the Bernoulli variable with 1.
-            q_v_true = self.context.substitute(q, {v: self.context.ONE})
+            # Check if the Bernoulli variable is used as a decision.
+            bern_as_dec = v in self.context._id_to_expr.values()
 
-            # Substitute the Bernoulli variable with 0.
-            q_v_false = self.context.substitute(q, {v: self.context.ZERO})
+            # Substitute the Bernoulli variable with 1 and multiply by the Bernoulli parameter.
+            q_v_true = self.context.substitute(
+                q, {v: True if bern_as_dec else self.context.ONE})
+            q_v_true = self.standardize(q_v_true)
+            q_v_true = self.context.apply(q_v_true, bern_p, op='prod')
+            q_v_true = self.standardize(q_v_true)
+
+            # Substitute the Bernoulli variable with 0 and multiply by (1 - Bernoulli parameter).
+            q_v_false = self.context.substitute(
+                q, {v: False if bern_as_dec else self.context.ZERO})
+            q_v_false = self.standardize(q_v_false)
+            q_v_false = self.context.apply(q_v_false, bern_1_p, op='prod')
+            q_v_false = self.standardize(q_v_false)
 
             # Marginalize out the Bernoully variable.
-            q_v_true = self.context.apply(q_v_true, bern_p, op='prod')
-            q_v_false = self.context.apply(q_v_false, bern_1_p, op='prod')
             q = self.context.apply(q_v_true, q_v_false, op='add')
 
             # Standardize the node.
