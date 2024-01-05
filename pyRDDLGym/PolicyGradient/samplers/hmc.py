@@ -5,7 +5,7 @@ from tensorflow_probability.substrates import jax as tfp
 VALID_INIT_DISTR_TYPES = (
     'uniform',
     'normal',
-    'current_policy',
+    'cur_policy',
 )
 
 VALID_STEP_SIZE_DISTR_TYPES = (
@@ -84,7 +84,7 @@ class HMCSampler:
                 key,
                 shape=shape)
             self.init_state = config['mean'] + self.init_state * config['std']
-        elif config['type'] == 'current_policy':
+        elif config['type'] == 'cur_policy':
             self.init_state = self.policy.sample(key, self.policy.theta, shape[:-1])
         return key
 
@@ -120,6 +120,7 @@ class HMCSampler:
 
     def prep(self,
              key,
+             it,
              target_log_prob_fn,
              unconstraining_bijector):
 
@@ -189,6 +190,7 @@ class HMCSampler:
 class NoUTurnSampler(HMCSampler):
     def prep(self,
              key,
+             it,
              target_log_prob_fn,
              unconstraining_bijector):
         num_burnin_iters_per_chain = self.config['num_burnin_iters_per_chain']
