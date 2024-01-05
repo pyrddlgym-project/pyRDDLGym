@@ -46,9 +46,11 @@ class RejectionSampler:
         return key
 
     def generate_initial_state(self, key):
+        """Included to have a consistent interface with that of HMC"""
         return key
 
     def generate_step_size(self, key):
+        """Included to have a consistent interface with that of HMC"""
         return key
 
     def cond_fn(self, val):
@@ -78,7 +80,7 @@ class RejectionSampler:
 
         # sample independent uniform variables to test the acceptance criterion
         u = jax.random.uniform(subkeys[2], shape=instrumental_density_val.shape)
-        acceptance_criterion = u < instrumental_density_val / (M * proposal_density_val)
+        acceptance_criterion = u < (instrumental_density_val / (M * proposal_density_val))
 
         # accept if meet criterion and not previously accepted
         acceptance_criterion = jnp.logical_and(acceptance_criterion,
@@ -133,4 +135,4 @@ class RejectionSampler:
               f' :: Batch={self.batch_size}'
               f' :: Rej.rate={self.config["rejection_rate"]}'
               f' :: Proposal pdf={self.config["proposal_pdf_type"]}'
-              f' :: # distinct samples={self.stats["n_distinct_samples_used"][-1]}')
+              f' :: # Distinct samples={self.stats["n_distinct_samples_used"][-1]}')
