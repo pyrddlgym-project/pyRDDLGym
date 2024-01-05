@@ -12,7 +12,7 @@ class RDDLConstraints:
     
     def __init__(self, simulator: RDDLSimulator,
                  max_bound: float=np.inf,
-                 inequality_tol: float=0.001,
+                 inequality_tol: float=1e-5,
                  vectorized: bool=False) -> None:
         '''Creates a new set of state and action constraints.
         
@@ -45,11 +45,15 @@ class RDDLConstraints:
 
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
+        self._is_box_precond = []
         for precond in self.rddl.preconditions:
-            self._parse_bounds(precond, [], self.rddl.actions)
-            
+            is_box = self._parse_bounds(precond, [], self.rddl.actions)
+            self._is_box_precond.append(is_box)
+                    
+        self._is_box_invariant = []
         for invariant in self.rddl.invariants:
-            self._parse_bounds(invariant, [], self.rddl.states)
+            is_box = self._parse_bounds(invariant, [], self.rddl.states)
+            self._is_box_invariant.append(is_box)
 
         for (name, bounds) in self._bounds.items():
             RDDLSimulator._check_bounds(*bounds, f'Variable <{name}>', bounds)
@@ -70,20 +74,24 @@ class RDDLConstraints:
         if etype == 'aggregation' and op == 'forall':
             * pvars, arg = expr.args
             new_objects = objects + [pvar for (_, pvar) in pvars]
-            self._parse_bounds(arg, new_objects, search_vars)
+            return self._parse_bounds(arg, new_objects, search_vars)
         
         # for logical expression can only parse conjunction
         # same rationale as forall discussed above
         elif etype == 'boolean' and op == '^':
+            success = True
             for arg in expr.args:
-                self._parse_bounds(arg, objects, search_vars)
+                success_arg = self._parse_bounds(arg, objects, search_vars)
+                success = success and success_arg
+            return success
         
         # relational operation in constraint at the top level, i.e. constraint
         # LHS <= RHS for example
         elif etype == 'relational':
             var, lim, loc, active = self._parse_bounds_relational(
                 expr, objects, search_vars)
-            if var is not None and loc is not None: 
+            success = var is not None and loc is not None
+            if success: 
                 if objects:
                     if self.vectorized:
                         op = np.minimum if loc == 1 else np.maximum
@@ -100,7 +108,12 @@ class RDDLConstraints:
                 else:
                     op = min if loc == 1 else max
                     self._bounds[var][loc] = op(self._bounds[var][loc], lim)
-    
+            return success
+        
+        # not possible to parse as a box constraint
+        else:
+            return False
+               
     def _parse_bounds_relational(self, expr, objects, search_vars):
         left, right = expr.args    
         _, op = expr.etype
@@ -183,3 +196,12 @@ class RDDLConstraints:
     @bounds.setter
     def bounds(self, value):
         self._bounds = value
+    
+    @property
+    def is_box_preconditions(self):
+        return self._is_box_precond
+    
+    @property
+    def is_box_invariants(self):
+        return self._is_box_invariant
+    

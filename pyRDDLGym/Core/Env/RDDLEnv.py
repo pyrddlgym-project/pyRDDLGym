@@ -356,8 +356,8 @@ class RDDLEnv(gym.Env):
         for (var, prange) in self._actionsranges.items():
             if not (bool_constraint and prange == 'bool'):
                 key, (start, count, shape) = locational[var]
-                action_key = gym_actions.get(key, {})
-                if action_key:
+                action_key = gym_actions.get(key, None)
+                if action_key is not None:
                     action = np.atleast_1d(action_key)[start:start + count]
                     if key == 'discrete':
                         action = action + disc_start[start:start + count]
@@ -366,8 +366,8 @@ class RDDLEnv(gym.Env):
                     actions[var] = np.reshape(action, shape, order='C').astype(dtype)
         
         # process the active max-nondef-actions constraint
-        action_key = gym_actions.get('discrete', {})
-        if bool_constraint and action_key:
+        action_key = gym_actions.get('discrete', None)
+        if bool_constraint and action_key is not None:
             index = np.atleast_1d(action_key)[-1]
             for (var, prange) in self._actionsranges.items():
                 if prange == 'bool':

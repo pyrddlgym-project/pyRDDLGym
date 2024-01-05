@@ -6,6 +6,9 @@
 // goal location. The car must remain within boundaries defined as 
 // line segments connected between points (X1, Y1) and (X2, Y2).
 //
+// Author(s): 
+//		Mike Gimelfarb (mgimelfarb@yahoo.ca)
+//
 ////////////////////////////////////////////////////////////////////
 
 // racecar domain with circular boundaries
@@ -318,7 +321,6 @@ non-fluents racecar_circle {
 	};
 }
 
-// Specify race car domain 
 instance inst_racecar_circle_0 {
 
 	domain = racecar;
@@ -332,9 +334,7 @@ instance inst_racecar_circle_0 {
 		vy 	= 0.0;
 	};
 
-  	// State-action constraints above are sufficient
 	max-nondef-actions = pos-inf;
-
 	horizon  = 100;
 	discount = 1.0;
 }

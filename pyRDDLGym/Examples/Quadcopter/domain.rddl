@@ -1,15 +1,23 @@
-// ***********************************************************************************************************
-// Quadcopter control
+// ////////////////////////////////////////////////////////////////////
+// Quadcopter control problem with one or more four-rotor drones. 
+// Handles collision between drones through penalization. The overall
+// goal is to hover as close as possible to a fixed target location in
+// the airspace.
 // 
-// Author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
-// 
-// Sanca, Armando & Alsina, Pablo & Cerqueira, Jes. (2008). Dynamic Modelling of a Quadrotor Aerial Vehicle //
-// with Nonlinear Inputs. Latin American Robotics Symposium and Intelligent Robotics Meeting. 143-148. 10.1109/LARS.2008.17. 
-// 
-// Quadcopter Dynamics, Simulation, and Control:
-// https://andrew.gibiansky.com/downloads/pdf/Quadcopter%20Dynamics,%20Simulation,%20and%20Control.pdf
+// References:
 //
-// ***********************************************************************************************************
+// 		Sanca, Armando & Alsina, Pablo & Cerqueira, Jes. (2008). 
+// 		Dynamic Modelling of a Quadrotor Aerial Vehicle
+// 		with Nonlinear Inputs. Latin American Robotics Symposium and 
+// 		Intelligent Robotics Meeting. 143-148. 10.1109/LARS.2008.17. 
+// 
+// 		Quadcopter Dynamics, Simulation, and Control:
+// 		https://andrew.gibiansky.com/downloads/pdf/Quadcopter%20Dynamics,%20Simulation,%20and%20Control.pdf
+//
+// Author(s):
+// 		Mike Gimelfarb (mgimelfarb@yahoo.ca)
+//
+// ////////////////////////////////////////////////////////////////////
 domain quadcopter {
 	
 	requirements = { 

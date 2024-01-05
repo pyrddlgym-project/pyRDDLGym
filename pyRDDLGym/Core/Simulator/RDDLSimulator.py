@@ -1,6 +1,6 @@
 import numpy as np
 np.seterr(all='raise')
-from typing import Dict, Union
+from typing import Dict, Set, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
@@ -337,7 +337,8 @@ class RDDLSimulator:
             if not bool(sample):
                 if not silent:
                     raise RDDLActionPreconditionNotSatisfiedError(
-                        f'{loc} is not satisfied.\n' + print_stack_trace(precond))
+                        f'{loc} is not satisfied for actions {actions}.\n' + 
+                        print_stack_trace(precond))
                 return False
         return True
     
@@ -1239,6 +1240,8 @@ class RDDLSimulator:
             return self._sample_matrix_inv(expr, subs, pseudo=False)
         elif op == 'pinverse':
             return self._sample_matrix_inv(expr, subs, pseudo=True)
+        elif op == 'cholesky':
+            return self._sample_matrix_cholesky(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operator {op} is not supported.\n' + 
@@ -1259,7 +1262,18 @@ class RDDLSimulator:
         indices = self.traced.cached_sim_info(expr)
         sample = np.moveaxis(sample, source=(-2, -1), destination=indices)
         return sample        
-
+    
+    def _sample_matrix_cholesky(self, expr, subs):
+        _, arg = expr.args
+        sample_arg = self._sample(arg, subs)
+        op = np.linalg.cholesky
+        sample = op(sample_arg)
+        
+        # matrix dimensions are last two axes, move them to the correct position
+        indices = self.traced.cached_sim_info(expr)
+        sample = np.moveaxis(sample, source=(-2, -1), destination=indices)
+        return sample  
+    
     
 def lngamma(x):
     xmin = np.min(x)
@@ -1279,3 +1293,53 @@ def lngamma(x):
                         -1 + 1 / (99 * x_squared / 140) * (
                             1 + 1 / (910 * x_squared / 3))))))
 
+
+# A container class for compiling a simulator but from external info
+class RDDLSimulatorPrecompiled(RDDLSimulator):
+    
+    def __init__(self, rddl: PlanningModel, 
+                 init_values: Args, 
+                 levels: Dict[int, Set[str]], 
+                 trace_info: object,
+                 rng: np.random.Generator=np.random.default_rng(),
+                 keep_tensors: bool=False) -> None:
+        self.init_values = init_values
+        self.levels = levels
+        self.traced = trace_info
+        
+        super(RDDLSimulatorPrecompiled, self).__init__(
+            rddl=rddl, 
+            allow_synchronous_state=True,
+            rng=rng,
+            logger=None,
+            keep_tensors=keep_tensors)        
+    
+    def _compile(self):
+        rddl = self.rddl
+        
+        # compute dependency graph for CPFs and sort them by evaluation order   
+        self.cpfs = []  
+        for cpfs in self.levels.values():
+            for cpf in cpfs:
+                _, expr = rddl.cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
+                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                    prange, RDDLValueInitializer.INT)
+                self.cpfs.append((cpf, expr, dtype))
+                
+        # initialize all fluent and non-fluent values        
+        self.subs = self.init_values.copy()
+        self.state = None  
+        self.noop_actions = {var: values
+                             for (var, values) in self.init_values.items()
+                             if rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(rddl.observ)
+        
+        # cached for performance
+        self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
+        self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
+        
+        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
+        
