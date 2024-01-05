@@ -39,6 +39,7 @@ class RejectionSampler:
 
     def prep(self,
              key,
+             it,
              target_log_prob_fn,
              unconstraining_bijector):
         self.target_log_prob_fn = target_log_prob_fn
