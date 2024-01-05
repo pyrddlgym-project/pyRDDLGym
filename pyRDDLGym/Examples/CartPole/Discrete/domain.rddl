@@ -1,10 +1,24 @@
 ////////////////////////////////////////////////////////////////////
-// A simple continuous state MDP for the classical cart-pole system 
-// by Rich Sutton as implemented in http://incompleteideas.net/sutton/book/code/pole.c.
-//
+// A continuous state binary action MDP for the classical cart-pole 
+// system by Rich Sutton.
+// 
 // The goal here is to push a cart on a flat and frictionless surface 
-// left or right by applying a constant force, in order to balance a 
-// pole balanced vertically in the center of the cart.
+// left or right by applying a force to the side of the cart, to 
+// balance a pole on top of the cart. This domain is chosen to be
+// difficult for short-sighted planners due to the relatively sparse
+// reward structure, which assigns a reward of 1 while the pole
+// has not fallen over. The actions in this domain are {0, 1} indicating
+// the side to apply force to.
+//
+// References: 
+//
+// 		Barto, Andrew G., Richard S. Sutton, and Charles W. Anderson. 
+// 		"Neuronlike adaptive elements that can solve difficult learning
+// 		control problems." IEEE transactions on systems, man, and 
+// 		cybernetics 5 (1983): 834-846.
+//
+// Author(s): 
+//		Mike Gimelfarb (mgimelfarb@yahoo.ca)
 //
 ////////////////////////////////////////////////////////////////////
 domain cart_pole_discrete {
@@ -42,7 +56,7 @@ domain cart_pole_discrete {
        	ang-vel : { state-fluent, real, default = 0 };          // pole angular velocity
 
        	// actions
-       	force-side : { action-fluent, int, default = 0 };      	// whether to apply force to left, right side or none
+       	force-side : { action-fluent, int, default = 0 };      	// side to apply force to
     };
 
     cpfs {

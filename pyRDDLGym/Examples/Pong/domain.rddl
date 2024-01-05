@@ -1,0 +1,86 @@
+////////////////////////////////////////////////////////////////////
+// A variational on the classic arcade game Pong. The goal is to 
+// move a paddle up or down to hit a ball in the opposite direction.
+// Walls enclose the court except the side along which the paddle moves.
+// The number and position of balls are configurable.
+// 
+// Author:
+//    Mike Gimelfarb (mgimelfarb@yahoo.ca)
+//
+////////////////////////////////////////////////////////////////////
+
+domain pong_mdp {
+	
+	requirements = {
+		reward-deterministic
+	};
+	
+	types {
+  		ball : object;
+	}; 
+	
+	pvariables { 
+		
+		NOISE-X(ball) : { non-fluent, real, default = 0.01 };
+		NOISE-Y(ball) : { non-fluent, real, default = 0.03 };
+		PADDLE-H : { non-fluent, real, default = 0.2 };
+		PADDLE-MAX-STEP : { non-fluent, real, default = 0.04 };
+		
+		ball-x(ball) : { state-fluent, real, default = 0.5 };
+		ball-y(ball) : { state-fluent, real, default = 0.5 };
+		vel-x(ball) : { state-fluent, real, default = 0.03 };
+		vel-y(ball) : { state-fluent, real, default = 0.01 };
+		paddle-y : { state-fluent, real, default = 0.4 };
+		
+		new-x(ball)           : { interm-fluent, real };
+		new-y(ball)           : { interm-fluent, real };
+		ball-crossing-y(ball)  : { interm-fluent, real };		
+		contact(ball)       	 : { interm-fluent, bool };
+		
+		move : { action-fluent, int, default = 0 };
+	};
+  
+	cpfs {
+		
+		// update position before contact and bounce
+		new-x(?b) = ball-x(?b) + vel-x(?b);
+		new-y(?b) = ball-y(?b) + vel-y(?b);
+		
+		// check if the ball contacts the paddle
+		ball-crossing-y(?b) = ball-y(?b) + (vel-y(?b) * sgn[vel-x(?b)] / max[abs[vel-x(?b)], 0.03]) * (1.0 - ball-x(?b)) - paddle-y;
+		contact(?b) = (ball-x(?b) < 1.0) ^ (new-x(?b) >= 1.0) 
+						^ (ball-crossing-y(?b) >= 0.0) 
+						^ (ball-crossing-y(?b) <= PADDLE-H);
+		
+		// update position
+		ball-x'(?b) = if (contact(?b)) then 2.0 - new-x(?b)
+						else if (new-x(?b) < 0.0) then -new-x(?b)
+						else new-x(?b);
+		ball-y'(?b) = if (new-y(?b) < 0.0) then -new-y(?b)
+						else if (new-y(?b) > 1.0) then 2.0 - new-y(?b)
+						else new-y(?b);
+				  
+		// update velocity
+		vel-x'(?b) = if (contact(?b) | new-x(?b) < 0.0) then -vel-x(?b) else vel-x(?b);
+		vel-y'(?b) = if (contact(?b)) then max[min[vel-y(?b) + Uniform(-NOISE-Y(?b), NOISE-Y(?b)), 1.0], -1.0]
+						else if (new-y(?b) < 0.0 | new-y(?b) > 1.0) then -vel-y(?b)
+						else vel-y(?b);
+		
+		// update paddle position
+		paddle-y' = max[min[paddle-y + move * PADDLE-MAX-STEP, 1.0 - PADDLE-H], 0.0];
+	};
+  
+	reward = -(sum_{?b : ball} ball-x(?b));
+  	
+	state-invariants {
+		forall_{?b : ball} [ball-x(?b) >= 0.0];
+		forall_{?b : ball} [ball-y(?b) >= 0.0];
+		forall_{?b : ball} [vel-x(?b) >= -1.0 ^ vel-x(?b) <= 1.0];
+		forall_{?b : ball} [vel-y(?b) >= -1.0 ^ vel-y(?b) <= 1.0];
+		paddle-y >= 0.0 ^ paddle-y <= 1.0 - PADDLE-H;
+	};
+
+	action-preconditions {
+		move >= -1 ^ move <= 1;
+	};
+}

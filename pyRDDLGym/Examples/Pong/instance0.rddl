@@ -1,0 +1,16 @@
+non-fluents pong {
+	domain = pong_mdp;
+
+	objects { 
+		ball : {b1};
+	}; 
+ }
+ 
+instance pong_mdp_0 {
+	domain = pong_mdp; 
+ 	non-fluents = pong;
+	max-nondef-actions = pos-inf;
+	horizon = 200;
+	discount = 1.0;
+} 
+

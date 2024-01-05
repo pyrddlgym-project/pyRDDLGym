@@ -37,6 +37,13 @@ class BaseAgent(metaclass=ABCMeta):
         :param render: visualize the domain using the env internal visualizer
         :param seed: optional RNG seed for the environment
         '''
+        
+        # check compatibility with environment
+        if env.vectorized != self.use_tensor_obs:
+            raise Exception(f'RDDLEnv vectorized flag must match use_tensor_obs '
+                            f'of current policy, got {env.vectorized} and '
+                            f'{self.use_tensor_obs}, respectively.')
+        
         gamma = env.discount
         
         history = np.zeros((episodes,))
@@ -56,11 +63,7 @@ class BaseAgent(metaclass=ABCMeta):
                     env.render()
                 
                 # take a step in the environment
-                if self.use_tensor_obs:
-                    policy_input = env.sampler.subs
-                else:
-                    policy_input = state
-                action = self.sample_action(policy_input)   
+                action = self.sample_action(state)   
                 if env.new_gym_api: 
                     next_state, reward, done, _, _ = env.step(action)
                 else:

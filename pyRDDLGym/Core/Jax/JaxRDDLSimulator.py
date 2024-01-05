@@ -130,7 +130,7 @@ class JaxRDDLSimulator(RDDLSimulator):
             if not bool(sample):
                 if not silent:
                     raise RDDLActionPreconditionNotSatisfiedError(
-                        f'{loc} is not satisfied.')
+                        f'{loc} is not satisfied for actions {actions}.')
                 return False
         return True
     

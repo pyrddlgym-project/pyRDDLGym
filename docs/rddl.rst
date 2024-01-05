@@ -460,9 +460,9 @@ operations:
    * - RDDL syntax
      - description
    * - ``div[x, y]``
-     - divides ``y`` by ``x``; arguments must be integer
-   * - ``mod[x, y]``
-     - returns ``x % y``; arguments must be integer
+     - divides ``y`` by ``x`` for integer arguments
+   * - ``mod[x, y]``, ``fmod[x, y]``
+     - returns ``x % y`` for integer and float arguments, respectively
    * - ``min[x, y]``, ``max[x, y]``
      - the minimum and maximum, respectively, of ``x`` and ``y``
    * - ``abs[x]``
@@ -476,9 +476,9 @@ operations:
    * - ``ceil[x]``
      - the smallest integer greater than ``x``
 
-the following exponential and logarithmic functions:
+the following exponential, logarithmic and transcendental functions:
 
-.. list-table:: Exponential and Logarithmic Functions
+.. list-table:: Exponential, Logarithmic and Transcendental Functions
    :widths: 50 60
    :header-rows: 1
    
@@ -493,7 +493,11 @@ the following exponential and logarithmic functions:
    * - ``pow[b, x]``
      - the value of ``b ^ x``
    * - ``sqrt[x]``
-     - the square root of ``x``
+     - the square root of ``x``     
+   * - ``hypot[x, y]``
+     - the value of ``sqrt[pow[x, 2] + pow[y, 2]]``   
+   * - ``gamma[x]``, ``lngamma[x]``
+     - the gamma function and its natural log, respectively, evaluated at ``x``
 
 and the following trigonometric functions:
 
@@ -509,19 +513,6 @@ and the following trigonometric functions:
      - the arc cosine, sine and tangent, respectively, of ``theta``
    * - ``cosh[theta]``, ``sinh[theta]``, ``tanh[theta]``
      - the hyperbolic cosine, sine and tangent, respectively, of ``theta``
-
-The new language specification also adds the following functions:
-
-.. list-table:: New Functions
-   :widths: 60 60
-   :header-rows: 1
-   
-   * - RDDL syntax
-     - description
-   * - ``gamma[x]``, ``lngamma[theta]``
-     - the gamma function, and the natural log of the gamma function, respectively, evaluated at ``x``
-   * - ``hypot[x, y]``
-     - the value of ``sqrt[pow[x, 2] + pow[y, 2]]``
      
 Conditional Expressions
 -------------------
@@ -905,12 +896,13 @@ the outer scope to serve as "batch" dimensions, i.e.
 
     det_{?<value1> : <variable_name1>, ?<value2> : <variable_name2>} <expression>( ?<value1>, ?<value2>, ?<value3>, ... )
 
-The syntax for computing the matrix inverse and pseudo-inverse of ``<expression>`` is
+The syntax for computing the matrix inverse, pseudo-inverse and Cholesky factor of ``<expression>`` is
 
 .. code-block:: shell
 
     inverse[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
     pinverse[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
+    cholesky[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
 
 Similar to vectorized sampling, these operations produce a matrix rather than a scalar,
 so ``?<value1>`` and ``?<value2>`` must be variables defined in the outer scope 

@@ -1,0 +1,4 @@
+[General]
+name=Pong
+description=Single player pong/tennis problem.
+viz=PongViz.PongVisualizer

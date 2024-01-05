@@ -31,7 +31,7 @@ def main(domain, instance, method, trials=5, iters=20, workers=4):
     
     # set up the environment
     info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance, enforce_action_constraints=True)
+    env = RDDLEnv.build(info, instance, vectorized=True, enforce_action_constraints=True)
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
