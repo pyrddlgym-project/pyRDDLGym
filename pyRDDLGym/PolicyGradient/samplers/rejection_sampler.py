@@ -11,6 +11,17 @@ VALID_SHAPE_TYPES = (
     'one_sample_per_parameter',
     'one_sample_per_dJ_summand',
 )
+VALID_REJECTION_RATE_TYPES = (
+    'constant',
+    'linear_ramp',
+)
+
+def rejection_rate_schedule(it, type_, params):
+    if type_ == 'constant':
+        return params['value']
+    elif type_ == 'linear_ramp':
+        return params['from'] + it * params['delta']
+
 
 class RejectionSampler:
     def __init__(self,
@@ -32,6 +43,13 @@ class RejectionSampler:
         self.shape_type = self.config['sample_shape_type']
         assert self.shape_type in VALID_SHAPE_TYPES
 
+        self.rejection_rate_type = self.config['rejection_rate']['type']
+        assert self.rejection_rate_type in VALID_REJECTION_RATE_TYPES
+        self.rejection_rate_params = self.config['rejection_rate']['params']
+        if self.rejection_rate_type == 'linear_ramp':
+            self.rejection_rate_params['delta'] = (self.rejection_rate_params['to'] - self.rejection_rate_params['from']) / n_iters
+        self.rejection_rate = None
+
         self.n_distinct_samples_used_buffer = []
         self.stats = {
             'n_distinct_samples_used': []
@@ -44,9 +62,10 @@ class RejectionSampler:
              unconstraining_bijector):
         self.target_log_prob_fn = target_log_prob_fn
         self.unconstraining_bijector = unconstraining_bijector
+        self.rejection_rate = rejection_rate_schedule(it, self.rejection_rate_type, self.rejection_rate_params)
         return key
 
-    def generate_initial_state(self, key):
+    def generate_initial_state(self, key, it, samples):
         """Included to have a consistent interface with that of HMC"""
         return key
 
@@ -119,7 +138,7 @@ class RejectionSampler:
         key, *batch_subkeys = jax.random.split(key, num=self.batch_size+1)
         batch_subkeys = jnp.asarray(batch_subkeys)
         samples, n_distinct = jax.jit(jax.vmap(_accept_reject, (0, None, None), 0))(
-            batch_subkeys, theta, self.config['rejection_rate'])
+            batch_subkeys, theta, self.rejection_rate)
 
         # keep in buffer until statistics for current iteration
         # are updated
@@ -134,6 +153,7 @@ class RejectionSampler:
     def print_report(self, it):
         print(f'Rejection Sampler'
               f' :: Batch={self.batch_size}'
-              f' :: Rej.rate={self.config["rejection_rate"]}'
+              f' :: Rej.rate type={self.rejection_rate_type},'
+              f' cur.val.={self.rejection_rate}'
               f' :: Proposal pdf={self.config["proposal_pdf_type"]}'
               f' :: # Distinct samples={self.stats["n_distinct_samples_used"][-1]}')

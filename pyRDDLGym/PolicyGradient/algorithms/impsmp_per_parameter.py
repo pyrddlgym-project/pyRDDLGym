@@ -22,8 +22,8 @@ weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
         'sign',
         'policy',
         'model',
-        'importance_weight_ub'))
-def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_ub, a):
+        'importance_weight_upper_cap'))
+def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_upper_cap, a):
     pi = policy.pdf(key, theta, a)[..., 0]
     dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
     dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
@@ -44,10 +44,10 @@ def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_u
     rho = jnp.maximum(sign * rho, 0.)
     cutoff_criterion = jnp.logical_and(
         rho > 0.,
-        pi / rho >= importance_weight_ub)
+        pi / rho >= importance_weight_upper_cap)
     rho = jnp.where(
         cutoff_criterion,
-        pi / importance_weight_ub,
+        pi / importance_weight_upper_cap,
         rho)
     return rho
 
@@ -57,11 +57,10 @@ def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_u
         'sign',
         'policy',
         'model',
-        'log_cutoff',
-        'importance_weight_ub'))
-def unnormalized_log_rho_signed(sign, key, theta, policy, model, log_cutoff, importance_weight_ub, a):
-    rho_signed = unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_ub, a)
-    return jnp.maximum(log_cutoff, jnp.log(rho_signed))
+        'importance_weight_upper_cap'))
+def unnormalized_log_rho_signed(sign, key, theta, policy, model, importance_weight_upper_cap, a):
+    rho_signed = unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_upper_cap, a)
+    return jnp.log(rho_signed)
 
 
 
@@ -73,7 +72,7 @@ def unnormalized_log_rho_signed(sign, key, theta, policy, model, log_cutoff, imp
         'subsample_size',
         'n_shards',
         'epsilon',
-        'importance_weight_ub',
+        'importance_weight_upper_cap',
         'Z_est_type',
         'Z_est_sample_size',
         'policy',
@@ -81,7 +80,7 @@ def unnormalized_log_rho_signed(sign, key, theta, policy, model, log_cutoff, imp
         'train_model',))
 def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrumental_density,
                                     batch_size, subsample_size, n_shards,
-                                    epsilon, importance_weight_ub,
+                                    epsilon, importance_weight_upper_cap,
                                     Z_est_type, Z_est_sample_size,
                                     policy, sampling_model, train_model):
 
@@ -105,7 +104,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
         dpi = jax.tree_util.tree_map(lambda x: x[:,0,:,:], dpi)
 
         losses = batch_compute_loss(subkey, actions, True)[..., 0]
-        rho = batch_unnormalized_rho(subkey, theta, policy, sampling_model, importance_weight_ub, actions)
+        rho = batch_unnormalized_rho(subkey, theta, policy, sampling_model, importance_weight_upper_cap, actions)
         factors = losses / (rho + epsilon)
         dJ_summands = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
 
@@ -131,7 +130,7 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
 
             # stack identical copies of the sample for evaluating the instrumental densities rho
             Z_sample = jnp.stack([jnp.stack([Z_sample] * 2)] * policy.action_dim)
-            rho = unnormalized_instrumental_density(subkeys[2], theta, policy, sampling_model, importance_weight_ub, Z_sample)
+            rho = unnormalized_instrumental_density(subkeys[2], theta, policy, sampling_model, importance_weight_upper_cap, Z_sample)
 
             accumulant = accumulant + (rho / pi)
             return (key, accumulant), None
@@ -306,8 +305,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         Z_est_sample_size = -1.0
 
     epsilon = config.get('epsilon', 1e-12)
-    importance_weight_ub = config['importance_weight_ub']
-    log_cutoff = config.get('log_cutoff', -1000.)
+    importance_weight_upper_cap = config['importance_weight_upper_cap']
 
     save_dJ = config.get('save_dJ', False)
 
@@ -347,10 +345,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
     if save_dJ:
         algo_stats['dJ'] = jnp.empty(shape=(n_iters, 2*subsample_size, policy.n_params)),
 
-    # initialize sampler
-    key = sampler.generate_initial_state(key)
-    key = sampler.generate_step_size(key)
-
     # initialize optimizer
     opt_state = optimizer.init(policy.theta)
 
@@ -371,6 +365,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
     inner_loop_minus = functools.partial(impsmp_per_parameter_inner_loop,
         unnormalized_instrumental_density=unnormalized_rho_minus)
 
+    samples_plus = None
+    samples_minus = None
 
     # run REINFORCE with Importance Sampling
     for it in range(n_iters):
@@ -383,8 +379,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             policy.theta,
             policy,
             sampling_model,
-            log_cutoff,
-            importance_weight_ub)
+            importance_weight_upper_cap)
 
         log_density_minus = functools.partial(
             unnormalized_log_rho_minus,
@@ -392,46 +387,52 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             policy.theta,
             policy,
             sampling_model,
-            log_cutoff,
-            importance_weight_ub)
+            importance_weight_upper_cap)
 
+        # draw positive samples
+        key = sampler.prep(key,
+                           it,
+                           target_log_prob_fn=log_density_plus,
+                           unconstraining_bijector=unconstraining_bijector)
+        key = sampler.generate_step_size(key)
+        key = sampler.generate_initial_state(key, it, samples_plus)
+        try:
+            key, samples_plus, is_accepted_plus = sampler.sample(key, policy.theta)
+        except FloatingPointError:
+            warning_msg = f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception during sampling of log_rho_plus.'
+            warnings.warn(warning_msg)
+            for stat_name, stat in algo_stats.items():
+                algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
+        else:
+            samples_plus = samples_plus.reshape(batch_size, action_dim, 2, 1, action_dim)
 
-        plusminus_samples, plusminus_is_accepted = [], []
-        skip_current_iter = False
-        for log_rho in (log_density_plus, log_density_minus):
-
-            key = sampler.generate_step_size(key)
-            key = sampler.prep(key,
-                               target_log_prob_fn=log_rho,
-                               unconstraining_bijector=unconstraining_bijector)
-            try:
-                key, samples, is_accepted = sampler.sample(key, policy.theta)
-            except FloatingPointError:
-                key = sampler.generate_initial_state(key)
-                key = sampler.generate_step_size(key)
-
-                warnings.warn(f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception.'
-                              f' The sampler has been reinitialized.')
-                skip_current_iter = True
-                for stat_name, stat in algo_stats.items():
-                    algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
-            else:
-                plusminus_samples.append(samples.reshape(batch_size, action_dim, 2, 1, action_dim))
-                plusminus_is_accepted.append(is_accepted)
-
-        if skip_current_iter:
-            continue
+        # draw negative samples
+        key = sampler.prep(key,
+                           it,
+                           target_log_prob_fn=log_density_minus,
+                           unconstraining_bijector=unconstraining_bijector)
+        key = sampler.generate_step_size(key)
+        key = sampler.generate_initial_state(key, it, samples_minus)
+        try:
+            key, samples_minus, is_accepted_minus = sampler.sample(key, policy.theta)
+        except FloatingPointError:
+            warning_msg = f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception during sampling of log_rho_minus.'
+            warnings.warn(warning_msg)
+            for stat_name, stat in algo_stats.items():
+                algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
+        else:
+            samples_minus = samples_minus.reshape(batch_size, action_dim, 2, 1, action_dim)
 
         # compute dJ_hat
         key, dJ_hat_plus, batch_stats_plus = inner_loop_plus(
             key=key,
             theta=policy.theta,
-            samples=plusminus_samples[0],
+            samples=samples_plus,
             batch_size=batch_size,
             subsample_size=subsample_size,
             n_shards=n_shards,
             epsilon=epsilon,
-            importance_weight_ub=importance_weight_ub,
+            importance_weight_upper_cap=importance_weight_upper_cap,
             Z_est_type=Z_est_type,
             Z_est_sample_size=Z_est_sample_size,
             policy=policy,
@@ -441,12 +442,12 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         key, dJ_hat_minus, batch_stats_minus = inner_loop_minus(
             key=key,
             theta=policy.theta,
-            samples=plusminus_samples[1],
+            samples=samples_minus,
             batch_size=batch_size,
             subsample_size=subsample_size,
             n_shards=n_shards,
             epsilon=epsilon,
-            importance_weight_ub=importance_weight_ub,
+            importance_weight_upper_cap=importance_weight_upper_cap,
             Z_est_type=Z_est_type,
             Z_est_sample_size=Z_est_sample_size,
             policy=policy,
@@ -458,58 +459,17 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         updates, opt_state = optimizer.update(dJ_hat, opt_state)
         policy.theta = optax.apply_updates(policy.theta, updates)
 
-        # initialize the next chain
-        if config['reinit_strategy'] == 'random_sample':
-            key = sampler.generate_initial_state(key)
-
-        elif config['reinit_strategy'] == 'random_prev_chain_elt':
-            sampler.set_initial_state(
-                jax.random.choice(
-                    subkeys[3],
-                    a=samples,
-                    shape=(sampler.config["num_chains"],),
-                    replace=False))
-
-        #elif config['reinit_strategy'] == 'random_prev_chain_elt_with_intermixing':
-        #    hmc_initializer = jax.random.choice(
-        #        subkeys[3],
-        #        a=samples,
-        #        shape=(sampler.config["num_chains"],),
-        #        replace=False)
-
-        #    log_density = functools.partial(
-        #        unnormalized_log_rho, subkeys[1], policy.theta, policy, models['mixing_model'], log_cutoff)
-        #    parallel_log_density_over_chains = jax.vmap(log_density, 0, 0)
-
-        #    intermediate_hmc_kernel = sampler_factory(
-        #        target_log_prob_fn=parallel_log_density_over_chains,
-        #        step_size=sampler.config['reinit_step_size'],
-        #        unconstraining_bijector=unconstraining_bijector,
-        #        **hmc_config)
-
-        #    hmc_initializer, _ = tfp.mcmc.sample_chain(
-        #        seed=subkeys[3],
-        #        num_results=1,
-        #        num_burnin_steps=sampler.config['reinit_num_burnin_iters_per_chain'],
-        #        current_state=hmc_initializer,
-        #        kernel=intermediate_hmc_kernel,
-        #        trace_fn=lambda _, pkr: pkr.inner_results.inner_results.is_accepted)
-        #    hmc_initializer = hmc_initializer[0]
-        else:
-            raise ValueError('[impsmp_per_parameter] Unrecognized sampler reinitialization strategy '
-                            f'{hmc_config["reinit_strategy"]}. Expect "random_sample" '
-                             'or "random_prev_chain_elt"')
-
         # update stats and printout results for the current iteration
         key, algo_stats = update_impsmp_stats(key, it,
                                               batch_size, subsample_size,
                                               eval_n_shards, eval_batch_size,
                                               algo_stats, batch_stats_plus, batch_stats_minus,
-                                              plusminus_samples[0], plusminus_is_accepted[0],
-                                              plusminus_samples[1], plusminus_is_accepted[1],
+                                              samples_plus, is_accepted_plus,
+                                              samples_minus, is_accepted_minus,
                                               policy.theta, policy, eval_model,
                                               Z_est_type, save_dJ)
-        sampler.update_stats(it, samples, is_accepted)
+        sampler.update_stats(it, samples_plus, is_accepted_plus)
+        sampler.update_stats(it, samples_minus, is_accepted_minus)
         if config['verbose']:
             print_impsmp_report(it, algo_stats, batch_size, sampler, Z_est_type, subt0, timer())
 
