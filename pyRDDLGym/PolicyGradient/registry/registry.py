@@ -60,11 +60,6 @@ optimizer_lookup_table = {
 algorithm_lookup_table = {
     'reinforce': pyRDDLGym.PolicyGradient.algorithms.reinforce.reinforce,
     'impsmp': pyRDDLGym.PolicyGradient.algorithms.impsmp.impsmp,
-    'impsmp_analyze_1d_samples': pyRDDLGym.PolicyGradient.algorithms.impsmp.impsmp_analyze_1d_samples,
-    'impsmp_analyze_2d_samples': pyRDDLGym.PolicyGradient.algorithms.impsmp.impsmp_analyze_2d_samples,
-    'impsmp_with_subsampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_with_subsampling.impsmp_with_subsampling,
     'impsmp_per_parameter': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter.impsmp_per_parameter,
-    'impsmp_per_parameter_analyze_1d_sampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_analyze_1d_sampling.impsmp_per_parameter_analyze_1d_sampling,
-    'impsmp_per_parameter_analyze_2d_sampling': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_analyze_2d_sampling.impsmp_per_parameter_analyze_2d_sampling,
-    'impsmp_per_parameter_multi_cossim': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_multi_cossim.impsmp_per_parameter_multi_cossim,
+    'impsmp_per_parameter_signed': pyRDDLGym.PolicyGradient.algorithms.impsmp_per_parameter_signed.impsmp_per_parameter_signed,
 }

@@ -1,3 +1,7 @@
+"""Importance Sampling with a single density per parameter.
+
+The samples are split into positive and negative parts."""
+
 import jax
 import optax
 import jax.numpy as jnp
