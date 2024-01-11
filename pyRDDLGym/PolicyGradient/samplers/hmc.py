@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
+from pyRDDLGym.PolicyGradient.samplers.rejection_sampler import RejectionSampler
 
 VALID_INIT_DISTR_TYPES = (
     'uniform',
@@ -13,6 +14,12 @@ VALID_STEP_SIZE_DISTR_TYPES = (
     'uniform',
     'discrete_uniform',
     'log_uniform',
+)
+
+VALID_REINIT_STRATEGY_TYPES = (
+    'random_sample',
+    'random_prev_chain_elt',
+    'rejection_sampler',
 )
 
 def compute_next_sample_corr(D):
@@ -44,8 +51,11 @@ class HMCSampler:
         if self.config['init_distribution']['type'] == 'normal':
             self.config['init_distribution']['std'] = jnp.sqrt(self.config['init_distribution']['var'])
 
+        self.reinit_strategy = self.config['reinit_strategy']
+
         assert self.config['init_distribution']['type'] in VALID_INIT_DISTR_TYPES
         assert self.config['step_size_distribution']['type'] in VALID_STEP_SIZE_DISTR_TYPES
+        assert self.config['reinit_strategy']['type'] in VALID_REINIT_STRATEGY_TYPES
 
         self.divergence_threshold = self.config.get('divergence_threshold', 10.)
         self.track_next_sample_correlation = self.config.get('track_next_sample_correlation', False)
@@ -64,28 +74,64 @@ class HMCSampler:
                 'next_sample_correlation_max': jnp.empty(shape=(n_iters,)),
             })
 
-    def generate_initial_state(self, key):
-        key, subkey = jax.random.split(key)
-        shape = (self.config['num_chains'],
-                 self.action_dim,
-                 2,
-                 1,
-                 self.action_dim)
+        # @@@@@
+        self.rej_subsampler = RejectionSampler(
+            n_iters,
+            1,
+            action_dim,
+            policy,
+            config={
+                'proposal_pdf_type': 'cur_policy',
+                'sample_shape_type': 'one_sample_per_parameter',
+                'rejection_rate': {
+                    'type': 'constant',
+                    'params': {
+                        'value': 250
+                    }
+                }
+            })
+         #@@@@@
 
-        config = self.config['init_distribution']
-        if config['type'] == 'uniform':
-            self.init_state = jax.random.uniform(
-                key,
-                shape=shape,
-                minval=config['min'],
-                maxval=config['max'])
-        elif config['type'] == 'normal':
-            self.init_state = jax.random.normal(
-                key,
-                shape=shape)
-            self.init_state = config['mean'] + self.init_state * config['std']
-        elif config['type'] == 'cur_policy':
-            self.init_state = self.policy.sample(key, self.policy.theta, shape[:-1])
+    def generate_initial_state(self, key, it, prev_samples):
+        #@@@
+        if it == 0:
+            key, self.init_state, _ = self.rej_subsampler.sample(key, self.policy.theta)
+            #@@@
+        else:
+            key, subkey = jax.random.split(key)
+
+            if self.config['reinit_strategy']['type'] == 'random_prev_chain_elt':
+                self.init_state = jax.random.choice(
+                    subkey,
+                    a=prev_samples,
+                    shape=(self.config['num_chains'],),
+                    replace=False)
+
+            elif self.config['reinit_strategy']['type'] == 'random_sample':
+                shape = (self.config['num_chains'],
+                         self.action_dim,
+                         2,
+                         1,
+                         self.action_dim)
+
+                config = self.config['init_distribution']
+                if config['type'] == 'uniform':
+                    self.init_state = jax.random.uniform(
+                        subkey,
+                        shape=shape,
+                        minval=config['min'],
+                        maxval=config['max'])
+                elif config['type'] == 'normal':
+                    self.init_state = jax.random.normal(
+                        subkey,
+                        shape=shape)
+                    self.init_state = config['mean'] + self.init_state * config['std']
+                elif config['type'] == 'cur_policy':
+                    self.init_state = self.policy.sample(subkey, self.policy.theta, shape[:-1])
+
+            elif self.config['reinit_strategy']['type'] == 'rejection_sampler':
+                key, self.init_state, _ = self.rej_subsampler.sample(key, self.policy.theta)
+
         return key
 
     def set_initial_state(self, state):
@@ -145,6 +191,10 @@ class HMCSampler:
         self.sampler = tfp.mcmc.TransformedTransitionKernel(
             inner_kernel=hmc_sampler_with_adaptive_step_size,
             bijector=unconstraining_bijector)
+
+        #@@@@
+        key = self.rej_subsampler.prep(key, it, target_log_prob_fn, unconstraining_bijector)
+        #@@@@
         return key
 
     def sample(self, key, theta):
@@ -214,6 +264,8 @@ class NoUTurnSampler(HMCSampler):
         self.sampler = tfp.mcmc.TransformedTransitionKernel(
             inner_kernel=nuts_with_adaptive_step_size,
             bijector=unconstraining_bijector)
+
+        key = self.rej_subsampler.prep(key, it, target_log_prob_fn, unconstraining_bijector)
         return key
 
     def print_report(self, it):
