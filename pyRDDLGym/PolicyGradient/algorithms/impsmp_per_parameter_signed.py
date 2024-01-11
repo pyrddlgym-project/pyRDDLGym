@@ -1,6 +1,5 @@
-"""Importance Sampling with a single density per parameter.
-
-The samples are split into positive and negative parts."""
+"""Importance Sampling with two densities per parameter (for
+drawing positive and negative samples independently)"""
 
 import jax
 import optax
@@ -274,7 +273,7 @@ def print_impsmp_report(it, algo_stats, batch_size, sampler, Z_est_type, subt0, 
           f':: Eval loss={algo_stats["reward_mean"][it]:.3f} \u00B1 {algo_stats["reward_sterr"][it]:.3f}\n')
 
 
-def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimizer, models):
+def impsmp_per_parameter_signed(key, n_iters, config, bijector, policy, sampler, optimizer, models):
     """Runs the REINFORCE with Importance Sampling algorithm"""
     # parse config
     action_dim = policy.action_dim

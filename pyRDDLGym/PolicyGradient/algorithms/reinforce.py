@@ -101,7 +101,7 @@ def update_reinforce_stats(key, it, algo_stats, batch_stats, batch_size, save_dJ
     from the computation of dJ_hat for the current sample as well as
     the current policy mean/cov """
     dJ_hat = jnp.mean(batch_stats['dJ'], axis=0)
-    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False).reshape(batch_size, batch_size)
+    dJ_covar = jnp.cov(batch_stats['dJ'], rowvar=False)
 
     if save_dJ:
         algo_stats['dJ']                 = algo_stats['dJ'].at[it].set(batch_stats['dJ'])

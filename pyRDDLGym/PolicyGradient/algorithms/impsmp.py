@@ -23,8 +23,7 @@ weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
 def unnormalized_rho(key, theta, policy, model, a):
     dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
     dpi_norm = jax.tree_util.tree_reduce(
-#        lambda x, y: jnp.maximum(x, jnp.max(jnp.abs(y))),
-        lambda x, y: jnp.minimum(x, jnp.min(jnp.abs(y))),
+        lambda x, y: jnp.maximum(x, jnp.max(jnp.abs(y))),
         dpi,
         initializer=jnp.array([-jnp.inf]))
 
