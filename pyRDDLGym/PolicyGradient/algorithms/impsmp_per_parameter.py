@@ -23,11 +23,10 @@ weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
 @functools.partial(
     jax.jit,
     static_argnames=(
-        'sign',
         'policy',
         'model',
         'importance_weight_upper_cap'))
-def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_upper_cap, a):
+def unnormalized_rho(key, theta, policy, model, importance_weight_upper_cap, a):
     pi = policy.pdf(key, theta, a)[..., 0]
     dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
     dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
@@ -45,7 +44,7 @@ def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_u
 
     rho = losses * dpi['linear']['w']
 
-    rho = jnp.maximum(sign * rho, 0.)
+    rho = jnp.abs(rho)
     cutoff_criterion = jnp.logical_and(
         rho > 0.,
         pi / rho >= importance_weight_upper_cap)
@@ -58,13 +57,12 @@ def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_u
 @functools.partial(
     jax.jit,
     static_argnames=(
-        'sign',
         'policy',
         'model',
         'importance_weight_upper_cap'))
-def unnormalized_log_rho_signed(sign, key, theta, policy, model, importance_weight_upper_cap, a):
-    rho_signed = unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_upper_cap, a)
-    return jnp.log(rho_signed)
+def unnormalized_log_rho(key, theta, policy, model, importance_weight_upper_cap, a):
+    rho = unnormalized_rho(key, theta, policy, model, importance_weight_upper_cap, a)
+    return jnp.log(rho)
 
 
 
@@ -82,7 +80,7 @@ def unnormalized_log_rho_signed(sign, key, theta, policy, model, importance_weig
         'policy',
         'sampling_model',
         'train_model',))
-def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrumental_density,
+def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrumental_density, accepted_matrix,
                                     batch_size, subsample_size, n_shards,
                                     epsilon, importance_weight_upper_cap,
                                     Z_est_type, Z_est_sample_size,
@@ -98,7 +96,22 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
 
     batch_unnormalized_rho = jax.vmap(unnormalized_instrumental_density, (None, None, None, None, None, 0), 0)
 
-    def compute_dJ_hat_summands_for_shard(key, actions):
+    sharded_actions = jnp.split(samples, n_shards)
+    sharded_actions = jnp.stack(sharded_actions)
+
+    def _compute_pre_dJ_terms_sharded(key, actions):
+        # By definition, the "pre_dJ" terms have the form
+        #     r(a) * dpi/dtheta_i(a)
+        # These are the terms that are necessary to evaluate to determine the
+        # signs of the summands that go into the estimate of dJ.
+        #
+        # The "complete" form for coordinate i is
+        #     Z_i * (r(a) / rho_i(a)) * dpi/dtheta_i(a)
+        # Z_i will be estimated using samples drawn from pi (performed below),
+        # and rho is enough to compute after subsampling (also performed below)
+        #
+        # Q: the Jacobian for computed for both accepted and rejected samples
+        # how can this be made more efficient?
         key, subkey = jax.random.split(key)
 
         pi = policy.pdf(subkey, theta, actions)[..., 0]
@@ -108,21 +121,58 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
         dpi = jax.tree_util.tree_map(lambda x: x[:,0,:,:], dpi)
 
         losses = batch_compute_loss(subkey, actions, True)[..., 0]
-        rho = batch_unnormalized_rho(subkey, theta, policy, sampling_model, importance_weight_upper_cap, actions)
-        factors = losses / (rho + epsilon)
-        dJ_summands = jax.tree_util.tree_map(lambda dpi_term: weighting_map(factors, dpi_term), dpi)
+        pre_dJ_terms = jax.tree_util.tree_map(lambda dpi_term: weighting_map(losses, dpi_term), dpi)
 
-        return key, (pi, rho, losses, dJ_summands)
+        return key, (pi, losses, pre_dJ_terms)
 
-    sharded_actions = jnp.split(samples, n_shards)
-    sharded_actions = jnp.stack(sharded_actions)
-    key, (pi, rho, losses, dJ_summands) = jax.lax.scan(compute_dJ_hat_summands_for_shard, key, sharded_actions)
+    key, (pi, losses, pre_dJ_terms) = jax.lax.scan(_compute_pre_dJ_terms_sharded, key, sharded_actions)
+    pre_dJ_terms = jax.tree_util.tree_map(lambda term: term.reshape(batch_size, policy.action_dim, 2), pre_dJ_terms)
+
+    def _pos_neg_in_coord(key, pre_dJ, accepted, samples):
+        dJ_is_pos = jnp.logical_and((pre_dJ >= 0), accepted)
+        dJ_is_neg = jnp.logical_and((pre_dJ < 0), accepted)
+        pos_dJ_ind = jnp.argwhere(dJ_is_pos, size=batch_size, fill_value=False)[..., 0]
+        neg_dJ_ind = jnp.argwhere(dJ_is_neg, size=batch_size, fill_value=False)[..., 0]
+
+        pos_tot = jnp.sum(dJ_is_pos)
+        neg_tot = jnp.sum(dJ_is_neg)
+        accepted_tot = jnp.sum(accepted)
+
+        pos_correction = pos_tot / accepted_tot
+        neg_correction = neg_tot / accepted_tot
+
+        pos_pre_dJ = jnp.take(pre_dJ, pos_dJ_ind[:subsample_size], axis=0)
+        pos_subsamples = jnp.take(samples, pos_dJ_ind[:subsample_size], axis=0)
+        neg_pre_dJ = jnp.take(pre_dJ, neg_dJ_ind[:subsample_size], axis=0)
+        neg_subsamples = jnp.take(samples, neg_dJ_ind[:subsample_size], axis=0)
+
+        return (pos_correction, pos_subsamples, pos_pre_dJ,
+                neg_correction, neg_subsamples, neg_pre_dJ)
 
     key, subkey = jax.random.split(key)
-    dJ_summands = jax.tree_util.tree_map(lambda term: term.reshape(batch_size, policy.action_dim, 2), dJ_summands)
-    dJ_summands = jax.tree_util.tree_map(lambda term: jax.random.choice(key, term, shape=(subsample_size,), replace=False, axis=0), dJ_summands)
+    split_pos_neg_by_coord_axis_1 = jax.vmap(_pos_neg_in_coord, (None, 1, 1, 1), -1)
+    split_pos_neg_by_coord = jax.vmap(split_pos_neg_by_coord_axis_1, (None, 1, 1, 1), -2)
+    pos_correction, pos_subsamples, pos_pre_dJ, neg_correction, neg_subsamples, neg_pre_dJ = split_pos_neg_by_coord(
+        subkey, pre_dJ_terms['linear']['w'], accepted_matrix, samples)
+
+    pos_subsamples = jnp.transpose(pos_subsamples, axes=(0, 3, 4, 1, 2))
+    neg_subsamples = jnp.transpose(neg_subsamples, axes=(0, 3, 4, 1, 2))
+
+    key, *subkeys = jax.random.split(key, num=3)
+    pos_rho = batch_unnormalized_rho(subkeys[0], theta, policy, sampling_model, importance_weight_upper_cap, pos_subsamples)
+    neg_rho = batch_unnormalized_rho(subkeys[1], theta, policy, sampling_model, importance_weight_upper_cap, neg_subsamples)
+
+    dJ_hat = (pos_correction * jnp.mean((pos_pre_dJ / pos_rho), axis=0)
+              + neg_correction * jnp.mean((neg_pre_dJ / neg_rho), axis=0))
+    dJ_hat = {'linear': {'w': dJ_hat}}
+
+
+
+#    key, subkey = jax.random.split(key)
+#    dJ_terms = jax.tree_util.tree_map(lambda term: jax.random.choice(key, term, shape=(subsample_size,), replace=False, axis=0), dJ_terms)
+
     #FIXME: The below assumes a linear policy parametrization
-    batch_stats['scores'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
+    #batch_stats['scores'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
 
     # estimate of the normalizing factors Z
     if Z_est_type == 'forward':
@@ -151,12 +201,14 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
     elif Z_est_type == 'none':
         Z = 1.0
 
-    dJ_summands = jax.tree_util.tree_map(lambda item: item * Z, dJ_summands)
-    dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,)), dJ_summands)
+    dJ_hat = jax.tree_util.tree_map(lambda item: Z * item, dJ_hat)
+
+    #dJ_summands = jax.tree_util.tree_map(lambda item: item * Z, dJ_summands)
+    #dJ_hat = jax.tree_util.tree_map(lambda item: jnp.mean(item, axis=(0,)), dJ_summands)
 
     batch_stats['Z'] = Z.reshape(policy.n_params)
     #FIXME: The below assumes a linear policy parametrization
-    batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
+    #batch_stats['dJ'] = dJ_summands['linear']['w'].reshape(subsample_size, policy.n_params)
     batch_stats['sample_losses'] = losses.reshape(batch_size, policy.n_params)
 
     return key, dJ_hat, batch_stats
@@ -200,6 +252,17 @@ def update_impsmp_stats(
     eval_actions = policy.sample(subkey, theta, (model.n_rollouts,))
     eval_rewards = model.compute_loss(subkey, eval_actions, False)
 
+    algo_stats['policy_mean'] = algo_stats['policy_mean'].at[it].set(policy_mean)
+    algo_stats['policy_cov'] = algo_stats['policy_cov'].at[it].set(jnp.diag(policy_cov))
+    algo_stats['transformed_policy_mean'] = algo_stats['transformed_policy_mean'].at[it].set(jnp.mean(eval_actions, axis=0))
+    algo_stats['transformed_policy_cov'] = algo_stats['transformed_policy_cov'].at[it].set(jnp.std(eval_actions, axis=0)**2)
+    algo_stats['reward_mean'] = algo_stats['reward_mean'].at[it].set(jnp.mean(eval_rewards))
+    algo_stats['reward_std'] = algo_stats['reward_std'].at[it].set(jnp.std(eval_rewards))
+    algo_stats['reward_sterr'] = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
+
+    return key, algo_stats
+
+
     dJ_estimates = jnp.concatenate([batch_stats_plus['dJ'], batch_stats_minus['dJ']], axis=0)
     sample_losses = jnp.concatenate([batch_stats_plus['sample_losses'], batch_stats_minus['sample_losses']], axis=0)
     Z = jnp.stack([batch_stats_plus['Z'], batch_stats_minus['Z']])
@@ -218,14 +281,6 @@ def update_impsmp_stats(
     algo_stats['dJ_covar_diag_max']  = algo_stats['dJ_covar_diag_max'].at[it].set(jnp.max(jnp.diag(dJ_covar)))
     algo_stats['dJ_covar_diag_mean'] = algo_stats['dJ_covar_diag_mean'].at[it].set(jnp.mean(jnp.diag(dJ_covar)))
     algo_stats['dJ_covar_diag_min']  = algo_stats['dJ_covar_diag_min'].at[it].set(jnp.min(jnp.diag(dJ_covar)))
-
-    algo_stats['policy_mean'] = algo_stats['policy_mean'].at[it].set(policy_mean)
-    algo_stats['policy_cov'] = algo_stats['policy_cov'].at[it].set(jnp.diag(policy_cov))
-    algo_stats['transformed_policy_mean'] = algo_stats['transformed_policy_mean'].at[it].set(jnp.mean(eval_actions, axis=0))
-    algo_stats['transformed_policy_cov'] = algo_stats['transformed_policy_cov'].at[it].set(jnp.std(eval_actions, axis=0)**2)
-    algo_stats['reward_mean'] = algo_stats['reward_mean'].at[it].set(jnp.mean(eval_rewards))
-    algo_stats['reward_std'] = algo_stats['reward_std'].at[it].set(jnp.std(eval_rewards))
-    algo_stats['reward_sterr'] = algo_stats['reward_sterr'].at[it].set(algo_stats['reward_std'][it] / jnp.sqrt(model.n_rollouts))
 
     algo_stats['sample_losses'] = algo_stats['sample_losses'].at[it].set(sample_losses)
     algo_stats['sample_loss_mean'] = algo_stats['sample_loss_mean'].at[it].set(jnp.mean(sample_losses))
@@ -249,7 +304,7 @@ def update_impsmp_stats(
 def print_impsmp_report(it, algo_stats, batch_size, sampler, Z_est_type, subt0, subt1):
     """Prints out the results for the current REINFORCE with Importance Sampling iteration"""
     print(f'Iter {it} :: Importance Sampling :: Runtime={subt1-subt0}s')
-    sampler.print_report(it)
+    #sampler.print_report(it)
     print(f'Untransformed parametrized policy [Mean, Diag(Cov)] =')
     print(algo_stats['policy_mean'][it])
     print(algo_stats['policy_cov'][it])
@@ -357,81 +412,48 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         bijector
     ]
 
-    # define the positive/negative densities
-    unnormalized_rho_plus = functools.partial(unnormalized_rho_signed, 1.)
-    unnormalized_rho_minus = functools.partial(unnormalized_rho_signed, -1.)
-
-    unnormalized_log_rho_plus = functools.partial(unnormalized_log_rho_signed, 1.)
-    unnormalized_log_rho_minus = functools.partial(unnormalized_log_rho_signed, -1.)
-
-    inner_loop_plus  = functools.partial(impsmp_per_parameter_inner_loop,
-        unnormalized_instrumental_density=unnormalized_rho_plus)
-    inner_loop_minus = functools.partial(impsmp_per_parameter_inner_loop,
-        unnormalized_instrumental_density=unnormalized_rho_minus)
-
-    samples_plus = None
-    samples_minus = None
+    samples = None
 
     # run REINFORCE with Importance Sampling
     for it in range(n_iters):
         subt0 = timer()
         key, *subkeys = jax.random.split(key, num=5)
 
-        log_density_plus = functools.partial(
-            unnormalized_log_rho_plus,
+        log_density = functools.partial(
+            unnormalized_log_rho,
             subkeys[1],
             policy.theta,
             policy,
             sampling_model,
             importance_weight_upper_cap)
 
-        log_density_minus = functools.partial(
-            unnormalized_log_rho_minus,
-            subkeys[1],
-            policy.theta,
-            policy,
-            sampling_model,
-            importance_weight_upper_cap)
-
-        # draw positive samples
         key = sampler.prep(key,
                            it,
-                           target_log_prob_fn=log_density_plus,
+                           target_log_prob_fn=log_density,
                            unconstraining_bijector=unconstraining_bijector)
         key = sampler.generate_step_size(key)
-        key = sampler.generate_initial_state(key, it, samples_plus)
+        key = sampler.generate_initial_state(key, it, samples)
         try:
-            key, samples_plus, is_accepted_plus = sampler.sample(key, policy.theta)
+            key, samples, accepted_matrix = sampler.sample(key, policy.theta)
         except FloatingPointError:
-            warning_msg = f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception during sampling of log_rho_plus.'
+            warning_msg = f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception during sampling of log_rho.'
             warnings.warn(warning_msg)
             for stat_name, stat in algo_stats.items():
                 algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
         else:
-            samples_plus = samples_plus.reshape(batch_size, action_dim, 2, 1, action_dim)
+            samples = samples.reshape(batch_size, action_dim, 2, 1, action_dim)
+            accepted_matrix = accepted_matrix.reshape(batch_size, action_dim, 2)
 
-        # draw negative samples
-        key = sampler.prep(key,
-                           it,
-                           target_log_prob_fn=log_density_minus,
-                           unconstraining_bijector=unconstraining_bijector)
-        key = sampler.generate_step_size(key)
-        key = sampler.generate_initial_state(key, it, samples_minus)
-        try:
-            key, samples_minus, is_accepted_minus = sampler.sample(key, policy.theta)
-        except FloatingPointError:
-            warning_msg = f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception during sampling of log_rho_minus.'
-            warnings.warn(warning_msg)
-            for stat_name, stat in algo_stats.items():
-                algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
-        else:
-            samples_minus = samples_minus.reshape(batch_size, action_dim, 2, 1, action_dim)
+        print(jnp.sum(accepted_matrix, axis=0))
 
         # compute dJ_hat
-        key, dJ_hat_plus, batch_stats_plus = inner_loop_plus(
+        key, dJ_hat, batch_stats = impsmp_per_parameter_inner_loop(
+            unnormalized_instrumental_density=unnormalized_rho,
             key=key,
             theta=policy.theta,
-            samples=samples_plus,
+            samples=samples,
+            accepted_matrix=accepted_matrix,
+            # constant parameters
             batch_size=batch_size,
             subsample_size=subsample_size,
             n_shards=n_shards,
@@ -442,23 +464,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             policy=policy,
             sampling_model=sampling_model,
             train_model=train_model)
-
-        key, dJ_hat_minus, batch_stats_minus = inner_loop_minus(
-            key=key,
-            theta=policy.theta,
-            samples=samples_minus,
-            batch_size=batch_size,
-            subsample_size=subsample_size,
-            n_shards=n_shards,
-            epsilon=epsilon,
-            importance_weight_upper_cap=importance_weight_upper_cap,
-            Z_est_type=Z_est_type,
-            Z_est_sample_size=Z_est_sample_size,
-            policy=policy,
-            sampling_model=sampling_model,
-            train_model=train_model)
-
-        dJ_hat = jax.tree_util.tree_map(lambda x, y: x + y, dJ_hat_plus, dJ_hat_minus)
 
         updates, opt_state = optimizer.update(dJ_hat, opt_state)
         policy.theta = optax.apply_updates(policy.theta, updates)
@@ -467,13 +472,12 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         key, algo_stats = update_impsmp_stats(key, it,
                                               batch_size, subsample_size,
                                               eval_n_shards, eval_batch_size,
-                                              algo_stats, batch_stats_plus, batch_stats_minus,
-                                              samples_plus, is_accepted_plus,
-                                              samples_minus, is_accepted_minus,
+                                              algo_stats, batch_stats, batch_stats,
+                                              samples, accepted_matrix,
+                                              samples, accepted_matrix,
                                               policy.theta, policy, eval_model,
                                               Z_est_type, save_dJ)
-        sampler.update_stats(it, samples_plus, is_accepted_plus)
-        sampler.update_stats(it, samples_minus, is_accepted_minus)
+        #sampler.update_stats(it, samples, accepted_matrix)
         if config['verbose']:
             print_impsmp_report(it, algo_stats, batch_size, sampler, Z_est_type, subt0, timer())
 
@@ -485,150 +489,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'batch_size': batch_size,
         'eval_batch_size': eval_batch_size,
         'sampling_model_weight': sampling_model.weight,
-        'sampler_stats': sampler.stats,
+#        'sampler_stats': sampler.stats,
     })
     return key, algo_stats
-
-
-
-# ===== Diagnostic utilities =====
-def plot_1d_density_and_sample_comparison(
-    it,
-    log_density_plus,
-    log_density_minus,
-    plusminus_samples,
-    save_to):
-
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(2, 2)
-    fig.set_size_inches(14, 14)
-
-    density_range = jnp.arange(-5., 5., step=0.1)
-    graph_inputs = jnp.broadcast_to(
-        density_range[:, jnp.newaxis, jnp.newaxis, jnp.newaxis, jnp.newaxis],
-        (density_range.shape[0], 1, 2, 1, 1))
-    batch_density_plus = jax.vmap(log_density_plus, 0, 0)
-    batch_density_minus = jax.vmap(log_density_minus, 0, 0)
-    rho_plus_graph = jnp.exp(batch_density_plus(graph_inputs))
-    rho_minus_graph = jnp.exp(batch_density_minus(graph_inputs))
-
-    n00, _, _ = ax[0,0].hist(plusminus_samples[0][:, 0, 0, 0, 0], bins=density_range)
-    n01, _, _ = ax[0,1].hist(plusminus_samples[0][:, 0, 1, 0, 0], bins=density_range)
-    n10, _, _ = ax[1,0].hist(plusminus_samples[1][:, 0, 0, 0, 0], bins=density_range)
-    n11, _, _ = ax[1,1].hist(plusminus_samples[1][:, 0, 1, 0, 0], bins=density_range)
-
-    scale00 = jnp.max(n00) / jnp.max(rho_plus_graph[:, 0, 0])
-    scale01 = jnp.max(n01) / jnp.max(rho_plus_graph[:, 0, 1])
-    scale10 = jnp.max(n10) / jnp.max(rho_minus_graph[:, 0, 0])
-    scale11 = jnp.max(n11) / jnp.max(rho_minus_graph[:, 0, 1])
-
-    ax[0,0].plot(density_range, rho_plus_graph[:, 0, 0] * scale00, label='Mean+ density (scaled)')
-    ax[0,1].plot(density_range, rho_plus_graph[:, 0, 1] * scale01, label='Var+ density (scaled)')
-    ax[1,0].plot(density_range, rho_minus_graph[:, 0, 0] * scale10, label='Mean- density (scaled)')
-    ax[1,1].plot(density_range, rho_minus_graph[:, 0, 1] * scale11, label='Var- density (scaled)')
-
-    ax[0,0].set_title('Mean Param+')
-    ax[0,1].set_title('Var Param+')
-    ax[1,0].set_title('Mean Param-')
-    ax[1,1].set_title('Var Param-')
-
-    plt.suptitle(f'Comparison of positivized 1-dimensional densities with the drawn samples\n'
-                 f'Iteration {it}')
-    plt.savefig(save_to)
-
-
-def plot_2d_density_and_sample_comparison(
-    it,
-    upper,
-    lower,
-    step,
-    log_density_plus,
-    log_density_minus,
-    plusminus_samples,
-    save_to):
-
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(4, 4)
-    fig.set_size_inches(28, 28)
-
-    extent = (lower, upper, lower, upper)
-
-    # plot the target densities in the first column of the image
-    density_range = jnp.arange(lower, upper, step=step)
-    per_axis = density_range.shape[0]
-    inputs = jnp.stack(jnp.meshgrid(density_range, density_range, indexing='ij'))
-    inputs = jnp.transpose(inputs, (1, 2, 0)).reshape(per_axis, per_axis, 1, 2)
-    inputs = jnp.stack([inputs, inputs], axis=2)
-    inputs = jnp.stack([inputs, inputs], axis=2)
-
-    batch_density_plus_inner = jax.vmap(log_density_plus, 0, 0)
-    batch_density_plus = jax.vmap(batch_density_plus_inner, 0, 0)
-    batch_density_minus_inner = jax.vmap(log_density_minus, 0, 0)
-    batch_density_minus = jax.vmap(batch_density_minus_inner, 0, 0)
-    rho_plus_contour = jnp.exp(batch_density_plus(inputs))
-    rho_minus_contour = jnp.exp(batch_density_minus(inputs))
-
-    ax[0,0].imshow(rho_plus_contour[:,:,0,0], interpolation='none', origin='lower', extent=extent)
-    ax[0,1].imshow(rho_plus_contour[:,:,0,1], interpolation='none', origin='lower', extent=extent)
-    ax[0,2].imshow(rho_plus_contour[:,:,1,0], interpolation='none', origin='lower', extent=extent)
-    ax[0,3].imshow(rho_plus_contour[:,:,1,1], interpolation='none', origin='lower', extent=extent)
-    ax[2,0].imshow(rho_minus_contour[:,:,0,0], interpolation='none', origin='lower', extent=extent)
-    ax[2,1].imshow(rho_minus_contour[:,:,0,1], interpolation='none', origin='lower', extent=extent)
-    ax[2,2].imshow(rho_minus_contour[:,:,1,0], interpolation='none', origin='lower', extent=extent)
-    ax[2,3].imshow(rho_minus_contour[:,:,1,1], interpolation='none', origin='lower', extent=extent)
-
-    ax[0,0].set_title('(Dim=0, Mean, Plus) Target Density')
-    ax[0,1].set_title('(Dim=0, Var, Plus) Target Density')
-    ax[0,2].set_title('(Dim=1, Mean, Plus) Target Density')
-    ax[0,3].set_title('(Dim=1, Var, Plus) Target Density')
-    ax[2,0].set_title('(Dim=0, Mean, Minus) Target Density')
-    ax[2,1].set_title('(Dim=0, Var, Minus) Target Density')
-    ax[2,2].set_title('(Dim=1, Mean, Minus) Target Density')
-    ax[2,3].set_title('(Dim=1, Var, Minus) Target Density')
-
-    # plot the drawn samples in the second column of the image
-    n_cells = int((upper - lower) / step)
-    binned_samples = np.zeros(shape=(8, n_cells, n_cells))
-
-    for sample in plusminus_samples[0]:
-        bins = jnp.floor((sample - lower) / step).astype(jnp.int32)
-        ix, iy = bins[0, 0, 0]
-        binned_samples[0, ix, iy] += 1
-        ix, iy = bins[0, 1, 0]
-        binned_samples[1, ix, iy] += 1
-        ix, iy = bins[1, 0, 0]
-        binned_samples[2, ix, iy] += 1
-        ix, iy = bins[1, 1, 0]
-        binned_samples[3, ix, iy] += 1
-
-    for sample in plusminus_samples[1]:
-        bins = jnp.floor((sample - lower) / step).astype(jnp.int32)
-        ix, iy = bins[0, 0, 0]
-        binned_samples[4, ix, iy] += 1
-        ix, iy = bins[0, 1, 0]
-        binned_samples[5, ix, iy] += 1
-        ix, iy = bins[1, 0, 0]
-        binned_samples[6, ix, iy] += 1
-        ix, iy = bins[1, 1, 0]
-        binned_samples[7, ix, iy] += 1
-
-    ax[1,0].imshow(binned_samples[0], interpolation='none', origin='lower', extent=extent)
-    ax[1,1].imshow(binned_samples[1], interpolation='none', origin='lower', extent=extent)
-    ax[1,2].imshow(binned_samples[2], interpolation='none', origin='lower', extent=extent)
-    ax[1,3].imshow(binned_samples[3], interpolation='none', origin='lower', extent=extent)
-    ax[3,0].imshow(binned_samples[4], interpolation='none', origin='lower', extent=extent)
-    ax[3,1].imshow(binned_samples[5], interpolation='none', origin='lower', extent=extent)
-    ax[3,2].imshow(binned_samples[6], interpolation='none', origin='lower', extent=extent)
-    ax[3,3].imshow(binned_samples[7], interpolation='none', origin='lower', extent=extent)
-
-    ax[1,0].set_title('(Dim=0, Mean, Plus) Drawn Samples')
-    ax[1,1].set_title('(Dim=0, Var, Plus) Drawn Samples')
-    ax[1,2].set_title('(Dim=1, Mean, Plus) Drawn Samples')
-    ax[1,3].set_title('(Dim=1, Var, Plus) Drawn Samples')
-    ax[3,0].set_title('(Dim=0, Mean, Minus) Drawn Samples')
-    ax[3,1].set_title('(Dim=0, Var, Minus) Drawn Samples')
-    ax[3,2].set_title('(Dim=1, Mean, Minus) Drawn Samples')
-    ax[3,3].set_title('(Dim=1, Var, Minus) Drawn Samples')
-
-    plt.suptitle('Comparison of target positivized densities and drawn samples in Dim. 2')
-    plt.savefig(save_to)
