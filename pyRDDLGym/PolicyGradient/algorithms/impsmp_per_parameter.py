@@ -20,6 +20,53 @@ weighting_map_inner = jax.vmap(scalar_mult, in_axes=0, out_axes=0)
 weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
 
 
+def diagonal_of_jacobian(key, pi, theta, a):
+    """The following computation of the diagonal of the Jacobian matrix
+    uses JAX primitives, and works with any policy parametrization, but
+    computes the entire Jacobian before taking the diagonal. Therefore,
+    the computation time scales rather poorly with increasing dimension.
+    There is apparently no natural way in JAX of computing the diagonal
+    only without also computing all of the off-diagonal terms.
+
+    See also:
+        https://stackoverflow.com/questions/70956578/jacobian-diagonal-computation-in-jax
+    """
+    dpi = jax.jacrev(pi, argnums=1)(key, theta, a)
+    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
+    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=2), dpi)
+    dpi = jax.tree_util.tree_map(lambda x: x[0], dpi)
+    return dpi
+
+def analytic_diagonal_of_jacobian(key, pi, theta, a):
+    """The following computes the diagonal of the Jacobian analytically.
+    It valid ONLY when the policy is parametrized by a normal distribution
+    with parameters
+
+        mu_i
+        sigma_i^2 = softplus(u_i)
+
+    In this case, it is possible to compute the partials in closed form,
+    and avoid computing the off-diagonal terms in the Jacobian.
+
+    The scaling of computation time with increasing dimension seems much
+    improved.
+    """
+    pi_val = pi(key, theta, a)[..., 0]
+
+    theta = theta['linear']['w']
+    mu = theta[:, 0]
+    u = theta[:, 1]
+    sigsq = jax.nn.softplus(u)
+
+    softplus_correction = 1 - (1/(1 + jnp.exp(u)))
+
+    mu_mult = (jnp.diag(a[:,0,0,:]) - mu) / sigsq
+    sigsq_mult = 0.5 * softplus_correction * (((jnp.diag(a[:,1,0,:]) - mu) / sigsq) - 1) / sigsq
+
+    partials = jnp.stack([mu_mult, sigsq_mult], axis=1) * pi_val
+    return partials
+
+
 @functools.partial(
     jax.jit,
     static_argnames=(
@@ -28,10 +75,10 @@ weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
         'importance_weight_upper_cap'))
 def unnormalized_rho(key, theta, policy, model, importance_weight_upper_cap, a):
     pi = policy.pdf(key, theta, a)[..., 0]
-    dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=2), dpi)
-    dpi = jax.tree_util.tree_map(lambda x: x[0], dpi)
+
+    #dpi = diagonal_of_jacobian(key, policy.pdf, theta, a)
+    #dpi = dpi['linear']['w']
+    dpi = analytic_diagonal_of_jacobian(key, policy.pdf, theta, a)
 
     # compute losses over the first three axes, which index
     # (chain_idx, action_dim_idx, mean_or_var_idx, 1, action_dim_idx)
@@ -42,7 +89,7 @@ def unnormalized_rho(key, theta, policy, model, importance_weight_upper_cap, a):
 
     losses = compute_loss_axes_0_1(key, a, True)[..., 0]
 
-    rho = losses * dpi['linear']['w']
+    rho = losses * dpi
 
     rho = jnp.abs(rho)
     cutoff_criterion = jnp.logical_and(
@@ -115,10 +162,9 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
         key, subkey = jax.random.split(key)
 
         pi = policy.pdf(subkey, theta, actions)[..., 0]
-        dpi = jacobian(subkey, theta, actions)
-        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=4), dpi)
-        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=3), dpi)
-        dpi = jax.tree_util.tree_map(lambda x: x[:,0,:,:], dpi)
+        #dpi = jax.vmap(diagonal_of_jacobian, (None, None, None, 0), 0)(subkey, policy.pdf, theta, actions)
+        dpi = jax.vmap(analytic_diagonal_of_jacobian, (None, None, None, 0), 0)(subkey, policy.pdf, theta, actions)
+        dpi = {'linear': {'w': dpi}}
 
         losses = batch_compute_loss(subkey, actions, True)[..., 0]
         pre_dJ_terms = jax.tree_util.tree_map(lambda dpi_term: weighting_map(losses, dpi_term), dpi)
@@ -131,8 +177,8 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
     def _pos_neg_in_coord(key, pre_dJ, accepted, samples):
         dJ_is_pos = jnp.logical_and((pre_dJ >= 0), accepted)
         dJ_is_neg = jnp.logical_and((pre_dJ < 0), accepted)
-        pos_dJ_ind = jnp.argwhere(dJ_is_pos, size=batch_size, fill_value=False)[..., 0]
-        neg_dJ_ind = jnp.argwhere(dJ_is_neg, size=batch_size, fill_value=False)[..., 0]
+        pos_dJ_ind = jnp.argwhere(dJ_is_pos, size=batch_size, fill_value=-1)[..., 0]
+        neg_dJ_ind = jnp.argwhere(dJ_is_neg, size=batch_size, fill_value=-1)[..., 0]
 
         pos_tot = jnp.sum(dJ_is_pos)
         neg_tot = jnp.sum(dJ_is_neg)
@@ -304,7 +350,7 @@ def update_impsmp_stats(
 def print_impsmp_report(it, algo_stats, batch_size, sampler, Z_est_type, subt0, subt1):
     """Prints out the results for the current REINFORCE with Importance Sampling iteration"""
     print(f'Iter {it} :: Importance Sampling :: Runtime={subt1-subt0}s')
-    #sampler.print_report(it)
+    sampler.print_report(it)
     print(f'Untransformed parametrized policy [Mean, Diag(Cov)] =')
     print(algo_stats['policy_mean'][it])
     print(algo_stats['policy_cov'][it])
@@ -427,11 +473,11 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             sampling_model,
             importance_weight_upper_cap)
 
+        key = sampler.generate_step_size(key)
         key = sampler.prep(key,
                            it,
                            target_log_prob_fn=log_density,
                            unconstraining_bijector=unconstraining_bijector)
-        key = sampler.generate_step_size(key)
         key = sampler.generate_initial_state(key, it, samples)
         try:
             key, samples, accepted_matrix = sampler.sample(key, policy.theta)
@@ -440,11 +486,15 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             warnings.warn(warning_msg)
             for stat_name, stat in algo_stats.items():
                 algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
+            continue
         else:
             samples = samples.reshape(batch_size, action_dim, 2, 1, action_dim)
             accepted_matrix = accepted_matrix.reshape(batch_size, action_dim, 2)
+            is_accepted = jnp.copy(accepted_matrix)
+            #@@@
+            accepted_matrix = True * jnp.ones(shape=accepted_matrix.shape)
+            #@@@
 
-        print(jnp.sum(accepted_matrix, axis=0))
 
         # compute dJ_hat
         key, dJ_hat, batch_stats = impsmp_per_parameter_inner_loop(
@@ -453,7 +503,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
             theta=policy.theta,
             samples=samples,
             accepted_matrix=accepted_matrix,
-            # constant parameters
+            # constant parameters:
             batch_size=batch_size,
             subsample_size=subsample_size,
             n_shards=n_shards,
@@ -468,6 +518,9 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         updates, opt_state = optimizer.update(dJ_hat, opt_state)
         policy.theta = optax.apply_updates(policy.theta, updates)
 
+        theta_lower_cap = np.log(np.exp(0.05) - 1)
+        policy.theta['linear']['w'] = policy.theta['linear']['w'].at[:,1].set(jnp.maximum(policy.theta['linear']['w'][:,1], theta_lower_cap))
+
         # update stats and printout results for the current iteration
         key, algo_stats = update_impsmp_stats(key, it,
                                               batch_size, subsample_size,
@@ -477,7 +530,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
                                               samples, accepted_matrix,
                                               policy.theta, policy, eval_model,
                                               Z_est_type, save_dJ)
-        #sampler.update_stats(it, samples, accepted_matrix)
+        sampler.update_stats(it, samples, is_accepted)
         if config['verbose']:
             print_impsmp_report(it, algo_stats, batch_size, sampler, Z_est_type, subt0, timer())
 
@@ -489,6 +542,6 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         'batch_size': batch_size,
         'eval_batch_size': eval_batch_size,
         'sampling_model_weight': sampling_model.weight,
-#        'sampler_stats': sampler.stats,
+        'sampler_stats': sampler.stats,
     })
     return key, algo_stats

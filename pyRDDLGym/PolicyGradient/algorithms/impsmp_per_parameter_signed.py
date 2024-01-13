@@ -477,7 +477,7 @@ def impsmp_per_parameter_signed(key, n_iters, config, bijector, policy, sampler,
             print_impsmp_report(it, algo_stats, batch_size, sampler, Z_est_type, subt0, timer())
 
     algo_stats.update({
-        'algorithm': 'ImpSmpPerParameter',
+        'algorithm': 'ImpSmpPerParameterSigned',
         'n_iters': n_iters,
         'config': config,
         'action_dim': action_dim,
