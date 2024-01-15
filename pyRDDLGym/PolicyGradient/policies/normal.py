@@ -126,7 +126,8 @@ class MultivarNormalLinearParametrization(MultivarNormalHKParametrization):
         softplus_correction = 1 - (1/(1 + jnp.exp(u)))
 
         mu_mult = (jnp.diag(a[:,0,0,:]) - mu) / sigsq
-        sigsq_mult = 0.5 * softplus_correction * (((jnp.diag(a[:,1,0,:]) - mu) / sigsq) - 1) / sigsq
+        N = (jnp.diag(a[:,1,0,:]) - mu)
+        sigsq_mult = 0.5 * softplus_correction * (((N * N) / sigsq) - 1) / sigsq
 
         partials = jnp.stack([mu_mult, sigsq_mult], axis=1) * pi_val
         return partials
@@ -160,3 +161,38 @@ class MultivarNormalMLPParametrization(MultivarNormalHKParametrization):
             action_dim=action_dim,
             bijector=bijector,
             pi=pi)
+
+
+if __name__ == '__main__':
+
+    def linear_param_test_analytic_derivative_matches_autograd_derivative(action_dim, test_sample_size, cpu):
+        """Test that the analytic derivative and the autograd derivative yield consistent results"""
+        import pyRDDLGym.PolicyGradient.bijectors
+        from jax.config import config as jconfig
+        if cpu:
+            jconfig.update('jax_platform_name', 'cpu')
+
+        bij_identity = pyRDDLGym.PolicyGradient.bijectors.identity.Identity(action_dim)
+        key = jax.random.PRNGKey(42)
+        test_policy = MultivarNormalLinearParametrization(
+            key=key,
+            action_dim=action_dim,
+            bijector=bij_identity,
+            cov_lower_cap=0.0)
+
+        key, *subkeys = jax.random.split(key, num=4)
+        a = test_policy.sample(subkeys[0], test_policy.theta, (test_sample_size, action_dim, 2, 1))
+
+        autograd_dpi = jax.vmap(test_policy.diagonal_of_jacobian, (None, None, 0), 0)(subkeys[1], test_policy.theta, a)['linear']['w']
+        analytic_dpi = jax.vmap(test_policy.analytic_diagonal_of_jacobian, (None, None, 0), 0)(subkeys[2], test_policy.theta, a)
+
+        print('[linear_param_test_analytic_derivative_matches_autograd_derivative] First three samples of diag(Jacobian) computed using autograd:')
+        print(autograd_dpi[:3])
+        print('[linear_param_test_analytic_derivative_matches_autograd_derivative] First three samples of diag(Jacobian) computed using analytic formula:')
+        print(analytic_dpi[:3])
+
+        test_result = jnp.all(jnp.isclose(autograd_dpi, analytic_dpi))
+        print(f'[linear_param_test_analytic_derivative_matches_autograd_derivative] All samples, all coordinates close: {test_result}')
+        return test_result
+
+    assert linear_param_test_analytic_derivative_matches_autograd_derivative(action_dim=8, test_sample_size=1000, cpu=True)
