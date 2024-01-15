@@ -28,10 +28,9 @@ weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
         'importance_weight_upper_cap'))
 def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_upper_cap, a):
     pi = policy.pdf(key, theta, a)[..., 0]
-    dpi = jax.jacrev(policy.pdf, argnums=1)(key, theta, a)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=2), dpi)
-    dpi = jax.tree_util.tree_map(lambda x: x[0], dpi)
+    #dpi = policy.diagonal_of_jacobian(key, theta, a)
+    #dpi = dpi['linear']['w']
+    dpi = policy.analytic_diagonal_of_jacobian(key, theta, a)
 
     # compute losses over the first three axes, which index
     # (chain_idx, action_dim_idx, mean_or_var_idx, 1, action_dim_idx)
@@ -42,7 +41,7 @@ def unnormalized_rho_signed(sign, key, theta, policy, model, importance_weight_u
 
     losses = compute_loss_axes_0_1(key, a, True)[..., 0]
 
-    rho = losses * dpi['linear']['w']
+    rho = losses * dpi
 
     rho = jnp.maximum(sign * rho, 0.)
     cutoff_criterion = jnp.logical_and(
@@ -101,10 +100,9 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
         key, subkey = jax.random.split(key)
 
         pi = policy.pdf(subkey, theta, actions)[..., 0]
-        dpi = jacobian(subkey, theta, actions)
-        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=4), dpi)
-        dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=1, axis2=3), dpi)
-        dpi = jax.tree_util.tree_map(lambda x: x[:,0,:,:], dpi)
+        dpi = jax.vmap(policy.analytic_diagonal_of_jacobian, (None, None, 0), 0)(subkey, theta, actions)
+        dpi = {'linear': {'w': dpi}}
+        #dpi = jax.vmap(policy.diagonal_of_jacobian, (None, None, 0), 0)(subkey, theta, actions)
 
         losses = batch_compute_loss(subkey, actions, True)[..., 0]
         rho = batch_unnormalized_rho(subkey, theta, policy, sampling_model, importance_weight_upper_cap, actions)
@@ -461,6 +459,7 @@ def impsmp_per_parameter_signed(key, n_iters, config, bijector, policy, sampler,
 
         updates, opt_state = optimizer.update(dJ_hat, opt_state)
         policy.theta = optax.apply_updates(policy.theta, updates)
+        policy.theta = policy.clip_theta()
 
         # update stats and printout results for the current iteration
         key, algo_stats = update_impsmp_stats(key, it,
