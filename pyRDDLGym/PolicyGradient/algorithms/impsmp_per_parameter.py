@@ -20,53 +20,6 @@ weighting_map_inner = jax.vmap(scalar_mult, in_axes=0, out_axes=0)
 weighting_map = jax.vmap(weighting_map_inner, in_axes=0, out_axes=0)
 
 
-def diagonal_of_jacobian(key, pi, theta, a):
-    """The following computation of the diagonal of the Jacobian matrix
-    uses JAX primitives, and works with any policy parametrization, but
-    computes the entire Jacobian before taking the diagonal. Therefore,
-    the computation time scales rather poorly with increasing dimension.
-    There is apparently no natural way in JAX of computing the diagonal
-    only without also computing all of the off-diagonal terms.
-
-    See also:
-        https://stackoverflow.com/questions/70956578/jacobian-diagonal-computation-in-jax
-    """
-    dpi = jax.jacrev(pi, argnums=1)(key, theta, a)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=3), dpi)
-    dpi = jax.tree_util.tree_map(lambda x: jnp.diagonal(x, axis1=0, axis2=2), dpi)
-    dpi = jax.tree_util.tree_map(lambda x: x[0], dpi)
-    return dpi
-
-def analytic_diagonal_of_jacobian(key, pi, theta, a):
-    """The following computes the diagonal of the Jacobian analytically.
-    It valid ONLY when the policy is parametrized by a normal distribution
-    with parameters
-
-        mu_i
-        sigma_i^2 = softplus(u_i)
-
-    In this case, it is possible to compute the partials in closed form,
-    and avoid computing the off-diagonal terms in the Jacobian.
-
-    The scaling of computation time with increasing dimension seems much
-    improved.
-    """
-    pi_val = pi(key, theta, a)[..., 0]
-
-    theta = theta['linear']['w']
-    mu = theta[:, 0]
-    u = theta[:, 1]
-    sigsq = jax.nn.softplus(u)
-
-    softplus_correction = 1 - (1/(1 + jnp.exp(u)))
-
-    mu_mult = (jnp.diag(a[:,0,0,:]) - mu) / sigsq
-    sigsq_mult = 0.5 * softplus_correction * (((jnp.diag(a[:,1,0,:]) - mu) / sigsq) - 1) / sigsq
-
-    partials = jnp.stack([mu_mult, sigsq_mult], axis=1) * pi_val
-    return partials
-
-
 @functools.partial(
     jax.jit,
     static_argnames=(
@@ -76,9 +29,9 @@ def analytic_diagonal_of_jacobian(key, pi, theta, a):
 def unnormalized_rho(key, theta, policy, model, importance_weight_upper_cap, a):
     pi = policy.pdf(key, theta, a)[..., 0]
 
-    #dpi = diagonal_of_jacobian(key, policy.pdf, theta, a)
+    #dpi = policy.diagonal_of_jacobian(key, theta, a)
     #dpi = dpi['linear']['w']
-    dpi = analytic_diagonal_of_jacobian(key, policy.pdf, theta, a)
+    dpi = policy.analytic_diagonal_of_jacobian(key, theta, a)
 
     # compute losses over the first three axes, which index
     # (chain_idx, action_dim_idx, mean_or_var_idx, 1, action_dim_idx)
@@ -162,8 +115,8 @@ def impsmp_per_parameter_inner_loop(key, theta, samples, unnormalized_instrument
         key, subkey = jax.random.split(key)
 
         pi = policy.pdf(subkey, theta, actions)[..., 0]
-        #dpi = jax.vmap(diagonal_of_jacobian, (None, None, None, 0), 0)(subkey, policy.pdf, theta, actions)
-        dpi = jax.vmap(analytic_diagonal_of_jacobian, (None, None, None, 0), 0)(subkey, policy.pdf, theta, actions)
+        #dpi = jax.vmap(policy.diagonal_of_jacobian, (None, None, 0), 0)(subkey, theta, actions)
+        dpi = jax.vmap(policy.analytic_diagonal_of_jacobian, (None, None, 0), 0)(subkey, theta, actions)
         dpi = {'linear': {'w': dpi}}
 
         losses = batch_compute_loss(subkey, actions, True)[..., 0]
@@ -482,8 +435,8 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
         try:
             key, samples, accepted_matrix = sampler.sample(key, policy.theta)
         except FloatingPointError:
-            warning_msg = f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError exception during sampling of log_rho.'
-            warnings.warn(warning_msg)
+            warnings.warn(f'[impsmp_per_parameter] Iteration {it}. Caught FloatingPointError '
+                          f'exception during sampling of log_rho.')
             for stat_name, stat in algo_stats.items():
                 algo_stats[stat_name] = algo_stats[stat_name].at[it].set(stat[it-1])
             continue
@@ -517,9 +470,7 @@ def impsmp_per_parameter(key, n_iters, config, bijector, policy, sampler, optimi
 
         updates, opt_state = optimizer.update(dJ_hat, opt_state)
         policy.theta = optax.apply_updates(policy.theta, updates)
-
-        theta_lower_cap = np.log(np.exp(0.05) - 1)
-        policy.theta['linear']['w'] = policy.theta['linear']['w'].at[:,1].set(jnp.maximum(policy.theta['linear']['w'][:,1], theta_lower_cap))
+        policy.theta = policy.clip_theta()
 
         # update stats and printout results for the current iteration
         key, algo_stats = update_impsmp_stats(key, it,
