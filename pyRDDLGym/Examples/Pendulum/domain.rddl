@@ -39,7 +39,7 @@ domain pendulum {
 		theta' = theta + theta-dot' * DT;
     };
 
-    reward = -(pow[fmod[theta + PI, 2 * PI] - PI, 2] + 0.1 * pow[theta-dot, 2] + 0.001 * pow[torque, 2]);
+    reward = -(pow[fmod[theta + PI, 2 * PI] - PI, 2] + 0.001 * pow[theta-dot, 2] + 0.0001 * pow[torque, 2]);
 	
     state-invariants {
 		theta-dot >= -SPEED-MAX;
