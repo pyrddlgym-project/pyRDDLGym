@@ -143,6 +143,31 @@ Alternatively, the ``evaluate()`` bypasses the need to write out the ``for`` loo
 The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
 total rewards collected across episodes, such as mean, median, standard deviation, etc.
 
+Exception Handling
+------
+
+By default, ``evaluate()`` will raise an exception if a numerical error occurs during an intermediate calculation,
+such as divide by zero or under/overflow. This behavior can be controlled through numpy. 
+
+For example, if you wish to suppress all errors, you can add the following lines
+before calling ``evaluate()``:
+
+.. code-block:: python
+
+    import numpy as np
+    np.seterror(all='ignore')
+
+More details about controlling error handling behavior can be found 
+`here <https://numpy.org/doc/stable/reference/generated/numpy.seterr.html>`_.
+
+.. warning::
+   Currently, branched error handling in operations such as ``if`` and ``switch`` 
+   is incompatible with vectorized computation. To illustrate, an expression like
+   ``if (pvar(?x) == 0) then default(?x) else 1.0 / pvar(?x)`` will evaluate ``1.0 / pvar(?x)`` first
+   for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
+   for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
+
+
 Spaces
 ------
 

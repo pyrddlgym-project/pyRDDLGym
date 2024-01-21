@@ -61,6 +61,39 @@ types, or other information required by the engine.
 
 Similarly, the ``etype()`` argument provides identifying information about the expression.
 
+Grounded vs Lifted Representation
+------
+
+By default, pyRDDLGym works directly from the (lifted) domain description as written in the 
+domain description. Parameterized variables (p-variables) are represented internally as numpy arrays,
+whose values are propagated in a vectorized manner through mathematical expressions.
+
+However, sometimes it is required to work with the grounded representation. For example, 
+given a p-variable ``some-var(?x, ?y)`` of two parameters ``?x`` and ``?y``, and the expression
+``cpf'(?x, ?y) = some-var(?x, ?y) + 1.0;``, the grounded representation is as follows:
+
+.. code-block:: shell
+
+    cpf___x1__y1' = some-var___x1__y1 + 1.0;
+    cpf___x1__y2' = some-var___x1__y2 + 1.0;
+    cpf___x2__y1' = some-var___x2__y1 + 1.0;
+    cpf___x2__y2' = some-var___x2__y2 + 1.0;
+	...
+
+where ``x1, x2...`` are the values of ``?x`` and ``y1, y2...`` are the values of ``?y``.
+In other words, all p-variables are replaced by sets of non-parameterized variables (one per valid combination of objects),
+and all expressions are replaced by sets of expressions whose p-variable dependencies are replaced by their non-parameterized
+counterparts. In all cases, the grounded and lifted representations should produce the same numerical results, 
+albeit in a slightly different format.
+ 
+pyRDDLGym provides a convenient class for producing a grounded model from a lifted domain representation, as shown below:
+
+.. code-block:: python
+    
+    from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
+    grounded_model = RDDLGrounder(env.model._AST).Ground()
+
+
 New vs Old API
 ------
 
