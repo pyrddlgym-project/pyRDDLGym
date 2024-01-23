@@ -1,15 +1,3 @@
-////////////////////////////////////////////////////////////////////
-// A simple continuous MDP for multiagent mars rover science mission.  
-//
-// The goal here is to harvest as many high-value mineral (within their
-// designated radii) as possible within the time constraints.
-//
-// The movement model is of a second order integrator in 2d
-// The states for each drone is the x,y positions and velocities.
-// The actions are acceleartion in the x,y axes.
-// A third action for each drone is minearl harvesting when possible.
-//
-////////////////////////////////////////////////////////////////////
 non-fluents elevators3 {
 
 	domain = elevators_int_mdp;

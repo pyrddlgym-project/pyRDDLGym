@@ -1,3 +1,17 @@
+////////////////////////////////////////////////////////////////////
+// A simple continuous MDP for the racecar problem.
+//
+// A car is accelerated by applying a force in the x and y directions. 
+// The goal is to bring the car to within a fixed distance to a fixed 
+// goal location. The car must remain within boundaries defined as 
+// line segments connected between points (X1, Y1) and (X2, Y2).
+//
+// Author(s): 
+// 		Mike Gimelfarb (mgimelfarb@yahoo.ca)
+//
+////////////////////////////////////////////////////////////////////
+
+// racecar domain with straight track (i.e. rectangular boundaries)
 non-fluents racecar_straight {
     domain = racecar;
 
@@ -38,8 +52,6 @@ non-fluents racecar_straight {
 	};
 }
 
-
-// Specify race car domain
 instance inst_racecar_circle_1 {
 
 	domain = racecar;
@@ -53,9 +65,7 @@ instance inst_racecar_circle_1 {
 		vy 	= 0.0;
 	};
 
-  	// State-action constraints above are sufficient
 	max-nondef-actions = pos-inf;
-
 	horizon  = 100;
 	discount = 1.0;
 }

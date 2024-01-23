@@ -31,7 +31,7 @@ def main(domain, instance, method, trials=5, iters=20, workers=4):
     
     # set up the environment
     info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance, enforce_action_constraints=True)
+    env = RDDLEnv.build(info, instance, vectorized=True, enforce_action_constraints=True)
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
@@ -64,10 +64,10 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
         print('python JaxTuningExample.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]')
-        exit(0)
+        exit(1)
     if args[2] not in ['drp', 'slp', 'replan']:
         print('<method> in [drp, slp, replan]')
-        exit(0)
+        exit(1)
     kwargs = {'domain': args[0], 'instance': args[1], 'method': args[2]}
     if len(args) >= 4: kwargs['trials'] = int(args[3])
     if len(args) >= 5: kwargs['iters'] = int(args[4])

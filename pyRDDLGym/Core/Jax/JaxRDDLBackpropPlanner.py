@@ -15,9 +15,11 @@ from tqdm import tqdm
 from typing import Callable, Dict, Generator, Set, Sequence, Tuple
 import warnings
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError 
+from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
 
+from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
 from pyRDDLGym.Core.Jax import JaxRDDLLogic
@@ -287,31 +289,40 @@ class JaxPlan:
         self._projection = value
     
     def _calculate_action_info(self, compiled: JaxRDDLCompilerWithGrad,
-                               user_bounds: Dict, horizon: int):
-        shapes, bounds = {}, {}
+                               user_bounds: Dict[str, object], horizon: int):
+        shapes, bounds, bounds_safe, cond_lists = {}, {}, {}, {}
         for (name, prange) in compiled.rddl.variable_ranges.items():
             if compiled.rddl.variable_types[name] != 'action-fluent':
                 continue
             
+            # check invalid type
             if prange not in compiled.JAX_TYPES:
                 raise RDDLTypeError(
                     f'Invalid range <{prange}. of action-fluent <{name}>, '
                     f'must be one of {set(compiled.JAX_TYPES.keys())}.')
                 
-            # clip boolean to (0, 1), otherwise use the user action bounds
+            # clip boolean to (0, 1), otherwise use the RDDL action bounds
+            # or the user defined action bounds if provided
             shapes[name] = (horizon,) + np.shape(compiled.init_values[name])
             if prange == 'bool':
                 lower, upper = None, None
             else:
-                lower, upper = user_bounds.get(name, (-jnp.inf, jnp.inf))
-                if lower is None: 
-                    lower = -jnp.inf
-                if upper is None: 
-                    upper = jnp.inf
+                lower, upper = compiled.constraints.bounds[name]
+                lower, upper = user_bounds.get(name, (lower, upper))
+                lower = np.asarray(lower, dtype=np.float32)
+                upper = np.asarray(upper, dtype=np.float32)
+                lower_finite = np.isfinite(lower)
+                upper_finite = np.isfinite(upper)
+                bounds_safe[name] = (np.where(lower_finite, lower, 0.0),
+                                     np.where(upper_finite, upper, 0.0))
+                cond_lists[name] = [lower_finite & upper_finite,
+                                    lower_finite & ~upper_finite,
+                                    ~lower_finite & upper_finite,
+                                    ~lower_finite & ~upper_finite]
             bounds[name] = (lower, upper)
             warnings.warn(f'Bounds of action fluent <{name}> set to '
                           f'{bounds[name]}', stacklevel=2)
-        return shapes, bounds
+        return shapes, bounds, bounds_safe, cond_lists
     
     def _count_bool_actions(self, rddl: RDDLLiftedModel):
         constraint = rddl.max_allowed_actions
@@ -326,11 +337,11 @@ class JaxStraightLinePlan(JaxPlan):
     
     def __init__(self, initializer: initializers.Initializer=initializers.normal(),
                  wrap_sigmoid: bool=True,
-                 min_action_prob: float=0.001,
+                 min_action_prob: float=1e-5,
                  wrap_non_bool: bool=False,
                  wrap_softmax: bool=False,
-                 use_new_projection: bool=True,
-                 max_constraint_iter: int=999) -> None:
+                 use_new_projection: bool=False,
+                 max_constraint_iter: int=100) -> None:
         '''Creates a new straight line plan in JAX.
         
         :param initializer: a Jax Initializer for setting the initial actions
@@ -377,7 +388,8 @@ class JaxStraightLinePlan(JaxPlan):
         rddl = compiled.rddl
         
         # calculate the correct action box bounds
-        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
+        shapes, bounds, bounds_safe, cond_lists = self._calculate_action_info(
+            compiled, _bounds, horizon)
         self.bounds = bounds
         
         # action concurrency check
@@ -412,7 +424,7 @@ class JaxStraightLinePlan(JaxPlan):
         def _jax_bool_action_to_param(var, action, hyperparams):
             if wrap_sigmoid:
                 weight = hyperparams[var]
-                return (-1.0 / weight) * jnp.log(1.0 / action - 1.0)
+                return (-1.0 / weight) * jnp.log1p(1.0 / action - 2.0)
             else:
                 return action
             
@@ -420,15 +432,16 @@ class JaxStraightLinePlan(JaxPlan):
         
         def _jax_non_bool_param_to_action(var, param, hyperparams):
             if wrap_non_bool:
-                lower, upper = bounds[var]
-                if lower > -jnp.inf and upper < jnp.inf:
-                    action = lower + (upper - lower) * jax.nn.sigmoid(param)
-                elif lower > -jnp.inf:
-                    action = lower + (jax.nn.elu(param) + 1.0)
-                elif upper < jnp.inf:
-                    action = upper - (jax.nn.elu(-param) + 1.0)
-                else:
-                    action = param
+                lower, upper = bounds_safe[var]
+                action = jnp.select(
+                    condlist=cond_lists[var],
+                    choicelist=[
+                        lower + (upper - lower) * jax.nn.sigmoid(param),
+                        lower + (jax.nn.elu(param) + 1.0),
+                        upper - (jax.nn.elu(-param) + 1.0),
+                        param
+                    ]
+                )
             else:
                 action = param
             return action
@@ -504,6 +517,7 @@ class JaxStraightLinePlan(JaxPlan):
                     actions[var] = action > bool_threshold
                 else:
                     action = _jax_non_bool_param_to_action(var, action, hyperparams)
+                    action = jnp.clip(action, *bounds[var])
                     if ranges[var] == 'int':
                         action = jnp.round(action).astype(compiled.INT)
                     actions[var] = action
@@ -714,7 +728,8 @@ class JaxDeepReactivePolicy(JaxPlan):
         rddl = compiled.rddl
         
         # calculate the correct action box bounds
-        shapes, bounds = self._calculate_action_info(compiled, _bounds, horizon)
+        shapes, bounds, bounds_safe, cond_lists = self._calculate_action_info(
+            compiled, _bounds, horizon)
         shapes = {var: value[1:] for (var, value) in shapes.items()}
         self.bounds = bounds
         
@@ -775,15 +790,16 @@ class JaxDeepReactivePolicy(JaxPlan):
                     if not use_constraint_satisfaction:
                         actions[var] = jax.nn.sigmoid(output)
                 else:
-                    lower, upper = bounds[var]
-                    if lower > -jnp.inf and upper < jnp.inf:
-                        action = lower + (upper - lower) * jax.nn.sigmoid(output)
-                    elif lower > -jnp.inf:
-                        action = lower + (jax.nn.elu(output) + 1.0)
-                    elif upper < jnp.inf:
-                        action = upper - (jax.nn.elu(-output) + 1.0)
-                    else:
-                        action = output
+                    lower, upper = bounds_safe[var]
+                    action = jnp.select(
+                        condlist=cond_lists[var],
+                        choicelist=[
+                            lower + (upper - lower) * jax.nn.sigmoid(output),
+                            lower + (jax.nn.elu(output) + 1.0),
+                            upper - (jax.nn.elu(-output) + 1.0),
+                            output
+                        ]
+                    )
                     actions[var] = action
             
             # for constraint satisfaction wrap bool actions with softmax
@@ -817,7 +833,7 @@ class JaxDeepReactivePolicy(JaxPlan):
             subs = {var: value
                     for (var, value) in subs.items()
                     if var in rddl.states}
-            flat_subs = jax.tree_map(jnp.ravel, subs) 
+            flat_subs = jax.tree_map(jnp.ravel, subs)
             states = list(flat_subs.values())
             state = jnp.concatenate(states)
             return state
@@ -842,9 +858,10 @@ class JaxDeepReactivePolicy(JaxPlan):
                 if prange == 'bool':
                     new_action = action > 0.5
                 elif prange == 'int':
+                    action = jnp.clip(action, *bounds[var])
                     new_action = jnp.round(action).astype(compiled.INT)
                 else:
-                    new_action = action
+                    new_action = jnp.clip(action, *bounds[var])
                 new_actions[var] = new_action
             return new_actions
         
@@ -898,7 +915,7 @@ class JaxRDDLBackpropPlanner:
                  batch_size_test: int=None,
                  rollout_horizon: int=None,
                  use64bit: bool=False,
-                 action_bounds: Dict[str, Tuple[float, float]]={},
+                 action_bounds: Dict[str, Tuple[np.ndarray, np.ndarray]]={},
                  optimizer: Callable[..., optax.GradientTransformation]=optax.rmsprop,
                  optimizer_kwargs: Dict[str, object]={'learning_rate': 0.1},
                  clip_grad: float=None,
@@ -1006,16 +1023,8 @@ class JaxRDDLBackpropPlanner:
         self.compiled.compile()
         
         # Jax compilation of the exact RDDL for testing
-        self.test_compiled = JaxRDDLCompiler(
-            rddl=rddl,
-            use64bit=self.use64bit)
+        self.test_compiled = JaxRDDLCompiler(rddl=rddl, use64bit=self.use64bit)
         self.test_compiled.compile()
-    
-        # calculate grounded no-op actions
-        self.noop_actions = {}
-        for (var, values) in self.test_compiled.init_values.items():
-            if rddl.variable_types[var] == 'action-fluent':
-                self.noop_actions.update(rddl.ground_values(var, values))
         
     def _jax_compile_optimizer(self):
         
@@ -1049,9 +1058,8 @@ class JaxRDDLBackpropPlanner:
         # optimization
         self.update = jax.jit(self._jax_update(train_loss))
     
-    def _jax_loss(self, rollouts, use_symlog=False):
+    def _jax_wrapped_returns_fn(self, use_symlog):
         gamma = self.rddl.discount
-        utility_fn = self.utility
         
         # apply discounting of future reward and then optional symlog transform
         def _jax_wrapped_returns(rewards):
@@ -1063,6 +1071,12 @@ class JaxRDDLBackpropPlanner:
             if use_symlog:
                 returns = jnp.sign(returns) * jnp.log1p(jnp.abs(returns))
             return returns
+        
+        return _jax_wrapped_returns
+        
+    def _jax_loss(self, rollouts, use_symlog=False): 
+        utility_fn = self.utility        
+        _jax_wrapped_returns = self._jax_wrapped_returns_fn(use_symlog)
         
         # the loss is the average cumulative reward across all roll-outs
         def _jax_wrapped_plan_loss(key, policy_params, hyperparams,
@@ -1113,7 +1127,12 @@ class JaxRDDLBackpropPlanner:
         # batched subs
         init_train, init_test = {}, {}
         for (name, value) in subs.items():
-            value = np.asarray(value)[np.newaxis, ...]
+            init_value = self.test_compiled.init_values.get(name, None)
+            if init_value is None:
+                raise RDDLUndefinedVariableError(
+                    f'Variable <{name}> in subs argument is not a valid p-variable, '
+                    f'must be one of {set(self.test_compiled.init_values.keys())}.')
+            value = np.reshape(value, newshape=np.shape(init_value))[np.newaxis, ...]
             train_value = np.repeat(value, repeats=n_train, axis=0)
             train_value = train_value.astype(self.compiled.REAL)
             init_train[name] = train_value
@@ -1187,6 +1206,9 @@ class JaxRDDLBackpropPlanner:
         
         # print summary of parameters:
         if verbose >= 1:
+            print('==============================================\n'
+                  'JAX PLANNER PARAMETER SUMMARY\n'
+                  '==============================================')
             self.summarize_hyperparameters()
             print(f'optimize() call hyper-parameters:\n'
                   f'    max_iterations     ={epochs}\n'
@@ -1200,6 +1222,19 @@ class JaxRDDLBackpropPlanner:
         # compute a batched version of the initial values
         if subs is None:
             subs = self.test_compiled.init_values
+        else:
+            # if some p-variables are not provided, add their default values
+            subs = subs.copy()
+            added_pvars_to_subs = []
+            for (var, value) in self.test_compiled.init_values.items():
+                if var not in subs:
+                    subs[var] = value
+                    added_pvars_to_subs.append(var)
+            if added_pvars_to_subs:
+                warnings.warn(f'p-variables {added_pvars_to_subs} not in '
+                              f'provided subs, using their initial values '
+                              f'from the RDDL files.', 
+                              stacklevel=2)
         train_subs, test_subs = self._batched_init_subs(subs)
         
         # initialize, model parameters
@@ -1277,6 +1312,7 @@ class JaxRDDLBackpropPlanner:
                 'best_grad': best_grad,
                 'updates': train_log['updates'],
                 'elapsed_time': elapsed,
+                'key': key,
                 **log
             }
             elapsed_outside_loop += (time.time() - start_time_outside)
@@ -1300,7 +1336,7 @@ class JaxRDDLBackpropPlanner:
                   f'    time_elapsed  ={elapsed}\n'
                   f'    iterations    ={it}\n'
                   f'    best_objective={-best_loss}\n'
-                  f'    grad_norm     ={grad_norm}\n')
+                  f'    grad_norm     ={grad_norm}')
             
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
@@ -1317,14 +1353,20 @@ class JaxRDDLBackpropPlanner:
         weights for sigmoid wrapping boolean actions
         :param subs: the dict of pvariables
         '''
+        
+        # check compatibility of the subs dictionary
+        for var in subs.keys():
+            if PlanningModel.FLUENT_SEP in var or PlanningModel.OBJECT_SEP in var:
+                raise Exception(f'State dictionary passed to the JAX policy is '
+                                f'grounded, since it contains the key <{var}>, '
+                                f'but a vectorized environment is required: '
+                                f'please make sure vectorized=True in the RDDLEnv.')
+        
+        # cast device arrays to numpy
         actions = self.test_policy(key, params, policy_hyperparams, step, subs)
-        grounded_actions = {}
-        for (var, action) in actions.items():
-            for (ground_var, ground_act) in self.rddl.ground_values(var, action):
-                if ground_act != self.noop_actions[ground_var]:
-                    grounded_actions[ground_var] = ground_act
-        return grounded_actions
-    
+        actions = jax.tree_map(np.asarray, actions)
+        return actions      
+            
     def _plot_actions(self, key, params, hyperparams, subs, it):
         rddl = self.rddl
         try:
@@ -1441,7 +1483,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
             loss_and_grad_fn = jax.value_and_grad(loss, argnums=1, has_aux=True)
             (old_f, log), old_g = loss_and_grad_fn(
                 key, old_x, hyperparams, subs, model_params)            
-            old_norm_g2 = jax.tree_map(lambda x: jnp.sum(x ** 2), old_g)
+            old_norm_g2 = jax.tree_map(lambda x: jnp.sum(jnp.square(x)), old_g)
             old_norm_g2 = jax.tree_util.tree_reduce(jnp.add, old_norm_g2)
             log['grad'] = old_g
             

@@ -28,7 +28,7 @@ def main(domain, instance, episodes=1, seed=42):
     
     # set up an example agent
     agent = RandomAgent(action_space=env.action_space,
-                        num_actions=env.numConcurrentActions,
+                        num_actions=env.max_allowed_actions,
                         seed=seed)
     
     # main evaluation loop, same as the following line:
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 2:
         print('python GymExample2.py <domain> <instance> [<episodes>] [<seed>]')
-        exit(0)
+        exit(1)
     kwargs = {'domain': args[0], 'instance': args[1]}
     if len(args) >= 3: kwargs['episodes'] = int(args[2])
     if len(args) >= 4: kwargs['seed'] = int(args[3])

@@ -1,18 +1,23 @@
 ////////////////////////////////////////////////////////////////////
-// A simple continuous MDP for the classical mountain car control
+// A continuous MDP for the classical mountain car control
 // problem. A car is placed at the bottom of a valley, and must be
 // brought to a destination located at the top of a hill by pushing
 // the car left and right. 
 // 
-// This domain originated in Andrew Moore's 1990 PhD thesis found here:
-// https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-209.pdf, and implemented
-// e.g. here: http://incompleteideas.net/MountainCar/MountainCar1.cp.
+// This domain originated in Andrew Moore's 1990 PhD thesis found here.
+// However, to illustrate the object-oriented power of RDDL, the 
+// domain is modified so that the terrain is piecewise-linear, rather
+// than the continuous sinusoidal function in the original version. 
 //
-// A crucial deviation from the original problem above is that the valley
-// is no longer described by a simple smooth curve, but rather a piecewise
-// linear function whose points are fully configurable by the user.
+// References:
+// 
+// 		Moore, Andrew William. Efficient memory-based learning for robot
+// 		control. No. UCAM-CL-TR-209. University of Cambridge, Computer 
+// 		Laboratory, 1990.
+// 
+// Author(s): 
+//		Mike Gimelfarb (mgimelfarb@yahoo.ca)
 //
-// author: Mike Gimelfarb (mgimelfarb@yahoo.ca)
 ////////////////////////////////////////////////////////////////////
 domain mountain_car {
 

@@ -37,6 +37,13 @@ class BaseAgent(metaclass=ABCMeta):
         :param render: visualize the domain using the env internal visualizer
         :param seed: optional RNG seed for the environment
         '''
+        
+        # check compatibility with environment
+        if env.vectorized != self.use_tensor_obs:
+            raise Exception(f'RDDLEnv vectorized flag must match use_tensor_obs '
+                            f'of current policy, got {env.vectorized} and '
+                            f'{self.use_tensor_obs}, respectively.')
+        
         gamma = env.discount
         
         history = np.zeros((episodes,))
@@ -45,18 +52,22 @@ class BaseAgent(metaclass=ABCMeta):
             # restart episode
             total_reward, cuml_gamma = 0.0, 1.0
             self.reset()
-            state = env.reset(seed=seed)
+            if env.new_gym_api:
+                state, _ = env.reset(seed=seed)
+            else:
+                state = env.reset(seed=seed)
+            
+            # simulate to end of horizon
             for step in range(env.horizon):
                 if render:
                     env.render()
                 
                 # take a step in the environment
-                if self.use_tensor_obs:
-                    policy_input = env.sampler.subs
+                action = self.sample_action(state)   
+                if env.new_gym_api: 
+                    next_state, reward, done, _, _ = env.step(action)
                 else:
-                    policy_input = state
-                action = self.sample_action(policy_input)    
-                next_state, reward, done, _ = env.step(action)
+                    next_state, reward, done, _ = env.step(action)
                 total_reward += reward * cuml_gamma
                 cuml_gamma *= gamma
                 

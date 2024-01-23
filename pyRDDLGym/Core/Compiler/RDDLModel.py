@@ -57,6 +57,7 @@ class PlanningModel(metaclass=ABCMeta):
         
         self._grounded_names = None
         self._index_of_object = None
+        self._default_values = None
         
     # ===========================================================================
     # properties
@@ -341,6 +342,14 @@ class PlanningModel(metaclass=ABCMeta):
     def index_of_object(self, val):
         self._index_of_object = val
     
+    @property
+    def default_values(self):
+        return self._default_values
+    
+    @default_values.setter
+    def default_values(self, val):
+        self._default_values = val
+        
     # ===========================================================================
     # utility methods
     # ===========================================================================

@@ -29,7 +29,7 @@ def main(domain, instance, method):
     
     # set up the environment
     info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance, enforce_action_constraints=True)
+    env = RDDLEnv.build(info, instance, vectorized=True, enforce_action_constraints=True)
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
@@ -54,10 +54,10 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
         print('python JaxExample.py <domain> <instance> <method>')
-        exit(0)
+        exit(1)
     if args[2] not in ['drp', 'slp', 'replan']:
         print('<method> in [drp, slp, replan]')
-        exit(0)
+        exit(1)
     domain, instance, method = args[:3]
     main(domain, instance, method)
     

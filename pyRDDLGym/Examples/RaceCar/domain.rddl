@@ -6,6 +6,9 @@
 // goal location. The car must remain within boundaries defined as 
 // line segments connected between points (X1, Y1) and (X2, Y2).
 //
+// Author(s): 
+// 		Mike Gimelfarb (mgimelfarb@yahoo.ca)
+//
 ////////////////////////////////////////////////////////////////////
 domain racecar {
 	
