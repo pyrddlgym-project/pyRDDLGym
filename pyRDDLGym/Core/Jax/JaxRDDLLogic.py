@@ -72,7 +72,7 @@ class FuzzyLogic:
     def __init__(self, tnorm: TNorm=ProductTNorm(),
                  complement: Complement=StandardComplement(),
                  weight: float=10.0,
-                 debias: Set[str]={},
+                 debias: Set[str]=None,
                  eps: float=1e-10,
                  verbose: bool=False):
         '''Creates a new fuzzy logic in Jax.
@@ -85,6 +85,10 @@ class FuzzyLogic:
         :param eps: small positive float to mitigate underflow
         :param verbose: whether to dump replacements and other info to console
         '''
+        
+        if debias is None:
+            debias = set()
+            
         self.tnorm = tnorm
         self.complement = complement
         self.weight = float(weight)
@@ -93,7 +97,7 @@ class FuzzyLogic:
         self.verbose = verbose
     
     def summarize_hyperparameters(self):
-        print(f'model relaxation:\n'
+        print('model relaxation:\n'
               f'    tnorm         ={type(self.tnorm).__name__}\n'
               f'    complement    ={type(self.complement).__name__}\n'
               f'    sigmoid_weight={self.weight}\n'
@@ -381,7 +385,7 @@ class FuzzyLogic:
     def argmax(self):
         if self.verbose:
             warnings.warn('Using the replacement rule: '
-                          f'argmax(x) --> sum(i * softmax(x[i]))', stacklevel=2)
+                          'argmax(x) --> sum(i * softmax(x[i]))', stacklevel=2)
             
         debias = 'argmax' in self.debias
         

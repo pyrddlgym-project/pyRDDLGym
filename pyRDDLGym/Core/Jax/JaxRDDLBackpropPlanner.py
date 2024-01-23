@@ -15,6 +15,13 @@ from tqdm import tqdm
 from typing import Callable, Dict, Generator, Set, Sequence, Tuple
 import warnings
 
+try:
+    import matplotlib.pyplot as plt
+except Exception as e:
+    warnings.warn('failed to import package matplotlib, '
+                  f'plotting will be disabled.\n{e}', stacklevel=2)
+    plt = None
+        
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
@@ -123,7 +130,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
     
     def __init__(self, *args,
                  logic: FuzzyLogic=FuzzyLogic(),
-                 cpfs_without_grad: Set=set(),
+                 cpfs_without_grad: Set=None,
                  **kwargs) -> None:
         '''Creates a new RDDL to Jax compiler, where operations that are not
         differentiable are converted to approximate forms that have defined 
@@ -138,11 +145,15 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         :param *kwargs: keyword arguments to pass to base compiler
         '''
         super(JaxRDDLCompilerWithGrad, self).__init__(*args, **kwargs)
+        
+        if cpfs_without_grad is None:
+            cpfs_without_grad = set()
+        
         self.logic = logic
         self.cpfs_without_grad = cpfs_without_grad
         
         # actions and CPFs must be continuous
-        warnings.warn(f'Initial values of pvariables will be cast to real.',
+        warnings.warn('Initial values of pvariables will be cast to real.',
                       stacklevel=2)   
         for (var, values) in self.init_values.items():
             self.init_values[var] = np.asarray(values, dtype=self.REAL) 
@@ -373,13 +384,13 @@ class JaxStraightLinePlan(JaxPlan):
         self._max_constraint_iter = max_constraint_iter
         
     def summarize_hyperparameters(self):
-        print(f'policy hyper-parameters:\n'
+        print('policy hyper-parameters:\n'
               f'    initializer          ={type(self._initializer_base).__name__}\n'
-              f'constraint-sat strategy (simple):\n'
+              'constraint-sat strategy (simple):\n'
               f'    wrap_sigmoid         ={self._wrap_sigmoid}\n'
               f'    wrap_sigmoid_min_prob={self._min_action_prob}\n'
               f'    wrap_non_bool        ={self._wrap_non_bool}\n'
-              f'constraint-sat strategy (complex):\n'
+              'constraint-sat strategy (complex):\n'
               f'    wrap_softmax         ={self._wrap_softmax}\n'
               f'    use_new_projection   ={self._use_new_projection}')
     
@@ -396,8 +407,8 @@ class JaxStraightLinePlan(JaxPlan):
         bool_action_count, allowed_actions = self._count_bool_actions(rddl)
         use_constraint_satisfaction = allowed_actions < bool_action_count        
         if use_constraint_satisfaction: 
-            warnings.warn(f'Using projected gradient trick to satisfy '
-                          f'max_nondef_actions: total boolean actions '
+            warnings.warn('Using projected gradient trick to satisfy '
+                          'max_nondef_actions: total boolean actions '
                           f'{bool_action_count} > max_nondef_actions '
                           f'{allowed_actions}.', stacklevel=2)
             
@@ -537,7 +548,7 @@ class JaxStraightLinePlan(JaxPlan):
             # only allow one action non-noop for now
             if 1 < allowed_actions < bool_action_count:
                 raise RDDLNotImplementedError(
-                    f'Straight-line plans with wrap_softmax currently '
+                    'Straight-line plans with wrap_softmax currently '
                     f'do not support max-nondef-actions = {allowed_actions} > 1.')
                 
             # potentially apply projection but to non-bool actions only
@@ -717,7 +728,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         self._normalize = normalize
             
     def summarize_hyperparameters(self):
-        print(f'policy hyper-parameters:\n'
+        print('policy hyper-parameters:\n'
               f'    topology        ={self._topology}\n'
               f'    activation_fn   ={self._activations[0].__name__}\n'
               f'    initializer     ={type(self._initializer_base).__name__}\n'
@@ -737,7 +748,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         bool_action_count, allowed_actions = self._count_bool_actions(rddl)
         if 1 < allowed_actions < bool_action_count:
             raise RDDLNotImplementedError(
-                f'Deep reactive policies currently do not support '
+                'Deep reactive policies currently do not support '
                 f'max-nondef-actions = {allowed_actions} > 1.')
         use_constraint_satisfaction = allowed_actions < bool_action_count
             
@@ -915,14 +926,14 @@ class JaxRDDLBackpropPlanner:
                  batch_size_test: int=None,
                  rollout_horizon: int=None,
                  use64bit: bool=False,
-                 action_bounds: Dict[str, Tuple[np.ndarray, np.ndarray]]={},
+                 action_bounds: Dict[str, Tuple[np.ndarray, np.ndarray]]=None,
                  optimizer: Callable[..., optax.GradientTransformation]=optax.rmsprop,
-                 optimizer_kwargs: Dict[str, object]={'learning_rate': 0.1},
+                 optimizer_kwargs: Dict[str, object]=None,
                  clip_grad: float=None,
                  logic: FuzzyLogic=FuzzyLogic(),
                  use_symlog_reward: bool=False,
                  utility=jnp.mean,
-                 cpfs_without_grad: Set=set()) -> None:
+                 cpfs_without_grad: Set=None) -> None:
         '''Creates a new gradient-based algorithm for optimizing action sequences
         (plan) in the given RDDL. Some operations will be converted to their
         differentiable counterparts; the specific operations can be customized
@@ -951,6 +962,14 @@ class JaxRDDLBackpropPlanner:
         :param cpfs_without_grad: which CPFs do not have gradients (use straight
         through gradient trick)
         '''
+        
+        if action_bounds is None:
+            action_bounds = {}
+        if optimizer_kwargs is None:
+            optimizer_kwargs = {'learning_rate': 0.1}
+        if cpfs_without_grad is None:
+            cpfs_without_grad = set()
+        
         self.rddl = rddl
         self.plan = plan
         self.batch_size_train = batch_size_train
@@ -994,14 +1013,14 @@ class JaxRDDLBackpropPlanner:
         self._jax_compile_optimizer()
         
     def summarize_hyperparameters(self):
-        print(f'objective and relaxations:\n'
+        print('objective and relaxations:\n'
               f'    objective_fn    ={self.utility.__name__}\n'
               f'    use_symlog      ={self.use_symlog_reward}\n'
               f'    lookahead       ={self.horizon}\n'
               f'    model relaxation={type(self.logic).__name__}\n'
               f'    action_bounds   ={self._action_bounds}\n'
               f'    cpfs_no_gradient={self.cpfs_without_grad}\n'
-              f'optimizer hyper-parameters:\n'
+              'optimizer hyper-parameters:\n'
               f'    use_64_bit      ={self.use64bit}\n'
               f'    optimizer       ={self._optimizer_name.__name__}\n'
               f'    optimizer args  ={self._optimizer_kwargs}\n'
@@ -1210,7 +1229,7 @@ class JaxRDDLBackpropPlanner:
                   'JAX PLANNER PARAMETER SUMMARY\n'
                   '==============================================')
             self.summarize_hyperparameters()
-            print(f'optimize() call hyper-parameters:\n'
+            print('optimize() call hyper-parameters:\n'
                   f'    max_iterations     ={epochs}\n'
                   f'    max_seconds        ={train_seconds}\n'
                   f'    model_params       ={model_params}\n'
@@ -1232,8 +1251,8 @@ class JaxRDDLBackpropPlanner:
                     added_pvars_to_subs.append(var)
             if added_pvars_to_subs:
                 warnings.warn(f'p-variables {added_pvars_to_subs} not in '
-                              f'provided subs, using their initial values '
-                              f'from the RDDL files.', 
+                              'provided subs, using their initial values '
+                              'from the RDDL files.', 
                               stacklevel=2)
         train_subs, test_subs = self._batched_init_subs(subs)
         
@@ -1267,9 +1286,10 @@ class JaxRDDLBackpropPlanner:
                 train_subs, model_params, opt_state)
             if not np.all(converged):
                 warnings.warn(
-                    f'Projected gradient method for satisfying action concurrency '
-                    f'constraints reached the iteration limit: plan is possibly '
-                    f'invalid for the current instance.', stacklevel=2)
+                    'Projected gradient method for satisfying action concurrency '
+                    'constraints reached the iteration limit: plan is possibly '
+                    'invalid for the current instance.', 
+                    stacklevel=2)
             
             # evaluate losses
             train_loss, _ = self.train_loss(
@@ -1332,7 +1352,7 @@ class JaxRDDLBackpropPlanner:
         if verbose >= 1:
             grad_norm = jax.tree_map(
                 lambda x: np.array(jnp.linalg.norm(x)).item(), best_grad)
-            print(f'summary of optimization:\n'
+            print('summary of optimization:\n'
                   f'    time_elapsed  ={elapsed}\n'
                   f'    iterations    ={it}\n'
                   f'    best_objective={-best_loss}\n'
@@ -1357,10 +1377,10 @@ class JaxRDDLBackpropPlanner:
         # check compatibility of the subs dictionary
         for var in subs.keys():
             if PlanningModel.FLUENT_SEP in var or PlanningModel.OBJECT_SEP in var:
-                raise Exception(f'State dictionary passed to the JAX policy is '
-                                f'grounded, since it contains the key <{var}>, '
-                                f'but a vectorized environment is required: '
-                                f'please make sure vectorized=True in the RDDLEnv.')
+                raise ValueError('State dictionary passed to the JAX policy is '
+                                 f'grounded, since it contains the key <{var}>, '
+                                 'but a vectorized environment is required: '
+                                 'please make sure vectorized=True in the RDDLEnv.')
         
         # cast device arrays to numpy
         actions = self.test_policy(key, params, policy_hyperparams, step, subs)
@@ -1368,17 +1388,14 @@ class JaxRDDLBackpropPlanner:
         return actions      
             
     def _plot_actions(self, key, params, hyperparams, subs, it):
-        rddl = self.rddl
-        try:
-            import matplotlib.pyplot as plt
-        except Exception:
-            print('matplotlib is not installed, aborting plot...')
+        if plt is None:
             return
             
         # predict actions from the trained policy or plan
         actions = self.test_rollouts(key, params, hyperparams, subs, {})['action']
             
         # plot the action sequences as color maps
+        rddl = self.rddl
         fig, axs = plt.subplots(nrows=len(actions), constrained_layout=True)
         for (ax, name) in zip(axs, actions):
             action = np.mean(actions[name], axis=0, dtype=float)
@@ -1406,7 +1423,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
     
     def __init__(self, *args,
                  optimizer: Callable[..., optax.GradientTransformation]=optax.sgd,
-                 optimizer_kwargs: Dict[str, object]={'learning_rate': 1.0},
+                 optimizer_kwargs: Dict[str, object]=None,
                  beta: float=0.8,
                  c: float=0.1,
                  lrmax: float=1.0,
@@ -1421,6 +1438,10 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
         :param lrmax: initial learning rate for line search
         :param lrmin: minimum possible learning rate (line search halts)
         '''
+        
+        if optimizer_kwargs is None:
+            optimizer_kwargs = {'learning_rate': 1.0}
+        
         self.beta = beta
         self.c = c
         self.lrmax = lrmax
@@ -1433,7 +1454,7 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
         
     def summarize_hyperparameters(self):
         super(JaxRDDLArmijoLineSearchPlanner, self).summarize_hyperparameters()
-        print(f'linesearch hyper-parameters:\n'
+        print('linesearch hyper-parameters:\n'
               f'    beta    ={self.beta}\n'
               f'    c       ={self.c}\n'
               f'    lr_range=({self.lrmin}, {self.lrmax})\n')
@@ -1519,7 +1540,8 @@ class JaxOfflineController(BaseAgent):
     '''A container class for a Jax policy trained offline.'''
     use_tensor_obs = True
     
-    def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
+    def __init__(self, planner: JaxRDDLBackpropPlanner, 
+                 key: random.PRNGKey,
                  eval_hyperparams: Dict[str, object]=None,
                  params: Dict[str, object]=None,
                  train_on_reset: bool=False,
@@ -1567,8 +1589,10 @@ class JaxOnlineController(BaseAgent):
     feedback.'''
     use_tensor_obs = True
     
-    def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
-                 eval_hyperparams: Dict=None, warm_start: bool=True,
+    def __init__(self, planner: JaxRDDLBackpropPlanner, 
+                 key: random.PRNGKey,
+                 eval_hyperparams: Dict=None, 
+                 warm_start: bool=True,
                  **train_kwargs) -> None:
         '''Creates a new JAX control policy that is trained online in a closed-
         loop fashion.

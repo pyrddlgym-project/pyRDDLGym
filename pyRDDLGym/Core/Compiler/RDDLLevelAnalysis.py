@@ -71,12 +71,12 @@ class RDDLLevelAnalysis:
         self._validate_cpf_definitions(cpf_graph)
         
         # check validity of reward, constraints, termination
-        for (name, exprs) in [
+        for (name, exprs) in (
             ('reward', [rddl.reward]),
             ('precondition', rddl.preconditions),
             ('invariant', rddl.invariants),
             ('termination', rddl.terminals)
-        ]:
+        ):
             call_graph = {}
             for expr in exprs:
                 self._update_call_graph(call_graph, name, expr)
@@ -137,7 +137,7 @@ class RDDLLevelAnalysis:
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
                 warnings.warn(
-                    f'The use of derived-fluent is discouraged, '
+                    'The use of derived-fluent is discouraged, '
                     f'please change <{cpf}> to interm-fluent.', stacklevel=2)
             
             # not a recognized type
@@ -165,7 +165,7 @@ class RDDLLevelAnalysis:
                 and cpf_type == dep_type == 'next-state-fluent':
                     raise RDDLInvalidDependencyInCPFError(
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>, '
-                        f'set allow_synchronous_state=True to allow this.')                
+                        'set allow_synchronous_state=True to allow this.')                
     
     def _validate_cpf_definitions(self, graph): 
         
@@ -178,8 +178,7 @@ class RDDLLevelAnalysis:
             if fluent_type in RDDLLevelAnalysis.VALID_DEPENDENCIES \
             and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{cpf}> is not defined '
-                    f'in cpfs {{...}} block.')
+                    f'{fluent_type} CPF <{cpf}> is undefined in cpfs block.')
                     
     # ===========================================================================
     # topological sort
@@ -212,12 +211,12 @@ class RDDLLevelAnalysis:
             graph_info = '\n\t'.join(f"{rddl.variable_types[k]} {k}: "
                                      f"{{{', '.join(v)}}}"
                                      for (k, v) in graph.items())
-            self.logger.log(f'[info] computed fluent dependencies in CPFs:\n' 
+            self.logger.log('[info] computed fluent dependencies in CPFs:\n' 
                             f'\t{graph_info}\n')
             
             levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
                                       for (k, v) in result.items())
-            self.logger.log(f'[info] computed order of CPF evaluation:\n' 
+            self.logger.log('[info] computed order of CPF evaluation:\n' 
                             f'\t{levels_info}\n')
         
         return result

@@ -10,7 +10,7 @@ from pyRDDLGym.Visualizer.StateViz import StateViz
 # code comes from openai gym
 class MountainCarVisualizer(StateViz):
 
-    def __init__(self, model: PlanningModel, figure_size=[600, 400], wait_time=100) -> None:
+    def __init__(self, model: PlanningModel, figure_size=(600, 400), wait_time=100) -> None:
         self._model = model
         self._figure_size = figure_size
         self._wait_time = wait_time

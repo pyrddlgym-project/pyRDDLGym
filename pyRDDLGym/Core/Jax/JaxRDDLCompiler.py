@@ -187,17 +187,17 @@ class JaxRDDLCompiler:
             printed_terminals = '\n\n'.join(v for v in printed['terminations'])
             printed_params = '\n'.join(f'{k}: {v}' for (k, v) in info.items())
             message = (
-                f'[info] compiled JAX CPFs:\n\n'
+                '[info] compiled JAX CPFs:\n\n'
                 f'{printed_cpfs}\n\n'
-                f'[info] compiled JAX reward:\n\n'
+                '[info] compiled JAX reward:\n\n'
                 f'{printed_reward}\n\n'
-                f'[info] compiled JAX invariants:\n\n'
+                '[info] compiled JAX invariants:\n\n'
                 f'{printed_invariants}\n\n'
-                f'[info] compiled JAX preconditions:\n\n'
+                '[info] compiled JAX preconditions:\n\n'
                 f'{printed_preconds}\n\n'
-                f'[info] compiled JAX terminations:\n\n'
+                '[info] compiled JAX terminations:\n\n'
                 f'{printed_terminals}\n'
-                f'[info] model parameters:\n'
+                '[info] model parameters:\n'
                 f'{printed_params}\n'
             )
             self.logger.log(message)
@@ -223,9 +223,9 @@ class JaxRDDLCompiler:
         etype, op = expr.etype
         if etype == 'relational':
             left, right = expr.args
-            if op == '<' or op == '<=':
+            if op in ('<', '<='):
                 result.append((left, right))
-            elif op == '>' or op == '>=':
+            elif op in ('>', '>='):
                 result.append((right, left))
         elif etype == 'boolean' and op == '^':
             for arg in expr.args:
@@ -565,7 +565,7 @@ class JaxRDDLCompiler:
                     name = str(tags)
                 name = f'{name}{sep}{expr_id}'
                 if name in info:
-                    raise Exception(f'Model parameter {name} is already defined.')
+                    raise ValueError(f'Model parameter {name} is already defined.')
                 info[name] = values
         return jax_op, name
     

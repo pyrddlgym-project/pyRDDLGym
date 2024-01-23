@@ -4,7 +4,7 @@ import jax.random as random
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, List, Tuple
 
 from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
 from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
@@ -145,13 +145,16 @@ class JaxRDDLModelError:
             
     def sensitivity(self, key: random.PRNGKey,
                     policy_params: Dict,
-                    param_ranges=[1., 5., 10., 50., 100., 500., 1000.],
+                    param_ranges: List=None,
                     bars=100,
                     epochs=5,
                     subs: Dict=None,
                     figsize: Tuple[int, int]=(4, 2)) -> None:
+        if param_ranges is None:
+            param_ranges = [1., 5., 10., 50., 100., 500., 1000.]
         if subs is None:
             subs = self.test_compiled.init_values
+        
         test_params = self.test_compiled.model_params
         
         # subplots
@@ -197,10 +200,10 @@ class JaxRDDLModelError:
             axis.hist(train, bins=bins, alpha=0.5, label='train', histtype='step')
             axis.hist(test, bins=bins, alpha=0.5, label='test', histtype='step')
             axis.legend()
-            axis.set_xlabel(f'cuml reward')
+            axis.set_xlabel('cuml reward')
             axis.set_ylabel(f'weight {weight}')
         plt.tight_layout()
-        fig.savefig(f'sensitivity_cuml_reward.pdf')
+        fig.savefig('sensitivity_cuml_reward.pdf')
         plt.clf()
         plt.close(fig)
         

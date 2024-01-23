@@ -33,7 +33,7 @@ class RDDLConstraints:
         
         self._bounds = {}
         for (var, vtype) in self.rddl.variable_types.items():
-            if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
+            if vtype in ('state-fluent', 'observ-fluent', 'action-fluent'):
                 ptypes = self.rddl.param_types[var]
                 if vectorized:
                     shape = self.rddl.object_counts(ptypes)
@@ -62,7 +62,7 @@ class RDDLConstraints:
         if simulator.logger is not None:
             bounds_info = '\n\t'.join(
                 f'{k}: {v}' for (k, v) in self._bounds.items())
-            message = (f'[info] computed simulation bounds:\n' 
+            message = ('[info] computed simulation bounds:\n' 
                        f'\t{bounds_info}\n')
             simulator.logger.log(message)
         
@@ -122,13 +122,13 @@ class RDDLConstraints:
         
         # both LHS and RHS are pvariable expressions, or relational operator 
         # cannot be simplified further
-        if (is_left_pvar and is_right_pvar) or op not in ['<=', '<', '>=', '>']:
+        if (is_left_pvar and is_right_pvar) or op not in {'<=', '<', '>=', '>'}:
             warnings.warn(
-                f'Constraint does not have a structure of '
-                f'<action or state fluent> <op> <rhs>, where:' 
-                    f'\n<op> is one of {{<=, <, >=, >}}'
-                    f'\n<rhs> is a deterministic function of '
-                    f'non-fluents or constants only.\n' + 
+                'Constraint does not have a structure of '
+                '<action or state fluent> <op> <rhs>, where:' 
+                    '\n<op> is one of {{<=, <, >=, >}}'
+                    '\n<rhs> is a deterministic function of '
+                    'non-fluents or constants only.\n' + 
                     print_stack_trace(expr))
             return None, 0.0, None, []
         
@@ -151,8 +151,8 @@ class RDDLConstraints:
                 
             if not self.rddl.is_non_fluent_expression(const_expr):
                 warnings.warn(
-                    f'Bound must be a deterministic function of '
-                    f'non-fluents or constants only.\n' + 
+                    'Bound must be a deterministic function of '
+                    'non-fluents or constants only.\n' + 
                     print_stack_trace(const_expr))
                 return None, 0.0, None, []
             
@@ -170,20 +170,20 @@ class RDDLConstraints:
     def _get_op_code(self, op, is_right):
         eps = 0.0
         if is_right:
-            if op in ['<=', '<']:
+            if op in ('<=', '<'):
                 loc = 1
                 if op == '<':
                     eps = -self.epsilon
-            elif op in ['>=', '>']:
+            elif op in ('>=', '>'):
                 loc = 0
                 if op == '>':
                     eps = self.epsilon
         else:
-            if op in ['<=', '<']:
+            if op in ('<=', '<'):
                 loc = 0
                 if op == '<':
                     eps = self.epsilon
-            elif op in ['>=', '>']:
+            elif op in ('>=', '>'):
                 loc = 1
                 if op == '>':
                     eps = -self.epsilon

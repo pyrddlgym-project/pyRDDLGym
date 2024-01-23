@@ -33,13 +33,14 @@ def main(domain, instance, episodes=1, seed=42):
     
     # main evaluation loop, same as the following line:
     # agent.evaluate(env, episodes=episodes, verbose=True, render=True)
+    # pylint: disable=unbalanced-tuple-unpacking
     for episode in range(episodes):
         total_reward = 0
         state = env.reset()
         for step in range(env.horizon):
             env.render()
             action = agent.sample_action(state)
-            next_state, reward, done, info = env.step(action)
+            next_state, reward, done, _ = env.step(action)
             print(f'step       = {step}\n'
                   f'state      = {state}\n'
                   f'action     = {action}\n'
@@ -59,8 +60,10 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 2:
         print('python GymExample2.py <domain> <instance> [<episodes>] [<seed>]')
-        exit(1)
+        sys.exit(1)
     kwargs = {'domain': args[0], 'instance': args[1]}
-    if len(args) >= 3: kwargs['episodes'] = int(args[2])
-    if len(args) >= 4: kwargs['seed'] = int(args[3])
+    if len(args) >= 3: 
+        kwargs['episodes'] = int(args[2])
+    if len(args) >= 4: 
+        kwargs['seed'] = int(args[3])
     main(**kwargs)

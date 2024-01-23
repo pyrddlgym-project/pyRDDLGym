@@ -12,6 +12,14 @@ from typing import Callable, Dict, Tuple
 import warnings
 warnings.filterwarnings('ignore')
 
+try:
+    import matplotlib.pyplot as plt
+    from sklearn.manifold import MDS
+except Exception as e:
+    warnings.warn('failed to import packages matplotlib or sklearn, '
+                  f'plotting will be disabled.\n{e}', stacklevel=2)
+    plt, MDS = None, None
+            
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
 from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOnlineController
@@ -43,15 +51,15 @@ class JaxParameterTuning:
                  timeout_tuning: float=np.inf,
                  eval_trials: int=5,
                  verbose: bool=True,
-                 planner_kwargs: Dict={},
-                 plan_kwargs: Dict={},
+                 planner_kwargs: Dict=None,
+                 plan_kwargs: Dict=None,
                  pool_context: str='spawn',
                  num_workers: int=1,
                  poll_frequency: float=0.2,
                  gp_iters: int=25,
                  acquisition=None,
-                 gp_init_kwargs: Dict={},
-                 gp_params: Dict={'n_restarts_optimizer': 10}) -> None:
+                 gp_init_kwargs: Dict=None,
+                 gp_params: Dict=None) -> None:
         '''Creates a new instance for tuning hyper-parameters for Jax planners
         on the given RDDL domain and instance.
         
@@ -84,6 +92,15 @@ class JaxParameterTuning:
         after initialization optimization
         '''
         
+        if planner_kwargs is None:
+            planner_kwargs = {}
+        if plan_kwargs is None:
+            plan_kwargs = {}
+        if gp_init_kwargs is None:
+            gp_init_kwargs = {}
+        if gp_params is None:
+            gp_params = {'n_restarts_optimizer': 10}
+        
         self.env = env
         self.hyperparams_dict = hyperparams_dict
         self.train_epochs = train_epochs
@@ -108,7 +125,7 @@ class JaxParameterTuning:
         self.acquisition = acquisition
     
     def summarize_hyperparameters(self):
-        print(f'hyperparameter optimizer parameters:\n'
+        print('hyperparameter optimizer parameters:\n'
               f'    tuned_hyper_parameters    ={self.hyperparams_dict}\n'
               f'    initialization_args       ={self.gp_init_kwargs}\n'
               f'    additional_args           ={self.gp_params}\n'
@@ -117,13 +134,13 @@ class JaxParameterTuning:
               f'    tuning_batch_size         ={self.num_workers}\n'
               f'    mp_pool_context_type      ={self.pool_context}\n'
               f'    mp_pool_poll_frequency    ={self.poll_frequency}\n'
-              f'meta-objective parameters:\n'
+              'meta-objective parameters:\n'
               f'    planning_trials_per_iter  ={self.eval_trials}\n'
               f'    planning_iters_per_trial  ={self.train_epochs}\n'
               f'    planning_timeout_per_trial={self.timeout_training}\n'
               f'    acquisition_fn            ={type(self.acquisition).__name__}')
         if self.acq_args is not None:
-            print(f'using default acquisition function:\n'
+            print('using default acquisition function:\n'
                   f'    utility_kind ={self.acq_args[0]}\n'
                   f'    initial_kappa={self.acq_args[1]}\n'
                   f'    kappa_decay  ={self.acq_args[2]}')
@@ -168,6 +185,7 @@ class JaxParameterTuning:
             f=None,  # probe() is not called
             pbounds=hyperparams_bounds,
             allow_duplicate_points=True,  # to avoid crash
+            # pylint: disable-next=no-member
             random_state=np.random.RandomState(key),
             **self.gp_init_kwargs
         )
@@ -269,7 +287,7 @@ class JaxParameterTuning:
         
         # print summary of results
         elapsed = time.time() - start_time
-        print(f'summary of hyper-parameter optimization:\n'
+        print('summary of hyper-parameter optimization:\n'
               f'    time_elapsed         ={datetime.timedelta(seconds=elapsed)}\n'
               f'    iterations           ={it + 1}\n'
               f'    best_hyper_parameters={best_params}\n'
@@ -288,28 +306,22 @@ class JaxParameterTuning:
         return filename
     
     def _save_plot(self, filename):
-        try:
-            import matplotlib.pyplot as plt
-            from sklearn.manifold import MDS
-        except Exception as e:
-            warnings.warn(f'failed to import packages matplotlib or sklearn, '
-                          f'aborting plot of search space\n'
-                          f'{e}', stacklevel=2)
-        else:
-            data = np.loadtxt(filename, delimiter=',', dtype=object)
-            data, target = data[1:, 3:], data[1:, 2]
-            data = data.astype(np.float64)
-            target = target.astype(np.float64)
-            target = (target - np.min(target)) / (np.max(target) - np.min(target))
-            embedding = MDS(n_components=2, normalized_stress='auto')
-            data1 = embedding.fit_transform(data)
-            sc = plt.scatter(data1[:, 0], data1[:, 1], c=target, s=4.,
-                             cmap='seismic', edgecolor='gray',
-                             linewidth=0.01, alpha=0.4)
-            plt.colorbar(sc)
-            plt.savefig(self._filename('gp_points', 'pdf'))
-            plt.clf()
-            plt.close()
+        if plt is None or MDS is None:
+            return        
+        data = np.loadtxt(filename, delimiter=',', dtype=object)
+        data, target = data[1:, 3:], data[1:, 2]
+        data = data.astype(np.float64)
+        target = target.astype(np.float64)
+        target = (target - np.min(target)) / (np.max(target) - np.min(target))
+        embedding = MDS(n_components=2, normalized_stress='auto')
+        data1 = embedding.fit_transform(data)
+        sc = plt.scatter(data1[:, 0], data1[:, 1], c=target, s=4.,
+                         cmap='seismic', edgecolor='gray',
+                         linewidth=0.01, alpha=0.4)
+        plt.colorbar(sc)
+        plt.savefig(self._filename('gp_points', 'pdf'))
+        plt.clf()
+        plt.close()
 
 
 # ===============================================================================
@@ -386,12 +398,7 @@ def power_ten(x):
 class JaxParameterTuningSLP(JaxParameterTuning):
     
     def __init__(self, *args,
-                 hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 2., power_ten),
-                    'lr': (-5., 2., power_ten),
-                    'w': (0., 5., power_ten),
-                    'wa': (0., 5., power_ten)
-                 },
+                 hyperparams_dict: Dict[str, Tuple[float, float, Callable]]=None,
                  **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
         
@@ -401,6 +408,14 @@ class JaxParameterTuningSLP(JaxParameterTuning):
         action weight (wa) if wrap_sigmoid and boolean action fluents exist
         :param **kwargs: keyword arguments to pass to parent class
         '''
+        
+        if hyperparams_dict is None:
+            hyperparams_dict = {
+                'std': (-5., 2., power_ten),
+                'lr': (-5., 2., power_ten),
+                'w': (0., 5., power_ten),
+                'wa': (0., 5., power_ten)
+            }
         
         super(JaxParameterTuningSLP, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
@@ -514,13 +529,7 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
     
     def __init__(self,
                  *args,
-                 hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'std': (-5., 2., power_ten),
-                    'lr': (-5., 2., power_ten),
-                    'w': (0., 5., power_ten),
-                    'wa': (0., 5., power_ten),
-                    'T': (1, None, int)
-                 },
+                 hyperparams_dict: Dict[str, Tuple[float, float, Callable]]=None,
                  use_guess_last_epoch: bool=True,
                  **kwargs) -> None:
         '''Creates a new tuning class for straight line planners.
@@ -535,6 +544,15 @@ class JaxParameterTuningSLPReplan(JaxParameterTuningSLP):
         :param **kwargs: keyword arguments to pass to parent class
         '''
         
+        if hyperparams_dict is None:
+            hyperparams_dict = {
+                'std': (-5., 2., power_ten),
+                'lr': (-5., 2., power_ten),
+                'w': (0., 5., power_ten),
+                'wa': (0., 5., power_ten),
+                'T': (1, None, int)
+            }
+
         super(JaxParameterTuningSLPReplan, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)
         
@@ -644,12 +662,7 @@ def power_two_int(x):
 class JaxParameterTuningDRP(JaxParameterTuning):
     
     def __init__(self, *args,
-                 hyperparams_dict: Dict[str, Tuple[float, float, Callable]]={
-                    'lr': (-7., 2., power_ten),
-                    'w': (0., 5., power_ten),
-                    'layers': (1., 3., int),
-                    'neurons': (2., 9., power_two_int)
-                 },
+                 hyperparams_dict: Dict[str, Tuple[float, float, Callable]]=None,
                  **kwargs) -> None:
         '''Creates a new tuning class for deep reactive policies.
         
@@ -659,6 +672,14 @@ class JaxParameterTuningDRP(JaxParameterTuning):
         and number of neurons per hidden layer (neurons)
         :param **kwargs: keyword arguments to pass to parent class
         '''
+        
+        if hyperparams_dict is None:
+            hyperparams_dict = {
+                'lr': (-7., 2., power_ten),
+                'w': (0., 5., power_ten),
+                'layers': (1., 3., int),
+                'neurons': (2., 9., power_two_int)
+            }
         
         super(JaxParameterTuningDRP, self).__init__(
             *args, hyperparams_dict=hyperparams_dict, **kwargs)

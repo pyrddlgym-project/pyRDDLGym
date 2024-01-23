@@ -579,8 +579,8 @@ class RDDLGrounder(Grounder):
         if hasattr(self.AST.domain, 'constraints'):
             if self.AST.domain.constraints:
                 warnings.warn(
-                    f'State-action constraints are not implemented '
-                    f'in this RDDL version and will be ignored.',
+                    'State-action constraints are not implemented '
+                    'in this RDDL version and will be ignored.',
                     stacklevel=2)
     
         if hasattr(self.AST.domain, 'invariants'):

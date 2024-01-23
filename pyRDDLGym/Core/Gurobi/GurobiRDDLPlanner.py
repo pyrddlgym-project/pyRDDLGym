@@ -22,7 +22,10 @@ UNBOUNDED = (-GRB.INFINITY, +GRB.INFINITY)
 class GurobiRDDLPlan:
     '''Base class for all Gurobi compiled policies or plans.'''
     
-    def __init__(self, action_bounds: Dict[str, Tuple[float, float]]={}):
+    def __init__(self, action_bounds: Dict[str, Tuple[float, float]]=None):
+        if action_bounds is None:
+            action_bounds = {}
+        
         self.action_bounds = action_bounds
     
     def _bounds(self, rddl, action):
@@ -165,12 +168,20 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
     '''A piecewise linear policy in Gurobi.'''
     
     def __init__(self, *args,
-                 state_bounds: Dict[str, Tuple[float, float]]={},
-                 dependencies_constr: Dict[str, List[str]]={},
-                 dependencies_values: Dict[str, List[str]]={},
+                 state_bounds: Dict[str, Tuple[float, float]]=None,
+                 dependencies_constr: Dict[str, List[str]]=None,
+                 dependencies_values: Dict[str, List[str]]=None,
                  num_cases: int=1,
                  **kwargs) -> None:
-        super(GurobiPiecewisePolicy, self).__init__(*args, **kwargs)        
+        super(GurobiPiecewisePolicy, self).__init__(*args, **kwargs)     
+        
+        if state_bounds is None:
+            state_bounds = {}
+        if dependencies_constr is None:
+            dependencies_constr = {}
+        if dependencies_values is None:
+            dependencies_values = {}
+            
         self.state_bounds = state_bounds
         self.dependencies_constr = dependencies_constr
         if dependencies_values is None:
@@ -179,7 +190,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         self.num_cases = num_cases
     
     def summarize_hyperparameters(self):
-        print(f'Gurobi policy hyper-params:\n'
+        print('Gurobi policy hyper-params:\n'
               f'    num_cases     ={self.num_cases}\n'
               f'    state_bounds  ={self.state_bounds}\n'
               f'    constraint_dep={self.dependencies_constr}\n'
@@ -709,8 +720,8 @@ class GurobiOfflineController(BaseAgent):
         # check for existence of valid solution
         self.solved = model.SolCount > 0
         if not self.solved:
-            warnings.warn(f'Gurobi failed to find a feasible solution '
-                          f'in the given time limit: using no-op action.',
+            warnings.warn('Gurobi failed to find a feasible solution '
+                          'in the given time limit: using no-op action.',
                           stacklevel=2)
     
     def sample_action(self, state):
@@ -788,8 +799,8 @@ class GurobiOnlineController(BaseAgent):
         
         # check for existence of solution
         if not (model.SolCount > 0):
-            warnings.warn(f'Gurobi failed to find a feasible solution '
-                          f'in the given time limit: using no-op action.',
+            warnings.warn('Gurobi failed to find a feasible solution '
+                          'in the given time limit: using no-op action.',
                           stacklevel=2)
             del model
             return {}

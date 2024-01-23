@@ -1,23 +1,18 @@
-from typing import List, Dict, Tuple, Optional
+from typing import Optional
 
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.image as plt_img
 from PIL import Image
 
-from pyRDDLGym.Visualizer.StateViz import StateViz
 from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
-import matplotlib.patches as mpatches
-
 from pyRDDLGym import Visualizer
-
-import sys
+from pyRDDLGym.Visualizer.StateViz import StateViz
 
 
 class ReservoirVisualizer(StateViz):
-    def __init__(self, model: PlanningModel, grid_size: Optional[int] = [50, 50],
-                 resolution: Optional[int] = [500, 500]) -> None:
+    def __init__(self, model: PlanningModel, grid_size: Optional[int] = (50, 50),
+                 resolution: Optional[int] = (500, 500)) -> None:
 
         self._model = model
         self._states = model.groundstates()
@@ -37,7 +32,6 @@ class ReservoirVisualizer(StateViz):
         self._ax = None
 
     def build_object_layout(self) -> dict:
-
         max_res_cap = {o: None for o in self._objects['reservoir']}
         upper_bound = {o: None for o in self._objects['reservoir']}
         lower_bound = {o: None for o in self._objects['reservoir']}
@@ -71,33 +65,33 @@ class ReservoirVisualizer(StateViz):
             if var == 'rlevel':
                 rlevel[objects[0]] = v
 
-
         # adding defaults
         for o in self._objects['reservoir']:
-            if max_res_cap[o] == None:
+            if max_res_cap[o] is None:
                 max_res_cap[o] = self._nonfluents['TOP_RES']
-            if upper_bound[o] == None:
+            if upper_bound[o] is None:
                 upper_bound[o] = self._nonfluents['MAX_LEVEL']
-            if lower_bound[o] == None:
+            if lower_bound[o] is None:
                 lower_bound[o] = self._nonfluents['MIN_LEVEL']
-            if rain_shape[o] == None:
+            if rain_shape[o] is None:
                 rain_shape[o] = self._nonfluents['RAIN_VAR']
-            if rlevel[o] == None:
+            if rlevel[o] is None:
                 rlevel[o] = self._states['rlevel']
-            if sink_res[o] == None:
+            if sink_res[o] is None:
                 sink_res[o] = False
 
-        object_layout = {'rain_shape': rain_shape, 'max_res_cap': max_res_cap, 'rlevel': rlevel,
-                         'upper_bound': upper_bound, 'lower_bound': lower_bound, 'downstream': downstream,
-                         'sink_res': sink_res
-                         }
+        object_layout = {
+            'rain_shape': rain_shape, 'max_res_cap': max_res_cap, 'rlevel': rlevel,
+            'upper_bound': upper_bound, 'lower_bound': lower_bound, 'downstream': downstream,
+            'sink_res': sink_res
+        }
 
         return object_layout
 
     def init_canvas_info(self):
         interval = self._interval
         objects_set = set(self._objects['reservoir'])
-        sink_res_set = set([k for k, v in self._object_layout['sink_res'].items() if v == True])
+        sink_res_set = set([k for k, v in self._object_layout['sink_res'].items() if v is True])
 
         all_child_set = []
         for i in self._object_layout['downstream'].values():
@@ -133,14 +127,10 @@ class ReservoirVisualizer(StateViz):
                 init_x = 0 + interval * j
                 init_y = canvas_size[1] - interval * (i + 1)
                 init_points[level_list[i][j]] = (init_x, init_y)
-        conn_points = {}
-
         canvas_info = {'canvas_size': canvas_size, 'init_points': init_points}
-
         return canvas_info
 
     def render_conn(self):
-        fig = self._fig
         ax = self._ax
         downstream = self._object_layout['downstream']
         init_points = self._canvas_info['init_points']
@@ -155,7 +145,6 @@ class ReservoirVisualizer(StateViz):
                 ax.add_patch(arrow)
 
     def render_res(self, res: str) -> tuple:
-
         fig = self._fig
         ax = self._ax
         interval = self._interval * 2 / 3
@@ -221,7 +210,6 @@ class ReservoirVisualizer(StateViz):
         ax.add_line(lineL)
         ax.add_line(lineR)
         ax.add_line(lineB)
-
         ax.add_line(lineU)
         ax.add_line(lineD)
 
@@ -271,5 +259,4 @@ class ReservoirVisualizer(StateViz):
         self._img = img
 
         return img
-
 

@@ -10,11 +10,11 @@ class ChartVisualizer(StateViz):
 
     def __init__(self, model: PlanningModel,
                  steps_history=None,
-                 figure_size=[10, 10],
+                 figure_size=(10, 10),
                  dpi=100,
                  fontsize=10,
                  markersize=4,
-                 boolcol=['red', 'green'],
+                 boolcol=('red', 'green'),
                  loccol='black',
                  scale_full_history: bool = True,
                  ranges=None) -> None:
@@ -82,7 +82,8 @@ class ChartVisualizer(StateViz):
                 line = self._ax[y].pcolormesh(values,
                                               edgecolors=self._loccol,
                                               linewidth=0.5,
-                                              cmap=matplotlib.colors.ListedColormap(self._boolcol),
+                                              cmap=matplotlib.colors.ListedColormap(
+                                                  list(self._boolcol)),
                                               vmin=0, 
                                               vmax=1)
                 self._lines[state].append(line)

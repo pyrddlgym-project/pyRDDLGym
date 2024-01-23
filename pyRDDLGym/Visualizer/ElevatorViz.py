@@ -21,7 +21,7 @@ NUM_WAIT_TEXT = freetype.SysFont('freesansbold', 15)
 # code comes from openai gym
 class ElevatorVisualizer(StateViz):
 
-    def __init__(self, model: PlanningModel, figure_size=[600, 400], wait_time=100) -> None:
+    def __init__(self, model: PlanningModel, figure_size=(600, 400), wait_time=100) -> None:
         self._model = model
         self._wait_time = wait_time
         self._n_elev = len(self._model.objects['elevator'])
