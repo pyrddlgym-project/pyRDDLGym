@@ -10,7 +10,7 @@ from pyRDDLGym import Visualizer
 class UAVsVisualizer(StateViz):
 
     def __init__(self, model: PlanningModel,
-                 figure_size=[200, 200],
+                 figure_size=(200, 200),
                  dpi=5,
                  fontsize=8,
                  display=False) -> None:

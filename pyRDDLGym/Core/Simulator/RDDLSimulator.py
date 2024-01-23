@@ -105,7 +105,7 @@ class RDDLSimulator:
         self.BINARY = {
             'div': lambda x, y: np.floor_divide(x, y).astype(RDDLValueInitializer.INT),
             'mod': lambda x, y: np.mod(x, y).astype(RDDLValueInitializer.INT),
-            'fmod': lambda x, y: np.mod(x, y),
+            'fmod': np.mod,
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
@@ -523,11 +523,11 @@ class RDDLSimulator:
                 sample_rhs = 1 * self._sample(rhs, subs)
                 try:
                     return numpy_op(sample_lhs, sample_rhs)
-                except:
+                except Exception as ex:
                     raise ArithmeticError(
                         f'Cannot evaluate arithmetic operation {op} '
                         f'at {sample_lhs} and {sample_rhs}.\n' + 
-                        print_stack_trace(expr))
+                        print_stack_trace(expr)) from ex
         
         # for a grounded domain can short-circuit * and +
         elif n > 0 and not self.traced.cached_objects_in_scope(expr):
@@ -538,7 +538,7 @@ class RDDLSimulator:
         
         raise RDDLInvalidNumberOfArgumentsError(
             f'Arithmetic operator {op} does not have the required '
-            f'number of arguments.\n' + print_stack_trace(expr))
+            'number of arguments.\n' + print_stack_trace(expr))
     
     def _sample_product(self, lhs, rhs, subs):
         
@@ -611,7 +611,7 @@ class RDDLSimulator:
         # try to short-circuit ^ and | if possible
         elif n == 2:
             lhs, rhs = args
-            if op == '^' or op == '|':
+            if op in ('^', '|'):
                 return self._sample_and_or(lhs, rhs, op, expr, subs)
             else:
                 sample_lhs = self._sample(lhs, subs)
@@ -621,13 +621,13 @@ class RDDLSimulator:
                 return numpy_op(sample_lhs, sample_rhs)
         
         # for a grounded domain, we can short-circuit ^ and |
-        elif n > 0 and (op == '^' or op == '|') \
+        elif n > 0 and op in ('^', '|') \
         and not self.traced.cached_objects_in_scope(expr):
             return self._sample_and_or_grounded(args, op, expr, subs)
             
         raise RDDLInvalidNumberOfArgumentsError(
             f'Logical operator {op} does not have the required '
-            f'number of arguments.\n' + print_stack_trace(expr))
+            'number of arguments.\n' + print_stack_trace(expr))
     
     def _sample_and_or(self, lhs, rhs, op, expr, subs):
         
@@ -713,10 +713,10 @@ class RDDLSimulator:
             sample = 1 * self._sample(arg, subs)
             try:
                 return unary_op(sample)
-            except:
+            except Exception as ex:
                 raise ArithmeticError(
                     f'Cannot evaluate unary function {name} at {sample}.\n' + 
-                    print_stack_trace(expr))
+                    print_stack_trace(expr)) from ex
         
         # binary function
         binary_op = self.BINARY.get(name, None)
@@ -732,10 +732,11 @@ class RDDLSimulator:
                     sample_rhs, RDDLValueInitializer.INT, name, expr, arg=2)
             try:
                 return binary_op(sample_lhs, sample_rhs)
-            except:
+            except Exception as ex:
                 raise ArithmeticError(
                     f'Cannot evaluate binary function {name} at '
-                    f'{sample_lhs} and {sample_rhs}.\n' + print_stack_trace(expr))
+                    f'{sample_lhs} and {sample_rhs}.\n' + 
+                    print_stack_trace(expr)) from ex
         
         raise RDDLNotImplementedError(
             f'Function {name} is not supported.\n' + print_stack_trace(expr))

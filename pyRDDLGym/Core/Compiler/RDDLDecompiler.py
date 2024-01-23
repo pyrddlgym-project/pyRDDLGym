@@ -3,6 +3,8 @@ from typing import Dict, List, Union
 from pyRDDLGym.Core.Parser.expr import Expression
 from pyRDDLGym.Core.Parser.cpf import CPF
 
+Decompiled = Dict[str, Union[str, Dict[str, str], List[str]]]
+
 
 class RDDLDecompiler:
     '''Converts AST representation (e.g., Expression) to a string that represents
@@ -27,10 +29,10 @@ class RDDLDecompiler:
         rhs = self.decompile_expr(cpf.expr, level)
         return f'{lhs} = {rhs};'
     
-    def decompile_exprs(self, rddl, level: int=0) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
+    def decompile_exprs(self, rddl, level: int=0) -> Decompiled:
         '''Converts a RDDL model to a dictionary of decompiled expression strings,
         as they would appear in the domain description file.'''
-        decompiled = {}
+        decompiled: Decompiled = {}
         decompiled['cpfs'] = {name: self.decompile_expr(expr, level)
                               for (name, (_, expr)) in rddl.cpfs.items()}
         decompiled['reward'] = self.decompile_expr(rddl.reward, level)
@@ -58,8 +60,8 @@ class RDDLDecompiler:
             decompiled_types += '\n\t};'
         
         decompiled_pvars = '\n\tpvariables {'
-        for pvars in [rddl.nonfluents, rddl.derived, rddl.interm, 
-                      rddl.states, rddl.observ, rddl.actions]:
+        for pvars in (rddl.nonfluents, rddl.derived, rddl.interm, 
+                      rddl.states, rddl.observ, rddl.actions):
             if pvars:
                 decompiled_pvars += '\n'
             for name in pvars:
@@ -69,11 +71,11 @@ class RDDLDecompiler:
                 if rddl.param_types[name]:
                     decompiled_params = '(' + ', '.join(rddl.param_types[name]) + ')' 
                 dv = str(rddl.default_values[name])
-                if dv == 'True' or dv == 'False':
+                if dv in ('True', 'False'):
                     dv = dv.lower()
-                if prange not in ['real', 'int', 'bool']:
+                if prange not in ('real', 'int', 'bool'):
                     dv = f'@{dv}'
-                if ptype in ['interm-fluent', 'derived-fluent', 'observ-fluent']:
+                if ptype in ('interm-fluent', 'derived-fluent', 'observ-fluent'):
                     decompiled_pvars += f'\n\t\t{name}{decompiled_params} : ' + \
                                         f'{{ {ptype}, {prange} }};'
                 else:
@@ -127,7 +129,7 @@ class RDDLDecompiler:
             return self._decompile_constant(expr, enclose, level)
         elif etype == 'pvar':
             return self._decompile_pvar(expr, enclose, level)
-        elif etype in {'arithmetic', 'relational', 'boolean'}:
+        elif etype in ('arithmetic', 'relational', 'boolean'):
             return self._decompile_math(expr, enclose, level)
         elif etype == 'aggregation':
             return self._decompile_aggregation(expr, enclose, level)   
@@ -236,7 +238,7 @@ class RDDLDecompiler:
     def _decompile_random(self, expr, enclose, level):
         _, op = expr.etype
         
-        if op == 'Discrete' or op == 'UnnormDiscrete':
+        if op in ('Discrete', 'UnnormDiscrete'):
             (_, var), *args = expr.args
             cases = [var] + [''] * len(args)
             for (i, _case) in enumerate(args):
@@ -246,7 +248,7 @@ class RDDLDecompiler:
             indent = '\t' * (level + 1)
             value = f',\n{indent}'.join(cases)
         
-        elif op == 'Discrete(p)' or op == 'UnnormDiscrete(p)':
+        elif op in ('Discrete(p)', 'UnnormDiscrete(p)'):
             op = op[:-3]
             * pvars, args = expr.args
             params = [pvar for (_, pvar) in pvars]
@@ -275,7 +277,7 @@ class RDDLDecompiler:
             agg = self._symbolic(op, params, aggregation=True)
             decompiled = self._decompile(arg, False, level)        
             return f'{agg}[ {decompiled} ]'
-        elif op == 'inverse' or op == 'pinverse' or op == 'cholesky':
+        else:  # 'inverse', 'pinverse', 'cholesky'...
             pvars, arg = expr.args
             prow, pcol = pvars
             params = f'row={prow}, col={pcol}'

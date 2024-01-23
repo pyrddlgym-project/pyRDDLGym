@@ -24,12 +24,12 @@ class RDDLSimAgent:
         f.close()
 
         # encode task
-        print(f"encoding task for sharing in TCP connections...", flush=True)
+        print("encoding task for sharing in TCP connections...", flush=True)
         self.task = base64.b64encode(str.encode(self.task))
         self.task = self.task.decode("ascii")
         
         # create RDDLEnv
-        print(f"creating RDDL environment...", flush=True)
+        print("creating RDDL environment...", flush=True)
         self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
         
         # initialize RDDLSimAgent
@@ -47,14 +47,14 @@ class RDDLSimAgent:
     def run(self):
         ''' starts the RDDLSimAgent to wait for a planner to connect'''
 
-        print(f"establishing socket...", flush=True)
+        print("establishing socket...", flush=True)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         with sock:
 
             # Force the connection to this port (sometimes it stays locked after repeated runs).
             # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
-            print(f"forcing connection...", flush=True)
+            print("forcing connection...", flush=True)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             sock.bind(self.address)
@@ -190,8 +190,8 @@ class RDDLSimAgent:
             objects = objects.split(PlanningModel.OBJECT_SEP)
             var = key.split("_")
             msg = msg + "<fluent-name>" + fluent_name + "</fluent-name>"
-            for object in objects:
-                msg = msg + "<fluent-arg>" + object + "</fluent-arg>"
+            for obj in objects:
+                msg = msg + "<fluent-arg>" + obj + "</fluent-arg>"
             msg = msg + "<fluent-value>" + str(state[key]).lower() + "</fluent-value>"
             msg = msg + "</observed-fluent>"
         msg = msg + "</turn>"

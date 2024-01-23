@@ -54,10 +54,10 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
         print('python JaxExample.py <domain> <instance> <method>')
-        exit(1)
+        sys.exit(1)
     if args[2] not in ['drp', 'slp', 'replan']:
         print('<method> in [drp, slp, replan]')
-        exit(1)
+        sys.exit(1)
     domain, instance, method = args[:3]
     main(domain, instance, method)
     

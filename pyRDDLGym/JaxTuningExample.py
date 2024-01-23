@@ -64,13 +64,16 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
         print('python JaxTuningExample.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]')
-        exit(1)
+        sys.exit(1)
     if args[2] not in ['drp', 'slp', 'replan']:
         print('<method> in [drp, slp, replan]')
-        exit(1)
+        sys.exit(1)
     kwargs = {'domain': args[0], 'instance': args[1], 'method': args[2]}
-    if len(args) >= 4: kwargs['trials'] = int(args[3])
-    if len(args) >= 5: kwargs['iters'] = int(args[4])
-    if len(args) >= 6: kwargs['workers'] = int(args[5])
+    if len(args) >= 4: 
+        kwargs['trials'] = int(args[3])
+    if len(args) >= 5: 
+        kwargs['iters'] = int(args[4])
+    if len(args) >= 6: 
+        kwargs['workers'] = int(args[5])
     main(**kwargs) 
     

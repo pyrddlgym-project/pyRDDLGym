@@ -13,7 +13,7 @@ from pyRDDLGym.Visualizer.StateViz import StateViz
 class TextVisualizer(StateViz):
 
     def __init__(self, model: PlanningModel,
-                 figure_size=[5, 10],
+                 figure_size=(5, 10),
                  dpi=100,
                  fontsize=10,
                  display=False) -> None:

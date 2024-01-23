@@ -1,6 +1,7 @@
 from abc import ABCMeta
 import itertools
 import numpy as np
+from pprint import pprint
 from typing import Dict, Iterable, List, Tuple
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
@@ -437,7 +438,7 @@ class PlanningModel(metaclass=ABCMeta):
             params = self.param_types.get(name, None)
             if params is not None and not params:
                 raise RDDLInvalidObjectError(
-                    f'Ambiguous reference to object or '
+                    'Ambiguous reference to object or '
                     f'parameter-free variable with identical name <{name}>. {msg}')
             return True
         
@@ -475,7 +476,7 @@ class PlanningModel(metaclass=ABCMeta):
         if etype == 'constant':
             return True
         
-        elif etype == 'randomvar' or etype == 'randomvector':
+        elif etype in ('randomvar', 'randomvector'):
             return False
         
         elif etype == 'pvar':
@@ -518,12 +519,12 @@ class PlanningModel(metaclass=ABCMeta):
         index_of_obj = self.index_of_object
         try:
             return tuple(index_of_obj[obj] for obj in objects)
-        except:
+        except Exception as ex:
             for obj in objects:
                 if obj not in index_of_obj:
                     raise RDDLInvalidObjectError(
                         f'Object <{obj}> is not valid, '
-                        f'must be one of {set(index_of_obj.keys())}. {msg}')
+                        f'must be one of {set(index_of_obj.keys())}. {msg}') from ex
     
     def object_counts(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Returns a tuple containing the number of objects of each type.
@@ -534,12 +535,12 @@ class PlanningModel(metaclass=ABCMeta):
         objects = self.objects
         try:
             return tuple(len(objects[ptype]) for ptype in types)
-        except:
+        except Exception as ex:
             for ptype in types:
                 if ptype not in objects:
                     raise RDDLTypeError(
                         f'Type <{ptype}> is not valid, '
-                        f'must be one of {set(objects.keys())}. {msg}')
+                        f'must be one of {set(objects.keys())}. {msg}') from ex
     
     def ground_values(self, var: str, values: Iterable[Value]) -> Iterable[Tuple[str, Value]]:
         '''Produces a sequence of pairs where the first element is the 
@@ -618,14 +619,11 @@ class PlanningModel(metaclass=ABCMeta):
     def dump_to_stdout(self):
         '''Dumps a pretty printed representation of the current model to stdout.
         '''
-        from pprint import pprint
         pprint(vars(self))
 
     
 class RDDLGroundedModel(PlanningModel):
     '''A class representing a RDDL domain + instance in grounded form.
     '''
-
-    def __init__(self):
-        super().__init__()
+    pass
 

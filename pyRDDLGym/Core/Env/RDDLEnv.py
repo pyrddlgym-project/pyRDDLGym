@@ -28,10 +28,10 @@ def _make_dir(log_path):
     if not os.path.exists(root_path):
         try:
             os.makedirs(root_path)
-        except Exception as e:
-            if not isinstance(e, FileExistsError):
+        except Exception as ex:
+            if not isinstance(ex, FileExistsError):
                 raise RDDLLogFolderError(
-                    f'Could not create folder at path {root_path}.')
+                    f'Could not create folder at path {root_path}.') from ex
     return log_path
 
     
@@ -56,7 +56,7 @@ class RDDLEnv(gym.Env):
                  debug: bool=False,
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
-                 backend_kwargs: typing.Dict={},
+                 backend_kwargs: typing.Dict=None,
                  seeds: RDDLEnvSeeder=RDDLEnvSeederFibonacci()):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
@@ -81,6 +81,9 @@ class RDDLEnv(gym.Env):
         :param seeds: an instance of RDDLEnvSeeder for generating RNG seeds
         '''
         super(RDDLEnv, self).__init__()
+        
+        if backend_kwargs is None:
+            backend_kwargs = {}
         
         self.domain_text = domain
         self.instance_text = instance
@@ -215,7 +218,7 @@ class RDDLEnv(gym.Env):
             else:
                 raise RDDLTypeError(
                     f'Type <{prange}> of fluent <{var}> is not valid, '
-                    f'must be an enumerated or primitive type (real, int, bool).')
+                    'must be an enumerated or primitive type (real, int, bool).')
         return result
     
     def _rddl_to_gym_bounds_act(self, ranges):
@@ -292,7 +295,7 @@ class RDDLEnv(gym.Env):
             else:
                 raise RDDLTypeError(
                     f'Type <{prange}> of fluent <{var}> is not valid, '
-                    f'must be an enumerated or primitive type (real, int, bool).')
+                    'must be an enumerated or primitive type (real, int, bool).')
         
         # boolean actions with constraint are stored in the last place instead
         if bool_constraint:
@@ -334,7 +337,7 @@ class RDDLEnv(gym.Env):
                 for (act, (key, (start, count, shape))) in locational.items())
             bound_info = (f'\tdiscrete_start={disc_start}, discrete_n={disc_nelem}\n'
                           f'\tcontinuous_low={cont_low}, continuous_high={cont_high}')
-            self.logger.log(f'[info] computed gym action space:\n' 
+            self.logger.log('[info] computed gym action space:\n' 
                             f'{bound_info}\n'
                             f'\t{act_info}\n'
                             f'[info] final space: {combined_space}\n')
@@ -492,9 +495,9 @@ class RDDLEnv(gym.Env):
 
         # logging
         if self.simlogger:
-            text = (f'######################################################\n'
+            text = ('######################################################\n'
                     f'New Trial, seed={seed}\n'
-                    f'######################################################')
+                    '######################################################')
             self.simlogger.log_free(text)
             
         # produce array outputs for vectorized option
@@ -524,6 +527,7 @@ class RDDLEnv(gym.Env):
             if to_display:
                 if not self.to_render:
                     self.to_render = True
+                    # pylint: disable-next=no-member
                     pygame.init()
                     self.window = pygame.display.set_mode(
                         (self.image_size[0], self.image_size[1]))
@@ -535,6 +539,7 @@ class RDDLEnv(gym.Env):
                 
                 # prevents the window from freezing up midway
                 for event in pygame.event.get():
+                    # pylint: disable-next=no-member
                     if event.type == pygame.QUIT:
                         pass
             

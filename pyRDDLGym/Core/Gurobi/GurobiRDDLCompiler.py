@@ -33,7 +33,7 @@ class GurobiRDDLCompiler:
                  rollout_horizon: int=None,
                  epsilon: float=1e-5,
                  float_range: Tuple[float, float]=(1e-15, 1e15),
-                 model_params: Dict[str, object]={'NonConvex': 2},
+                 model_params: Dict[str, object]=None,
                  piecewise_options: str='',
                  logger: Logger=None,
                  verbose: int=1) -> None:
@@ -61,6 +61,10 @@ class GurobiRDDLCompiler:
         :param verbose: whether to print nothing (0), summary (1),
         or detailed (2) messages to console
         '''
+        
+        if model_params is None:
+            model_params = {'NonConvex': 2}
+        
         self.plan = plan
         if rollout_horizon is None:
             rollout_horizon = rddl.horizon
@@ -108,11 +112,11 @@ class GurobiRDDLCompiler:
                 self.noop_actions[var] = values
     
     def summarize_hyperparameters(self):
-        print(f'Gurobi compiler hyper-params:\n'
+        print('Gurobi compiler hyper-params:\n'
               f'    float_range       ={self.float_range}\n'
               f'    float_equality_tol={self.epsilon}\n'
               f'    lookahead_horizon ={self.horizon}\n'
-              f'Gurobi model hyper-params:\n'
+              'Gurobi model hyper-params:\n'
               f'    user_args         ={self.model_params}\n'
               f'    user_args_pw      ={self.pw_options}')
         
@@ -161,12 +165,12 @@ class GurobiRDDLCompiler:
         
         # logging
         if self.logger is not None:
-            message = f'[info] compiling initial bound information for Gurobi:'
+            message = '[info] compiling initial bound information for Gurobi:'
             for (name, (_, _, lb, ub, _)) in subs.items():
                 message += f'\n\t{name}, bounds=({lb}, {ub})'
             self.logger.log(message + '\n')  
                 
-        objective = 0
+        objective, lb, ub = 0, 0, 0
         all_action_vars = []
         all_next_state_vars = []
         for step in range(self.horizon):
@@ -569,7 +573,7 @@ class GurobiRDDLCompiler:
             symb = symb1 or symb2
             
             # convert <= to >=, < to >, etc.
-            if op == '<=' or op == '<':
+            if op in ('<=', '<'):
                 glhs, grhs = grhs, glhs
                 op = '>=' if op == '<=' else '>'
             diffexpr = glhs - grhs
@@ -635,7 +639,7 @@ class GurobiRDDLCompiler:
             
         raise RDDLNotImplementedError(
             f'Relational operator {op} with {n} arguments is not '
-            f'supported in Gurobi compiler.\n' + 
+            'supported in Gurobi compiler.\n' + 
             print_stack_trace(expr))
     
     def _gurobi_logical(self, expr, model, subs):
@@ -656,7 +660,7 @@ class GurobiRDDLCompiler:
             else:
                 if not isinstance(gterm, (bool, np.bool_)):
                     raise RDDLTypeError(
-                        f'Constant expression is of type '
+                        'Constant expression is of type '
                         f'{type(gterm)}, expected bool or np.bool_' + 
                         '\n' + print_stack_trace(arg))
                 res = not bool(gterm)
@@ -676,7 +680,7 @@ class GurobiRDDLCompiler:
                     if not symbs[i]:
                         if not isinstance(gterm, (bool, np.bool_)):
                             raise RDDLTypeError(
-                                f'Constant expression is of type '
+                                'Constant expression is of type '
                                 f'{type(gterm)}, expected bool or np.bool_' + 
                                 '\n' + print_stack_trace(args[i]))
                         var = self._add_bool_var(model)
@@ -723,7 +727,7 @@ class GurobiRDDLCompiler:
                             
         raise RDDLNotImplementedError(
             f'Logical operator {op} with {n} arguments is not '
-            f'supported in Gurobi compiler.\n' + 
+            'supported in Gurobi compiler.\n' + 
             print_stack_trace(expr))
     
     # ===========================================================================
@@ -953,7 +957,7 @@ class GurobiRDDLCompiler:
                 
         raise RDDLNotImplementedError(
             f'Function operator {name} with {n} arguments is not '
-            f'supported in Gurobi compiler.\n' + 
+            'supported in Gurobi compiler.\n' + 
             print_stack_trace(expr))
 
     # ===========================================================================
@@ -982,7 +986,7 @@ class GurobiRDDLCompiler:
             else:
                 if not isinstance(gpred, (bool, np.bool_)):
                     raise RDDLTypeError(
-                        f'Constant expression is of type '
+                        'Constant expression is of type '
                         f'{type(gpred)}, expected bool or np.bool_' + 
                         '\n' + print_stack_trace(pred))
                 if bool(gpred):
@@ -993,7 +997,7 @@ class GurobiRDDLCompiler:
             
         raise RDDLNotImplementedError(
             f'Control flow {op} with {n} arguments is not '
-            f'supported in Gurobi compiler.\n' + 
+            'supported in Gurobi compiler.\n' + 
             print_stack_trace(expr))
 
     # ===========================================================================

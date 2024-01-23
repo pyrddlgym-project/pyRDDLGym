@@ -59,16 +59,13 @@ def objective_replan(T, kwargs, key, index):
 class GurobiParameterTuningReplan:
     
     def __init__(self, env: RDDLEnv,
-                 lookahead_range: List[int]=list(range(1, 41)),
+                 lookahead_range: List[int]=None,
                  timeout_training: float=None,
                  timeout_tuning: float=np.inf,
                  eval_trials: int=5,
                  verbose: bool=True,
-                 planner_kwargs: Dict={
-                     'model_params': {'NonConvex': 2, 'OutputFlag': 0},
-                     'verbose': 0,
-                 },
-                 plan_kwargs: Dict={},
+                 planner_kwargs: Dict=None,
+                 plan_kwargs: Dict=None,
                  pool_context: str='spawn',
                  num_workers: int=4,
                  poll_frequency: float=0.2) -> None:
@@ -92,6 +89,16 @@ class GurobiParameterTuningReplan:
         :param poll_frequency: how often (in seconds) to poll for completed
         jobs, necessary if num_workers > 1
         '''
+        if lookahead_range is None:
+            lookahead_range = list(range(1, 41))
+        if planner_kwargs is None:
+            planner_kwargs = {
+                'model_params': {'NonConvex': 2, 'OutputFlag': 0},
+                'verbose': 0,
+            }
+        if plan_kwargs is None:
+            plan_kwargs = {}
+            
         # timeout for training must be set in Gurobi variables
         if timeout_training is not None:
             if 'model_params' not in planner_kwargs:
@@ -112,13 +119,13 @@ class GurobiParameterTuningReplan:
         self.poll_frequency = poll_frequency
         
     def summarize_hyperparameters(self):
-        print(f'hyperparameter optimizer parameters:\n'
-              f'    tuned_hyper_parameters    =horizon\n'
+        print('hyperparameter optimizer parameters:\n'
+              '    tuned_hyper_parameters    =horizon\n'
               f'    tuning_batch_size         ={self.num_workers}\n'
               f'    tuning_timeout            ={self.timeout_tuning}\n'
               f'    mp_pool_context_type      ={self.pool_context}\n'
               f'    mp_pool_poll_frequency    ={self.poll_frequency}\n'
-              f'meta-objective parameters:\n'
+              'meta-objective parameters:\n'
               f'    planning_trials_per_iter  ={self.eval_trials}\n'
               f'    planning_timeout_per_trial={self.timeout_training}')
         
@@ -222,7 +229,7 @@ class GurobiParameterTuningReplan:
         
         # print summary of results
         elapsed = time.time() - start_time
-        print(f'summary of hyper-parameter optimization:\n'
+        print('summary of hyper-parameter optimization:\n'
               f'    time_elapsed       ={datetime.timedelta(seconds=elapsed)}\n'
               f'    iterations         ={it + 1}\n'
               f'    best_T             ={best_T}\n'

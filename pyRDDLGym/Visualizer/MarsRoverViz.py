@@ -10,7 +10,7 @@ from pyRDDLGym.Visualizer.StateViz import StateViz
 class MarsRoverVisualizer(StateViz):
 
     def __init__(self, model: PlanningModel,
-                 figure_size=[50, 50],
+                 figure_size=(50, 50),
                  dpi=20,
                  fontsize=8,
                  display=False) -> None:

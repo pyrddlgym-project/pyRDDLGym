@@ -74,7 +74,7 @@ class RDDLValueInitializer:
             if default is None or dtype is None:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
-                    f'must be either an enumerated type in '
+                    'must be either an enumerated type in '
                     f'{rddl.enums} or an object type in '
                     f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
             
@@ -110,7 +110,7 @@ class RDDLValueInitializer:
                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
             ) for (k, v) in np_init_values.items())
-            message = (f'[info] initializing pvariable tensors:' 
+            message = ('[info] initializing pvariable tensors:' 
                        f'\n\t{tensor_info}\n')
             self.logger.log(message)
         

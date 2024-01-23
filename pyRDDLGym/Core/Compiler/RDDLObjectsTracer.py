@@ -185,7 +185,7 @@ class RDDLObjectsTracer:
         
         # log the fluent types
         if self.logger is not None:
-            message = f'[info] computed whether each CPF expression is fluent:\n'
+            message = '[info] computed whether each CPF expression is fluent:\n'
             for cpfs in levels.values():
                 for cpf in cpfs:
                     is_fluent = out._cached_is_fluent_cpf[cpf]
@@ -307,7 +307,7 @@ class RDDLObjectsTracer:
                     is_fluent = True
                     if self.logger is not None:
                         message = (
-                            f'[warning] cannot establish whether CPF is fluent:'
+                            '[warning] cannot establish whether CPF is fluent:'
                             f'\n\taddress of expression ={str(expr)}'
                             f'\n\tCPF to check          ={primed_var}\n'
                         )
@@ -493,7 +493,7 @@ class RDDLObjectsTracer:
         # log information about the new transformation
         if self.logger is not None:
             message = (
-                f'[info] computing info for pvariable tensor transformation:' 
+                '[info] computing info for pvariable tensor transformation:' 
                 f'\n\taddress of expression   ={super(Expression, expr).__str__()}'
                 f'\n\tvariable                ={var}'
                 f'\n\tvariable evaluated at   ={list(zip(args, args_types))}'
@@ -624,7 +624,7 @@ class RDDLObjectsTracer:
         
         # argmax/argmin require exactly one parameter argument
         enum_type = None
-        if op == 'argmin' or op == 'argmax':
+        if op in ('argmin', 'argmax'):
             if len(pvars) != 1:
                 raise RDDLInvalidNumberOfArgumentsError(
                     f'Aggregation <{op}> requires one iteration variable, '
@@ -644,7 +644,7 @@ class RDDLObjectsTracer:
         
         # log information about aggregation operation
         if self.logger is not None:
-            message = (f'[info] computing object info for aggregation:'
+            message = ('[info] computing object info for aggregation:'
                        f'\n\taggregation variables(s)      ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'
                        f'\n\tfree object(s) in inner scope ={new_objects}'
@@ -669,7 +669,7 @@ class RDDLObjectsTracer:
         # trace predicate
         self._trace(pred, objects, out)
         RDDLObjectsTracer._check_not_object(
-            pred, expr, out, f'Predicate of if statement')  
+            pred, expr, out, 'Predicate of if statement')  
         
         # trace branches
         is_fluent = out.cached_is_fluent(pred)
@@ -695,7 +695,7 @@ class RDDLObjectsTracer:
         # predicate must be a pvar
         if not pred.is_pvariable_expression():
             raise RDDLNotImplementedError(
-                f'Switch predicate is not a pvariable.\n' + 
+                'Switch predicate is not a pvariable.\n' + 
                 PST(expr, out._current_root))
             
         # type in pvariables scope must be a domain object
@@ -720,7 +720,7 @@ class RDDLObjectsTracer:
         # check for duplicated cases
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default case(s).\n' + 
+                'Duplicated literal or default case(s).\n' + 
                 PST(expr, out._current_root))
         
         # order cases by canonical ordering of objects
@@ -737,7 +737,7 @@ class RDDLObjectsTracer:
         obj_types = set(map(out.cached_object_type, case_dict.values()))
         if len(obj_types) != 1:
             raise RDDLTypeError(
-                f'Case expressions in switch statement cannot produce values '
+                'Case expressions in switch statement cannot produce values '
                 f'of different object types {obj_types}\n' + 
                 PST(expr, out._current_root))    
                                 
@@ -771,7 +771,7 @@ class RDDLObjectsTracer:
                 if arg is None:
                     raise RDDLUndefinedVariableError(
                         f'Object <{enum_values[i]}> of type <{enum_type}> '
-                        f'is missing in case list.\n' + PST(expr, out._current_root))
+                        'is missing in case list.\n' + PST(expr, out._current_root))
         
         # log cases ordering
         if self.logger is not None:
@@ -790,9 +790,9 @@ class RDDLObjectsTracer:
     
     def _trace_random(self, expr, objects, out):
         _, name = expr.etype
-        if name == 'Discrete' or name == 'UnnormDiscrete':
+        if name in ('Discrete', 'UnnormDiscrete'):
             self._trace_discrete(expr, objects, out)
-        elif name == 'Discrete(p)' or name == 'UnnormDiscrete(p)':
+        elif name in ('Discrete(p)', 'UnnormDiscrete(p)'):
             self._trace_discrete_pvar(expr, objects, out)
         else:
             self._trace_random_other(expr, objects, out)
@@ -816,13 +816,13 @@ class RDDLObjectsTracer:
         # no duplicate cases are allowed
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default case(s).\n' + 
+                'Duplicated literal or default case(s).\n' + 
                 PST(expr, out._current_root))
         
         # no default cases are allowed
         if 'default' in case_dict:
             raise RDDLNotImplementedError(
-                f'Default case not allowed in Discrete distribution.\n' + 
+                'Default case not allowed in Discrete distribution.\n' + 
                 PST(expr, out._current_root))
             
         # order enum cases by canonical ordering of literals
@@ -963,6 +963,7 @@ class RDDLObjectsTracer:
                 PST(expr, out._current_root))
         
         # objects of type _ must be compatible with sample dimension(s)
+        # pylint: disable-next=unbalanced-tuple-unpacking
         enum_type, = enum_types
         sample_pvar_indices = tuple(scope_pvars[pvar] for pvar in sample_pvars)
         for index in sample_pvar_indices:
@@ -1008,7 +1009,7 @@ class RDDLObjectsTracer:
         n1, n2 = self.rddl.object_counts((ptype1, ptype2))      
         if n1 != n2:
             raise RDDLInvalidObjectError(
-                f'Matrix in det operation must be square, '
+                'Matrix in det operation must be square, '
                 f'got {n1} objects of type <{ptype1}> '
                 f'and {n2} objects of type <{ptype2}>.\n' + 
                 PST(expr, out._current_root))
@@ -1022,14 +1023,14 @@ class RDDLObjectsTracer:
         self._trace(arg, new_objects, out)
         is_fluent = out.cached_is_fluent(arg)
         RDDLObjectsTracer._check_not_object(
-            arg, expr, out, f'Argument of matrix det')     
+            arg, expr, out, 'Argument of matrix det')     
         
         out._append(expr, objects, None, is_fluent, cached_sim_info)
         
         # log information about matrix operation
         if self.logger is not None:
-            message = (f'[info] computing object info for matrix operation:'
-                       f'\n\tmatrix operation              =det'
+            message = ('[info] computing object info for matrix operation:'
+                       '\n\tmatrix operation              =det'
                        f'\n\tdimension variables(s)        ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'
                        f'\n\tfree object(s) in inner scope ={new_objects}'
@@ -1086,7 +1087,7 @@ class RDDLObjectsTracer:
         
         # log information about matrix operation
         if self.logger is not None:
-            message = (f'[info] computing object info for matrix operation:'
+            message = ('[info] computing object info for matrix operation:'
                        f'\n\tmatrix operation              ={op}'
                        f'\n\tdimension variables(s)        ={pvars}'
                        f'\n\tfree object(s) in outer scope ={objects}'

@@ -46,6 +46,6 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
         print('python RLExample.py <domain> <instance> <steps>')
-        exit(1)
+        sys.exit(1)
     domain, instance, steps = args[:3]
     main(domain, instance, steps)

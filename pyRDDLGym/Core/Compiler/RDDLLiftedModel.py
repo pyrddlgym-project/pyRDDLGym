@@ -91,7 +91,7 @@ class RDDLLiftedModel(PlanningModel):
             if ptype not in objects:
                 raise RDDLInvalidObjectError(
                     f'Type <{ptype}> defined in the instance is not declared in '
-                    f'the domain.')
+                    'the domain.')
         
         # maps each object to its canonical order as it appears in definition
         self.index_of_object = {obj: i 
@@ -122,7 +122,7 @@ class RDDLLiftedModel(PlanningModel):
             for separator in SEPARATORS:
                 if separator in name:
                     raise RDDLInvalidObjectError(
-                        f'Variable name <{name}> contains an '
+                        f'Variable name <{name}> contains '
                         f'illegal separator {separator}.')
             
             # record its type, parameters and range
@@ -213,7 +213,7 @@ class RDDLLiftedModel(PlanningModel):
             if name not in initstates:
                 raise RDDLUndefinedVariableError(
                     f'Variable <{name}> referenced in init-state block '
-                    f'is not a valid state-fluent.')
+                    'is not a valid state-fluent.')
                     
             # extract the grounded name and check that parameters are valid
             if params is not None:
@@ -222,7 +222,7 @@ class RDDLLiftedModel(PlanningModel):
             if gname not in initstates[name]:
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {params} of state-fluent <{name}> '
-                    f'declared in the init-state block are not valid.')
+                    'declared in the init-state block are not valid.')
                 
             # make sure value is correct type
             if isinstance(value, str):
@@ -233,12 +233,12 @@ class RDDLLiftedModel(PlanningModel):
                     if value_type is None:
                         raise RDDLInvalidObjectError(
                             f'State-fluent <{name}> of type <{required_type}> '
-                            f'is initialized in init-state block with undefined '
+                            'is initialized in init-state block with undefined '
                             f'object <{value}>.')
                     else:
                         raise RDDLInvalidObjectError(
                             f'State-fluent <{name}> of type <{required_type}> '
-                            f'is initialized in init-state block with object '
+                            'is initialized in init-state block with object '
                             f'<{value}> of type {value_type}.')
                         
             initstates[name][gname] = value
@@ -315,7 +315,7 @@ class RDDLLiftedModel(PlanningModel):
             if grounded_names is None:
                 raise RDDLUndefinedVariableError(
                     f'Variable <{name}> referenced in non-fluents block '
-                    f'is not a valid non-fluent.')
+                    'is not a valid non-fluent.')
                 
             # extract the grounded name and check that parameters are valid
             if params is not None:
@@ -324,7 +324,7 @@ class RDDLLiftedModel(PlanningModel):
             if gname not in grounded_names:
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {params} of non-fluent <{name}> '
-                    f'as declared in the non-fluents block are not valid.')
+                    'as declared in the non-fluents block are not valid.')
                     
             # make sure value is correct type
             if isinstance(value, str):
@@ -335,12 +335,12 @@ class RDDLLiftedModel(PlanningModel):
                     if value_type is None:
                         raise RDDLInvalidObjectError(
                             f'Non-fluent <{name}> of type <{required_type}> '
-                            f'is initialized in non-fluents block with '
+                            'is initialized in non-fluents block with '
                             f'undefined object <{value}>.')
                     else:
                         raise RDDLInvalidObjectError(
                             f'Non-fluent <{name}> of type <{required_type}> '
-                            f'is initialized in non-fluents block with object '
+                            'is initialized in non-fluents block with object '
                             f'<{value}> of type <{value_type}>.')
                         
             grounded_names[gname] = value

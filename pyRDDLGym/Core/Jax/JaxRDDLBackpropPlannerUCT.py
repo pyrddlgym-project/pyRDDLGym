@@ -79,7 +79,7 @@ class JaxRDDLHybridBackpropUCTPlanner:
                  delta: float,
                  c: float=1.0 / math.sqrt(2.0),
                  max_sgd_updates: int=1,
-                 policy_hyperparams: Dict={},
+                 policy_hyperparams: Dict=None,
                  **planner_kwargs) -> None:
         '''Creates a new hybrid backprop + UCT-MCTS planner.
         
@@ -99,6 +99,10 @@ class JaxRDDLHybridBackpropUCTPlanner:
         :param **planner_kwargs: keywords arguments to initialize backprop planner:
         will not use backprop if none are specified 
         '''
+        
+        if policy_hyperparams is None:
+            policy_hyperparams = {}
+            
         self.rddl = rddl
         self.sim = JaxRDDLSimulator(rddl, keep_tensors=True)  # TODO (mike): no need to compile twice
         self.T = rollout_horizon

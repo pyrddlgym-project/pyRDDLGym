@@ -40,8 +40,10 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 2:
         print('python GymExample.py <domain> <instance> [<episodes>] [<seed>]')
-        exit(1)
+        sys.exit(1)
     kwargs = {'domain': args[0], 'instance': args[1]}
-    if len(args) >= 3: kwargs['episodes'] = int(args[2])
-    if len(args) >= 4: kwargs['seed'] = int(args[3])
+    if len(args) >= 3: 
+        kwargs['episodes'] = int(args[2])
+    if len(args) >= 4: 
+        kwargs['seed'] = int(args[3])
     main(**kwargs)

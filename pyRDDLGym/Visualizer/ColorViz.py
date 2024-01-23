@@ -13,7 +13,7 @@ class ColorVisualizer(StateViz):
 
     def __init__(self, model: PlanningModel,
                  steps_history=None,
-                 figure_size=[10, 10],
+                 figure_size=(10, 10),
                  dpi=100,
                  fontsize=10,
                  cmap='seismic',
