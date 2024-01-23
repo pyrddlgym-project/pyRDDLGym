@@ -31,6 +31,8 @@ class ChartVisualizer(StateViz):
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
+        self._lines = None
+        self._backgrounds = None
 
         if steps_history is None:
             steps_history = model.horizon

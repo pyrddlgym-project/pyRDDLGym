@@ -43,6 +43,8 @@ class RDDLSimulator:
         self.rng = rng
         self.logger = logger
         self.keep_tensors = keep_tensors
+        self.subs = None
+        self.state = None
         
         self._compile()
         
