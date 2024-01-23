@@ -10,6 +10,7 @@ np.seterr(all='raise')
 import optax
 import os
 import sys
+import traceback
 import time
 from tqdm import tqdm
 from typing import Callable, Dict, Generator, Set, Sequence, Tuple
@@ -17,9 +18,10 @@ import warnings
 
 try:
     import matplotlib.pyplot as plt
-except Exception as e:
+except ImportError:
     warnings.warn('failed to import package matplotlib, '
-                  f'plotting will be disabled.\n{e}', stacklevel=2)
+                  'plotting will be disabled.', stacklevel=2)
+    traceback.print_exc()
     plt = None
         
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError 
@@ -89,7 +91,7 @@ def _load_config(config, args):
         init_kwargs = plan_kwargs.pop('initializer_kwargs', {})
         try: 
             plan_kwargs['initializer'] = init_class(**init_kwargs)
-        except:
+        except Exception:
             warnings.warn(f'ignoring arguments for initializer <{init_name}>',
                           stacklevel=2)
             plan_kwargs['initializer'] = init_class
@@ -988,7 +990,7 @@ class JaxRDDLBackpropPlanner:
         # set optimizer
         try:
             optimizer = optax.inject_hyperparams(optimizer)(**optimizer_kwargs)
-        except:
+        except Exception:
             warnings.warn(
                 'Failed to inject hyperparameters into optax optimizer, '
                 'rolling back to safer method: please note that modification of '

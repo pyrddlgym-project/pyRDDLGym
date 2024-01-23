@@ -107,8 +107,8 @@ class RDDLValueInitializer:
         if self.logger is not None:
             tensor_info = '\n\t'.join((
                 f'{k}{rddl.param_types[k]}, '
-                f'shape={v.shape if type(v) is np.ndarray else ()}, '
-                f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
+                f'shape={getattr(v, "shape", ())}, '
+                f'dtype={getattr(v, "dtype", type(v).__name__)}'
             ) for (k, v) in np_init_values.items())
             message = ('[info] initializing pvariable tensors:' 
                        f'\n\t{tensor_info}\n')
