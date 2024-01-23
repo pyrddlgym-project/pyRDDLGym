@@ -16,8 +16,7 @@ py-version = 3.8
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
 disable=
-	attribute-defined-outside-init,
-    invalid-name,
+	invalid-name,
     missing-docstring,
     protected-access,
     too-few-public-methods,

@@ -10,6 +10,10 @@ class RDDLEnvSeeder(metaclass=abc.ABCMeta):
 
 class RDDLEnvSeederFibonacci(RDDLEnvSeeder):
     
+    def __init__(self):
+        self.a = 1
+        self.b = 2
+        
     def __iter__(self):
         self.a = 1
         self.b = 2

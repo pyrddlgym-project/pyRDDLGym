@@ -158,6 +158,8 @@ class RDDLEnv(gym.Env):
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)
         self._movie_generator = None
+        self._movie_per_episode = 0
+        self._movies = 0
         self.state = None
         self.image = None
         self.window = None

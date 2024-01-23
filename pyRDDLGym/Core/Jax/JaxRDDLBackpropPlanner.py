@@ -384,6 +384,7 @@ class JaxStraightLinePlan(JaxPlan):
         self._wrap_softmax = wrap_softmax
         self._use_new_projection = use_new_projection
         self._max_constraint_iter = max_constraint_iter
+        self.bounds = None
         
     def summarize_hyperparameters(self):
         print('policy hyper-parameters:\n'
@@ -728,6 +729,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         self._initializer_base = initializer
         self._initializer = initializer
         self._normalize = normalize
+        self.bounds = None
             
     def summarize_hyperparameters(self):
         print('policy hyper-parameters:\n'
@@ -1611,7 +1613,7 @@ class JaxOnlineController(BaseAgent):
         self.eval_hyperparams = eval_hyperparams
         self.warm_start = warm_start
         self.train_kwargs = train_kwargs
-        self.reset()
+        self.guess = None
      
     def sample_action(self, state):
         planner = self.planner

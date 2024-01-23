@@ -53,6 +53,13 @@ class JaxRDDLCompiler:
         self.logger = logger
         # jax.config.update('jax_log_compiles', True) # for testing ONLY
         
+        self.invariants = None
+        self.preconditions = None
+        self.termination = None
+        self.cpfs = None
+        self.reward = None
+        self.model_params = None
+        
         if use64bit:
             self.INT = jnp.int64
             self.REAL = jnp.float64
@@ -87,8 +94,7 @@ class JaxRDDLCompiler:
             init_values=self.init_values,
             levels=self.levels,
             trace_info=self.traced)  
-        constraints = RDDLConstraints(simulator, vectorized=True)
-        self.constraints = constraints
+        self.constraints = RDDLConstraints(simulator, vectorized=True)
         
         # basic operations
         self.NEGATIVE = lambda x, param: jnp.negative(x)  
