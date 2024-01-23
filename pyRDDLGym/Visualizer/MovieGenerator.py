@@ -8,7 +8,7 @@ import re
 try:
     import cv2
     _ALLOW_MP4 = True
-except:
+except ImportError:
     warnings.warn('cv2 is not installed: save_as_mp4 option will be disabled.',
                   stacklevel=2)
     _ALLOW_MP4 = False

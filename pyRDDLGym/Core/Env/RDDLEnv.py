@@ -401,13 +401,13 @@ class RDDLEnv(gym.Env):
         self._movies = 0
         self.to_render = False
 
-    def step(self, actions):
+    def step(self, action):
         if self.done:
             raise RDDLEpisodeAlreadyEndedError(
                 'The step() function has been called even though the '
                 'current episode has terminated: please call reset().')            
             
-        actions = self._gym_to_rddl_actions(actions)
+        actions = self._gym_to_rddl_actions(action)
         
         # cast non-boolean actions to boolean
         fixed_actions = self._noop_actions.copy()

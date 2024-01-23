@@ -7,6 +7,7 @@ import jax
 from multiprocessing import get_context
 import numpy as np
 import os
+import traceback
 import time
 from typing import Callable, Dict, Tuple
 import warnings
@@ -15,9 +16,10 @@ warnings.filterwarnings('ignore')
 try:
     import matplotlib.pyplot as plt
     from sklearn.manifold import MDS
-except Exception as e:
+except ImportError:
     warnings.warn('failed to import packages matplotlib or sklearn, '
-                  f'plotting will be disabled.\n{e}', stacklevel=2)
+                  'plotting will be disabled.', stacklevel=2)
+    traceback.print_exc()
     plt, MDS = None, None
             
 from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv

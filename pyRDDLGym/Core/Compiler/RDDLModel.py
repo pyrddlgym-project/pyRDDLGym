@@ -519,13 +519,14 @@ class PlanningModel(metaclass=ABCMeta):
         index_of_obj = self.index_of_object
         try:
             return tuple(index_of_obj[obj] for obj in objects)
-        except Exception as ex:
+        except KeyError as ex:
             for obj in objects:
                 if obj not in index_of_obj:
                     raise RDDLInvalidObjectError(
                         f'Object <{obj}> is not valid, '
                         f'must be one of {set(index_of_obj.keys())}. {msg}') from ex
-    
+            return None
+        
     def object_counts(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Returns a tuple containing the number of objects of each type.
         
@@ -535,13 +536,14 @@ class PlanningModel(metaclass=ABCMeta):
         objects = self.objects
         try:
             return tuple(len(objects[ptype]) for ptype in types)
-        except Exception as ex:
+        except KeyError as ex:
             for ptype in types:
                 if ptype not in objects:
                     raise RDDLTypeError(
                         f'Type <{ptype}> is not valid, '
                         f'must be one of {set(objects.keys())}. {msg}') from ex
-    
+            return None
+        
     def ground_values(self, var: str, values: Iterable[Value]) -> Iterable[Tuple[str, Value]]:
         '''Produces a sequence of pairs where the first element is the 
         grounded variables of var and the second are the corresponding values

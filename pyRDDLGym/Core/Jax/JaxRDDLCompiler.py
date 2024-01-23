@@ -10,7 +10,7 @@ import warnings
 # more robust approach - if user does not have this or broken try to continue
 try:
     from tensorflow_probability.substrates import jax as tfp
-except Exception:
+except ImportError:
     warnings.warn('Failed to import tensorflow-probability: '
                   'compilation of some complex distributions will not work.',
                   stacklevel=2)
@@ -761,6 +761,7 @@ class JaxRDDLCompiler:
         return _jax_wrapped_binary_op
     
     def _jax_arithmetic(self, expr, info):
+        # pylint: disable=inconsistent-return-statements
         _, op = expr.etype
         valid_ops = self.ARITHMETIC_OPS
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
@@ -768,11 +769,16 @@ class JaxRDDLCompiler:
         args = expr.args
         n = len(args)
         
-        if n == 1 and op == '-':
-            arg, = args
-            jax_expr = self._jax(arg, info)
-            jax_op, jax_param = self._unwrap(self.NEGATIVE, expr.id, info)
-            return self._jax_unary(jax_expr, jax_op, jax_param, at_least_int=True)
+        if n == 1:
+            if op == '-':
+                arg, = args
+                jax_expr = self._jax(arg, info)
+                jax_op, jax_param = self._unwrap(self.NEGATIVE, expr.id, info)
+                return self._jax_unary(jax_expr, jax_op, jax_param, at_least_int=True)
+            else:
+                raise RDDLNotImplementedError(
+                    f'Unary arithmetic operator {op} is not supported.\n' + 
+                    print_stack_trace(expr))
                     
         elif n == 2:
             lhs, rhs = args
@@ -782,7 +788,8 @@ class JaxRDDLCompiler:
             return self._jax_binary(
                 jax_lhs, jax_rhs, jax_op, jax_param, at_least_int=True)
         
-        JaxRDDLCompiler._check_num_args(expr, 2)
+        else:
+            JaxRDDLCompiler._check_num_args(expr, 2)
     
     def _jax_relational(self, expr, info):
         _, op = expr.etype
@@ -798,6 +805,7 @@ class JaxRDDLCompiler:
             jax_lhs, jax_rhs, jax_op, jax_param, at_least_int=True)
            
     def _jax_logical(self, expr, info):
+        # pylint: disable=inconsistent-return-statements
         _, op = expr.etype
         valid_ops = self.LOGICAL_OPS    
         JaxRDDLCompiler._check_valid_op(expr, valid_ops)
@@ -805,11 +813,16 @@ class JaxRDDLCompiler:
         args = expr.args
         n = len(args)
         
-        if n == 1 and op == '~':
-            arg, = args
-            jax_expr = self._jax(arg, info)
-            jax_op, jax_param = self._unwrap(self.LOGICAL_NOT, expr.id, info)
-            return self._jax_unary(jax_expr, jax_op, jax_param, check_dtype=bool)
+        if n == 1:
+            if op == '~':
+                arg, = args
+                jax_expr = self._jax(arg, info)
+                jax_op, jax_param = self._unwrap(self.LOGICAL_NOT, expr.id, info)
+                return self._jax_unary(jax_expr, jax_op, jax_param, check_dtype=bool)
+            else:
+                raise RDDLNotImplementedError(
+                    f'Unary logical operator {op} is not supported.\n' + 
+                    print_stack_trace(expr))
         
         elif n == 2:
             lhs, rhs = args
@@ -819,7 +832,8 @@ class JaxRDDLCompiler:
             return self._jax_binary(
                 jax_lhs, jax_rhs, jax_op, jax_param, check_dtype=bool)
         
-        JaxRDDLCompiler._check_num_args(expr, 2)
+        else:
+            JaxRDDLCompiler._check_num_args(expr, 2)
     
     def _jax_aggregation(self, expr, info):
         ERR = JaxRDDLCompiler.ERROR_CODES['INVALID_CAST']

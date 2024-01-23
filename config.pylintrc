@@ -39,8 +39,16 @@ disable=
 	no-else-return,
 	no-else-raise,
 	unnecessary-lambda-assignment,
+	unused-argument,
+	super-with-arguments,
 
 ignore-paths=
 	docs,
 	pyRDDLGym\tests,
-	pyRDDLGym\Examples\Traffic
+	pyRDDLGym\Examples\Traffic,
+	requirements.txt,
+	requirements_jax.txt,
+	LICENSE.MD,
+	README.md,
+	MANIFEST.in,
+	config.pylintrc,
