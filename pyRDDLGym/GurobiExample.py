@@ -37,7 +37,7 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
         print('python GurobiExample.py <domain> <instance> <horizon>')
-        exit(0)
+        exit(1)
     domain, instance, horizon = args[:3]
     horizon = int(horizon)
     main(domain, instance, horizon)

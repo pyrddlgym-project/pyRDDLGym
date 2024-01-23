@@ -6,6 +6,9 @@
 // (1)		x e^y = 1
 // (2)		-x^2 + y = 1
 //
+// Author(s)
+// 		Mike Gimelfarb (mgimelfarb@yahoo.ca)
+// 
 // //////////////////////////////////////////////////////////////////////
 domain newton {
 

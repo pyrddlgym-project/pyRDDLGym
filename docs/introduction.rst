@@ -1,15 +1,15 @@
 Introduction
 ============
 
-pyRDDLGym is A toolkit for auto-generation of OpenAI Gym environments from RDDL description files.
+pyRDDLGym is a Python toolkit for auto-generation of OpenAI Gym environments from RDDL description files. It also provides simulation, visualization/recording, and baselines for the planning and reinforcement learning community.
 
 Purpose and Benefits
 -----
-- Describe your environment in RDDL, and let pyRDDLGym convert it to a standard OpenAI Gym environment for testing your reinforcement learning or planning algorithms
-- Compiler tools to help you understand the structure of your problem (i.e. dynamics, reward, constraints)
-- Visualization and video recording tools for monitoring and documenting the behaviour of your algorithm
-- Support for new language features (i.e. multivariate distributions) that were not present in older RDDL implementations
-- Planning baselines in Gurobi and JAX/TensorFlow that you can build upon
+- describe your environment easily in RDDL, and let pyRDDLGym convert it to a standard OpenAI Gym environment for training and testing your reinforcement learning and planning algorithms in Python
+- compiler tools to help you understand the structure of your problem
+- visualization and video recording tools for monitoring and documenting the behavior of your algorithm
+- support for new language features (i.e. multivariate distributions) not present in older RDDL implementations
+- out-of-the-box planning algorithms in Gurobi and JAX that you can use as baselines, or build upon.
 
 Paper
 -----
@@ -26,38 +26,37 @@ Please see our `paper <https://arxiv.org/abs/2211.05939>`_ describing pyRDDLGym.
 Status
 ------
 
-The following components and structures have been added to the language to increase expressiveness, and to accommodate learning interaction type:
+Additional features have been added to the language to increase expressivity, and to accommodate learning interaction type:
 
-- ``object`` (instance-defined) and ``enum`` (domain-defined) types can be used interchangeably in expressions such as aggregations, and both used as values for p-variables. Exceptions are switch statements that explicitly reference objects of a type in the domain, and are valid for enum objects only.
-- Terminal states can now be explicitly defined. The termination block has been added to the language.
-- Action-preconditions are implemented according to the original language description.
-- Direct Inquiry of variable (states/action) domains is supported through the standard action_space and state_space properties of the environment. 
-- Parameter inequality is supported for lifted types, i.e., the following expression ``?p == ?r`` can be evaluated to ``True`` or ``False``.
-- Nested indexing is now supported, e.g., ``fluent'(?p,?q) = NEXT(fluent(?p, ?q))``.
-- Additional probability distributions are implemented (please see RDDL Language Description section for details)
-- Vectorized distributions such as Multivariate normal, Student, Dirichlet, and Multinomial are now supported.
-- Basic matrix algebra such as determinant and inverse operation are supported for two appropriate fluents.
-- ``argmax`` and ``argmin`` are supported over enumerated types (enums).
+- terminal states can now be explicitly defined in a separate termination block
+- action-preconditions are implemented according to the original language, but failure to enforce them now prints a warning instead of an exception; this behavior can be controlled by the user
+- direct inquiry of state and action spaces is supported through the standard action space and state space properties of OpenAI gym environments; this is currently only supported for simple constraints such as box constraints
+- an effort was made to ensure that enumerated (enum) and object types are as interchangeable as possible, i.e. an aggregation operation could now be performed over either
+- parameter equality and disequality are supported for object and enum parameters, i.e., expressions ``?p == ?r`` and ``?p ~= ?q`` can be evaluated to True or False
+- arbitrarily-level nested indexing is now supported, e.g., ``fluent'(?p, ?q) = outer(inner(?p, ?q))``
+- a very large number of univariate distributions are now supported
+- multivariate distributions such as Multivariate normal, Student, Dirichlet, and multinomial are now supported
+- matrix algebra operations such as determinant and inverse are now supported
+- ``argmax`` and ``argmin`` over enumerated types are now supported
+- simulation is vectorized under-the-hood in order to provide reasonable performance while working in pure Python.
 
-The following components are omitted (or marked as deprecated) from the language variant implemented in pyRDDLGym:
+The following features have been omitted (or marked as deprecated) from the RDDL language in pyRDDLGym:
 
-- Derived-fluents are supported by the framework as described in the language description. However, they are considered deprecated and will be removed from future versions.
-- Fluent levels are deprecated and are reasoned automatically by the framework, specifying levels explicitly is not required.
-- State-action-constraints are not implemented and are considered deprecated in the language to avoid ambiguity. 
+- derived-fluent are still supported, but they are considered deprecated and will be removed from future versions
+- fluent levels are deprecated and are reasoned automatically, thus specifying levels explicitly is no longer required
+- the state-action-constraint block is not implemented and is considered deprecated; only the newer syntax of specifying state-invariants and action-preconditions is supported.
 
 Several RDDL environments are included as examples with pyRDDLGym:
 
-- CartPole Continuous
-- CartPole discrete
+- CartPole
 - Elevators
 - MarsRover
 - MountainCar
 - PowerGeneration
+- Quadcopter
 - RaceCar
 - RecSim
-- UAV continuous
-- UAV discrete
-- UAV mixed
+- UAV
 - Wildfire
 - Supply Chain
 

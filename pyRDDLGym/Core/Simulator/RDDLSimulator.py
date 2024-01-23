@@ -1,6 +1,6 @@
 import numpy as np
 np.seterr(all='raise')
-from typing import Dict, Union
+from typing import Dict, Set, Union
 
 from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
 from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
@@ -163,6 +163,9 @@ class RDDLSimulator:
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
         self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
         
+        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
+        
     @property
     def states(self) -> Args:
         return self.state.copy()
@@ -246,42 +249,84 @@ class RDDLSimulator:
     
     def _process_actions(self, actions):
         rddl = self.rddl
-        new_actions = {action: np.copy(value) 
-                       for (action, value) in self.noop_actions.items()}
         
         # override new_actions with any new actions
-        for (action, value) in actions.items(): 
-            
-            # objects are converted to their canonical indices
-            value = rddl.index_of_object.get(value, value)
-            
-            # parse action string and assign to the correct coordinates
-            if action in new_actions:
-                new_actions[action] = value
-            else:
-                var, objects = rddl.parse(action)
-                tensor = new_actions.get(var, None)
-                if tensor is None: 
-                    raise RDDLInvalidActionError(
-                        f'<{action}> is not a valid action-fluent, ' 
-                        f'must be one of {set(new_actions.keys())}.')
-                RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
-                tensor[rddl.indices(objects)] = value
+        if self.keep_tensors:
+            new_actions = self.noop_actions.copy()
+            for (action, value) in actions.items(): 
+                if action in new_actions:
+                    new_actions[action] = value
+        else:            
+            new_actions = {action: np.copy(value) 
+                           for (action, value) in self.noop_actions.items()}
+            for (action, value) in actions.items(): 
+                value = rddl.index_of_object.get(value, value)
+                if action in new_actions:
+                    new_actions[action] = value
+                else:
+                    var, objects = rddl.parse(action)
+                    tensor = new_actions.get(var, None)
+                    if tensor is None: 
+                        raise RDDLInvalidActionError(
+                            f'<{action}> is not a valid action-fluent, ' 
+                            f'must be one of {set(new_actions.keys())}.')
+                    RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
+                    tensor[rddl.indices(objects)] = value
                 
         return new_actions
     
-    def check_state_invariants(self) -> None:
+    def check_state_invariants(self, silent: bool=False) -> bool:
         '''Throws an exception if the state invariants are not satisfied.'''
         for (i, invariant) in enumerate(self.rddl.invariants):
             loc = self.invariant_names[i]
             sample = self._sample(invariant, self.subs)
             RDDLSimulator._check_type(sample, bool, loc, invariant)
             if not bool(sample):
-                raise RDDLStateInvariantNotSatisfiedError(
-                    f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
+                if not silent:
+                    raise RDDLStateInvariantNotSatisfiedError(
+                        f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
+                return False
+        return True
     
-    def check_action_preconditions(self, actions: Args) -> None:
-        '''Throws an exception if the action preconditions are not satisfied.'''        
+    def check_default_action_count(self, actions: Args, 
+                                   enforce_for_non_bool: bool=True) -> None:
+        '''Throws an exception if the actions do not satisfy max-nondef-actions.'''     
+        if self.keep_tensors:
+            action_ranges = self.rddl.actionsranges
+            noop_actions = self.noop_actions
+        else:
+            action_ranges = self.grounded_actionsranges
+            noop_actions = self.grounded_noop_actions
+            
+        total_non_default = 0
+        for (var, values) in actions.items():
+            
+            # check that action is valid
+            prange = action_ranges.get(var, None)
+            if prange is None:
+                raise RDDLInvalidActionError(
+                    f'<{var}> is not a valid action fluent, '
+                    f'must be one of {set(action_ranges.keys())}.')
+            
+            # check that action shape is valid
+            default_values = noop_actions[var]
+            if np.shape(values) != np.shape(default_values):
+                raise RDDLInvalidActionError(
+                    f'Value array for action <{var}> must be of shape '
+                    f'{np.shape(default_values)}, got array of shape '
+                    f'{np.shape(values)}.')
+            
+            # accumulate count of non-default actions
+            if enforce_for_non_bool or prange == 'bool':
+                total_non_default += np.count_nonzero(values != default_values)
+        
+        if total_non_default > self.rddl.max_allowed_actions:
+            raise RDDLInvalidActionError(
+                f'Expected at most {self.rddl.max_allowed_actions} '
+                f'non-default actions, got {total_non_default}.')
+        
+    def check_action_preconditions(self, actions: Args, silent: bool=False) -> bool:
+        '''Throws an exception if the action preconditions are not satisfied.'''     
         actions = self._process_actions(actions)
         self.subs.update(actions)
         
@@ -290,8 +335,12 @@ class RDDLSimulator:
             sample = self._sample(precond, self.subs)
             RDDLSimulator._check_type(sample, bool, loc, precond)
             if not bool(sample):
-                raise RDDLActionPreconditionNotSatisfiedError(
-                    f'{loc} is not satisfied.\n' + print_stack_trace(precond))
+                if not silent:
+                    raise RDDLActionPreconditionNotSatisfiedError(
+                        f'{loc} is not satisfied for actions {actions}.\n' + 
+                        print_stack_trace(precond))
+                return False
+        return True
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
@@ -337,8 +386,7 @@ class RDDLSimulator:
         '''
         rddl = self.rddl
         keep_tensors = self.keep_tensors
-        if not keep_tensors:
-            actions = self._process_actions(actions)
+        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -1192,6 +1240,8 @@ class RDDLSimulator:
             return self._sample_matrix_inv(expr, subs, pseudo=False)
         elif op == 'pinverse':
             return self._sample_matrix_inv(expr, subs, pseudo=True)
+        elif op == 'cholesky':
+            return self._sample_matrix_cholesky(expr, subs)
         else:
             raise RDDLNotImplementedError(
                 f'Matrix operator {op} is not supported.\n' + 
@@ -1212,7 +1262,18 @@ class RDDLSimulator:
         indices = self.traced.cached_sim_info(expr)
         sample = np.moveaxis(sample, source=(-2, -1), destination=indices)
         return sample        
-
+    
+    def _sample_matrix_cholesky(self, expr, subs):
+        _, arg = expr.args
+        sample_arg = self._sample(arg, subs)
+        op = np.linalg.cholesky
+        sample = op(sample_arg)
+        
+        # matrix dimensions are last two axes, move them to the correct position
+        indices = self.traced.cached_sim_info(expr)
+        sample = np.moveaxis(sample, source=(-2, -1), destination=indices)
+        return sample  
+    
     
 def lngamma(x):
     xmin = np.min(x)
@@ -1232,3 +1293,53 @@ def lngamma(x):
                         -1 + 1 / (99 * x_squared / 140) * (
                             1 + 1 / (910 * x_squared / 3))))))
 
+
+# A container class for compiling a simulator but from external info
+class RDDLSimulatorPrecompiled(RDDLSimulator):
+    
+    def __init__(self, rddl: PlanningModel, 
+                 init_values: Args, 
+                 levels: Dict[int, Set[str]], 
+                 trace_info: object,
+                 rng: np.random.Generator=np.random.default_rng(),
+                 keep_tensors: bool=False) -> None:
+        self.init_values = init_values
+        self.levels = levels
+        self.traced = trace_info
+        
+        super(RDDLSimulatorPrecompiled, self).__init__(
+            rddl=rddl, 
+            allow_synchronous_state=True,
+            rng=rng,
+            logger=None,
+            keep_tensors=keep_tensors)        
+    
+    def _compile(self):
+        rddl = self.rddl
+        
+        # compute dependency graph for CPFs and sort them by evaluation order   
+        self.cpfs = []  
+        for cpfs in self.levels.values():
+            for cpf in cpfs:
+                _, expr = rddl.cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
+                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                    prange, RDDLValueInitializer.INT)
+                self.cpfs.append((cpf, expr, dtype))
+                
+        # initialize all fluent and non-fluent values        
+        self.subs = self.init_values.copy()
+        self.state = None  
+        self.noop_actions = {var: values
+                             for (var, values) in self.init_values.items()
+                             if rddl.variable_types[var] == 'action-fluent'}
+        self._pomdp = bool(rddl.observ)
+        
+        # cached for performance
+        self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
+        self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
+        
+        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
+        

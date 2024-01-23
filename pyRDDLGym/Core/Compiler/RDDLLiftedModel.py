@@ -16,6 +16,12 @@ from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
 class RDDLLiftedModel(PlanningModel):
     '''Represents a RDDL domain + instance in lifted form.'''
     
+    PRIMITIVE_TYPES = {
+        'int': int,
+        'real': float,
+        'bool': bool
+    }
+    
     def __init__(self, rddl):
         super(RDDLLiftedModel, self).__init__()
         
@@ -71,9 +77,13 @@ class RDDLLiftedModel(PlanningModel):
             # make sure types do not share an object - record type of each object
             for obj in objects[name]:
                 if obj in objects_rev:
-                    raise RDDLInvalidObjectError(
-                        f'Types <{name}> and <{objects_rev[obj]}> '
-                        f'can not share the same object <{obj}>.')
+                    if objects_rev[obj] == name:
+                        raise RDDLInvalidObjectError(
+                            f'Type <{name}> contains duplicated object <{obj}>.')
+                    else:
+                        raise RDDLInvalidObjectError(
+                            f'Types <{name}> and <{objects_rev[obj]}> '
+                            f'can not share the same object <{obj}>.')
                 objects_rev[obj] = name
         
         # check that all types in instance are declared in domain
@@ -96,7 +106,8 @@ class RDDLLiftedModel(PlanningModel):
         # 1. object parameters needed to evaluate
         # 2. type (e.g. state-fluent, action-fluent)
         # 3. range (e.g. int, real, bool, type)
-        var_params, var_types, var_ranges = {}, {}, {}
+        # 4. save default values
+        var_params, var_types, var_ranges, default_values = {}, {}, {}, {}
         for pvar in self._AST.domain.pvariables: 
             
             # make sure variable is not defined more than once        
@@ -125,13 +136,17 @@ class RDDLLiftedModel(PlanningModel):
             if pvar.is_state_fluent():
                 var_types[primed_name] = 'next-state-fluent'                
             var_ranges[name] = var_ranges[primed_name] = pvar.range    
-        
+            
+            # save default value
+            default_values[name] = self._extract_default_value(pvar)
+            
         # maps each variable (as appears in RDDL) to list of grounded variations
         self.grounded_names = {var: list(self.ground_names(var, types))
                                for (var, types) in var_params.items()}        
         
         self.param_types, self.variable_types, self.variable_ranges = \
             var_params, var_types, var_ranges
+        self.default_values = default_values
     
     def _grounded_dict_to_dict_of_list(self, grounded_dict):
         new_dict = {}
@@ -147,12 +162,31 @@ class RDDLLiftedModel(PlanningModel):
     def _extract_default_value(self, pvar):
         prange, default = pvar.range, pvar.default
         if default is not None:
+            
+            # is an object
             if isinstance(default, str):
                 default = self.object_name(default)
-            if prange in self.objects and default not in self.objects[prange]:
-                raise RDDLTypeError(
-                    f'Default value <{default}> of variable <{pvar.name}> '
-                    f'is not an object of type <{prange}>.')         
+                if default not in self.objects.get(prange, set()):
+                    raise RDDLTypeError(
+                        f'Default value {default} of variable <{pvar.name}> '
+                        f'is not an object of type <{prange}>.')                     
+            
+            # is a primitive
+            else:
+                dtype = RDDLLiftedModel.PRIMITIVE_TYPES.get(prange, None)
+                if dtype is None:
+                    raise RDDLTypeError(
+                        f'Type <{prange}> of variable <{pvar.name}> is an object '
+                        f'or enumerated type, but assigned a default value '
+                        f'{default}.')
+                
+                # type cast
+                if not np.can_cast(default, dtype):
+                    raise RDDLTypeError(
+                        f'Default value {default} of variable <{pvar.name}> '
+                        f'cannot be cast to required type <{prange}>.')
+                default = dtype(default)
+            
         return default
     
     def _extract_states(self):
@@ -166,7 +200,7 @@ class RDDLLiftedModel(PlanningModel):
                 statesranges[name] = pvar.range
                 nextstates[name] = name + PRIME
                 prevstates[name + PRIME] = name
-                default = self._extract_default_value(pvar)              
+                default = self.default_values[name]           
                 states[name] = {gname: default 
                                 for gname in self.ground_names(name, ptypes)} 
                 
@@ -220,7 +254,7 @@ class RDDLLiftedModel(PlanningModel):
         self.init_state = initstates
     
     def _value_list_or_scalar_from_default(self, pvar):
-        default = self._extract_default_value(pvar)
+        default = self.default_values[pvar.name]
         ptypes = pvar.param_types   
         if ptypes is None:
             return default
@@ -268,7 +302,7 @@ class RDDLLiftedModel(PlanningModel):
         for pvar in self._AST.domain.pvariables:
             if pvar.is_non_fluent():
                 name, ptypes = pvar.name, pvar.param_types
-                default = self._extract_default_value(pvar)      
+                default = self.default_values[name] 
                 non_fluents[name] = {gname: default
                                      for gname in self.ground_names(name, ptypes)}
         
@@ -330,8 +364,8 @@ class RDDLLiftedModel(PlanningModel):
                 objects = []
             if len(types) != len(objects):
                 raise RDDLInvalidNumberOfArgumentsError(
-                    f'CPF <{name}> expects {len(types)} parameter(s), '
-                    f'got {len(objects)}.')
+                    f'l.h.s. of expression for CPF <{name}> requires '
+                    f'{len(types)} parameter(s), got {objects}.')
             
             # CPFs are stored as dictionary that associates cpf name with a pair 
             # the first element is the type argument list

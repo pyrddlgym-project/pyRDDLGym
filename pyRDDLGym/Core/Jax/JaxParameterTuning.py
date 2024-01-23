@@ -1,5 +1,6 @@
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import UtilityFunction
+from copy import deepcopy
 import csv
 import datetime
 import jax
@@ -335,7 +336,7 @@ def objective_slp(params, kwargs, key, index):
         
     # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
-        rddl=kwargs['rddl'],
+        rddl=deepcopy(kwargs['rddl']),
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
             **kwargs['plan_kwargs']),
@@ -361,6 +362,7 @@ def objective_slp(params, kwargs, key, index):
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
+                  vectorized=True,
                   enforce_action_constraints=True)
 
     # perform training
@@ -464,7 +466,7 @@ def objective_replan(params, kwargs, key, index):
 
     # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
-        rddl=kwargs['rddl'],
+        rddl=deepcopy(kwargs['rddl']),
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
             **kwargs['plan_kwargs']),
@@ -491,6 +493,7 @@ def objective_replan(params, kwargs, key, index):
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
+                  vectorized=True,
                   enforce_action_constraints=True)
 
     # perform training
@@ -591,7 +594,7 @@ def objective_drp(params, kwargs, key, index):
            
     # initialize planning algorithm
     planner = JaxRDDLBackpropPlanner(
-        rddl=kwargs['rddl'],
+        rddl=deepcopy(kwargs['rddl']),
         plan=JaxDeepReactivePolicy(
             topology=[neurons] * layers,
             **kwargs['plan_kwargs']),
@@ -617,6 +620,7 @@ def objective_drp(params, kwargs, key, index):
     # initialize env for evaluation (need fresh copy to avoid concurrency)
     env = RDDLEnv(domain=kwargs['domain'],
                   instance=kwargs['instance'],
+                  vectorized=True,
                   enforce_action_constraints=True)
     
     # perform training

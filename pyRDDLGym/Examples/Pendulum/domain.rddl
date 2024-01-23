@@ -1,0 +1,54 @@
+////////////////////////////////////////////////////////////////////
+// The pendulum continuous control problem. The goal is to swing a
+// pendulum attached at one end to a fixed point, so that it is moved to
+// an upright position.
+//
+// Author(s): 
+//		Mike Gimelfarb (mgimelfarb@yahoo.ca)
+//
+////////////////////////////////////////////////////////////////////
+domain pendulum {
+
+    requirements = {
+        reward-deterministic
+    };
+
+    pvariables {
+	
+		// non-fluents
+		PI : { non-fluent, real, default = 3.14159265 };
+    	GRAVITY   : { non-fluent, real, default = 9.8 };        // force of gravity acting down
+		SPEED-MAX : { non-fluent, real, default = 8.0 };		// maximum speed
+		TORQUE-MAX : { non-fluent, real, default = 2.0 };       // maximum torque
+		DT         : { non-fluent, real, default = 0.05 };      // time delta
+		MASS       : { non-fluent, real, default = 1.0 };       // mass of the pendulum
+		LENGTH     : { non-fluent, real, default = 1.0 };       // length of the pendulum
+		
+		// states
+		theta      : { state-fluent, real, default = 3.14159265 };   // pole angle
+		theta-dot  : { state-fluent, real, default = 0.0 };       // pole angular velocity
+		
+       	// actions
+		torque : { action-fluent, real, default = 0.0 };   // torque
+    };
+
+    cpfs {
+		theta-dot' = max[min[
+			theta-dot + (1.5 * GRAVITY / LENGTH * sin[theta] + 3.0 / (MASS * pow[LENGTH, 2]) * torque) * DT,
+			SPEED-MAX], -SPEED-MAX];
+		theta' = theta + theta-dot' * DT;
+    };
+
+    reward = -(pow[fmod[theta + PI, 2 * PI] - PI, 2] + 0.001 * pow[theta-dot, 2] + 0.0001 * pow[torque, 2]);
+	
+    state-invariants {
+		theta-dot >= -SPEED-MAX;
+		theta-dot <= SPEED-MAX;
+    };
+
+    action-preconditions {
+        torque >= -TORQUE-MAX;
+		torque <= TORQUE-MAX;
+    };
+
+}

@@ -12,19 +12,25 @@ class RDDLSimAgent:
     designed to interact with rddlsim (https://github.com/ssanner/rddlsim)'''
 
     def __init__(self, domain, instance, numrounds, time, port=2323):
-        self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
 
         # concatenate domain and instance files
+        print(f"loading domain {domain}...", flush=True)
         f = open(domain)
         self.task = f.read()
         f.close()
+        print(f"loading instance {instance}...", flush=True)
         f = open(instance)
         self.task = self.task + f.read()
         f.close()
 
         # encode task
+        print(f"encoding task for sharing in TCP connections...", flush=True)
         self.task = base64.b64encode(str.encode(self.task))
         self.task = self.task.decode("ascii")
+        
+        # create RDDLEnv
+        print(f"creating RDDL environment...", flush=True)
+        self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
         
         # initialize RDDLSimAgent
         self.roundsleft = numrounds
@@ -41,15 +47,18 @@ class RDDLSimAgent:
     def run(self):
         ''' starts the RDDLSimAgent to wait for a planner to connect'''
 
+        print(f"establishing socket...", flush=True)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         with sock:
 
             # Force the connection to this port (sometimes it stays locked after repeated runs).
             # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
+            print(f"forcing connection...", flush=True)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             sock.bind(self.address)
+            print(f"listening at address {self.address[0]} with port {self.address[1]}...", flush=True)
             sock.listen(1)
             connection, client_address = sock.accept()
             with connection:
@@ -65,11 +74,11 @@ class RDDLSimAgent:
         # handle session request
         data = self.receive_message(connection)
         self.process_init_session_request(data)
-        print(f"session request from {self.client} for {self.problem}")
+        print(f"session request from {self.client} for {self.problem}", flush=True)
         msg = self.build_session_request_msg()
         self.send_message(connection, msg)
         session_request_expected = False
-        print("session initialized")
+        print("session initialized", flush=True)
 
         while self.roundsleft > 0:
             self.run_round(connection)
@@ -84,7 +93,7 @@ class RDDLSimAgent:
         # handle round request
         data = self.receive_message(connection)
         self.process_round_request(data)
-        print(f"starting round {self.currentround}")
+        print(f"starting round {self.currentround}", flush=True)
         msg = self.build_round_request_msg()
         self.send_message(connection, msg)
 
@@ -145,7 +154,7 @@ class RDDLSimAgent:
             data = data[:-1]
             #print(f"received message: {data}")
         else:
-            print("Error: connection lost")
+            print("Error: connection lost", flush=True)
             exit(1)
         return data
 
@@ -216,24 +225,24 @@ class RDDLSimAgent:
         parser = xmltree.XMLParser()
         root = xmltree.fromstring(data, parser)
         if (root.tag != "session-request"):
-            print("Malformed session request message: session-request tag missing")
+            print("Malformed session request message: session-request tag missing", flush=True)
             exit(1)
         self.problem = root.find("problem-name").text
         self.client = root.find("client-name").text
         input_language = root.find("input-language").text
         if (input_language != "rddl"):
-            print("Malformed session request message: input language must be rddl")
+            print("Malformed session request message: input language must be rddl", flush=True)
             exit(1)
 
     def process_round_request(self, data):
         parser = xmltree.XMLParser()
         root = xmltree.fromstring(data, parser)
         if (root.tag != "round-request"):
-            print("Malformed round request message: round-request tag missing")
+            print("Malformed round request message: round-request tag missing", flush=True)
             exit(1)
         execute = root.find("execute-policy").text.strip()
         if execute != "yes":
-            print("Malformed round request message: policy must be executed")
+            print("Malformed round request message: policy must be executed", flush=True)
             exit(1)
         self.currentround += 1
         self.roundsleft -= 1
@@ -242,7 +251,7 @@ class RDDLSimAgent:
         parser = xmltree.XMLParser()
         root = xmltree.fromstring(data, parser)
         if (root.tag != "actions"):
-            print("Malformed action message: actions tag missing")
+            print("Malformed action message: actions tag missing", flush=True)
             exit(1)
         actions = root.findall("action")
         result = {}
