@@ -1,5 +1,5 @@
-from pyRDDLGym.Core.Compiler.RDDLDecompiler import RDDLDecompiler
-from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
+from pyRDDLGym.core.parser.expr import Expression
 
 ERROR_MESSAGE_DECOMPILER = RDDLDecompiler()
 
