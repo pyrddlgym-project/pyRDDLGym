@@ -1,30 +1,30 @@
 import numpy as np
-np.seterr(all='raise')
 from typing import Dict, Set, Union
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidActionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
-
-from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
-from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
-from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Parser.expr import Value
+from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer
+from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer
+from pyRDDLGym.core.debug.exception import (
+    print_stack_trace,
+    RDDLActionPreconditionNotSatisfiedError,
+    RDDLInvalidActionError,
+    RDDLInvalidNumberOfArgumentsError,
+    RDDLNotImplementedError,
+    RDDLStateInvariantNotSatisfiedError,
+    RDDLTypeError,
+    RDDLUndefinedVariableError,
+    RDDLValueOutOfRangeError
+)
+from pyRDDLGym.core.debug.logger import Logger
+from pyRDDLGym.core.parser.expr import Value
 
 Args = Dict[str, Value]
 
         
 class RDDLSimulator:
     
-    def __init__(self, rddl: PlanningModel,
+    def __init__(self, rddl: RDDLPlanningModel,
                  allow_synchronous_state: bool=True,
                  rng: np.random.Generator=np.random.default_rng(),
                  logger: Logger=None,
@@ -156,14 +156,14 @@ class RDDLSimulator:
         self.noop_actions = {var: values
                              for (var, values) in self.init_values.items()
                              if rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(rddl.observ)
+        self._pomdp = bool(rddl.observ_fluents)
         
         # cached for performance
         self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
-        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminations))]
         
-        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_action_ranges = rddl.grounded_action_ranges()
         self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
         
     @property
@@ -171,7 +171,7 @@ class RDDLSimulator:
         return self.state.copy()
 
     @property
-    def isPOMDP(self) -> bool:
+    def is_pomdp(self) -> bool:
         return self._pomdp
     
     # ===========================================================================
@@ -260,7 +260,7 @@ class RDDLSimulator:
             new_actions = {action: np.copy(value) 
                            for (action, value) in self.noop_actions.items()}
             for (action, value) in actions.items(): 
-                value = rddl.index_of_object.get(value, value)
+                value = rddl.object_to_index.get(value, value)
                 if action in new_actions:
                     new_actions[action] = value
                 else:
@@ -292,10 +292,10 @@ class RDDLSimulator:
                                    enforce_for_non_bool: bool=True) -> None:
         '''Throws an exception if the actions do not satisfy max-nondef-actions.'''     
         if self.keep_tensors:
-            action_ranges = self.rddl.actionsranges
+            action_ranges = self.rddl.action_ranges
             noop_actions = self.noop_actions
         else:
-            action_ranges = self.grounded_actionsranges
+            action_ranges = self.grounded_action_ranges
             noop_actions = self.grounded_noop_actions
             
         total_non_default = 0
@@ -344,7 +344,7 @@ class RDDLSimulator:
     
     def check_terminal_states(self) -> bool:
         '''Return True if a terminal state has been reached.'''
-        for (i, terminal) in enumerate(self.rddl.terminals):
+        for (i, terminal) in enumerate(self.rddl.terminations):
             loc = self.terminal_names[i]
             sample = self._sample(terminal, self.subs)
             RDDLSimulator._check_type(sample, bool, loc, terminal)
@@ -364,7 +364,7 @@ class RDDLSimulator:
         
         # update state
         self.state = {}
-        for state in rddl.states:
+        for state in rddl.state_fluents:
             if keep_tensors:
                 self.state[state] = subs[state]
             else:
@@ -372,7 +372,7 @@ class RDDLSimulator:
         
         # update observation
         if self._pomdp:
-            obs = {var: None for var in rddl.observ}
+            obs = {var: None for var in rddl.observ_fluents}
         else:
             obs = self.state
         
@@ -411,7 +411,7 @@ class RDDLSimulator:
         # update observation
         if self._pomdp: 
             obs = {}
-            for var in rddl.observ:
+            for var in rddl.observ_fluents:
                 if keep_tensors:
                     obs[var] = subs[var]
                 else:
@@ -1297,7 +1297,7 @@ def lngamma(x):
 # A container class for compiling a simulator but from external info
 class RDDLSimulatorPrecompiled(RDDLSimulator):
     
-    def __init__(self, rddl: PlanningModel, 
+    def __init__(self, rddl: RDDLPlanningModel, 
                  init_values: Args, 
                  levels: Dict[int, Set[str]], 
                  trace_info: object,
@@ -1333,13 +1333,13 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
         self.noop_actions = {var: values
                              for (var, values) in self.init_values.items()
                              if rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(rddl.observ)
+        self._pomdp = bool(rddl.observ_fluents)
         
         # cached for performance
         self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
-        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminations))]
         
-        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_action_ranges = rddl.grounded_action_ranges()
         self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
         
