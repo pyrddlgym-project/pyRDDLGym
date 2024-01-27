@@ -1,7 +1,6 @@
 from copy import deepcopy
 import csv
 import datetime
-import gurobipy
 import jax
 from multiprocessing import get_context
 import numpy as np
@@ -9,9 +8,13 @@ import os
 import time
 from typing import Dict, List
 
-from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiStraightLinePlan
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiOnlineController
+import gurobipy
+
+from pyRDDLGym.core.env import RDDLEnv
+
+from pyRDDLGym.baselines.gurobiplan.planner import (
+    GurobiStraightLinePlan, GurobiOnlineController
+)
 
 # use a global instance
 GLOBAL_ENV = gurobipy.Env()
@@ -231,10 +234,10 @@ class GurobiParameterTuningReplan:
         return best_T
 
     def _filename(self, name, ext):
-        domainName = self.env.model.domainName()
-        instName = self.env.model.instanceName()
-        domainName = ''.join(c for c in domainName if c.isalnum() or c == '_')
-        instName = ''.join(c for c in instName if c.isalnum() or c == '_')
-        filename = f'{name}_{domainName}_{instName}.{ext}'
+        domain_name = ''.join(c for c in self.env.model.domain_name 
+                              if c.isalnum() or c == '_')
+        instance_name = ''.join(c for c in self.env.model.instance_name 
+                                if c.isalnum() or c == '_')
+        filename = f'{name}_{domain_name}_{instance_name}.{ext}'
         return filename
     
