@@ -2,13 +2,12 @@
 # https://github.com/thiagopbueno/pyrddl
 # it was adapted and extended for pyRDDLGym
 
-
-from pyRDDLGym.Core.Parser import utils
-from pyRDDLGym.Core.Parser.pvariable import PVariable
-from pyRDDLGym.Core.Parser.cpf import CPF
-from pyRDDLGym.Core.Parser.expr import Expression
-
 from typing import Dict, List, Sequence, Optional, Tuple
+
+from pyRDDLGym.core.parser import utils
+from pyRDDLGym.core.parser.pvariable import PVariable
+from pyRDDLGym.core.parser.cpf import CPF
+from pyRDDLGym.core.parser.expr import Expression
 
 Type = Tuple[str, str]
 
@@ -48,10 +47,6 @@ class Domain(object):
         self.terminals = sections.get('terminals', [])
         self.invariants = sections.get('invariants', [])
         self.constraints = sections.get('constraints', [])
-
-    # @property
-    # def Requirements(self):
-    #     return self.requirements
 
     def build(self):
         self._build_preconditions_table()
@@ -97,11 +92,10 @@ class Domain(object):
                     bound = self._extract_lower_bound(name, bounds_expr)
                     if bound is not None:
                         self.action_lower_bound_constraints[name] = bound
-                    else: # upper bound
+                    else:  # upper bound
                         bound = self._extract_upper_bound(name, bounds_expr)
                         if bound is not None:
                             self.action_upper_bound_constraints[name] = bound
-
 
     def _extract_lower_bound(self, name: str, expr: Expression) -> Optional[Expression]:
         '''Returns the lower bound expression of the action with given `name`.'''

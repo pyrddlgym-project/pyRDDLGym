@@ -99,7 +99,6 @@ class Expression(object):
             return self._expr[1]
         elif self._expr[0] in ['det', 'inverse', 'pinverse', 'cholesky']:
             return self._expr[1]
-        # elif self._expr[0] == 'if':
         elif self._expr[0] in ['if', 'switch']:
             return self._expr[1]
         else:
