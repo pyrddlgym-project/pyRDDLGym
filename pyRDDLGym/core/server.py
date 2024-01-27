@@ -3,15 +3,17 @@ import json
 import socket
 import xml.etree.ElementTree as xmltree
 
-from pyRDDLGym import RDDLEnv
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.env import RDDLEnv
 
-class RDDLSimAgent:
+
+class RDDLSimServer:
     ''' creates a TCP/IP server that listens to the provided port and passes
     messages between a pyRDDLGym environment and a client that is
     designed to interact with rddlsim (https://github.com/ssanner/rddlsim)'''
 
-    def __init__(self, domain, instance, numrounds, time, port=2323):
+    def __init__(self, domain: str, instance: str, numrounds: int, time: int, 
+                 port: int=2323):
 
         # concatenate domain and instance files
         print(f"loading domain {domain}...", flush=True)
@@ -30,7 +32,7 @@ class RDDLSimAgent:
         
         # create RDDLEnv
         print(f"creating RDDL environment...", flush=True)
-        self.env = RDDLEnv.RDDLEnv(domain=domain, instance=instance)
+        self.env = RDDLEnv(domain=domain, instance=instance)
         
         # initialize RDDLSimAgent
         self.roundsleft = numrounds
@@ -144,7 +146,7 @@ class RDDLSimAgent:
             json.dump(self.logs, f)
 
     def send_message(self, connection, msg):
-        #print(f"sending message: {msg}")
+        # print(f"sending message: {msg}")
         connection.send(str.encode(msg))
 
     def receive_message(self, connection):
@@ -152,7 +154,7 @@ class RDDLSimAgent:
         if data:
             data = data.decode('UTF-8')
             data = data[:-1]
-            #print(f"received message: {data}")
+            # print(f"received message: {data}")
         else:
             print("Error: connection lost", flush=True)
             exit(1)
@@ -177,17 +179,17 @@ class RDDLSimAgent:
         return msg
 
     def build_state_msg(self, state, turn, rew):
-        #print(state)
+        # print(state)
         msg = "<turn>"
         msg = msg + "<turn-num>" + str(turn) + "</turn-num>"
         msg = msg + "<time-left>1000</time-left>"
         msg = msg + "<immediate-reward>" + str(rew) + "</immediate-reward>"
         for key in state:
             msg = msg + "<observed-fluent>"
-            fluent_name = key.split(PlanningModel.FLUENT_SEP)[0]
-            objects = key.split(PlanningModel.FLUENT_SEP)[1:]
-            objects = PlanningModel.FLUENT_SEP.join(objects)
-            objects = objects.split(PlanningModel.OBJECT_SEP)
+            fluent_name = key.split(RDDLPlanningModel.FLUENT_SEP)[0]
+            objects = key.split(RDDLPlanningModel.FLUENT_SEP)[1:]
+            objects = RDDLPlanningModel.FLUENT_SEP.join(objects)
+            objects = objects.split(RDDLPlanningModel.OBJECT_SEP)
             var = key.split("_")
             msg = msg + "<fluent-name>" + fluent_name + "</fluent-name>"
             for object in objects:
@@ -202,7 +204,7 @@ class RDDLSimAgent:
         msg = msg + "<instance-name>" + self.problem + "</instance-name>"
         msg = msg + "<client-name>" + self.client + "</client-name>"
         msg = msg + "<round-num>" + str(self.currentround) + "</round-num>"
-        msg = msg + "<round-reward>" +  str(round_reward) + "</round-reward>"
+        msg = msg + "<round-reward>" + str(round_reward) + "</round-reward>"
         msg = msg + "<turns-used>" + str(self.env.horizon) + "</turns-used>"
         msg = msg + "<time-left>1000</time-left>"
         msg = msg + "<immediate-reward>" + str(rew) + "</immediate-reward>"
@@ -258,10 +260,10 @@ class RDDLSimAgent:
         for act in actions:
             name = act.find("action-name").text
             args = act.findall("action-arg")
-            separator = PlanningModel.FLUENT_SEP
+            separator = RDDLPlanningModel.FLUENT_SEP
             for arg in args:
                 name = name + separator + arg.text
-                separator = PlanningModel.OBJECT_SEP
+                separator = RDDLPlanningModel.OBJECT_SEP
             value = act.find("action-value").text
             result[name] = value
         return result
