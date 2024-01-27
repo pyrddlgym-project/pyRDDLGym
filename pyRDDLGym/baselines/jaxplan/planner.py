@@ -6,7 +6,6 @@ import jax.numpy as jnp
 import jax.random as random
 import jax.nn.initializers as initializers
 import numpy as np
-np.seterr(all='raise')
 import optax
 import os
 import sys
@@ -15,16 +14,18 @@ from tqdm import tqdm
 from typing import Callable, Dict, Generator, Set, Sequence, Tuple
 import warnings
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel, RDDLLiftedModel
+from pyRDDLGym.core.debug.exception import (
+    RDDLNotImplementedError,
+    RDDLUndefinedVariableError,
+    RDDLTypeError
+)
+from pyRDDLGym.core.policy import BaseAgent
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-from pyRDDLGym.Core.Jax import JaxRDDLLogic
-from pyRDDLGym.Core.Jax.JaxRDDLLogic import FuzzyLogic
-from pyRDDLGym.Core.Policies.Agents import BaseAgent
+from pyRDDLGym.baselines.jaxplan.compiler import JaxRDDLCompiler
+from pyRDDLGym.baselines.jaxplan import logic
+from pyRDDLGym.baselines.jaxplan.logic import FuzzyLogic
+
 
 
 # ***********************************************************************
@@ -69,8 +70,8 @@ def _load_config(config, args):
     tnorm_kwargs = model_args['tnorm_kwargs']
     logic_name = model_args['logic']
     logic_kwargs = model_args['logic_kwargs']
-    logic_kwargs['tnorm'] = getattr(JaxRDDLLogic, tnorm_name)(**tnorm_kwargs)
-    planner_args['logic'] = getattr(JaxRDDLLogic, logic_name)(**logic_kwargs)
+    logic_kwargs['tnorm'] = getattr(logic, tnorm_name)(**tnorm_kwargs)
+    planner_args['logic'] = getattr(logic, logic_name)(**logic_kwargs)
     
     # read the optimizer settings
     plan_method = planner_args.pop('method')
@@ -327,7 +328,7 @@ class JaxPlan:
     def _count_bool_actions(self, rddl: RDDLLiftedModel):
         constraint = rddl.max_allowed_actions
         num_bool_actions = sum(np.size(values)
-                               for (var, values) in rddl.actions.items()
+                               for (var, values) in rddl.action_fluents.items()
                                if rddl.variable_ranges[var] == 'bool')
         return num_bool_actions, constraint
 
@@ -402,7 +403,7 @@ class JaxStraightLinePlan(JaxPlan):
                           f'{allowed_actions}.', stacklevel=2)
             
         noop = {var: (values[0] if isinstance(values, list) else values)
-                for (var, values) in rddl.actions.items()}
+                for (var, values) in rddl.action_fluents.items()}
         bool_key = 'bool__'
         
         # ***********************************************************************
@@ -742,7 +743,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         use_constraint_satisfaction = allowed_actions < bool_action_count
             
         noop = {var: (values[0] if isinstance(values, list) else values)
-                for (var, values) in rddl.actions.items()}                   
+                for (var, values) in rddl.action_fluents.items()}                   
         bool_key = 'bool__'
         
         # ***********************************************************************
@@ -832,7 +833,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         def _jax_wrapped_subs_to_state(subs):
             subs = {var: value
                     for (var, value) in subs.items()
-                    if var in rddl.states}
+                    if var in rddl.state_fluents}
             flat_subs = jax.tree_map(jnp.ravel, subs)
             states = list(flat_subs.values())
             state = jnp.concatenate(states)
@@ -887,7 +888,7 @@ class JaxDeepReactivePolicy(JaxPlan):
         def _jax_wrapped_drp_init(key, hyperparams, subs):
             subs = {var: value[0, ...] 
                     for (var, value) in subs.items()
-                    if var in rddl.states}
+                    if var in rddl.state_fluents}
             state = _jax_wrapped_subs_to_state(subs)
             params = predict_fn.init(key, state)
             return params
@@ -1356,7 +1357,8 @@ class JaxRDDLBackpropPlanner:
         
         # check compatibility of the subs dictionary
         for var in subs.keys():
-            if PlanningModel.FLUENT_SEP in var or PlanningModel.OBJECT_SEP in var:
+            if RDDLPlanningModel.FLUENT_SEP in var \
+            or RDDLPlanningModel.OBJECT_SEP in var:
                 raise Exception(f'State dictionary passed to the JAX policy is '
                                 f'grounded, since it contains the key <{var}>, '
                                 f'but a vectorized environment is required: '
@@ -1394,7 +1396,7 @@ class JaxRDDLBackpropPlanner:
             plt.colorbar(img, ax=ax)
             
         # write plot to disk
-        plt.savefig(f'plan_{rddl.domainName()}_{rddl.instanceName()}_{it}.pdf',
+        plt.savefig(f'plan_{rddl.domain_name}_{rddl.instance_name}_{it}.pdf',
                     bbox_inches='tight')
         plt.clf()
         plt.close(fig)

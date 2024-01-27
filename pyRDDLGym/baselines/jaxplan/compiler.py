@@ -17,17 +17,18 @@ except Exception:
     traceback.print_exc()
     tfp = None
     
-from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-
-from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
-from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
-from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Env.RDDLConstraints import RDDLConstraints
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorPrecompiled
+from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer
+from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
+from pyRDDLGym.core.compiler.model import RDDLLiftedModel
+from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer
+from pyRDDLGym.core.constraints import RDDLConstraints
+from pyRDDLGym.core.debug.exception import (
+    print_stack_trace, 
+    RDDLInvalidNumberOfArgumentsError, 
+    RDDLNotImplementedError
+)
+from pyRDDLGym.core.debug.logger import Logger
+from pyRDDLGym.core.simulator import RDDLSimulatorPrecompiled
 
 
 class JaxRDDLCompiler:
@@ -172,7 +173,7 @@ class JaxRDDLCompiler:
         info = {}
         self.invariants = self._compile_constraints(self.rddl.invariants, info)
         self.preconditions = self._compile_constraints(self.rddl.preconditions, info)
-        self.termination = self._compile_constraints(self.rddl.terminals, info)
+        self.terminations = self._compile_constraints(self.rddl.terminations, info)
         self.cpfs = self._compile_cpfs(info)
         self.reward = self._compile_reward(info)
         self.model_params = info
@@ -320,7 +321,7 @@ class JaxRDDLCompiler:
         rddl = self.rddl
         reward_fn, cpfs = self.reward, self.cpfs
         preconds, invariants, terminals = \
-            self.preconditions, self.invariants, self.termination
+            self.preconditions, self.invariants, self.terminations
             
         if constraint_func:
             inequality_fns, equality_fns = self._jax_nonlinear_constraints()
@@ -450,7 +451,7 @@ class JaxRDDLCompiler:
         printed['preconditions'] = [str(jax.make_jaxpr(expr)(subs, params, key))
                                     for expr in self.preconditions]
         printed['terminations'] = [str(jax.make_jaxpr(expr)(subs, params, key))
-                                   for expr in self.termination]
+                                   for expr in self.terminations]
         return printed
         
     @staticmethod

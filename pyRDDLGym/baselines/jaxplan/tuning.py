@@ -12,15 +12,15 @@ from typing import Callable, Dict, Tuple
 import warnings
 warnings.filterwarnings('ignore')
 
-from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOfflineController
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxOnlineController
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxRDDLBackpropPlanner
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxStraightLinePlan
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import JaxDeepReactivePolicy
+from pyRDDLGym.core.env import RDDLEnv
 
-# do this after imports to prevent it from being overwritten
-np.seterr(all='warn')
+from pyRDDLGym.baselines.jaxplan.planner import (
+    JaxOfflineController,
+    JaxOnlineController,
+    JaxRDDLBackpropPlanner,
+    JaxStraightLinePlan,
+    JaxDeepReactivePolicy
+)
 
 
 # ===============================================================================
@@ -280,11 +280,11 @@ class JaxParameterTuning:
         return best_params
 
     def _filename(self, name, ext):
-        domainName = self.env.model.domainName()
-        instName = self.env.model.instanceName()
-        domainName = ''.join(c for c in domainName if c.isalnum() or c == '_')
-        instName = ''.join(c for c in instName if c.isalnum() or c == '_')
-        filename = f'{name}_{domainName}_{instName}.{ext}'
+        domain_name = ''.join(c for c in self.env.model.domain_name 
+                              if c.isalnum() or c == '_')
+        instance_name = ''.join(c for c in self.env.model.instance_name 
+                                if c.isalnum() or c == '_')
+        filename = f'{name}_{domain_name}_{instance_name}.{ext}'
         return filename
     
     def _save_plot(self, filename):
@@ -408,7 +408,7 @@ class JaxParameterTuningSLP(JaxParameterTuning):
         # action parameters required if wrap_sigmoid and boolean action exists
         self.wrapped_bool_actions = []
         if self.plan_kwargs.get('wrap_sigmoid', True):
-            for var in self.env.model.actions:
+            for var in self.env.model.action_fluents:
                 if self.env.model.variable_ranges[var] == 'bool':
                     self.wrapped_bool_actions.append(var)
         if not self.wrapped_bool_actions:
