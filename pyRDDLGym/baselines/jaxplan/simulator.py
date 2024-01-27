@@ -2,16 +2,17 @@ import jax
 import time
 from typing import Dict
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLActionPreconditionNotSatisfiedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLStateInvariantNotSatisfiedError
+from pyRDDLGym.core.compiler.model import RDDLLiftedModel
+from pyRDDLGym.core.debug.exception import (
+    RDDLActionPreconditionNotSatisfiedError,
+    RDDLInvalidExpressionError,
+    RDDLStateInvariantNotSatisfiedError
+)
+from pyRDDLGym.core.debug.logger import Logger
+from pyRDDLGym.core.parser.expr import Value
+from pyRDDLGym.core.simulator import RDDLSimulator
 
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Jax.JaxRDDLCompiler import JaxRDDLCompiler
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
-
-from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Parser.expr import Value
+from pyRDDLGym.baselines.jaxplan.compiler import JaxRDDLCompiler
 
 Args = Dict[str, Value]
 
@@ -59,13 +60,14 @@ class JaxRDDLSimulator(RDDLSimulator):
             self.logger.clear()
         compiled = JaxRDDLCompiler(rddl, logger=self.logger, **self.compiler_args)
         compiled.compile(log_jax_expr=True)
+        
         self.init_values = compiled.init_values
         self.levels = compiled.levels
         self.traced = compiled.traced
         
         self.invariants = jax.tree_map(jax.jit, compiled.invariants)
         self.preconds = jax.tree_map(jax.jit, compiled.preconditions)
-        self.terminals = jax.tree_map(jax.jit, compiled.termination)
+        self.terminals = jax.tree_map(jax.jit, compiled.terminations)
         self.reward = jax.jit(compiled.reward)
         jax_cpfs = jax.tree_map(jax.jit, compiled.cpfs)
         self.model_params = compiled.model_params
@@ -85,14 +87,14 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.noop_actions = {var: values 
                              for (var, values) in self.init_values.items() 
                              if rddl.variable_types[var] == 'action-fluent'}
-        self._pomdp = bool(rddl.observ)
+        self._pomdp = bool(rddl.observ_fluents)
         
         # cached for performance
         self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
-        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminals))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminations))]
         
-        self.grounded_actionsranges = rddl.groundactionsranges()
+        self.grounded_action_ranges = rddl.grounded_action_ranges()
         self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
         
     def handle_error_code(self, error, msg) -> None:
@@ -183,7 +185,7 @@ class JaxRDDLSimulator(RDDLSimulator):
         # update observation
         if self._pomdp: 
             obs = {}
-            for var in rddl.observ:
+            for var in rddl.observ_fluents:
                 if keep_tensors:
                     obs[var] = subs[var]
                 else:

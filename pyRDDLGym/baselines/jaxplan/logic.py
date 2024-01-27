@@ -1,9 +1,8 @@
 import jax
 import jax.numpy as jnp
 import jax.random as random
-import warnings
-
 from typing import Set
+import warnings
 
 
 class Complement:
