@@ -1,8 +1,8 @@
 import glob
 import os
 from PIL import Image
-import warnings
 import re
+import warnings
 
 # (mike: #166) opencv is now optional
 try:

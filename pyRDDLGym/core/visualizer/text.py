@@ -5,37 +5,30 @@ import numpy as np
 from PIL import Image
 import pprint
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym import Visualizer
-from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
-class TextVisualizer(StateViz):
+class TextVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel,
-                 figure_size=[5, 10],
+    def __init__(self, model: RDDLPlanningModel,
+                 figure_size=(5, 10),
                  dpi=100,
                  fontsize=10,
                  display=False) -> None:
         self._model = model
-        self._states = model.groundstates()
-        self._nonfluents = model.groundnonfluents()
-        self._objects = model.objects
+        self._states = model.grounded_state_fluents()
+        self._nonfluents = model.grounded_non_fluents()
         self._figure_size = figure_size
         self._display = display
         self._dpi = dpi
         self._fontsize = fontsize
         self._interval = 10
-        self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
         self._nonfluents_layout = None
         self._states_layout = None
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
-
-        # if display == True:
-        #     self.pygame_thread = threading.Thread(target=self.init_display)
-        #     self.pygame_thread.start()
 
     def build_nonfluents_layout(self):
         return self._nonfluents
@@ -52,19 +45,14 @@ class TextVisualizer(StateViz):
         plt.axis('off')
         return fig, ax
         
-    def convert2img(self, fig, ax):
-        
+    def convert2img(self, fig, ax):        
         ax.set_position((0, 0, 1, 1))
         fig.canvas.draw()
-
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
         img = Image.fromarray(data)
-
         self._data = data
         self._img = img
-
         return img
 
     def render(self, state):
@@ -84,10 +72,8 @@ class TextVisualizer(StateViz):
                       wrap=True, fontsize=self._fontsize)
         
         img = self.convert2img(self._fig, self._ax)
-
         self._ax.cla()
         plt.close()
-        # plt.show()
 
         return img
     
