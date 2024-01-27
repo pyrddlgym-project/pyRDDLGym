@@ -4,7 +4,7 @@ import random
 import gym
 from typing import Dict
 
-from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
+from pyRDDLGym.core.env import RDDLEnv
 
 
 class BaseAgent(metaclass=ABCMeta):
@@ -142,4 +142,3 @@ class NoOpAgent(BaseAgent):
     def sample_action(self, state=None):
         action = {}
         return action
-
