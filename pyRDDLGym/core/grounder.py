@@ -3,17 +3,18 @@ import copy
 import itertools
 import warnings
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidExpressionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLValueOutOfRangeError
-
-from pyRDDLGym.Core.Compiler.RDDLModel import RDDLGroundedModel
-from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.core.compiler.model import RDDLGroundedModel
+from pyRDDLGym.core.debug.exception import (
+    RDDLInvalidExpressionError,
+    RDDLInvalidNumberOfArgumentsError,
+    RDDLInvalidObjectError,
+    RDDLMissingCPFDefinitionError,
+    RDDLRepeatedVariableError,
+    RDDLTypeError,
+    RDDLUndefinedVariableError,
+    RDDLValueOutOfRangeError
+)
+from pyRDDLGym.core.parser.expr import Expression
 
 AGGREG_OP_TO_STRING_DICT = {
     'prod': '*',
@@ -30,7 +31,7 @@ class Grounder(metaclass=abc.ABCMeta):
     '''Base class for all grounder classes.'''
 
     @abc.abstractmethod
-    def Ground(self) -> RDDLGroundedModel:
+    def ground(self) -> RDDLGroundedModel:
         '''Produces a grounded representation of the current RDDL.'''
         pass
 
@@ -44,116 +45,88 @@ class RDDLGrounder(Grounder):
         '''
         super(RDDLGrounder, self).__init__()
         self.AST = RDDL_AST
+        
         self.objects = {}
         self.objects_rev = {}
-        self.pvar_to_type = {pvar.name: pvar.range 
-                             for pvar in self.AST.domain.pvariables}
-        self.gvar_to_type = {}
-        self.gvar_to_pvar = {}
+        
+        self.variable_types = {}
+        self.variable_ranges = {}
+        self.variable_params = {}
+        self.variable_defaults = {}
+        self.variable_groundings = {}
+        self.grounded_name_to_pvar_name = {}
+        
         self.nonfluents = {}
         self.states = {}
         self.statesranges = {}
-        self.nextstates = {}
         self.prevstates = {}
-        self.initstates = {}
-        self.dynamicstate = {}
+        self.nextstates = {}
         self.actions = {}
         self.actionsranges = {}
-        self.cpfs = {}
-        self.cpforder = {0: []}
-        self.gvar_to_cpforder = {}
         self.derived = {}
         self.interm = {}
         self.observ = {}
         self.observranges = {}
+        
+        self.cpfs = {}
+        self.level_to_cpfs = {}
+        self.cpf_to_level = {}
         self.reward = None
-        self.terminals = []
+        
+        self.terminations = []
         self.preconditions = []
         self.invariants = []
-        
-        self.index_of_object = {}
-        self.enums = set()
-        
-        self.param_types = {}
-        self.variable_types = {}
-        self.variable_ranges = {}
-        self.grounded_names = {}   
-        self.default_values = {}
 
-    def Ground(self) -> RDDLGroundedModel:
+    def ground(self) -> RDDLGroundedModel:
         self._extract_objects()
-        self._ground_non_fluents()
         self._ground_pvariables_and_cpf()
         self._ground_init_state()
-        # self._groundPvariables()
-        self.reward = self._scan_expr_tree(self.AST.domain.reward, {})  # empty args dictionary
+        self._ground_init_non_fluents()
+        self.reward = self._scan_expr_tree(self.AST.domain.reward, {})
         self._ground_constraints()
-        
-        self._extract_variable_information()
 
         # update model object
-        model = RDDLGroundedModel()
-        model.states = self.states
-        model.actions = self.actions
-        model.nonfluents = self.nonfluents
-        model.next_state = self.nextstates
-        model.prev_state = self.prevstates
-        model.init_state = self.initstate
-        model.cpfs = self.cpfs  # changed to mapping name -> (<params>, <expressions>) on Dec 17 (Mike)
-        model.cpforder = self.cpforder
-        model.gvar_to_cpforder = self.gvar_to_cpforder
-        model.reward = self.reward
-        model.terminals = self.terminals
-        model.preconditions = self.preconditions
-        model.invariants = self.invariants
-        model.derived = self.derived
-        model.interm = self.interm
-        model.observ = self.observ
-        model.observranges = self.observranges
-        model.objects = {} #self.objects
-        model.objects_rev = {} #self.objects_rev
-        model.actionsranges = self.actionsranges
-        model.statesranges = self.statesranges
-        model.gvar_to_type = self.gvar_to_type
-        model.pvar_to_type = self.pvar_to_type
-        model.gvar_to_pvar = self.gvar_to_pvar
-        model.max_allowed_actions = self._ground_max_actions()
-        model.horizon = self._ground_horizon()
-        model.discount = self._ground_discount()
+        model = RDDLGroundedModel()        
+        model.ast = self.AST
         
-        model.SetAST(self.AST)
+        model.type_to_objects = {}
+        model.object_to_type = {}
+        model.object_to_index = {}
+        model.enum_types = set()
         
-        model.param_types = self.param_types
         model.variable_types = self.variable_types
         model.variable_ranges = self.variable_ranges
+        model.variable_params = self.variable_params
+        model.variable_defaults = self.variable_defaults
+        model.variable_groundings = self.variable_groundings
+        model.grounded_name_to_pvar_name = self.grounded_name_to_pvar_name
         
-        model.index_of_object = self.index_of_object
-        model.enums = self.enums   
-        model.grounded_names = self.grounded_names
-        model.default_values = self.default_values
+        model.non_fluents = self.nonfluents
+        model.state_fluents = self.states
+        model.state_ranges = self.statesranges
+        model.prev_state = self.prevstates
+        model.next_state = self.nextstates
+        model.action_fluents = self.actions
+        model.action_ranges = self.actionsranges
+        model.derived_fluents = self.derived
+        model.interm_fluents = self.interm
+        model.observ_fluents = self.observ
+        model.observ_ranges = self.observranges
+        
+        model.cpfs = self.cpfs
+        model.level_to_cpfs = self.level_to_cpfs
+        model.cpf_to_level = self.cpf_to_level
+        model.reward = self.reward
+        
+        model.terminations = self.terminations
+        model.preconditions = self.preconditions
+        model.invariants = self.invariants
+        
+        model.max_allowed_actions = self._ground_max_actions()
+        model.horizon = self._ground_horizon()
+        model.discount = self._ground_discount()        
         
         return model
-
-    def _ground_horizon(self):
-        horizon = self.AST.instance.horizon
-        if not (horizon >= 0):
-            raise RDDLValueOutOfRangeError(
-                f'Rollout horizon {horizon} in the instance is not >= 0.')
-        return horizon
-
-    def _ground_max_actions(self):
-        numactions = self.AST.instance.max_nondef_actions
-        if numactions == 'pos-inf':
-            return len(self.actions)
-        else:
-            return int(numactions)
-
-    def _ground_discount(self):
-        discount = self.AST.instance.discount
-        if not (0. <= discount):
-            raise RDDLValueOutOfRangeError(
-                f'Discount factor {discount} in the instance is not >= 0')
-        return discount
 
     def _extract_objects(self):
         self.objects = {}
@@ -164,8 +137,6 @@ class RDDLGrounder(Grounder):
                 self.objects[obj_type[0]] = obj_type[1]
                 for obj in obj_type[1]:
                     self.objects_rev[obj] = obj_type[0]
-        self.index_of_object = {}
-        self.enums = set()
 
     def _ground_objects(self, args):
         objects_by_type = []
@@ -196,51 +167,9 @@ class RDDLGrounder(Grounder):
             grounded_name_to_params_dict[grounded_name] = variation
         if return_grounding_param_dict:
             return all_grounded_names, grounded_name_to_params_dict
-        else:  
+        else: 
             # in some calls to _generate_name, we do not care about the param dict
             return all_grounded_names
-
-    def _ground_non_fluents(self):
-        if not hasattr(self.AST.non_fluents, 'init_non_fluent'):
-            return
-        
-        valid_non_fluents = {pvar.name 
-                             for pvar in self.AST.domain.pvariables 
-                             if pvar.is_non_fluent()}
-        for init_vals in self.AST.non_fluents.init_non_fluent:
-            pvar_name = init_vals[0][0]
-            vtype = self.pvar_to_type[pvar_name]
-            if pvar_name not in valid_non_fluents:
-                warnings.warn(
-                    f'Non-fluents block initializes undefined variable <{pvar_name}>.',
-                    stacklevel=2)
-            variations_list = [init_vals[0][1]]
-            val = init_vals[1]
-            if variations_list[0] is not None:
-                name = self._generate_grounded_names(
-                    pvar_name, variations_list, 
-                    return_grounding_param_dict=False)[0]    
-            else:
-                name = pvar_name
-            self.nonfluents[name] = val
-            self.gvar_to_type[name] = vtype
-            self.gvar_to_pvar[name] = pvar_name
-
-    def _ground_interm(self, pvariable, cpf_set):
-        cpf = None
-        for cpfs in cpf_set:
-            if cpfs.pvar[1][0] == pvariable.name:
-                cpf = cpfs
-        if cpf is not None:
-            self.derived[pvariable.name] = pvariable.default
-            self.cpfs[pvariable.name] = ([], cpf.expr)
-            level = pvariable.level
-            if level is None:
-                level = 1
-            if level in self.cpforder:
-                self.cpforder[level].append(pvariable.name)
-            else:
-                self.cpforder[level] = [pvariable.name]
 
     def _ground_pvariables_and_cpf(self):
         PRIME = RDDLGroundedModel.NEXT_STATE_SYM
@@ -250,35 +179,55 @@ class RDDLGrounder(Grounder):
         all_grounded_observ_cpfs = []
         for pvariable in self.AST.domain.pvariables:
             name = pvariable.name
-            vtype = self.pvar_to_type[name]
+            primed_name = (name + PRIME) if pvariable.is_state_fluent() else name
+            
+            # make sure name does not contain separators
+            for separator in (RDDLGroundedModel.FLUENT_SEP, RDDLGroundedModel.OBJECT_SEP):
+                if separator in name:
+                    raise RDDLInvalidObjectError(
+                        f'Variable <{name}> contains illegal separator {separator}.')
+            
+            # variations of all parameter objects for the variable
             if pvariable.arity > 0:
                 # In line below, if we leave as an iterator object
                 # will be empty after one iteration. Hence "list(.)"
                 variations = list(self._ground_objects(pvariable.param_types))
                 grounded, grounded_name_to_params_dict = self._generate_grounded_names(
-                    name, variations, 
+                    name, variations,
                     return_grounding_param_dict=True)
             else:
                 grounded = [name]
                 grounded_name_to_params_dict = {name: []}
             
-            for gvar_name in grounded:
-                self.gvar_to_pvar[gvar_name] = name
-            
+            # fill in the basic variable information
+            for g in grounded:
+                if g in self.variable_types:
+                    raise RDDLRepeatedVariableError(
+                        f'{pvariable.fluent_type} <{g}> has the same name as '
+                        f'another pvariable {self.variable_types[g]}.')
+                primed_g = (g + PRIME) if pvariable.is_state_fluent() else g
+                self.variable_types[g] = pvariable.fluent_type
+                if pvariable.is_state_fluent():
+                    self.variable_types[primed_g] = 'next-state-fluent'                
+                self.variable_ranges[g] = pvariable.range
+                self.variable_ranges[primed_g] = pvariable.range    
+                self.variable_params[g] = []
+                self.variable_params[primed_g] = []    
+                self.variable_defaults[g] = pvariable.default
+                self.variable_groundings[g] = [g]
+                self.variable_groundings[primed_g] = [primed_g]
+                self.grounded_name_to_pvar_name[g] = name
+                self.grounded_name_to_pvar_name[primed_g] = primed_name
+                
             # todo merge martin's code check for abuse of arity                
             if pvariable.fluent_type == 'non-fluent':
                 for g in grounded:
-                    if g not in self.nonfluents:
-                        self.nonfluents[g] = pvariable.default
-                    self.default_values[g] = pvariable.default
-                    self.gvar_to_type[g] = vtype
+                    self.nonfluents[g] = pvariable.default
                 
             elif pvariable.fluent_type == 'action-fluent':
                 for g in grounded:
                     self.actions[g] = pvariable.default
-                    self.default_values[g] = pvariable.default
                     self.actionsranges[g] = pvariable.range
-                    self.gvar_to_type[g] = vtype
               
             elif pvariable.fluent_type == 'state-fluent':
                 cpf = None
@@ -297,16 +246,12 @@ class RDDLGrounder(Grounder):
                     all_grounded_state_cpfs.append(grounded_cpf)
                     next_state = g + PRIME  # update to grounded version, satisfied single-variables too (i.e. not a type)
                     self.states[g] = pvariable.default
-                    self.default_values[g] = pvariable.default
                     self.statesranges[g] = pvariable.range
                     self.nextstates[g] = next_state
                     self.prevstates[next_state] = g
                     self.cpfs[next_state] = ([], grounded_cpf.expr)
-                    self.cpforder[0].append(g)
-                    self.gvar_to_cpforder[g] = 0
-                    self.gvar_to_type[g] = vtype
-                    self.gvar_to_pvar[next_state] = name
-                    self.gvar_to_type[next_state] = vtype
+                    self.level_to_cpfs.setdefault(0, []).append(g)
+                    self.cpf_to_level[g] = 0
                     
             elif pvariable.fluent_type == 'derived-fluent':
                 cpf = None
@@ -323,17 +268,12 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_derived_cpfs.append(grounded_cpf)
                     self.derived[g] = pvariable.default
-                    self.default_values[g] = pvariable.default
                     self.cpfs[g] = ([], grounded_cpf.expr)
                     level = pvariable.level
                     if level is None:
                         level = 1
-                    if level in self.cpforder:
-                        self.cpforder[level].append(g)
-                    else:
-                        self.cpforder[level] = [g]
-                    self.gvar_to_cpforder[g] = level
-                    self.gvar_to_type[g] = vtype
+                    self.level_to_cpfs.setdefault(level, []).append(g)
+                    self.cpf_to_level[g] = level
     
             elif pvariable.fluent_type == 'interm-fluent':
                 cpf = None
@@ -350,17 +290,12 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_interim_cpfs.append(grounded_cpf)
                     self.interm[g] = pvariable.default
-                    self.default_values[g] = pvariable.default
                     self.cpfs[g] = ([], grounded_cpf.expr)
                     level = pvariable.level
                     if level is None:
                         level = 1
-                    if level in self.cpforder:
-                        self.cpforder[level].append(g)
-                    else:
-                        self.cpforder[level] = [g]
-                    self.gvar_to_type[g] = vtype
-                    self.gvar_to_cpforder[g] = level
+                    self.level_to_cpfs.setdefault(level, []).append(g)
+                    self.cpf_to_level[g] = level
                     
             elif pvariable.fluent_type == 'observ-fluent':
                 cpf = None
@@ -377,17 +312,10 @@ class RDDLGrounder(Grounder):
                         cpf, g, grounded_name_to_params_dict[g])
                     all_grounded_observ_cpfs.append(grounded_cpf)
                     self.observ[g] = pvariable.default
-                    self.default_values[g] = pvariable.default
                     self.observranges[g] = pvariable.range
                     self.cpfs[g] = ([], grounded_cpf.expr)
-                    self.cpforder[0].append(g)
-                    self.gvar_to_type[g] = vtype
-                    self.gvar_to_cpforder[g] = 0
-
-        # self.AST.domain.cpfs = (self.AST.domain.cpfs[0], all_grounded_state_cpfs
-        #                        )  # replacing the previous lifted entries
-        # self.AST.domain.derived_cpfs = all_grounded_derived_cpfs
-        # self.AST.domain.intermediate_cpfs = all_grounded_interim_cpfs
+                    self.level_to_cpfs.setdefault(0, []).append(g)
+                    self.cpf_to_level[g] = 0
 
     def _ground_single_cpf(self, cpf, variable, variable_args):
         """Map arguments to actual objects."""
@@ -479,11 +407,6 @@ class RDDLGrounder(Grounder):
 
     def _scan_expr_tree_aggregation(self, expr, dic):
         """Ground out an aggregation expression."""
-        # TODO: as of now the code assumes all the leaf variables/constants are
-        # of the right types, or can be reasonably cast into the right type
-        # (eg: bool->int or v.v.).
-        # However, some type checking would be nice in subsequent versions,
-        # and give feedback to the language writer for debugging.
         aggreg_type = expr.etype[1]
         if aggreg_type in AGGREG_OP_TO_STRING_DICT:
             
@@ -499,7 +422,7 @@ class RDDLGrounder(Grounder):
             for arg in expr.args:
                 if arg[0] == 'typed_var':
                     instances_def_args += list(arg[1])
-            if instances_def_args:  
+            if instances_def_args: 
                 
                 # Then we iterate over the objects specified.
                 # All even indexes (incl 0) are variable names,
@@ -570,7 +493,7 @@ class RDDLGrounder(Grounder):
     def _ground_constraints(self) -> None:
         if hasattr(self.AST.domain, 'terminals'):
             for terminal in self.AST.domain.terminals:
-                self.terminals.append(self._scan_expr_tree(terminal, {}))
+                self.terminations.append(self._scan_expr_tree(terminal, {}))
 
         if hasattr(self.AST.domain, 'preconds'):
             for precond in self.AST.domain.preconds:
@@ -588,55 +511,50 @@ class RDDLGrounder(Grounder):
                 self.invariants.append(self._scan_expr_tree(inv, {}))
 
     def _ground_init_state(self) -> None:
-        self.initstate = self.states.copy()
         if hasattr(self.AST.instance, 'init_state'):
             for init_vals in self.AST.instance.init_state:
                 (key, subs), val = init_vals
                 if subs:
                     key = self._append_variation_to_name(key, subs)
-                if key in self.initstate:
-                    self.initstate[key] = val
+                if key in self.states:
+                    self.states[key] = val
                 else:
                     warnings.warn(
                         f'Init-state block initializes undefined state-fluent <{key}>.',
                         stacklevel=2)
-                    
-    # added on Dec 17 (Mike)
-    def _extract_variable_information(self):
-        PRIME = RDDLGroundedModel.NEXT_STATE_SYM
-        var_params, var_types, var_ranges = {}, {}, {}
-        for pvar in self.AST.domain.pvariables:
-            
-            # make sure name does not contain separators
-            SEPARATORS = [RDDLGroundedModel.FLUENT_SEP, RDDLGroundedModel.OBJECT_SEP] 
-            for separator in SEPARATORS:
-                if separator in pvar.name:
-                    raise RDDLInvalidObjectError(
-                        f'Variable name <{pvar.name}> contains the '
-                        f'illegal separator {separator}.')
-                    
-            objects = pvar.param_types
-            if objects is None:
-                objects = []
-            if objects:
-                variations = list(self._ground_objects(objects))
-                grounded = self._generate_grounded_names(pvar.name, variations)
-            else:
-                grounded = [pvar.name]
-            for name in grounded:
-                if name in var_params:
-                    raise RDDLRepeatedVariableError(
-                        f'{pvar.fluent_type} <{pvar.name}> has the same name as '
-                        f'another pvariable {var_types[name]}.')
-                primed_name = (name + PRIME) if pvar.is_state_fluent() else name
-                var_params[name] = var_params[primed_name] = []        
-                var_types[name] = pvar.fluent_type
-                if pvar.is_state_fluent():
-                    var_types[primed_name] = 'next-state-fluent'                
-                var_ranges[name] = var_ranges[primed_name] = pvar.range 
-        grounded_names = {name: [name] for name in var_params}
-          
-        self.param_types, self.variable_types, self.variable_ranges = \
-            var_params, var_types, var_ranges
-        self.grounded_names = grounded_names
-        
+    
+    def _ground_init_non_fluents(self) -> None:
+        if hasattr(self.AST.non_fluents, 'init_non_fluent'):
+            for init_vals in self.AST.non_fluents.init_non_fluent:
+                (key, variations_list), val = init_vals
+                if variations_list is not None:
+                    key = self._generate_grounded_names(
+                        key, [variations_list], 
+                        return_grounding_param_dict=False)[0]  
+                if key in self.nonfluents:
+                    self.nonfluents[key] = val
+                else:
+                    warnings.warn(
+                        f'Non-fluents block initializes undefined non-fluent <{key}>.',
+                        stacklevel=2)
+
+    def _ground_horizon(self):
+        horizon = self.AST.instance.horizon
+        if not (horizon >= 0):
+            raise RDDLValueOutOfRangeError(
+                f'Rollout horizon {horizon} in the instance is not >= 0.')
+        return horizon
+
+    def _ground_max_actions(self):
+        numactions = self.AST.instance.max_nondef_actions
+        if numactions == 'pos-inf':
+            return len(self.actions)
+        else:
+            return int(numactions)
+
+    def _ground_discount(self):
+        discount = self.AST.instance.discount
+        if not (0. <= discount):
+            raise RDDLValueOutOfRangeError(
+                f'Discount factor {discount} in the instance is not >= 0')
+        return discount
