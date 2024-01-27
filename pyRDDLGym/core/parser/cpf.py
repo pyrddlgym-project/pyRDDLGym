@@ -2,11 +2,9 @@
 # https://github.com/thiagopbueno/pyrddl
 # it was adapted and extended for pyRDDLGym
 
-
-from pyRDDLGym.Core.Parser.expr import Expression
-
 from typing import Tuple, List
 
+from pyRDDLGym.core.parser.expr import Expression
 
 PVarExpr = Tuple[str, Tuple[str, List[str]]]
 

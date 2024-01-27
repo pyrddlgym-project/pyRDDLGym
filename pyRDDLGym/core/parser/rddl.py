@@ -1,13 +1,13 @@
 # This file is part of thiago pbueno's pyrddl.
 # https://github.com/thiagopbueno/pyrddl
 
-from pyRDDLGym.Core.Parser.domain import Domain
-from pyRDDLGym.Core.Parser.instance import Instance
-from pyRDDLGym.Core.Parser.nonfluents import NonFluents
-
 import collections
 import itertools
 from typing import Dict, List, Sequence, Optional, Tuple, Union
+
+from pyRDDLGym.core.parser.domain import Domain
+from pyRDDLGym.core.parser.instance import Instance
+from pyRDDLGym.core.parser.nonfluents import NonFluents
 
 Block = Union[Domain, NonFluents, Instance]
 ObjectStruct = Dict[str, Union[int, Dict[str, int], List[str]]]

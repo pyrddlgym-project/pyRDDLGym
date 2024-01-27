@@ -3,20 +3,18 @@
 # it was adapted and extended for pyRDDLGym
 
 import logging
-
 import os
 import tempfile
-
 from ply import lex, yacc
 
-from pyRDDLGym.Core.Parser.rddl import RDDL
-from pyRDDLGym.Core.Parser.domain import Domain
-from pyRDDLGym.Core.Parser.nonfluents import NonFluents
-from pyRDDLGym.Core.Parser.instance import Instance
-from pyRDDLGym.Core.Parser.pvariable import PVariable
-from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Parser.cpf import CPF
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLParseError
+from pyRDDLGym.core.parser.rddl import RDDL
+from pyRDDLGym.core.parser.domain import Domain
+from pyRDDLGym.core.parser.nonfluents import NonFluents
+from pyRDDLGym.core.parser.instance import Instance
+from pyRDDLGym.core.parser.pvariable import PVariable
+from pyRDDLGym.core.parser.expr import Expression
+from pyRDDLGym.core.parser.cpf import CPF
+from pyRDDLGym.core.debug.exception import RDDLParseError
 
 alpha = r'[A-Za-z]'
 digit = r'[0-9]'

@@ -1,6 +1,6 @@
 import re
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLParseError
+from pyRDDLGym.core.debug.exception import RDDLParseError
 
 
 class RDDLReader(object):
@@ -15,13 +15,13 @@ class RDDLReader(object):
     def __init__(self, dom, inst=None):
         with open(dom) as file:
             dom_txt = file.read()
-        dom_txt = self._removeComments(dom_txt)
+        dom_txt = self._remove_comments(dom_txt)
         dom_txt = dom_txt + '\n'
 
         if inst is not None:
             with open(inst) as file:
                 inst_txt = file.read()
-            inst_txt = self._removeComments(inst_txt)
+            inst_txt = self._remove_comments(inst_txt)
             dom_txt = dom_txt + '\n\n' + inst_txt + '\n'
 
         # inspect rddl if three block are present - domain, non-fluent, instance
@@ -46,7 +46,7 @@ class RDDLReader(object):
     def rddltxt(self):
         return self.dom_txt
 
-    def _removeComments(self, txt):
+    def _remove_comments(self, txt):
         txt = re.sub(self.comment, '\n', txt)
         txt = re.sub(self.comment_ws, '\n', txt)
         return txt
