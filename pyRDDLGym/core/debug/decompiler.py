@@ -1,7 +1,7 @@
 from typing import Dict, List, Union
 
-from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.Core.Parser.cpf import CPF
+from pyRDDLGym.core.parser.expr import Expression
+from pyRDDLGym.core.parser.cpf import CPF
 
 
 class RDDLDecompiler:
@@ -39,7 +39,7 @@ class RDDLDecompiler:
         decompiled['preconditions'] = [self.decompile_expr(expr, level) 
                                        for expr in rddl.preconditions]
         decompiled['terminations'] = [self.decompile_expr(expr, level) 
-                                      for expr in rddl.terminals]
+                                      for expr in rddl.terminations]
         return decompiled
     
     def decompile_domain(self, rddl) -> str:
@@ -47,10 +47,10 @@ class RDDLDecompiler:
         decompiled = self.decompile_exprs(rddl, level=2)
         
         decompiled_types = ''
-        if rddl.objects:
+        if rddl.type_to_objects:
             decompiled_types = '\n\ttypes {'
-            for (name, values) in rddl.objects.items():
-                if name in rddl.enums:
+            for (name, values) in rddl.type_to_objects.items():
+                if name in rddl.enum_types:
                     decompiled_types += f'\n\t\t{name}: {{ ' + \
                         ', '.join([f'@{v}' for v in values]) + ' };'
                 else:
@@ -58,17 +58,17 @@ class RDDLDecompiler:
             decompiled_types += '\n\t};'
         
         decompiled_pvars = '\n\tpvariables {'
-        for pvars in [rddl.nonfluents, rddl.derived, rddl.interm, 
-                      rddl.states, rddl.observ, rddl.actions]:
+        for pvars in [rddl.non_fluents, rddl.derived_fluents, rddl.interm_fluents, 
+                      rddl.state_fluents, rddl.observ_fluents, rddl.action_fluents]:
             if pvars:
                 decompiled_pvars += '\n'
             for name in pvars:
                 prange = rddl.variable_ranges[name]
                 ptype = rddl.variable_types[name]
                 decompiled_params = ''
-                if rddl.param_types[name]:
-                    decompiled_params = '(' + ', '.join(rddl.param_types[name]) + ')' 
-                dv = str(rddl.default_values[name])
+                if rddl.variable_params[name]:
+                    decompiled_params = '(' + ', '.join(rddl.variable_params[name]) + ')' 
+                dv = str(rddl.variable_defaults[name])
                 if dv == 'True' or dv == 'False':
                     dv = dv.lower()
                 if prange not in ['real', 'int', 'bool']:
@@ -110,7 +110,7 @@ class RDDLDecompiler:
             decompiled_terminals += '\n\t};'
         
         decompiled_domain = (
-            f'domain {rddl.domainName()} {{'
+            f'domain {rddl.domain_name} {{'
             f'\n{decompiled_types}'
             f'\n{decompiled_pvars}'
             f'\n{decompiled_cpfs}'
