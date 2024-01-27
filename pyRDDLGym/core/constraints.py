@@ -1,9 +1,8 @@
 import numpy as np
 import warnings
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
-
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulator
+from pyRDDLGym.core.debug.exception import print_stack_trace
+from pyRDDLGym.core.simulator import RDDLSimulator
 
 
 class RDDLConstraints:
@@ -34,7 +33,7 @@ class RDDLConstraints:
         self._bounds = {}
         for (var, vtype) in self.rddl.variable_types.items():
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
-                ptypes = self.rddl.param_types[var]
+                ptypes = self.rddl.variable_params[var]
                 if vectorized:
                     shape = self.rddl.object_counts(ptypes)
                     self._bounds[var] = [-self.BigM * np.ones(shape),
@@ -47,12 +46,12 @@ class RDDLConstraints:
         # currently supports only linear inequality constraints
         self._is_box_precond = []
         for precond in self.rddl.preconditions:
-            is_box = self._parse_bounds(precond, [], self.rddl.actions)
+            is_box = self._parse_bounds(precond, [], self.rddl.action_fluents)
             self._is_box_precond.append(is_box)
                     
         self._is_box_invariant = []
         for invariant in self.rddl.invariants:
-            is_box = self._parse_bounds(invariant, [], self.rddl.states)
+            is_box = self._parse_bounds(invariant, [], self.rddl.state_fluents)
             self._is_box_invariant.append(is_box)
 
         for (name, bounds) in self._bounds.items():
