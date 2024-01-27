@@ -3,7 +3,7 @@ import numpy as np
 import os
 import sys
 
-from pyRDDLGym.Core.Policies.RDDLSimAgent import RDDLSimAgent
+from pyRDDLGym.core.server import RDDLSimServer
 
 # read the command line args
 args = sys.argv[1:]
@@ -21,11 +21,11 @@ domain_path = os.path.join(RDDL_path, 'domain.rddl')
 instance_path = os.path.join(RDDL_path, 'instance.rddl')
 
 # launch the RDDL server
-agent = RDDLSimAgent(domain_path, instance_path, rounds, 99999)
-agent.run()
+server = RDDLSimServer(domain_path, instance_path, numrounds=rounds, time=99999)
+server.run()
 
 # aggregate results
-round_returns = [float(round_data[-1]['reward']) for round_data in agent.logs]
+round_returns = [float(round_data[-1]['reward']) for round_data in server.logs]
 stats = {
     'mean': np.mean(round_returns),
     'median': np.median(round_returns),
@@ -36,8 +36,8 @@ stats = {
 
 # save outputs
 out_path = os.environ.get('PROST_OUT')
-dom_name = agent.env.model._AST.domain.name
-inst_name = agent.env.model._AST.domain.name
+dom_name = server.env.model.domain_name
+inst_name = server.env.model.instance_name
 with open(os.path.join(out_path, f'summary_{dom_name}_{inst_name}.json'), 'w') as f:
     json.dump(stats, f)    
-agent.dump_data(os.path.join(out_path, f'data_{dom_name}_{inst_name}.json'))
+server.dump_data(os.path.join(out_path, f'data_{dom_name}_{inst_name}.json'))
