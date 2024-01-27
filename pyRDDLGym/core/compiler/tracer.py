@@ -1,18 +1,19 @@
 import numpy as np
 from typing import Dict, List, Set, Tuple, Union
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace_root as PST
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidNumberOfArgumentsError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLRepeatedVariableError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-
-from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.debug.exception import (
+    print_stack_trace_root as PST,
+    RDDLInvalidNumberOfArgumentsError,
+    RDDLInvalidObjectError,
+    RDDLNotImplementedError,
+    RDDLRepeatedVariableError,
+    RDDLTypeError,
+    RDDLUndefinedVariableError
+)
+from pyRDDLGym.core.debug.logger import Logger
+from pyRDDLGym.core.parser.expr import Expression
 
 
 class RDDLTracedObjects:
@@ -96,7 +97,7 @@ class RDDLObjectsTracer:
         NOOP=2  # a scalar pvariable for example does not require any operation
     )
     
-    def __init__(self, rddl: PlanningModel, logger: Logger=None,
+    def __init__(self, rddl: RDDLPlanningModel, logger: Logger=None,
                  cpf_levels: Dict[int, Set[str]]=None) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
@@ -158,8 +159,8 @@ class RDDLObjectsTracer:
                 # for domain-object valued check that type matches expression output
                 cpf_range = rddl.variable_ranges[cpf]
                 expr_range = out.cached_object_type(expr)
-                if (cpf_range in rddl.enums and expr_range != cpf_range) \
-                or (cpf_range not in rddl.objects and expr_range is not None):
+                if (cpf_range in rddl.enum_types and expr_range != cpf_range) \
+                or (cpf_range not in rddl.type_to_objects and expr_range is not None):
                     raise RDDLTypeError(
                         f'CPF <{cpf}> expression expects type <{cpf_range}>, '
                         f'got expression of type <{expr_range}>.')
@@ -178,7 +179,7 @@ class RDDLObjectsTracer:
             out._current_root = f'Precondition {i + 1}'
             self._trace(expr, [], out)
             RDDLObjectsTracer._check_not_object(expr, expr, out, out._current_root)
-        for (i, expr) in enumerate(rddl.terminals):
+        for (i, expr) in enumerate(rddl.terminations):
             out._current_root = f'Termination {i + 1}'
             self._trace(expr, [], out)
             RDDLObjectsTracer._check_not_object(expr, expr, out, out._current_root)
@@ -268,7 +269,7 @@ class RDDLObjectsTracer:
             cached_value = (True, cached_value)
             
             prange = ptypes[index_of_var]
-            obj_type = prange if (prange in rddl.enums or prange in rddl.objects) else None
+            obj_type = prange if rddl.is_valid_type(prange) else None
             out._append(expr, objects, obj_type, False, cached_value)
         
         # object can only be defined in domain - map to canonical index
@@ -278,15 +279,15 @@ class RDDLObjectsTracer:
             
             # check var is a domain object
             literal = rddl.object_name(var)            
-            enum_type = rddl.objects_rev[literal]  
-            if enum_type not in rddl.enums:
+            enum_type = rddl.object_to_type[literal]  
+            if enum_type not in rddl.enum_types:
                 raise RDDLInvalidObjectError(
-                    f'Object <{var}> must be of a domain-defined object type, '
-                    f'got type <{enum_type}>. '
+                    f'Object <{var}> must be of a domain-defined object type '
+                    f'in {rddl.enum_types}, got type <{enum_type}>. '
                     f'Please check expression for <{out._current_root}>.')
             
             # map to canonical index - for pvariable fill an array with it
-            const = rddl.index_of_object[literal]
+            const = rddl.object_to_index[literal]
             if objects:
                 shape = rddl.object_counts((ptype for (_, ptype) in objects))
                 cached_value = np.full(shape=shape, fill_value=const)
@@ -326,7 +327,7 @@ class RDDLObjectsTracer:
             cached_sim_info = (False, self._map(expr, objects, out))    
                
             prange = rddl.variable_ranges.get(var, None)
-            obj_type = prange if (prange in rddl.enums or prange in rddl.objects) else None
+            obj_type = prange if rddl.is_valid_type(prange) else None
             out._append(expr, objects, obj_type, is_fluent, cached_sim_info)
         
     def _map(self, expr: Expression,
@@ -346,7 +347,7 @@ class RDDLObjectsTracer:
         # check that the number of input objects match fluent type definition
         if args is None:
             args = []
-        args_types = rddl.param_types.get(var, [])
+        args_types = rddl.variable_params.get(var, [])
         if len(args) != len(args_types):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> requires {len(args_types)} argument(s), '
@@ -405,7 +406,7 @@ class RDDLObjectsTracer:
                 
                 # check that the type of the object is correct
                 literal = rddl.object_name(arg)
-                enum_type = rddl.objects_rev[literal]
+                enum_type = rddl.object_to_type[literal]
                 if args_types[i] != enum_type: 
                     raise RDDLTypeError(
                         f'Argument {i + 1} of variable <{var}> expects object '
@@ -413,7 +414,7 @@ class RDDLObjectsTracer:
                         f'of type <{enum_type}>.\n' + PST(expr, out._current_root))
                 
                 # extract value at current dimension at object's canonical index
-                slices[i] = rddl.index_of_object[literal]
+                slices[i] = rddl.object_to_index[literal]
                 do_slice = True
             
             # is a free object (e.g., ?x)
@@ -441,7 +442,7 @@ class RDDLObjectsTracer:
                 # converted to arrays with shape of objects
                 # this way, the slice value array has shape that matches objects
                 if nested:
-                    indices = np.arange(len(rddl.objects[ptype]))
+                    indices = np.arange(len(rddl.type_to_objects[ptype]))
                     newshape = [1] * len(objects)
                     newshape[index_of_arg] = indices.size
                     indices = np.reshape(indices, newshape=newshape)
@@ -584,11 +585,11 @@ class RDDLObjectsTracer:
         rddl = self.rddl
         bad_types = {ptype 
                      for (_, ptype) in iter_objects 
-                     if ptype not in rddl.objects}
+                     if not rddl.is_valid_type(ptype)}
         if bad_types:
             raise RDDLTypeError(
                 f'Type(s) {bad_types} are not defined, '
-                f'must be one of {set(rddl.objects.keys())}.\n' + 
+                f'must be one of {set(rddl.type_to_objects.keys())}.\n' + 
                 PST(expr, out._current_root))
         
         # check for valid type arguments
@@ -701,10 +702,10 @@ class RDDLObjectsTracer:
         # type in pvariables scope must be a domain object
         var, _ = pred.args
         enum_type = rddl.variable_ranges.get(var, None)
-        if enum_type not in rddl.enums:
+        if enum_type not in rddl.enum_types:
             raise RDDLTypeError(
                 f'Type <{enum_type}> of switch predicate <{var}> is not a '
-                f'domain-defined object, must be one of {rddl.enums}.\n' + 
+                f'domain-defined object, must be one of {rddl.enum_types}.\n' + 
                 PST(expr, out._current_root))
             
         # default statement becomes ("default", expr)
@@ -746,11 +747,11 @@ class RDDLObjectsTracer:
         
     def _order_cases(self, enum_type, case_dict, expr, out): 
         rddl = self.rddl
-        enum_values = rddl.objects[enum_type]
+        enum_values = rddl.type_to_objects[enum_type]
         
         # check that all literals belong to enum_type
         for _case in case_dict:
-            if _case != 'default' and rddl.objects_rev.get(_case, None) != enum_type:
+            if _case != 'default' and rddl.object_to_type.get(_case, None) != enum_type:
                 raise RDDLInvalidObjectError(
                     f'Object <{_case}> does not belong to type <{enum_type}>, '
                     f'must be one of {set(enum_values)}.\n' + 
@@ -761,7 +762,7 @@ class RDDLObjectsTracer:
         for obj in enum_values:
             arg = case_dict.get(obj, None)
             if arg is not None: 
-                index = rddl.index_of_object[obj]
+                index = rddl.object_to_index[obj]
                 expressions[index] = arg
         
         # if default statement is missing, cases must be comprehensive
@@ -802,10 +803,10 @@ class RDDLObjectsTracer:
         (_, enum_type), *cases = expr.args
             
         # object type must be a valid domain object type
-        if enum_type not in rddl.enums:
+        if enum_type not in rddl.enum_types:
             raise RDDLTypeError(
                 f'Type <{enum_type}> in Discrete distribution is not a '
-                f'domain-defined object, must be one of {rddl.enums}.\n' + 
+                f'domain-defined object, must be one of {rddl.enum_types}.\n' + 
                 PST(expr, out._current_root))        
         case_dict = dict(case_tup for (_, case_tup) in cases) 
         
@@ -952,7 +953,7 @@ class RDDLObjectsTracer:
                 arg, expr, out, f'Argument {i + 1} of {op}') 
         
             # record types represented by _
-            ptypes = self.rddl.param_types[name]
+            ptypes = self.rddl.variable_params[name]
             enum_types.update({ptypes[j] for j in underscores})
             
         # types represented by _ must be the same

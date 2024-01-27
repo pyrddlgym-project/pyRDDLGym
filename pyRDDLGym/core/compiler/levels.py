@@ -1,14 +1,15 @@
 from typing import Dict, Set
 import warnings
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidDependencyInCPFError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLMissingCPFDefinitionError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Parser.expr import Expression
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.debug.exception import (
+    RDDLInvalidDependencyInCPFError,
+    RDDLMissingCPFDefinitionError,
+    RDDLNotImplementedError,
+    RDDLUndefinedVariableError
+)
+from pyRDDLGym.core.debug.logger import Logger
+from pyRDDLGym.core.parser.expr import Expression
 
 
 class RDDLLevelAnalysis:
@@ -35,7 +36,7 @@ class RDDLLevelAnalysis:
         'termination': {'state-fluent'}
     }
     
-    def __init__(self, rddl: PlanningModel,
+    def __init__(self, rddl: RDDLPlanningModel,
                  allow_synchronous_state: bool=True,
                  logger: Logger=None) -> None:
         '''Creates a new level analysis for the given RDDL domain.
@@ -75,7 +76,7 @@ class RDDLLevelAnalysis:
             ('reward', [rddl.reward]),
             ('precondition', rddl.preconditions),
             ('invariant', rddl.invariants),
-            ('termination', rddl.terminals)
+            ('termination', rddl.terminations)
         ]:
             call_graph = {}
             for expr in exprs:
@@ -143,7 +144,7 @@ class RDDLLevelAnalysis:
             # not a recognized type
             if cpf_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES:
                 if cpf_type == 'state-fluent':
-                    PRIME = PlanningModel.NEXT_STATE_SYM
+                    PRIME = RDDLPlanningModel.NEXT_STATE_SYM
                     raise RDDLInvalidDependencyInCPFError(
                         f'CPF definition for state-fluent <{cpf}> is not valid, '
                         f'did you mean <{cpf}{PRIME}>?')
@@ -174,7 +175,7 @@ class RDDLLevelAnalysis:
             fluent_type = self.rddl.variable_types.get(cpf, cpf)
             if fluent_type == 'state-fluent':
                 fluent_type = 'next-' + fluent_type
-                cpf = cpf + PlanningModel.NEXT_STATE_SYM
+                cpf = cpf + RDDLPlanningModel.NEXT_STATE_SYM
             if fluent_type in RDDLLevelAnalysis.VALID_DEPENDENCIES \
             and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(

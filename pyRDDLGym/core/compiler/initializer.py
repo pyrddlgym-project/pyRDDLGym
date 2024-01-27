@@ -1,11 +1,12 @@
 import numpy as np
 from typing import Dict, Union
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLInvalidObjectError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
-
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Core.Debug.Logger import Logger
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.debug.exception import (
+    RDDLInvalidObjectError,
+    RDDLTypeError
+)
+from pyRDDLGym.core.debug.logger import Logger
 
 
 class RDDLValueInitializer:
@@ -28,7 +29,7 @@ class RDDLValueInitializer:
         'bool': False
     }
         
-    def __init__(self, rddl: PlanningModel, logger: Logger=None) -> None:
+    def __init__(self, rddl: RDDLPlanningModel, logger: Logger=None) -> None:
         '''Creates a new object to compile initial values from a RDDL file. 
         Initial values of parameterized variables are stored in numpy arrays.
         For a variable var(?x1, ?x2, ... ?xn), the numpy array has n dimensions, 
@@ -49,14 +50,14 @@ class RDDLValueInitializer:
                 
         # initial values consists of non-fluents, state and action fluents
         init_values = {}
-        init_values.update(rddl.nonfluents)
-        init_values.update(rddl.init_state)
-        init_values.update(rddl.actions)
+        init_values.update(rddl.non_fluents)
+        init_values.update(rddl.state_fluents)
+        init_values.update(rddl.action_fluents)
 
         # domain objects are converted to integers
         for (var, values) in init_values.items():
             prange = rddl.variable_ranges[var]
-            if prange in rddl.enums:
+            if prange in rddl.enum_types:
                 init_values[var] = self._objects_to_ints(values, prange, var)
         
         # create a tensor for each pvar with the init_values
@@ -65,7 +66,7 @@ class RDDLValueInitializer:
         for (var, prange) in rddl.variable_ranges.items():
             
             # domain objects are treated as int
-            if prange in rddl.enums:
+            if prange in rddl.enum_types:
                 prange = 'int'
             
             # get default value and dtype
@@ -75,13 +76,13 @@ class RDDLValueInitializer:
                 raise RDDLTypeError(
                     f'Type <{prange}> of variable <{var}> is not valid, '
                     f'must be either an enumerated type in '
-                    f'{rddl.enums} or an object type in '
+                    f'{rddl.enum_types} or an object type in '
                     f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
             
             # scalar value is just cast to the desired type
             # list values are converted to numpy arrays and reshaped such that 
             # number of axes matches number of pvariable arguments
-            ptypes = rddl.param_types[var]
+            ptypes = rddl.variable_params[var]
             if ptypes:
                 shape = rddl.object_counts(ptypes)
                 if var in init_values:
@@ -106,7 +107,7 @@ class RDDLValueInitializer:
         # log shapes of initial values
         if self.logger is not None:
             tensor_info = '\n\t'.join((
-                f'{k}{rddl.param_types[k]}, '
+                f'{k}{rddl.variable_params[k]}, '
                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
             ) for (k, v) in np_init_values.items())
@@ -124,11 +125,11 @@ class RDDLValueInitializer:
         indices = [0] * len(literals)
         for (i, obj) in enumerate(literals):
             if obj is not None:
-                if self.rddl.objects_rev.get(obj, None) != prange:
+                if self.rddl.object_to_type.get(obj, None) != prange:
                     raise RDDLInvalidObjectError(
                         f'<{obj}> assigned to pvariable <{var}> in instance '
                         f'is not an object of type <{prange}>.')
-                indices[i] = self.rddl.index_of_object[obj]
+                indices[i] = self.rddl.object_to_index[obj]
                 
         if is_scalar:
             indices, = indices
