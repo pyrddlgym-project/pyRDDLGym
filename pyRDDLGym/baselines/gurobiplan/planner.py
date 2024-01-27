@@ -4,9 +4,10 @@ import warnings
 import gurobipy
 from gurobipy import GRB
 
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Gurobi.GurobiRDDLCompiler import GurobiRDDLCompiler
-from pyRDDLGym.Core.Policies.Agents import BaseAgent
+from pyRDDLGym.core.compiler.model import RDDLLiftedModel
+from pyRDDLGym.core.policy import BaseAgent
+
+from pyRDDLGym.baselines.gurobiplan.compiler import GurobiRDDLCompiler
 
 UNBOUNDED = (-GRB.INFINITY, +GRB.INFINITY)
 
@@ -26,7 +27,7 @@ class GurobiRDDLPlan:
         self.action_bounds = action_bounds
     
     def _bounds(self, rddl, action):
-        if rddl.actionsranges[action] == 'bool':
+        if rddl.action_ranges[action] == 'bool':
             return (0, 1)
         else:
             return self.action_bounds.get(action, UNBOUNDED)
@@ -102,7 +103,7 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl
         action_vars = {}
-        for (action, prange) in rddl.actionsranges.items():
+        for (action, prange) in rddl.action_ranges.items():
             bounds = self._bounds(rddl, action)
             atype = compiled.GUROBI_TYPES[prange]
             for step in range(compiled.horizon):
@@ -118,7 +119,7 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
     def init_params(self, compiled: GurobiRDDLCompiler,
                     model: gurobipy.Model) -> Dict[str, object]:
         param_values = {}
-        for action in compiled.rddl.actions:
+        for action in compiled.rddl.action_fluents:
             for step in range(compiled.horizon):
                 param_values[f'{action}__{step}'] = compiled.init_values[action]
         return param_values
@@ -129,7 +130,7 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
                 step: int,
                 subs: Dict[str, object]) -> Dict[str, object]:
         action_vars = {action: params[f'{action}__{step}'] 
-                       for action in compiled.rddl.actions}
+                       for action in compiled.rddl.action_fluents}
         return action_vars
     
     def evaluate(self, compiled: GurobiRDDLCompiler,
@@ -138,7 +139,7 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
         action_values = {}
-        for (action, prange) in rddl.actionsranges.items():
+        for (action, prange) in rddl.action_ranges.items():
             name = f'{action}__{step}'
             action_value = params[name][0].X
             if prange == 'int':
@@ -154,7 +155,7 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
         res = ''
         for step in range(compiled.horizon):
             values = []
-            for action in rddl.actions:
+            for action in rddl.action_fluents:
                 name = f'{action}__{step}'
                 values.append(f'{action}[{step}] = {params[name][0].X}')
             res += ', '.join(values) + '\n'
@@ -189,8 +190,8 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         if self.dependencies_constr:
             return self.dependencies_constr
         else:
-            state_names = list(rddl.states.keys())
-            return {action: state_names for action in rddl.actions}
+            state_names = list(rddl.state_fluents.keys())
+            return {action: state_names for action in rddl.action_fluents}
     
     def params(self, compiled: GurobiRDDLCompiler,
                model: gurobipy.Model,
@@ -200,7 +201,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         states_in_values = self.dependencies_values
         
         param_vars = {}
-        for (action, arange) in rddl.actionsranges.items():
+        for (action, arange) in rddl.action_ranges.items():
             
             # each case k
             for k in list(range(self.num_cases)) + ['else']:
@@ -266,7 +267,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         states_in_values = self.dependencies_values
         
         param_values = {}
-        for action in rddl.actions:
+        for action in rddl.action_fluents:
             
             # each case k
             for k in list(range(self.num_cases)) + ['else']: 
@@ -316,7 +317,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         states_in_values = self.dependencies_values
         
         action_vars = {}
-        for (action, arange) in rddl.actionsranges.items():
+        for (action, arange) in rddl.action_ranges.items():
             
             # action variable
             atype = compiled.GUROBI_TYPES[arange]
@@ -396,7 +397,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         states_in_values = self.dependencies_values
         
         action_values = {}
-        for (action, arange) in rddl.actionsranges.items():
+        for (action, arange) in rddl.action_ranges.items():
             
             # case k
             for k in list(range(self.num_cases)) + ['else']:
@@ -453,7 +454,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         states_in_values = self.dependencies_values
         
         values = []
-        for action in rddl.actions:
+        for action in rddl.action_fluents:
             
             # case k
             action_case_values = []
@@ -514,11 +515,11 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
                model: gurobipy.Model,
                values: Dict[str, object]=None) -> Dict[str, object]:
         rddl = compiled.rddl
-        states = list(rddl.states.keys())
+        states = list(rddl.state_fluents.keys())
         clip_range = (-self.action_clip_value, +self.action_clip_value)
         
         param_vars = {}
-        for action in rddl.actions:
+        for action in rddl.action_fluents:
             
             # linear terms
             for state in ['bias'] + states:
@@ -546,10 +547,10 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
     def init_params(self, compiled: GurobiRDDLCompiler,
                     model: gurobipy.Model) -> Dict[str, object]:
         rddl = compiled.rddl
-        states = list(rddl.states.keys())
+        states = list(rddl.state_fluents.keys())
         
         param_values = {}
-        for action in rddl.actions:
+        for action in rddl.action_fluents:
             
             # bias initialized to no-op action value
             name = f'weight__{action}__bias'
@@ -572,10 +573,10 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
                 step: int,
                 subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
-        states = list(rddl.states.keys())
+        states = list(rddl.state_fluents.keys())
         
         action_vars = {}        
-        for action in rddl.actions:
+        for action in rddl.action_fluents:
             
             # linear terms
             name = f'weight__{action}__bias'
@@ -605,10 +606,10 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
                  step: int,
                  subs: Dict[str, object]) -> Dict[str, object]:
         rddl = compiled.rddl
-        states = list(rddl.states.keys())
+        states = list(rddl.state_fluents.keys())
         
         action_values = {}
-        for action in rddl.actions:
+        for action in rddl.action_fluents:
             
             # linear terms
             name = f'weight__{action}__bias'
@@ -632,10 +633,10 @@ class GurobiQuadraticPolicy(GurobiRDDLPlan):
     def to_string(self, compiled: GurobiRDDLCompiler,
                   params: Dict[str, object]) -> str:
         rddl = compiled.rddl
-        states = list(rddl.states.keys())
+        states = list(rddl.state_fluents.keys())
         
         res = ''
-        for action in rddl.actions:
+        for action in rddl.action_fluents:
             
             # linear terms
             terms = []

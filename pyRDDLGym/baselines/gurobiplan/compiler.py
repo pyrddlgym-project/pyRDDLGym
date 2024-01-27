@@ -7,21 +7,22 @@ import warnings
 import gurobipy
 from gurobipy import GRB
 
-from pyRDDLGym.Core.ErrorHandling.RDDLException import print_stack_trace
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLTypeError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLNotImplementedError
-from pyRDDLGym.Core.ErrorHandling.RDDLException import RDDLUndefinedVariableError
-
-from pyRDDLGym.Core.Compiler.RDDLLevelAnalysis import RDDLLevelAnalysis
-from pyRDDLGym.Core.Compiler.RDDLLiftedModel import RDDLLiftedModel
-from pyRDDLGym.Core.Compiler.RDDLObjectsTracer import RDDLObjectsTracer
-from pyRDDLGym.Core.Compiler.RDDLValueInitializer import RDDLValueInitializer
-from pyRDDLGym.Core.Debug.Logger import Logger
-from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
-from pyRDDLGym.Core.Simulator.RDDLSimulator import lngamma
+from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer
+from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
+from pyRDDLGym.core.compiler.model import RDDLLiftedModel
+from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer
+from pyRDDLGym.core.debug.exception import (
+    print_stack_trace,
+    RDDLTypeError,
+    RDDLNotImplementedError,
+    RDDLUndefinedVariableError
+)
+from pyRDDLGym.core.debug.logger import Logger
+from pyRDDLGym.core.grounder import RDDLGrounder
+from pyRDDLGym.core.simulator import lngamma
 
 if TYPE_CHECKING:
-    from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiRDDLPlan
+    from pyRDDLGym.baselines.gurobiplan.planner import GurobiRDDLPlan
 
 
 class GurobiRDDLCompiler:
@@ -83,8 +84,7 @@ class GurobiRDDLCompiler:
         }
         
         # ground out the domain
-        grounder = RDDLGrounder(deepcopy(rddl._AST))
-        self.rddl = grounder.Ground()
+        self.rddl = RDDLGrounder(deepcopy(rddl.ast)).ground()
         
         # compile initial values
         if self.logger is not None:
@@ -268,7 +268,7 @@ class GurobiRDDLCompiler:
     def _compile_maxnondef_constraint(self, model, subs) -> None:
         rddl = self.rddl
         num_bool, sum_bool = 0, 0
-        for (action, prange) in rddl.actionsranges.items():
+        for (action, prange) in rddl.action_ranges.items():
             if prange == 'bool':
                 var, *_ = subs[action]
                 num_bool += 1
