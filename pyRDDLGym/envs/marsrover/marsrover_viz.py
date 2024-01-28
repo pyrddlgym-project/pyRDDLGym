@@ -13,8 +13,7 @@ class MarsRoverVisualizer(BaseViz):
                  dpi=20,
                  fontsize=8) -> None:
         self._model = model
-        self._states = model.grounded_state_fluents()
-        self._nonfluents = model.grounded_non_fluents()
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         self._objects = model.type_to_objects
         self._figure_size = figure_size
         self._dpi = dpi
@@ -32,7 +31,7 @@ class MarsRoverVisualizer(BaseViz):
 
         # style of fluent_p1
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse(k)
+            var, objects = self._model.parse_grounded(k)
             if var == 'MINERAL-POS-X':
                 mineral_locaiton[objects[0]][0] = v
             elif var == 'MINERAL-POS-Y':
@@ -49,14 +48,14 @@ class MarsRoverVisualizer(BaseViz):
         mineral_harvested = {o: None for o in self._objects['mineral']}
         
         for k, v in state.items():
-            var, objects = self._model.parse(k)
+            var, objects = self._model.parse_grounded(k)
             if var == 'pos-x':
                 rover_location[objects[0]][0] = v
             elif var == 'pos-y':
                 rover_location[objects[0]][1] = v
 
         for k, v in state.items():
-            var, objects = self._model.parse(k)
+            var, objects = self._model.parse_grounded(k)
             if var == 'mineral-harvested':
                 mineral_harvested[objects[0]] = v
 

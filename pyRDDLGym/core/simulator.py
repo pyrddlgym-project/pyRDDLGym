@@ -156,15 +156,14 @@ class RDDLSimulator:
         self.noop_actions = {var: values
                              for (var, values) in self.init_values.items()
                              if rddl.variable_types[var] == 'action-fluent'}
+        self.grounded_noop_actions = rddl.ground_vars_with_values(self.noop_actions)
+        self.grounded_action_ranges = rddl.ground_vars_with_value(rddl.action_ranges)
         self._pomdp = bool(rddl.observ_fluents)
         
         # cached for performance
         self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
-        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminations))]
-        
-        self.grounded_action_ranges = rddl.grounded_action_ranges()
-        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
+        self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminations))]        
         
     @property
     def states(self) -> Args:
@@ -248,15 +247,19 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _process_actions(self, actions):
-        rddl = self.rddl
         
-        # override new_actions with any new actions
+        # if actions are numpy arrays, just assign directly without copy
+        # single all values are set for that action
         if self.keep_tensors:
             new_actions = self.noop_actions.copy()
             for (action, value) in actions.items(): 
                 if action in new_actions:
                     new_actions[action] = value
+        
+        # start with the no-op actions, and fill in values from actions 
+        # that are set
         else:            
+            rddl = self.rddl
             new_actions = {action: np.copy(value) 
                            for (action, value) in self.noop_actions.items()}
             for (action, value) in actions.items(): 
@@ -264,15 +267,14 @@ class RDDLSimulator:
                 if action in new_actions:
                     new_actions[action] = value
                 else:
-                    var, objects = rddl.parse(action)
+                    var, objects = RDDLPlanningModel.parse_grounded(action)
                     tensor = new_actions.get(var, None)
                     if tensor is None: 
                         raise RDDLInvalidActionError(
                             f'<{action}> is not a valid action-fluent, ' 
                             f'must be one of {set(new_actions.keys())}.')
                     RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
-                    tensor[rddl.indices(objects)] = value
-                
+                    tensor[rddl.object_indices(objects)] = value                
         return new_actions
     
     def check_state_invariants(self, silent: bool=False) -> bool:
@@ -368,7 +370,7 @@ class RDDLSimulator:
             if keep_tensors:
                 self.state[state] = subs[state]
             else:
-                self.state.update(rddl.ground_values(state, subs[state]))
+                self.state.update(rddl.ground_var_with_values(state, subs[state]))
         
         # update observation
         if self._pomdp:
@@ -406,7 +408,7 @@ class RDDLSimulator:
             if keep_tensors:
                 self.state[state] = subs[state]
             else:
-                self.state.update(rddl.ground_values(state, subs[state]))
+                self.state.update(rddl.ground_var_with_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
@@ -415,7 +417,7 @@ class RDDLSimulator:
                 if keep_tensors:
                     obs[var] = subs[var]
                 else:
-                    obs.update(rddl.ground_values(var, subs[var]))
+                    obs.update(rddl.ground_var_with_values(var, subs[var]))
         else:
             obs = self.state
         
@@ -1332,14 +1334,13 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
         self.state = None  
         self.noop_actions = {var: values
                              for (var, values) in self.init_values.items()
-                             if rddl.variable_types[var] == 'action-fluent'}
+                             if rddl.variable_types[var] == 'action-fluent'}        
+        self.grounded_noop_actions = rddl.ground_vars_with_values(self.noop_actions)
+        self.grounded_action_ranges = rddl.ground_vars_with_value(rddl.action_ranges)
         self._pomdp = bool(rddl.observ_fluents)
         
         # cached for performance
         self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
         self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminations))]
-        
-        self.grounded_action_ranges = rddl.grounded_action_ranges()
-        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
         

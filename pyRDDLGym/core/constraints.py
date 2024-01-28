@@ -7,7 +7,8 @@ from pyRDDLGym.core.simulator import RDDLSimulator
 
 class RDDLConstraints:
     '''Provides added functionality to understand a set of action-preconditions
-    and state invariants in a RDDL file.'''
+    and state invariants in a RDDL file.
+    '''
     
     def __init__(self, simulator: RDDLSimulator,
                  max_bound: float=np.inf,
@@ -22,36 +23,35 @@ class RDDLConstraints:
         :param vectorized: whether bounds are represented as pairs of numpy arrays
         corresponding to lifted fluent names (if True), or as pairs of scalars for 
         grounded fluent names (if False)
-        '''
-        
+        '''        
         self.sim = simulator
-        self.rddl = simulator.rddl
+        self.rddl = rddl = simulator.rddl
         self.BigM = max_bound
         self.epsilon = inequality_tol
         self.vectorized = vectorized
         
         self._bounds = {}
-        for (var, vtype) in self.rddl.variable_types.items():
+        for (var, vtype) in rddl.variable_types.items():
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
-                ptypes = self.rddl.variable_params[var]
                 if vectorized:
-                    shape = self.rddl.object_counts(ptypes)
+                    ptypes = rddl.variable_params[var]
+                    shape = rddl.object_counts(ptypes)
                     self._bounds[var] = [-self.BigM * np.ones(shape),
                                          +self.BigM * np.ones(shape)]
                 else:
-                    for gname in self.rddl.ground_names(var, ptypes):
+                    for gname in rddl.variable_groundings[var]:
                         self._bounds[gname] = [-self.BigM, +self.BigM]
 
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
         self._is_box_precond = []
-        for precond in self.rddl.preconditions:
-            is_box = self._parse_bounds(precond, [], self.rddl.action_fluents)
+        for precond in rddl.preconditions:
+            is_box = self._parse_bounds(precond, [], rddl.action_fluents)
             self._is_box_precond.append(is_box)
                     
         self._is_box_invariant = []
-        for invariant in self.rddl.invariants:
-            is_box = self._parse_bounds(invariant, [], self.rddl.state_fluents)
+        for invariant in rddl.invariants:
+            is_box = self._parse_bounds(invariant, [], rddl.state_fluents)
             self._is_box_invariant.append(is_box)
 
         for (name, bounds) in self._bounds.items():
@@ -59,11 +59,10 @@ class RDDLConstraints:
             
         # log bounds to file
         if simulator.logger is not None:
-            bounds_info = '\n\t'.join(
-                f'{k}: {v}' for (k, v) in self._bounds.items())
-            message = (f'[info] computed simulation bounds:\n' 
-                       f'\t{bounds_info}\n')
-            simulator.logger.log(message)
+            bounds_info = '\n\t'.join(f'{k}: {v}' 
+                                      for (k, v) in self._bounds.items())
+            simulator.logger.log(f'[info] computed simulation bounds:\n' 
+                                 f'\t{bounds_info}\n')
         
     def _parse_bounds(self, expr, objects, search_vars):
         etype, op = expr.etype
@@ -87,6 +86,7 @@ class RDDLConstraints:
         # relational operation in constraint at the top level, i.e. constraint
         # LHS <= RHS for example
         elif etype == 'relational':
+            rddl = self.rddl
             var, lim, loc, active = self._parse_bounds_relational(
                 expr, objects, search_vars)
             success = var is not None and loc is not None
@@ -98,11 +98,11 @@ class RDDLConstraints:
                     else:
                         op = min if loc == 1 else max
                         ptypes = [ptype for (_, ptype) in objects]
-                        variations = self.rddl.variations(ptypes)
+                        variations = rddl.ground_types(ptypes)
                         lims = np.ravel(lim, order='C')
                         for (args, lim) in zip(variations, lims):
                             active_args = [args[i] for i in active]
-                            key = self.rddl.ground_name(var, active_args)
+                            key = rddl.ground_var(var, active_args)
                             self._bounds[key][loc] = op(self._bounds[key][loc], lim)
                 else:
                     op = min if loc == 1 else max
@@ -121,7 +121,7 @@ class RDDLConstraints:
         
         # both LHS and RHS are pvariable expressions, or relational operator 
         # cannot be simplified further
-        if (is_left_pvar and is_right_pvar) or op not in ['<=', '<', '>=', '>']:
+        if (is_left_pvar and is_right_pvar) or op not in {'<=', '<', '>=', '>'}:
             warnings.warn(
                 f'Constraint does not have a structure of '
                 f'<action or state fluent> <op> <rhs>, where:' 

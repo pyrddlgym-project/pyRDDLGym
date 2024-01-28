@@ -19,7 +19,7 @@ class PongVisualizer(BaseViz):
         self._ball_radius = ball_radius
         self._wait_time = wait_time
         
-        self._nonfluents = model.grounded_non_fluents()
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         self._balls = model.type_to_objects['ball']
         
         self.fig = plt.figure(figsize=self._figure_size)

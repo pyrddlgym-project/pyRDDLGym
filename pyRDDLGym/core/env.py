@@ -107,7 +107,8 @@ class RDDLEnv(gym.Env):
                                **backend_kwargs)
         
         # compute the bounds on fluents from the constraints
-        self._bounds = RDDLConstraints(self.sampler, vectorized=self.vectorized).bounds
+        constraints = RDDLConstraints(self.sampler, vectorized=self.vectorized)
+        self._bounds = constraints.bounds
         self._shapes = {var: np.shape(values[0]) 
                         for (var, values) in self._bounds.items()}
         
@@ -117,7 +118,8 @@ class RDDLEnv(gym.Env):
         else:
             state_ranges = self.model.state_ranges
         if not self.vectorized:
-            state_ranges = self.model.ground_ranges_from_dict(state_ranges)    
+            state_ranges = self.model.ground_vars_with_value(state_ranges)   
+             
         self.observation_space = self._rddl_to_gym_bounds(state_ranges)
         
         # construct the gym action space      
@@ -127,6 +129,7 @@ class RDDLEnv(gym.Env):
         else:
             self._action_ranges = self.sampler.grounded_action_ranges
             self._noop_actions = self.sampler.grounded_noop_actions
+            
         self.action_space = self._rddl_to_gym_bounds(self._action_ranges)
         
         # set the visualizer
@@ -248,8 +251,8 @@ class RDDLEnv(gym.Env):
         # log to file
         if self.simlogger is not None:
             if self.vectorized:
-                log_obs = self.model.ground_values_from_dict(obs)
-                log_action = self.model.ground_values_from_dict(actions)
+                log_obs = self.model.ground_vars_with_values(obs)
+                log_action = self.model.ground_vars_with_values(actions)
             else:
                 log_obs = obs
                 log_action = actions
@@ -281,7 +284,7 @@ class RDDLEnv(gym.Env):
         # update movie generator
         if self._movie_generator is not None and self._visualizer is not None:
             if self.vectorized:
-                state = self.model.ground_values_from_dict(self.state)
+                state = self.model.ground_vars_with_values(self.state)
             else:
                 state = self.state
                 
@@ -325,7 +328,7 @@ class RDDLEnv(gym.Env):
         image = None
         if self._visualizer is not None:
             if self.vectorized:
-                state = self.model.ground_values_from_dict(self.state)
+                state = self.model.ground_vars_with_values(self.state)
             else:
                 state = self.state
             

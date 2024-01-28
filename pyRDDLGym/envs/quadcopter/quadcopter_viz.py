@@ -20,7 +20,7 @@ class QuadcopterVisualizer(BaseViz):
         self._wait_time = wait_time
         
         self._objects = model.type_to_objects
-        self._nonfluents = model.grounded_non_fluents()
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         
         self.fig = plt.figure(figsize=self._figure_size)
         self.ax = self.fig.add_subplot(111, projection='3d')

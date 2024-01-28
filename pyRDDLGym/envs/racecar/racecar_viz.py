@@ -21,7 +21,7 @@ class RacecarVisualizer(BaseViz):
         self._vector_len = vector_len
         self._wait_time = wait_time
         
-        self._nonfluents = model.grounded_non_fluents()
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         
         self.fig = plt.figure(figsize=self._figure_size)
         self.ax = plt.gca()

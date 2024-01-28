@@ -17,24 +17,14 @@ class TextVisualizer(BaseViz):
                  fontsize=10,
                  display=False) -> None:
         self._model = model
-        self._states = model.grounded_state_fluents()
-        self._nonfluents = model.grounded_non_fluents()
         self._figure_size = figure_size
         self._display = display
         self._dpi = dpi
         self._fontsize = fontsize
         self._interval = 10
-        self._nonfluents_layout = None
-        self._states_layout = None
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
-
-    def build_nonfluents_layout(self):
-        return self._nonfluents
-    
-    def build_states_layout(self, states):
-        return states
     
     def init_canvas(self, figure_size, dpi):
         fig = plt.figure(figsize=figure_size, dpi=dpi)
@@ -60,7 +50,7 @@ class TextVisualizer(BaseViz):
 
         self._fig, self._ax = self.init_canvas(self._figure_size, self._dpi)
         
-        state_layout = self.build_states_layout(state)
+        state_layout = state
         text_layout = {'state': state_layout}
 
         text_str = pprint.pformat(text_layout)[1:-1]

@@ -58,8 +58,8 @@ class RDDLDecompiler:
             decompiled_types += '\n\t};'
         
         decompiled_pvars = '\n\tpvariables {'
-        for pvars in [rddl.non_fluents, rddl.derived_fluents, rddl.interm_fluents, 
-                      rddl.state_fluents, rddl.observ_fluents, rddl.action_fluents]:
+        for pvars in (rddl.non_fluents, rddl.derived_fluents, rddl.interm_fluents, 
+                      rddl.state_fluents, rddl.observ_fluents, rddl.action_fluents):
             if pvars:
                 decompiled_pvars += '\n'
             for name in pvars:

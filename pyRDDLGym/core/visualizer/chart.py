@@ -48,7 +48,7 @@ class ChartVisualizer(BaseViz):
                 self._model.variable_params[state])
             self._labels[state] = list(map(
                 ','.join,
-                self._model.variations(self._model.variable_params[state])
+                self._model.ground_types(self._model.variable_params[state])
             ))
             self._historic_min_max[state] = (np.inf, -np.inf)
         self._step = 0
@@ -154,8 +154,8 @@ class ChartVisualizer(BaseViz):
         states = {name: np.full(shape=shape, fill_value=np.nan)
                   for (name, shape) in self._state_shapes.items()}
         for (name, value) in state.items():
-            var, objects = self._model.parse(name)
-            states[var][self._model.indices(objects)] = value
+            var, objects = self._model.parse_grounded(name)
+            states[var][self._model.object_indices(objects)] = value
         index = min(self._step, self._steps - 1)
         for (name, values) in states.items():
             self._state_hist[name][:, index] = np.ravel(values, order='C')

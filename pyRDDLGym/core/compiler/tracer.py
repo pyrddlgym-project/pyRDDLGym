@@ -245,16 +245,16 @@ class RDDLObjectsTracer:
         var, pvars = expr.args   
         rddl = self.rddl
         
-        # free variable (e.g., ?x) treated as array
+        # free object (e.g., ?x) treated as array
         # first element True indicates value is to be returned directly by sim
-        if rddl.is_free_variable(var):
+        if RDDLPlanningModel.is_free_object(var):
             obj_to_index = {pobj: i for (i, (pobj, _)) in enumerate(objects)}
             index_of_var = obj_to_index.get(var, None)
                          
             # check var is valid in scope "objects"
             if index_of_var is None:
                 raise RDDLInvalidObjectError(
-                    f'Free variable <{var}> is not defined in outer scope, '
+                    f'Free object <{var}> is not defined in outer scope, '
                     f'must be one of {set(obj_to_index.keys())}. '
                     f'Please check expression for <{out._current_root}>.')
             
@@ -269,7 +269,7 @@ class RDDLObjectsTracer:
             cached_value = (True, cached_value)
             
             prange = ptypes[index_of_var]
-            obj_type = prange if rddl.is_valid_type(prange) else None
+            obj_type = prange if rddl.is_type(prange) else None
             out._append(expr, objects, obj_type, False, cached_value)
         
         # object can only be defined in domain - map to canonical index
@@ -278,7 +278,7 @@ class RDDLObjectsTracer:
             var, msg='\n' + PST(expr, out._current_root)): 
             
             # check var is a domain object
-            literal = rddl.object_name(var)            
+            literal = RDDLPlanningModel.strip_literal(var)        
             enum_type = rddl.object_to_type[literal]  
             if enum_type not in rddl.enum_types:
                 raise RDDLInvalidObjectError(
@@ -297,7 +297,7 @@ class RDDLObjectsTracer:
             
             out._append(expr, objects, enum_type, False, cached_value)
         
-        # if the pvar has free variables (e.g., ?x)...
+        # if the pvar has free objects (e.g., ?x)...
         else:
             
             # check if pvar is fluent
@@ -327,7 +327,7 @@ class RDDLObjectsTracer:
             cached_sim_info = (False, self._map(expr, objects, out))    
                
             prange = rddl.variable_ranges.get(var, None)
-            obj_type = prange if rddl.is_valid_type(prange) else None
+            obj_type = prange if rddl.is_type(prange) else None
             out._append(expr, objects, obj_type, is_fluent, cached_sim_info)
         
     def _map(self, expr: Expression,
@@ -376,7 +376,7 @@ class RDDLObjectsTracer:
         # and used to extract from the value tensor at the corresponding axis
         # 1. if there are nested variables, then they are left as None slices
         #    since their values are only known at run time
-        # 2. if there are free variables ?x among nested variables, then they
+        # 2. if there are free objects ?x among nested variables, then they
         #    are reshaped to match objects
         object_shape = rddl.object_counts((ptype for (_, ptype) in objects))
         object_index = {obj: i for (i, (obj, _)) in enumerate(objects)}
@@ -405,7 +405,7 @@ class RDDLObjectsTracer:
             elif rddl.is_object(arg, msg='\n' + PST(expr, out._current_root)):
                 
                 # check that the type of the object is correct
-                literal = rddl.object_name(arg)
+                literal = RDDLPlanningModel.strip_literal(arg)
                 enum_type = rddl.object_to_type[literal]
                 if args_types[i] != enum_type: 
                     raise RDDLTypeError(
@@ -438,7 +438,7 @@ class RDDLObjectsTracer:
                         f'of type <{args_types[i]}>, got <{arg}> '
                         f'of type <{ptype}>.\n' + PST(expr, out._current_root))
                                       
-                # if nesting is found, then free variables like ?x are implicitly 
+                # if nesting is found, then free objects like ?x are implicitly 
                 # converted to arrays with shape of objects
                 # this way, the slice value array has shape that matches objects
                 if nested:
@@ -585,7 +585,7 @@ class RDDLObjectsTracer:
         rddl = self.rddl
         bad_types = {ptype 
                      for (_, ptype) in iter_objects 
-                     if not rddl.is_valid_type(ptype)}
+                     if not rddl.is_type(ptype)}
         if bad_types:
             raise RDDLTypeError(
                 f'Type(s) {bad_types} are not defined, '
@@ -616,7 +616,7 @@ class RDDLObjectsTracer:
         * pvars, arg = expr.args
         
         # cache and read reduced axes tensor info for the aggregation
-        # axes of new free variables in aggregation are appended to value array
+        # axes of new free objects in aggregation are appended to value array
         iter_objects = [ptype for (_, ptype) in pvars]
         self._check_iteration_variables(objects, iter_objects, expr, out)
         new_objects = objects + iter_objects
@@ -715,7 +715,7 @@ class RDDLObjectsTracer:
         )    
         
         # strip @ from any cases
-        case_dict = {rddl.object_name(key): value 
+        case_dict = {RDDLPlanningModel.strip_literal(key): value 
                      for (key, value) in case_dict.items()}
         
         # check for duplicated cases
@@ -811,7 +811,7 @@ class RDDLObjectsTracer:
         case_dict = dict(case_tup for (_, case_tup) in cases) 
         
         # strip @ from any cases       
-        case_dict = {rddl.object_name(key): value 
+        case_dict = {RDDLPlanningModel.strip_literal(key): value 
                      for (key, value) in case_dict.items()}
         
         # no duplicate cases are allowed
