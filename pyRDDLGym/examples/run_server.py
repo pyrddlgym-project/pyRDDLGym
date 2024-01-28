@@ -1,15 +1,18 @@
 import sys
 
-from pyRDDLGym import ExampleManager
-from pyRDDLGym.Core.Policies.RDDLSimAgent import RDDLSimAgent
+from pyRDDLGym.core.server import RDDLSimServer
+from pyRDDLGym.envs.registration import get_paths_to_example
 
-def main(domain):
-    EnvInfo = ExampleManager.GetEnvInfo(domain)
-    agent = RDDLSimAgent(EnvInfo.get_domain(), EnvInfo.get_instance(1), 30, 300)
+
+def main(domain, instance):
+    domain_path, instance_path, _ = get_paths_to_example(domain, instance)
+    agent = RDDLSimServer(domain_path, instance_path, 30, 300)
     agent.run()
 
+
 if __name__ == "__main__":
-    domain = "recon2018"
-    if len(sys.argv) == 2:
-        domain = sys.argv[1]
-    main(domain)
+    args = sys.argv[1:]
+    domain, instance = "Wildfire", 0
+    if len(args) == 2:
+        domain, instance = args
+    main(domain, instance)

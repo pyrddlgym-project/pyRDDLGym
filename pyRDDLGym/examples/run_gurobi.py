@@ -2,7 +2,7 @@
 
 The syntax is:
 
-    python GurobiExample.py <domain> <instance> <horizon>
+    python run_gurobi.py <domain> <instance> <horizon>
     
 where:
     <domain> is the name of a domain located in the /Examples directory
@@ -11,17 +11,16 @@ where:
 '''
 import sys
 
-from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiStraightLinePlan
-from pyRDDLGym.Core.Gurobi.GurobiRDDLPlanner import GurobiOnlineController
-from pyRDDLGym.Examples.ExampleManager import ExampleManager
+import pyRDDLGym
+from pyRDDLGym.baselines.gurobiplan.planner import (
+    GurobiStraightLinePlan, GurobiOnlineController
+)
 
 
 def main(domain, instance, horizon):
     
     # create the environment
-    info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance, enforce_action_constraints=True)
+    env = pyRDDLGym.make(domain, instance, enforce_action_constraints=True)
     
     # create the controller
     controller = GurobiOnlineController(rddl=env.model,
@@ -36,7 +35,7 @@ def main(domain, instance, horizon):
 if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
-        print('python GurobiExample.py <domain> <instance> <horizon>')
+        print('python run_gurobi.py <domain> <instance> <horizon>')
         exit(1)
     domain, instance, horizon = args[:3]
     horizon = int(horizon)
