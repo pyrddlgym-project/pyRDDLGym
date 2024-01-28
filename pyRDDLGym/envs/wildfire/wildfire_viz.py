@@ -2,27 +2,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Visualizer.StateViz import StateViz
-from pyRDDLGym import Visualizer
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
-class WildfireVisualizer(StateViz):
+class WildfireVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel,
-                 dpi=50,
-                 fontsize=8,
-                 display=False) -> None:
+    def __init__(self, model: RDDLPlanningModel, dpi=50, fontsize=8) -> None:
         self._model = model
-        self._states = model.groundstates()
-        self._nonfluents = model.groundnonfluents()
-        self._objects = model.objects
+        self._states = model.grounded_state_fluents()
+        self._nonfluents = model.grounded_non_fluents()
+        self._objects = model.type_to_objects
         self._figure_size = None
         self._dpi = dpi
         self._fontsize = fontsize
         self._interval = 5
-
-        self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
 
         self._nonfluent_layout = None
         self._state_layout = None
@@ -31,21 +25,18 @@ class WildfireVisualizer(StateViz):
         self._img = None
     
     def build_nonfluents_layout(self): 
-        targets = []
-        
+        targets = []        
         for k, v in self._nonfluents.items():
             var, objects = self._model.parse(k)
             if var == 'TARGET':
                 if v == True:
                     x, y = objects
                     targets.append((x, y))
-
         return {'targets':targets}
 
     def build_states_layout(self, state): 
         burning = []
         fuel = []
-
         for k, v in state.items():
             var, objects = self._model.parse(k)
             if var == 'burning':
@@ -55,8 +46,7 @@ class WildfireVisualizer(StateViz):
             if var == 'out-of-fuel':
                 if v == True:
                     x, y = objects
-                    fuel.append((x, y))
-        
+                    fuel.append((x, y))        
         return {'burning':burning, 'out-of-fuel':fuel}
 
     def init_canvas_info(self):
@@ -74,10 +64,10 @@ class WildfireVisualizer(StateViz):
                 y_init = int(grid_size[1] * interval - y_val * interval)
                 grid_init_points[(x, y)] = (x_init, y_init)
 
-        canvas_info = {'canvas_size': (grid_size[0] * interval,
-                                       grid_size[1] * interval),
-                       'grid_init_points': grid_init_points}
-
+        canvas_info = {
+            'canvas_size': (grid_size[0] * interval, grid_size[1] * interval),
+            'grid_init_points': grid_init_points
+        }
         return canvas_info
         
     def init_canvas(self, figure_size, dpi):
@@ -86,7 +76,6 @@ class WildfireVisualizer(StateViz):
         plt.xlim([-0.5, figure_size[0] + 0.5])
         plt.ylim([-0.5, figure_size[1] + 0.5])
         plt.axis('scaled')
-        # plt.axis('off')
         return fig, ax
 
     def render_grid(self, pos, nonfluent_layout, state_layout):
@@ -127,8 +116,7 @@ class WildfireVisualizer(StateViz):
         
         ax.add_patch(grid_rect)
         
-        if pos in state_layout['burning']:
-            
+        if pos in state_layout['burning']:            
             piv_left = (init_x + 0.1, init_y)
             piv_right = (init_x + interval - 0.1, init_y)
             piv_top = (init_x + interval / 2 + 0.1, init_y + interval / 2)
@@ -138,19 +126,14 @@ class WildfireVisualizer(StateViz):
 
         return fig, ax
 
-    def convert2img(self, fig, ax):
-        
+    def convert2img(self, fig, ax):        
         ax.set_position((0, 0, 1, 1))
         fig.canvas.draw()
-
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
         img = Image.fromarray(data)
-
         self._data = data
         self._img = img
-
         return img
 
     def fig2npa(self, fig):

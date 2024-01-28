@@ -3,8 +3,8 @@ from PIL import Image
 import pygame
 from pygame import Rect, gfxdraw, freetype
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 ROW_SIZE = 50
 COL_SIZE = 50
@@ -19,17 +19,17 @@ NUM_WAIT_TEXT = freetype.SysFont('freesansbold', 15)
 
 
 # code comes from openai gym
-class ElevatorVisualizer(StateViz):
+class ElevatorVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel, figure_size=[600, 400], wait_time=100) -> None:
+    def __init__(self, model: RDDLPlanningModel, wait_time=100) -> None:
         self._model = model
         self._wait_time = wait_time
-        self._n_elev = len(self._model.objects['elevator'])
-        self._n_floors = len(self._model.objects['floor'])
+        self._n_elev = len(self._model.type_to_objects['elevator'])
+        self._n_floors = len(self._model.type_to_objects['floor'])
         self._n_cols = 7 + 2 * (self._n_elev - 1)
         self._n_rows = self._n_floors
         self._figure_size = (COL_SIZE * self._n_cols, ROW_SIZE * (self._n_rows + 2))
-        self._nonfluents = model.nonfluents
+        self._nonfluents = model.non_fluents
         self._left = COL_SIZE 
         self._right = self._figure_size[0] - COL_SIZE
         self._top = ROW_SIZE
@@ -49,10 +49,10 @@ class ElevatorVisualizer(StateViz):
     def render(self, state):
         
         # Get the state information
-        FLUENT_SEP = PlanningModel.FLUENT_SEP
+        FLUENT_SEP = RDDLPlanningModel.FLUENT_SEP
         elev_to_floor = {}
-        for e in self._model.objects['elevator']:
-            for fl in self._model.objects['floor']:
+        for e in self._model.type_to_objects['elevator']:
+            for fl in self._model.type_to_objects['floor']:
                 state_key = self._model.ground_name('elevator-at-floor', [e, fl])
                 if state[state_key]:
                     elev_to_floor[e] = fl
@@ -101,7 +101,7 @@ class ElevatorVisualizer(StateViz):
 
         # Draw each floor
         for i in range(1, self._n_floors + 1):
-            fl = self._model.objects['floor'][i - 1]
+            fl = self._model.type_to_objects['floor'][i - 1]
             row = i
             
             floor_y_coord = self._bottom - ROW_SIZE * row
@@ -112,7 +112,7 @@ class ElevatorVisualizer(StateViz):
 
             # Go through elevators
             for j in range(self._n_elev):
-                elev = self._model.objects['elevator'][j]
+                elev = self._model.type_to_objects['elevator'][j]
                 col_offset = 2 * j + 2
                 
                 if elev_to_floor[elev] == fl: 
@@ -196,12 +196,9 @@ class ElevatorVisualizer(StateViz):
             )
             
         # surf = pygame.transform.flip(surf, False, True)
-        screen.blit(surf, (0, 0))
-        
-        pygame.time.wait(self._wait_time)
-        
-        img = self.convert2img(screen)
-        
+        screen.blit(surf, (0, 0))        
+        pygame.time.wait(self._wait_time)        
+        img = self.convert2img(screen)        
         del screen, surf        
         
         return img

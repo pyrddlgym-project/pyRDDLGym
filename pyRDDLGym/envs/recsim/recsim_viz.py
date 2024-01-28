@@ -2,36 +2,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-import pyRDDLGym.Visualizer as Visualizer
-from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
-class RecSimVisualizer(StateViz):
+class RecSimVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel,
-                 figure_size=[5, 10],
+    def __init__(self, model: RDDLPlanningModel,
+                 figure_size=(5, 10),
                  dpi=100,
                  fontsize=10,
                  display=False) -> None:
         self._model = model
-        self._states = model.states
-        self._nonfluents = model.groundnonfluents()
-        self._objects = model.objects
+        self._states = model.state_fluents
+        self._nonfluents = model.grounded_non_fluents()
+        self._objects = model.type_to_objects
         self._figure_size = figure_size
         self._display = display
         self._dpi = dpi
         self._fontsize = fontsize
         self._interval = 10
-        self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
         self._object_layout = None
         self._fig, self._ax = None, None
         self._data = None
         self._img = None
 
-        # if display == True:
-        #     self.pygame_thread = threading.Thread(target=self.init_display)
-        #     self.pygame_thread.start()
         _horizon = 10
         self._interp_steps = 25
         self._creator_disp = 64.0
@@ -42,17 +37,17 @@ class RecSimVisualizer(StateViz):
         self._iter = 0
 
     def build_nonfluents_layout(self):
-        space_dim = len(self._model.objects['feature'])
+        space_dim = len(self._objects['feature'])
         self._feature_index = {
-            f: ind for ind, f in enumerate(self._model.objects['feature'])}
+            f: ind for ind, f in enumerate(self._objects['feature'])}
         if space_dim != 2:
             raise RuntimeError('This visualizer can only run in 2d (two features).')
         
-        self._num_users = len(self._model.objects['consumer'])
-        creators = self._model.objects['provider'].copy()
+        self._num_users = len(self._objects['consumer'])
+        creators = self._objects['provider'].copy()
         creators.remove('pn')
         self._user_index = {
-            c: ind for ind, c in enumerate(self._model.objects['consumer'])}
+            c: ind for ind, c in enumerate(self._objects['consumer'])}
         self._num_creators = len(creators)
         self._creator_index = {p: ind for ind, p in enumerate(creators)}
         self._creator_means = np.zeros((self._num_creators, space_dim))
@@ -107,19 +102,13 @@ class RecSimVisualizer(StateViz):
         return {'nonfluents_layout': self.build_nonfluents_layout(),
                 'states_layout': self.build_states_layout()}
 
-    def convert2img(self, fig, ax):
-        
-        # ax.set_position((0, 0, 1, 1))
+    def convert2img(self, fig, ax):        
         fig.canvas.draw()
-
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
         img = Image.fromarray(data)
-
         self._data = data
         self._img = img
-
         return img
 
     def render(self, state):
@@ -131,9 +120,7 @@ class RecSimVisualizer(StateViz):
 
         reward = self._user_satisfaction + 0.1
         rel_sizes = self._creator_satisfaction + 0.1
-        # print(self._creator_satisfaction)
         rel_sizes = rel_sizes / np.sum(rel_sizes)
-        # print(self._user_interests)
         if self._user_plot is None:
             self._user_plot = self._ax_scatter.scatter(
                 self._user_interests[:, 0],
@@ -142,8 +129,6 @@ class RecSimVisualizer(StateViz):
                 c=20 * np.sqrt(np.maximum(reward, 0.)),
                 cmap='plasma',
                 edgecolors='black')
-        # print(self._creator_means[:, 0],
-        #     self._creator_means[:, 1], rel_sizes)
         self._creator_plot = self._ax_scatter.scatter(
             self._creator_means[:, 0],
             self._creator_means[:, 1],
@@ -168,8 +153,6 @@ class RecSimVisualizer(StateViz):
             ax.get_xaxis().set_visible(False)
             ax.get_yaxis().set_visible(False)
 
-        # return [self._user_plot, self._creator_plot, self._creator_util_scatter]
-
         # state_layout = self.build_states_layout(state)
         # text_layout = {'state': state_layout}
         # text_str = pprint.pformat(text_layout)[1:-1]
@@ -177,12 +160,9 @@ class RecSimVisualizer(StateViz):
         #         horizontalalignment='left', verticalalignment='top', wrap=True, fontsize = self._fontsize)
         
         img = self.convert2img(self._fig, None)
-        # img.save(f'frame{self._iter}.png')
         self._iter += 1
 
-        # self._ax.cla()
         plt.close()
-        # plt.show()
 
         return img
     

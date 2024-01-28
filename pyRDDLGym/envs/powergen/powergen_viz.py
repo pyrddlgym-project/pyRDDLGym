@@ -2,25 +2,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym import Visualizer
-from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
-class PowerGenVisualizer(StateViz):
+class PowerGenVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel, dpi=20, fontsize=8, display=False) -> None:
-
+    def __init__(self, model: RDDLPlanningModel, dpi=20, fontsize=8) -> None:
         self._model = model
-        self._states = model.states
-        self._nonfluents = model.groundnonfluents()
-        self._objects = model.objects
+        self._states = model.state_fluents
+        self._nonfluents = model.grounded_non_fluents()
+        self._objects = model.type_to_objects
         self._figure_size = None
         self._dpi = dpi
         self._fontsize = fontsize
         self._interval = 15
-
-        self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
 
         self._nonfluent_layout = None
         self._state_layout = None
@@ -28,8 +24,7 @@ class PowerGenVisualizer(StateViz):
         self._data = None
         self._img = None
     
-    def build_nonfluents_layout(self): 
-
+    def build_nonfluents_layout(self):
         prod_units_min = {o: None for o in self._objects['plant']}
         prod_units_max = {o: None for o in self._objects['plant']}
         prod_change_penalty = {o: None for o in self._objects['plant']}
@@ -55,14 +50,12 @@ class PowerGenVisualizer(StateViz):
     def build_states_layout(self, state):
         prevProd = {o: None for o in self._objects['plant']}
         temperature = None
-
         for k, v in state.items():
             var, objects = self._model.parse(k)
             if var == 'prevProd':
                 prevProd[objects[0]] = v
             elif 'temperature' in k:
-                temperature = v
-        
+                temperature = v        
         return {'prevProd': prevProd, 'temperature': temperature}
 
     def init_canvas_info(self):
@@ -70,8 +63,6 @@ class PowerGenVisualizer(StateViz):
         plant_list = self._objects['plant']
         room_grid_size = (int((len(plant_list)) ** 0.5) + 1,
                           int((len(plant_list)) ** 0.5) + 1)
-        room_center = (room_grid_size[0] * self._interval / 2,
-                       room_grid_size[1] * self._interval / 2)
         start_points_zone = []
         
         for i in range(room_grid_size[0]):
@@ -89,7 +80,6 @@ class PowerGenVisualizer(StateViz):
         canvas_info = {'canvas_size': (room_grid_size[0] * interval,
                                        room_grid_size[1] * interval),
                        'plant_init_points': init_points}
-
         return canvas_info
         
     def init_canvas(self, figure_size, dpi):
@@ -102,7 +92,6 @@ class PowerGenVisualizer(StateViz):
         return fig, ax
 
     def render_plant(self, plant, nonfluent_layout, state_layout):
-
         fig = self._fig
         ax = self._ax
         interval = self._interval * 2 / 3
@@ -188,19 +177,14 @@ class PowerGenVisualizer(StateViz):
 
         return fig, ax
 
-    def convert2img(self, fig, ax):
-        
+    def convert2img(self, fig, ax):        
         ax.set_position((0, 0, 1, 1))
         fig.canvas.draw()
-
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
         img = Image.fromarray(data)
-
         self._data = data
         self._img = img
-
         return img
 
     def fig2npa(self, fig):
