@@ -1,4 +1,4 @@
-from typing import Dict, Set
+from typing import Dict, List
 import warnings
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
@@ -54,7 +54,7 @@ class RDDLLevelAnalysis:
     # call graph construction
     # ===========================================================================
     
-    def build_call_graph(self) -> Dict[str, Set[str]]:
+    def build_call_graph(self) -> Dict[str, List[str]]:
         '''Builds a call graph for the current RDDL, where keys represent parent
         expressions (e.g., CPFs, reward) and values are sets of variables on 
         which each parent depends. Also handles validation of the call graph to
@@ -78,10 +78,14 @@ class RDDLLevelAnalysis:
             ('invariant', rddl.invariants),
             ('termination', rddl.terminations)
         ):
-            call_graph = {}
+            call_graph_expr = {}
             for expr in exprs:
-                self._update_call_graph(call_graph, name, expr)
-            self._validate_dependencies(call_graph)
+                self._update_call_graph(call_graph_expr, name, expr)
+            self._validate_dependencies(call_graph_expr)
+        
+        # produce reproducible order of graph dependencies
+        cpf_graph = {name: sorted(deps) 
+                     for (name, deps) in cpf_graph.items()}
         return cpf_graph
     
     def _update_call_graph(self, graph, cpf, expr):
@@ -184,7 +188,7 @@ class RDDLLevelAnalysis:
     # topological sort
     # ===========================================================================
     
-    def compute_levels(self) -> Dict[int, Set[str]]:
+    def compute_levels(self) -> Dict[int, List[str]]:
         '''Constructs a call graph for the current RDDL, and then runs a 
         topological sort to determine the optimal order in which the CPFs in the 
         RDDL should be be evaluated.
@@ -205,6 +209,10 @@ class RDDLLevelAnalysis:
                         level = max(level, levels[child] + 1)
                 result.setdefault(level, set()).add(var)
                 levels[var] = level
+        
+        # produce reproducible order of graph dependencies
+        result = {level: sorted(cpfs) 
+                  for (level, cpfs) in result.items()}
         
         # log dependency graph information to file
         if self.logger is not None: 

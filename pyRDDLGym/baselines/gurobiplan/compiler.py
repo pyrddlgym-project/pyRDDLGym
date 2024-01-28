@@ -279,7 +279,7 @@ class GurobiRDDLCompiler:
     def _compile_cpfs(self, model, subs) -> None:
         rddl = self.rddl
         for cpfs in self.levels.values():
-            for cpf in sorted(cpfs):
+            for cpf in cpfs:
                 _, expr = rddl.cpfs[cpf]
                 subs[cpf] = self._gurobi(expr, model, subs)
     
