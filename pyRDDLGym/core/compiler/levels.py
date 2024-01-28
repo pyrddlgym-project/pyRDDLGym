@@ -72,12 +72,12 @@ class RDDLLevelAnalysis:
         self._validate_cpf_definitions(cpf_graph)
         
         # check validity of reward, constraints, termination
-        for (name, exprs) in [
+        for (name, exprs) in (
             ('reward', [rddl.reward]),
             ('precondition', rddl.preconditions),
             ('invariant', rddl.invariants),
             ('termination', rddl.terminations)
-        ]:
+        ):
             call_graph = {}
             for expr in exprs:
                 self._update_call_graph(call_graph, name, expr)
@@ -96,13 +96,13 @@ class RDDLLevelAnalysis:
             name, pvars = expr.args
             rddl = self.rddl
             
-            # free variables (e.g., ?x) are ignored
-            if rddl.is_free_variable(name):
+            # free objects (e.g., ?x) are ignored
+            if RDDLPlanningModel.is_free_object(name):
                 pass
             
             # objects are ignored
             elif not pvars and rddl.is_object(
-                name, f'Please check expression for CPF {cpf}.'):
+                name, f'Please check expression for CPF {cpf}.'): 
                 pass
             
             # variable defined in pvariables {..} scope
@@ -168,9 +168,7 @@ class RDDLLevelAnalysis:
                         f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>, '
                         f'set allow_synchronous_state=True to allow this.')                
     
-    def _validate_cpf_definitions(self, graph): 
-        
-        # check that all CPFs have a valid definition
+    def _validate_cpf_definitions(self, graph):
         for cpf in self.rddl.cpfs:
             fluent_type = self.rddl.variable_types.get(cpf, cpf)
             if fluent_type == 'state-fluent':

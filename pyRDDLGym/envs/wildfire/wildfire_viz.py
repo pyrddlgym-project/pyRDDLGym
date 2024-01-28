@@ -10,8 +10,7 @@ class WildfireVisualizer(BaseViz):
 
     def __init__(self, model: RDDLPlanningModel, dpi=50, fontsize=8) -> None:
         self._model = model
-        self._states = model.grounded_state_fluents()
-        self._nonfluents = model.grounded_non_fluents()
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         self._objects = model.type_to_objects
         self._figure_size = None
         self._dpi = dpi
@@ -27,7 +26,7 @@ class WildfireVisualizer(BaseViz):
     def build_nonfluents_layout(self): 
         targets = []        
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse(k)
+            var, objects = self._model.parse_grounded(k)
             if var == 'TARGET':
                 if v == True:
                     x, y = objects
@@ -38,7 +37,7 @@ class WildfireVisualizer(BaseViz):
         burning = []
         fuel = []
         for k, v in state.items():
-            var, objects = self._model.parse(k)
+            var, objects = self._model.parse_grounded(k)
             if var == 'burning':
                 if v == True:
                     x, y = objects

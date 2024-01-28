@@ -14,8 +14,7 @@ class RecSimVisualizer(BaseViz):
                  fontsize=10,
                  display=False) -> None:
         self._model = model
-        self._states = model.state_fluents
-        self._nonfluents = model.grounded_non_fluents()
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         self._objects = model.type_to_objects
         self._figure_size = figure_size
         self._display = display
@@ -54,7 +53,7 @@ class RecSimVisualizer(BaseViz):
         self._user_interests = np.zeros((self._num_users, space_dim))
         
         for key, value in self._nonfluents.items():
-            var, objects = self._model.parse(key)
+            var, objects = self._model.parse_grounded(key)
             if var == 'CONSUMER-AFFINITY':
                 self._user_interests[
                     self._user_index[objects[0]]][
@@ -73,7 +72,7 @@ class RecSimVisualizer(BaseViz):
         self._user_satisfaction = np.zeros(self._num_users)
         self._creator_satisfaction = np.zeros(self._num_creators)
         for key, value in states.items():
-            var, objects = self._model.parse(key)
+            var, objects = self._model.parse_grounded(key)
             if var == 'consumer-satisfaction':
                 self._user_satisfaction[self._user_index[objects[0]]] = value
             elif var == 'provider-satisfaction':

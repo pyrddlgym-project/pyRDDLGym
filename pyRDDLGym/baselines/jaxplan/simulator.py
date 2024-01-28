@@ -87,15 +87,14 @@ class JaxRDDLSimulator(RDDLSimulator):
         self.noop_actions = {var: values 
                              for (var, values) in self.init_values.items() 
                              if rddl.variable_types[var] == 'action-fluent'}
+        self.grounded_noop_actions = rddl.ground_vars_with_values(self.noop_actions)
+        self.grounded_action_ranges = rddl.ground_vars_with_value(rddl.action_ranges)
         self._pomdp = bool(rddl.observ_fluents)
         
         # cached for performance
         self.invariant_names = [f'Invariant {i}' for i in range(len(rddl.invariants))]        
         self.precond_names = [f'Precondition {i}' for i in range(len(rddl.preconditions))]
         self.terminal_names = [f'Termination {i}' for i in range(len(rddl.terminations))]
-        
-        self.grounded_action_ranges = rddl.grounded_action_ranges()
-        self.grounded_noop_actions = rddl.ground_values_from_dict(self.noop_actions)
         
     def handle_error_code(self, error, msg) -> None:
         if self.raise_error:
@@ -180,7 +179,7 @@ class JaxRDDLSimulator(RDDLSimulator):
             if keep_tensors:
                 self.state[state] = subs[state]
             else:
-                self.state.update(rddl.ground_values(state, subs[state]))
+                self.state.update(rddl.ground_var_with_values(state, subs[state]))
         
         # update observation
         if self._pomdp: 
@@ -189,7 +188,7 @@ class JaxRDDLSimulator(RDDLSimulator):
                 if keep_tensors:
                     obs[var] = subs[var]
                 else:
-                    obs.update(rddl.ground_values(var, subs[var]))
+                    obs.update(rddl.ground_var_with_values(var, subs[var]))
         else:
             obs = self.state
         

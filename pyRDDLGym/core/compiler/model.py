@@ -18,13 +18,20 @@ from pyRDDLGym.core.parser.expr import Expression, Value
 
 
 class RDDLPlanningModel(metaclass=ABCMeta):
-    '''The base class representing all RDDL domain + instance.
+    '''The base class representing all RDDL domains + instances.
     '''
     
+    # grounded variable is var___obj1__obj2...
     FLUENT_SEP = '___'
     OBJECT_SEP = '__'
     NEXT_STATE_SYM = '\''
 
+    PRIMITIVE_TYPES = {
+        'int': int,
+        'real': float,
+        'bool': bool
+    }
+    
     def __init__(self):
         
         # base
@@ -367,12 +374,36 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         self._max_allowed_actions = val
     
     # ===========================================================================
-    # utility methods
+    # class methods for general RDDL syntax rules
     # ===========================================================================
     
-    def ground_name(self, name: str, objects: Iterable[str]) -> str:
-        '''Given a variable name and list of objects as arguments, produces a 
-        grounded representation <variable>___<obj1>__<obj2>__...'''
+    @staticmethod
+    def is_free_object(name: str) -> bool:
+        '''Determines whether the name is a free object (e.g., ?x).
+        '''
+        return name[0] == '?'
+    
+    @staticmethod
+    def strip_literal(name: str) -> str:
+        '''Returns the canonical name of an enum literal 
+        (e.g., given @x returns x). All other strings are returned unmodified.
+        '''
+        if name[0] == '@':
+            name = name[1:]
+        return name
+    
+    @staticmethod
+    def strip_literals(names: Iterable[str]) -> List[str]:
+        '''Returns the canonical names of given enum literals 
+        (e.g., given @x returns x). All other strings are returned unmodified.
+        '''
+        return list(map(RDDLPlanningModel.strip_literal, names))
+        
+    @staticmethod
+    def ground_var(name: str, objects: Iterable[str]) -> str:
+        '''Given a variable name and list of objects as arguments, produces the
+        grounded representation <variable>___<obj1>__<obj2>__...
+        '''
         PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         is_primed = name.endswith(PRIME)
         var = name
@@ -385,9 +416,11 @@ class RDDLPlanningModel(metaclass=ABCMeta):
             var += PRIME
         return var
     
-    def parse(self, expr: str) -> Tuple[str, List[str]]:
-        '''Parses an expression of the form <name> or <name>___<type1>__<type2>...)
-        into a tuple of <name>, [<type1>, <type2>, ...].'''
+    @staticmethod
+    def parse_grounded(expr: str) -> Tuple[str, List[str]]:
+        '''Parses a variable of the form <name>___<type1>__<type2>...
+        into a tuple (<name>, [<type1>, <type2>, ...]).
+        '''
         PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         is_primed = expr.endswith(PRIME)
         if is_primed:
@@ -395,15 +428,92 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         var, *objects = expr.split(RDDLPlanningModel.FLUENT_SEP)
         if objects:
             if len(objects) != 1:
-                raise RDDLInvalidObjectError(f'Invalid pvariable expression {expr}.')
+                raise RDDLInvalidObjectError(
+                    f'Variable expression {expr} is malformed.')
             objects = objects[0].split(RDDLPlanningModel.OBJECT_SEP)
         if is_primed:
             var += PRIME
         return var, objects
     
-    def variations(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
-        '''Given a list of types, computes the Cartesian product of all object
-        enumerations that corresponds to those types.'''
+    # ===========================================================================
+    # utility methods
+    # ===========================================================================
+    
+    def is_type(self, value: str) -> bool:
+        '''Returns whether the given value is a valid type.
+        '''
+        return value in self.type_to_objects or value in self.enum_types
+        
+    def is_object(self, name: str, msg='') -> bool:
+        '''Returns whether the given name is a valid object.
+        
+        Raises an exception if an object is identified as an enum literal (@x)
+        but is not defined, or if it is an object that shares
+        the same name as a pvariable with no parameters.
+        '''        
+        # must be an object
+        if name[0] == '@':
+            name = name[1:]
+            if name not in self.object_to_type:
+                raise RDDLInvalidObjectError(
+                    f'Object <@{name}> is not defined, '
+                    f'must be one of {set(self.object_to_type.keys())}. {msg}')
+            return True
+        
+        # this could either be an object or variable
+        # object if a variable does not exist with the same name
+        #        or if a variable has the same name but free parameters
+        # ambiguous if a variable has the same name but no free parameters
+        if name in self.object_to_type:
+            params = self.variable_params.get(name, None)
+            if params is not None and not params:
+                raise RDDLInvalidObjectError(
+                    f'Ambiguous reference to object or '
+                    f'parameter-free variable with identical name <{name}>. {msg}')
+            return True
+        
+        # this must be something else...
+        return False
+    
+    def object_indices(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
+        '''Returns the canonical indices of a sequence of objects based on the
+        orders they are defined in the instance.
+        
+        Raises an exception if an object is not defined in the domain.
+        '''
+        object_to_index = self.object_to_index
+        try:
+            return tuple(object_to_index[obj] for obj in objects)
+        except:
+            for obj in objects:
+                if obj not in object_to_index:
+                    raise RDDLInvalidObjectError(
+                        f'Object <{obj}> is not valid, '
+                        f'must be one of {set(object_to_index.keys())}. {msg}')
+    
+    def object_counts(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
+        '''Returns a tuple containing the number of objects of each type.
+        Raises an exception if a type is not defined in the domain.
+        
+        :param types: a list of RDDL types
+        :param msg: an error message to print in case the calculation fails.
+        '''
+        type_to_objects = self.type_to_objects
+        try:
+            return tuple(len(type_to_objects[ptype]) for ptype in types)
+        except:
+            for ptype in types:
+                if ptype not in type_to_objects:
+                    raise RDDLTypeError(
+                        f'Type <{ptype}> is not valid, '
+                        f'must be one of {set(type_to_objects.keys())}. {msg}')
+    
+    def ground_types(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
+        '''Given a list of valid types in the domain, produces an iterator
+        of all possible assignments of objects to the types (groundings).
+        
+        Raises an exception if a type is invalid.
+        '''
         if ptypes is None or not ptypes:
             return [()]
         objects_by_type = []
@@ -415,59 +525,64 @@ class RDDLPlanningModel(metaclass=ABCMeta):
                     f'must be one of {set(self.type_to_objects.keys())}.')
             objects_by_type.append(objects)
         return itertools.product(*objects_by_type)
+            
+    def ground_var_with_value(self, var: str, value: Value) -> Iterable[Tuple[str, Value]]:
+        '''Converts a dictionary of var -> value associations to a dictionary
+        of ground(var) -> value, where ground(var) is a grounding of var.
+        '''
+        # get the variable groundings
+        groundings = self.variable_groundings.get(var, None)
+        if groundings is None:
+            raise RDDLTypeError(
+                f'Variable <{var}> is not defined, '
+                f'must be one of {set(self.variable_groundings.keys())}.')   
+        
+        return zip(groundings, itertools.repeat(value))
+        
+    def ground_vars_with_value(self, dict_values: Dict[str, Iterable[Value]]) -> Dict[str, Value]:
+        '''Converts a dictionary of vars -> value associations to a dictionary 
+        of ground(var) -> value, var is in vars, and ground(var) is a grounding 
+        of var.
+        '''
+        grounded = {}
+        for (var, value) in dict_values.items():
+            grounded.update(self.ground_var_with_value(var, value))
+        return grounded    
     
-    def ground_names(self, name: str, ptypes: Iterable[str]) -> Iterable[str]:
-        '''Given a variable name and list of types, produces a new iterator
-        whose elements are the grounded representations in the cartesian product 
-        of all object enumerations that corresponds to those types.'''
-        for objects in self.variations(ptypes):
-            yield self.ground_name(name, objects)
+    def ground_var_with_values(self, var: str, values: Iterable[Value]) -> Iterable[Tuple[str, Value]]:
+        '''Returns an iterator of (ground(var), value) pairs, where ground(var) is
+        a grounding of var and value is the corresponding value in values.        
+        '''
+        # get the variable groundings
+        groundings = self.variable_groundings.get(var, None)
+        if groundings is None:
+            raise RDDLTypeError(
+                f'Variable <{var}> is not defined, '
+                f'must be one of {set(self.variable_groundings.keys())}.')   
+        
+        # unravel the values and check size condition
+        values = np.ravel(values, order='C')
+        if len(groundings) != values.size:
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Variable <{var}> requires {len(groundings)} argument(s), '
+                f'got {values.size}.')
+            
+        return zip(groundings, values)
     
-    def is_free_variable(self, name: str) -> bool:
-        '''Determines whether the quantity is a free variable (e.g., ?x).'''
-        return name[0] == '?'
-        
-    def is_valid_type(self, ptype: str) -> bool:
-        '''Returns whether the given string is a valid type.'''
-        return ptype in self.enum_types or ptype in self.type_to_objects
-        
-    def object_name(self, name: str) -> str:
-        '''Extracts the internal object name representation. 
-        Used to read objects with string quantification, e.g. @obj.'''
-        if name[0] == '@':
-            name = name[1:]
-        return name
-        
-    def is_object(self, name: str, msg='') -> bool:
-        '''Determines whether the given string points to an object.'''
-        
-        # this must be an object
-        if name[0] == '@':
-            name = name[1:]
-            if name not in self.object_to_type:
-                raise RDDLInvalidObjectError(
-                    f'Object <@{name}> is not defined, '
-                    f'must be one of {set(self.object_to_type.keys())}. {msg}')
-            return True
-        
-        # this could either be an object or variable
-        # object if a variable does not exist with the same name
-        # object if a variable has the same name but free parameters
-        # ambiguous if a variable has the same name but no free parameters
-        if name in self.object_to_type:
-            params = self.variable_params.get(name, None)
-            if params is not None and not params:
-                raise RDDLInvalidObjectError(
-                    f'Ambiguous reference to object or '
-                    f'parameter-free variable with identical name <{name}>. {msg}')
-            return True
-        
-        # this must be a variable or free parameter
-        return False
+    def ground_vars_with_values(self, dict_values: Dict[str, Iterable[Value]]) -> Dict[str, Value]:
+        '''Converts a dictionary of vars -> values associations to a dictionary 
+        of ground(var) -> value, var is in vars, ground(var) is a grounding of 
+        var and value is the value in values.
+        '''
+        grounded = {}
+        for (var, values) in dict_values.items():
+            grounded.update(self.ground_var_with_values(var, values))
+        return grounded
     
     def is_compatible(self, var: str, objects: List[str]) -> bool:
-        '''Determines whether or not the given variable can be evaluated
-        for the given list of objects.'''
+        '''Determines whether or not the given variable can be assigned the
+        list of objects in the given order to its type parameters.
+        '''
         ptypes = self.variable_params.get(var, None)
         if ptypes is None:
             return False
@@ -482,7 +597,21 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         return True
     
     def is_non_fluent_expression(self, expr: Expression) -> bool:
-        '''Determines whether or not expression is a non-fluent.'''
+        '''Determines whether or not expression is a non-fluent expression
+        (i.e. certified to produce the same value if evaluated multiple times
+        with the same set of arguments). 
+        
+        Axiomatically, non-fluent expressions are:
+            
+            1. Non-expressions
+            2. Constant expressions
+            3. Free objects, i.e. ?x and enum objects, i.e. @x
+            4. Non-fluent pvariables
+            5. Expressions consisting of a deterministic operation on its
+               child sub-expressions, if said children are all non-fluents.
+        
+        Note, that a random sample from a distribution is not non-fluent.
+        '''
         if isinstance(expr, (tuple, list, set)):
             for arg in expr:
                 if not self.is_non_fluent_expression(arg):
@@ -502,8 +631,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         elif etype == 'pvar':
             name, pvars = expr.args
             
-            # a free variable (e.g., ?x) is non-fluent
-            if self.is_free_variable(name):
+            # a free object (e.g., ?x) is non-fluent
+            if RDDLPlanningModel.is_free_object(name):
                 return True
                 
             # an object is non-fluent
@@ -517,7 +646,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
                 var_type = self.variable_types.get(name, None)     
                 if var_type is None:
                     raise RDDLUndefinedVariableError(
-                        f'Variable <{name}> is not defined.')
+                        f'Variable <{name}> is not defined, must be one of '
+                        f'{set(self.variable_types.keys())}.')
                 
                 # check nested fluents
                 if pvars is None:
@@ -528,102 +658,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         else:
             return self.is_non_fluent_expression(expr.args)
     
-    def indices(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
-        '''Returns the canonical indices of a sequence of objects according to the
-        order they are listed in the instance
-        
-        :param objects: object instances corresponding to valid types defined
-        in the RDDL domain
-        :param msg: an error message to print in case the conversion fails.
-        '''
-        index_of_obj = self.object_to_index
-        try:
-            return tuple(index_of_obj[obj] for obj in objects)
-        except:
-            for obj in objects:
-                if obj not in index_of_obj:
-                    raise RDDLInvalidObjectError(
-                        f'Object <{obj}> is not valid, '
-                        f'must be one of {set(index_of_obj.keys())}. {msg}')
-    
-    def object_counts(self, types: Iterable[str], msg: str='') -> Tuple[int, ...]:
-        '''Returns a tuple containing the number of objects of each type.
-        
-        :param types: a list of RDDL types
-        :param msg: an error message to print in case the calculation fails
-        '''
-        objects = self.type_to_objects
-        try:
-            return tuple(len(objects[ptype]) for ptype in types)
-        except:
-            for ptype in types:
-                if ptype not in objects:
-                    raise RDDLTypeError(
-                        f'Type <{ptype}> is not valid, '
-                        f'must be one of {set(objects.keys())}. {msg}')
-    
-    def ground_values(self, var: str, values: Iterable[Value]) -> Iterable[Tuple[str, Value]]:
-        '''Produces a sequence of pairs where the first element is the 
-        grounded variables of var and the second are the corresponding values
-        from values array.
-        
-        :param var: the pvariable as it appears in RDDL
-        :param values: the values of var(?...) in C-based order      
-        '''
-        groundings = self.variable_groundings[var]
-        values = np.ravel(values, order='C')
-        if len(groundings) != values.size:
-            raise RDDLInvalidNumberOfArgumentsError(
-                f'Variable <{var}> requires {len(groundings)} argument(s), '
-                f'got {values.size}.')
-        return zip(groundings, values)
-    
-    def ground_values_from_dict(self, dict_values: Dict[str, object]) -> Dict[str, Value]:
-        '''Converts a dictionary of values such as nonfluents, states, observ
-        which has entries <var>: <list of values> to a grounded <var>: <value>
-        form, where each variable <var> is grounded out.
-        
-        :param dict_values: the value dictionary, where values are scalars
-        or lists in C-based order
-        '''
-        grounded = {}
-        for (var, values) in dict_values.items():
-            grounded.update(self.ground_values(var, values))
-        return grounded
-    
-    def ground_ranges_from_dict(self, dict_ranges: Dict[str, str]) -> Dict[str, str]:
-        '''Converts a dictionary of ranges such as statesranges
-        which has entries <var>: <range> to a grounded <var>: <range>
-        form, where each variable <var> is grounded out.
-        
-        :param dict_ranges: the ranges dictionary mapping variable to range
-        '''
-        return {grounded_name: prange 
-                for (action, prange) in dict_ranges.items()
-                    for grounded_name in self.variable_groundings[action]}
-    
-    def grounded_non_fluents(self):
-        return self.ground_values_from_dict(self.non_fluents)
-    
-    def grounded_state_fluents(self):
-        return self.ground_values_from_dict(self.state_fluents)
-    
-    def grounded_state_ranges(self):
-        return self.ground_ranges_from_dict(self.state_ranges)
-    
-    def grounded_action_fluents(self):
-        return self.ground_values_from_dict(self.action_fluents)
-    
-    def grounded_action_ranges(self):
-        return self.ground_ranges_from_dict(self.action_ranges)
-    
-    def grounded_observ_fluents(self):
-        return self.ground_values_from_dict(self.observ_fluents)
-    
-    def grounded_observ_ranges(self):
-        return self.ground_ranges_from_dict(self.observ_ranges)
-    
-    def print_expr(self):
+    def expr_to_str(self):
         '''Returns a dictionary containing string representations of all 
         expressions in the current RDDL.
         '''
@@ -636,7 +671,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         }
         return printed
     
-    def dump_to_stdout(self):
+    def pretty_print(self):
         '''Dumps a pretty printed representation of the current model to stdout.
         '''
         pprint(vars(self))
@@ -651,13 +686,8 @@ class RDDLGroundedModel(RDDLPlanningModel):
 
 
 class RDDLLiftedModel(RDDLPlanningModel):
-    '''Represents a RDDL domain + instance in lifted form.'''
-    
-    PRIMITIVE_TYPES = {
-        'int': int,
-        'real': float,
-        'bool': bool
-    }
+    '''A class representing a RDDL domain + instance in lifted form.
+    '''
     
     def __init__(self, rddl):
         super(RDDLLiftedModel, self).__init__()
@@ -668,10 +698,10 @@ class RDDLLiftedModel(RDDLPlanningModel):
         self._extract_variable_information()  
                 
         self._extract_states()
+        self._extract_non_fluents()
         self._extract_actions()
         self._extract_derived_and_interm()
         self._extract_observ()
-        self._extract_non_fluents()
         
         self.reward = self.ast.domain.reward
         self._extract_cpfs()
@@ -703,12 +733,12 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 objects[name] = ast_objects.get(name, None)
                 if objects[name] is None:
                     raise RDDLInvalidObjectError(
-                        f'Type <{name}> has no objects defined in the instance.')
-                objects[name] = list(map(self.object_name, objects[name]))
+                        f'Type <{name}> has no object defined in the instance.')
+                objects[name] = RDDLPlanningModel.strip_literals(objects[name])
                 
             # domain object
             else: 
-                objects[name] = list(map(self.object_name, pvalues))
+                objects[name] = RDDLPlanningModel.strip_literals(pvalues)
                 enums.add(name)
         
             # make sure types do not share an object - record type of each object
@@ -739,49 +769,53 @@ class RDDLLiftedModel(RDDLPlanningModel):
         self.enum_types = enums
     
     def _extract_variable_information(self):
-        
-        # extract some basic information about variables in the domain:
-        # 1. object parameters needed to evaluate
-        # 2. type (e.g. state-fluent, action-fluent)
-        # 3. range (e.g. int, real, bool, type)
-        # 4. save default values
-        var_params, var_types, var_ranges, var_ground, var_default = {}, {}, {}, {}, {}
+        var_types, var_ranges, var_params, var_default, var_ground = {}, {}, {}, {}, {}        
         for pvar in self.ast.domain.pvariables: 
-            
-            # make sure variable is not defined more than once        
             primed_name = name = pvar.name
+            if pvar.is_state_fluent():
+                primed_name = name + RDDLPlanningModel.NEXT_STATE_SYM
+                
+            # make sure variable is not defined more than once
             if name in var_params:
                 raise RDDLRepeatedVariableError(
                     f'{pvar.fluent_type} <{name}> has the same name as '
                     f'another {var_types[name]} variable.')
                 
             # make sure name does not contain separators
-            SEPARATORS = [RDDLPlanningModel.FLUENT_SEP, RDDLPlanningModel.OBJECT_SEP] 
-            for separator in SEPARATORS:
+            for separator in (RDDLPlanningModel.FLUENT_SEP, RDDLPlanningModel.OBJECT_SEP):
                 if separator in name:
                     raise RDDLInvalidObjectError(
                         f'Variable name <{name}> contains an '
                         f'illegal separator {separator}.')
             
-            # record its type, parameters and range
+            # record variable type
+            var_types[name] = pvar.fluent_type
             if pvar.is_state_fluent():
-                primed_name = name + RDDLPlanningModel.NEXT_STATE_SYM
+                var_types[primed_name] = 'next-state-fluent'  
+                              
+            # record variable range
+            var_ranges[name] = var_ranges[primed_name] = pvar.range 
+            
+            # record variable parameters
             ptypes = pvar.param_types
             if ptypes is None:
                 ptypes = []
-            var_params[name] = var_params[primed_name] = ptypes        
-            var_types[name] = pvar.fluent_type
-            if pvar.is_state_fluent():
-                var_types[primed_name] = 'next-state-fluent'                
-            var_ranges[name] = var_ranges[primed_name] = pvar.range 
-            var_ground[name] = list(self.ground_names(name, ptypes))
-            if pvar.is_state_fluent():
-                var_ground[primed_name] = list(self.ground_names(primed_name, ptypes))
+            var_params[name] = var_params[primed_name] = ptypes     
             
-            # save default value
+            # record default value
             var_default[name] = self._extract_default_value(pvar)
             
-        # maps each variable (as appears in RDDL) to list of grounded variations
+            # record possible groundings
+            var_ground[name] = [
+                RDDLPlanningModel.ground_var(name, objects)
+                for objects in self.ground_types(ptypes)
+            ]
+            if pvar.is_state_fluent():
+                var_ground[primed_name] = [
+                    RDDLPlanningModel.ground_var(primed_name, objects)
+                    for objects in self.ground_types(ptypes)
+                ]
+            
         self.variable_types = var_types
         self.variable_ranges = var_ranges
         self.variable_params = var_params
@@ -811,7 +845,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
             
             # is an object
             if isinstance(default, str):
-                default = self.object_name(default)
+                default = RDDLPlanningModel.strip_literal(default)
                 if default not in self.type_to_objects.get(prange, set()):
                     raise RDDLTypeError(
                         f'Default value {default} of variable <{pvar.name}> '
@@ -819,7 +853,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
             
             # is a primitive
             else:
-                dtype = RDDLLiftedModel.PRIMITIVE_TYPES.get(prange, None)
+                dtype = RDDLPlanningModel.PRIMITIVE_TYPES.get(prange, None)
                 if dtype is None:
                     raise RDDLTypeError(
                         f'Type <{prange}> of variable <{pvar.name}> is an object '
@@ -836,42 +870,43 @@ class RDDLLiftedModel(RDDLPlanningModel):
         return default
     
     def _extract_states(self):
+        PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         
         # get the information for each state from the domain
-        PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         states, statesranges, nextstates, prevstates = {}, {}, {}, {}
         for pvar in self.ast.domain.pvariables:
             if pvar.is_state_fluent():
-                name, ptypes = pvar.name, pvar.param_types
+                name = pvar.name
                 statesranges[name] = pvar.range
                 nextstates[name] = name + PRIME
                 prevstates[name + PRIME] = name
-                default = self.variable_defaults[name]           
-                states[name] = {gname: default 
-                                for gname in self.ground_names(name, ptypes)} 
+                default = self.variable_defaults[name]
+                states[name] = {gname: default
+                                for gname in self.variable_groundings[name]}
                 
         # update the state values with the values in the instance
         init_state_info = getattr(self.ast.instance, 'init_state', [])
         for ((name, params), value) in init_state_info:
                 
             # check whether name is a valid state-fluent
-            if name not in states:
+            grounded_states = states.get(name, None)
+            if grounded_states is None:
                 raise RDDLUndefinedVariableError(
                     f'Variable <{name}> referenced in init-state block '
                     f'is not a valid state-fluent.')
                     
             # extract the grounded name and check that parameters are valid
             if params is not None:
-                params = list(map(self.object_name, params))
-            gname = self.ground_name(name, params)
-            if gname not in states[name]:
+                params = RDDLPlanningModel.strip_literals(params)
+            gname = RDDLPlanningModel.ground_var(name, params)
+            if gname not in grounded_states:
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {params} of state-fluent <{name}> '
                     f'declared in the init-state block are not valid.')
                 
             # make sure value is correct type
             if isinstance(value, str):
-                value = self.object_name(value)
+                value = RDDLPlanningModel.strip_literal(value)
                 value_type = self.object_to_type.get(value, None)
                 required_type = statesranges[name]
                 if value_type != required_type:
@@ -886,71 +921,23 @@ class RDDLLiftedModel(RDDLPlanningModel):
                             f'is initialized in init-state block with object '
                             f'<{value}> of type {value_type}.')
                         
-            states[name][gname] = value
-                
-        # state dictionary associates the variable lifted name with a list of
-        # values for all variations of parameter arguments in C-based order
-        # if the fluent does not have parameters, then the value is a scalar
+            grounded_states[gname] = value
+        
         self.state_fluents = self._grounded_dict_to_dict_of_list(states)  
         self.state_ranges = statesranges   
         self.next_state = nextstates
         self.prev_state = prevstates
     
-    def _value_list_or_scalar_from_default(self, pvar):
-        default = self.variable_defaults[pvar.name]
-        ptypes = pvar.param_types   
-        if ptypes is None:
-            return default
-        else:
-            num_variations = 1
-            for ptype in ptypes:
-                num_variations *= len(self.type_to_objects[ptype])
-            return [default] * num_variations
-    
-    def _extract_actions(self):
-        
-        # actions are stored similar to states described above
-        actions, actionsranges = {}, {}
-        for pvar in self.ast.domain.pvariables:
-            if pvar.is_action_fluent():
-                actionsranges[pvar.name] = pvar.range
-                actions[pvar.name] = self._value_list_or_scalar_from_default(pvar)
-        self.action_fluents = actions
-        self.action_ranges = actionsranges
-    
-    def _extract_derived_and_interm(self):
-        
-        # derived and interm are stored similar to states described above
-        derived, interm = {}, {}
-        for pvar in self.ast.domain.pvariables:
-            if pvar.is_derived_fluent():
-                derived[pvar.name] = self._value_list_or_scalar_from_default(pvar)
-            elif pvar.is_intermediate_fluent():
-                interm[pvar.name] = self._value_list_or_scalar_from_default(pvar)
-        self.derived_fluents = derived
-        self.interm_fluents = interm
-    
-    def _extract_observ(self):
-        
-        # observed are stored similar to states described above
-        observ, observranges = {}, {}
-        for pvar in self.ast.domain.pvariables:
-            if pvar.is_observ_fluent():
-                observranges[pvar.name] = pvar.range
-                observ[pvar.name] = self._value_list_or_scalar_from_default(pvar)
-        self.observ_fluents = observ
-        self.observ_ranges = observranges
-        
     def _extract_non_fluents(self):
         
         # extract non-fluents values from the domain defaults
         non_fluents = {}
         for pvar in self.ast.domain.pvariables:
             if pvar.is_non_fluent():
-                name, ptypes = pvar.name, pvar.param_types
+                name = pvar.name
                 default = self.variable_defaults[name] 
                 non_fluents[name] = {gname: default
-                                     for gname in self.ground_names(name, ptypes)}
+                                     for gname in self.variable_groundings[name]}
         
         # update non-fluent values with the values in the instance
         non_fluent_info = getattr(self.ast.non_fluents, 'init_non_fluent', [])
@@ -965,8 +952,8 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 
             # extract the grounded name and check that parameters are valid
             if params is not None:
-                params = list(map(self.object_name, params))
-            gname = self.ground_name(name, params)                           
+                params = RDDLPlanningModel.strip_literals(params)
+            gname = RDDLPlanningModel.ground_var(name, params)               
             if gname not in grounded_names:
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {params} of non-fluent <{name}> '
@@ -974,7 +961,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                     
             # make sure value is correct type
             if isinstance(value, str):
-                value = self.object_name(value)
+                value = RDDLPlanningModel.strip_literal(value)
                 value_type = self.object_to_type.get(value, None)
                 required_type = self.variable_ranges[name]
                 if value_type != required_type:
@@ -991,9 +978,47 @@ class RDDLLiftedModel(RDDLPlanningModel):
                         
             grounded_names[gname] = value
                                         
-        # non-fluents are stored similar to states described above
         self.non_fluents = self._grounded_dict_to_dict_of_list(non_fluents)
     
+    def _value_list_or_scalar_from_default(self, pvar):
+        default = self.variable_defaults[pvar.name]
+        ptypes = pvar.param_types   
+        if ptypes is None:
+            return default
+        else:
+            num_variations = 1
+            for ptype in ptypes:
+                num_variations *= len(self.type_to_objects[ptype])
+            return [default] * num_variations
+    
+    def _extract_actions(self):
+        actions, actionsranges = {}, {}
+        for pvar in self.ast.domain.pvariables:
+            if pvar.is_action_fluent():
+                actionsranges[pvar.name] = pvar.range
+                actions[pvar.name] = self._value_list_or_scalar_from_default(pvar)
+        self.action_fluents = actions
+        self.action_ranges = actionsranges
+    
+    def _extract_derived_and_interm(self):
+        derived, interm = {}, {}
+        for pvar in self.ast.domain.pvariables:
+            if pvar.is_derived_fluent():
+                derived[pvar.name] = self._value_list_or_scalar_from_default(pvar)
+            elif pvar.is_intermediate_fluent():
+                interm[pvar.name] = self._value_list_or_scalar_from_default(pvar)
+        self.derived_fluents = derived
+        self.interm_fluents = interm
+    
+    def _extract_observ(self):
+        observ, observranges = {}, {}
+        for pvar in self.ast.domain.pvariables:
+            if pvar.is_observ_fluent():
+                observranges[pvar.name] = pvar.range
+                observ[pvar.name] = self._value_list_or_scalar_from_default(pvar)
+        self.observ_fluents = observ
+        self.observ_ranges = observranges
+        
     def _extract_cpfs(self):
         cpfs = {}
         for cpf in self.ast.domain.cpfs[1]:
@@ -1041,6 +1066,13 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 f'Horizon {horizon} in the instance is not >= 0.')
         self.horizon = horizon
 
+    def _extract_discount(self):
+        discount = self.ast.instance.discount
+        if not (0. <= discount):
+            raise RDDLValueOutOfRangeError(
+                f'Discount factor {discount} in the instance is not >= 0')
+        self.discount = discount
+        
     def _extract_max_actions(self):
         numactions = getattr(self.ast.instance, 'max_nondef_actions', 'pos-inf')
         if numactions == 'pos-inf':
@@ -1048,10 +1080,3 @@ class RDDLLiftedModel(RDDLPlanningModel):
         else:
             self.max_allowed_actions = int(numactions)
 
-    def _extract_discount(self):
-        discount = self.ast.instance.discount
-        if not (0. <= discount):
-            raise RDDLValueOutOfRangeError(
-                f'Discount factor {discount} in the instance is not >= 0')
-        self.discount = discount
-    

@@ -13,8 +13,7 @@ class UAVsVisualizer(BaseViz):
                  dpi=5,
                  fontsize=8) -> None:
         self._model = model
-        self._states = model.grounded_state_fluents()
-        self._nonfluents = model.grounded_non_fluents()
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         self._objects = model.type_to_objects
         self._figure_size = figure_size
         self._dpi = dpi
@@ -30,7 +29,7 @@ class UAVsVisualizer(BaseViz):
     def build_nonfluents_layout(self): 
         goal_location = {o: [None, None, None] for o in self._objects['aircraft']}
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse(k)
+            var, objects = self._model.parse_grounded(k)
             if var == 'GOAL-X':
                 goal_location[objects[0]][0] = v
             elif var == 'GOAL-Y':
@@ -43,7 +42,7 @@ class UAVsVisualizer(BaseViz):
         drone_location = {o: [None, None, None] for o in self._objects['aircraft']}
         velocity = {o: None for o in self._objects['aircraft']}
         for k, v in state.items():
-            var, objects = self._model.parse(k)
+            var, objects = self._model.parse_grounded(k)
             if var == 'pos-x':
                 drone_location[objects[0]][0] = v
             elif var == 'pos-y':

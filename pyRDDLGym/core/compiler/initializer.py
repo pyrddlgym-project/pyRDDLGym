@@ -78,30 +78,35 @@ class RDDLValueInitializer:
                     f'must be either an enumerated type in '
                     f'{rddl.enum_types} or an object type in '
                     f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
-            
-            # scalar value is just cast to the desired type
-            # list values are converted to numpy arrays and reshaped such that 
-            # number of axes matches number of pvariable arguments
+                        
+            # convert a parameterized variable to dimensioned numpy array
             ptypes = rddl.variable_params[var]
             if ptypes:
-                shape = rddl.object_counts(ptypes)
-                if var in init_values:
-                    values = [(default if v is None else v) for v in init_values[var]]
-                    values = np.reshape(values, newshape=shape, order='C')
+                shape = rddl.object_counts(ptypes)     
+                values = init_values.get(var, None)           
+                if values is None:
+                    values = np.full(shape=shape, fill_value=default, dtype=dtype)
+                else:
+                    values = np.reshape(
+                        [(default if v is None else v) for v in values], 
+                        newshape=shape, order='C')
+                    
+                    # cast to the required type
                     if not np.can_cast(values, dtype):
                         raise RDDLTypeError(
                             f'Initial values {values} for variable <{var}> '
                             f'cannot all be cast to required type <{prange}>.')
                     values = np.asarray(values, dtype=dtype)
-                else:
-                    values = np.full(shape=shape, fill_value=default, dtype=dtype)
+            
+            # convert scalar variable to scalar numpy array
             else:
                 values = init_values.get(var, default)
                 if isinstance(values, str) or not np.can_cast(values, dtype):
                     raise RDDLTypeError(
                         f'Initial value {values} for variable <{var}> '
                         f'cannot be cast to required type <{prange}>.')
-                values = dtype(values)
+                values = dtype(values)         
+                       
             np_init_values[var] = values
         
         # log shapes of initial values
@@ -111,8 +116,10 @@ class RDDLValueInitializer:
                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
             ) for (k, v) in np_init_values.items())
-            message = (f'[info] initializing pvariable tensors:' 
-                       f'\n\t{tensor_info}\n')
+            message = (
+                f'[info] initializing pvariable tensors:' 
+                f'\n\t{tensor_info}\n'
+            )
             self.logger.log(message)
         
         return np_init_values

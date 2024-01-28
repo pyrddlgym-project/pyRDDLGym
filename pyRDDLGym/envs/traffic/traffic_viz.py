@@ -48,8 +48,8 @@ class TrafficVisualizer(BaseViz):
                  fontsize=10,
                  display=False) -> None:
         self._model = model
-        self._states = model.grounded_state_fluents()
-        self._nonfluents = model.grounded_non_fluents()
+        self._states = model.ground_vars_with_values(model.state_fluents)
+        self._nonfluents = model.ground_vars_with_values(model.non_fluents)
         self._objects = model.type_to_objects
 
         if figure_size is None:
