@@ -1,5 +1,4 @@
 [General]
 name=MountainCar
 description=A simple continuous MDP for the classical mountain car control problem.
-viz=MountainCarViz.MountainCarVisualizer
-generator=MountainCarInstanceGenerator.MountainCarInstanceGenerator
+viz=mountaincar.mountaincar_viz.MountainCarVisualizer

@@ -1,5 +1,4 @@
 [General]
 name=RecSim
 description=A problem of recommendation systems, with consumers and providers.
-viz=RecSimViz.RecSimVisualizer
-generator=RecSimInstanceGenerator.RecSimInstanceGenerator
+viz=recsim.recsim_viz.RecSimVisualizer
