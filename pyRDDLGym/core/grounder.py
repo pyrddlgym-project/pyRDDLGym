@@ -28,23 +28,42 @@ AGGREG_OP_TO_STRING_DICT = {
 
 
 class Grounder(metaclass=abc.ABCMeta):
-    '''Base class for all grounder classes.'''
+    '''Base class for all grounder classes.
+    '''
 
     @abc.abstractmethod
     def ground(self) -> RDDLGroundedModel:
-        '''Produces a grounded representation of the current RDDL.'''
+        '''Produces a grounded representation of the current RDDL.
+        '''
         pass
 
 
 class RDDLGrounder(Grounder):
     '''Standard class for grounding RDDL pvariables. Does not support new 
-    languages features currently.'''
+    languages features currently.
+    '''
 
-    def __init__(self, RDDL_AST) -> None:
+    def __init__(self, RDDL_AST, fluent_sep: str='-', object_sep='-') -> None:
         '''Creates a new grounder object for grounding the specified RDDL file.
         '''
         super(RDDLGrounder, self).__init__()
         self.AST = RDDL_AST
+        
+        # warn on using built-in separators because it can break things internally
+        invalid_strings = (RDDLGroundedModel.FLUENT_SEP, RDDLGroundedModel.OBJECT_SEP)
+        if fluent_sep in invalid_strings:
+            warnings.warn(
+                f'Fluent separator for grounding < {fluent_sep}> is set to a '
+                f'built-in separator {invalid_strings}, '
+                f'which can cause internal functions to break.', stacklevel=2)
+        if object_sep in invalid_strings:
+            warnings.warn(
+                f'Object separator for grounding < {object_sep}> is set to a '
+                f'built-in separator {invalid_strings}, '
+                f'which can cause internal functions to break.', stacklevel=2)
+        
+        self.fluent_sep = fluent_sep
+        self.object_sep = object_sep
         
         self.objects = {}
         self.objects_rev = {}
@@ -149,8 +168,8 @@ class RDDLGrounder(Grounder):
         return itertools.product(*objects_by_type)
     
     def _append_variation_to_name(self, base_name, variation):
-        objects = RDDLGroundedModel.OBJECT_SEP.join(variation)
-        return base_name + RDDLGroundedModel.FLUENT_SEP + objects
+        objects = self.object_sep.join(variation)
+        return base_name + self.fluent_sep + objects
         
     def _generate_grounded_names(self, base_name, variation_list,
                                  return_grounding_param_dict=False):
