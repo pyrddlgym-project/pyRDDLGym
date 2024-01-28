@@ -3,7 +3,7 @@ is performed using a batched parallelized Bayesian optimization.
 
 The syntax is:
 
-    python JaxTuningExample.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]
+    python run_jax_tuning.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]
     
 where:
     <domain> is the name of a domain located in the /Examples directory
@@ -19,23 +19,21 @@ where:
 import os
 import sys
 
-from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningDRP
-from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLP
-from pyRDDLGym.Core.Jax.JaxParameterTuning import JaxParameterTuningSLPReplan
-from pyRDDLGym.Core.Jax.JaxRDDLBackpropPlanner import load_config
-from pyRDDLGym.Examples.ExampleManager import ExampleManager
+import pyRDDLGym
+from pyRDDLGym.baselines.jaxplan.tuning import (
+    JaxParameterTuningDRP, JaxParameterTuningSLP, JaxParameterTuningSLPReplan
+)
+from pyRDDLGym.baselines.jaxplan.planner import load_config
 
 
 def main(domain, instance, method, trials=5, iters=20, workers=4):
     
-    # set up the environment
-    info = ExampleManager.GetEnvInfo(domain)    
-    env = RDDLEnv.build(info, instance, vectorized=True, enforce_action_constraints=True)
+    # set up the environment   
+    env = pyRDDLGym.make(domain, instance, vectorized=True, enforce_action_constraints=True)
     
     # load the config file with planner settings
     abs_path = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(abs_path, 'JaxPlanConfigs', f'{domain}_{method}.cfg')
+    config_path = os.path.join(abs_path, 'jax_configs', f'{domain}_{method}.cfg')
     planner_args, plan_args, train_args = load_config(config_path)
     
     # define algorithm to perform tuning
@@ -63,7 +61,7 @@ def main(domain, instance, method, trials=5, iters=20, workers=4):
 if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
-        print('python JaxTuningExample.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]')
+        print('python run_jax_tuning.py <domain> <instance> <method> [<trials>] [<iters>] [<workers>]')
         exit(1)
     if args[2] not in ['drp', 'slp', 'replan']:
         print('<method> in [drp, slp, replan]')
