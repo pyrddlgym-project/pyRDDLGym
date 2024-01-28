@@ -1,33 +1,25 @@
-from typing import List, Dict, Tuple, Optional
-
 import matplotlib.pyplot as plt
-import numpy as np
-import matplotlib.image as plt_img
-from PIL import Image
-
-from pyRDDLGym.Visualizer.StateViz import StateViz
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
 import matplotlib.patches as mpatches
+import numpy as np
+from PIL import Image
+from typing import Optional
 
-from pyRDDLGym import Visualizer
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
-import sys
 
+class ReservoirVisualizer(BaseViz):
 
-class ReservoirVisualizer(StateViz):
-    def __init__(self, model: PlanningModel, grid_size: Optional[int] = [50, 50],
-                 resolution: Optional[int] = [500, 500]) -> None:
-
+    def __init__(self, model: RDDLPlanningModel,
+                 grid_size: Optional[int]=[50, 50],
+                 resolution: Optional[int]=[500, 500]) -> None:
         self._model = model
-        self._states = model.groundstates()
-        self._nonfluents = model.groundnonfluents()
-        self._objects = model.objects
+        self._states = model.grounded_state_fluents()
+        self._nonfluents = model.grounded_non_fluents()
+        self._objects = model.type_to_objects
         self._grid_size = grid_size
         self._resolution = resolution
         self._interval = 15
-
-        self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])
 
         self._object_layout = None
         self._canvas_info = None
@@ -37,7 +29,6 @@ class ReservoirVisualizer(StateViz):
         self._ax = None
 
     def build_object_layout(self) -> dict:
-
         max_res_cap = {o: None for o in self._objects['reservoir']}
         upper_bound = {o: None for o in self._objects['reservoir']}
         lower_bound = {o: None for o in self._objects['reservoir']}
@@ -45,7 +36,6 @@ class ReservoirVisualizer(StateViz):
         rain_scale = {o: None for o in self._objects['reservoir']}
         downstream = {o: [] for o in self._objects['reservoir']}
         sink_res = {o: None for o in self._objects['reservoir']}
-
         rlevel = {o: None for o in self._objects['reservoir']}
 
         # add none-fluents
@@ -71,7 +61,6 @@ class ReservoirVisualizer(StateViz):
             if var == 'rlevel':
                 rlevel[objects[0]] = v
 
-
         # adding defaults
         for o in self._objects['reservoir']:
             if max_res_cap[o] == None:
@@ -87,17 +76,18 @@ class ReservoirVisualizer(StateViz):
             if sink_res[o] == None:
                 sink_res[o] = False
 
-        object_layout = {'rain_shape': rain_shape, 'max_res_cap': max_res_cap, 'rlevel': rlevel,
-                         'upper_bound': upper_bound, 'lower_bound': lower_bound, 'downstream': downstream,
-                         'sink_res': sink_res
-                         }
-
+        object_layout = {
+            'rain_shape': rain_shape, 'max_res_cap': max_res_cap, 'rlevel': rlevel,
+            'upper_bound': upper_bound, 'lower_bound': lower_bound, 'downstream': downstream,
+            'sink_res': sink_res
+        }
         return object_layout
 
     def init_canvas_info(self):
         interval = self._interval
         objects_set = set(self._objects['reservoir'])
-        sink_res_set = set([k for k, v in self._object_layout['sink_res'].items() if v == True])
+        sink_res_set = set([k for k, v in self._object_layout['sink_res'].items() 
+                            if v == True])
 
         all_child_set = []
         for i in self._object_layout['downstream'].values():
@@ -133,19 +123,15 @@ class ReservoirVisualizer(StateViz):
                 init_x = 0 + interval * j
                 init_y = canvas_size[1] - interval * (i + 1)
                 init_points[level_list[i][j]] = (init_x, init_y)
-        conn_points = {}
-
+                
         canvas_info = {'canvas_size': canvas_size, 'init_points': init_points}
-
         return canvas_info
 
     def render_conn(self):
-        fig = self._fig
         ax = self._ax
         downstream = self._object_layout['downstream']
         init_points = self._canvas_info['init_points']
         interval = self._interval * 2 / 3
-
         for k, v in downstream.items():
             top_point = (init_points[k][0] + interval / 2, init_points[k][1])
             for p in v:
@@ -155,7 +141,6 @@ class ReservoirVisualizer(StateViz):
                 ax.add_patch(arrow)
 
     def render_res(self, res: str) -> tuple:
-
         fig = self._fig
         ax = self._ax
         interval = self._interval * 2 / 3
@@ -163,7 +148,6 @@ class ReservoirVisualizer(StateViz):
         init_x, init_y = self._canvas_info['init_points'][curr_t]
 
         rlevel = self._object_layout['rlevel'][curr_t]
-        # rain_scale = self._object_layout['rain_scale'][curr_t]
         rain_shape = self._object_layout['rain_shape'][curr_t]
 
         max_res_cap = self._object_layout['max_res_cap'][curr_t]
@@ -179,18 +163,25 @@ class ReservoirVisualizer(StateViz):
         lowL = [init_x, lower_bound / 150 * interval + init_y]
         lowR = [init_x + interval, lower_bound / 150 * interval + init_y]
 
-        line_max = plt.Line2D((maxL[0], maxR[0]), (maxL[1], maxR[1]), ls='-', color='black', lw=0.25)
-        line_up = plt.Line2D((upL[0], upR[0]), (upL[1], upR[1]), ls='--', color='orange', lw=0.25)
-        line_low = plt.Line2D((lowL[0], lowR[0]), (lowL[1], lowR[1]), ls='--', color='orange', lw=0.25)
-        lineL = plt.Line2D((init_x, init_x), (init_y, init_y + interval), color='black', lw=0.5)
-        lineR = plt.Line2D((init_x + interval, init_x + interval), (init_y, init_y + interval), color='black', lw=0.5)
-        lineB = plt.Line2D((init_x, init_x + interval), (init_y, init_y), color='black', lw=0.5)
+        line_max = plt.Line2D((maxL[0], maxR[0]), (maxL[1], maxR[1]), 
+                              ls='-', color='black', lw=0.25)
+        line_up = plt.Line2D((upL[0], upR[0]), (upL[1], upR[1]), 
+                             ls='--', color='orange', lw=0.25)
+        line_low = plt.Line2D((lowL[0], lowR[0]), (lowL[1], lowR[1]), 
+                              ls='--', color='orange', lw=0.25)
+        lineL = plt.Line2D((init_x, init_x), (init_y, init_y + interval), 
+                           color='black', lw=0.5)
+        lineR = plt.Line2D((init_x + interval, init_x + interval), (init_y, init_y + interval), 
+                           color='black', lw=0.5)
+        lineB = plt.Line2D((init_x, init_x + interval), (init_y, init_y), 
+                           color='black', lw=0.5)
 
-        water_rect = plt.Rectangle((init_x, init_y), interval, rlevel / 120 * interval, fc='royalblue')
-        res_rect = plt.Rectangle((init_x, init_y), interval, interval, fc='lightgrey', alpha=0.5)
-        # scale_rect = plt.Rectangle((init_x, init_y + interval), interval/2, interval/4, fc='deepskyblue', alpha=rain_scale/50)
-        shape_rect = plt.Rectangle((init_x, init_y + interval), interval, interval / 4, fc='darkcyan',
-                                   alpha=np.clip(rain_shape / 50, 0, 1))
+        water_rect = plt.Rectangle((init_x, init_y), interval, rlevel / 120 * interval, 
+                                   fc='royalblue')
+        res_rect = plt.Rectangle((init_x, init_y), interval, interval, 
+                                 fc='lightgrey', alpha=0.5)
+        shape_rect = plt.Rectangle((init_x, init_y + interval), interval, interval / 4, 
+                                   fc='darkcyan', alpha=np.clip(rain_shape / 50, 0, 1))
 
         ax.add_line(line_max)
         ax.add_line(line_up)
@@ -199,16 +190,21 @@ class ReservoirVisualizer(StateViz):
         ax.add_line(lineR)
         ax.add_line(lineB)
 
-        lineU = plt.Line2D((init_x + interval * 1.25, init_x + interval * 1.25), (init_y, init_y + interval),
+        lineU = plt.Line2D((init_x + interval * 1.25, init_x + interval * 1.25), 
+                           (init_y, init_y + interval),
                            color='black', lw=1)
-        lineD = plt.Line2D((init_x + interval, init_x + interval * 1.25), (init_y, init_y), color='black', lw=1)
+        lineD = plt.Line2D((init_x + interval, init_x + interval * 1.25), (init_y, init_y), 
+                           color='black', lw=1)
 
         if sink_res:
-            land_shape = plt.Rectangle((init_x + interval, init_y), interval / 4, interval, fc='royalblue')
+            land_shape = plt.Rectangle((init_x + interval, init_y), interval / 4, interval, 
+                                       fc='royalblue')
         else:
-            land_shape = plt.Rectangle((init_x + interval, init_y), interval / 4, interval, fc='darkgoldenrod')
+            land_shape = plt.Rectangle((init_x + interval, init_y), interval / 4, interval, 
+                                       fc='darkgoldenrod')
 
-        plt.text(init_x + interval * 1.1, init_y + interval * 1.1, "%s" % curr_t, color='black', fontsize=5)
+        plt.text(init_x + interval * 1.1, init_y + interval * 1.1, "%s" % curr_t, 
+                 color='black', fontsize=5)
 
         ax.add_patch(water_rect)
         ax.add_patch(res_rect)
@@ -221,7 +217,6 @@ class ReservoirVisualizer(StateViz):
         ax.add_line(lineL)
         ax.add_line(lineR)
         ax.add_line(lineB)
-
         ax.add_line(lineU)
         ax.add_line(lineD)
 
@@ -261,15 +256,10 @@ class ReservoirVisualizer(StateViz):
 
     def convert2img(self, fig, ax):
         fig.canvas.draw()
-
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
         img = Image.fromarray(data)
-
         self._data = data
         self._img = img
-
         return img
-
 

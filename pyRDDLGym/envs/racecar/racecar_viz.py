@@ -4,13 +4,13 @@ from matplotlib import collections  as mc
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
-class RacecarVisualizer(StateViz):
+class RacecarVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel,
+    def __init__(self, model: RDDLPlanningModel,
                  figure_size=(4, 4),
                  car_radius=0.04,
                  vector_len=0.15,
@@ -21,14 +21,14 @@ class RacecarVisualizer(StateViz):
         self._vector_len = vector_len
         self._wait_time = wait_time
         
-        self._nonfluents = model.groundnonfluents()
+        self._nonfluents = model.grounded_non_fluents()
         
         self.fig = plt.figure(figsize=self._figure_size)
         self.ax = plt.gca()
         
         # draw boundaries
-        FLUENT_SEP = PlanningModel.FLUENT_SEP
-        obj = model.objects['b']
+        FLUENT_SEP = RDDLPlanningModel.FLUENT_SEP
+        obj = model.type_to_objects['b']
         X1, X2, Y1, Y2 = [], [], [], []
         for o in obj:
             X1.append(self._nonfluents['X1' + FLUENT_SEP + o])
@@ -73,10 +73,9 @@ class RacecarVisualizer(StateViz):
 
         car = plt.Circle((state['x'], state['y']), self._car_radius)
         self.ax.add_patch(car)
+        
         self.fig.canvas.draw()
-        
-        img = self.convert2img(self.fig.canvas)
-        
+        img = self.convert2img(self.fig.canvas)        
         car.remove()
         del car
         

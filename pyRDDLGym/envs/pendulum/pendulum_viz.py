@@ -3,14 +3,14 @@ from PIL import Image
 import pygame
 from pygame import gfxdraw
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
 # code comes from openai gym
-class PendulumVisualizer(StateViz):
+class PendulumVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel, screen_dim=500, wait_time=100) -> None:
+    def __init__(self, model: RDDLPlanningModel, screen_dim=500, wait_time=100) -> None:
         self._model = model
         self._wait_time = wait_time
         self.screen_dim = screen_dim
@@ -28,12 +28,13 @@ class PendulumVisualizer(StateViz):
     
     def render(self, state):
         screen, surf = self.init_canvas((self.screen_dim, self.screen_dim))
-        
         surf.fill((255, 255, 255))
+        
         bound = 2.2
         scale = self.screen_dim / (bound * 2)
         offset = self.screen_dim // 2
         
+        # draw the arm
         rod_length = 1 * scale
         rod_width = 0.2 * scale
         l, r, t, b = 0, rod_length, rod_width / 2, -rod_width / 2
@@ -45,12 +46,12 @@ class PendulumVisualizer(StateViz):
             transformed_coords.append(c)
         gfxdraw.aapolygon(surf, transformed_coords, (204, 77, 77))
         gfxdraw.filled_polygon(surf, transformed_coords, (204, 77, 77))
-
+        
+        # draw the tip
         gfxdraw.aacircle(surf, offset, offset, int(rod_width / 2), (204, 77, 77))
         gfxdraw.filled_circle(
             surf, offset, offset, int(rod_width / 2), (204, 77, 77)
         )
-
         rod_end = (rod_length, 0)
         rod_end = pygame.math.Vector2(rod_end).rotate_rad(state['theta'] + np.pi / 2)
         rod_end = (int(rod_end[0] + offset), int(rod_end[1] + offset))
@@ -61,17 +62,14 @@ class PendulumVisualizer(StateViz):
             surf, rod_end[0], rod_end[1], int(rod_width / 2), (204, 77, 77)
         )
         
-        # drawing axle
+        # draw the main axle
         gfxdraw.aacircle(surf, offset, offset, int(0.05 * scale), (0, 0, 0))
         gfxdraw.filled_circle(surf, offset, offset, int(0.05 * scale), (0, 0, 0))
 
         surf = pygame.transform.flip(surf, False, True)
         screen.blit(surf, (0, 0))
-        
         pygame.time.wait(self._wait_time)
-        
         img = self.convert2img(screen)
-        
         del screen, surf        
         
         return img

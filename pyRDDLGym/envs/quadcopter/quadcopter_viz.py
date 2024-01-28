@@ -4,13 +4,13 @@ import numpy as np
 from PIL import Image
 import pygame
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Visualizer.StateViz import StateViz
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
-class QuadcopterVisualizer(StateViz):
+class QuadcopterVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel,
+    def __init__(self, model: RDDLPlanningModel,
                  bound=4,
                  figure_size=(6, 6),
                  wait_time=10) -> None:
@@ -19,8 +19,8 @@ class QuadcopterVisualizer(StateViz):
         self._figure_size = figure_size
         self._wait_time = wait_time
         
-        self._objects = model.objects
-        self._nonfluents = model.groundnonfluents()
+        self._objects = model.type_to_objects
+        self._nonfluents = model.grounded_non_fluents()
         
         self.fig = plt.figure(figsize=self._figure_size)
         self.ax = self.fig.add_subplot(111, projection='3d')
@@ -37,9 +37,12 @@ class QuadcopterVisualizer(StateViz):
         im = Image.open(img_buf)
         return im
     
-    def render(self, state):
+    def render(self, state):      
         
+        # draw the drones  
         for dk in self._objects['drone']:
+            
+            # convert state to position information
             pos = np.array([state[f'x___{dk}'], state[f'y___{dk}'], state[f'z___{dk}']])
             phi, theta, psi = state[f'phi___{dk}'], state[f'theta___{dk}'], state[f'psi___{dk}']
             cph, cth, cps = np.cos(phi), np.cos(theta), np.cos(psi)
@@ -60,6 +63,7 @@ class QuadcopterVisualizer(StateViz):
                              self._nonfluents[f'TY___{dk}'],
                              self._nonfluents[f'TZ___{dk}']])
             
+            # draw the drone
             self.ax.scatter(*pos, c='black', s=(40 * self._nonfluents['R']) ** 2)
             self.ax.scatter(*motor1, c='black', s=(20 * self._nonfluents['R']) ** 2)
             self.ax.scatter(*motor2, c='black', s=(20 * self._nonfluents['R']) ** 2)
@@ -92,14 +96,11 @@ class QuadcopterVisualizer(StateViz):
         self.ax.yaxis._axinfo['grid']['linewidth'] = 0.1
         self.ax.zaxis._axinfo['grid']['linewidth'] = 0.1
 
-        # self.ax.grid(False)
         plt.rcParams.update({'font.size': 12, 'font.family': 'Consolas'})
         plt.tight_layout()
         
-        pygame.time.wait(self._wait_time)
-        
-        img = self.convert2img()
-        
+        pygame.time.wait(self._wait_time)        
+        img = self.convert2img()        
         self.ax.cla()
         
         return img

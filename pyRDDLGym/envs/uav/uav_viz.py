@@ -2,27 +2,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Visualizer.StateViz import StateViz
-from pyRDDLGym import Visualizer
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
-class UAVsVisualizer(StateViz):
+class UAVsVisualizer(BaseViz):
 
-    def __init__(self, model: PlanningModel,
-                 figure_size=[200, 200],
+    def __init__(self, model: RDDLPlanningModel,
+                 figure_size=(200, 200),
                  dpi=5,
-                 fontsize=8,
-                 display=False) -> None:
+                 fontsize=8) -> None:
         self._model = model
-        self._states = model.groundstates()
-        self._nonfluents = model.groundnonfluents()
-        self._objects = model.objects
+        self._states = model.grounded_state_fluents()
+        self._nonfluents = model.grounded_non_fluents()
+        self._objects = model.type_to_objects
         self._figure_size = figure_size
         self._dpi = dpi
         self._fontsize = fontsize
         self._interval = 10
-        self._asset_path = "/".join(Visualizer.__file__.split("/")[:-1])      
+    
         self._nonfluent_layout = None
         self._state_layout = None
         self._fig, self._ax = None, None
@@ -31,7 +29,6 @@ class UAVsVisualizer(StateViz):
     
     def build_nonfluents_layout(self): 
         goal_location = {o: [None, None, None] for o in self._objects['aircraft']}
-        
         for k, v in self._nonfluents.items():
             var, objects = self._model.parse(k)
             if var == 'GOAL-X':
@@ -39,14 +36,12 @@ class UAVsVisualizer(StateViz):
             elif var == 'GOAL-Y':
                 goal_location[objects[0]][1] = v
             elif var == 'GOAL-Z':
-                goal_location[objects[0]][2] = v
-        
+                goal_location[objects[0]][2] = v        
         return {'goal_location': goal_location}
     
     def build_states_layout(self, state):
         drone_location = {o: [None, None, None] for o in self._objects['aircraft']}
-        velocity = {o: None for o in self._objects['aircraft']}        
-        
+        velocity = {o: None for o in self._objects['aircraft']}
         for k, v in state.items():
             var, objects = self._model.parse(k)
             if var == 'pos-x':
@@ -57,39 +52,26 @@ class UAVsVisualizer(StateViz):
                 drone_location[objects[0]][2] = v
             elif var == 'vel':
                 velocity[objects[0]] = v
-
         return {'drone_location': drone_location, 'velocity': velocity}
 
-    def init_canvas(self, figure_size, dpi): 
-        # plt.style.use('dark_background')
+    def init_canvas(self, figure_size, dpi):
         fig = plt.figure(figsize=figure_size, dpi=dpi)
         ax = fig.add_subplot(projection='3d')
-
         ax.axes.set_xlim3d(left=-figure_size[0] // 2, right=figure_size[0] // 2) 
         ax.axes.set_ylim3d(bottom=-figure_size[0] // 2, top=figure_size[0] // 2) 
         ax.axes.set_zlim3d(bottom=-figure_size[0] // 2, top=figure_size[0] // 2)
-
         fig.subplots_adjust(left=0, right=0.1, bottom=0, top=0.1)
-
         ax.tick_params(labelsize=100)
-        
-        # plt.axis('scaled')
-        # plt.axis('off')
-
         return fig, ax
 
     def convert2img(self, fig, ax): 
         ax.set_position((0, 0, 1, 1))
         fig.canvas.draw()
-
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
         img = Image.fromarray(data)
-
         self._data = data
         self._img = img
-
         return img
 
     def render(self, state):
