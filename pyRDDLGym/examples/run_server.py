@@ -1,11 +1,11 @@
 import sys
 
 from pyRDDLGym.core.server import RDDLSimServer
-from pyRDDLGym.envs.registration import get_paths_to_example
+from pyRDDLGym.envs.registration import get_path_to_instance
 
 
 def main(domain, instance):
-    domain_path, instance_path, _ = get_paths_to_example(domain, instance)
+    instance_path, domain_path, *_ = get_path_to_instance(domain, instance)
     agent = RDDLSimServer(domain_path, instance_path, 30, 300)
     agent.run()
 
