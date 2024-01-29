@@ -900,9 +900,11 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 params = RDDLPlanningModel.strip_literals(params)
             gname = RDDLPlanningModel.ground_var(name, params)
             if gname not in grounded_states:
+                required_types = self.variable_params[name]
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {params} of state-fluent <{name}> '
-                    f'declared in the init-state block are not valid.')
+                    f'declared in the init-state block are not valid, '
+                    f'must be of type(s) {required_types}.')
                 
             # make sure value is correct type
             if isinstance(value, str):
@@ -955,9 +957,11 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 params = RDDLPlanningModel.strip_literals(params)
             gname = RDDLPlanningModel.ground_var(name, params)               
             if gname not in grounded_names:
+                required_types = self.variable_params[name]
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {params} of non-fluent <{name}> '
-                    f'as declared in the non-fluents block are not valid.')
+                    f'as declared in the non-fluents block are not valid, '
+                    f'must be of type(s) {required_types}.')
                     
             # make sure value is correct type
             if isinstance(value, str):
