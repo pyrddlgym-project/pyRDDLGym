@@ -143,7 +143,7 @@ class RDDLEnv(gym.Env):
         
         # set roll-out parameters           
         self.trial = 0
-        self.epoch = 0
+        self.timestep = 0
         self.done = False
         self.seeds = iter(seeds)
             
@@ -259,8 +259,8 @@ class RDDLEnv(gym.Env):
             self.simlogger.log(log_obs, log_action, reward, self.done, self.timestep)
         
         # update step horizon
-        self.epoch += 1
-        if self.epoch == self.horizon:
+        self.timestep += 1
+        if self.timestep == self.horizon:
             self.done = True
         
         # produce array outputs for vectorized option
@@ -279,7 +279,7 @@ class RDDLEnv(gym.Env):
         obs, self.done = sampler.reset()
         self.state = sampler.states
         self.trial += 1
-        self.epoch = 0
+        self.timestep = 0
         
         # update movie generator
         if self._movie_generator is not None and self._visualizer is not None:
