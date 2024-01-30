@@ -65,7 +65,7 @@ def get_path_to_instance(domain: str, instance: str) -> Tuple[str, str, str, str
     
 
 def make(domain: str, instance: str, 
-         custom_viz: bool=True, **env_kwargs) -> RDDLEnv:
+         custom_viz: bool=True, base_class=RDDLEnv, **env_kwargs) -> RDDLEnv:
     '''Creates a new RDDLEnv gym environment from the specified domain and 
     instance.
     
@@ -73,10 +73,11 @@ def make(domain: str, instance: str,
     :param instance: the instance name identifier
     :param custom_viz: whether to use the custom visualizer defined for this domain 
     (if False, defaults to a generic domain-independent visualizer)
+    :param base_class: a subclass of RDDLEnv to load
     :param **env_kwargs: other arguments to pass to the RDDLEnv.
     '''
     instance_path, domain_path, viz_path, _ = get_path_to_instance(domain, instance)
-    env = RDDLEnv(domain=domain_path, instance=instance_path, **env_kwargs)
+    env = base_class(domain=domain_path, instance=instance_path, **env_kwargs)
     
     # load visualizer
     if custom_viz and viz_path is not None and viz_path:
