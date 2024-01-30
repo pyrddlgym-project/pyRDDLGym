@@ -117,7 +117,7 @@ class RDDLStableBaselinesEnv(RDDLEnv):
         
         # set roll-out parameters           
         self.trial = 0
-        self.currentH = 0
+        self.timestep = 0
         self.done = False
         self.seeds = iter(seeds)
     
