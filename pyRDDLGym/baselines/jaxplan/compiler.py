@@ -279,16 +279,18 @@ class JaxRDDLCompiler:
             
         return jax_inequalities, jax_equalities
     
-    def compile_rollouts(self, policy: Callable,
-                         n_steps: int, 
-                         n_batch: int,
-                         check_constraints: bool=False,
-                         constraint_func: bool=False):
-        '''Compiles the current RDDL into a wrapped function that samples multiple
-        rollouts (state trajectories) in batched form for the given policy. The
-        wrapped function takes the policy parameters and RNG key as input, and
-        returns a dictionary of all logged information from the rollouts.
+    def compile_transition(self, check_constraints: bool=False,
+                           constraint_func: bool=False):
+        '''Compiles the current RDDL model into a JAX transition function that 
+        samples the next state.
         
+        The signature of the returned function is (key, actions, subs, 
+        model_params), where:
+            - key is the PRNG key
+            - actions is the dict of action tensors
+            - subs is the dict of current pvar value tensors
+            - model_params is a dict of parameters for the relaxed model.
+                    
         constraint_func provides the option to compile nonlinear constraints:
         
             1. f(s, a) ?? g(s, a)
@@ -306,39 +308,27 @@ class JaxRDDLCompiler:
         constraint satisfaction. A list is returned containing values for all
         non-box inequality constraints.
         
-        :param policy: a Jax compiled function that takes the policy parameters, 
-        decision epoch, state dict, and an RNG key and returns an action dict
-        :param n_steps: the length of each rollout
-        :param n_batch: how many rollouts each batch performs
         :param check_constraints: whether state, action and termination 
         conditions should be checked on each time step: this info is stored in the
         returned log and does not raise an exception
         :param constraint_func: produces the h(s, a) function described above
         in addition to the usual outputs
         '''
-        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']
-        
+        NORMAL = JaxRDDLCompiler.ERROR_CODES['NORMAL']        
         rddl = self.rddl
         reward_fn, cpfs = self.reward, self.cpfs
         preconds, invariants, terminals = \
             self.preconditions, self.invariants, self.terminations
-            
+        
+        # compile constraint information
         if constraint_func:
             inequality_fns, equality_fns = self._jax_nonlinear_constraints()
         else:
             inequality_fns, equality_fns = None, None
         
         # do a single step update from the RDDL model
-        def _jax_wrapped_single_step(key, policy_params, hyperparams, 
-                                     step, subs, model_params):
+        def _jax_wrapped_single_step(key, actions, subs, model_params):
             errors = NORMAL
-            
-            # compute action
-            key, subkey = random.split(key)
-            states = {var: values 
-                      for (var, values) in subs.items()
-                      if rddl.variable_types[var] == 'state-fluent'}
-            actions = policy(subkey, policy_params, hyperparams, step, states)
             subs.update(actions)
             
             # check action preconditions
@@ -404,28 +394,69 @@ class JaxRDDLCompiler:
                 log['inequalities'] = inequalities
                 log['equalities'] = equalities
                 
-            return log, subs
+            return log
         
-        # do a batched step update from the RDDL model
-        def _jax_wrapped_batched_step(carry, step):
+        return _jax_wrapped_single_step        
+    
+    def compile_rollouts(self, policy: Callable,
+                         n_steps: int,
+                         n_batch: int,
+                         check_constraints: bool=False,
+                         constraint_func: bool=False):
+        '''Compiles the current RDDL model into a JAX transition function that 
+        samples trajectories with a fixed horizon from a policy.
+        
+        The signature of the policy function is (key, params, hyperparams, 
+        step, states), where:
+            - key is the PRNG key (used by a stochastic policy)
+            - params is a pytree of trainable policy weights
+            - hyperparams is a pytree of (optional) fixed policy hyper-parameters
+            - step is the time index of the decision in the current rollout
+            - states is a dict of tensors for the current observation.
+            
+        :param policy: a Jax compiled function for the policy as described above
+        decision epoch, state dict, and an RNG key and returns an action dict
+        :param n_steps: the rollout horizon
+        :param n_batch: how many rollouts each batch performs
+        :param check_constraints: whether state, action and termination 
+        conditions should be checked on each time step: this info is stored in the
+        returned log and does not raise an exception
+        :param constraint_func: produces the h(s, a) constraint function
+        in addition to the usual outputs
+        '''
+        rddl = self.rddl
+        jax_step_fn = self.compile_transition(check_constraints, constraint_func)
+        
+        # evaluate the step from the policy
+        def _jax_wrapped_single_step_policy(key, policy_params, hyperparams, 
+                                            step, subs, model_params):
+            states = {var: values 
+                      for (var, values) in subs.items()
+                      if rddl.variable_types[var] == 'state-fluent'}
+            actions = policy(key, policy_params, hyperparams, step, states)
+            key, subkey = random.split(key)
+            log = jax_step_fn(subkey, actions, subs, model_params)
+            return log
+                        
+        # do a batched step update from the policy
+        def _jax_wrapped_batched_step_policy(carry, step):
             key, policy_params, hyperparams, subs, model_params = carry  
             key, *subkeys = random.split(key, num=1 + n_batch)
             keys = jnp.asarray(subkeys)
-            batched_step = jax.vmap(
-                _jax_wrapped_single_step,
+            log = jax.vmap(
+                _jax_wrapped_single_step_policy,
                 in_axes=(0, None, None, None, 0, None)
-            ) 
-            log, subs = batched_step(
-                keys, policy_params, hyperparams, step, subs,  model_params)            
+            )(keys, policy_params, hyperparams, step, subs, model_params)
+            subs = log['pvar']
             carry = (key, policy_params, hyperparams, subs, model_params)
             return carry, log            
             
-        # do a batched roll-out from the RDDL model
+        # do a batched roll-out from the policy
         def _jax_wrapped_batched_rollout(key, policy_params, hyperparams, 
                                          subs, model_params):
             start = (key, policy_params, hyperparams, subs, model_params)
             steps = jnp.arange(n_steps)
-            _, log = jax.lax.scan(_jax_wrapped_batched_step, start, steps)
+            _, log = jax.lax.scan(_jax_wrapped_batched_step_policy, start, steps)
             log = jax.tree_map(partial(jnp.swapaxes, axis1=0, axis2=1), log)
             return log
         
