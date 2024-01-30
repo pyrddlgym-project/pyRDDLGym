@@ -1,7 +1,7 @@
 from abc import ABCMeta
 import itertools
 import numpy as np
-from pprint import pprint
+from pprint import pformat
 from typing import Dict, Iterable, List, Tuple
 
 from pyRDDLGym.core.debug.exception import (
@@ -671,10 +671,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         }
         return printed
     
-    def pretty_print(self):
-        '''Dumps a pretty printed representation of the current model to stdout.
-        '''
-        pprint(vars(self))
+    def __str__(self):
+        return pformat(vars(self))
 
     
 class RDDLGroundedModel(RDDLPlanningModel):
