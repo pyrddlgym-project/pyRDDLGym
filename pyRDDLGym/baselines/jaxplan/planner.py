@@ -1131,8 +1131,9 @@ class JaxRDDLBackpropPlanner:
             init_value = self.test_compiled.init_values.get(name, None)
             if init_value is None:
                 raise RDDLUndefinedVariableError(
-                    f'Variable <{name}> in subs argument is not a valid p-variable, '
-                    f'must be one of {set(self.test_compiled.init_values.keys())}.')
+                    f'Variable <{name}> in subs argument is not a '
+                    f'valid p-variable, must be one of '
+                    f'{set(self.test_compiled.init_values.keys())}.')
             value = np.reshape(value, newshape=np.shape(init_value))[np.newaxis, ...]
             train_value = np.repeat(value, repeats=n_train, axis=0)
             train_value = train_value.astype(self.compiled.REAL)
