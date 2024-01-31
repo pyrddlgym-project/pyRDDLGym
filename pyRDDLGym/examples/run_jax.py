@@ -19,7 +19,7 @@ import sys
 
 import pyRDDLGym
 from pyRDDLGym.baselines.jaxplan.planner import (
-    load_config, JaxRDDLBackpropPlanner, JaxOfflineController, JaxOnlineController
+    load_config, JaxBackpropPlanner, JaxOfflineController, JaxOnlineController
 )
 
     
@@ -34,7 +34,7 @@ def main(domain, instance, method):
     planner_args, _, train_args = load_config(config_path)
     
     # create the planning algorithm
-    planner = JaxRDDLBackpropPlanner(rddl=env.model, **planner_args)
+    planner = JaxBackpropPlanner(rddl=env.model, **planner_args)
     
     # create the controller   
     if method == 'replan':
