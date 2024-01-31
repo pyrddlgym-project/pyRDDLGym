@@ -60,7 +60,7 @@ class RDDLGrounder(BaseRDDLGrounder):
         self.variable_params = {}
         self.variable_defaults = {}
         self.variable_groundings = {}
-        self.grounded_name_to_pvar_name = {}
+        self.variable_base_pvars = {}
         
         self.nonfluents = {}
         self.states = {}
@@ -105,7 +105,7 @@ class RDDLGrounder(BaseRDDLGrounder):
         model.variable_params = self.variable_params
         model.variable_defaults = self.variable_defaults
         model.variable_groundings = self.variable_groundings
-        model.grounded_name_to_pvar_name = self.grounded_name_to_pvar_name
+        model.variable_base_pvars = self.variable_base_pvars
         
         model.non_fluents = self.nonfluents
         model.state_fluents = self.states
@@ -222,8 +222,8 @@ class RDDLGrounder(BaseRDDLGrounder):
                 self.variable_defaults[g] = pvariable.default
                 self.variable_groundings[g] = [g]
                 self.variable_groundings[primed_g] = [primed_g]
-                self.grounded_name_to_pvar_name[g] = name
-                self.grounded_name_to_pvar_name[primed_g] = primed_name
+                self.variable_base_pvars[g] = name
+                self.variable_base_pvars[primed_g] = primed_name
                 
             # todo merge martin's code check for abuse of arity                
             if pvariable.fluent_type == 'non-fluent':
