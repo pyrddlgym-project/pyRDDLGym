@@ -6,8 +6,8 @@ import shutil
 from typing import Tuple
 
 from pyRDDLGym.core.debug.exception import (
-    RDDLEnvironmentNotExist,
-    RDDLInstanceNotExist
+    RDDLEnvironmentNotExistError,
+    RDDLInstanceNotExistError
 )
 from pyRDDLGym.core.env import RDDLEnv
 
@@ -43,7 +43,7 @@ def get_path_to_domain_and_viz(domain: str) -> Tuple[str, str, str]:
                 return (domain_path, viz_path, domain_folder)
     
     # could not find the exact match
-    raise RDDLEnvironmentNotExist(
+    raise RDDLEnvironmentNotExistError(
         f'Domain <{domain}> does not exist, must be one of {valid_names}.')         
 
 
@@ -60,7 +60,7 @@ def get_path_to_instance(domain: str, instance: str) -> Tuple[str, str, str, str
             return (instance_path, domain_path, viz_path, domain_folder)
     
     # could not find the exact match
-    raise RDDLInstanceNotExist(
+    raise RDDLInstanceNotExistError(
             f'Instance <{instance}> does not exist for domain <{domain}>.')
     
 
