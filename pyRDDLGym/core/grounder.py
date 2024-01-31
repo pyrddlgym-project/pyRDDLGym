@@ -43,27 +43,14 @@ class RDDLGrounder(BaseRDDLGrounder):
     languages features currently.
     '''
 
-    def __init__(self, RDDL_AST, fluent_sep: str='-', object_sep='-') -> None:
+    def __init__(self, RDDL_AST) -> None:
         '''Creates a new grounder object for grounding the specified RDDL file.
         '''
         super(RDDLGrounder, self).__init__()
         self.AST = RDDL_AST
         
-        # warn on using built-in separators because it can break things internally
-        invalid_strings = (RDDLGroundedModel.FLUENT_SEP, RDDLGroundedModel.OBJECT_SEP)
-        if fluent_sep in invalid_strings:
-            warnings.warn(
-                f'Fluent separator for grounding < {fluent_sep}> is set to a '
-                f'built-in separator {invalid_strings}, '
-                f'which can cause internal functions to break.', stacklevel=2)
-        if object_sep in invalid_strings:
-            warnings.warn(
-                f'Object separator for grounding < {object_sep}> is set to a '
-                f'built-in separator {invalid_strings}, '
-                f'which can cause internal functions to break.', stacklevel=2)
-        
-        self.fluent_sep = fluent_sep
-        self.object_sep = object_sep
+        self.fluent_sep = RDDLGroundedModel.FLUENT_SEP
+        self.object_sep = RDDLGroundedModel.OBJECT_SEP
         
         self.objects = {}
         self.objects_rev = {}
