@@ -20,7 +20,7 @@ UNBOUNDED = (-GRB.INFINITY, +GRB.INFINITY)
 # - quadratic policy
 #
 # ***********************************************************************
-class GurobiRDDLPlan:
+class GurobiPlan:
     '''Base class for all Gurobi compiled policies or plans.'''
     
     def __init__(self, action_bounds: Dict[str, Tuple[float, float]]={}):
@@ -95,7 +95,7 @@ class GurobiRDDLPlan:
         raise NotImplementedError
 
 
-class GurobiStraightLinePlan(GurobiRDDLPlan):
+class GurobiStraightLinePlan(GurobiPlan):
     '''A straight-line open-loop plan in Gurobi.'''
     
     def params(self, compiled: GurobiRDDLCompiler,
@@ -162,7 +162,7 @@ class GurobiStraightLinePlan(GurobiRDDLPlan):
         return res
 
 
-class GurobiPiecewisePolicy(GurobiRDDLPlan):
+class GurobiPiecewisePolicy(GurobiPlan):
     '''A piecewise linear policy in Gurobi.'''
     
     def __init__(self, *args,
@@ -502,7 +502,7 @@ class GurobiPiecewisePolicy(GurobiRDDLPlan):
         return '\n'.join(values)
 
 
-class GurobiQuadraticPolicy(GurobiRDDLPlan):
+class GurobiQuadraticPolicy(GurobiPlan):
     '''A quadratic policy in Gurobi.'''
     
     def __init__(self, *args,
@@ -669,7 +669,7 @@ class GurobiOfflineController(BaseAgent):
     '''A container class for a Gurobi policy trained offline.'''
     
     def __init__(self, rddl: RDDLLiftedModel,
-                 plan: GurobiRDDLPlan,
+                 plan: GurobiPlan,
                  env: gurobipy.Env=None,
                  **compiler_kwargs):
         '''Creates a new Gurobi control policy that is optimized offline in an 
@@ -744,7 +744,7 @@ class GurobiOnlineController(BaseAgent):
     state feedback.'''
 
     def __init__(self, rddl: RDDLLiftedModel,
-                 plan: GurobiRDDLPlan,
+                 plan: GurobiPlan,
                  env: gurobipy.Env=None,
                  **compiler_kwargs):
         '''Creates a new Gurobi control policy that is optimized online in a 

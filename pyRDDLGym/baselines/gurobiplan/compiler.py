@@ -22,14 +22,14 @@ from pyRDDLGym.core.grounder import RDDLGrounder
 from pyRDDLGym.core.simulator import lngamma
 
 if TYPE_CHECKING:
-    from pyRDDLGym.baselines.gurobiplan.planner import GurobiRDDLPlan
+    from pyRDDLGym.baselines.gurobiplan.planner import GurobiPlan
 
 
 class GurobiRDDLCompiler:
     '''Compile RDDL domains as Gurobi optimization problems.'''
     
     def __init__(self, rddl: RDDLLiftedModel,
-                 plan: 'GurobiRDDLPlan',
+                 plan: 'GurobiPlan',
                  allow_synchronous_state: bool=True,
                  rollout_horizon: int=None,
                  epsilon: float=1e-5,
