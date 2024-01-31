@@ -99,12 +99,14 @@ class StableBaselinesRDDLEnv(RDDLEnv):
             state_ranges = self.model.observ_ranges
         else:
             state_ranges = self.model.state_ranges
+            
         self.observation_space = self._rddl_to_gym_bounds(state_ranges)
         
         # construct the gym action space      
         self._action_ranges = self.model.action_ranges
         self._noop_actions = self.sampler.noop_actions
-        self.action_space, self._action_info = self._rddl_to_gym_bounds_act(self._action_ranges)
+        self.action_space, self._action_info = \
+            self._rddl_to_gym_bounds_act(self._action_ranges)
         
         # set the visualizer
         self._visualizer = ChartVisualizer(self.model)

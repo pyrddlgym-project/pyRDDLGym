@@ -147,10 +147,6 @@ class RDDLEnv(gym.Env):
         self.done = False
         self.seeds = iter(seeds)
             
-    # ===========================================================================
-    # observation and action spaces
-    # ===========================================================================
-    
     def _rddl_to_gym_bounds(self, ranges):
         result = Dict()
         for (var, prange) in ranges.items():
@@ -160,8 +156,7 @@ class RDDLEnv(gym.Env):
                 num_objects = len(self.model.type_to_objects[prange])
                 if self.vectorized:
                     result[var] = Box(0, num_objects - 1,
-                                      shape=self._shapes[var],
-                                      dtype=np.int32)
+                                      shape=self._shapes[var], dtype=np.int32)
                 else:
                     result[var] = Discrete(num_objects) 
             
@@ -173,9 +168,8 @@ class RDDLEnv(gym.Env):
             # boolean values converted to Discrete space
             elif prange == 'bool':
                 if self.vectorized:
-                    result[var] = Box(0, 1,
-                                      shape=self._shapes[var],
-                                      dtype=np.int32)
+                    result[var] = Box(0, 1, 
+                                      shape=self._shapes[var], dtype=np.int32)
                 else:
                     result[var] = Discrete(2)
             
@@ -185,9 +179,8 @@ class RDDLEnv(gym.Env):
                 low = np.maximum(low, np.iinfo(np.int32).min)
                 high = np.minimum(high, np.iinfo(np.int32).max)
                 if self.vectorized:
-                    result[var] = Box(low, high,
-                                      shape=self._shapes[var],
-                                      dtype=np.int32)
+                    result[var] = Box(low, high, 
+                                      shape=self._shapes[var], dtype=np.int32)
                 else:
                     result[var] = Discrete(int(high - low + 1), start=int(low))
             
@@ -196,11 +189,8 @@ class RDDLEnv(gym.Env):
                 raise RDDLTypeError(
                     f'Type <{prange}> of fluent <{var}> is not valid, '
                     f'must be an enumerated or primitive type (real, int, bool).')
+                
         return result
-    
-    # ===========================================================================
-    # core functions
-    # ===========================================================================
     
     def seed(self, seed=None):
         self.sampler.seed(seed)
@@ -213,14 +203,8 @@ class RDDLEnv(gym.Env):
         self._movie_per_episode = movie_per_episode
         self._movies = 0
         self.to_render = False
-
-    def step(self, actions):
-        if self.done:
-            raise RDDLEpisodeAlreadyEndedError(
-                'The step() function has been called even though the '
-                'current episode has terminated: please call reset().')            
-            
-        # cast non-boolean actions to boolean
+    
+    def _fix_boolean_actions(self, actions):
         fixed_actions = self._noop_actions.copy()
         for (var, values) in actions.items():
             if self._action_ranges.get(var, '') == 'bool':
@@ -230,10 +214,18 @@ class RDDLEnv(gym.Env):
                     fixed_actions[var] = bool(values)
             else:
                 fixed_actions[var] = values
-        actions = fixed_actions
+        return fixed_actions
 
-        # check action constraints
+    def step(self, actions):
         sampler = self.sampler
+        
+        if self.done:
+            raise RDDLEpisodeAlreadyEndedError(
+                'The step() function has been called even though the '
+                'current episode has terminated: please call reset().')            
+            
+        # fix actions and check constraints
+        actions = self._fix_boolean_actions(actions)
         sampler.check_default_action_count(actions, self.enforce_count_non_bool)
         if self.enforce_action_constraints:
             sampler.check_action_preconditions(actions, silent=False)
@@ -242,11 +234,15 @@ class RDDLEnv(gym.Env):
         obs, reward, self.done = sampler.step(actions)
         self.state = sampler.states
             
+        # produce array outputs for vectorized option
+        if self.vectorized:
+            obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
+            
         # check if the state invariants are satisfied
-        if self.done:
-            out_of_bounds = False
-        else:
+        if self.new_gym_api and not done:
             out_of_bounds = not sampler.check_state_invariants(silent=True)
+        else:
+            out_of_bounds = False
             
         # log to file
         if self.simlogger is not None:
@@ -263,24 +259,24 @@ class RDDLEnv(gym.Env):
         if self.timestep == self.horizon:
             self.done = True
         
-        # produce array outputs for vectorized option
-        if self.vectorized:
-            obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
-            
         if self.new_gym_api:
             return obs, reward, self.done, out_of_bounds, {}
         else:
             return obs, reward, self.done, {}
 
     def reset(self, seed=None, options=None):
+        sampler = self.sampler
         
         # reset counters and internal state
-        sampler = self.sampler
         obs, self.done = sampler.reset()
         self.state = sampler.states
         self.trial += 1
         self.timestep = 0
         
+        # produce array outputs for vectorized option
+        if self.vectorized:
+            obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
+            
         # update movie generator
         if self._movie_generator is not None and self._visualizer is not None:
             if self.vectorized:
@@ -310,10 +306,6 @@ class RDDLEnv(gym.Env):
                     f'New Trial, seed={seed}\n'
                     f'######################################################')
             self.simlogger.log_free(text)
-            
-        # produce array outputs for vectorized option
-        if self.vectorized:
-            obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
             
         if self.new_gym_api:
             return obs, {}
