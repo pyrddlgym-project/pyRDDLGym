@@ -99,12 +99,8 @@ class RDDLConstraints:
                 expr, objects, search_vars)
             success = var is not None and loc is not None
             if success: 
-                if objects:
-                    op = np.minimum if loc == 1 else np.maximum
-                    self._bounds[var][loc] = op(self._bounds[var][loc], lim)
-                else:
-                    op = min if loc == 1 else max
-                    self._bounds[var][loc] = op(self._bounds[var][loc], lim)
+                op = np.minimum if loc == 1 else np.maximum
+                self._bounds[var][loc] = op(self._bounds[var][loc], lim)
             return success
         
         # not possible to parse as a box constraint
