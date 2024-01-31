@@ -151,6 +151,15 @@ class RDDLObjectsTracer:
                     raise RDDLRepeatedVariableError(
                         f'Repeated parameter(s) {pvars} in definition of CPF <{cpf}>.')
                 
+                # check that the parameters are not literals
+                for (index, (pvar, prange)) in enumerate(objects):
+                    if not RDDLPlanningModel.is_free_object(pvar):
+                        raise RDDLTypeError(
+                            f'Definition for CPF <{name}> requires free '
+                            f'object(s) on the left-hand side, but '
+                            f'got the following expression at position {index + 1}:\n' + 
+                            PST(pvar, f'CPF <{name}>'))
+                
                 # trace the expression
                 out._current_root = f'CPF {cpf}'
                 self._trace(expr, objects, out)
