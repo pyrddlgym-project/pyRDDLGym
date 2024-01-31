@@ -5,6 +5,7 @@ from pprint import pformat
 from typing import Dict, Iterable, List, Tuple
 
 from pyRDDLGym.core.debug.exception import (
+    print_stack_trace_root as PST,
     RDDLInvalidNumberOfArgumentsError,
     RDDLInvalidObjectError,
     RDDLMissingCPFDefinitionError,
@@ -1033,9 +1034,18 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 objects = []
             if len(types) != len(objects):
                 raise RDDLInvalidNumberOfArgumentsError(
-                    f'l.h.s. of expression for CPF <{name}> requires '
+                    f'Left-hand side of expression for CPF <{name}> requires '
                     f'{len(types)} parameter(s), got {objects}.')
             
+            # check that the parameters are not literals
+            for (index, pvar) in enumerate(objects):
+                if not RDDLPlanningModel.is_free_object(pvar):
+                    raise RDDLTypeError(
+                        f'Definition for CPF <{name}> requires free '
+                        f'object(s) on the left-hand side, but '
+                        f'got the following expression at position {index + 1}:\n' + 
+                        PST(pvar, f'CPF <{name}>'))
+                
             # CPFs are stored as dictionary that associates cpf name with a pair 
             # the first element is the type argument list
             # the second element is the AST expression
