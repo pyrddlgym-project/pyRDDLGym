@@ -154,8 +154,11 @@ class ChartVisualizer(BaseViz):
         states = {name: np.full(shape=shape, fill_value=np.nan)
                   for (name, shape) in self._state_shapes.items()}
         for (name, value) in state.items():
-            var, objects = self._model.parse_grounded(name)
-            states[var][self._model.object_indices(objects)] = value
+            if name not in self._model.variable_params:  # lifted
+                var, objects = self._model.parse_grounded(name)
+                states[var][self._model.object_indices(objects)] = value
+            else:  # grounded or scalar
+                states[name] = value
         index = min(self._step, self._steps - 1)
         for (name, values) in states.items():
             self._state_hist[name][:, index] = np.ravel(values, order='C')
