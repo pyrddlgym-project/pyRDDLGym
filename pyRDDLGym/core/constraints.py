@@ -30,17 +30,14 @@ class RDDLConstraints:
         self.epsilon = inequality_tol
         self.vectorized = vectorized
         
+        # initialize the bounds to [-inf, inf]
         self._bounds = {}
         for (var, vtype) in rddl.variable_types.items():
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
-                if vectorized:
-                    ptypes = rddl.variable_params[var]
-                    shape = rddl.object_counts(ptypes)
-                    self._bounds[var] = [-self.BigM * np.ones(shape),
-                                         +self.BigM * np.ones(shape)]
-                else:
-                    for gname in rddl.variable_groundings[var]:
-                        self._bounds[gname] = [-self.BigM, +self.BigM]
+                ptypes = rddl.variable_params[var]
+                shape = rddl.object_counts(ptypes)
+                self._bounds[var] = [-self.BigM * np.ones(shape),
+                                     +self.BigM * np.ones(shape)]
 
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
@@ -56,7 +53,18 @@ class RDDLConstraints:
 
         for (name, bounds) in self._bounds.items():
             RDDLSimulator._check_bounds(*bounds, f'Variable <{name}>', bounds)
-            
+        
+        # ground the bounds if not vectorized
+        if not self.vectorized:
+            new_bounds = {}
+            for (var, (lower, upper)) in self._bounds.items():
+                lower = np.ravel(lower, order='C')
+                upper = np.ravel(upper, order='C')
+                gvars = rddl.variable_groundings[var]
+                assert (len(gvars) == len(lower) == len(upper))
+                new_bounds.update(zip(gvars, zip(lower, upper)))      
+            self._bounds = new_bounds        
+        
         # log bounds to file
         if simulator.logger is not None:
             bounds_info = '\n\t'.join(f'{k}: {v}' 
@@ -92,18 +100,8 @@ class RDDLConstraints:
             success = var is not None and loc is not None
             if success: 
                 if objects:
-                    if self.vectorized:
-                        op = np.minimum if loc == 1 else np.maximum
-                        self._bounds[var][loc] = op(self._bounds[var][loc], lim)
-                    else:
-                        op = min if loc == 1 else max
-                        ptypes = [ptype for (_, ptype) in objects]
-                        variations = rddl.ground_types(ptypes)
-                        lims = np.ravel(lim, order='C')
-                        for (args, lim) in zip(variations, lims):
-                            active_args = [args[i] for i in active]
-                            key = rddl.ground_var(var, active_args)
-                            self._bounds[key][loc] = op(self._bounds[key][loc], lim)
+                    op = np.minimum if loc == 1 else np.maximum
+                    self._bounds[var][loc] = op(self._bounds[var][loc], lim)
                 else:
                     op = min if loc == 1 else max
                     self._bounds[var][loc] = op(self._bounds[var][loc], lim)
