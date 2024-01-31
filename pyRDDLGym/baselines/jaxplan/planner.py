@@ -906,7 +906,7 @@ class JaxDeepReactivePolicy(JaxPlan):
 # - more stable but slower line search based planner
 #
 # ***********************************************************************
-class JaxRDDLBackpropPlanner:
+class JaxBackpropPlanner:
     '''A class for optimizing an action sequence in the given RDDL MDP using 
     gradient descent.'''
     
@@ -1403,7 +1403,7 @@ class JaxRDDLBackpropPlanner:
         plt.close(fig)
     
 
-class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
+class JaxArmijoLineSearchPlanner(JaxBackpropPlanner):
     '''A class for optimizing an action sequence in the given RDDL MDP using 
     Armijo linear search gradient descent.'''
     
@@ -1428,14 +1428,14 @@ class JaxRDDLArmijoLineSearchPlanner(JaxRDDLBackpropPlanner):
         self.c = c
         self.lrmax = lrmax
         self.lrmin = lrmin
-        super(JaxRDDLArmijoLineSearchPlanner, self).__init__(
+        super(JaxArmijoLineSearchPlanner, self).__init__(
             *args,
             optimizer=optimizer,
             optimizer_kwargs=optimizer_kwargs,
             **kwargs)
         
     def summarize_hyperparameters(self):
-        super(JaxRDDLArmijoLineSearchPlanner, self).summarize_hyperparameters()
+        super(JaxArmijoLineSearchPlanner, self).summarize_hyperparameters()
         print(f'linesearch hyper-parameters:\n'
               f'    beta    ={self.beta}\n'
               f'    c       ={self.c}\n'
@@ -1522,7 +1522,7 @@ class JaxOfflineController(BaseAgent):
     '''A container class for a Jax policy trained offline.'''
     use_tensor_obs = True
     
-    def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
+    def __init__(self, planner: JaxBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict[str, object]=None,
                  params: Dict[str, object]=None,
                  train_on_reset: bool=False,
@@ -1570,7 +1570,7 @@ class JaxOnlineController(BaseAgent):
     feedback.'''
     use_tensor_obs = True
     
-    def __init__(self, planner: JaxRDDLBackpropPlanner, key: random.PRNGKey,
+    def __init__(self, planner: JaxBackpropPlanner, key: random.PRNGKey,
                  eval_hyperparams: Dict=None, warm_start: bool=True,
                  **train_kwargs) -> None:
         '''Creates a new JAX control policy that is trained online in a closed-

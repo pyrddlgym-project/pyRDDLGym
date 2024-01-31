@@ -15,11 +15,11 @@ warnings.filterwarnings('ignore')
 from pyRDDLGym.core.env import RDDLEnv
 
 from pyRDDLGym.baselines.jaxplan.planner import (
-    JaxOfflineController,
-    JaxOnlineController,
-    JaxRDDLBackpropPlanner,
+    JaxBackpropPlanner,
     JaxStraightLinePlan,
-    JaxDeepReactivePolicy
+    JaxDeepReactivePolicy,
+    JaxOfflineController,
+    JaxOnlineController
 )
 
 
@@ -335,7 +335,7 @@ def objective_slp(params, kwargs, key, index):
         print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}...', flush=True)
         
     # initialize planning algorithm
-    planner = JaxRDDLBackpropPlanner(
+    planner = JaxBackpropPlanner(
         rddl=deepcopy(kwargs['rddl']),
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
@@ -465,7 +465,7 @@ def objective_replan(params, kwargs, key, index):
         print(f'[{index}] key={key}, std={std}, lr={lr}, w={w}, wa={wa}, T={T}...', flush=True)
 
     # initialize planning algorithm
-    planner = JaxRDDLBackpropPlanner(
+    planner = JaxBackpropPlanner(
         rddl=deepcopy(kwargs['rddl']),
         plan=JaxStraightLinePlan(
             initializer=jax.nn.initializers.normal(std),
@@ -593,7 +593,7 @@ def objective_drp(params, kwargs, key, index):
         print(f'[{index}] key={key}, lr={lr}, w={w}, layers={layers}, neurons={neurons}...', flush=True)
            
     # initialize planning algorithm
-    planner = JaxRDDLBackpropPlanner(
+    planner = JaxBackpropPlanner(
         rddl=deepcopy(kwargs['rddl']),
         plan=JaxDeepReactivePolicy(
             topology=[neurons] * layers,
