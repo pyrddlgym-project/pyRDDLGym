@@ -40,7 +40,7 @@ class ReservoirVisualizer(BaseViz):
 
         # add none-fluents
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'TOP_RES':
                 max_res_cap[objects[0]] = v
             elif var == 'MAX_LEVEL':
@@ -57,7 +57,7 @@ class ReservoirVisualizer(BaseViz):
 
         # # add states
         for k, v in self._states.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'rlevel':
                 rlevel[objects[0]] = v
 

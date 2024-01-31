@@ -31,7 +31,7 @@ class MarsRoverVisualizer(BaseViz):
 
         # style of fluent_p1
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'MINERAL-POS-X':
                 mineral_locaiton[objects[0]][0] = v
             elif var == 'MINERAL-POS-Y':
@@ -48,14 +48,14 @@ class MarsRoverVisualizer(BaseViz):
         mineral_harvested = {o: None for o in self._objects['mineral']}
         
         for k, v in state.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'pos-x':
                 rover_location[objects[0]][0] = v
             elif var == 'pos-y':
                 rover_location[objects[0]][1] = v
 
         for k, v in state.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'mineral-harvested':
                 mineral_harvested[objects[0]] = v
 
