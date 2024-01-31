@@ -247,26 +247,28 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _process_actions(self, actions):
+        rddl = self.rddl
         
         # if actions are numpy arrays, just assign directly without copy
-        # single all values are set for that action
         if self.keep_tensors:
             new_actions = self.noop_actions.copy()
             for (action, value) in actions.items(): 
                 if action in new_actions:
                     new_actions[action] = value
+                else:
+                    raise RDDLInvalidActionError(
+                        f'<{action}> is not a valid action-fluent, ' 
+                        f'must be one of {set(new_actions.keys())}.')
         
-        # start with the no-op actions, and fill in values from actions 
-        # that are set
+        # start with the no-op actions, and fill in values from actions
         else:            
-            rddl = self.rddl
             new_actions = {action: np.copy(value) 
                            for (action, value) in self.noop_actions.items()}
             for (action, value) in actions.items(): 
                 value = rddl.object_to_index.get(value, value)
-                if action in new_actions:
+                if action in new_actions:  # no parameters
                     new_actions[action] = value
-                else:
+                else:  # must have parameters
                     var, objects = RDDLPlanningModel.parse_grounded(action)
                     tensor = new_actions.get(var, None)
                     if tensor is None: 
@@ -276,19 +278,6 @@ class RDDLSimulator:
                     RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
                     tensor[rddl.object_indices(objects)] = value                
         return new_actions
-    
-    def check_state_invariants(self, silent: bool=False) -> bool:
-        '''Throws an exception if the state invariants are not satisfied.'''
-        for (i, invariant) in enumerate(self.rddl.invariants):
-            loc = self.invariant_names[i]
-            sample = self._sample(invariant, self.subs)
-            RDDLSimulator._check_type(sample, bool, loc, invariant)
-            if not bool(sample):
-                if not silent:
-                    raise RDDLStateInvariantNotSatisfiedError(
-                        f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
-                return False
-        return True
     
     def check_default_action_count(self, actions: Args, 
                                    enforce_for_non_bool: bool=True) -> None:
@@ -327,6 +316,19 @@ class RDDLSimulator:
                 f'Expected at most {self.rddl.max_allowed_actions} '
                 f'non-default actions, got {total_non_default}.')
         
+    def check_state_invariants(self, silent: bool=False) -> bool:
+        '''Throws an exception if the state invariants are not satisfied.'''
+        for (i, invariant) in enumerate(self.rddl.invariants):
+            loc = self.invariant_names[i]
+            sample = self._sample(invariant, self.subs)
+            RDDLSimulator._check_type(sample, bool, loc, invariant)
+            if not bool(sample):
+                if not silent:
+                    raise RDDLStateInvariantNotSatisfiedError(
+                        f'{loc} is not satisfied.\n' + print_stack_trace(invariant))
+                return False
+        return True
+    
     def check_action_preconditions(self, actions: Args, silent: bool=False) -> bool:
         '''Throws an exception if the action preconditions are not satisfied.'''     
         actions = self._process_actions(actions)
