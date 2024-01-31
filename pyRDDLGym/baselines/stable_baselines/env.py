@@ -20,7 +20,7 @@ from pyRDDLGym.core.simulator import RDDLSimulator
 from pyRDDLGym.core.visualizer.chart import ChartVisualizer
 
     
-class RDDLStableBaselinesEnv(RDDLEnv):
+class StableBaselinesRDDLEnv(RDDLEnv):
     '''A gym environment class for RDDL domains, modified to compact the
     action space for stable-baselines.'''
     
@@ -273,7 +273,7 @@ class RDDLStableBaselinesEnv(RDDLEnv):
                     _, (start, count, shape) = locational[var]                    
                     index_in_var = index - start
                     if 0 <= index_in_var < count:
-                        default_value = self.model.default_values[var]
+                        default_value = self.model.variable_defaults[var]
                         action = np.full(shape=count, fill_value=default_value, dtype=bool)
                         action[index_in_var] ^= True
                         actions[var] = np.reshape(action, newshape=shape, order='C')
@@ -283,4 +283,4 @@ class RDDLStableBaselinesEnv(RDDLEnv):
     
     def step(self, actions):
         actions = self._gym_to_rddl_actions(actions)
-        return super(RDDLStableBaselinesEnv, self).step(actions)
+        return super(StableBaselinesRDDLEnv, self).step(actions)

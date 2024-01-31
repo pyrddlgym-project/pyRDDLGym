@@ -13,7 +13,7 @@ import sys
 from stable_baselines3 import PPO
 
 import pyRDDLGym
-from pyRDDLGym.baselines.stable_baselines.env import RDDLStableBaselinesEnv
+from pyRDDLGym.baselines.stable_baselines.env import StableBaselinesRDDLEnv
 from pyRDDLGym.core.policy import BaseAgent
 
     
@@ -22,7 +22,7 @@ def main(domain, instance, steps):
     # set up the environment
     env = pyRDDLGym.make(domain, instance, 
                          enforce_action_constraints=True,
-                         base_class=RDDLStableBaselinesEnv)
+                         base_class=StableBaselinesRDDLEnv)
     
     # train the PPO agent
     model = PPO('MultiInputPolicy', env, verbose=1)
