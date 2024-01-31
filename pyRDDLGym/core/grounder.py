@@ -27,7 +27,7 @@ AGGREG_OP_TO_STRING_DICT = {
 }
 
 
-class Grounder(metaclass=abc.ABCMeta):
+class BaseRDDLGrounder(metaclass=abc.ABCMeta):
     '''Base class for all grounder classes.
     '''
 
@@ -38,7 +38,7 @@ class Grounder(metaclass=abc.ABCMeta):
         pass
 
 
-class RDDLGrounder(Grounder):
+class RDDLGrounder(BaseRDDLGrounder):
     '''Standard class for grounding RDDL pvariables. Does not support new 
     languages features currently.
     '''
