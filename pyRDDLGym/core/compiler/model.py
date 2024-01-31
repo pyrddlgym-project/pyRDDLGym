@@ -48,8 +48,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         self._variable_ranges = None
         self._variable_params = None
         self._variable_defaults = None
-        self._variable_groundings = None
-        self._grounded_name_to_pvar_name = None        
+        self._variable_groundings = None     
         
         self._non_fluents = None        
         self._state_fluents = None
@@ -185,14 +184,6 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def variable_groundings(self, val):
         self._variable_groundings = val
     
-    @property
-    def grounded_name_to_pvar_name(self):
-        return self._grounded_name_to_pvar_name
-
-    @grounded_name_to_pvar_name.setter
-    def grounded_name_to_pvar_name(self, val):
-        self._grounded_name_to_pvar_name = val
-        
     @property
     def non_fluents(self):
         return self._non_fluents
@@ -429,7 +420,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         if objects:
             if len(objects) != 1:
                 raise RDDLInvalidObjectError(
-                    f'Variable expression {expr} is malformed.')
+                    f'Variable {expr} contains multiple fluent separators.')
             objects = objects[0].split(RDDLPlanningModel.OBJECT_SEP)
         if is_primed:
             var += PRIME
@@ -681,6 +672,17 @@ class RDDLGroundedModel(RDDLPlanningModel):
 
     def __init__(self):
         super().__init__()
+        
+        self._variable_base_pvars = None
+    
+    @property
+    def variable_base_pvars(self):
+        return self._variable_base_pvars
+    
+    @variable_base_pvars.setter
+    def variable_base_pvars(self, val):
+        self._variable_base_pvars = val 
+
 
 
 class RDDLLiftedModel(RDDLPlanningModel):
@@ -820,12 +822,6 @@ class RDDLLiftedModel(RDDLPlanningModel):
         self.variable_defaults = var_default
         self.variable_groundings = var_ground
         
-        self.grounded_name_to_pvar_name = {
-            grounded_name: var
-            for (var, grounded_names) in var_ground.items()
-                for grounded_name in grounded_names
-        }
-    
     def _grounded_dict_to_dict_of_list(self, grounded_dict):
         new_dict = {}
         for (var, values_dict) in grounded_dict.items():
