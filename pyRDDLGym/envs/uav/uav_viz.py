@@ -29,7 +29,7 @@ class UAVsVisualizer(BaseViz):
     def build_nonfluents_layout(self): 
         goal_location = {o: [None, None, None] for o in self._objects['aircraft']}
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'GOAL-X':
                 goal_location[objects[0]][0] = v
             elif var == 'GOAL-Y':
@@ -42,7 +42,7 @@ class UAVsVisualizer(BaseViz):
         drone_location = {o: [None, None, None] for o in self._objects['aircraft']}
         velocity = {o: None for o in self._objects['aircraft']}
         for k, v in state.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'pos-x':
                 drone_location[objects[0]][0] = v
             elif var == 'pos-y':

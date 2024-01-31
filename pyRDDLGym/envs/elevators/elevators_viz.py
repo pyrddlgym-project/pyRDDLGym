@@ -53,7 +53,7 @@ class ElevatorVisualizer(BaseViz):
         elev_to_floor = {}
         for e in self._model.type_to_objects['elevator']:
             for fl in self._model.type_to_objects['floor']:
-                state_key = self._model.ground_var('elevator-at-floor', [e, fl])
+                state_key = RDDLPlanningModel.ground_var('elevator-at-floor', [e, fl])
                 if state[state_key]:
                     elev_to_floor[e] = fl
         assert len(elev_to_floor) == self._n_elev

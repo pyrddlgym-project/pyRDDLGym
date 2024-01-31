@@ -37,7 +37,7 @@ class HVACVisualizer(BaseViz):
 
         # add none-fluents
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'ZONE_VOL':
                 zone_vol[objects[0]] = v
             elif var == 'HEATER-VOL':
@@ -51,7 +51,7 @@ class HVACVisualizer(BaseViz):
 
         # add states
         for k, v in self._states.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'temp-zone':
                 temp_zone[objects[0]] = v
             elif var == 'temp-heater':

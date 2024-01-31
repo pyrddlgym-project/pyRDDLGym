@@ -31,7 +31,7 @@ class PowerGenVisualizer(BaseViz):
         
         # add none-fluents
         for k, v in self._nonfluents.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'PROD-UNITS-MIN':
                 prod_units_min[objects[0]] = v
             elif var == 'PROD-UNITS-MAX':
@@ -50,7 +50,7 @@ class PowerGenVisualizer(BaseViz):
         prevProd = {o: None for o in self._objects['plant']}
         temperature = None
         for k, v in state.items():
-            var, objects = self._model.parse_grounded(k)
+            var, objects = RDDLPlanningModel.parse_grounded(k)
             if var == 'prevProd':
                 prevProd[objects[0]] = v
             elif 'temperature' in k:
