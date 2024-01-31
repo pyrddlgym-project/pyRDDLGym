@@ -76,11 +76,11 @@ class RDDLValueOutOfRangeError(ValueError):
     pass
 
 
-class RDDLEnvironmentNotExist(ValueError):
+class RDDLEnvironmentNotExistError(ValueError):
     pass
 
 
-class RDDLInstanceNotExist(ValueError):
+class RDDLInstanceNotExistError(ValueError):
     pass
 
 
