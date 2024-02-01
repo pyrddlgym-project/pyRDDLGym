@@ -1,1 +1,1 @@
-from .RDDLModelXADD import RDDLModelWXADD
+from .model import RDDLModelXADD

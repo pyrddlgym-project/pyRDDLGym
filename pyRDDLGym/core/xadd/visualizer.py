@@ -2,11 +2,13 @@ import pygraphviz as pgv
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Union, List, Set
 
-from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
-from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
-from pyRDDLGym.Core.Parser.RDDLReader import RDDLReader
-from pyRDDLGym.Core.Parser.parser import RDDLParser
-from pyRDDLGym.Examples.ExampleManager import ExampleManager
+from pyRDDLGym.core.grounder import RDDLGrounder
+from pyRDDLGym.core.parser.reader import RDDLReader
+from pyRDDLGym.core.parser.parser import RDDLParser
+from pyRDDLGym.envs.registration import get_path_to_instance
+
+from pyRDDLGym.core.xadd.model import RDDLModelXADD
+
 
 COLOR = dict(
     action='olivedrab1',
@@ -86,31 +88,27 @@ class RDDL2Graph:
                  simulation: bool=False):
 
         # Read the domain and instance files
-        self._domain, self._instance = domain, str(instance)
-        env_info = ExampleManager.GetEnvInfo(domain)
-        domain = env_info.get_domain()
-        instance = env_info.get_instance(instance)
+        self._domain, self._instance = domain, str(instance)        
+        instance, domain, *_ = get_path_to_instance(domain, instance)
         
         # Read and parse domain and instance
         reader = RDDLReader(domain, instance)
         domain = reader.rddltxt
         parser = RDDLParser(None, False)
         parser.build()
-
-        # Parse RDDL file
         rddl_ast = parser.parse(domain)
 
         # Ground domain
         grounder = RDDLGrounder(rddl_ast)
-        model = grounder.Ground()
+        model = grounder.ground()
 
         # XADD compilation
-        self.model = RDDLModelWXADD(model, simulation=simulation)
+        self.model = RDDLModelXADD(model, simulation=simulation)
         self.model.compile()
         
         self.cpfs: Dict[str, Union[int, List[int]]] = self.model.cpfs
         self.cpfs.update({'reward': self.model.reward})
-        self.cpfs.update({'terminals': self.model.terminals})
+        self.cpfs.update({'terminals': self.model.terminations})
         self._directed = directed
         self._strict_grouping = strict_grouping
         self._gvar_to_node_name = {}
@@ -206,9 +204,10 @@ class RDDL2Graph:
         return res
 
     def get_graph_of_cpf(self, fluent: str, gfluent: Optional[str]=None) -> Graph:
-        assert fluent in self.model.pvar_to_type or fluent.lower() == 'reward', \
+        valid_fluents = set(self.model.variable_base_pvars.values())
+        assert fluent in valid_fluents or fluent.lower() == 'reward', \
             f"Fluent {fluent} not recognized"
-        assert not gfluent or (gfluent and f"{fluent}_{gfluent}" in self.model.gvar_to_type), \
+        assert not gfluent or (gfluent and f"{fluent}_{gfluent}" in self.model.variable_base_pvars), \
             f"Grounded fluent provided but cannot be resolved"
 
         graph = Graph(directed=self._directed)
@@ -219,21 +218,21 @@ class RDDL2Graph:
             gvars = ['reward']
         else:
             gvars = {
-                gvar for gvar, pvar in self.model.gvar_to_pvar.items() 
+                gvar for gvar, pvar in self.model.variable_base_pvars.items() 
                     if pvar == fluent and 
                         ((not gfluent) or (gfluent and f"{fluent}_{gfluent}" == gvar))
             }
         
         for gvar in gvars:
-            if gvar in self.model.interm:
+            if gvar in self.model.interm_fluents:
                 self.add_single_interm_fluent_to_graph(graph, gvar)
-            elif gvar in self.model.derived:
+            elif gvar in self.model.derived_fluents:
                 self.add_single_derived_fluent_to_graph(graph, gvar)
-            elif gvar in self.model.states:
+            elif gvar in self.model.state_fluents:
                 self.add_single_state_fluent_to_graph(graph, gvar)
-            elif gvar in self.model.observ:
+            elif gvar in self.model.observ_fluents:
                 self.add_single_observ_fluent_to_graph(graph, gvar)
-            elif gvar in self.model.actions:
+            elif gvar in self.model.action_fluents:
                 raise NotImplementedError("For action variables, generate the entire DBN")
             elif gvar == 'reward':
                 self.add_reward_to_graph(graph)
@@ -295,7 +294,7 @@ class RDDL2Graph:
             graph.set_suppress_rank(True)
         
         # Go through all actions
-        for act in self.model.actions:
+        for act in self.model.action_fluents:
             node_name = self.get_node_name(act)
             self.add_node(node_name)
             graph.add_node(node_name)
@@ -352,13 +351,13 @@ class RDDL2Graph:
         
         return graph
             
-    def add_reward_to_graph(
-            self, graph: Graph, fluent: Optional[str]=None, gfluent: Optional[str]=None
-    ):
+    def add_reward_to_graph(self, graph: Graph, 
+                            fluent: Optional[str]=None, 
+                            gfluent: Optional[str]=None):
         graph.add_node("Reward Function")
         parents = self.model.vars_in_rew
         for p in parents:
-            pvar = self.model.gvar_to_pvar[p]
+            pvar = self.model.variable_base_pvars[p]
             if not fluent or \
                 (fluent and pvar == fluent and not gfluent) or \
                     (gfluent and (p == f"{fluent}_{gfluent}" or p == f"{fluent}_{gfluent}'")):
@@ -372,8 +371,10 @@ class RDDL2Graph:
         # Get node names and add to the graph
         s_node_name = self.get_node_name(state)
         ns_node_name = self.get_node_name(ns, primed=True)
-        self.add_node(s_node_name); self.add_node(ns_node_name)
-        graph.add_node(s_node_name); graph.add_node(ns_node_name)
+        self.add_node(s_node_name)
+        self.add_node(ns_node_name)
+        graph.add_node(s_node_name)
+        graph.add_node(ns_node_name)
         
         # Get parents and add links
         parents = self.model.collect_vars(self.cpfs[ns])
@@ -390,7 +391,7 @@ class RDDL2Graph:
             )
     
     def add_state_fluents_to_graph(self, graph: Graph):
-        for st in self.model.states:
+        for st in self.model.state_fluents:
             self.add_single_state_fluent_to_graph(graph, st)
 
     def add_single_observ_fluent_to_graph(self, graph: Graph, observ: str):
@@ -407,7 +408,7 @@ class RDDL2Graph:
             graph.add_edge(p_node_name, node_name)
     
     def add_observ_fluents_to_graph(self, graph: Graph):
-        for observ in self.model.observ:
+        for observ in self.model.observ_fluents:
             self.add_single_observ_fluent_to_graph(graph, observ)
     
     def add_single_interm_fluent_to_graph(self, graph: Graph, interm: str):
@@ -424,7 +425,7 @@ class RDDL2Graph:
             graph.add_edge(p_node_name, node_name)
 
     def add_interm_fluents_to_graph(self, graph: Graph):
-        for interm in self.model.interm:
+        for interm in self.model.interm_fluents:
             self.add_single_interm_fluent_to_graph(graph, interm)
     
     def add_single_derived_fluent_to_graph(self, graph: Graph, derived: str):
@@ -441,13 +442,15 @@ class RDDL2Graph:
             graph.add_edge(p_node_name, node_name)
 
     def add_derived_fluents_to_graph(self, graph: Graph):
-        for derived in self.model.derived:
+        for derived in self.model.derived_fluents:
             self.add_single_derived_fluent_to_graph(graph, derived)
     
     @staticmethod
     def get_objects(gvar: str, pvar: str) -> List[str]:
         return list(map(lambda x: '?' + x, 
-                        [v_str for v_str in gvar.split(pvar)[1].split('_')[1:] if v_str]))
+                        [v_str 
+                         for v_str in gvar.split(pvar)[1].split('_')[1:] 
+                         if v_str]))
     
     def add_node(self, node_name: str):
         gvar = self._node_name_to_gvar[node_name]
@@ -455,13 +458,13 @@ class RDDL2Graph:
             self._state.add(node_name)
         elif gvar in self.model.next_state.values():
             self._next_state.add(node_name)
-        elif gvar in self.model.interm:
+        elif gvar in self.model.interm_fluents:
             self._interm.add(node_name)
-        elif gvar in self.model.derived:
+        elif gvar in self.model.derived_fluents:
             self._derived.add(node_name)
-        elif gvar in self.model.observ:
+        elif gvar in self.model.observ_fluents:
             self._observ.add(node_name)
-        elif gvar in self.model.actions:
+        elif gvar in self.model.actions_fluents:
             self._action.add(node_name)
 
     def clear_cache(self):
@@ -487,7 +490,7 @@ class RDDL2Graph:
         return node_name
         
     def get_pvar_from_gvar(self, gvar: str):
-        pvar = self.model.gvar_to_pvar.get(gvar)
+        pvar = self.model.variable_base_pvars.get(gvar)
         assert pvar is not None
         return pvar
 
