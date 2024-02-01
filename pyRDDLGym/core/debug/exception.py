@@ -1,6 +1,12 @@
 from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
 from pyRDDLGym.core.parser.expr import Expression
 
+import warnings
+try:
+    import termcolor
+except:
+    termcolor = None
+
 ERROR_MESSAGE_DECOMPILER = RDDLDecompiler()
 
 
@@ -16,6 +22,12 @@ def print_stack_trace_root(expr, root):
     return print_stack_trace(expr) + '\n' + f'Please check expression for {root}.' 
 
 
+def raise_warning(message, color='yellow'):
+    if termcolor is not None:
+        message = termcolor.colored(message, color)
+    warnings.warn(message)
+    
+    
 class RDDLActionPreconditionNotSatisfiedError(ValueError):
     pass
 

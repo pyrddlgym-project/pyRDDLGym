@@ -1,7 +1,6 @@
 import numpy as np
-import warnings
 
-from pyRDDLGym.core.debug.exception import print_stack_trace
+from pyRDDLGym.core.debug.exception import print_stack_trace, raise_warning
 from pyRDDLGym.core.simulator import RDDLSimulator
 
 
@@ -116,13 +115,13 @@ class RDDLConstraints:
         # both LHS and RHS are pvariable expressions, or relational operator 
         # cannot be simplified further
         if (is_left_pvar and is_right_pvar) or op not in {'<=', '<', '>=', '>'}:
-            warnings.warn(
+            raise_warning(
                 f'Constraint does not have a structure of '
-                f'<action or state fluent> <op> <rhs>, where:' 
-                    f'\n<op> is one of {{<=, <, >=, >}}'
-                    f'\n<rhs> is a deterministic function of '
-                    f'non-fluents or constants only.\n' + 
-                    print_stack_trace(expr))
+                f'<action or state fluent> <op> <rhs>, where ' 
+                f'<op> is one of {{<=, <, >=, >}} and '
+                f'<rhs> is a deterministic function of non-fluents only, '
+                f'and will be ignored.\n' + 
+                print_stack_trace(expr), 'red')
             return None, 0.0, None, []
         
         # neither side is a pvariable, nothing to do
@@ -143,10 +142,11 @@ class RDDLConstraints:
                 args = []
                 
             if not self.rddl.is_non_fluent_expression(const_expr):
-                warnings.warn(
-                    f'Bound must be a deterministic function of '
-                    f'non-fluents or constants only.\n' + 
-                    print_stack_trace(const_expr))
+                raise_warning(
+                    f'Constraint contains a fluent expression '
+                    f'(a nondeterministic operation or fluent variable) '
+                    f'and will be ignored.\n' + 
+                    print_stack_trace(const_expr), 'red')
                 return None, 0.0, None, []
             
             # use the simulator to evaluate the constant side of the comparison

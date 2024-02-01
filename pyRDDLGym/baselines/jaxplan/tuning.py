@@ -9,9 +9,8 @@ import numpy as np
 import os
 import time
 from typing import Callable, Dict, Tuple
-import warnings
-warnings.filterwarnings('ignore')
 
+from pyRDDLGym.core.debug.exception import raise_warning
 from pyRDDLGym.core.env import RDDLEnv
 
 from pyRDDLGym.baselines.jaxplan.planner import (
@@ -292,9 +291,8 @@ class JaxParameterTuning:
             import matplotlib.pyplot as plt
             from sklearn.manifold import MDS
         except Exception as e:
-            warnings.warn(f'failed to import packages matplotlib or sklearn, '
-                          f'aborting plot of search space\n'
-                          f'{e}', stacklevel=2)
+            raise_warning(f'failed to import packages matplotlib or sklearn, '
+                          f'aborting plot of search space\n{e}', 'red')
         else:
             data = np.loadtxt(filename, delimiter=',', dtype=object)
             data, target = data[1:, 3:], data[1:, 2]

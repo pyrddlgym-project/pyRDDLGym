@@ -2,7 +2,6 @@ from copy import deepcopy
 import math
 import numpy as np
 from typing import Dict, List, Tuple, TYPE_CHECKING
-import warnings
 
 import gurobipy
 from gurobipy import GRB
@@ -12,6 +11,7 @@ from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
 from pyRDDLGym.core.compiler.model import RDDLLiftedModel
 from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer
 from pyRDDLGym.core.debug.exception import (
+    raise_warning,
     print_stack_trace,
     RDDLTypeError,
     RDDLNotImplementedError,
@@ -220,9 +220,8 @@ class GurobiRDDLCompiler:
     
     def _create_model(self, env: gurobipy.Env=None) -> gurobipy.Model:
         if env is None:
-            warnings.warn(
-                'Gurobi model created in default environment, not recommended.', 
-                stacklevel=2)
+            raise_warning(
+                'Gurobi model created in default environment, not recommended.')
             model = gurobipy.Model()
         else:
             model = gurobipy.Model(env=env)
@@ -362,9 +361,7 @@ class GurobiRDDLCompiler:
             return a * b
         tiny = np.finfo(np.float64).tiny
         if a1 < tiny / b1:
-            warnings.warn(
-                f'Underflow prevented for {a} * {b} by setting to zero.', 
-                stacklevel=2)
+            raise_warning(f'Underflow prevented for {a} * {b} by setting to zero.')
             return 0.0
         return a * b
         
@@ -1035,8 +1032,8 @@ class GurobiRDDLCompiler:
     
     def _gurobi_uniform(self, expr, model, subs):
         if self.verbose >= 2:
-            warnings.warn('Using the replacement rule: '
-                          'Uniform(a, b) --> (a + b) / 2.',  stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'Uniform(a, b) --> (a + b) / 2.')
             
         arg1, arg2 = expr.args
         gterm1, _, lb1, ub1, symb1 = self._gurobi(arg1, model, subs)
@@ -1056,8 +1053,7 @@ class GurobiRDDLCompiler:
         
     def _gurobi_bernoulli(self, expr, model, subs):
         if self.verbose >= 2:
-            warnings.warn('Using the replacement rule: '
-                          'Bernoulli(p) --> p',  stacklevel=2)
+            raise_warning('Using the replacement rule: Bernoulli(p) --> p')
             
         arg, = expr.args
         gterm, _, lb, ub, symb = self._gurobi(arg, model, subs)
@@ -1075,8 +1071,7 @@ class GurobiRDDLCompiler:
         
     def _gurobi_normal(self, expr, model, subs):
         if self.verbose >= 2:
-            warnings.warn('Using the replacement rule: '
-                          'Normal(m, v) --> m',  stacklevel=2)
+            raise_warning('Using the replacement rule: Normal(m, v) --> m')
             
         mean, _ = expr.args
         gterm, _, lb, ub, symb = self._gurobi(mean, model, subs)
@@ -1086,8 +1081,7 @@ class GurobiRDDLCompiler:
     
     def _gurobi_poisson(self, expr, model, subs):
         if self.verbose >= 2:
-            warnings.warn('Using the replacement rule: '
-                          'Poisson(l) --> l',  stacklevel=2)
+            raise_warning('Using the replacement rule: Poisson(l) --> l')
             
         rate, = expr.args
         gterm, _, lb, ub, symb = self._gurobi(rate, model, subs)
@@ -1097,8 +1091,7 @@ class GurobiRDDLCompiler:
     
     def _gurobi_exponential(self, expr, model, subs):
         if self.verbose >= 2:
-            warnings.warn('Using the replacement rule: '
-                          'Exponential(l) --> l',  stacklevel=2)
+            raise_warning('Using the replacement rule: Exponential(l) --> l')
             
         scale, = expr.args
         gterm, _, lb, ub, symb = self._gurobi(scale, model, subs)
@@ -1108,8 +1101,7 @@ class GurobiRDDLCompiler:
 
     def _gurobi_gamma(self, expr, model, subs):
         if self.verbose >= 2:
-            warnings.warn('Using the replacement rule: '
-                          'Gamma(r, s) --> r * s',  stacklevel=2)
+            raise_warning('Using the replacement rule: Gamma(r, s) --> r * s')
             
         shape, scale = expr.args
         gterm1, _, lb1, ub1, symb1 = self._gurobi(shape, model, subs)
@@ -1128,8 +1120,8 @@ class GurobiRDDLCompiler:
     
     def _gurobi_weibull(self, expr, model, subs):
         if self.verbose >= 2:
-            warnings.warn('Using the replacement rule: '
-                          'Weibull(s, l) --> l * Gamma(1 + 1/s)',  stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'Weibull(s, l) --> l * Gamma(1 + 1/s)')
         
         shape, scale = expr.args
         gterm1, _, _, _, symb1 = self._gurobi(shape, model, subs)

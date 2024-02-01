@@ -14,10 +14,10 @@ import termcolor
 import time
 from tqdm import tqdm
 from typing import Callable, Dict, Generator, Set, Sequence, Tuple
-import warnings
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel, RDDLLiftedModel
 from pyRDDLGym.core.debug.exception import (
+    raise_warning,
     RDDLNotImplementedError,
     RDDLUndefinedVariableError,
     RDDLTypeError
@@ -27,7 +27,6 @@ from pyRDDLGym.core.policy import BaseAgent
 from pyRDDLGym.baselines.jaxplan.compiler import JaxRDDLCompiler
 from pyRDDLGym.baselines.jaxplan import logic
 from pyRDDLGym.baselines.jaxplan.logic import FuzzyLogic
-
 
 
 # ***********************************************************************
@@ -86,8 +85,7 @@ def _load_config(config, args):
         try: 
             plan_kwargs['initializer'] = init_class(**init_kwargs)
         except:
-            warnings.warn(f'ignoring arguments for initializer <{init_name}>',
-                          stacklevel=2)
+            raise_warning(f'ignoring arguments for initializer <{init_name}>')
             plan_kwargs['initializer'] = init_class
                
     if 'activation' in plan_kwargs:  # activation function
@@ -145,8 +143,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         self.cpfs_without_grad = cpfs_without_grad
         
         # actions and CPFs must be continuous
-        warnings.warn(f'Initial values of pvariables will be cast to real.',
-                      stacklevel=2)   
+        raise_warning(f'Initial values of pvariables will be cast to real.')   
         for (var, values) in self.init_values.items():
             self.init_values[var] = np.asarray(values, dtype=self.REAL) 
         
@@ -191,14 +188,14 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         return _jax_wrapped_stop_grad
         
     def _compile_cpfs(self, info):
-        warnings.warn('CPFs outputs will be cast to real.', stacklevel=2)      
+        raise_warning('CPFs outputs will be cast to real.')      
         jax_cpfs = {}
         for (_, cpfs) in self.levels.items():
             for cpf in cpfs:
                 _, expr = self.rddl.cpfs[cpf]
                 jax_cpfs[cpf] = self._jax(expr, info, dtype=self.REAL)
                 if cpf in self.cpfs_without_grad:
-                    warnings.warn(f'CPF <{cpf}> stops gradient.', stacklevel=2)      
+                    raise_warning(f'CPF <{cpf}> stops gradient.')      
                     jax_cpfs[cpf] = self._jax_stop_grad(jax_cpfs[cpf])
         return jax_cpfs
     
@@ -210,7 +207,7 @@ class JaxRDDLCompilerWithGrad(JaxRDDLCompiler):
         
     def _jax_kron(self, expr, info):
         if self.logic.verbose:
-            warnings.warn('KronDelta will be ignored.', stacklevel=2)            
+            raise_warning('KronDelta will be ignored.')            
                        
         arg, = expr.args
         arg = self._jax(arg, info)
@@ -323,8 +320,7 @@ class JaxPlan:
                                     ~lower_finite & upper_finite,
                                     ~lower_finite & ~upper_finite]
             bounds[name] = (lower, upper)
-            warnings.warn(f'Bounds of action fluent <{name}> set to '
-                          f'{bounds[name]}', stacklevel=2)
+            raise_warning(f'Bounds of action fluent <{name}> set to {bounds[name]}.')
         return shapes, bounds, bounds_safe, cond_lists
     
     def _count_bool_actions(self, rddl: RDDLLiftedModel):
@@ -399,10 +395,10 @@ class JaxStraightLinePlan(JaxPlan):
         bool_action_count, allowed_actions = self._count_bool_actions(rddl)
         use_constraint_satisfaction = allowed_actions < bool_action_count        
         if use_constraint_satisfaction: 
-            warnings.warn(f'Using projected gradient trick to satisfy '
+            raise_warning(f'Using projected gradient trick to satisfy '
                           f'max_nondef_actions: total boolean actions '
                           f'{bool_action_count} > max_nondef_actions '
-                          f'{allowed_actions}.', stacklevel=2)
+                          f'{allowed_actions}.')
             
         noop = {var: (values[0] if isinstance(values, list) else values)
                 for (var, values) in rddl.action_fluents.items()}
@@ -973,12 +969,12 @@ class JaxBackpropPlanner:
         try:
             optimizer = optax.inject_hyperparams(optimizer)(**optimizer_kwargs)
         except:
-            warnings.warn(
+            raise_warning(
                 'Failed to inject hyperparameters into optax optimizer, '
                 'rolling back to safer method: please note that modification of '
                 'optimizer hyperparameters will not work, and it is '
                 'recommended to update your packages and Python distribution.',
-                stacklevel=2)
+                'red')
             optimizer = optimizer(**optimizer_kwargs)     
         if clip_grad is None:
             self.optimizer = optimizer
@@ -1236,10 +1232,9 @@ class JaxBackpropPlanner:
                     subs[var] = value
                     added_pvars_to_subs.append(var)
             if added_pvars_to_subs:
-                warnings.warn(f'p-variables {added_pvars_to_subs} not in '
-                              f'provided subs, using their initial values '
-                              f'from the RDDL files.', 
-                              stacklevel=2)
+                raise_warning(f'p-variables {added_pvars_to_subs} not in '
+                              'provided subs, using their initial values '
+                              'from the RDDL files.')
         train_subs, test_subs = self._batched_init_subs(subs)
         
         # initialize, model parameters
@@ -1272,10 +1267,10 @@ class JaxBackpropPlanner:
                 subkey1, policy_params, policy_hyperparams,
                 train_subs, model_params, opt_state)
             if not np.all(converged):
-                warnings.warn(
-                    f'Projected gradient method for satisfying action concurrency '
-                    f'constraints reached the iteration limit: plan is possibly '
-                    f'invalid for the current instance.', stacklevel=2)
+                raise_warning(
+                    'Projected gradient method for satisfying action concurrency '
+                    'constraints reached the iteration limit: plan is possibly '
+                    'invalid for the current instance.', 'red')
             
             # evaluate losses
             train_loss, _ = self.train_loss(
@@ -1341,10 +1336,9 @@ class JaxBackpropPlanner:
                 messages.update(JaxRDDLCompiler.get_error_messages(error_code))
             if messages:
                 messages = '\n'.join(messages)
-                warnings.warn('The JAX compiler encountered the following '
+                raise_warning('The JAX compiler encountered the following '
                               'problems in the original RDDL '
-                              f'during test evaluation:\n{messages}\n',
-                              stacklevel=2)                               
+                              f'during test evaluation:\n{messages}', 'red')                               
         
         # summarize and test for convergence
         if verbose >= 1:
