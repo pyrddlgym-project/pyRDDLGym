@@ -172,7 +172,8 @@ class RDDLObjectsTracer:
                 or (cpf_range not in rddl.type_to_objects and expr_range is not None):
                     raise RDDLTypeError(
                         f'CPF <{cpf}> expression expects type <{cpf_range}>, '
-                        f'got expression of type <{expr_range}>.')
+                        f'got expression of type <{expr_range}>.\n' + 
+                        PST(expr, out._current_root))
 
         # trace reward, check not object value
         out._current_root = 'reward'
