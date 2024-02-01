@@ -23,19 +23,19 @@ class RDDLLevelAnalysisXADD(RDDLLevelAnalysis):
         if isinstance(expr, Expression):
             super()._update_call_graph(graph, cpf, expr)
         else:
-            rddl = self._model
+            model = self._model
             var_set = self._context.collect_vars(expr)
             for v in var_set:
-                v_name = rddl._sympy_var_name_to_var_name.get(str(v), str(v))
-                if v_name not in rddl.non_fluents and v not in rddl.rvs:
+                v_name = model._sympy_var_name_to_var_name.get(str(v), str(v))
+                if v_name not in model.non_fluents and v not in model.rvs:
                     graph.setdefault(cpf, set()).add(v_name)
     
     def build_call_graph(self) -> Dict[str, List[str]]:
-        rddl = self._model
+        model = self._model
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
-        for (name, expr) in rddl.cpfs.items():
+        for (name, expr) in model.cpfs.items():
             self._update_call_graph(cpf_graph, name, expr)
             if name not in cpf_graph:
                 cpf_graph[name] = set()
@@ -44,10 +44,10 @@ class RDDLLevelAnalysisXADD(RDDLLevelAnalysis):
         
         # check validity of reward, constraints, termination
         for (name, exprs) in (
-            ('reward', [rddl.reward]),
-            ('precondition', rddl.preconditions),
-            ('invariant', rddl.invariants),
-            ('termination', rddl.terminations)
+            ('reward', [model.reward]),
+            ('precondition', model.preconditions),
+            ('invariant', model.invariants),
+            ('termination', model.terminations)
         ):
             call_graph_expr = {}
             for expr in exprs:
