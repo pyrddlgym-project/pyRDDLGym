@@ -239,7 +239,7 @@ class RDDLEnv(gym.Env):
             obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
             
         # check if the state invariants are satisfied
-        if self.new_gym_api and not done:
+        if self.new_gym_api and not self.done:
             out_of_bounds = not sampler.check_state_invariants(silent=True)
         else:
             out_of_bounds = False
