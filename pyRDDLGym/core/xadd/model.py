@@ -4,20 +4,25 @@ import sympy as sp
 from xaddpy.xadd import XADD
 from xaddpy.xadd.xadd import ControlFlow, DeltaFunctionSubstitution
 
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel, RDDLGroundedModel
-from pyRDDLGym.Core.ErrorHandling.RDDLException import (
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel, RDDLGroundedModel
+from pyRDDLGym.core.debug.exception import (
     RDDLInvalidNumberOfArgumentsError,
     RDDLNotImplementedError,
-    RDDLTypeError,
+    RDDLTypeError
 )
-from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.XADD.helper import get_bernoulli_node_id
+from pyRDDLGym.core.parser.expr import Expression
+from pyRDDLGym.core.xadd.helper import get_bernoulli_node_id
 
 
 VALID_RELATIONAL_OPS = {'>=', '>', '<=', '<', '==', '~='}
 OP_TO_XADD_OP = {
-    '*': 'prod', '+': 'add', '-': 'subtract', '/': 'div',
-    '|': 'or', '^': 'and', '~=': '!='
+    '*': 'prod', 
+    '+': 'add', 
+    '-': 'subtract', 
+    '/': 'div',
+    '|': 'or', 
+    '^': 'and', 
+    '~=': '!='
 }
 PRIME = '\''
 UNIFORM_VAR_NAME = '#_UNIFORM_{num}'
@@ -25,15 +30,17 @@ GAUSSIAN_VAR_NAME = '#_GAUSSIAN_{num}'
 EXPONENTIAL_VAR_NAME = '#_EXPONENTIAL_{num}'
 
 
-class RDDLModelWXADD(PlanningModel):
+class RDDLModelXADD(RDDLPlanningModel):
 
-    def __init__(
-            self,
-            model: RDDLGroundedModel,
-            context: XADD = None,
-            simulation: bool = True,
-    ):
+    def __init__(self,
+                 model: RDDLGroundedModel,
+                 context: XADD = None,
+                 simulation: bool = True):
         super().__init__()
+        
+        self.__dict__.update(model.__dict__)
+        self.variable_base_pvars = model.variable_base_pvars
+        
         self.model = model
         self._context: XADD = XADD() if context is None else context
         self._var_name_to_node_id = {}
@@ -45,33 +52,6 @@ class RDDLModelWXADD(PlanningModel):
         self._curr_pvar = None
         self.rvs = self._context._random_var_set
 
-        # Get grounded variables
-        self.states = model.states
-        self.actions = model.actions
-        self.nonfluents = model.nonfluents
-        self.next_state = model.next_state
-        self.prev_state = model.prev_state
-        self.init_state = model.init_state
-        self.cpfs = model.cpfs
-        self.cpforder = model.cpforder
-        self.gvar_to_cpforder = model.gvar_to_cpforder
-        self.reward = model.reward
-        self.terminals = model.terminals
-        self.preconditions = model.preconditions
-        self.invariants = model.invariants
-        self.derived = model.derived
-        self.interm = model.interm
-        self.observ = model.observ
-        self.observranges = model.observranges
-        self.objects = model.objects
-        self.actionsranges = model.actionsranges
-        self.statesranges = model.statesranges
-        self.gvar_to_type = model.gvar_to_type
-        self.pvar_to_type = model.pvar_to_type
-        self.gvar_to_pvar = model.gvar_to_pvar
-        self.max_allowed_actions = model.max_allowed_actions
-        self.horizon = model.horizon
-        self.discount = model.discount
         self.compiled = False
         self.simulation = simulation
         self._need_postprocessing = False
@@ -100,11 +80,12 @@ class RDDLModelWXADD(PlanningModel):
         for cpf in cpfs:
             self._need_postprocessing = False
             _, expr = self.cpfs[cpf]
-            pvar_name = self.gvar_to_pvar[cpf]
+            pvar_name = self.variable_base_pvars[cpf]
             if pvar_name != self._curr_pvar:
                 self._curr_pvar = pvar_name
                 self.reset_dist_var_num()
             expr_xadd_node_id = self.expr_to_xadd(expr)
+            
             # Post-processing for Bernoulli CPFs
             if self._need_postprocessing:
                 expr_xadd_node_id = self.postprocess(
@@ -120,11 +101,11 @@ class RDDLModelWXADD(PlanningModel):
 
         # Terminal condition
         terminals = []
-        for i, terminal in enumerate(self.terminals):
+        for i, terminal in enumerate(self.terminations):
             expr = terminal
             expr_xadd_node_id = self.expr_to_xadd(expr)
             terminals.append(expr_xadd_node_id)
-        self.terminals = terminals
+        self.terminations = terminals
 
         # Skip preconditions
         # preconditions = []
@@ -179,9 +160,9 @@ class RDDLModelWXADD(PlanningModel):
     def pvar_to_xadd(self, expr: Expression) -> int:
         assert expr.etype[0] == 'pvar'
         var, args = expr.args
-        var_type = self.gvar_to_type[var]
-        if var in self.nonfluents:
-            var_ = self.nonfluents[var]
+        var_type = self.variable_ranges[var]
+        if var in self.non_fluents:
+            var_ = self.non_fluents[var]
             node_id = self._context.convert_to_xadd(sp.S(var_))
             self._var_name_to_node_id[var] = node_id            
         else:
@@ -321,6 +302,7 @@ class RDDLModelWXADD(PlanningModel):
         if dist == 'Bernoulli':
             assert len(args) == 1
             proba = args[0]
+            
             # Sample a Bernoulli rv by sampling a uniform rv
             if self.simulation:
                 num_rv = self._num_uniform
@@ -332,6 +314,7 @@ class RDDLModelWXADD(PlanningModel):
                 )
                 node_id = self._context.apply(uniform, proba, '<=')
                 self._num_uniform += 1
+                
             # Create a Bernoulli node
             # TODO: How to assert that a Bernoulli node can only come at a leaf?
             else:
