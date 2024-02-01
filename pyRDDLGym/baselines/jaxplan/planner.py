@@ -1061,7 +1061,7 @@ class JaxBackpropPlanner:
         # optimization
         self.update = jax.jit(self._jax_update(train_loss))
     
-    def _jax_wrapped_returns_fn(self, use_symlog):
+    def _jax_return(self, use_symlog):
         gamma = self.rddl.discount
         
         # apply discounting of future reward and then optional symlog transform
@@ -1079,7 +1079,7 @@ class JaxBackpropPlanner:
         
     def _jax_loss(self, rollouts, use_symlog=False): 
         utility_fn = self.utility        
-        _jax_wrapped_returns = self._jax_wrapped_returns_fn(use_symlog)
+        _jax_wrapped_returns = self._jax_return(use_symlog)
         
         # the loss is the average cumulative reward across all roll-outs
         def _jax_wrapped_plan_loss(key, policy_params, hyperparams,
@@ -1257,6 +1257,7 @@ class JaxBackpropPlanner:
             opt_state = self.optimizer.init(policy_params)
         best_params, best_loss, best_grad = policy_params, jnp.inf, jnp.inf
         last_iter_improve = 0
+        log = {}
         
         # training loop
         iters = range(epochs)
@@ -1332,7 +1333,19 @@ class JaxBackpropPlanner:
         
         if verbose >= 2:
             iters.close()
-            
+        
+        # validate the test return
+        if log:
+            messages = set()
+            for error_code in np.unique(log['error']):
+                messages.update(JaxRDDLCompiler.get_error_messages(error_code))
+            if messages:
+                messages = '\n'.join(messages)
+                warnings.warn('The JAX compiler encountered the following '
+                              'problems in the original RDDL '
+                              f'during test evaluation:\n{messages}\n',
+                              stacklevel=2)                               
+        
         # summarize and test for convergence
         if verbose >= 1:
             grad_norm = jax.tree_map(

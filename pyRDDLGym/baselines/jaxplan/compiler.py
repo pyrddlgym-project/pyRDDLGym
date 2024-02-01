@@ -507,7 +507,7 @@ class JaxRDDLCompiler:
         
     ERROR_CODES = {
         'NORMAL': 0,
-        'INVALID_CAST': 1,
+        'INVALID_CAST': 2 ** 0,
         'INVALID_PARAM_UNIFORM': 2 ** 1,
         'INVALID_PARAM_NORMAL': 2 ** 2,
         'INVALID_PARAM_EXPONENTIAL': 2 ** 3,
