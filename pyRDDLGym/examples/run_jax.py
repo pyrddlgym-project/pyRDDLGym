@@ -7,7 +7,7 @@ different options:
     
 The syntax for running this example is:
 
-    python run_jax.py <domain> <instance> <method>
+    python run_jax.py <domain> <instance> <method> [<episodes>]
     
 where:
     <domain> is the name of a domain located in the /Examples directory
@@ -23,7 +23,7 @@ from pyRDDLGym.baselines.jaxplan.planner import (
 )
 
     
-def main(domain, instance, method):
+def main(domain, instance, method, episodes=1):
     
     # set up the environment
     env = pyRDDLGym.make(domain, instance, vectorized=True, enforce_action_constraints=True)
@@ -42,7 +42,7 @@ def main(domain, instance, method):
     else:
         controller = JaxOfflineController(planner, **train_args)
     
-    controller.evaluate(env, verbose=True, render=True)
+    controller.evaluate(env, episodes=episodes, verbose=True, render=True)
     
     env.close()
         
@@ -50,11 +50,12 @@ def main(domain, instance, method):
 if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) < 3:
-        print('python run_jax.py <domain> <instance> <method>')
+        print('python run_jax.py <domain> <instance> <method> [<episodes>]')
         exit(1)
     if args[2] not in ['drp', 'slp', 'replan']:
         print('<method> in [drp, slp, replan]')
         exit(1)
-    domain, instance, method = args[:3]
-    main(domain, instance, method)
+    kwargs = {'domain': args[0], 'instance': args[1], 'method': args[2]}
+    if len(args) >= 4: kwargs['episodes'] = int(args[3])
+    main(**kwargs)
     
