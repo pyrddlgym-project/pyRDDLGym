@@ -54,6 +54,7 @@ class StableBaselinesRDDLEnv(RDDLEnv):
         self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
         self.enforce_count_non_bool = enforce_action_count_non_bool
+        self.reward_scale = 1.0
         
         # needed for parent class
         self.new_gym_api = True
@@ -285,4 +286,7 @@ class StableBaselinesRDDLEnv(RDDLEnv):
     
     def step(self, actions):
         actions = self._gym_to_rddl_actions(actions)
-        return super(StableBaselinesRDDLEnv, self).step(actions)
+        obs, reward, done, out_of_bounds, info = \
+            super(StableBaselinesRDDLEnv, self).step(actions)
+        reward = reward * self.reward_scale
+        return obs, reward, done, out_of_bounds, info
