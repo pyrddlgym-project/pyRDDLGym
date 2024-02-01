@@ -1,4 +1,5 @@
 from ast import literal_eval
+from collections import deque
 import configparser
 import haiku as hk
 import jax
@@ -1167,7 +1168,8 @@ class JaxBackpropPlanner:
         :param return_callback: whether to return the callback from training
         instead of the parameters
         '''
-        * _, callback = self.optimize_generator(*args, **kwargs)
+        it = self.optimize_generator(*args, **kwargs)
+        callback = deque(it, maxlen=1).pop()
         if return_callback:
             return callback
         else:
