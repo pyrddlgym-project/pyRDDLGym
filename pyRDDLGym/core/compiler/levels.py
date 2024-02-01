@@ -1,8 +1,8 @@
 from typing import Dict, List
-import warnings
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.debug.exception import (
+    raise_warning,
     RDDLInvalidDependencyInCPFError,
     RDDLMissingCPFDefinitionError,
     RDDLNotImplementedError,
@@ -141,9 +141,9 @@ class RDDLLevelAnalysis:
             
             # warn use of derived fluent
             if cpf_type == 'derived-fluent':
-                warnings.warn(
-                    f'The use of derived-fluent is discouraged, '
-                    f'please change <{cpf}> to interm-fluent.', stacklevel=2)
+                raise_warning(
+                    f'The use of derived-fluent is no longer supported, '
+                    f'please change <{cpf}> to interm-fluent.', 'red')
             
             # not a recognized type
             if cpf_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES:

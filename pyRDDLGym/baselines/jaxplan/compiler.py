@@ -5,15 +5,16 @@ import jax.random as random
 import jax.scipy as scipy 
 import traceback
 from typing import Callable, Dict, List
-import warnings
+
+from pyRDDLGym.core.debug.exception import raise_warning
 
 # more robust approach - if user does not have this or broken try to continue
 try:
     from tensorflow_probability.substrates import jax as tfp
 except Exception:
-    warnings.warn('Failed to import tensorflow-probability: '
-                  'compilation of some complex distributions will not work.',
-                  stacklevel=2)
+    raise_warning('Failed to import tensorflow-probability: '
+                  'compilation of some complex distributions will not work.', 
+                  'red')
     traceback.print_exc()
     tfp = None
     

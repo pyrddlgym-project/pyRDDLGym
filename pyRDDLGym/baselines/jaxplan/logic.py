@@ -2,7 +2,8 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 from typing import Set
-import warnings
+
+from pyRDDLGym.core.debug.exception import raise_warning
 
 
 class Complement:
@@ -105,8 +106,7 @@ class FuzzyLogic:
      
     def And(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a ^ b --> tnorm(a, b).', stacklevel=2)
+            raise_warning('Using the replacement rule: a ^ b --> tnorm(a, b).')
         
         _and = self.tnorm.norm
         
@@ -117,8 +117,7 @@ class FuzzyLogic:
     
     def Not(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          '~a --> 1 - a', stacklevel=2)
+            raise_warning('Using the replacement rule: ~a --> 1 - a')
         
         _not = self.complement
         
@@ -129,8 +128,7 @@ class FuzzyLogic:
     
     def Or(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a or b --> tconorm(a, b).', stacklevel=2)
+            raise_warning('Using the replacement rule: a or b --> tconorm(a, b).')
             
         _not = self.complement
         _and = self.tnorm.norm
@@ -142,8 +140,8 @@ class FuzzyLogic:
 
     def xor(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a xor b --> (a or b) ^ (a ^ b).', stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'a xor b --> (a or b) ^ (a ^ b).')
         
         _not = self.complement
         _and = self.tnorm.norm
@@ -156,8 +154,7 @@ class FuzzyLogic:
         
     def implies(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a => b --> ~a ^ b', stacklevel=2)
+            raise_warning('Using the replacement rule: a => b --> ~a ^ b')
         
         _not = self.complement
         _and = self.tnorm.norm
@@ -169,8 +166,8 @@ class FuzzyLogic:
     
     def equiv(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a <=> b --> (a => b) ^ (b => a)', stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'a <=> b --> (a => b) ^ (b => a)')
         
         _not = self.complement
         _and = self.tnorm.norm
@@ -184,9 +181,8 @@ class FuzzyLogic:
     
     def forall(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'forall(a) --> tnorm(a[1], tnorm(a[2], ...))', 
-                          stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'forall(a) --> tnorm(a[1], tnorm(a[2], ...))')
         
         _forall = self.tnorm.norms
         
@@ -210,8 +206,7 @@ class FuzzyLogic:
      
     def greaterEqual(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a >= b --> sigmoid(a - b)', stacklevel=2)
+            raise_warning('Using the replacement rule: a >= b --> sigmoid(a - b)')
             
         debias = 'greaterEqual' in self.debias
         
@@ -228,8 +223,7 @@ class FuzzyLogic:
     
     def greater(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a > b --> sigmoid(a - b)', stacklevel=2)
+            raise_warning('Using the replacement rule: a > b --> sigmoid(a - b)')
             
         debias = 'greater' in self.debias
         
@@ -262,8 +256,7 @@ class FuzzyLogic:
 
     def equal(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'a == b --> sech^2(b - a)', stacklevel=2)
+            raise_warning('Using the replacement rule: a == b --> sech^2(b - a)')
             
         debias = 'equal' in self.debias
         
@@ -293,8 +286,7 @@ class FuzzyLogic:
      
     def signum(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'signum(x) --> tanh(x)', stacklevel=2)
+            raise_warning('Using the replacement rule: signum(x) --> tanh(x)')
             
         debias = 'signum' in self.debias
         
@@ -311,9 +303,8 @@ class FuzzyLogic:
     
     def floor(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'floor(x) --> x - atan(-1.0 / tan(pi * x)) / pi - 0.5', 
-                          stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'floor(x) --> x - atan(-1.0 / tan(pi * x)) / pi - 0.5')
             
         def _jax_wrapped_calc_floor_approx(x, param):
             sawtooth_part = jnp.arctan(-1.0 / jnp.tan(x * jnp.pi)) / jnp.pi + 0.5
@@ -331,8 +322,7 @@ class FuzzyLogic:
     
     def round(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'round(x) --> x', stacklevel=2)
+            raise_warning('Using the replacement rule: round(x) --> x')
         
         def _jax_wrapped_calc_round_approx(x, param):
             return x
@@ -357,8 +347,7 @@ class FuzzyLogic:
     
     def sqrt(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'sqrt(x) --> sqrt(x + eps)', stacklevel=2)
+            raise_warning('Using the replacement rule: sqrt(x) --> sqrt(x + eps)')
         
         def _jax_wrapped_calc_sqrt_approx(x, param):
             return jnp.sqrt(x + self.eps)
@@ -379,8 +368,8 @@ class FuzzyLogic:
     
     def argmax(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          f'argmax(x) --> sum(i * softmax(x[i]))', stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          f'argmax(x) --> sum(i * softmax(x[i]))')
             
         debias = 'argmax' in self.debias
         
@@ -411,8 +400,8 @@ class FuzzyLogic:
      
     def If(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'if c then a else b --> c * a + (1 - c) * b', stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'if c then a else b --> c * a + (1 - c) * b')
         
         def _jax_wrapped_calc_if_approx(c, a, b, param):
             return c * a + (1.0 - c) * b
@@ -421,9 +410,8 @@ class FuzzyLogic:
     
     def Switch(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'switch(pred) { cases } --> sum(cases[i] * (pred == i))',
-                          stacklevel=2)   
+            raise_warning('Using the replacement rule: '
+                          'switch(pred) { cases } --> sum(cases[i] * (pred == i))')   
             
         debias = 'Switch' in self.debias
         
@@ -454,8 +442,8 @@ class FuzzyLogic:
         
     def bernoulli(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'Bernoulli(p) --> Gumbel-softmax(p)', stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'Bernoulli(p) --> Gumbel-softmax(p)')
         
         jax_gs = self._gumbel_softmax
         jax_argmax, jax_param = self.argmax()
@@ -470,8 +458,8 @@ class FuzzyLogic:
     
     def discrete(self):
         if self.verbose:
-            warnings.warn('Using the replacement rule: '
-                          'Discrete(p) --> Gumbel-softmax(p)', stacklevel=2)
+            raise_warning('Using the replacement rule: '
+                          'Discrete(p) --> Gumbel-softmax(p)')
         
         jax_gs = self._gumbel_softmax
         jax_argmax, jax_param = self.argmax()

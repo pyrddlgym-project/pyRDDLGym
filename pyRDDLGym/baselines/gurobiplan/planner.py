@@ -1,9 +1,9 @@
 from typing import Dict, List, Tuple
-import warnings
 
 import gurobipy
 from gurobipy import GRB
 
+from pyRDDLGym.core.debug.exception import raise_warning
 from pyRDDLGym.core.compiler.model import RDDLLiftedModel
 from pyRDDLGym.core.policy import BaseAgent
 
@@ -710,9 +710,8 @@ class GurobiOfflineController(BaseAgent):
         # check for existence of valid solution
         self.solved = model.SolCount > 0
         if not self.solved:
-            warnings.warn(f'Gurobi failed to find a feasible solution '
-                          f'in the given time limit: using no-op action.',
-                          stacklevel=2)
+            raise_warning(f'Gurobi failed to find a feasible solution '
+                          f'in the given time limit: using no-op action.', 'red')
     
     def sample_action(self, state):
         
@@ -789,9 +788,8 @@ class GurobiOnlineController(BaseAgent):
         
         # check for existence of solution
         if not (model.SolCount > 0):
-            warnings.warn(f'Gurobi failed to find a feasible solution '
-                          f'in the given time limit: using no-op action.',
-                          stacklevel=2)
+            raise_warning(f'Gurobi failed to find a feasible solution '
+                          f'in the given time limit: using no-op action.', 'red')
             del model
             return {}
             

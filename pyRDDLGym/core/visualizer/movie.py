@@ -2,15 +2,16 @@ import glob
 import os
 from PIL import Image
 import re
-import warnings
+
+from pyRDDLGym.core.debug.exception import raise_warning
 
 # (mike: #166) opencv is now optional
 try:
     import cv2
     _ALLOW_MP4 = True
 except:
-    warnings.warn('cv2 is not installed: save_as_mp4 option will be disabled.',
-                  stacklevel=2)
+    raise_warning('cv2 is not installed: save_as_mp4 option will be disabled.',
+                  'red')
     _ALLOW_MP4 = False
 
 
@@ -56,8 +57,7 @@ class MovieGenerator:
             os.remove(file)
             removed += 1
         if removed:
-            warnings.warn(f'removed {removed} temporary files at {load_path}',
-                          stacklevel=2)
+            raise_warning(f'Removed {removed} temporary files at {load_path}.')
         
         self._n_frame = 0
         self._time = 0

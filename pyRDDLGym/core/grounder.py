@@ -1,10 +1,10 @@
 import abc
 import copy
 import itertools
-import warnings
 
 from pyRDDLGym.core.compiler.model import RDDLGroundedModel
 from pyRDDLGym.core.debug.exception import (
+    raise_warning,
     RDDLInvalidExpressionError,
     RDDLInvalidNumberOfArgumentsError,
     RDDLInvalidObjectError,
@@ -507,10 +507,9 @@ class RDDLGrounder(BaseRDDLGrounder):
     
         if hasattr(self.AST.domain, 'constraints'):
             if self.AST.domain.constraints:
-                warnings.warn(
+                raise_warning(
                     f'State-action constraints are not implemented '
-                    f'in this RDDL version and will be ignored.',
-                    stacklevel=2)
+                    f'in this RDDL version and will be ignored.', 'red')
     
         if hasattr(self.AST.domain, 'invariants'):
             for inv in self.AST.domain.invariants:
@@ -525,9 +524,9 @@ class RDDLGrounder(BaseRDDLGrounder):
                 if key in self.states:
                     self.states[key] = val
                 else:
-                    warnings.warn(
-                        f'Init-state block initializes undefined state-fluent <{key}>.',
-                        stacklevel=2)
+                    raise_warning(
+                        f'Init-state block initializes undefined state-fluent <{key}>.', 
+                        'red')
     
     def _ground_init_non_fluents(self) -> None:
         if hasattr(self.AST.non_fluents, 'init_non_fluent'):
@@ -540,9 +539,9 @@ class RDDLGrounder(BaseRDDLGrounder):
                 if key in self.nonfluents:
                     self.nonfluents[key] = val
                 else:
-                    warnings.warn(
-                        f'Non-fluents block initializes undefined non-fluent <{key}>.',
-                        stacklevel=2)
+                    raise_warning(
+                        f'Non-fluents block initializes undefined non-fluent <{key}>.', 
+                        'red')
 
     def _ground_horizon(self):
         horizon = self.AST.instance.horizon
