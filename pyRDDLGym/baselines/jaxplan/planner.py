@@ -10,6 +10,7 @@ import numpy as np
 import optax
 import os
 import sys
+import termcolor
 import time
 from tqdm import tqdm
 from typing import Callable, Dict, Generator, Set, Sequence, Tuple
@@ -1332,16 +1333,73 @@ class JaxBackpropPlanner:
         if verbose >= 2:
             iters.close()
             
-        # summarize
+        # summarize and test for convergence
         if verbose >= 1:
             grad_norm = jax.tree_map(
                 lambda x: np.array(jnp.linalg.norm(x)).item(), best_grad)
+            diagnosis = self._perform_diagnosis(
+                last_iter_improve, it, 
+                -train_loss, -test_loss, -best_loss, grad_norm)
             print(f'summary of optimization:\n'
                   f'    time_elapsed  ={elapsed}\n'
                   f'    iterations    ={it}\n'
                   f'    best_objective={-best_loss}\n'
-                  f'    grad_norm     ={grad_norm}')
+                  f'    grad_norm     ={grad_norm}\n'
+                  f'diagnosis: {diagnosis}\n')
+    
+    def _perform_diagnosis(self, last_iter_improve, total_it, 
+                           train_return, test_return, best_return, grad_norm):
+        max_grad_norm = max(jax.tree_util.tree_leaves(grad_norm))
+        grad_is_zero = np.allclose(max_grad_norm, 0)
+        
+        validation_error = 100 * abs(test_return - train_return) / \
+                            max(abs(train_return), abs(test_return))
+        
+        # divergence if the solution is not finite
+        if not np.isfinite(train_return):
+            return termcolor.colored('[FAILURE] training loss diverged.', 'red')
             
+        # hit a plateau is likely IF:
+        # 1. planner does not improve at all
+        # 2. the gradient norm at the best solution is zero
+        if last_iter_improve <= 1:
+            if grad_is_zero:
+                return termcolor.colored(
+                    '[FAILURE] no progress was made, '
+                    f'and max grad norm = {max_grad_norm}, '
+                    'likely stuck in a plateau.', 'red')
+            else:
+                return termcolor.colored(
+                    '[FAILURE] no progress was made, '
+                    f'but max grad norm = {max_grad_norm} > 0, '
+                    'likely due to bad l.r. or other hyper-parameter.', 'red')
+        
+        # model is likely poor IF:
+        # 1. the train and test return disagree
+        if not (validation_error < 20):
+            return termcolor.colored(
+                '[WARNING] progress was made, '
+                f'but relative train test error = {validation_error} is high, '
+                'likely poor model relaxation around the solution, '
+                'or the batch size is too small.', 'yellow')
+        
+        # model likely did not converge IF:
+        # 1. the max grad relative to the return is high
+        if not grad_is_zero:
+            return_to_grad_norm = abs(best_return) / max_grad_norm
+            if not (return_to_grad_norm > 1):
+                return termcolor.colored(
+                    '[WARNING] progress was made, '
+                    f'but max grad norm = {max_grad_norm} is high, '
+                    'likely indicates the solution is not locally optimal, '
+                    'or the model is not smooth around the solution, '
+                    'or the batch size is too small.', 'yellow')
+        
+        # likely successful
+        return termcolor.colored(
+            '[SUCCESS] planner appears to have converged successfully '
+            '(note: not all potential problems can be ruled out).', 'green')
+        
     def get_action(self, key: random.PRNGKey,
                    params: Dict,
                    step: int,
