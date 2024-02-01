@@ -32,7 +32,8 @@ class StableBaselinesRDDLEnv(RDDLEnv):
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
                  backend_kwargs: typing.Dict={},
-                 seeds: RDDLEnvSeeder=RDDLEnvSeederFibonacci()):
+                 seeds: RDDLEnvSeeder=RDDLEnvSeederFibonacci(),
+                 reward_scale: float=1.0):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -49,12 +50,13 @@ class StableBaselinesRDDLEnv(RDDLEnv):
         :param backend_kwargs: dictionary of additional named arguments to
         pass to backend (must not include logger)
         :param seeds: an instance of RDDLEnvSeeder for generating RNG seeds
+        :param reward_scale: scale factor for immediate rewards
         '''
         self.domain_text = domain
         self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
         self.enforce_count_non_bool = enforce_action_count_non_bool
-        self.reward_scale = 1.0
+        self.reward_scale = reward_scale
         
         # needed for parent class
         self.new_gym_api = True
