@@ -6,6 +6,7 @@ from typing import Dict, Iterable, List, Tuple
 
 from pyRDDLGym.core.debug.exception import (
     print_stack_trace_root as PST,
+    RDDLInvalidExpressionError,
     RDDLInvalidNumberOfArgumentsError,
     RDDLInvalidObjectError,
     RDDLMissingCPFDefinitionError,
@@ -1029,6 +1030,12 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 raise RDDLUndefinedCPFError(
                     f'CPF <{name}> is not defined in pvariable block.')
             
+            # make sure the CPF is not defined multiple times
+            if name in cpfs:
+                raise RDDLInvalidExpressionError(
+                    f'Expression for CPF <{name}> is defined more than once '
+                    'in the domain.')
+                
             # make sure the number of parameters matches that in cpfs {...}
             if objects is None:
                 objects = []
