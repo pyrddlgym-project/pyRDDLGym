@@ -1,67 +1,61 @@
 from typing import cast, Union, Dict, Any
 import numpy as np
 
-from pyRDDLGym.Core.Simulator.RDDLSimulator import RDDLSimulatorWConstraints, RDDLSimulator
-from pyRDDLGym.Core.Compiler.RDDLModel import PlanningModel
-from pyRDDLGym.Core.Parser.expr import Expression
-from pyRDDLGym.XADD.RDDLModelXADD import RDDLModelWXADD
-from pyRDDLGym.XADD.RDDLLevelAnalysisXADD import RDDLLevelAnalysisWXADD
+from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+from pyRDDLGym.core.simulator import RDDLSimulator
+from pyRDDLGym.core.parser.expr import Expression
+
+from pyRDDLGym.xadd.model import RDDLModelXADD
+from pyRDDLGym.xadd.levels import RDDLLevelAnalysisXADD
 
 
-class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
+class RDDLSimulatorXADD(RDDLSimulator):
 
-    def __init__(self, model: PlanningModel,
-                 rng: np.random.Generator=np.random.default_rng(),
-                 compute_levels: bool=True,
-                 max_bound: float=np.inf) -> None:
-        self._model = cast(RDDLModelWXADD, model)
+    def __init__(self, model: RDDLPlanningModel,
+                 allow_synchronous_state: bool=True,
+                 rng: np.random.Generator=np.random.default_rng()) -> None:
+        self._model = cast(RDDLModelXADD, model)
         self.context = self._model._context
         self._rng = rng
         
-        # perform a dependency analysis and topological sort to compute levels
-        dep_analysis = RDDLLevelAnalysisWXADD(self._model)
-        self.cpforder = dep_analysis.compute_levels()
-        self._order_cpfs = list(sorted(self.cpforder.keys()))
+        self._compile()
         
-        self._action_fluents = set(self._model.actions.keys())
-        self._init_actions = self._model.actions.copy()
+    def _compile(self):
         
-        # non-fluent will never change
-        self._subs = self._model.nonfluents.copy()
+        # compile initial values
+        initializer = RDDLValueInitializer(self._model)
+        self.init_values = initializer.initialize()
         
-        # is a POMDP
-        self._pomdp = bool(self._model.observ)
-
-        # __init__ from 'RDDLSimulatorWConstraints'
-        self.epsilon = 0.001
+        # compute dependency graph for CPFs and sort them by evaluation order
+        sorter = RDDLLevelAnalysisXADD(self._model, allow_synchronous_state)
+        levels = sorter.compute_levels()   
+        self.cpfs = []  
+        for cpfs in levels.values():
+            for cpf in cpfs:
+                expr = self._model.cpfs[cpf]
+                prange = rddl.variable_ranges[cpf]
+                dtype = RDDLValueInitializer.NUMPY_TYPES.get(
+                    prange, RDDLValueInitializer.INT)
+                self.cpfs.append((cpf, expr, dtype))
         
-        # self.BigM = float(max_bound)
+        # no tracing
+        self.traced = None
         
-        self.BigM = max_bound
-        self._bounds = {}
-        for state in model.states:
-            self._bounds[state] = [-self.BigM, self.BigM]
-        for derived in model.derived:
-            self._bounds[derived] = [-self.BigM, self.BigM]
-        for interm in model.interm:
-            self._bounds[interm] = [-self.BigM, self.BigM]
-        for action in model.actions:
-            self._bounds[action] = [-self.BigM, self.BigM]
-        for obs in model.observ:
-            self._bounds[obs] = [-self.BigM, self.BigM]
-
-        # actions and states bounds extraction for gym's action and state spaces repots only!
-        # currently supports only linear in\equality constraints
-        for action_precond in model.preconditions:
-            self._parse_bounds_rec(action_precond, self._model.actions)
-
-        for state_inv in model.invariants:
-            self._parse_bounds_rec(state_inv, self._model.states)
-
-        for name in self._bounds:
-            lb, ub = self._bounds[name]
-            RDDLSimulator._check_bounds(
-                lb, ub, f'Variable <{name}>', self._bounds[name])
+        # initialize all fluent and non-fluent values        
+        self.subs = self.init_values.copy()
+        self.state = None
+        self.noop_actions = {var: values
+                             for (var, values) in self.init_values.items()
+                             if self._model.variable_types[var] == 'action-fluent'}
+        self.grounded_noop_actions = self.noop_actions
+        self.grounded_action_ranges = self._model.action_ranges
+        self._pomdp = bool(self._model.observ_fluents)
+        
+        # cached for performance
+        self.invariant_names = [f'Invariant {i}' for i in range(len(self._model.invariants))]        
+        self.precond_names = [f'Precondition {i}' for i in range(len(self._model.preconditions))]
+        self.terminal_names = [f'Termination {i}' for i in range(len(self._model.terminations))]       
         
     def _sample(self, expr: Union[int, Expression], subs: Dict[str, Any]):
         """Samples the current XADD node by substituting the values stored in 'subs'.
@@ -76,7 +70,7 @@ class RDDLSimulatorWXADD(RDDLSimulatorWConstraints):
             subs = {
                 self.var_name_to_sympy_var[self.var_name_to_sympy_var_name.get(v, v)]: val 
                 for v, val in subs.items() 
-                if not v in self._model.nonfluents 
+                if not v in self._model.non_fluents 
                 and self.var_name_to_sympy_var.get(self.var_name_to_sympy_var_name.get(v, v))
             }
             
