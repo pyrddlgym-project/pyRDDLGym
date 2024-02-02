@@ -147,7 +147,7 @@ class RDDLConstraints:
                 raise_warning(
                     f'{tag} contains a fluent expression '
                     f'(a nondeterministic operation or fluent variable) '
-                    f'and will be ignored.\n' + 
+                    f'on both sides of an (in)equality, and will be ignored.\n' + 
                     print_stack_trace(const_expr), 'red')
                 return None, 0.0, None, []
             
