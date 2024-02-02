@@ -139,7 +139,8 @@ class RDDLObjectsTracer:
         levels = self.cpf_levels
         if levels is None:
             levels = RDDLLevelAnalysis(rddl).compute_levels()
-            
+        self.cpf_levels = levels
+        
         # trace CPFs
         for cpfs in levels.values():
             for cpf in cpfs:
