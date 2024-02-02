@@ -41,13 +41,15 @@ class RDDLConstraints:
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
         self._is_box_precond = []
-        for precond in rddl.preconditions:
-            is_box = self._parse_bounds(precond, [], rddl.action_fluents)
+        for (index, precond) in enumerate(rddl.preconditions):
+            tag = f'Action precondition {index + 1}'
+            is_box = self._parse_bounds(tag, precond, [], rddl.action_fluents)
             self._is_box_precond.append(is_box)
                     
         self._is_box_invariant = []
-        for invariant in rddl.invariants:
-            is_box = self._parse_bounds(invariant, [], rddl.state_fluents)
+        for (index, invariant) in enumerate(rddl.invariants):
+            tag = f'State invariant {index + 1}'
+            is_box = self._parse_bounds(tag, invariant, [], rddl.state_fluents)
             self._is_box_invariant.append(is_box)
 
         for (name, bounds) in self._bounds.items():
@@ -71,7 +73,7 @@ class RDDLConstraints:
             simulator.logger.log(f'[info] computed simulation bounds:\n' 
                                  f'\t{bounds_info}\n')
         
-    def _parse_bounds(self, expr, objects, search_vars):
+    def _parse_bounds(self, tag, expr, objects, search_vars):
         etype, op = expr.etype
         
         # for aggregation can only parse forall, since it is equivalent to a 
@@ -79,14 +81,14 @@ class RDDLConstraints:
         if etype == 'aggregation' and op == 'forall':
             * pvars, arg = expr.args
             new_objects = objects + [pvar for (_, pvar) in pvars]
-            return self._parse_bounds(arg, new_objects, search_vars)
+            return self._parse_bounds(tag, arg, new_objects, search_vars)
         
         # for logical expression can only parse conjunction
         # same rationale as forall discussed above
         elif etype == 'boolean' and op == '^':
             success = True
             for arg in expr.args:
-                success_arg = self._parse_bounds(arg, objects, search_vars)
+                success_arg = self._parse_bounds(tag, arg, objects, search_vars)
                 success = success and success_arg
             return success
         
@@ -95,7 +97,7 @@ class RDDLConstraints:
         elif etype == 'relational':
             rddl = self.rddl
             var, lim, loc, active = self._parse_bounds_relational(
-                expr, objects, search_vars)
+                tag, expr, objects, search_vars)
             success = var is not None and loc is not None
             if success: 
                 op = np.minimum if loc == 1 else np.maximum
@@ -106,7 +108,7 @@ class RDDLConstraints:
         else:
             return False
                
-    def _parse_bounds_relational(self, expr, objects, search_vars):
+    def _parse_bounds_relational(self, tag, expr, objects, search_vars):
         left, right = expr.args    
         _, op = expr.etype
         is_left_pvar = left.is_pvariable_expression() and left.args[0] in search_vars
@@ -116,7 +118,7 @@ class RDDLConstraints:
         # cannot be simplified further
         if (is_left_pvar and is_right_pvar) or op not in {'<=', '<', '>=', '>'}:
             raise_warning(
-                f'Constraint does not have a structure of '
+                f'{tag} does not have a structure of '
                 f'<action or state fluent> <op> <rhs>, where ' 
                 f'<op> is one of {{<=, <, >=, >}} and '
                 f'<rhs> is a deterministic function of non-fluents only, '
@@ -143,7 +145,7 @@ class RDDLConstraints:
                 
             if not self.rddl.is_non_fluent_expression(const_expr):
                 raise_warning(
-                    f'Constraint contains a fluent expression '
+                    f'{tag} contains a fluent expression '
                     f'(a nondeterministic operation or fluent variable) '
                     f'and will be ignored.\n' + 
                     print_stack_trace(const_expr), 'red')
