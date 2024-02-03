@@ -136,9 +136,9 @@ class RDDLSimulator:
         sorter = RDDLLevelAnalysis(rddl, 
                                    allow_synchronous_state=self.allow_synchronous_state, 
                                    logger=self.logger)
-        levels = sorter.compute_levels()      
+        self.levels = sorter.compute_levels()      
         self.cpfs = []  
-        for cpfs in levels.values():
+        for cpfs in self.levels.values():
             for cpf in cpfs:
                 _, expr = rddl.cpfs[cpf]
                 prange = rddl.variable_ranges[cpf]
@@ -147,7 +147,7 @@ class RDDLSimulator:
                 self.cpfs.append((cpf, expr, dtype))
                 
         # trace expressions to cache information to be used later
-        tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=levels)
+        tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=self.levels)
         self.traced = tracer.trace()
         
         # initialize all fluent and non-fluent values        
