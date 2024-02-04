@@ -172,7 +172,8 @@ class RDDLIntervalAnalysis:
     # arithmetic
     # ===========================================================================
     
-    def _mask_assign(self, dest, mask, value, mask_value=False):
+    @staticmethod
+    def _mask_assign(dest, mask, value, mask_value=False):
         assert (np.shape(dest) == np.shape(mask))
         if np.shape(dest):
             if mask_value:
@@ -181,6 +182,10 @@ class RDDLIntervalAnalysis:
         elif mask:
             dest = value
         return dest
+    
+    @staticmethod
+    def _safe_product(x, y):
+        return x * y
         
     def _bound_arithmetic_expr(self, int1, int2, op):
         (l1, u1), (l2, u2) = int1, int2
@@ -189,7 +194,8 @@ class RDDLIntervalAnalysis:
         elif op == '-':
             return (l1 - u2, u1 - l2)
         elif op == '*':
-            parts = [l1 * l2, l1 * u2, u1 * l2, u1 * u2]
+            parts = [self._safe_product(l1, l2), self._safe_product(l1, u2),
+                     self._safe_product(u1, l2), self._safe_product(u1, u2)]
             return (np.minimum.reduce(parts), np.maximum.reduce(parts))
         elif op == '/':
             zero_in_open = (0 > l2) & (0 < u2)             
@@ -374,11 +380,12 @@ class RDDLIntervalAnalysis:
         upper = np.reshape([p[1] for p in array], newshape=shape, order='C')
         return (lower, upper)
     
-    def _bound_aggregation_func(self, lower, upper, axes, numpyfunc):
-        array = self._zip_bounds_to_single_array(lower, upper)
+    @staticmethod
+    def _bound_aggregation_func(lower, upper, axes, numpyfunc):
+        array = RDDLIntervalAnalysis._zip_bounds_to_single_array(lower, upper)
         for axis in axes[::-1]:
             array = numpyfunc.reduce(array, axis=axis)
-        return self._unzip_single_array_to_bounds(array)
+        return RDDLIntervalAnalysis._unzip_single_array_to_bounds(array)
         
     def _bound_aggregation(self, expr, intervals):
         _, op = expr.etype
@@ -437,19 +444,21 @@ class RDDLIntervalAnalysis:
         # 'lngamma':
     }
     
-    def _bound_func_monotone(self, l, u, func):
+    @staticmethod
+    def _bound_func_monotone(l, u, func):
         fl, fu = func(l), func(u)
         return (np.minimum(fl, fu), np.maximum(fl, fu))
     
+    @staticmethod
     def _bound_func_u_shaped(self, l, u, x_crit, func):
         fl, fu = func(l), func(u)
         f_crit = func(x_crit)
         lower = np.full(shape=np.shape(l), fill_value=f_crit)
         upper = np.maximum(fl, fu)
-        lower = self._mask_assign(lower, l >= x_crit, fl, True)
-        upper = self._mask_assign(upper, l >= x_crit, fu, True)
-        lower = self._mask_assign(lower, u <= x_crit, fu, True)
-        upper = self._mask_assign(upper, u <= x_crit, fl, True)
+        lower = RDDLIntervalAnalysis._mask_assign(lower, l >= x_crit, fl, True)
+        upper = RDDLIntervalAnalysis._mask_assign(upper, l >= x_crit, fu, True)
+        lower = RDDLIntervalAnalysis._mask_assign(lower, u <= x_crit, fu, True)
+        upper = RDDLIntervalAnalysis._mask_assign(upper, u <= x_crit, fl, True)
         return (lower, upper)
     
     def _bound_func_unary(self, expr, intervals):
