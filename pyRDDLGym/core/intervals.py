@@ -464,13 +464,51 @@ class RDDLIntervalAnalysis:
             func, x_crit = self.UNARY_U_SHAPED[name]
             return self._bound_func_u_shaped(l, u, x_crit, func)
         
-        # TODO
         elif name in self.UNARY_GENERAL:
             pass
         
         else:
             raise RDDLNotImplementedError(
                 f'Unary function {name} is not supported.\n' + PST(expr))
+    
+    def _bound_func_power(self, int1, int2):
+        (l1, u1), (l2, u2) = int1, int2
+        
+        lower = np.ones(shape=np.shape(l1)) * np.nan
+        upper = np.ones(shape=np.shape(u1)) * np.nan
+        
+        # positive base, means well defined for any real power
+        log1 = self._bound_func_monotone(l1, u1, np.log)
+        pow = self._bound_arithmetic_expr(log1, int2, '*')
+        l1pos, u1pos = self._bound_func_monotone(*pow, np.exp)
+        lower = self._mask_assign(lower, l1 > 0, l1pos, True)
+        upper = self._mask_assign(upper, l1 > 0, u1pos, True)
+            
+        # otherwise, defined if the power is an integer point
+        l2_is_int = np.equal(np.mod(l2, 1), 0)
+        u2_is_int = np.equal(np.mod(u2, 1), 0)
+        pow_valid = l2_is_int & u2_is_int & (l2 >= 0) & (l2 == u2)
+        pow = l2.astype(int) if np.shape(l2) else int(l2)
+        pow_even = (np.mod(pow, 2) == 0)
+            
+        # if the base interval contains 0
+        case1 = pow_valid & (0 >= l1) & (0 <= u1)
+        lower = self._mask_assign(lower, case1 & pow_even, 0)
+        upper = self._mask_assign(upper, case1 & (pow == 0), 1)
+        upper = self._mask_assign(upper, case1 & (pow > 0) & pow_even, 
+                                  np.maximum(l1 ** pow, l2 ** pow), True)
+        lower = self._mask_assign(lower, case1 & ~pow_even, l1 ** pow, True)
+        upper = self._mask_assign(upper, case1 & ~pow_even, l2 ** pow, True)
+            
+        # if the base is strictly negative
+        case2 = pow_valid & (u1 < 0)
+        lower = self._mask_assign(lower, case2 & (pow == 0), 1)
+        upper = self._mask_assign(upper, case2 & (pow == 0), 1)
+        lower = self._mask_assign(lower, case2 & pow_even, u1 ** pow, True)
+        upper = self._mask_assign(upper, case2 & pow_even, l1 ** pow, True)
+        lower = self._mask_assign(lower, case2 & ~pow_even, l1 ** pow, True)
+        upper = self._mask_assign(upper, case2 & ~pow_even, u1 ** pow, True)
+        return lower, upper
     
     def _bound_func_binary(self, expr, intervals):
         _, name = expr.etype
@@ -497,41 +535,7 @@ class RDDLIntervalAnalysis:
             pass
         
         elif name == 'pow':
-            lower = np.ones(shape=np.shape(l1)) * np.nan
-            upper = np.ones(shape=np.shape(u1)) * np.nan
-            
-            # positive base, means well defined for any real power
-            log1 = self._bound_func_monotone(l1, u1, np.log)
-            pow = self._bound_arithmetic_expr(log1, int2, '*')
-            l1pos, u1pos = self._bound_func_monotone(*pow, np.exp)
-            lower = self._mask_assign(lower, l1 > 0, l1pos, True)
-            upper = self._mask_assign(upper, l1 > 0, u1pos, True)
-            
-            # otherwise, defined if the power is an integer point
-            l2_is_int = np.equal(np.mod(l2, 1), 0)
-            u2_is_int = np.equal(np.mod(u2, 1), 0)
-            pow_valid = l2_is_int & u2_is_int & (l2 >= 0) & (l2 == u2)
-            pow = l2.astype(int) if np.shape(l2) else int(l2)
-            pow_even = (np.mod(pow, 2) == 0)
-            
-            # if the base interval contains 0
-            case1 = pow_valid & (0 >= l1) & (0 <= u1)
-            lower = self._mask_assign(lower, case1 & pow_even, 0)
-            upper = self._mask_assign(upper, case1 & (pow == 0), 1)
-            upper = self._mask_assign(upper, case1 & (pow > 0) & pow_even, 
-                                      np.maximum(l1 ** pow, l2 ** pow), True)
-            lower = self._mask_assign(lower, case1 & ~pow_even, l1 ** pow, True)
-            upper = self._mask_assign(upper, case1 & ~pow_even, l2 ** pow, True)
-            
-            # if the base is strictly negative
-            case2 = pow_valid & (u1 < 0)
-            lower = self._mask_assign(lower, case2 & (pow == 0), 1)
-            upper = self._mask_assign(upper, case2 & (pow == 0), 1)
-            lower = self._mask_assign(lower, case2 & pow_even, u1 ** pow, True)
-            upper = self._mask_assign(upper, case2 & pow_even, l1 ** pow, True)
-            lower = self._mask_assign(lower, case2 & ~pow_even, l1 ** pow, True)
-            upper = self._mask_assign(upper, case2 & ~pow_even, u1 ** pow, True)
-            return (lower, upper)
+            return self._bound_func_power(int1, int2)
         
         elif name == 'log':
             if np.any(l2 <= 0):
@@ -582,11 +586,19 @@ class RDDLIntervalAnalysis:
     def _bound_if(self, expr, intervals):
         args = expr.args
         pred, arg1, arg2 = args
-        intp = self._bound(pred, intervals)
+        intp = (lp, up) = self._bound(pred, intervals)
         int1 = (l1, u1) = self._bound(arg1, intervals)
-        int2 = (l2, u2) = self._bound(arg2, intervals)        
-        return (np.minimum(l1, l2), np.maximum(u1, u2))
-    
+        int2 = (l2, u2) = self._bound(arg2, intervals)      
+        lower = np.minimum(l1, l2)
+        upper = np.maximum(u1, u2)
+        
+        # reduce range if the predicate is known with certainty
+        lower = self._mask_assign(lower, lp >= 1, l1, True)
+        upper = self._mask_assign(upper, lp >= 1, u1, True)
+        lower = self._mask_assign(lower, up <= 0, l2, True)
+        upper = self._mask_assign(upper, up <= 0, u2, True)
+        return (lower, upper)
+            
     def _bound_switch(self, expr, intervals):
         raise RDDLNotImplementedError(
             f'Function switch is not supported.\n' + PST(expr))
@@ -663,14 +675,12 @@ class RDDLIntervalAnalysis:
     
     def _bound_uniform(self, expr, intervals):
         args = expr.args
-        lb, ub = args
-        intl = (ll, ul) = self._bound(lb, intervals)
-        intu = (lu, uu) = self._bound(ub, intervals)
-        
-        u01 = (np.zeros(shape=np.shape(ll)), np.ones(shape=np.shape(ul)))
-        diff = self._bound_arithmetic_expr(intu, intl, '-')
-        return self._bound_arithmetic_expr(
-            self._bound_arithmetic_expr(diff, u01, '*'), intl, '+')
+        a, b = args
+        intl = (la, ua) = self._bound(a, intervals)
+        intu = (lb, ub) = self._bound(b, intervals)
+        lower = np.minimum(la, ua)
+        upper = np.maximum(lb, ub)
+        return (lower, upper)
     
     def _bound_bernoulli(self, expr, intervals):
         args = expr.args
