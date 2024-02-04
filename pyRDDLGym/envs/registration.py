@@ -1,8 +1,5 @@
-import ast
 import configparser
 import os
-from pathlib import Path
-import shutil
 from typing import Tuple
 
 from pyRDDLGym.core.debug.exception import (
@@ -16,8 +13,8 @@ DOMAIN_NAME = 'domain.rddl'
 VIZ_PACKAGE_ROOT = 'pyRDDLGym.envs'
 
 
-def _get_instance_name(instance_num):
-    return f'instance{instance_num}.rddl'
+def _get_instance_name(num):
+    return f'instance{num}.rddl'
 
     
 def get_path_to_domain_and_viz(domain: str) -> Tuple[str, str, str]:
@@ -90,79 +87,3 @@ def make(domain: str, instance: str,
     
     return env
 
-
-def register_domain(domain_name: str, domain_path: str,
-                    instance_name: str, instance_path: str,
-                    viz_path: str=None,
-                    description: str=None) -> None:
-    '''Registers the specified domain and instance, if it does not already exist.
-    
-    :param domain_name: the domain name to assign
-    :param domain_path: the path pointing to the domain.rddl file
-    :param instance_name: the instance name to assign
-    :param instance_path: the path pointing to the instance.rddl file
-    :param viz_path: the path pointing to the visualizer .py file
-    :param description: the description meta data to write about the domain.
-    '''
-    # try to make the directory for the new environment
-    path = os.path.dirname(os.path.abspath(__file__))
-    folder_name = domain_name.lower()
-    dest_path = os.path.join(path, folder_name)
-    os.mkdir(dest_path)
-    
-    # for a visualizer get the name of the class
-    if viz_path is not None:
-        with open(viz_path, 'r') as viz_file:
-            viz_source = viz_file.read()
-        viz_ast = ast.parse(viz_source)
-        classes = [node.name 
-                   for node in ast.walk(viz_ast) 
-                   if isinstance(node, ast.ClassDef)]
-        if not classes:
-            raise SyntaxError(f'Visualizer file {viz_path} '
-                              f'does not contain any classes to instantiate.')
-        if len(classes) > 1:
-            raise SyntaxError(f'Visualizer file {viz_path} '
-                              f'contains multiple class definitions.')
-        viz_class_name = classes[0]
-        viz_module_name = Path(viz_path).stem
-        viz_import = folder_name + '.' + viz_module_name + '.' + viz_class_name
-    else:
-        viz_import = ''
-        
-    # make the info
-    if description is None:
-        description = f'Custom domain {domain_name} imported by the user.'
-    info_content = (
-        f'[General]\n'
-        f'name={domain_name}\n'
-        f'description={description}\n'
-    )    
-    if viz_path is not None:
-        info_content += f'viz={viz_import}'
-    with open(os.path.join(dest_path, INFO_NAME), 'w') as info: 
-        info.write(info_content)
-    
-    # copy the RDDL contents
-    shutil.copy2(domain_path, 
-                 os.path.join(dest_path, DOMAIN_NAME))
-    shutil.copy2(instance_path, 
-                 os.path.join(dest_path, _get_instance_name(instance_name)))
-    if viz_path is not None:
-        shutil.copy2(viz_path, dest_path)
-        
-    print(f'Environment {domain_name} was successfully registered.')
-
-
-def register_instance(domain: str, instance_name: str, instance_path: str):
-    '''Registers the specified instance for an existing domain.
-    
-    :param domain: the domain name identifier
-    :param instance_name: the instance name to assign
-    :param instance_path: the path pointing to the instance.rddl file
-    '''    
-    _, _, domain_folder = get_path_to_domain_and_viz(domain)
-    shutil.copy2(instance_path,
-                 os.path.join(domain_folder, _get_instance_name(instance_name)))
-    
-    print(f'Instance {instance_name} was successfully registered for domain {domain}.')
