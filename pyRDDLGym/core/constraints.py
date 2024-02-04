@@ -35,8 +35,8 @@ class RDDLConstraints:
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
                 ptypes = rddl.variable_params[var]
                 shape = rddl.object_counts(ptypes)
-                self._bounds[var] = [-self.BigM * np.ones(shape),
-                                     +self.BigM * np.ones(shape)]
+                self._bounds[var] = [np.full(shape=shape, fill_value=-self.BigM),
+                                     np.full(shape=shape, fill_value=+self.BigM)]
 
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
