@@ -87,3 +87,23 @@ def make(domain: str, instance: str,
     
     return env
 
+
+def make_from_rddlrepository(info: object, instance: str, 
+                             base_class=RDDLEnv, **env_kwargs) -> RDDLEnv:
+    '''Creates a new RDDLEnv gym environment from the specified rddlrepository
+    ProblemInfo object. Requires rddlrepository to be installed, e.g.
+    
+    pip install rddlrepository.
+    
+    :param problem_info: the ProblemInfo object containing the domain info
+    :param instance: the instance name identifier
+    :param base_class: a subclass of RDDLEnv to load
+    :param **env_kwargs: other arguments to pass to the RDDLEnv. 
+    '''
+    domain_path = info.get_domain()
+    instance_path = info.get_instance(instance)
+    env = base_class(domain=domain_path, instance=instance_path, **env_kwargs)
+    viz = info.get_visualizer()
+    if viz is not None:
+        env.set_visualizer(viz)
+    return env
