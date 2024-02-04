@@ -381,30 +381,24 @@ class RDDLIntervalAnalysis:
     
     @staticmethod
     def _bound_product_scalar(int1, int2):
+        _p = RDDLIntervalAnalysis._product
         (l1, u1), (l2, u2) = int1, int2
-        parts = [RDDLIntervalAnalysis._product(l1, l2), 
-                 RDDLIntervalAnalysis._product(l1, u2), 
-                 RDDLIntervalAnalysis._product(u1, l2),
-                 RDDLIntervalAnalysis._product(u1, u2)]
-        lower, upper = min(parts), max(parts)
+        parts = [_p(l1, l2), _p(l1, u2), _p(u1, l2), _p(u1, u2)]
+        lower = min(parts)
+        upper = max(parts)
         return (lower, upper)
         
     @staticmethod
     def _bound_or_scalar(int1, int2):
+        _1m = RDDLIntervalAnalysis._subtract
+        _p = RDDLIntervalAnalysis._product
         (l1, u1), (l2, u2) = int1, int2
-        l1, u1 = (RDDLIntervalAnalysis._subtract(1, u1), 
-                  RDDLIntervalAnalysis._subtract(1, l1))
-        l2, u2 = (RDDLIntervalAnalysis._subtract(1, u2), 
-                  RDDLIntervalAnalysis._subtract(1, l2))
-        
-        parts = [RDDLIntervalAnalysis._product(l1, l2), 
-                 RDDLIntervalAnalysis._product(l1, u2),
-                 RDDLIntervalAnalysis._product(u1, l2),
-                 RDDLIntervalAnalysis._product(u1, u2)]
-        not_l, not_u = min(parts), max(parts)
-        
-        lower = RDDLIntervalAnalysis._subtract(1, not_u)
-        upper = RDDLIntervalAnalysis._subtract(1, not_l)
+        l1, u1 = (_1m(1, u1), _1m(1, l1))
+        l2, u2 = (_1m(1, u2), _1m(1, l2))        
+        parts = [_p(l1, l2), _p(l1, u2), _p(u1, l2), _p(u1, u2)]
+        not_l, not_u = min(parts), max(parts)        
+        lower = _1m(1, not_u)
+        upper = _1m(1, not_l)
         return (lower, upper)        
     
     @staticmethod
@@ -430,7 +424,7 @@ class RDDLIntervalAnalysis:
     @staticmethod
     def _bound_aggregation_func(lower, upper, axes, numpyfunc):
         array = RDDLIntervalAnalysis._zip_bounds_to_single_array(lower, upper)
-        for axis in axes[::-1]:
+        for axis in sorted(axes, reverse=True):
             array = numpyfunc.reduce(array, axis=axis)
         return RDDLIntervalAnalysis._unzip_single_array_to_bounds(array)
         
