@@ -56,8 +56,8 @@ Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym. I
 This toolkit was the official evaluation system of the [2023 IPC RL and planning track](https://ataitler.github.io/IPPC2023/).
 
 Please see the following slides and notebook which were given as a tutorial at ICAPS 2023:
-* [Part 1 slides](https://github.com/ataitler/pyRDDLGym/raw/main/Tutorial/RDDL_Tutorial_ICAPS_2023_Part_1.pdf)
-* [Part 2 slides](https://github.com/ataitler/pyRDDLGym/raw/main/Tutorial/Tutorial_part2.pdf)
+* [Part 1 slides](https://pyrddlgym-project.github.io/data/Tutorial/ICAPS2023/RDDL_Tutorial_ICAPS_2023_Part_1.pdf)
+* [Part 2 slides](https://pyrddlgym-project.github.io/data/Tutorial/ICAPS2023/RDDL_Tutorial_ICAPS_2023_Part_2.pdf)
 * [Tutorial notebook](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing)
 * [Playground notebook](https://colab.research.google.com/drive/1XjPnlujsJPNUqhHK5EuWSVWQY2Pvxino?usp=sharing)
 <!---* [Tutorial notebook](https://colab.research.google.com/drive/1wdX0MbjmjpC7NvBRFlTQ8kvi1uuTCQaK?usp=sharing) --->

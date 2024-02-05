@@ -90,3 +90,7 @@ class RDDLLogFolderError(ValueError):
 
 class RDDLEpisodeAlreadyEndedError(RuntimeError):
     pass
+
+
+class RDDLRandPolicyVecNotImplemented(NotImplementedError):
+    pass
