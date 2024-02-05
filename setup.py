@@ -22,7 +22,7 @@ setup(
       author_email="ataitler@gmail.com, mike.gimelfarb@mail.utoronto.ca, ssanner@mie.utoronto.ca, jhjeong@mie.utoronto.ca, sriram.gopalakrishnan@jpmchase.com, mmladenov@google.com, xiaotian.liu@mail.utoronto.ca",
       description="pyRDDLGym: RDDL automatic generation tool for OpenAI Gym",
       license="MIT License",
-      url="https://github.com/ataitler/pyRDDLGym",
+      url="https://github.com/pyrddlgym-project/pyRDDLGym",
       packages=find_packages(),
       install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy>=1.22', 'gym>=0.24.0', 'pygame'],
       python_requires=">=3.8",
