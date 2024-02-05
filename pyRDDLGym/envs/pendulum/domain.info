@@ -1,4 +1,0 @@
-[General]
-name=Pendulum
-description=The classical pendulum control problem.
-viz=pendulum.pendulum_viz.PendulumVisualizer

@@ -1,2 +1,2 @@
 from pyRDDLGym.core.env import RDDLEnv
-from pyRDDLGym.envs.registration import make
+from pyRDDLGym.registration import make
