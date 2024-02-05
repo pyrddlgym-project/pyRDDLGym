@@ -3,9 +3,10 @@ import numpy as np
 import random
 import gym
 from typing import Dict
+import sys
 
 from pyRDDLGym.core.env import RDDLEnv
-
+from pyRDDLGym.core.debug.exception import RDDLRandPolicyVecNotImplemented
 
 class BaseAgent(metaclass=ABCMeta):
     '''Base class for policies.'''
@@ -99,13 +100,33 @@ class BaseAgent(metaclass=ABCMeta):
 class RandomAgent(BaseAgent):
     '''Uniformly pseudo-random policy.'''
 
-    def __init__(self, action_space, num_actions=1, seed=None):
+    def __init__(self, action_space, num_actions=1, seed=None, noop_values=None):
         '''Creates a new uniformly pseudo-random policy.
         
         :param action_space: the set of actions from which to sample uniformly
         :param num_actions: the number of samples to produce
         '''
         self.action_space = action_space
+        self.noop_values = noop_values
+        self.action_buckets = []
+        self.full_action_space = True
+
+        self.vectorized = False
+        for key, value in self.action_space.items():
+            if len(value.shape) >= 1:
+                if value.shape[0] > 1:
+                    self.vectorized = True
+                self.action_buckets.append(value.shape[0])
+            else:
+                self.action_buckets.append(1)
+        if sum(self.action_buckets) - num_actions > 0:
+            self.full_action_space = False
+
+        if self.vectorized and not self.full_action_space:
+            raise RDDLRandPolicyVecNotImplemented(
+                    f'Random Agent does not support vectorized spaces for partial action specification, '
+                    f'number of required actions is {num_actions}, where {sum(self.action_buckets)} is expected.')
+
         self.num_actions = num_actions
         self.rng = random.Random(seed)
         if seed is not None:
@@ -114,16 +135,15 @@ class RandomAgent(BaseAgent):
     def sample_action(self, state=None):
         s = self.action_space.sample()
         action = {}
-        selected_actions = self.rng.sample(list(s), self.num_actions)
-        for sample in selected_actions:
-            if isinstance(self.action_space[sample], gym.spaces.Box):
-                action[sample] = s[sample][0].item()
-            elif isinstance(self.action_space[sample], gym.spaces.Discrete):
-                action[sample] = s[sample]
-                # if str(self.action_space[sample]) == 'Discrete(2)':
-                #     action[sample] = bool(s[sample])
-                # else:
-                #     action[sample] = s[sample]
+        if not self.vectorized:
+            selected_actions = self.rng.sample(list(s), self.num_actions)
+            for sample in selected_actions:
+                if isinstance(self.action_space[sample], gym.spaces.Box):
+                    action[sample] = s[sample][0].item()
+                elif isinstance(self.action_space[sample], gym.spaces.Discrete):
+                    action[sample] = s[sample]
+        else:
+            action = s
         return action
 
 
