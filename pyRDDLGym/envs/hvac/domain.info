@@ -1,4 +1,0 @@
-[General]
-name=HVAC
-description=Multi-zone and multi-heater HVAC control problem
-viz=hvac.hvac_viz.HVACVisualizer

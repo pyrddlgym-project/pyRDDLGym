@@ -1,4 +1,0 @@
-[General]
-name=Pong
-description=Single player pong/tennis problem.
-viz=pong.pong_viz.PongVisualizer
