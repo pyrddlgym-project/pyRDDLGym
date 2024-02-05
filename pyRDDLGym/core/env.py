@@ -150,13 +150,13 @@ class RDDLEnv(gym.Env):
     def _rddl_to_gym_bounds(self, ranges):
         result = Dict()
         for (var, prange) in ranges.items():
+            shape = self._shapes[var]
             
             # enumerated values converted to Discrete space
             if prange in self.model.enum_types:
                 num_objects = len(self.model.type_to_objects[prange])
                 if self.vectorized:
-                    result[var] = Box(0, num_objects - 1,
-                                      shape=self._shapes[var], dtype=np.int32)
+                    result[var] = Box(0, num_objects - 1, shape=shape, dtype=np.int32)
                 else:
                     result[var] = Discrete(num_objects) 
             
@@ -168,8 +168,7 @@ class RDDLEnv(gym.Env):
             # boolean values converted to Discrete space
             elif prange == 'bool':
                 if self.vectorized:
-                    result[var] = Box(0, 1, 
-                                      shape=self._shapes[var], dtype=np.int32)
+                    result[var] = Box(0, 1, shape=shape, dtype=np.int32)
                 else:
                     result[var] = Discrete(2)
             
@@ -179,8 +178,7 @@ class RDDLEnv(gym.Env):
                 low = np.maximum(low, np.iinfo(np.int32).min)
                 high = np.minimum(high, np.iinfo(np.int32).max)
                 if self.vectorized:
-                    result[var] = Box(low, high, 
-                                      shape=self._shapes[var], dtype=np.int32)
+                    result[var] = Box(low, high, shape=shape, dtype=np.int32)
                 else:
                     result[var] = Discrete(int(high - low + 1), start=int(low))
             
@@ -222,7 +220,7 @@ class RDDLEnv(gym.Env):
         if self.done:
             raise RDDLEpisodeAlreadyEndedError(
                 'The step() function has been called even though the '
-                'current episode has terminated: please call reset().')            
+                'current episode has terminated: please call reset().')
             
         # fix actions and check constraints
         actions = self._fix_boolean_actions(actions)
