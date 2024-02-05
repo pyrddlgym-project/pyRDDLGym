@@ -468,6 +468,17 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         # this must be something else...
         return False
     
+    def is_literal(self, name: str) -> bool:
+        '''Returns whether the given name is a valid enumerated (domain) object.
+        '''
+        if RDDLPlanningModel.is_free_object(name):
+            return False
+        name = RDDLPlanningModel.strip_literal(name)
+        ptype = self.object_to_type.get(name, None)
+        if ptype is None:
+            return False
+        return ptype in self.enum_types
+        
     def object_indices(self, objects: Iterable[str], msg: str='') -> Tuple[int, ...]:
         '''Returns the canonical indices of a sequence of objects based on the
         orders they are defined in the instance.
