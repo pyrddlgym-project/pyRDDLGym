@@ -96,12 +96,16 @@ class RDDLConstraints:
         # LHS <= RHS for example
         elif etype == 'relational':
             rddl = self.rddl
-            var, lim, loc, active = self._parse_bounds_relational(
+            var, lim, loc, slices = self._parse_bounds_relational(
                 tag, expr, objects, search_vars)
             success = var is not None and loc is not None
             if success: 
                 op = np.minimum if loc == 1 else np.maximum
-                self._bounds[var][loc] = op(self._bounds[var][loc], lim)
+                if slices:
+                    self._bounds[var][loc][slices] = op(
+                        self._bounds[var][loc][slices], lim)
+                else:
+                    self._bounds[var][loc] = op(self._bounds[var][loc], lim)
             return success
         
         # not possible to parse as a box constraint
@@ -111,12 +115,12 @@ class RDDLConstraints:
     def _parse_bounds_relational(self, tag, expr, objects, search_vars):
         left, right = expr.args    
         _, op = expr.etype
-        is_left_pvar = left.is_pvariable_expression() and left.args[0] in search_vars
-        is_right_pvar = right.is_pvariable_expression() and right.args[0] in search_vars
+        left_pvar = left.is_pvariable_expression() and left.args[0] in search_vars
+        right_pvar = right.is_pvariable_expression() and right.args[0] in search_vars
         
         # both LHS and RHS are pvariable expressions, or relational operator 
         # cannot be simplified further
-        if (is_left_pvar and is_right_pvar) or op not in {'<=', '<', '>=', '>'}:
+        if (left_pvar and right_pvar) or op not in {'<=', '<', '>=', '>'}:
             raise_warning(
                 f'{tag} does not have a structure of '
                 f'<action or state fluent> <op> <rhs>, where ' 
@@ -127,14 +131,14 @@ class RDDLConstraints:
             return None, 0.0, None, []
         
         # neither side is a pvariable, nothing to do
-        elif not is_left_pvar and not is_right_pvar:
+        elif not left_pvar and not right_pvar:
             return None, 0.0, None, []
         
         # only one of LHS and RHS are pvariable expressions, other side constant
         else:
             
             # which one is the constant expression?
-            if is_left_pvar:
+            if left_pvar:
                 var, args = left.args
                 const_expr = right
             else:
@@ -154,13 +158,22 @@ class RDDLConstraints:
             # use the simulator to evaluate the constant side of the comparison
             # this is likened to a constant-folding operation
             const = self.sim._sample(const_expr, self.sim.subs)
-            eps, loc = self._get_op_code(op, is_left_pvar)
+            eps, loc = self._get_op_code(op, left_pvar)
             lim = const + eps
             
-            arg_to_index = {obj[0]: i for (i, obj) in enumerate(objects)}
-            active = [arg_to_index[arg] for arg in args if arg in arg_to_index]
-
-            return var, lim, loc, active
+            # finally, since the pvariable expression may contain literals,
+            # construct a slice that would assign the above constant value to it
+            rddl = self.rddl
+            slices = []
+            for arg in args:
+                if rddl.is_literal(arg):
+                    arg = rddl.strip_literal(arg)
+                    slices.append(rddl.object_to_index[arg])
+                else:
+                    slices.append(slice(None))
+            slices = tuple(slices)
+            
+            return var, lim, loc, slices
             
     def _get_op_code(self, op, is_right):
         eps = 0.0
