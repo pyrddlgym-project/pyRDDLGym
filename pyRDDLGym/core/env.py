@@ -18,6 +18,8 @@ from pyRDDLGym.core.parser.reader import RDDLReader
 from pyRDDLGym.core.seeding import RDDLEnvSeeder, RDDLEnvSeederFibonacci
 from pyRDDLGym.core.simulator import RDDLSimulator
 from pyRDDLGym.core.visualizer.chart import ChartVisualizer
+from pyRDDLGym.core.visualizer.heatmap import HeatmapVisualizer
+from pyRDDLGym.core.visualizer.text import TextVisualizer
 
 
 def _make_dir(log_path):
@@ -194,11 +196,23 @@ class RDDLEnv(gym.Env):
         self.sampler.seed(seed)
         return [seed]
     
+    VISUALIZER_CLASSES = {
+        'chart': ChartVisualizer,
+        'heatmap': HeatmapVisualizer,
+        'text': TextVisualizer
+    }
+    
     def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False, **viz_kwargs):
-        if viz is not None:
-            self._visualizer = viz(self.model, **viz_kwargs)
-        else:
+        if viz is None:
             self._visualizer = ChartVisualizer(self.model)
+        else:
+            if isinstance(viz, str):
+                viz = self.VISUALIZER_CLASSES.get(viz.lower(), None)
+                if viz is None:
+                    raise ValueError(
+                        f'Visualizer type {viz} is invalid, '
+                        f'must be one of {list(self.VISUALIZER_CLASSES.keys())}')
+            self._visualizer = viz(self.model, **viz_kwargs)
         self._movie_generator = movie_gen
         self._movie_per_episode = movie_per_episode
         self._movies = 0
