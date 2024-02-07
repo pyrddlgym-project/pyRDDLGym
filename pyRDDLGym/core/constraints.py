@@ -35,8 +35,13 @@ class RDDLConstraints:
             if vtype in {'state-fluent', 'observ-fluent', 'action-fluent'}:
                 ptypes = rddl.variable_params[var]
                 shape = rddl.object_counts(ptypes)
-                self._bounds[var] = [np.full(shape=shape, fill_value=-self.BigM),
-                                     np.full(shape=shape, fill_value=+self.BigM)]
+                if shape:
+                    self._bounds[var] = [
+                        np.full(shape=shape, fill_value=-self.BigM),
+                        np.full(shape=shape, fill_value=+self.BigM)
+                    ]
+                else:
+                    self._bounds[var] = [-self.BigM, +self.BigM]
 
         # actions and states bounds extraction for gym's action and state spaces
         # currently supports only linear inequality constraints
@@ -56,7 +61,10 @@ class RDDLConstraints:
             RDDLSimulator._check_bounds(*bounds, f'Variable <{name}>', bounds)
         
         # ground the bounds if not vectorized
-        if not self.vectorized:
+        if self.vectorized:
+            self._bounds = {name: tuple(value) 
+                            for (name, value) in self._bounds.items()}
+        else:
             new_bounds = {}
             for (var, (lower, upper)) in self._bounds.items():
                 lower = np.ravel(lower, order='C')
