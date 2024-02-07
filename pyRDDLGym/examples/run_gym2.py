@@ -33,11 +33,12 @@ def main(domain, instance, episodes=1, seed=42):
     # agent.evaluate(env, episodes=episodes, verbose=True, render=True)
     for episode in range(episodes):
         total_reward = 0
-        state = env.reset()
+        state, _ = env.reset()
         for step in range(env.horizon):
             env.render()
             action = agent.sample_action(state)
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
             print(f'step       = {step}\n'
                   f'state      = {state}\n'
                   f'action     = {action}\n'

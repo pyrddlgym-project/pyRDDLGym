@@ -1,5 +1,5 @@
-import gym
-from gym.spaces import Box, Dict, Discrete
+import gymnasium as gym
+from gymnasium.spaces import Box, Dict, Discrete
 import numpy as np
 import os
 import pygame
@@ -41,7 +41,6 @@ class RDDLEnv(gym.Env):
                  instance: str,
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
-                 new_gym_api: bool=False,
                  vectorized: bool=False,
                  debug: bool=False,
                  log_path: str=None,
@@ -56,7 +55,6 @@ class RDDLEnv(gym.Env):
         action constraints are violated
         :param enforce_action_count_non_bool: whether to include non-bool actions
         in check that number of nondef actions don't exceed max-nondef-actions
-        :param new_gym_api: whether to use the new Gym API for step()
         :param vectorized: whether actions and states are represented as
         dictionaries of numpy arrays (if True), or as dictionaries of scalars
         :param debug: whether to log compilation information to a log file
@@ -74,7 +72,6 @@ class RDDLEnv(gym.Env):
         self.instance_text = instance
         self.enforce_action_constraints = enforce_action_constraints
         self.enforce_count_non_bool = enforce_action_count_non_bool
-        self.new_gym_api = new_gym_api
         self.vectorized = vectorized
         
         # read and parse domain and instance
@@ -236,7 +233,7 @@ class RDDLEnv(gym.Env):
         if self.done:
             raise RDDLEpisodeAlreadyEndedError(
                 'The step() function has been called even though the '
-                'current episode has terminated: please call reset().')
+                'current episode has terminated or truncated: please call reset().')
             
         # fix actions and check constraints
         actions = self._fix_boolean_actions(actions)
@@ -245,7 +242,7 @@ class RDDLEnv(gym.Env):
             sampler.check_action_preconditions(actions, silent=False)
         
         # sample next state and reward
-        obs, reward, self.done = sampler.step(actions)
+        obs, reward, terminated = sampler.step(actions)
         self.state = sampler.states
             
         # produce array outputs for vectorized option
@@ -253,10 +250,8 @@ class RDDLEnv(gym.Env):
             obs = {var: np.atleast_1d(value) for (var, value) in obs.items()}
             
         # check if the state invariants are satisfied
-        if self.new_gym_api and not self.done:
-            out_of_bounds = not sampler.check_state_invariants(silent=True)
-        else:
-            out_of_bounds = False
+        truncated = not sampler.check_state_invariants(silent=True)
+        self.done = terminated or truncated
             
         # log to file
         if self.simlogger is not None:
@@ -271,18 +266,17 @@ class RDDLEnv(gym.Env):
         # update step horizon
         self.timestep += 1
         if self.timestep == self.horizon:
+            truncated = True
             self.done = True
         
-        if self.new_gym_api:
-            return obs, reward, self.done, out_of_bounds, {}
-        else:
-            return obs, reward, self.done, {}
+        return obs, reward, terminated, truncated, {}
 
     def reset(self, seed=None, options=None):
         sampler = self.sampler
         
         # reset counters and internal state
-        obs, self.done = sampler.reset()
+        obs, terminated = sampler.reset()
+        self.done = terminated
         self.state = sampler.states
         self.trial += 1
         self.timestep = 0
@@ -321,10 +315,7 @@ class RDDLEnv(gym.Env):
                     f'######################################################')
             self.simlogger.log_free(text)
             
-        if self.new_gym_api:
-            return obs, {}
-        else:
-            return obs
+        return obs, {}
 
     def pilImageToSurface(self, pilImage):
         return pygame.image.fromstring(
