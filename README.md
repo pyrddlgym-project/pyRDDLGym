@@ -75,7 +75,7 @@ which loads instance "0" of the CartPole control problem with continuous actions
 
 Instantiation of an existing environment by name is as easy as:
 
-```
+```python
 import pyRDDLGym
 env = pyRDDLGym.make("Cartpole_Continuous", "0")
 ```
