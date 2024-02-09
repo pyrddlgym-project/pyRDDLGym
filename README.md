@@ -1,3 +1,6 @@
+<p align="center">
+<img src="Images/banner.png" margin=0/>
+</p>
 
 # pyRDDLGym
 
