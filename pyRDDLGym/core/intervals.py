@@ -194,51 +194,40 @@ class RDDLIntervalAnalysis:
         return dest
     
     @staticmethod
-    def _product(x, y):
-        return x * y
-    
-    @staticmethod
-    def _subtract(x, y):
-        return x - y
-    
-    @staticmethod
-    def _add(x, y):
-        return x + y
-    
-    def _bound_arithmetic_expr(self, int1, int2, op):
+    def _bound_arithmetic_expr(int1, int2, op):
         (l1, u1), (l2, u2) = int1, int2
         
         # [a, b] + [c, d] = [a + c, b + d]
         if op == '+':
-            lower = self._add(l1, l2)
-            upper = self._add(u1, u2)
+            lower = l1 + l2
+            upper = u1 + u2
             return (lower, upper)
         
         # [a, b] - [c, d] = [a, d] - [b, c]
         elif op == '-':
-            lower = self._subtract(l1, u2)
-            upper = self._subtract(u1, l2)
+            lower = l1 - u2
+            upper = u1 - l2
             return (lower, upper)
         
         # [a, b] * [c, d] 
         elif op == '*':
-            parts = [self._product(l1, l2), self._product(l1, u2),
-                     self._product(u1, l2), self._product(u1, u2)]
+            parts = [l1 * l2, l1 * u2, u1 * l2, u1 * u2]
             lower = np.minimum.reduce(parts)
             upper = np.maximum.reduce(parts)
             return (lower, upper)
         
         # [a, b] / [c, d] = [a, b] * (1 / [c, d])
         elif op == '/':
+            mask_fn = RDDLIntervalAnalysis._mask_assign
             zero_in_open = (0 > l2) & (0 < u2)             
             l2_inv = 1. / u2
             u2_inv = 1. / l2
-            l2_inv = self._mask_assign(l2_inv, u2 == 0, -np.inf)
-            u2_inv = self._mask_assign(u2_inv, l2 == 0, +np.inf)
-            l2_inv = self._mask_assign(l2_inv, zero_in_open, -np.inf)
-            u2_inv = self._mask_assign(u2_inv, zero_in_open, +np.inf)
+            l2_inv = mask_fn(l2_inv, u2 == 0, -np.inf)
+            u2_inv = mask_fn(u2_inv, l2 == 0, +np.inf)
+            l2_inv = mask_fn(l2_inv, zero_in_open, -np.inf)
+            u2_inv = mask_fn(u2_inv, zero_in_open, +np.inf)
             int2_inv = (l2_inv, u2_inv)    
-            return self._bound_arithmetic_expr(int1, int2_inv, '*')
+            return RDDLIntervalAnalysis._bound_arithmetic_expr(int1, int2_inv, '*')
         
         else:
             raise RDDLNotImplementedError(
@@ -279,30 +268,33 @@ class RDDLIntervalAnalysis:
     # boolean
     # ===========================================================================
     
-    def _bound_relational_expr(self, int1, int2, op):
+    @staticmethod
+    def _bound_relational_expr(int1, int2, op):
         (l1, u1), (l2, u2) = int1, int2
         lower = np.zeros(np.shape(l1), dtype=int)
         upper = np.ones(np.shape(u1), dtype=int)
+        mask_fn = RDDLIntervalAnalysis._mask_assign
+        
         if op == '>=':
-            lower = self._mask_assign(lower, l1 >= u2, 1)
-            upper = self._mask_assign(upper, u1 < l2, 1)
+            lower = mask_fn(lower, l1 >= u2, 1)
+            upper = mask_fn(upper, u1 < l2, 1)
             return lower, upper
         elif op == '>':
-            lower = self._mask_assign(lower, l1 > u2, 1)
-            upper = self._mask_assign(upper, u1 <= l2, 0)
+            lower = mask_fn(lower, l1 > u2, 1)
+            upper = mask_fn(upper, u1 <= l2, 0)
             return lower, upper
         elif op == '==':
-            lower = self._mask_assign(lower, (l1 == u1) & (l2 == u2) & (l1 == u2), 1)
-            upper = self._mask_assign(upper, (u1 < l2) | (l1 > u2), 0)
+            lower = mask_fn(lower, (l1 == u1) & (l2 == u2) & (l1 == u2), 1)
+            upper = mask_fn(upper, (u1 < l2) | (l1 > u2), 0)
             return lower, upper
         elif op == '~=':
-            lower = self._mask_assign(lower, (u1 < l2) | (l1 > u2), 1)
-            upper = self._mask_assign(upper, (l1 == u1) & (l2 == u2) & (l1 == u2), 0)
+            lower = mask_fn(lower, (u1 < l2) | (l1 > u2), 1)
+            upper = mask_fn(upper, (l1 == u1) & (l2 == u2) & (l1 == u2), 0)
             return lower, upper
         elif op == '<':
-            return self._bound_relational_expr(int2, int1, '>')
+            return RDDLIntervalAnalysis._bound_relational_expr(int2, int1, '>')
         elif op == '<=':
-            return self._bound_relational_expr(int2, int1, '>=')
+            return RDDLIntervalAnalysis._bound_relational_expr(int2, int1, '>=')
         else:
             raise RDDLNotImplementedError(
                 f'Relational operator {op} is not supported.\n' + PST(expr))
@@ -315,38 +307,39 @@ class RDDLIntervalAnalysis:
         int2 = self._bound(rhs, intervals)
         return self._bound_relational_expr(int1, int2, op)
     
-    def _bound_logical_expr(self, int1, int2, op):
+    @staticmethod
+    def _bound_logical_expr(int1, int2, op):
         if op == '^':
-            return self._bound_arithmetic_expr(int1, int2, '*')
+            return RDDLIntervalAnalysis._bound_arithmetic_expr(int1, int2, '*')
         
         # x | y = ~(~x & ~y)
         elif op == '|':
-            not1 = self._bound_logical_expr(int1, None, '~')
-            not2 = self._bound_logical_expr(int2, None, '~')
-            not12 = self._bound_logical_expr(not1, not2, '^')
-            return self._bound_logical_expr(not12, None, '~')
+            not1 = RDDLIntervalAnalysis._bound_logical_expr(int1, None, '~')
+            not2 = RDDLIntervalAnalysis._bound_logical_expr(int2, None, '~')
+            not12 = RDDLIntervalAnalysis._bound_logical_expr(not1, not2, '^')
+            return RDDLIntervalAnalysis._bound_logical_expr(not12, None, '~')
         
         # x ~ y = (x | y) ^ ~(x & y)
         elif op == '~':
             if int2 is None:
                 l1, u1 = int1
-                lower = self._subtract(1, u1)
-                upper = self._subtract(1, l1)
+                lower = 1 - u1
+                upper = 1 - l1
                 return (lower, upper)
             else:
-                or12 = self._bound_logical_expr(int1, int2, '|')
-                and12 = self._bound_logical_expr(int1, int2, '^')
-                not12 = self._bound_logical_expr(and12, None, '~')
-                return self._bound_logical_expr(or12, not12, '^')
+                or12 = RDDLIntervalAnalysis._bound_logical_expr(int1, int2, '|')
+                and12 = RDDLIntervalAnalysis._bound_logical_expr(int1, int2, '^')
+                not12 = RDDLIntervalAnalysis._bound_logical_expr(and12, None, '~')
+                return RDDLIntervalAnalysis._bound_logical_expr(or12, not12, '^')
         
         # x => y = ~x | y
         elif op == '=>':
-            not1 = self._bound_logical_expr(int1, None, '~')
-            return self._bound_logical_expr(not1, int2, '|')
+            not1 = RDDLIntervalAnalysis._bound_logical_expr(int1, None, '~')
+            return RDDLIntervalAnalysis._bound_logical_expr(not1, int2, '|')
         
         # x <=> y = x == y
         elif op == '<=>':
-            return self._bound_relational_expr(int1, int2, '==')
+            return RDDLIntervalAnalysis._bound_relational_expr(int1, int2, '==')
         
         else:
             raise RDDLNotImplementedError(
@@ -391,24 +384,21 @@ class RDDLIntervalAnalysis:
     
     @staticmethod
     def _bound_product_scalar(int1, int2):
-        _p = RDDLIntervalAnalysis._product
         (l1, u1), (l2, u2) = int1, int2
-        parts = [_p(l1, l2), _p(l1, u2), _p(u1, l2), _p(u1, u2)]
+        parts = [l1 * l2, l1 * u2, u1 * l2, u1 * u2]
         lower = min(parts)
         upper = max(parts)
         return (lower, upper)
         
     @staticmethod
     def _bound_or_scalar(int1, int2):
-        _1m = RDDLIntervalAnalysis._subtract
-        _p = RDDLIntervalAnalysis._product
         (l1, u1), (l2, u2) = int1, int2
-        l1, u1 = (_1m(1, u1), _1m(1, l1))
-        l2, u2 = (_1m(1, u2), _1m(1, l2))        
-        parts = [_p(l1, l2), _p(l1, u2), _p(u1, l2), _p(u1, u2)]
+        l1, u1 = (1 - u1, 1 - l1)
+        l2, u2 = (1 - u2, 1 - l2)        
+        parts = [l1 * l2, l1 * u2, u1 * l2, u1 * u2]
         not_l, not_u = min(parts), max(parts)        
-        lower = _1m(1, not_u)
-        upper = _1m(1, not_l)
+        lower = 1 - not_u
+        upper = 1 - not_l
         return (lower, upper)        
     
     @staticmethod
@@ -597,18 +587,19 @@ class RDDLIntervalAnalysis:
             raise RDDLNotImplementedError(
                 f'Unary function {name} is not supported.\n' + PST(expr))
     
-    def _bound_func_power(self, int1, int2):
-        (l1, u1), (l2, u2) = int1, int2
-        
+    @staticmethod
+    def _bound_func_power(int1, int2):
+        (l1, u1), (l2, u2) = int1, int2        
         lower = np.full(shape=np.shape(l1), fill_value=-np.inf)
         upper = np.full(shape=np.shape(u1), fill_value=+np.inf)
+        mask_fn = RDDLIntervalAnalysis._mask_assign
         
         # positive base, means well defined for any real power
-        log1 = self._bound_func_monotone(l1, u1, np.log)
-        pow = self._bound_arithmetic_expr(log1, int2, '*')
-        l1pos, u1pos = self._bound_func_monotone(*pow, np.exp)
-        lower = self._mask_assign(lower, l1 > 0, l1pos, True)
-        upper = self._mask_assign(upper, l1 > 0, u1pos, True)
+        log1 = RDDLIntervalAnalysis._bound_func_monotone(l1, u1, np.log)
+        pow = RDDLIntervalAnalysis._bound_arithmetic_expr(log1, int2, '*')
+        l1pos, u1pos = RDDLIntervalAnalysis._bound_func_monotone(*pow, np.exp)
+        lower = mask_fn(lower, l1 > 0, l1pos, True)
+        upper = mask_fn(upper, l1 > 0, u1pos, True)
             
         # otherwise, defined if the power is an integer point
         l2_is_int = np.equal(np.mod(l2, 1), 0)
@@ -619,21 +610,21 @@ class RDDLIntervalAnalysis:
             
         # if the base interval contains 0
         case1 = pow_valid & (0 >= l1) & (0 <= u1)
-        lower = self._mask_assign(lower, case1 & pow_even, 0)
-        upper = self._mask_assign(upper, case1 & (pow == 0), 1)
-        upper = self._mask_assign(upper, case1 & (pow > 0) & pow_even, 
-                                  np.maximum(l1 ** pow, l2 ** pow), True)
-        lower = self._mask_assign(lower, case1 & ~pow_even, l1 ** pow, True)
-        upper = self._mask_assign(upper, case1 & ~pow_even, l2 ** pow, True)
+        lower = mask_fn(lower, case1 & pow_even, 0)
+        upper = mask_fn(upper, case1 & (pow == 0), 1)
+        upper = mask_fn(upper, case1 & (pow > 0) & pow_even, 
+                        np.maximum(l1 ** pow, l2 ** pow), True)
+        lower = mask_fn(lower, case1 & ~pow_even, l1 ** pow, True)
+        upper = mask_fn(upper, case1 & ~pow_even, l2 ** pow, True)
             
         # if the base is strictly negative
         case2 = pow_valid & (u1 < 0)
-        lower = self._mask_assign(lower, case2 & (pow == 0), 1)
-        upper = self._mask_assign(upper, case2 & (pow == 0), 1)
-        lower = self._mask_assign(lower, case2 & pow_even, u1 ** pow, True)
-        upper = self._mask_assign(upper, case2 & pow_even, l1 ** pow, True)
-        lower = self._mask_assign(lower, case2 & ~pow_even, l1 ** pow, True)
-        upper = self._mask_assign(upper, case2 & ~pow_even, u1 ** pow, True)
+        lower = mask_fn(lower, case2 & (pow == 0), 1)
+        upper = mask_fn(upper, case2 & (pow == 0), 1)
+        lower = mask_fn(lower, case2 & pow_even, u1 ** pow, True)
+        upper = mask_fn(upper, case2 & pow_even, l1 ** pow, True)
+        lower = mask_fn(lower, case2 & ~pow_even, l1 ** pow, True)
+        upper = mask_fn(upper, case2 & ~pow_even, u1 ** pow, True)
         return lower, upper
     
     def _bound_func_binary(self, expr, intervals):
