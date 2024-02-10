@@ -17,4 +17,5 @@ Welcome to pyRDDLGym's documentation!
     gurobi
     prost
     sb
+    xadd
     rddl
