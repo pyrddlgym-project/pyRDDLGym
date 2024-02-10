@@ -101,31 +101,40 @@ class RDDLIntervalAnalysis:
     def _bound(self, expr, intervals):
         etype, _ = expr.etype
         if etype == 'constant':
-            return self._bound_constant(expr, intervals)
+            result = self._bound_constant(expr, intervals)
         elif etype == 'pvar':
-            return self._bound_pvar(expr, intervals)
+            result = self._bound_pvar(expr, intervals)
         elif etype == 'arithmetic':
-            return self._bound_arithmetic(expr, intervals)
+            result = self._bound_arithmetic(expr, intervals)
         elif etype == 'relational':
-            return self._bound_relational(expr, intervals)
+            result = self._bound_relational(expr, intervals)
         elif etype == 'boolean':
-            return self._bound_logical(expr, intervals)
+            result = self._bound_logical(expr, intervals)
         elif etype == 'aggregation':
-            return self._bound_aggregation(expr, intervals)
+            result = self._bound_aggregation(expr, intervals)
         elif etype == 'func':
-            return self._bound_func(expr, intervals)
+            result = self._bound_func(expr, intervals)
         elif etype == 'control':
-            return self._bound_control(expr, intervals)
+            result = self._bound_control(expr, intervals)
         elif etype == 'randomvar':
-            return self._bound_random(expr, intervals)
+            result = self._bound_random(expr, intervals)
         elif etype == 'randomvector':
-            return self._bound_random_vector(expr, intervals)
+            result = self._bound_random_vector(expr, intervals)
         elif etype == 'matrix':
-            return self._bound_matrix(expr, intervals)
+            result = self._bound_matrix(expr, intervals)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
                 PST(expr))
+        
+        # check valid bounds
+        lower, upper = result
+        if np.any(lower > upper):
+            raise RuntimeError(
+                f'Internal error: lower bound {lower} > upper bound {upper}.\n' +
+                PST(expr))
+        
+        return result
     
     # ===========================================================================
     # leaves
@@ -580,8 +589,8 @@ class RDDLIntervalAnalysis:
             
             # an asymptote is on an edge
             lower = self._mask_assign(lower, l == next_asymptote, -np.inf)
-            upper = self._mask_assign(upper, r == next_asymptote, +np.inf)
-            upper = self._mask_assign(upper, r == next_asymptote + np.pi, +np.inf)            
+            upper = self._mask_assign(upper, u == next_asymptote, +np.inf)
+            upper = self._mask_assign(upper, u == next_asymptote + np.pi, +np.inf)            
             return lower, upper
         
         else:
@@ -648,11 +657,13 @@ class RDDLIntervalAnalysis:
         
         # TODO
         elif name == 'mod':
-            pass
+            raise RDDLNotImplementedError(
+                f'Binary function {name} is not supported.\n' + PST(expr))
         
         # TODO
         elif name == 'fmod':
-            pass
+            raise RDDLNotImplementedError(
+                f'Binary function {name} is not supported.\n' + PST(expr))
         
         elif name == 'pow':
             return self._bound_func_power(int1, int2)
