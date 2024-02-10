@@ -114,8 +114,6 @@ In this article, we are going to walk you through how you can use `xaddpy` to co
 For example, let's look at the `Wildfire <https://ataitler.github.io/IPPC2023/wildfire.html>`_ instance of 3 x 3 locations.
 
 .. image:: ../Images/wildfire.gif
-    :width: 190px
-    :height: 190px
     :align: center
 
 Once the CPFs are grounded for this instance, we can see that the values of the non-fluents will simplify the CPFs. For instance, the neighboring cells of the `(x1, y1)` location are `(x1, y2)`, `(x2, y1)`, and `(x2, y2)`; hence, `burning'(x1, y1)` should only depend on the states of these neighbors --- plus `(x1, y1)` itself --- but none others. 
@@ -124,7 +122,7 @@ Once you compile the CPFs of this instance into an XADD, you can actually see th
 
 To run the XADD compilation, we first need to import the domain and instance files. Then, we instantiate the `RDDLModelXADD` class with the grounded CPFs given by the `RDDLGrounder` object. The `RDDLModelXADD` has the method called `compile` which will compile the pyRDDLGym `Expression` objects to `XADD` nodes.
 
-You can find an example run script from `pyRDDLGym_symbolic/examples/run_xadd_compilation.py <pyRDDLGym_symbolic/examples/run_xadd_compilation.py>`_.
+You can find an example run script from `pyRDDLGym_symbolic/examples/run_xadd_compilation.py <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/examples/run_xadd_compilation.py>`_.
 
 A nice way to interpret the resulting XADD may be to visualize it as a graph.
 You can do this by calling the `save_graph` method of the `XADD` object.
@@ -144,8 +142,6 @@ You can do this by calling the `save_graph` method of the `XADD` object.
 Here's the `result <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/assets/burning___x1__y1.pdf>`_:
 
 .. image:: ../Images/burning___x1__y1.png
-    :width: 500px
-    :height: 300px
     :align: center
 
 If the figure is too small to comprehend, you can click the link above to check out the XADD graph. Notice that the leaf nodes contain either a Boolean value or a real value. This is the case when you pass `reparam=False` to the `RDDLModelXADD` class constructor. Otherwise, you'll see the Bernoulli variables in the CPFs reparameterized using uniform random variables. When we don't reparameterize, the leaf nodes show the Bernoulli probability values.
@@ -153,8 +149,7 @@ If the figure is too small to comprehend, you can click the link above to check 
 How will the graph look like for `out-of-fuel'(x1, y1)` variable? Here's the result of `context.save_graph(model_xadd.cpfs["out-of-fuel_x1_y1'"], file_name="out_of_fuel_x1_y1")`:
 
 .. image:: ../Images/out_of_fuel___x1__y1.png
-    :width: 300px
-    :height: 150px
+    :height: 400
     :align: center
 
 Very neat!
@@ -164,7 +159,7 @@ XADD compilation of a domain with mixed continuous / discrete variables
 
 Although the Wildfire example nicely shows how XADD can be used to represent the CPFs of the domain, it only contains Boolean variables. In this part, we will show another example domain that has continuous fluents.
 
-The domain we want to look at is the `UAV mixed <https://ataitler.github.io/IPPC2023/uav.html>`_ domain, whose definition is provided `here <pyRDDLGym_symbolic/examples/files/UAV/Mixed/domain.rddl>`_.
+The domain we want to look at is the `UAV mixed <https://ataitler.github.io/IPPC2023/uav.html>`_ domain, whose definition is provided `here <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/examples/files/UAV/Mixed/domain.rddl>`_.
 
 If we follow the same procedure described above for the Wildfire domain with the domain name being replaced by `'UAV/Mixed'`, then we can compile the domain/instance in XADD. The overall DBN (dynamic Bayes net) structure of this instance is shown below.
 
@@ -192,8 +187,6 @@ Specifically, let's print out the CPF of `vel'(?a1)`, which is
 When visualized with `pygraphviz`, we get the following:
 
 .. image:: ../Images/vel___a1.png
-    :width: 300px
-    :height: 208px
     :align: center
 
 In this case, you can see that the decision nodes have linear inequality expressions instead of a Boolean decision. As for the function values at the leaf nodes, they are also linear expressions. `xaddpy` package can also handle arbitrary nonlinear decisions and function values using SymEngine/SymPy under the hood. 
@@ -205,9 +198,9 @@ Now, you can go ahead and use this functionality to analyze a given RDDL instanc
 Visualizing DBNs with XADD
 **************************
 
-Next, we can now go ahead and draw DBN diagrams of various RDDL domain/instances. As a running example, we show how you can visualize a `Wildfire <https://ataitler.github.io/IPPC2023/wildfire.html>`_ instance as defined in `pyRDDLGym_symbolic/examples/files/Wildfire <pyRDDLGym_symbolic/examples/files/Wildfire/domain.rddl>`_.
+Next, we can now go ahead and draw DBN diagrams of various RDDL domain/instances. As a running example, we show how you can visualize a `Wildfire <https://ataitler.github.io/IPPC2023/wildfire.html>`_ instance as defined in `pyRDDLGym_symbolic/examples/files/Wildfire <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/examples/files/Wildfire/domain.rddl>`_.
 
-If you want to run an example code and follow the steps for better understanding, please take a look at the `run_dbn_visualization.py <pyRDDLGym_symbolic/examples/run_dbn_visualization.py>`_ file.
+If you want to run an example code and follow the steps for better understanding, please take a look at the `run_dbn_visualization.py <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/examples/run_dbn_visualization.py>`_ file.
 
 Instantiate RDDL2Graph object
 =============================
@@ -266,7 +259,7 @@ Symbolic Dynamic Programming (SDP)
 Value Iteration (VI)
 ====================
 
-With the `run_vi.py <pyRDDLGym_symbolic/examples/run_vi.py>`_ file, you can run a value iteration solver.
+With the `run_vi.py <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/examples/run_vi.py>`_ file, you can run a value iteration solver.
 
 Here, we provide a detailed dissection of the run script.
 
@@ -370,7 +363,7 @@ Notice that the `solve` method is shared by the `ValueIteration` and `PolicyEval
 Policy Evaluation (PE)
 ======================
 
-With the `run_pe.py <pyRDDLGym_symbolic/examples/run_pe.py>`_ file, you can run a policy evaluation solver.
+With the `run_pe.py <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/examples/run_pe.py>`_ file, you can run a policy evaluation solver.
 
 The script is exactly the same as `run_vi.py` until the XADD RDDL model compilation is done. Then, a slight difference of PE from VI is what we pass to the `MDPParser.parse` function. 
 
@@ -386,7 +379,7 @@ The script is exactly the same as `run_vi.py` until the XADD RDDL model compilat
 
 In PE, we do not have to specify the maximum concurrency value to the parser as that should be implicitly determined by the given policy. Instead, we set `is_vi=False` such that we do not create `BActions` objects.
 
-Then, in lines 56 - 62, we instantiate a `PolicyParser` object and parse the policy provided in a json format, specified by the argument `--policy_fpath`. An example policy json file looks like the following (`p1.json <pyRDDLGym_symbolic/examples/files/RobotLinear_1D/policy/p1.json>`_):
+Then, in lines 56 - 62, we instantiate a `PolicyParser` object and parse the policy provided in a json format, specified by the argument `--policy_fpath`. An example policy json file looks like the following (`p1.json <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/examples/files/RobotLinear_1D/policy/p1.json>`_):
 
 .. code-block:: json
 
@@ -401,17 +394,17 @@ A policy json file should have the following field:
 
 Then, it should be followed by "action-name": "file path" pairs for all actions specified in "action-fluents". This json file should specify the file path of each and every action fluent of a given problem; otherwise, an assertion error will occur from the parser.
 
-The value of one action variable points to the file path where the XADD of that action is defined. The `PolicyParser` will read in the XADD and perform some checks (e.g., type and dependency checks). Check out the comments in the `policy_parser.py <pyRDDLGym_symbolic/mdp/policy_parser.py>`_ file for more detailed information.
+The value of one action variable points to the file path where the XADD of that action is defined. The `PolicyParser` will read in the XADD and perform some checks (e.g., type and dependency checks). Check out the comments in the `policy_parser.py <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/mdp/policy_parser.py>`_ file for more detailed information.
 
 Assertion for concurrency
 -------------------------
 
-The `PolicyParser` class implements an assertion that in the entire state space no more than the set `concurrency` number of Boolean actions can be set to `True`. Check out the `_assert_concurrency` method in lines 153 - 175 of `policy_parser.py <pyRDDLGym_symbolic/mdp/policy_parser.py>`_.
+The `PolicyParser` class implements an assertion that in the entire state space no more than the set `concurrency` number of Boolean actions can be set to `True`. Check out the `_assert_concurrency` method in lines 153 - 175 of `policy_parser.py <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/mdp/policy_parser.py>`_.
 
 Substitution of the policy into CPFs and reward function
 ---------------------------------------------------------
 
-A unique step in PE is where we substitute in the policy XADDs into the CPFs and the reward function. See lines 20 - 58 of `pe.py <pyRDDLGym_symbolic/solver/pe.py>`_. Note how we handle the continuous and Boolean action variables differently.
+A unique step in PE is where we substitute in the policy XADDs into the CPFs and the reward function. See lines 20 - 58 of `pe.py <https://github.com/pyrddlgym-project/pyRDDLGym-symbolic/blob/main/pyRDDLGym_symbolic/solver/pe.py>`_. Note how we handle the continuous and Boolean action variables differently.
 
 Once all the CPFs and reward function are restricted with the given policy XADDs, the remaining steps are identical to VI, except that we do not have to iterate over actions as they have all been already incorporated into CPFs.
 
@@ -423,13 +416,13 @@ If you use the code provided in this repository, please use the following bibtex
 .. code-block:: bibtex
 
     @InProceedings{pmlr-v162-jeong22a,
-      title =         {An Exact Symbolic Reduction of Linear Smart {P}redict+{O}ptimize to Mixed Integer Linear Programming},
-      author =       {Jeong, Jihwan and Jaggi, Parth and Butler, Andrew and Sanner, Scott},
-      booktitle =     {Proceedings of the 39th International Conference on Machine Learning},
-      pages =         {10053--10067},
-      year =         {2022},
-      volume =         {162},
-      series =         {Proceedings of Machine Learning Research},
-      month =         {17--23 Jul},
-      publisher =    {PMLR},
+      title     = {An Exact Symbolic Reduction of Linear Smart {P}redict+{O}ptimize to Mixed Integer Linear Programming},
+      author    = {Jeong, Jihwan and Jaggi, Parth and Butler, Andrew and Sanner, Scott},
+      booktitle = {Proceedings of the 39th International Conference on Machine Learning},
+      pages     = {10053--10067},
+      year      = {2022},
+      volume    = {162},
+      series    = {Proceedings of Machine Learning Research},
+      month     = {17--23 Jul},
+      publisher = {PMLR},
     }
