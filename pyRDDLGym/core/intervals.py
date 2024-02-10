@@ -14,6 +14,7 @@ from pyRDDLGym.core.debug.exception import (
 )
 from pyRDDLGym.core.debug.logger import Logger
 from pyRDDLGym.core.parser.expr import Expression
+from pyRDDLGym.core.simulator import lngamma
 
 
 class RDDLIntervalAnalysis:
@@ -474,15 +475,9 @@ class RDDLIntervalAnalysis:
     
     UNARY_U_SHAPED = {
         'abs': (np.abs, 0),
-        'cosh': (np.cosh, 0)
-    }
-    
-    UNARY_GENERAL = {
-        # 'cos': np.cos,
-        # 'sin': np.sin,
-        # 'tan': np.tan,
-        # 'gamma': 
-        # 'lngamma':
+        'cosh': (np.cosh, 0),
+        'lngamma': (lngamma, 1.4616321449683623),
+        'gamma': ((lambda x: np.exp(lngamma(x))), 1.4616321449683623)
     }
     
     @staticmethod
@@ -492,6 +487,12 @@ class RDDLIntervalAnalysis:
         upper = np.maximum(fl, fu)
         return (lower, upper)
     
+    @staticmethod
+    def _next_multiple(start, offset, period=2 * np.pi):
+        multiples = -np.floor_divide(start - offset, -period)
+        next_up = period * multiples + offset
+        return next_up
+        
     @staticmethod
     def _bound_func_u_shaped(l, u, x_crit, func):
         fl, fu = func(l), func(u)
@@ -518,9 +519,49 @@ class RDDLIntervalAnalysis:
             func, x_crit = self.UNARY_U_SHAPED[name]
             return self._bound_func_u_shaped(l, u, x_crit, func)
         
-        # general functions
-        elif name in self.UNARY_GENERAL:
-            pass
+        # special functions sin
+        elif name == 'sin':
+            next_max = self._next_multiple(l, np.pi / 2)
+            next_min = self._next_multiple(l, 3 * np.pi / 2)
+            has_max = next_max <= u
+            has_min = next_min <= u
+            sin_l, sin_u = np.sin(l), np.sin(u)
+            lower = np.minimum(sin_l, sin_u)
+            upper = np.maximum(sin_l, sin_u)
+            lower = self._mask_assign(lower, has_min, -1.0)
+            upper = self._mask_assign(upper, has_max, +1.0)
+            return lower, upper
+        
+        # special functions cos
+        elif name == 'cos':
+            next_max = self._next_multiple(l, 0)
+            next_min = self._next_multiple(l, np.pi)
+            has_max = next_max <= u
+            has_min = next_min <= u
+            cos_l, cos_u = np.cos(l), np.cos(u)
+            lower = np.minimum(cos_l, cos_u)
+            upper = np.maximum(cos_l, cos_u)
+            lower = self._mask_assign(lower, has_min, -1.0)
+            upper = self._mask_assign(upper, has_max, +1.0)
+            return lower, upper
+        
+        # special functions tan
+        elif name == 'tan':
+            tan_l, tan_u = np.tan(l), np.tan(u)
+            lower = np.minimum(tan_l, tan_u)
+            upper = np.maximum(tan_l, tan_u)
+            
+            # an asymptote is inside the open interval, set to [-inf, inf]
+            next_asymptote = self._next_multiple(l, np.pi / 2, np.pi)
+            asymptote_in_open = (l < next_asymptote) & (u > next_asymptote)
+            lower = self._mask_assign(lower, asymptote_in_open, -np.inf)
+            upper = self._mask_assign(upper, asymptote_in_open, +np.inf)
+            
+            # an asymptote is on an edge
+            lower = self._mask_assign(lower, l == next_asymptote, -np.inf)
+            upper = self._mask_assign(upper, r == next_asymptote, +np.inf)
+            upper = self._mask_assign(upper, r >= next_asymptote + np.pi, +np.inf)            
+            return lower, upper
         
         else:
             raise RDDLNotImplementedError(

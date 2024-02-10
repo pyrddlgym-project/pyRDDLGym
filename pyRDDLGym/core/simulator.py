@@ -105,7 +105,7 @@ class RDDLSimulator:
         self.BINARY = {
             'div': lambda x, y: np.floor_divide(x, y).astype(RDDLValueInitializer.INT),
             'mod': lambda x, y: np.mod(x, y).astype(RDDLValueInitializer.INT),
-            'fmod': lambda x, y: np.mod(x, y),
+            'fmod': np.mod,
             'min': np.minimum,
             'max': np.maximum,
             'pow': np.power,
