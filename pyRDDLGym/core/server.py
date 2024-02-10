@@ -14,7 +14,6 @@ class RDDLSimServer:
 
     def __init__(self, domain: str, instance: str, numrounds: int, time: int, 
                  port: int=2323):
-
         # concatenate domain and instance files
         f = open(domain)
         self.task = f.read()
@@ -27,12 +26,11 @@ class RDDLSimServer:
         print("INFO: Encoding task for sharing in TCP connections...", flush=True)
         self.task = base64.b64encode(str.encode(self.task))
         self.task = self.task.decode("ascii")
-        
+
         # create RDDLEnv
         print("INFO: Creating RDDL environment...", flush=True)
         self.env = RDDLEnv(domain=domain, instance=instance)
         print("INFO: Created RDDL environment.\n", flush=True)
-        
         # initialize RDDLSimAgent
         self.roundsleft = numrounds
         self.currentround = 0
@@ -52,7 +50,6 @@ class RDDLSimServer:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         with sock:
-
             # Force the connection to this port (sometimes it stays locked after repeated runs).
             # https://stackoverflow.com/questions/4465959/python-errno-98-address-already-in-use
             print("INFO: Forcing connection...", flush=True)
@@ -92,7 +89,6 @@ class RDDLSimServer:
         self.send_message(connection, msg)
 
     def run_round(self, connection):
-
         self.logs.append([])
 
         # handle round request
@@ -128,7 +124,7 @@ class RDDLSimServer:
                 ),
             })
 
-            next_state, reward, done, info = self.env.step(actions)
+            next_state, reward, _, _, _ = self.env.step(actions)
 
             self.logs[-1][-1]["reward"] = float(reward)
 
@@ -151,7 +147,7 @@ class RDDLSimServer:
                     "round_reward": float(round_reward)
                 })
                 break
-            
+
             msg = self.build_state_msg(state, turn, reward)
             self.send_message(connection, msg)
 
@@ -167,7 +163,7 @@ class RDDLSimServer:
     def receive_message(self, connection):
         data = connection.recv(8192)
         if data:
-            data = data.decode('UTF-8')
+            data = data.decode("UTF-8")
             data = data[:-1]
             # print(f"received message: {data}")
         else:
@@ -272,7 +268,7 @@ class RDDLSimServer:
         parser = xmltree.XMLParser()
         root = xmltree.fromstring(data, parser)
         if root.tag != "actions":
-            print("ERROR: Malformed action message: actions tag missing.", 
+            print("ERROR: Malformed action message: actions tag missing.",
                   flush=True)
             exit(1)
         actions = root.findall("action")
