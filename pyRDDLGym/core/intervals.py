@@ -125,7 +125,7 @@ class RDDLIntervalAnalysis:
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
-                PST(expr, out._current_root))
+                PST(expr))
     
     # ===========================================================================
     # leaves
@@ -155,7 +155,7 @@ class RDDLIntervalAnalysis:
         if cached_info is not None:
             slices, axis, shape, op_code, op_args = cached_info
             if slices: 
-                raise RDDLNotImplementedError('Nested pvariable not supported.')
+                raise RDDLNotImplementedError('Nested pvariable not supported.\n' + PST(expr))
             if axis:
                 lower = np.expand_dims(lower, axis=axis)
                 lower = np.broadcast_to(lower, shape=shape)
@@ -233,7 +233,7 @@ class RDDLIntervalAnalysis:
         
         else:
             raise RDDLNotImplementedError(
-                f'Arithmetic operator {op} is not supported.')
+                f'Arithmetic operator {op} is not supported.\n' + PST(expr))
         
     def _bound_arithmetic(self, expr, intervals):
         _, op = expr.etype
@@ -296,7 +296,7 @@ class RDDLIntervalAnalysis:
             return self._bound_relational_expr(int2, int1, '>=')
         else:
             raise RDDLNotImplementedError(
-                f'Relational operator {op} is not supported.')
+                f'Relational operator {op} is not supported.\n' + PST(expr))
          
     def _bound_relational(self, expr, intervals):
         _, op = expr.etype
@@ -341,7 +341,7 @@ class RDDLIntervalAnalysis:
         
         else:
             raise RDDLNotImplementedError(
-                f'Logical operator {op} is not supported.')
+                f'Logical operator {op} is not supported.\n' + PST(expr))
            
     def _bound_logical(self, expr, intervals):
         _, op = expr.etype
@@ -521,35 +521,56 @@ class RDDLIntervalAnalysis:
         
         # special functions sin
         elif name == 'sin':
-            next_max = self._next_multiple(l, np.pi / 2)
-            next_min = self._next_multiple(l, 3 * np.pi / 2)
-            has_max = next_max <= u
-            has_min = next_min <= u
+            
+            # by default evaluate at end points
             sin_l, sin_u = np.sin(l), np.sin(u)
             lower = np.minimum(sin_l, sin_u)
             upper = np.maximum(sin_l, sin_u)
-            lower = self._mask_assign(lower, has_min, -1.0)
-            upper = self._mask_assign(upper, has_max, +1.0)
+            
+            # any infinity results in [-1, 1]
+            has_inf = (l == -np.inf) | (u == np.inf)
+            lower = self._mask_assign(lower, has_inf, -1.0)
+            upper = self._mask_assign(upper, has_inf, +1.0)
+            
+            # find critical points
+            next_max = self._next_multiple(l, np.pi / 2)
+            next_min = self._next_multiple(l, 3 * np.pi / 2)
+            lower = self._mask_assign(lower, next_min <= u, -1.0)
+            upper = self._mask_assign(upper, next_max <= u, +1.0)
             return lower, upper
         
         # special functions cos
         elif name == 'cos':
-            next_max = self._next_multiple(l, 0)
-            next_min = self._next_multiple(l, np.pi)
-            has_max = next_max <= u
-            has_min = next_min <= u
+            
+            # by default evaluate at end points
             cos_l, cos_u = np.cos(l), np.cos(u)
             lower = np.minimum(cos_l, cos_u)
             upper = np.maximum(cos_l, cos_u)
-            lower = self._mask_assign(lower, has_min, -1.0)
-            upper = self._mask_assign(upper, has_max, +1.0)
+            
+            # any infinity results in [-1, 1]
+            has_inf = (l == -np.inf) | (u == np.inf)
+            lower = self._mask_assign(lower, has_inf, -1.0)
+            upper = self._mask_assign(upper, has_inf, +1.0)
+            
+            # find critical points
+            next_max = self._next_multiple(l, 0)
+            next_min = self._next_multiple(l, np.pi)
+            lower = self._mask_assign(lower, next_min <= u, -1.0)
+            upper = self._mask_assign(upper, next_max <= u, +1.0)
             return lower, upper
         
         # special functions tan
         elif name == 'tan':
+            
+            # by default evaluate at end points
             tan_l, tan_u = np.tan(l), np.tan(u)
             lower = np.minimum(tan_l, tan_u)
             upper = np.maximum(tan_l, tan_u)
+            
+            # any infinity results in [-inf, inf]
+            has_inf = (l == -np.inf) | (u == np.inf)
+            lower = self._mask_assign(lower, has_inf, -np.inf)
+            upper = self._mask_assign(upper, has_inf, +np.inf)
             
             # an asymptote is inside the open interval, set to [-inf, inf]
             next_asymptote = self._next_multiple(l, np.pi / 2, np.pi)
@@ -560,7 +581,7 @@ class RDDLIntervalAnalysis:
             # an asymptote is on an edge
             lower = self._mask_assign(lower, l == next_asymptote, -np.inf)
             upper = self._mask_assign(upper, r == next_asymptote, +np.inf)
-            upper = self._mask_assign(upper, r >= next_asymptote + np.pi, +np.inf)            
+            upper = self._mask_assign(upper, r == next_asymptote + np.pi, +np.inf)            
             return lower, upper
         
         else:
@@ -640,10 +661,10 @@ class RDDLIntervalAnalysis:
         elif name == 'log':
             if np.any(l2 <= 0):
                 raise RDDLNotImplementedError(
-                    f'Function {name} with base <= 0 is not supported.')
+                    f'Function {name} with base <= 0 is not supported.\n' + PST(expr))
             if np.any(l1 <= 0):
                 raise RDDLNotImplementedError(
-                    f'Function {name} with argument <= 0 is not supported.')                    
+                    f'Function {name} with argument <= 0 is not supported.\n' + PST(expr))                    
             log1 = self._bound_func_monotone(l1, u1, np.log)
             log2 = self._bound_func_monotone(l2, u2, np.log)
             return self._bound_arithmetic_expr(log1, log2, '/')
