@@ -46,7 +46,7 @@ This is currently the official parser, simulator and evaluation system for RDDL 
     * [GurobiPlan](https://github.com/pyrddlgym-project/pyRDDLGym-gurobi): Planning through mixed discrete-continuous optimization
     * [PROST](https://github.com/pyrddlgym-project/pyRDDLGym-prost): Monte Carlo Tree Search (MCTS)
     * [Deep Reinforcement Learning (DQN, PPO, etc.)](https://github.com/pyrddlgym-project/pyRDDLGym-rl): Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
-    * [Symbolic Dynamic Programming](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic): Exact Symbolic Regression-based planning
+    * [Symbolic Tools](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic): Symbolic planning and compiler tools to extract Dynamic Bayes Networks (DBNs) and Extended Algebraic Decision Diagrams (XADDs) 
   
 ## Installation
 
