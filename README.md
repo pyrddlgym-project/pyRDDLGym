@@ -27,7 +27,7 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 - [Installation](#installation)
 - [Usage](#usage)
 - [Status](#status)
-- [Paper](#paper)
+- [Citing pyRDDLGym](#citing-pyrddlgym)
 - [License](#license)
 - [Contributors](#contributors)
 
@@ -173,7 +173,7 @@ The parser used in this project is based on the parser from
 Thiago Pbueno's [pyrddl](https://github.com/thiagopbueno/pyrddl)
 (used in [rddlgym](https://github.com/thiagopbueno/rddlgym)).
 
-## Paper
+## Citing pyRDDLGym
 
 Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym. If you found this useful, please consider citing us:
 
