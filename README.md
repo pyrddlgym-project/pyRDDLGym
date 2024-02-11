@@ -38,16 +38,16 @@ This is currently the official parser, simulator and evaluation system for RDDL 
     * e.g., [a few lines of RDDL](https://github.com/ataitler/pyRDDLGym/blob/main/pyRDDLGym/Examples/CartPole/Continuous/domain.rddl#L61) for CartPole vs. [200 lines in direct Python for Gym](https://github.com/openai/gym/blob/master/gym/envs/classic_control/cartpole.py#L130)
 * Object-oriented relational (template) specification allows easy scaling of model instances from 1 object to 1000's of objects without changing the domain model
     * e.g., [Wildfire](https://ataitler.github.io/IPPC2023/pyrddlgym_rddl_tutorial.html), [Reservoir Control](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing)
-* Out-of-the-box planners 
+* Customizable [visualization](https://pyrddlgym.readthedocs.io/en/latest/start.html#visualization) and [recording](https://pyrddlgym.readthedocs.io/en/latest/start.html#recording-movies) tools facilitate domain debugging and plan interpretation
+    * e.g., a student course project [visualizing Jax plans](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/CISC813%20Gifs/V2_5Moving_2.gif) in a [sailing domain](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/Version2/USV_obstacle_nav_v2_Domain.rddl)
+* Runs out-of-the-box in [Python](https://github.com/ataitler/pyRDDLGym?tab=readme-ov-file#installation) or within [Colab](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing)
+* Ready to use with out-of-the-box planners:
     * [JaxPlan](https://github.com/pyrddlgym-project/pyRDDLGym-jax): Planning through autodifferentiation
     * [GurobiPlan](https://github.com/pyrddlgym-project/pyRDDLGym-gurobi): Planning through mixed discrete-continuous optimization
     * [PROST](https://github.com/pyrddlgym-project/pyRDDLGym-prost): Monte Carlo Tree Search (MCTS)
     * [Deep Reinforcement Learning (DQN, PPO, etc.)](https://github.com/pyrddlgym-project/pyRDDLGym-rl): Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
     * [Symbolic Dynamic Programming](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic): Exact Symbolic Regression-based planning
-* Customizable [visualization](https://pyrddlgym.readthedocs.io/en/latest/start.html#visualization) and [recording](https://pyrddlgym.readthedocs.io/en/latest/start.html#recording-movies) tools facilitate domain debugging and plan interpretation
-    * e.g., a student course project [visualizing Jax plans](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/CISC813%20Gifs/V2_5Moving_2.gif) in a [sailing domain](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/Version2/USV_obstacle_nav_v2_Domain.rddl)
-* Runs out-of-the-box in [Python](https://github.com/ataitler/pyRDDLGym?tab=readme-ov-file#installation) or within [Colab](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing)
-
+  
 ## Installation
 
 We require Python 3.8+ and the following packages: ``ply``, ``pillow>=9.2.0``, ``numpy>=1.22``, ``matplotlib>=3.5.0``, ``gymnasium``, ``pygame``, ``termcolor``.
