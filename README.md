@@ -41,12 +41,13 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 * Customizable [visualization](https://pyrddlgym.readthedocs.io/en/latest/start.html#visualization) and [recording](https://pyrddlgym.readthedocs.io/en/latest/start.html#recording-movies) tools facilitate domain debugging and plan interpretation
     * e.g., a student course project [visualizing Jax plans](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/CISC813%20Gifs/V2_5Moving_2.gif) in a [sailing domain](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/Version2/USV_obstacle_nav_v2_Domain.rddl)
 * Runs out-of-the-box in [Python](https://github.com/ataitler/pyRDDLGym?tab=readme-ov-file#installation) or within [Colab](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing)
+* Compiler tools to extract [Dynamic Bayesian Networks (DBNs)](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic?tab=readme-ov-file#visualizing-dbns-with-xadd) and [Extended Algebraic Decision Diagrams (XADDs)](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic?tab=readme-ov-file#xadd-compilation-of-cpfs) for symbolic analysis of causal dependencies and transition distributions
 * Ready to use with out-of-the-box planners:
     * [JaxPlan](https://github.com/pyrddlgym-project/pyRDDLGym-jax): Planning through autodifferentiation
     * [GurobiPlan](https://github.com/pyrddlgym-project/pyRDDLGym-gurobi): Planning through mixed discrete-continuous optimization
     * [PROST](https://github.com/pyrddlgym-project/pyRDDLGym-prost): Monte Carlo Tree Search (MCTS)
     * [Deep Reinforcement Learning (DQN, PPO, etc.)](https://github.com/pyrddlgym-project/pyRDDLGym-rl): Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
-    * [Symbolic Tools](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic): Symbolic planning and compiler tools to extract Dynamic Bayes Networks (DBNs) and Extended Algebraic Decision Diagrams (XADDs) 
+    * [Symbolic Dynamic Programming](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic?tab=readme-ov-file#symbolic-dynamic-programming--sdp): Exact Symbolic regression-based planning and policy evaluation
   
 ## Installation
 
