@@ -5,7 +5,7 @@
 # pyRDDLGym
 
 > [!WARNING]  
-> As of Feb 9, 2024, the pyRDDLGym API has been updated 2.0, which is no longer backwards compatible with the previous stable version 1.4.4.
+> As of Feb 9, 2024, the pyRDDLGym API has been updated to version 2.0, and is no longer backwards compatible with the previous stable version 1.4.4.
 > While we strongly recommend that you update to 2.0, in case you require the old API, you can install the last stable version with pip:
 > ``pip install pyRDDLGym==1.4.4``, or directly from github ``pip install git+https://github.com/pyrddlgym-project/pyRDDLGym@version_1.4.4_stable``.
 
