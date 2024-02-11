@@ -26,6 +26,11 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 - [Purpose and Benefits](#purpose-and-benefits)
 - [Installation](#installation)
 - [Usage](#usage)
+   - [Running the Example](#running-the-example)
+   - [Loading an Environment](#loading-an-environment)
+   - [Creating your Own Visualizer](#creating-your-own-visualizer)
+   - [Recording Movies](#recording-movies)
+   - [Interacting with an Environment](#interacting-with-an-environment)
 - [Status](#status)
 - [Citing pyRDDLGym](#citing-pyrddlgym)
 - [License](#license)
@@ -105,12 +110,22 @@ env = pyRDDLGym.make("Cartpole_Continuous", "0", enforce_action_constraints=True
 
 ### Creating your Own Visualizer
 
-Finally, you can design your own visualizer by subclassing from ``pyRDDLGym.core.visualizer.viz.BaseViz`` and overriding the ``render(state)`` method.
+You can design your own visualizer by subclassing from ``pyRDDLGym.core.visualizer.viz.BaseViz`` and overriding the ``render(state)`` method.
 Then, changing the visualizer of the environment is easy
 
 ```python
 viz_class = ...   # the class name of your custom viz
 env.set_visualizer(viz_class)
+```
+
+### Recording Movies
+
+You can record an animated gif or movie of the agent interaction with an environment (described below). To do this, simply pass a ``MovieGenerator`` object to the ``set_visualizer`` method:
+
+```python
+from pyRDDLGym.core.visualizer.movie import MovieGenerator
+movie_gen = MovieGenerator("/path/where/to/save", "env_name")
+env.set_visualizer(viz_class, movie_gen=movie_gen)
 ```
 
 ### Interacting with an Environment
