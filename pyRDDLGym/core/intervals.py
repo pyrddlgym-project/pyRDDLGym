@@ -861,8 +861,8 @@ class RDDLIntervalAnalysis:
         a, b = args
         intl = (la, ua) = self._bound(a, intervals)
         intu = (lb, ub) = self._bound(b, intervals)
-        lower = np.minimum(la, ua)
-        upper = np.maximum(lb, ub)
+        lower = la
+        upper = ub
         return (lower, upper)
     
     def _bound_bernoulli(self, expr, intervals):
@@ -933,7 +933,9 @@ class RDDLIntervalAnalysis:
         intp = (lp, up) = self._bound(p, intervals)
         
         lower = np.zeros(shape=np.shape(ln), dtype=int)
-        upper = un
+        upper = np.copy(un)
+        lower = self._mask_assign(lower, (lp >= 1) & (ln > 0), ln, True)
+        upper = self._mask_assign(upper, (up <= 0), 0)
         return (lower, upper)
     
     def _bound_beta(self, expr, intervals):
