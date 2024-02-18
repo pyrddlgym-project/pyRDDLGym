@@ -177,12 +177,14 @@ class RDDLIntervalAnalysis:
         # enum literals need to be converted to integers
         rddl = self.rddl
         if rddl.variable_ranges[var] in rddl.enum_types:
-            lower_int = [rddl.object_to_index[obj] 
-                         for obj in np.ravel(lower).tolist()]
-            upper_int = [rddl.object_to_index[obj] 
-                         for obj in np.ravel(upper).tolist()]
-            lower = np.reshape(lower_int, np.shape(lower))
-            upper = np.reshape(upper_int, np.shape(upper))
+            if not np.issubdtype(lower.dtype, np.number):
+                lower_int = [rddl.object_to_index[obj] 
+                             for obj in np.ravel(lower).tolist()]
+                lower = np.reshape(lower_int, np.shape(lower))
+            if not np.issubdtype(upper.dtype, np.number):
+                upper_int = [rddl.object_to_index[obj] 
+                             for obj in np.ravel(upper).tolist()]
+                upper = np.reshape(upper_int, np.shape(upper))
         
         # propagate the bounds forward
         if cached_info is not None:
@@ -754,8 +756,15 @@ class RDDLIntervalAnalysis:
         return (lower, upper)
             
     def _bound_switch(self, expr, intervals):
-        raise RDDLNotImplementedError(
-            f'Function switch is not supported.\n' + PST(expr))
+        cases, default = self.trace.cached_sim_info(expr)  
+        def_bounds = None if default is None else self._bound(default, intervals)
+        bounds = [
+            (def_bounds if arg is None else self._bound(arg, intervals))
+            for arg in cases
+        ]
+        lower = np.minimum.reduce([lower for (lower, _) in bounds])
+        upper = np.maximum.reduce([upper for (_, upper) in bounds])
+        return (lower, upper)
     
     # ===========================================================================
     # random variables
