@@ -38,7 +38,8 @@ class RDDLIntervalAnalysis:
         
         self.NUMPY_PROD_FUNC = np.frompyfunc(self._bound_product_scalar, nin=2, nout=1)    
         self.NUMPY_OR_FUNC = np.frompyfunc(self._bound_or_scalar, nin=2, nout=1)
-    
+        self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
+        
     def bound(self, action_bounds: Bounds=None) -> Bounds:
         rddl = self.rddl
         intervals = self._bound_initial_values()
@@ -178,13 +179,9 @@ class RDDLIntervalAnalysis:
         rddl = self.rddl
         if rddl.variable_ranges[var] in rddl.enum_types:
             if not np.issubdtype(lower.dtype, np.number):
-                lower_int = [rddl.object_to_index[obj] 
-                             for obj in np.ravel(lower).tolist()]
-                lower = np.reshape(lower_int, np.shape(lower))
+                lower = self.NUMPY_LITERAL_TO_INT(lower)
             if not np.issubdtype(upper.dtype, np.number):
-                upper_int = [rddl.object_to_index[obj] 
-                             for obj in np.ravel(upper).tolist()]
-                upper = np.reshape(upper_int, np.shape(upper))
+                upper = self.NUMPY_LITERAL_TO_INT(upper)
         
         # propagate the bounds forward
         if cached_info is not None:
