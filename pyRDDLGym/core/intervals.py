@@ -1,6 +1,8 @@
 import numpy as np
 from typing import Dict, List, Set, Tuple, Union
 
+Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
+              
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer, RDDLTracedObjects
 from pyRDDLGym.core.debug.exception import (
@@ -21,7 +23,7 @@ class RDDLIntervalAnalysis:
     
     def __init__(self, rddl: RDDLPlanningModel, trace: RDDLTracedObjects,
                  cpf_levels: Dict[str, List[str]],
-                 logger: Logger=None):
+                 logger: Logger=None) -> None:
         '''Creates a new interval analysis object for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
@@ -37,11 +39,11 @@ class RDDLIntervalAnalysis:
         self.NUMPY_PROD_FUNC = np.frompyfunc(self._bound_product_scalar, nin=2, nout=1)    
         self.NUMPY_OR_FUNC = np.frompyfunc(self._bound_or_scalar, nin=2, nout=1)
     
-    def bound(self) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    def bound(self, action_bounds: Bounds=None) -> Bounds:
         rddl = self.rddl
         intervals = self._bound_initial_values()
         for _ in range(rddl.horizon):
-            self._bound_next_epoch(intervals)
+            self._bound_next_epoch(intervals, action_bounds=action_bounds)
         return intervals
     
     def _bound_initial_values(self):
@@ -65,8 +67,20 @@ class RDDLIntervalAnalysis:
             intervals[name] = (values, values)
         return intervals
             
-    def _bound_next_epoch(self, intervals):
+    def _bound_next_epoch(self, intervals, action_bounds=None):
         rddl = self.rddl 
+        
+        # update action bounds from user
+        if action_bounds is not None:
+            for action in rddl.action_fluents:
+                params = rddl.variable_params[action]
+                shape = rddl.object_counts(params)
+                lower, upper = action_bounds[action]
+                if not np.shape(lower):
+                    lower = np.full(shape=shape, fill_value=lower)
+                if not np.shape(upper):
+                    upper = np.full(shape=shape, fill_value=upper)
+                intervals[action] = (lower, upper)
         
         # trace and bound constraints
         for (i, expr) in enumerate(rddl.invariants):
