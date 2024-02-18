@@ -8,10 +8,7 @@ from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer, RDDLTracedObjects
 from pyRDDLGym.core.debug.exception import (
     print_stack_trace as PST,
     RDDLInvalidNumberOfArgumentsError,
-    RDDLInvalidObjectError,
     RDDLNotImplementedError,
-    RDDLRepeatedVariableError,
-    RDDLTypeError,
     RDDLUndefinedVariableError
 )
 from pyRDDLGym.core.debug.logger import Logger
@@ -41,9 +38,8 @@ class RDDLIntervalAnalysis:
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
     def bound(self, action_bounds: Bounds=None) -> Bounds:
-        rddl = self.rddl
         intervals = self._bound_initial_values()
-        for _ in range(rddl.horizon):
+        for _ in range(self.rddl.horizon):
             self._bound_next_epoch(intervals, action_bounds=action_bounds)
         return intervals
     
@@ -93,12 +89,12 @@ class RDDLIntervalAnalysis:
         for cpfs in self.cpf_levels.values():
             for cpf in cpfs:
                 _, expr = rddl.cpfs[cpf]
-                lb0, ub0 = intervals.get(cpf, (None, None))
                 lb1, ub1 = self._bound(expr, intervals)
                 if cpf in rddl.interm_fluents or cpf in rddl.derived_fluents \
                 or cpf in rddl.prev_state:
                     intervals[cpf] = (lb1, ub1)
                 else:
+                    lb0, ub0 = intervals[cpf]
                     intervals[cpf] = (np.minimum(lb0, lb1), np.maximum(ub0, ub1))
         
         # compute bounds on reward
@@ -183,7 +179,6 @@ class RDDLIntervalAnalysis:
         lower, upper = bounds
         
         # enum literals need to be converted to integers
-        rddl = self.rddl
         lower = self._cast_enum_values_to_int(var, lower)
         upper = self._cast_enum_values_to_int(var, upper)
         
@@ -194,7 +189,7 @@ class RDDLIntervalAnalysis:
                 for slice in slices:
                     if slice is None:
                         raise RDDLNotImplementedError(
-                            'Nested pvariables not supported.\n' + PST(expr))
+                            'Nested pvariables are not supported.\n' + PST(expr))
                 lower = lower[slices]
                 upper = upper[slices]
             if axis:
@@ -530,10 +525,11 @@ class RDDLIntervalAnalysis:
         f_crit = func(x_crit)
         lower = np.full(shape=np.shape(l), fill_value=f_crit)
         upper = np.maximum(fl, fu)
-        lower = RDDLIntervalAnalysis._mask_assign(lower, l >= x_crit, fl, True)
-        upper = RDDLIntervalAnalysis._mask_assign(upper, l >= x_crit, fu, True)
-        lower = RDDLIntervalAnalysis._mask_assign(lower, u <= x_crit, fu, True)
-        upper = RDDLIntervalAnalysis._mask_assign(upper, u <= x_crit, fl, True)
+        mask_fn = RDDLIntervalAnalysis._mask_assign
+        lower = mask_fn(lower, l >= x_crit, fl, True)
+        upper = mask_fn(upper, l >= x_crit, fu, True)
+        lower = mask_fn(lower, u <= x_crit, fu, True)
+        upper = mask_fn(upper, u <= x_crit, fl, True)
         return (lower, upper)
     
     def _bound_func_unary(self, expr, intervals):
