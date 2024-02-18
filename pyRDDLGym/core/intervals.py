@@ -154,6 +154,13 @@ class RDDLIntervalAnalysis:
     # ===========================================================================
     # leaves
     # ===========================================================================
+    
+    def _cast_enum_values_to_int(self, var, values):
+        if self.rddl.variable_ranges[var] in self.rddl.enum_types \
+        and not np.issubdtype(values.dtype, np.number):
+            return self.NUMPY_LITERAL_TO_INT(values)
+        else:
+            return values
         
     def _bound_constant(self, expr, intervals):
         lower = upper = self.trace.cached_sim_info(expr)
@@ -177,11 +184,8 @@ class RDDLIntervalAnalysis:
         
         # enum literals need to be converted to integers
         rddl = self.rddl
-        if rddl.variable_ranges[var] in rddl.enum_types:
-            if not np.issubdtype(lower.dtype, np.number):
-                lower = self.NUMPY_LITERAL_TO_INT(lower)
-            if not np.issubdtype(upper.dtype, np.number):
-                upper = self.NUMPY_LITERAL_TO_INT(upper)
+        lower = self._cast_enum_values_to_int(var, lower)
+        upper = self._cast_enum_values_to_int(var, upper)
         
         # propagate the bounds forward
         if cached_info is not None:
