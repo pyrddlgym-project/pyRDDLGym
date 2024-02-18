@@ -163,8 +163,13 @@ class RDDLIntervalAnalysis:
         # propagate the bounds forward
         if cached_info is not None:
             slices, axis, shape, op_code, op_args = cached_info
-            if slices: 
-                raise RDDLNotImplementedError('Nested pvariable not supported.\n' + PST(expr))
+            if slices:
+                for slice in slices:
+                    if slice is None:
+                        raise RDDLNotImplementedError(
+                            'Nested pvariables not supported.\n' + PST(expr))
+                lower = lower[slices]
+                upper = upper[slices]
             if axis:
                 lower = np.expand_dims(lower, axis=axis)
                 lower = np.broadcast_to(lower, shape=shape)
