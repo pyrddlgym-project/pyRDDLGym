@@ -753,14 +753,33 @@ class RDDLIntervalAnalysis:
         return (lower, upper)
             
     def _bound_switch(self, expr, intervals):
+        
+        # compute bounds on case expressions        
         cases, default = self.trace.cached_sim_info(expr)  
         def_bounds = None if default is None else self._bound(default, intervals)
         bounds = [
             (def_bounds if arg is None else self._bound(arg, intervals))
             for arg in cases
         ]
-        lower = np.minimum.reduce([lower for (lower, _) in bounds])
-        upper = np.maximum.reduce([upper for (_, upper) in bounds])
+        lower_case = [lower for (lower, _) in bounds]
+        upper_case = [upper for (_, upper) in bounds]
+        
+        # check if the predicate is known with certainty      
+        pred, *_ = expr.args
+        lower_pred, upper_pred = self._bound(pred, intervals)  
+        if np.all(lower_pred == upper_pred):
+            sample_pred = lower_pred[np.newaxis, ...]
+            lower = np.take_along_axis(np.asarray(lower_case), sample_pred, axis=0)
+            upper = np.take_along_axis(np.asarray(upper_case), sample_pred, axis=0)
+            assert lower.shape[0] == 1
+            assert upper.shape[0] == 1
+            lower = lower[0, ...]
+            upper = upper[0, ...]
+        
+        # if not then need to take the widest possible bounds
+        else:
+            lower = np.minimum.reduce(lower_case)
+            upper = np.maximum.reduce(upper_case)
         return (lower, upper)
     
     # ===========================================================================
