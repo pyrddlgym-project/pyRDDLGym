@@ -37,11 +37,30 @@ class RDDLIntervalAnalysis:
         self.NUMPY_OR_FUNC = np.frompyfunc(self._bound_or_scalar, nin=2, nout=1)
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
-    def bound(self, action_bounds: Bounds=None) -> Bounds:
+    def bound(self, action_bounds: Bounds=None, per_epoch: bool=False) -> Bounds:
+        
+        # get initial values as bounds
         intervals = self._bound_initial_values()
+        if per_epoch:
+            result = {}
+        
+        # propagate bounds across time
         for _ in range(self.rddl.horizon):
-            self._bound_next_epoch(intervals, action_bounds=action_bounds)
-        return intervals
+            self._bound_next_epoch(
+                intervals, action_bounds=action_bounds, per_epoch=per_epoch)
+            if per_epoch:
+                for (name, (lower, upper)) in intervals.items():
+                    lower_all, upper_all = result.setdefault(name, ([], []))
+                    lower_all.append(lower)
+                    upper_all.append(upper)
+        
+        # concatenate bounds across time dimension
+        if per_epoch:
+            result = {name: (np.asarray(lower), np.asarray(upper))
+                      for (name, (lower, upper)) in result.items()}
+            return result
+        else:
+            return intervals
     
     def _bound_initial_values(self):
         rddl = self.rddl 
@@ -64,7 +83,8 @@ class RDDLIntervalAnalysis:
             intervals[name] = (values, values)
         return intervals
             
-    def _bound_next_epoch(self, intervals, action_bounds=None):
+    def _bound_next_epoch(self, intervals, 
+                          action_bounds=None, per_epoch: bool=False):
         rddl = self.rddl 
         
         # update action bounds from user
@@ -90,8 +110,8 @@ class RDDLIntervalAnalysis:
             for cpf in cpfs:
                 _, expr = rddl.cpfs[cpf]
                 lb1, ub1 = self._bound(expr, intervals)
-                if cpf in rddl.interm_fluents or cpf in rddl.derived_fluents \
-                or cpf in rddl.prev_state:
+                if per_epoch or cpf in rddl.interm_fluents \
+                or cpf in rddl.derived_fluents or cpf in rddl.prev_state:
                     intervals[cpf] = (lb1, ub1)
                 else:
                     lb0, ub0 = intervals[cpf]
