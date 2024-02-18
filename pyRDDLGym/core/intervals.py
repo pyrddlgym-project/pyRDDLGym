@@ -72,15 +72,15 @@ class RDDLIntervalAnalysis:
         
         # update action bounds from user
         if action_bounds is not None:
-            for action in rddl.action_fluents:
-                params = rddl.variable_params[action]
-                shape = rddl.object_counts(params)
-                lower, upper = action_bounds[action]
-                if not np.shape(lower):
-                    lower = np.full(shape=shape, fill_value=lower)
-                if not np.shape(upper):
-                    upper = np.full(shape=shape, fill_value=upper)
-                intervals[action] = (lower, upper)
+            for (name, (lower, upper)) in action_bounds.items():
+                if name in rddl.action_fluents:
+                    params = rddl.variable_params[name]
+                    shape = rddl.object_counts(params)
+                    if not np.shape(lower):
+                        lower = np.full(shape=shape, fill_value=lower)
+                    if not np.shape(upper):
+                        upper = np.full(shape=shape, fill_value=upper)
+                    intervals[name] = (lower, upper)
         
         # trace and bound constraints
         for (i, expr) in enumerate(rddl.invariants):
@@ -173,6 +173,16 @@ class RDDLIntervalAnalysis:
             raise RDDLUndefinedVariableError(
                 f'Variable <{var}> is referenced before assignment.\n' + PST(expr))
         lower, upper = bounds
+        
+        # enum literals need to be converted to integers
+        rddl = self.rddl
+        if rddl.variable_ranges[var] in rddl.enum_types:
+            lower_int = [rddl.object_to_index[obj] 
+                         for obj in np.ravel(lower).tolist()]
+            upper_int = [rddl.object_to_index[obj] 
+                         for obj in np.ravel(upper).tolist()]
+            lower = np.reshape(lower_int, np.shape(lower))
+            upper = np.reshape(upper_int, np.shape(upper))
         
         # propagate the bounds forward
         if cached_info is not None:
