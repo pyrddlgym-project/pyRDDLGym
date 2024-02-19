@@ -3,8 +3,8 @@
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 9,
-  "n_iters": 200,
+  "action_dim": 1,
+  "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
@@ -22,7 +22,7 @@
         "train_model": {
           "is_relaxed": true,
           "compiler_kwargs": {
-            "n_rollouts": 32,
+            "n_rollouts": 1,
             "weight": 10.0
           }
         },
@@ -47,27 +47,31 @@
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 0.9
+      "learning_rate": 0.1
     }
   },
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 8192,
-      "subsample_size": 4,
+      "batch_size": 1,
       "eval_batch_size": 32,
-      "epsilon": 0.0,
-      "log_cutoff": -1000.0,
-      "importance_weight_ub": 3,
-      "est_Z": true,
       "sampler": {
         "type": "rejection_sampler",
         "params": {
-          "proposal_pdf_type": "cur_policy",
+          "proposal_pdf_type": "uniform",
           "sample_shape_type": "one_per_parameter",
-          "rejection_rate": 1000
+          "rejection_rate": 250
         }
       },
+      "Z_est": {
+        "type": "forward",
+        "params": {
+          "sample_size": 1024
+        }
+      },
+      "epsilon": 0.0,
+      "log_cutoff": -1000.0,
+      "importance_weight_ub": 100000,
       "reinit_strategy": "random_sample",
       "verbose": true
     }
