@@ -1,0 +1,84 @@
+{ "useGPU": false,
+  "use64bit": true,
+  "debug_nans": true,
+  "enable_jit": true,
+  "seed": 3264,
+  "action_dim": 4,
+  "n_iters": 200,
+  "models": {
+    "id": "sum_of_half_spaces",
+    "params": {
+      "n_summands": 10,
+      "instance_idx": 0,
+      "reward_shift": 0.0,
+      "specs": {
+        "sampling_model": {
+          "is_relaxed": true,
+          "compiler_kwargs": {
+            "n_rollouts": 1,
+            "weight": 10.0
+          }
+        },
+        "train_model": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 1
+          }
+        },
+        "eval_model": {
+          "is_relaxed": false,
+          "compiler_kwargs": {
+            "n_rollouts": 32
+          }
+        }
+      }
+    }
+  },
+  "bijector": {
+    "id": "identity",
+    "params": {}
+  },
+  "policy": {
+    "id": "multivar_normal_with_linear_parametrization",
+    "params": {
+        "cov_lower_cap": 0.01
+    }
+  },
+  "optimizer": {
+    "id": "adabelief",
+    "params": {
+      "learning_rate": 0.3
+    }
+  },
+  "algorithm": {
+    "id": "impsmp_per_parameter_signed",
+    "params": {
+      "batch_size": 1,
+      "eval_batch_size": 32,
+      "sampler": {
+        "type": "fixed_num_accepted_rejection_sampler",
+        "params": {
+          "proposal_pdf_type": "cur_policy",
+          "sample_shape_type": "one_sample_per_parameter",
+          "rejection_rate_schedule": {
+            "type": "constant",
+            "params": {
+              "value": 250
+            }
+          }
+        }
+      },
+      "Z_est": {
+        "type": "forward",
+        "params": {
+          "sample_size": 4096
+        }
+      },
+      "epsilon": 0.0,
+      "importance_weight_upper_cap": 3,
+      "reinit_strategy": "random_sample",
+      "verbose": true
+    }
+  },
+  "save_to": "/home/ilia/Programming/storage/tmp"
+}
