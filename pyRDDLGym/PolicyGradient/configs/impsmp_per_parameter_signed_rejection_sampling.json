@@ -1,4 +1,4 @@
-{ "useGPU": false,
+{ "useGPU": true,
   "use64bit": true,
   "debug_nans": true,
   "enable_jit": true,

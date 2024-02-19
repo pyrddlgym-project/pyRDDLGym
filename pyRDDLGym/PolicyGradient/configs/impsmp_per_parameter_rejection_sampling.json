@@ -1,10 +1,10 @@
-{ "useGPU": false,
+{ "useGPU": true,
   "use64bit": true,
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 9,
-  "n_iters": 200,
+  "action_dim": 4,
+  "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
     "params": {
@@ -16,13 +16,13 @@
           "is_relaxed": true,
           "compiler_kwargs": {
             "n_rollouts": 1,
-            "weight": 20.0
+            "weight": 10.0
           }
         },
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 4
+            "n_rollouts": 1
           }
         },
         "eval_model": {
@@ -40,29 +40,43 @@
   },
   "policy": {
     "id": "multivar_normal_with_linear_parametrization",
-    "params": {}
+    "params": {
+        "cov_lower_cap": 0.0
+    }
   },
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 0.7
+      "learning_rate": 0.3
     }
   },
   "algorithm": {
     "id": "impsmp_per_parameter",
     "params": {
-      "batch_size": 4,
+      "batch_size": 4096,
+      "subsample_size": 1,
       "eval_batch_size": 32,
-      "epsilon": 0.0,
-      "log_cutoff": -1000.0,
-      "est_Z": true,
       "sampler": {
-        "type": "rejection_sampler",
+        "type": "fixed_num_trials_rejection_sampler",
         "params": {
           "proposal_pdf_type": "cur_policy",
-          "rejection_rate": 1000
+          "sample_shape_type": "one_sample_per_parameter",
+          "rejection_rate": {
+            "type": "constant",
+            "params": {
+              "value": 250
+            }
+          }
         }
       },
+      "Z_est": {
+        "type": "forward",
+        "params": {
+          "sample_size": 4096
+        }
+      },
+      "epsilon": 0.0,
+      "importance_weight_upper_cap": 3,
       "reinit_strategy": "random_sample",
       "verbose": true
     }

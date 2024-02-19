@@ -1,12 +1,11 @@
 import jax
 import jax.numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
-from pyRDDLGym.PolicyGradient.samplers.rejection_sampler import RejectionSampler
+from pyRDDLGym.PolicyGradient.samplers.rejection_sampler import FixedNumTrialsRejectionSampler
 
 VALID_INIT_DISTR_TYPES = (
     'uniform',
     'normal',
-    'cur_policy',
 )
 
 VALID_STEP_SIZE_DISTR_TYPES = (
@@ -19,6 +18,7 @@ VALID_STEP_SIZE_DISTR_TYPES = (
 VALID_REINIT_STRATEGY_TYPES = (
     'random_sample',
     'random_prev_chain_elt',
+    'cur_policy',
     'rejection_sampler',
 )
 
@@ -75,7 +75,7 @@ class HMCSampler:
             })
 
         # @@@@@
-        self.rej_subsampler = RejectionSampler(
+        self.rej_subsampler = FixedNumTrialsRejectionSampler(
             n_iters,
             1,
             action_dim,
@@ -83,7 +83,7 @@ class HMCSampler:
             config={
                 'proposal_pdf_type': 'cur_policy',
                 'sample_shape_type': 'one_sample_per_parameter',
-                'rejection_rate': {
+                'rejection_rate_schedule': {
                     'type': 'constant',
                     'params': {
                         'value': 250
@@ -93,13 +93,26 @@ class HMCSampler:
          #@@@@@
 
     def generate_initial_state(self, key, it, prev_samples):
-        #@@@
-        if it == 0:
-            key, self.init_state, _ = self.rej_subsampler.sample(key, self.policy.theta)
-            #@@@
-        else:
-            key, subkey = jax.random.split(key)
+        key, subkey = jax.random.split(key)
 
+        #@@@@
+        if it == 0:
+            shape = (self.config['num_chains'], self.action_dim, 2, 1, self.action_dim)
+            config = self.config['init_distribution']
+            if config['type'] == 'uniform':
+                self.init_state = jax.random.uniform(
+                    subkey,
+                    shape=shape,
+                    minval=config['min'],
+                    maxval=config['max'])
+            elif config['type'] == 'normal':
+                self.init_state = jax.random.normal(
+                    subkey,
+                    shape=shape)
+                self.init_state = config['mean'] + self.init_state * config['std']
+
+        #@@@@
+        else:
             if self.config['reinit_strategy']['type'] == 'random_prev_chain_elt':
                 self.init_state = jax.random.choice(
                     subkey,
@@ -108,12 +121,7 @@ class HMCSampler:
                     replace=False)
 
             elif self.config['reinit_strategy']['type'] == 'random_sample':
-                shape = (self.config['num_chains'],
-                         self.action_dim,
-                         2,
-                         1,
-                         self.action_dim)
-
+                shape = (self.config['num_chains'], self.action_dim, 2, 1, self.action_dim)
                 config = self.config['init_distribution']
                 if config['type'] == 'uniform':
                     self.init_state = jax.random.uniform(
@@ -126,8 +134,10 @@ class HMCSampler:
                         subkey,
                         shape=shape)
                     self.init_state = config['mean'] + self.init_state * config['std']
-                elif config['type'] == 'cur_policy':
-                    self.init_state = self.policy.sample(subkey, self.policy.theta, shape[:-1])
+
+            elif self.config['reinit_strategy']['type'] == 'cur_policy':
+                shape = (self.config['num_chains'], self.action_dim, 2, 1, self.action_dim)
+                self.init_state = self.policy.sample(subkey, self.policy.theta, shape[:-1])
 
             elif self.config['reinit_strategy']['type'] == 'rejection_sampler':
                 key, self.init_state, _ = self.rej_subsampler.sample(key, self.policy.theta)

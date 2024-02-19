@@ -33,12 +33,14 @@
   },
   "policy": {
     "id": "multivar_normal_with_linear_parametrization",
-    "params": {}
+    "params": {
+        "cov_lower_cap": 0.00
+    }
   },
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 0.7
+      "learning_rate": 0.1
     }
   },
   "algorithm": {

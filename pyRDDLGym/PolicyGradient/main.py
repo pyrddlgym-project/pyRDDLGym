@@ -2,6 +2,7 @@ import os.path
 import argparse
 from datetime import datetime
 from copy import deepcopy
+from time import sleep
 import numpy as np
 import json
 import jax
@@ -67,8 +68,8 @@ def main(config):
     # configure the model(s)
     # (note: frequently, the training and evaluation models
     # are configured separately, even if both are not relaxed,
-    # because jitted functions (e.g. compiled rollouts) require
-    # the shapes of the arguments to be immutable)
+    # because just-in-time compiled (jitted) functions (compiled rollouts is one)
+    # require the shapes of the arguments to be immutable)
     model_config = config['models']
     model_cls = registry.model_lookup_table[model_config['id']]
     model_params = model_config['params']
@@ -130,6 +131,7 @@ def main(config):
         if os.path.isfile(path):
             disambiguator = 1
             while os.path.isfile(path):
+                sleep(1)
                 path = os.path.join(save_to, f'{filename}-{disambiguator}.json')
                 disambiguator = disambiguator + 1
 
@@ -140,8 +142,8 @@ def main(config):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Launch a training run for one of the implemented Policy Gradient algorithms')
-    parser.add_argument('config_path', type=str, help='Path to the configuration file (JSON format, please see the "configs" subdirectory for examples)')
+    parser = argparse.ArgumentParser(description='Launch a training run for one of the implemented Policy Gradient algorithms.')
+    parser.add_argument('config_path', type=str, help='Path to the configuration file (JSON format, please see the "configs" subdirectory for examples).')
     parser.add_argument('-s', '--save-to', type=str, help='Path where to save the stats results. Optional, defaults to /tmp')
 
     parser.add_argument('-d', '--dimension', type=int, help='Override the dimension setting.')

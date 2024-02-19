@@ -24,6 +24,7 @@ def two_dim_unnormalized_log_prob(X):
 v_2d_rho = jax.vmap(two_dim_unnormalized_log_prob, in_axes=0, out_axes=0)
 
 def batch_two_dim_unnormalized_log_prob(X):
+    print(X.shape)
     return jnp.sum(v_2d_rho(X), axis=-1)
 
 
@@ -138,5 +139,5 @@ def test_2d_density_chain(num_results, num_parallel_chains, filter=False):
 
 if __name__ == '__main__':
     #test_1d_density_chain(num_results=1e3, num_parallel_chains=4, filter=False)
-    test_2d_density_chain(num_results=1e4, num_parallel_chains=1, filter=False)
+    test_2d_density_chain(num_results=1e4, num_parallel_chains=4, filter=False)
 

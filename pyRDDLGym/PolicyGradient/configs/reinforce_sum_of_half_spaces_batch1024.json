@@ -3,7 +3,7 @@
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 9,
+  "action_dim": 4,
   "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
@@ -33,12 +33,14 @@
   },
   "policy": {
     "id": "multivar_normal_with_linear_parametrization",
-    "params": {}
+    "params": {
+        "cov_lower_cap": 0.00
+    }
   },
   "optimizer": {
     "id": "adabelief",
     "params": {
-      "learning_rate": 0.7
+      "learning_rate": 0.3
     }
   },
   "algorithm": {
