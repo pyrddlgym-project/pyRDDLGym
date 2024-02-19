@@ -22,8 +22,7 @@ def rejection_rate_schedule(it, type_, params):
     elif type_ == 'linear_ramp':
         return params['from'] + it * params['delta']
 
-
-class RejectionSampler:
+class BaseRejectionSampler:
     def __init__(self,
                  n_iters,
                  batch_size,
@@ -34,8 +33,6 @@ class RejectionSampler:
         self.action_dim = action_dim
         self.policy = policy
         self.config = config
-        self.init_state = None
-        self.step_size = None
 
         self.proposal_pdf_type = self.config['proposal_pdf_type']
         assert self.proposal_pdf_type in VALID_PROPOSAL_PDF_TYPES
@@ -43,17 +40,12 @@ class RejectionSampler:
         self.shape_type = self.config['sample_shape_type']
         assert self.shape_type in VALID_SHAPE_TYPES
 
-        self.rejection_rate_type = self.config['rejection_rate']['type']
+        self.rejection_rate_type = self.config['rejection_rate_schedule']['type']
         assert self.rejection_rate_type in VALID_REJECTION_RATE_TYPES
-        self.rejection_rate_params = self.config['rejection_rate']['params']
+        self.rejection_rate_params = self.config['rejection_rate_schedule']['params']
         if self.rejection_rate_type == 'linear_ramp':
             self.rejection_rate_params['delta'] = (self.rejection_rate_params['to'] - self.rejection_rate_params['from']) / n_iters
         self.rejection_rate = None
-
-        self.n_distinct_samples_used_buffer = []
-        self.stats = {
-            'n_distinct_samples_used': []
-        }
 
     def prep(self,
              key,
@@ -73,9 +65,76 @@ class RejectionSampler:
         """Included to have a consistent interface with that of HMC"""
         return key
 
+    def sample(self, key, theta):
+        raise NotImplementedError
+
+    def update_stats(self, it, samples, is_accepted):
+        raise NotImplementedError
+
+    def print_report(self, it):
+        raise NotImplementedError
+
+
+
+class FixedNumTrialsRejectionSampler(BaseRejectionSampler):
+    def __init__(self,
+                 n_iters,
+                 batch_size,
+                 action_dim,
+                 policy,
+                 config):
+        super().__init__(n_iters, batch_size, action_dim, policy, config)
+
+        if self.shape_type == 'one_sample_per_parameter':
+            self.shape = (self.action_dim, 2, 1)
+        elif self.shape_type == 'one_sample_per_dJ_summand':
+            self.shape = (1,)
+
+    def sample(self, key, theta):
+        def _accept_reject(carry, x):
+            key = carry
+            key, *subkeys = jax.random.split(key, num=4)
+
+            if self.proposal_pdf_type == 'cur_policy':
+                proposed_sample = self.policy.sample(subkeys[0], theta, self.shape)
+                proposal_density_val = self.policy.pdf(subkeys[1], theta, proposed_sample)[..., 0]
+            elif self.proposal_pdf_type == 'uniform':
+                minval, maxval = -8.0, 8.0
+                proposed_sample = jax.random.uniform(subkeys[1], shape=self.shape, minval=minval, maxval=maxval)
+                proposal_density_val = (1/(maxval - minval))**(self.action_dim) * jnp.ones(shape=self.shape)
+
+            instrumental_density_val = jnp.exp(self.target_log_prob_fn(proposed_sample))
+
+            u = jax.random.uniform(subkeys[2], shape=self.shape[:-1])
+
+            accepted_matrix = u < (instrumental_density_val / (self.rejection_rate * proposal_density_val))
+
+            return key, (proposed_sample, accepted_matrix)
+
+        key, (proposed_samples, accepted_matrix) = jax.lax.scan(_accept_reject, init=key, xs=None, length=self.batch_size)
+
+        return key, proposed_samples, accepted_matrix
+
+
+
+class FixedNumAcceptedRejectionSampler(BaseRejectionSampler):
+    def __init__(self,
+                 n_iters,
+                 batch_size,
+                 action_dim,
+                 policy,
+                 config):
+        super().__init__(n_iters, batch_size, action_dim, policy, config)
+
+        self.n_distinct_samples_used_buffer = []
+        self.stats = {
+            'n_distinct_samples_used': []
+        }
+
     def cond_fn(self, val):
         _, _, _, _, _, is_sampled_matrix = val
-        return jnp.logical_not(jnp.all(is_sampled_matrix))
+        res = jnp.logical_not(jnp.all(is_sampled_matrix))
+        return res
 
     def body_fn(self, val):
         key, M, theta, samples, n, is_sampled_matrix = val
@@ -137,11 +196,10 @@ class RejectionSampler:
         # run rejection sampling over a batch
         key, *batch_subkeys = jax.random.split(key, num=self.batch_size+1)
         batch_subkeys = jnp.asarray(batch_subkeys)
-        samples, n_distinct = jax.jit(jax.vmap(_accept_reject, (0, None, None), 0))(
+        samples, n_distinct = jax.vmap(_accept_reject, (0, None, None), 0)(
             batch_subkeys, theta, self.rejection_rate)
 
-        # keep in buffer until statistics for current iteration
-        # are updated
+        # keep in buffer until statistics for the current iteration are updated
         self.n_distinct_samples_used_buffer.append(n_distinct[0])
 
         return key, samples, None
@@ -153,7 +211,7 @@ class RejectionSampler:
     def print_report(self, it):
         print(f'Rejection Sampler'
               f' :: Batch={self.batch_size}'
-              f' :: Rej.rate type={self.rejection_rate_type},'
-              f' cur.val.={self.rejection_rate}'
+              f' :: Rej.rate cur.val={self.rejection_rate},'
+              f' sched.type={self.rejection_rate_type}'
               f' :: Proposal pdf={self.config["proposal_pdf_type"]}'
               f' :: # Distinct samples={self.stats["n_distinct_samples_used"][-1]}')

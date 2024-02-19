@@ -152,7 +152,6 @@ class MultivarNormalMLPParametrization(MultivarNormalHKParametrization):
             output = mlp(input)
             mean, cov = output.T
             cov = jax.nn.softplus(cov)
-            cov = jnp.maximum(cov_lower_cap, cov)
             cov = jnp.diag(cov)
             return mean, cov
 
@@ -164,7 +163,7 @@ class MultivarNormalMLPParametrization(MultivarNormalHKParametrization):
 
 
 if __name__ == '__main__':
-
+    # define tests
     def linear_param_test_analytic_derivative_matches_autograd_derivative(action_dim, test_sample_size, cpu):
         """Test that the analytic derivative and the autograd derivative yield consistent results"""
         import pyRDDLGym.PolicyGradient.bijectors
@@ -195,4 +194,5 @@ if __name__ == '__main__':
         print(f'[linear_param_test_analytic_derivative_matches_autograd_derivative] All samples, all coordinates close: {test_result}')
         return test_result
 
+    # run tests
     assert linear_param_test_analytic_derivative_matches_autograd_derivative(action_dim=8, test_sample_size=1000, cpu=True)

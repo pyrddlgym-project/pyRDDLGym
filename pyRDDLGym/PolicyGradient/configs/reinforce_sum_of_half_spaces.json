@@ -15,7 +15,7 @@
         "train_model": {
           "is_relaxed": false,
           "compiler_kwargs": {
-            "n_rollouts": 128
+            "n_rollouts": 36
           }
         },
         "eval_model": {
@@ -33,18 +33,20 @@
   },
   "policy": {
     "id": "multivar_normal_with_linear_parametrization",
-    "params": {}
+    "params": {
+      "cov_lower_cap": 0.00
+    }
   },
   "optimizer": {
-    "id": "adagrad",
+    "id": "adabelief",
     "params": {
-      "learning_rate": 0.7
+      "learning_rate": 0.3
     }
   },
   "algorithm": {
     "id": "reinforce",
     "params": {
-      "batch_size": 1024,
+      "batch_size": 36,
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "verbose": true
