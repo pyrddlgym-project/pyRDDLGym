@@ -15,7 +15,7 @@
         "train_model": {
           "is_relaxed": true,
           "compiler_kwargs": {
-            "n_rollouts": 128,
+            "n_rollouts": 4,
             "weight": 10.0
           }
         },
@@ -38,15 +38,15 @@
     "params": {}
   },
   "optimizer": {
-    "id": "adagrad",
+    "id": "adabelief",
     "params": {
-      "learning_rate": 0.3
+      "learning_rate": 0.1
     }
   },
   "algorithm": {
     "id": "reinforce",
     "params": {
-      "batch_size": 1024,
+      "batch_size": 4,
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "verbose": true

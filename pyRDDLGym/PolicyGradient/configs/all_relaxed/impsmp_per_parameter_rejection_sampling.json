@@ -3,7 +3,7 @@
   "debug_nans": true,
   "enable_jit": true,
   "seed": 3264,
-  "action_dim": 9,
+  "action_dim": 2,
   "n_iters": 50,
   "models": {
     "id": "sum_of_half_spaces",
@@ -45,9 +45,9 @@
     "params": {}
   },
   "optimizer": {
-    "id": "adabelief",
+    "id": "sgd",
     "params": {
-      "learning_rate": 0.9
+      "learning_rate": 0.03
     }
   },
   "algorithm": {
@@ -57,7 +57,7 @@
       "eval_batch_size": 32,
       "epsilon": 0.0,
       "log_cutoff": -1000.0,
-      "importance_weight_ub": 3,
+      "importance_weight_ub": 10000,
       "est_Z": true,
       "sampler": {
         "type": "rejection_sampler",
