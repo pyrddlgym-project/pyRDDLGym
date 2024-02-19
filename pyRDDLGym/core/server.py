@@ -99,7 +99,7 @@ class RDDLSimServer:
         self.send_message(connection, msg)
 
         # initialize round
-        state = self.env.reset()
+        state, _ = self.env.reset()
         round_reward = 0.0
         turn = 1
         msg = self.build_state_msg(state, turn, 0.0)
