@@ -803,7 +803,7 @@ class RDDLSimulator:
                 (sample_def if arg is None else self._sample(arg, subs))
                 for arg in cases
             ])
-            sample_pred = sample_pred[np.newaxis, ...]
+            sample_pred = np.asarray(sample_pred)[np.newaxis, ...]
             sample = np.take_along_axis(sample_cases, sample_pred, axis=0)   
             assert sample.shape[0] == 1
             return sample[0, ...]
