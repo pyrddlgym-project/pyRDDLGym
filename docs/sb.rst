@@ -1,27 +1,139 @@
-Baselines: Reinforcement Learning with Stable Baselines
+pyRDDLGym-rl: Reinforcement Learning
 ===============
 
-While it is not the intended use case of RDDL (being model-free), pyRDDLGym also provides convenience
-wrappers that can work with (deep) RL implementations, notably stable-baselines3.
+pyRDDLGym-rl provides wrappers for deep reinforcement learning algorithms (i.e. Stable Baselines 3 and RLlib) to work with pyRDDLGym.
 
-Simplifying the Action Space
+Requirements
+------------
+This package requires Python 3.8+, ``pyRDDLGym>=2.0`` together with one of
+
+* stable-baselines3>=2.2.1
+* ray[rllib]>=2.9.2
+
+Installing via pip
+-----------------
+
+You can install pyRDDLGym-rl and all of its requirements via pip:
+
+.. code-block:: shell
+
+    pip install stable-baselines3  # need one of these two
+    pip install -U "ray[rllib]"
+    pip install rddlrepository pyRDDLGym-rl
+
+Installing the Pre-Release Version via git
+---------
+.. code-block:: shell
+
+    pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-rl.git
+
+
+Running the Basic Stable Baselines 3 Example
 -------------------
 
-In order to run stable-baselines3 with a pyRDDLGym env, we first need to observe that the default ``gym.spaces.Dict`` action space
-representation in pyRDDLGym environments is not directly compatible with stable-baselines. For example, the DQN implementation
-in stable-baselines3 only accepts environments in which the action space is a ``Discrete`` object.
+To run the stable-baselines3 example, navigate to the install directory of pyRDDLGym-rl, and type:
 
-Thus, pyRDDLGym's ``RDDLEnv`` offers a convenient field ``compact_action_space`` 
-that when set to True, perform simplification automatically when compiling the environment 
-to maximize compatibility with RL implementations such as stable-baselines.
+.. code-block:: shell
+
+    python -m pyRDDLGym_rl.examples.run_stable_baselines <domain> <instance> <method> <steps> <learning_rate>
+
+where:
+
+* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain.rddl file
+* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance.rddl file
+* ``<method>`` is the RL algorithm to use [a2c, ddpg, dqn, ppo, sac, td3]
+* ``<steps>`` is the (optional) number of samples to generate from the environment for training
+* ``<learning_rate>`` is the (optional) learning rate to specify for the algorithm.
+
+Running the Basic RLlib Example
+-------------------
+
+To run the RLlib example, from the install directory of pyRDDLGym-rl, type:
+
+.. code-block:: shell
+
+    python -m pyRDDLGym_rl.examples.run_rllib <domain> <instance> <method> <iters>
+    
+where:
+
+* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain.rddl file
+* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance.rddl file
+* ``<method>`` is the RL algorithm to use [dqn, ppo, sac]
+* ``<iters>`` is the (optional) number of iterations of training.
+
+
+Running Stable Baselines 3 from the Python API
+-------------------
+
+The following example sets up the Stable Baselines 3 PPO algorithm to work with pyRDDLGym:
+
+.. code-block:: python
+	
+	from stable_baselines3 import *	
+	
+    import pyRDDLGym
+    from pyRDDLGym_rl.core.agent import StableBaselinesAgent
+    from pyRDDLGym_rl.core.env import SimplifiedActionRDDLEnv
+   
+    # create the environment
+    env = pyRDDLGym.make("domain", "instance", base_class=SimplifiedActionRDDLEnv)
+    
+    # train the PPO agent (pass additional arguments, such as learning rate, here)
+    agent = PPO('MultiInputPolicy', env, verbose=1)    
+    agent.learn(total_timesteps=steps)
+    
+    # wrap the agent in a RDDL policy and evaluate
+    ppo_agent = StableBaselinesAgent(agent)
+    ppo_agent.evaluate(env, episodes=1, verbose=True, render=True)
+    
+    env.close()
+ 
+Running RLlib from the Python API
+-------------------
+
+The following example sets up the RLlib PPO algorithm to work with pyRDDLGym:
+
+.. code-block:: python
+	
+	from ray.tune.registry import register_env
+    from ray.rllib.algorithms.ppo import PPOConfig
+    
+    import pyRDDLGym
+    from pyRDDLGym_rl.core.agent import RLLibAgent
+    from pyRDDLGym_rl.core.env import SimplifiedActionRDDLEnv
+        
+    # set up the environment
+    def env_creator(cfg):
+        return pyRDDLGym.make(cfg['domain'], cfg['instance'], base_class=SimplifiedActionRDDLEnv)    
+    register_env('RLLibEnv', env_creator)
+	
+	# create agent
+	config = {'domain': "domain", 'instance': "instance"}
+    agent = PPOConfig().environment('RLLibEnv', cfg=config).build()
+    
+    # train agent
+    for _ in range(iters):
+        print(algo.train()['episode_reward_mean'])
+    
+    # wrap the agent in a RDDL policy and evaluate
+    ppo_agent = RLLibAgent(agent)
+    ppo_agent.evaluate(env_creator(config), episodes=1, verbose=True, render=True)
+	
+	env.close()
+	
+The Environment Wrapper
+-------------------
+
+You can use the environment wrapper with your own RL implementations, or a package that is not currently supported by us:
 
 .. code-block:: python
 
-    info = ExampleManager.GetEnvInfo(domain)
-    env = RDDLEnv.RDDLEnv.build(info, instance, compact_action_space=True)
+    import pyRDDLGym
+    from pyRDDLGym_rl.core.env import SimplifiedActionRDDLEnv
+    env = pyRDDLGym.make("domain", "instance", base_class=SimplifiedActionRDDLEnv)
 
-To illustrate, for the built-in MarsRover example, 
-without the ``compact_action_space`` flag set, the action space would be represented as
+The goal of this wrapper is to simplify the action space as much as possible.
+To illustrate, the action space of the MarsRover domain is defined as:
 
 .. code-block:: python
 
@@ -33,7 +145,7 @@ without the ``compact_action_space`` flag set, the action space would be represe
         'harvest___d1': Discrete(2), 'harvest___d2': Discrete(2)
     )
 
-However, with the ``compact_action_space`` flag set, the action space would be simplified to
+However, the action space of the wrapper simplifies to
 
 .. code-block:: python
 
@@ -42,79 +154,23 @@ However, with the ``compact_action_space`` flag set, the action space would be s
         'continuous': Box(-0.1, 0.1, (4,), float32)
     )
 
-where the discrete and continuous action variable components will be automatically aggregated.
+where the discrete and continuous action variable components have been aggregated.
 Actions provided to the environment must therefore follow this form, i.e. must be a dictionary
 with the discrete field is assigned a (2,) array of integer type, and the continuous field is assigned
 a (4,) array of float type.
 
 .. note::
-   When ``compact_action_space`` is set to True, the ``vectorized`` option is required 
-   and is automatically set to True (see Tensor Representation section in Getting Started section). 
+   The ``vectorized`` option is required by the wrapper and is automatically set to True. 
 
 .. warning::
    The action simplification rules apply ``max-nondef-actions`` only to boolean actions, 
    and assume this value is either 1 or greater than or equal to the total number of boolean actions.
-   Any other scenario is currently not supported in pyRDDLGym and will raise an exception.
+   Any other scenario is currently not supported in pyRDDLGym-rl and will raise an exception.
    
-Running Stable Baselines
--------------------
-
-By fixing the action space as described above, most pyRDDLGym environments can be used directly
-in stable-baselines3 RL implementations without considerable modification to the workflow.
-For example, the following code example trains a PPO on a domain and 
-instance of one's choosing (assuming the action space simplifies to a ``Discrete``):
-
-.. code-block:: python
-
-    from pyRDDLGym import ExampleManager, RDDLEnv
-    from stable_baselines3 import PPO
-    
-    # build the environment
-    info = ExampleManager.GetEnvInfo(domain)
-    env = RDDLEnv.RDDLEnv.build(info, instance, new_gym_api=True, compact_action_space=True)
-    
-    # train the agent
-    model = PPO('MultiInputPolicy', env, ...)
-    model.learn(total_timesteps=40000)
-
-.. note::
-   The ``new_gym_api`` flag must be set, since the stable-baselines implementation requires the new gym API.
-
-The trained RL agent could then be wrapped in a ``BaseAgent`` class, so the ``evaluate()`` function becomes available.
-Below is a complete worked example for solving CartPole using PPO. 
-Note the ``use_tensor_obs`` is required since the environment is vectorized.
-
-.. code-block:: python
-    
-    from stable_baselines3 import PPO
-    from pyRDDLGym.Core.Env.RDDLEnv import RDDLEnv
-    from pyRDDLGym.Core.Policies.Agents import BaseAgent
-    from pyRDDLGym.Examples.ExampleManager import ExampleManager
-
-    # set up the environment
-    info = ExampleManager.GetEnvInfo('CartPole_discrete')    
-    env = RDDLEnv.build(info, 0, new_gym_api=True, compact_action_space=True)
-    
-    # train the PPO agent
-    model = PPO('MultiInputPolicy', env, verbose=1)
-    model.learn(total_timesteps=40000)
-    
-    # wrapper to hold trained PPO agent
-    class PPOAgent(BaseAgent):
-        use_tensor_obs = True
-        
-        def sample_action(self, state):
-            return model.predict(state)[0]
-            
-    # evaluate
-    PPOAgent().evaluate(env, episodes=1, verbose=True, render=True)
-    env.close()
-
-
 Limitations
 -------------------
 
-We cite several limitations of using stable-baselines in pyRDDLGym:
+We cite several limitations of pyRDDLGym-rl:
 
-* The required action space in the stable-baselines agent implementation must be compatible with the action space produced by pyRDDLGym
+* The required action space in the stable-baselines/RLlib agent implementation must be compatible with the action space produced by pyRDDLGym (e.g. DQN only handles Discrete spaces)
 * Only special types of constraints on boolean actions are supported (as described above).
