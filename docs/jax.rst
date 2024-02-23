@@ -50,7 +50,7 @@ This is designed to be interchangeable with the default backend, so the numerica
    All RDDL syntax (both new and old) is supported in the RDDL-to-JAX compiler.
 
 
-Differentiable Planning
+Differentiable Planning: Deterministic Domains
 -------------------
 
 The planning problem for a deterministic environment involves finding actions 
@@ -84,6 +84,43 @@ One solution is to recompute the plan periodically or after each decision epoch,
 An alternative approach to replanning is to learn a policy network 
 :math:`a_t \gets \pi_\theta(s_t)` that maps the states to actions, such as a feed-forward neural network
 as explained `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
+
+
+Differentiable Planning: Stochastic Domains
+-------------------
+
+A common problem of planning in stochastic domains is that the gradients are no longer well-defined.
+pyRDDLGym-jax works around this problem by using the reparameterization trick.
+
+To illustrate, we can write :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
+although the latter is amenable to backpropagation while the first is not. 
+
+The reparameterization trick also works generally, assuming there exists a closed-form function f such that
+
+.. math::
+
+    s_{t+1} = f(s_t, a_t, \xi_t)
+    
+and :math:`\xi_t` are random variables drawn from some distribution independent of states or actions. 
+For a detailed discussion of reparameterization in the context of planning, 
+please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
+or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
+
+pyRDDLGym-jax automatically performs reparameterization whenever possible. For some special cases,
+such as the Bernoulli and Discrete distribution, it applies the Gumbel-softmax trick 
+as described `in this paper <https://arxiv.org/pdf/1611.01144.pdf>`_. 
+Defining K independent samples from a standard Gumbel distribution :math:`g_1, \dots g_K`, we reparameterize the 
+random variable :math:`X` with probability mass function :math:`p_1, \dots p_K` as
+
+.. math::
+
+    X = \arg\!\max_{i=1\dots K} \left(g_i + \log p_i \right)
+
+where the argmax is approximated using the softmax function.
+
+.. warning::
+   For general non-reparameterizable distributions, the result of the gradient calculation 
+   is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
 
 Differentiable Planning with JAX
@@ -228,8 +265,8 @@ The syntax for specifying optional box constraints in the ``[Optimizer]`` sectio
 
 .. code-block:: shell
 	
-	[Optimizer]
-	...
+    [Optimizer]
+    ...
     action_bounds={ <action_name1>: (lower1, upper1), <action_name2>: (lower2, upper2), ... }
    
 where ``lower#`` and ``upper#`` can be any list or nested list.
@@ -345,8 +382,8 @@ The key hyper-parameters can be tuned as follows:
                                    num_workers=workers,
                                    gp_iters=iters)
 
-	# tune and report the best hyper-parameters found
-	best = tuning.tune(key=key, filename="/path/to/log.csv")
+    # tune and report the best hyper-parameters found
+    best = tuning.tune(key=key, filename="/path/to/log.csv")
     print(f'best parameters found: {best}')
     
 The ``__init__`` method requires the ``num_workers`` parameter to specify the 
@@ -359,42 +396,6 @@ A log of the previous sets of hyper-parameters suggested by the algorithm is als
 Policy networks and replanning can be tuned by replacing ``JaxParameterTuningSLP`` with 
 ``JaxParameterTuningDRP`` and ``JaxParameterTuningSLPReplan``, respectively. 
 This will also tune the architecture (number of neurons, layers) of the policy network and the ``rollout_horizon`` for replanning.
-
-
-Reparameterizing Stochastic Transitions
--------------------
-
-A common problem of planning in stochastic domains is that the gradients are no longer well-defined.
-pyRDDLGym-jax works around this problem by using the reparameterization trick.
-
-To illustrate, we can write :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
-although the latter is amenable to backpropagation while the first is not. 
-The reparameterization trick also works generally, assuming there exists a closed-form function f such that
-
-.. math::
-
-    s_{t+1} = f(s_t, a_t, \xi_t)
-    
-and :math:`\xi_t` are random variables drawn from some distribution independent of states or actions. 
-For a detailed discussion of reparameterization in the context of planning, 
-please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
-or `this one <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
-
-pyRDDLGym-jax automatically performs reparameterization whenever possible. For some special cases,
-such as the Bernoulli and Discrete distribution, it applies the Gumbel-softmax trick 
-as described `in this paper <https://arxiv.org/pdf/1611.01144.pdf>`_. 
-Defining K independent samples from a standard Gumbel distribution :math:`g_1, \dots g_K`, we reparameterize the 
-random variable :math:`X` with probability mass function :math:`p_1, \dots p_K` as
-
-.. math::
-
-    X = \arg\!\max_{i=1\dots K} \left(g_i + \log p_i \right)
-
-where the argmax is approximated using the softmax function.
-
-.. warning::
-   For general non-reparameterizable distributions, the result of the gradient calculation 
-   is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
 
 Dealing with Non-Differentiable Expressions
@@ -418,7 +419,7 @@ and logical expressions such as ``and`` and ``or`` do not have obvious derivativ
 To complicate matters further, the ``if`` statement depends on both ``x`` and ``y`` 
 so it does not have partial derivatives with respect to ``x`` nor ``y``.
 
-``JaxRDDLBackpropPlanner`` works around these limitations by approximating such operations with JAX expressions that support derivatives.
+pyRDDLGym-jax works around these limitations by approximating such operations with JAX expressions that support derivatives.
 For instance, the ``classify`` function above could be implemented as follows:
  
 .. code-block:: python
@@ -452,8 +453,8 @@ to approximate the logical operations, the standard complement :math:`\sim a \ap
 sigmoid approximations for other relational and functional operations.
 
 The latter introduces model hyper-parameters :math:`w`, which control the "sharpness" of the operation.
-Higher values mean the approximation approaches its exact counterpart, 
-at the cost of sparse and possibly numerically unstable gradients. 
+Higher values mean the approximation approaches its exact counterpart, at the cost of sparse and possibly numerically unstable gradients. 
+
 These can be retrieved and modified at run-time, such as during optimization, as follows:
 
 .. code-block:: python
