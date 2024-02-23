@@ -9,8 +9,8 @@ These can be accessed through the ``model`` field of a ``RDDLEnv``:
 
 .. code-block:: python
 	
-    info = ExampleManager.GetEnvInfo('MarsRover')
-    env = RDDLEnv.RDDLEnv.build(info, 0)
+    import pyRDDLGym
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0")
     model = env.model
 
 Below are some commonly used fields of ``model`` that can be accessed directly.
@@ -31,17 +31,19 @@ Below are some commonly used fields of ``model`` that can be accessed directly.
      - dict of pvariable types (e.g. non-fluent, ...) for each variable
    * - ``variable_ranges``
      - dict of pvariable ranges (e.g. real, ...) for each variable
-   * - ``objects``
+   * - ``variable_params``
+     - dict of parameters and their types for each variable
+   * - ``type_to_objects``
      - dict of all defined objects for each type
-   * - ``nonfluents``
+   * - ``non_fluents``
      - dict of initial values for each non-fluent
-   * - ``states``
+   * - ``state_fluents``
      - dict of initial values for each state-fluent
-   * - ``actions``
+   * - ``action_fluents``
      - dict of default values for each action-fluent
-   * - ``interm``
+   * - ``interm_fluents``
      - dict of initial values for each interm-fluent
-   * - ``observ``
+   * - ``observ_fluents``
      - dict of initial values for each observ-fluent
    * - ``cpfs``
      - dict of ``Expression`` objects for each cpf
@@ -52,20 +54,16 @@ Below are some commonly used fields of ``model`` that can be accessed directly.
    * - ``invariants``
      - list of ``Expression`` objects for each state-invariant
 
-``Expression`` objects are symbolic syntax trees that describe the flow of computations
-in each cpf, constraint relation, or the reward function of the RDDL domain.
-
-The ``args()`` function of an ``Expression`` object provides its sub-expressions, 
-which can be ``Expression`` instances or collections containing aggregation variables,
-types, or other information required by the engine. 
-
-Similarly, the ``etype()`` argument provides identifying information about the expression.
+``Expression`` objects are abstract syntax trees that describe the flow of computations
+in each cpf, constraint relation, or the reward function of the RDDL domain:
+- the ``etype()`` function provides basic information about the expression, such as its type
+- the ``args()`` function provides its sub-expressions, which consists of other ``Expression`` objects, aggregation variables, or other information required by the engine.
 
 Grounded vs Lifted Representation
 ------
 
-By default, pyRDDLGym works directly from the (lifted) domain description as written in the 
-domain description. Parameterized variables (p-variables) are represented internally as numpy arrays,
+By default, pyRDDLGym works directly from the (lifted) domain description. 
+Parameterized variables (p-variables) are represented internally as numpy arrays,
 whose values are propagated in a vectorized manner through mathematical expressions.
 
 However, sometimes it is required to work with the grounded representation. For example, 
@@ -90,29 +88,11 @@ pyRDDLGym provides a convenient class for producing a grounded model from a lift
 
 .. code-block:: python
     
-    from pyRDDLGym.Core.Grounder.RDDLGrounder import RDDLGrounder
-    grounded_model = RDDLGrounder(env.model._AST).Ground()
+    from pyRDDLGym.core.grounder import RDDLGrounder
+    grounded = RDDLGrounder(env.model._AST).ground()
 
-
-New vs Old API
-------
-
-The new and old Gym APIs return ``env.step()`` and ``env.reset()`` in slightly different 
-format. This can cause problems when passing the environment to some third-party packages. 
-
-For example, the new API output of ``step()`` produces a tuple ``state, reward, done, fail, info``
-where ``fail`` determines if the agent is out of bounds or failed the episode. Similarly, ``reset()`` in the 
-new API produces ``state, info``. The old API did not produce the ``fail`` information.
-
-pyRDDLGym offers a convenient flag to switch between the old and the new API:
-
-.. code-block:: python
-
-    info = ExampleManager.GetEnvInfo(domain)
-    env = RDDLEnv.RDDLEnv.build(info, instance, new_gym_api=True)
-
-pyRDDLGym computes the auxiliary ``fail`` information by evaluating whether the state invariants
-are satisfied in the current state.
+The ``grounded`` object returned is also an environment model, 
+so the properties discussed in the table at the top of the page work interchangeably with grounded and lifted models.
 
 Tensor Representation
 -------------------
@@ -123,28 +103,28 @@ to work directly with the tensor representations of state and action fluents.
 
 For example, a ``bool`` action fluent ``put-out(?x, ?y)`` taking two parameters 
 ``?x`` and ``?y``, with 3 objects each, would be provided as a boolean-valued 
-3-by-3 matrix. State fluents also follow this format.
+3-by-3 matrix, and state fluents are returned in a similar format.
 
 This option can be enabled as follows:
 
 .. code-block:: python
-
-    info = ExampleManager.GetEnvInfo(domain)
-    env = RDDLEnv.RDDLEnv.build(info, instance, vectorized=True)
+	
+    import pyRDDLGym
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", vectorized=True)
 
 With this option enabled, the bounds of the ``observation_space`` and ``action_space`` 
-of the environment are instances of ``gym.spaces.Box`` with the correct shape and dtype.
+of the environment are instances of ``gymnasium.spaces.Box`` with the correct shape and dtype.
 
 Building a Custom Visualizer
 -------------
 
 In order to build custom visualizations (for new user defined domains), 
-inherit the class ``Visualizer.StateViz.StateViz()`` and override the 
-``visualizer.render()`` function to produce a PIL image to render to the screen:
+inherit the class ``pyRDDLGym.core.viz.BaseViz`` and override the 
+``render()`` function to produce a PIL image to render to the screen:
 
 .. code-block:: python
 
-    class MyDomainViz(StateViz)
+    class MyDomainViz(BaseViz)
         # here goes the visualization implementation
 
     env.set_visualizer(MyDomainViz)
@@ -163,7 +143,8 @@ or diagnosis:
 
 .. code-block:: python
 	
-	env = RDDLEnv.RDDLEnv.build(info, instance, debug=True)
+    import pyRDDLGym
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", debug=True)
 
 A log file will be created with the name <domain name>_<instance name>.log in the installation's root directory.
 
@@ -174,4 +155,3 @@ Currently, the following information is logged:
 * calculated order of evaluation of CPFs
 * information used by the simulator for operating on pvariables stored as arrays
 * simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
-* for JAX compilation, also prints the JAX compiled expressions corresponding to CPFs, reward and constraint expressions.
