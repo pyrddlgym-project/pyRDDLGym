@@ -15,7 +15,7 @@ To initialize a built-in environment from rddlrepository
 where "Cartpole_Continuous_gym" is the name of the domain and "0" is the name of the instance.
 ``**other_kwargs`` is an optional set of keyword arguments that can be passed to the environment.
 
-Initializing Environments from RDDL Description Files
+Initializing Environments from RDDL Files
 -------------------
 
 To initialize an environment from RDDL description files stored on the file system:

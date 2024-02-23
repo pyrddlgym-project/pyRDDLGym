@@ -1,4 +1,4 @@
-Managing Existing Problems using rddlrepository
+Managing Problems using rddlrepository
 ===============
 
 The rddlrepository is a growing collection of RDDL domain and instance description files. 

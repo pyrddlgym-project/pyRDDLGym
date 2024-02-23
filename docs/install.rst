@@ -33,7 +33,7 @@ We recommend installing under a conda virtual environment:
     conda activate rddl
     pip install pyrddlgym rddlrepository
 
-Installing the pre-release version via git
+Installing the Pre-Release Version via git
 ---------
 .. code-block:: shell
 

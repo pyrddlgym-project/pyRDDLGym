@@ -64,6 +64,7 @@ Please see our `paper <https://arxiv.org/abs/2211.05939>`_ describing pyRDDLGym.
 
 Contributors
 ------------
+- Ayal Taitler (University of Toronto, CA)
 - Michael Gimelfarb (University of Toronto, CA)
 - Sriram Gopalakrishnan (Arizona State University/J.P. Morgan, USA)
 - Martin Mladenov (Google, BR)

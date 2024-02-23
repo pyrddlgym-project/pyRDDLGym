@@ -1,10 +1,10 @@
-pyRDDLGym-prost: The PROST Planner
+pyRDDLGym-prost: PROST Planner
 ===============
 
-The PROST planner, introduced `in this paper 
-<https://ai.dmi.unibas.ch/papers/keller-eyerich-icaps2012.pdf>`_, works well for 
-stochastic problems with finite action spaces. It uses a Monte-Carlo UCT search 
-that is heavily informed by the RDDL problem structure in order to improve the search.
+The PROST planner is based on Monte-Carlo UCT search, but is heavily informed by 
+the RDDL problem structure in order to improve the search. It is described `in this paper 
+<https://ai.dmi.unibas.ch/papers/keller-eyerich-icaps2012.pdf>`_, and it works well for 
+stochastic problems with finite action spaces.
 
 Installation
 -------------------
@@ -20,6 +20,7 @@ Here, it is assumed that ``/path/to/dockerfiles`` is a valid path on the file sy
 where the project files will be cloned into. 
 
 When you run this command, you will find:
+
 * a ``Dockerfile`` that instructs Docker how to build the image with all the dependencies
 * ``prost.sh`` file that calls PROST from the command line
 * ``rddlsim.py`` file that runs ``prost.sh`` from Python

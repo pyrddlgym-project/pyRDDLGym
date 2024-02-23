@@ -23,6 +23,23 @@ You can install pyRDDLGym-gurobi and all of its requirements via pip:
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-gurobi
 
 
+Running the Basic Example
+-------------------
+
+The basic example provided in pyRDDLGym-gurobi will run the Gurobi planner on a 
+domain and instance of your choosing. To run this, navigate to the install directory of pyRDDLGym-gurobi, and run:
+
+.. code-block:: shell
+
+    python -m pyRDDLGym_gurobi.examples.run_plan <domain> <instance> <horizon>
+
+where:
+
+* ``<domain>`` is the domain identifier as specified in rddlrepository, or a path pointing to a valid domain.rddl file
+* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance.rddl file
+* ``<horizon>`` is the lookahead horizon used by the planner.
+
+
 Running from the Python API
 -------------------
 
