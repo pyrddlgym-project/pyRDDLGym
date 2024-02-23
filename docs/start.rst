@@ -1,59 +1,35 @@
 Getting Started
 ===============
 
-Initializing Environments
+Initializing Built-In Environments
 -------------------
 
-Initializing environments in pyRDDLGym is done by instantiating a ``RDDEnv`` object:
+To initialize a built-in environment from rddlrepository 
+(you must have it installed, i.e. ``pip install rddlrepository``):
 
 .. code-block:: python
 
-    from pyRDDLGym import RDDLEnv
-    env = RDDLEnv.RDDLEnv(domain="domain.rddl", instance='instance.rddl')
+    import pyRDDLGym
+	env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", **other_kwargs)
 
-where ``domain.rddl`` and ``instance.rddl`` are paths pointing to RDDL files of your choosing.
+where "Cartpole_Continuous_gym" is the name of the domain and "0" is the name of the instance.
+``**other_kwargs`` is an optional set of keyword arguments that can be passed to the environment.
+
+Initializing Environments from RDDL Description Files
+-------------------
+
+To initialize an environment from RDDL description files stored on the file system:
+
+.. code-block:: python
+
+    import pyRDDLGym
+	env = pyRDDLGym.make("/path/to/domain.rddl", "/path/to/instance.rddl")
+
+where both arguments must be valid file paths to domain and instance RDDL description files.
 
 .. note::
-   ``RDDLEnv`` objects are instances of ``gym.Env``, and can thus be used in 
-   most workflows where gym environments are required.
-
-Built-in Environments
------------------
-
-pyRDDLGym ships with the RDDL files for many interesting domains and accompanying instances.
-These domains and instances can be accessed through the ``ExampleManager``. 
-
-For example, to list all domains currently packaged with pyRDDLGym:
-
-.. code-block:: python
-
-    from pyRDDLGym import ExampleManager
-    ExampleManager.ListExamples()
-
-To request more info about a domain:
-
-.. code-block:: python
-
-    info = ExampleManager.GetEnvInfo("domain-name")
-
-To then list all instances of a domain:
-
-.. code-block:: python
-
-    info.list_instances()
-
-To then set up a Gym environment with the default visualizer:
-
-.. code-block:: python
-
-    env = RDDLEnv.RDDLEnv(domain=info.get_domain(), instance=info.get_instance(0))
-    env.set_visualizer(info.get_visualizer())
-
-Alternatively:
-
-.. code-block:: python
-
-    env = RDDLEnv.RDDLEnv.build(info, instance, **other_kwargs)
+   ``make()`` returns an object of type ``RDDLEnv``, which is also a ``gymnasium.Env``, and can thus be used in 
+   most workflows where gym or gymnasium environments are required.
 
 Policies
 ----------------------------
@@ -69,7 +45,7 @@ For example, to initialize a random policy:
 
 .. code-block:: python
 
-    from Policies.Agents import RandomAgent
+    from pyRDDLgym.core.policy import RandomAgent
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
 
 All policies must implement a ``sample_action`` function for sampling an
@@ -88,7 +64,7 @@ Interacting with an Environment
 ----------------------------
 
 Interaction with an environment is done by calling ``env.step()`` 
-and ``env.reset()``, just like regular Gym.
+and ``env.reset()``, just like regular Gym/Gymnasium.
 
 All fluent values are passed and received as Python ``dict`` objects,
 whose keys are valid fluent names as defined in the RDDL domain description.
@@ -105,34 +81,33 @@ list of objects separated by ``__`` (2 underscores). To illustrate, for the flue
    as specified in the RDDL domain description.
 
 Now lets see what a complete agent-environment loop looks like in pyRDDLGym.
-The example below will run the ``MarsRover`` environment for a single episode/trial.
+The example below will run the ``Cartpole_Continuous_gym`` environment for a single episode/trial.
 The ``env.render()`` function displays a pop-up window rendering the current state to the screen:
 
 .. code-block:: python
 
-    from pyRDDLGym import RDDLEnv
-    from pyRDDLGym import ExampleManager
-    from pyRDDLGym.Core.Policies.Agents import RandomAgent
+    import pyRDDLGym
+    from pyRDDLGym.core.policy import RandomAgent
 
     # set up the Mars Rover instance 0
-    info = ExampleManager.GetEnvInfo('MarsRover')
-    env = RDDLEnv.RDDLEnv.build(info, 0)
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0")
     
     # set up a random policy
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
     
     # perform a roll-out from the initial state
     total_reward = 0
-    state = env.reset()
-    for _ in range(env.horizon):
-          env.render()
-          action = agent.sample_action(state)
-          next_state, reward, done, _ = env.step(action)
-          total_reward += reward
-          state = next_state
-          if done:
-                break
-    env.close()
+    state, _ = env.reset()
+    for step in range(env.horizon):
+        env.render()
+        action = agent.sample_action(state)
+        next_state, reward, terminated, truncated, _ = env.step(action)
+        print(f'state = {state}, action = {action}, reward = {reward}')
+        total_reward += reward
+        state = next_state
+        if terminated or truncated:
+            break
+    print(f'episode ended with reward {total_reward}')
 
 Alternatively, the ``evaluate()`` bypasses the need to write out the ``for`` loop above:
 
@@ -146,16 +121,16 @@ total rewards collected across episodes, such as mean, median, standard deviatio
 Exception Handling
 ------
 
-By default, ``evaluate()`` will raise an exception if a numerical error occurs during an intermediate calculation,
+By default, ``evaluate()`` will not raise an exception if a numerical error occurs during an intermediate calculation,
 such as divide by zero or under/overflow. This behavior can be controlled through numpy. 
 
-For example, if you wish to suppress all errors, you can add the following lines
+For example, if you wish to raise all errors, you can add the following lines
 before calling ``evaluate()``:
 
 .. code-block:: python
 
     import numpy as np
-    np.seterror(all='ignore')
+    np.seterror(all='raise')
 
 More details about controlling error handling behavior can be found 
 `here <https://numpy.org/doc/stable/reference/generated/numpy.seterr.html>`_.
@@ -171,9 +146,9 @@ More details about controlling error handling behavior can be found
 Spaces
 ------
 
-The state and action spaces of a ``RDDLEnv`` are standard ``gym.spaces`` and are
+The state and action spaces of a ``RDDLEnv`` are standard ``gymnasium.spaces`` and are
 accessible via ``env.state_space`` and ``env.action_space``, respectively.
-In most cases, state and action spaces are ``gym.spaces.Dict`` objects, whose key-value pairs
+In most cases, state and action spaces are ``gymnasium.spaces.Dict`` objects, whose key-value pairs
 are fluent names and their current values.
 
 To compute bounds on RDDL fluents, pyRDDLGym analyzes the 
@@ -185,7 +160,7 @@ For box constraints, the conversion happens as follows:
 - bool -> ``Discrete(2)``
 
 .. note::
-   Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gym.
+   Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gymnasium.
    If no valid box bounds for a fluent are available, they are set to ``[-np.inf, np.inf]``
 
 Visualization
@@ -195,25 +170,31 @@ Every domain has a default visualizer assigned to it, which is either a graphica
 ``ChartVisualizer`` that plots the state trajectory over time, or a custom domain-dependent implementation.
 
 Assigning a visualizer for an environment can be done by calling 
-``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object.
+``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object (or a string identifier).
 
-For example, to assign the ``ChartVisualizer``:
+For example, to assign the ``ChartVisualizer`` or the ``HeatmapVisualizer``, 
+which use line charts or heatmaps to track the state across time:
 
 .. code-block:: python
 
-    from pyRDDLGym.Visualizer.ChartViz import ChartVisualizer
-    env.set_visualizer(ChartVisualizer)
+    env.set_visualizer("chart")
+    env.set_visualizer("heatmap")
 
 To assign the ``TextVisualizer``, which produces a textual representation of the 
 state similar to the standard console output:
 
 .. code-block:: python
 
-    from pyRDDLGym.Visualizer.TextViz import TextVisualizer
-    env.set_visualizer(TextVisualizer)
+    env.set_visualizer("text")
+
+To assign a custom visualizer object ``MyVizClass`` that implements a valid ``render(state)`` method,
+
+.. code-block:: python
+
+    env.set_visualizer(MyVizClass)
 
 All visualizers can be activated in an environment by calling ``env.render()``
-on each call to ``env.step()`` or ``env.reset()``, just like regular Gym.
+on each call to ``env.step()`` or ``env.reset()``, just like regular Gym/Gymnasium.
 
 Recording Movies
 --------------------------
@@ -222,19 +203,9 @@ A ``MovieGenerator`` class is provided to capture videos of the environment inte
 
 .. code-block:: python
     
-    from pyRDDLGym import RDDLEnv
-    from pyRDDLGym import ExampleManager
-    from pyRDDLGym.Visualizer.MovieGenerator import MovieGenerator
-
-    # set up the environment
-    info = ExampleManager.GetEnvInfo('MarsRover')
-    env = RDDLEnv.RDDLEnv.build(info, 0)
-	
-    # set up the movie generator
-    movie_gen = MovieGenerator('myFilePath', 'myEnvName', max_frames=1000)
-    
-    # set up the environment visualizer, passing a movie generator to capture frames
-    env.set_visualizer(info.get_visualizer(), movie_gen=movie_gen)
+    from pyRDDLGym.core.visualizer.movie import MovieGenerator
+	recorder = MovieGenerator("/path/to/save", "env_name")
+	env.set_visualizer(VizClass, movie_gen=recorder)
 
 Upon calling ``env.close()``, the images captured will be combined into video format and saved to the desired path.
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
@@ -253,7 +224,7 @@ readable CSV file for later analysis:
 
 .. code-block:: python
 	
-	env = RDDLEnv.RDDLEnv.build(info, instance, log_path='path/to/file.csv')
+	env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", log_path="path/to/output.csv")
                             
 Upon interacting with the environment, pyRDDLGym appends the new observations to the log file at the
 specified path. Logging continues until ``env.close()`` is called.
