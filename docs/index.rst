@@ -13,6 +13,7 @@ Welcome to pyRDDLGym's documentation!
     install
     start
     start2
+    rddlrepo
     jax
     gurobi
     prost
