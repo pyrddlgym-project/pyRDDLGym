@@ -31,6 +31,9 @@ where both arguments must be valid file paths to domain and instance RDDL descri
    ``make()`` returns an object of type ``RDDLEnv``, which is also a ``gymnasium.Env``, and can thus be used in 
    most workflows where gym or gymnasium environments are required.
 
+Writing new domains and instances is as easy as writing a few lines of text in a mathematical fashion!
+The complete and up-to-date syntax of the RDDL language is described here: :ref:`rddl-description`.
+
 Policies
 ----------------------------
 
@@ -219,13 +222,3 @@ readable CSV file for later analysis:
                             
 Upon interacting with the environment, pyRDDLGym appends the new observations to the log file at the
 specified path. Logging continues until ``env.close()`` is called.
-
-Writing Custom Domains
---------------------------
-
-Writing new domains is as easy as writing a few lines of text in a mathematical fashion!
-It is only required to specify two ``.rddl`` files, one containing the lifted domain description,
-and another containing the instance specification, and pointing the ``RDDLEnv`` initialization
-to these two files as discussed at the beginning of this page.
-
-The syntax required for building RDDL domains is described here: :ref:`rddl-description`.
