@@ -59,7 +59,7 @@ in each cpf, constraint relation, or the reward function of the RDDL domain:
 - the ``etype()`` function provides basic information about the expression, such as its type
 - the ``args()`` function provides its sub-expressions, which consists of other ``Expression`` objects, aggregation variables, or other information required by the engine.
 
-Grounded vs Lifted Representation
+Grounding a Domain
 ------
 
 By default, pyRDDLGym works directly from the (lifted) domain description. 
@@ -94,10 +94,10 @@ pyRDDLGym provides a convenient class for producing a grounded model from a lift
 The ``grounded`` object returned is also an environment model, 
 so the properties discussed in the table at the top of the page work interchangeably with grounded and lifted models.
 
-Tensor Representation
+Vectorized Input/Output
 -------------------
 
-Some algorithms require a tensor representation of states and/or actions. 
+Some algorithms require a vectorized representation of states and/or actions. 
 The ``RDDLEnv`` class provides a ``vectorized`` option
 to work directly with the tensor representations of state and action fluents. 
 
@@ -115,26 +115,39 @@ This option can be enabled as follows:
 With this option enabled, the bounds of the ``observation_space`` and ``action_space`` 
 of the environment are instances of ``gymnasium.spaces.Box`` with the correct shape and dtype.
 
-Building a Custom Visualizer
--------------
+Exception Handling
+------
 
-In order to build custom visualizations (for new user defined domains), 
-inherit the class ``pyRDDLGym.core.viz.BaseViz`` and override the 
-``render()`` function to produce a PIL image to render to the screen:
+By default, ``evaluate()`` will not raise errors if action preconditions or state invariants are violated.
+State invariant violations are stored in the ``truncated`` field returned by ``env.step()``. If you wish to enforce action
+constraints, simply initialize your environment like this:
+
+.. code-block:: python
+	
+    import pyRDDLGym
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", enforce_action_constraints=True)
+
+By default, ``evaluate()`` will not raise an exception if a numerical error occurs during an intermediate calculation,
+such as divide by zero or under/overflow. This behavior can be controlled through numpy. 
+
+For example, if you wish to raise/catch all numerical errors, you can add the following lines
+before calling ``env.evaluate()``:
 
 .. code-block:: python
 
-    class MyDomainViz(BaseViz)
-        # here goes the visualization implementation
+    import numpy as np
+    np.seterror(all='raise')
 
-    env.set_visualizer(MyDomainViz)
+More details about controlling error handling behavior can be found 
+`here <https://numpy.org/doc/stable/reference/generated/numpy.seterr.html>`_.
 
 .. warning::
-   The visualizer argument in ``set_visualizer`` should not contain the customary 
-   ``()`` when initializing the visualizer object, since this is done internally.
-   So, instead of writing ``env.set_visualizer(MyDomainViz(**MyArgs))``, write 
-   ``env.set_visualizer(MyDomainViz, viz_kwargs=MyArgs)``.
-  
+   Currently, branched error handling in operations such as ``if`` and ``switch`` 
+   is incompatible with vectorized computation. To illustrate, an expression like
+   ``if (pvar(?x) == 0) then default(?x) else 1.0 / pvar(?x)`` will evaluate ``1.0 / pvar(?x)`` first
+   for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
+   for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
+
 Logging Debug Data
 --------------------------
 

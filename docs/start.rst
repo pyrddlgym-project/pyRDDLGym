@@ -118,31 +118,6 @@ Alternatively, the ``evaluate()`` bypasses the need to write out the ``for`` loo
 The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
 total rewards collected across episodes, such as mean, median, standard deviation, etc.
 
-Exception Handling
-------
-
-By default, ``evaluate()`` will not raise an exception if a numerical error occurs during an intermediate calculation,
-such as divide by zero or under/overflow. This behavior can be controlled through numpy. 
-
-For example, if you wish to raise all errors, you can add the following lines
-before calling ``evaluate()``:
-
-.. code-block:: python
-
-    import numpy as np
-    np.seterror(all='raise')
-
-More details about controlling error handling behavior can be found 
-`here <https://numpy.org/doc/stable/reference/generated/numpy.seterr.html>`_.
-
-.. warning::
-   Currently, branched error handling in operations such as ``if`` and ``switch`` 
-   is incompatible with vectorized computation. To illustrate, an expression like
-   ``if (pvar(?x) == 0) then default(?x) else 1.0 / pvar(?x)`` will evaluate ``1.0 / pvar(?x)`` first
-   for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
-   for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
-
-
 Spaces
 ------
 
@@ -163,7 +138,7 @@ For box constraints, the conversion happens as follows:
    Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gymnasium.
    If no valid box bounds for a fluent are available, they are set to ``[-np.inf, np.inf]``
 
-Visualization
+Using Built-In Visualizers
 -------------
 
 Every domain has a default visualizer assigned to it, which is either a graphical 
@@ -187,11 +162,27 @@ state similar to the standard console output:
 
     env.set_visualizer("text")
 
-To assign a custom visualizer object ``MyVizClass`` that implements a valid ``render(state)`` method,
+Using a Custom Visualizer
+-------------
+
+To assign a custom visualizer object ``MyDomainViz`` that implements a valid ``render(state)`` method,
 
 .. code-block:: python
 
-    env.set_visualizer(MyVizClass)
+    from pyRDDLGym.core.visualizer.viz import BaseViz 
+
+    class MyDomainViz(BaseViz)
+        # here goes the visualization implementation
+        def render(self, state):
+            ...
+
+    env.set_visualizer(MyDomainViz)
+
+.. warning::
+   The visualizer argument in ``set_visualizer`` should not contain the customary 
+   ``()`` when initializing the visualizer object, since this is done internally.
+   So, instead of writing ``env.set_visualizer(MyDomainViz(**MyArgs))``, write 
+   ``env.set_visualizer(MyDomainViz, viz_kwargs=MyArgs)``.
 
 All visualizers can be activated in an environment by calling ``env.render()``
 on each call to ``env.step()`` or ``env.reset()``, just like regular Gym/Gymnasium.
@@ -224,7 +215,7 @@ readable CSV file for later analysis:
 
 .. code-block:: python
 	
-	env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", log_path="path/to/output.csv")
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", log_path="path/to/output.csv")
                             
 Upon interacting with the environment, pyRDDLGym appends the new observations to the log file at the
 specified path. Logging continues until ``env.close()`` is called.
