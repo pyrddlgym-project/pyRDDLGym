@@ -1,4 +1,4 @@
-Going into Details
+Getting Started: Advanced Tools
 ===============
 
 Inspecting the Model
