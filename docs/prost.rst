@@ -6,35 +6,6 @@ The PROST planner, introduced `in this paper
 stochastic problems with finite action spaces. It uses a Monte-Carlo UCT search 
 that is heavily informed by the problem structure in order to improve the search.
 
-The RDDLSimAgent Class
--------------------
-
-PROST requires a TCP connection with a server that provides the environment interaction, 
-which was originally provided by the Java version of RDDL.
-pyRDDLGym provides the replacement ``RDDLSimAgent`` class, which establishes an identical server
-that listens for any messages (i.e. actions) passed by client planners connected to that port. 
-
-The following code establishes this connection by reading the domain and instance RDDL files at the specified path,
-and exposing the resulting Gym environment through a TCP connection:
-
-.. code-block:: python
-	
-    from pyRDDLGym.Core.Policies.RDDLSimAgent import RDDLSimAgent
-	
-    server = RDDLSimAgent(<domain-path>, <instance-path>, <numrounds>, <time>, port=2323)
-    server.run()	
-	
-The ``numrounds`` specifies the number of epsiodes/rounds of simulation to perform,
-and ``time`` specifies the time the server connection should remain open. The optional ``port``
-parameter allows multiple connections to be established in parallel at different ports, 
-which is useful for parallel processing applications. Finally, the ``run()`` command starts the server
-to listen in on the specified port.
-
-.. note::
-   The handling of the ``RDDLSimAgent`` is already taken care of in the docker image, which we describe below. 
-   However, the above instructions are provided for reference in order to run other algorithms requiring TCP, 
-   such as legacy code intended to run the original Java RDDL simulator.
-
 The Docker Image
 -------------------
 
