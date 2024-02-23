@@ -60,7 +60,7 @@ If you are working with the Python API, you can instantiate the environment and 
     # Run the planner
     controller.evaluate(env, episodes=1, verbose=True, render=True)
 	
-	env.close()
+    env.close()
 		
 .. note::
    An online and offline controller type are provided in pyRDDLGym-gurobi, 
