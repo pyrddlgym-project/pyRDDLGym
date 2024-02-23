@@ -37,5 +37,6 @@ Installing the pre-release version via git
 ---------
 .. code-block:: shell
 
-    pip install git+https://github.com/ataitler/pyRDDLGym.git
+    pip install git+https://github.com/pyrddlgym-project/pyRDDLGym.git
+    pip install git+https://github.com/pyrddlgym-project/rddlrepository.git
 
