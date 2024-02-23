@@ -69,7 +69,7 @@ The following example sets up the Stable Baselines 3 PPO algorithm to work with 
 
 .. code-block:: python
 	
-	from stable_baselines3 import *	
+    from stable_baselines3 import *	
 	
     import pyRDDLGym
     from pyRDDLGym_rl.core.agent import StableBaselinesAgent
@@ -95,7 +95,7 @@ The following example sets up the RLlib PPO algorithm to work with pyRDDLGym:
 
 .. code-block:: python
 	
-	from ray.tune.registry import register_env
+    from ray.tune.registry import register_env
     from ray.rllib.algorithms.ppo import PPOConfig
     
     import pyRDDLGym
@@ -108,7 +108,7 @@ The following example sets up the RLlib PPO algorithm to work with pyRDDLGym:
     register_env('RLLibEnv', env_creator)
 	
 	# create agent
-	config = {'domain': "domain", 'instance': "instance"}
+    config = {'domain': "domain", 'instance': "instance"}
     agent = PPOConfig().environment('RLLibEnv', cfg=config).build()
     
     # train agent
@@ -119,7 +119,7 @@ The following example sets up the RLlib PPO algorithm to work with pyRDDLGym:
     ppo_agent = RLLibAgent(agent)
     ppo_agent.evaluate(env_creator(config), episodes=1, verbose=True, render=True)
 	
-	env.close()
+    env.close()
 	
 The Environment Wrapper
 -------------------
