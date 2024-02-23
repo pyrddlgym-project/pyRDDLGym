@@ -2,10 +2,11 @@ Managing Problems using rddlrepository
 ===============
 
 The rddlrepository is a growing collection of RDDL domain and instance description files. 
-It:
 
-- hosts a diverse collection of domain and instance RDDL files, covering problems from a wide range of disciplines
-- contains a growing collection of problems, including those previously used in the probabilistic and learning track of the International Planning Competitions
+Purpose:
+
+- hosts a diverse collection of domain and instance RDDL files, covering problems from a wide range of disciplines (full listing [here](https://github.com/pyrddlgym-project/rddlrepository/blob/main/rddlrepository/domains.pdf))
+- includes all domains used in the probabilistic and learning track of the International Planning Competitions (2011, 2014, 2018, 2023)
 - contains custom visualizers for a subset of domains, to be used with the pyRDDLGym package
 - provides out-of-the-box compatibility with pyRDDLGym.
 
