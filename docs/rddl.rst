@@ -850,7 +850,7 @@ It is also possible to include an arbitrary number of other parameters from the
 .. code-block:: shell
 
     <cpf>(?<value1>, ?<value2>) = Dirichlet[?<value1>]( alpha(?<value2>, _) );
-	<cpf>(?<value1>, ?<value2>) = Dirichlet[?<value1>]( alpha(_, ?<value2>) );
+    <cpf>(?<value1>, ?<value2>) = Dirichlet[?<value1>]( alpha(_, ?<value2>) );
 	
 provided the types of the required and given arguments in ``alpha`` match. These
 examples could be seen as "batched" sampling, where the parameter ``?<value2>`` 
