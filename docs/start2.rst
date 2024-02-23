@@ -76,7 +76,7 @@ given a p-variable ``some-var(?x, ?y)`` of two parameters ``?x`` and ``?y``, and
     cpf___x1__y2' = some-var___x1__y2 + 1.0;
     cpf___x2__y1' = some-var___x2__y1 + 1.0;
     cpf___x2__y2' = some-var___x2__y2 + 1.0;
-	...
+    ...
 
 where ``x1, x2...`` are the values of ``?x`` and ``y1, y2...`` are the values of ``?y``.
 In other words, all p-variables are replaced by sets of non-parameterized variables (one per valid combination of objects),
