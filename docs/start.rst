@@ -10,7 +10,7 @@ To initialize a built-in environment from rddlrepository
 .. code-block:: python
 
     import pyRDDLGym
-	env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", **other_kwargs)
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", **other_kwargs)
 
 where "Cartpole_Continuous_gym" is the name of the domain and "0" is the name of the instance.
 ``**other_kwargs`` is an optional set of keyword arguments that can be passed to the environment.
@@ -23,7 +23,7 @@ To initialize an environment from RDDL description files stored on the file syst
 .. code-block:: python
 
     import pyRDDLGym
-	env = pyRDDLGym.make("/path/to/domain.rddl", "/path/to/instance.rddl")
+    env = pyRDDLGym.make("/path/to/domain.rddl", "/path/to/instance.rddl")
 
 where both arguments must be valid file paths to domain and instance RDDL description files.
 
@@ -204,8 +204,8 @@ A ``MovieGenerator`` class is provided to capture videos of the environment inte
 .. code-block:: python
     
     from pyRDDLGym.core.visualizer.movie import MovieGenerator
-	recorder = MovieGenerator("/path/to/save", "env_name")
-	env.set_visualizer(VizClass, movie_gen=recorder)
+    recorder = MovieGenerator("/path/to/save", "env_name")
+    env.set_visualizer(VizClass, movie_gen=recorder)
 
 Upon calling ``env.close()``, the images captured will be combined into video format and saved to the desired path.
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
