@@ -168,3 +168,23 @@ Currently, the following information is logged:
 * calculated order of evaluation of CPFs
 * information used by the simulator for operating on pvariables stored as arrays
 * simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
+
+Running pyRDDLGym Through TCP
+-------------------
+
+Some older algorithms and infrastructure built around the Java rddlsim required 
+a TCP connection with a server that provides the environment interaction.
+pyRDDLGym provides a ``RDDLSimServer`` class that functions in a similar way.
+
+To create and run a server built around a specific domain or instance:
+
+.. code-block:: python
+	
+    from pyRDDLGym.core.server import RDDLSimServer	
+    server = RDDLSimServer("/path/to/domain.rddl", "/path/to/instance.rddl", rounds, time, port=2323)
+    server.run()	
+	
+The ``rounds`` specifies the number of epsiodes/rounds of simulation to perform,
+and ``time`` specifies the time the server connection should remain open. The optional ``port``
+parameter allows multiple connections to be established in parallel at different ports, 
+which is useful for parallel processing applications. Finally, the ``run()`` command starts the server.
