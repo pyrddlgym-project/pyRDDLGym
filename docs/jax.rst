@@ -42,7 +42,7 @@ Changing the Simulation Backend to JAX
 -------------------
 
 By default, pyRDDLGym simulates using Python and stores the outputs of intermediate expressions in NumPy arrays.
-However, if additional structure such as gradients are required, or if simulation is slow, 
+However, if additional structure such as gradients are required, or if simulation is slow using the default backend, 
 the environment can be compiled using JAX by changing the backend:
 
 .. code-block:: python
