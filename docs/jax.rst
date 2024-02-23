@@ -31,6 +31,13 @@ You can install pyRDDLGym-jax and all of its requirements via pip:
     pip install pyRDDLGym-jax
 
 
+Installing the Pre-Release Version via git
+---------
+.. code-block:: shell
+
+    pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-jax.git
+
+
 Changing the Simulation Backend to JAX
 -------------------
 
@@ -123,7 +130,38 @@ where the argmax is approximated using the softmax function.
    is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
 
-Differentiable Planning with JAX
+Running the Basic Example
+-------------------
+
+A basic run script is provided to run the Jax Planner on any domain in rddlrepository, 
+provided a config file of hyper-parameters is available (currently, only a limited subset of configs are provided). 
+The example can be run as follows in a standard shell, from the install directory of pyRDDLGym-jax:
+
+.. code-block:: shell
+    
+    python -m pyRDDLGym_jax.examples.run_plan <domain> <instance> <method> <episodes>
+    
+where:
+
+* ``<domain>`` is the domain identifier as specified in rddlrepository, or a path pointing to a valid domain.rddl file
+* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance.rddl file
+* ``<method>`` is the planning method to use (see below)
+* ``<episodes>`` is the (optional) number of episodes to evaluate the learned policy.
+
+The ``<method>`` parameter warrants further explanation. Currently we support three possible modes:
+
+* ``slp`` is the straight-line open-loop planner described `in this paper <https://proceedings.neurips.cc/paper/2017/file/98b17f068d5d9b7668e19fb8ae470841-Paper.pdf>`_
+* ``drp`` is the deep reactive policy network described `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_
+* ``replan`` is the same as ``slp`` except it uses periodic replanning as described above.
+
+For example, copy and pasting the following will train the JAX Planner on the Quadcopter domain with 4 drones:
+
+.. code-block:: shell
+
+    python -m pyRDDLGym_jax.examples.run_plan Quadcopter 1 slp
+   
+
+Running from the Python API
 -------------------
 
 pyRDDLGym-jax provides convenient tools to automatically compile a RDDL description of a problem to the above optimization problem:
