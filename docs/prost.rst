@@ -46,6 +46,7 @@ To run a container from the built image:
     docker run --name <container name> --mount type=bind,source=<rddl dir>,target=/RDDL prost <rounds> "<prost args>"
 
 where:
+
 * ``<container name>`` is the name of the container you want to use
 * ``<rddl dir>`` is the path of the directory containing the RDDL domain.rddl and instance.rddl files you wish to run
 * ``<rounds>`` is the number of runs/episodes/trials of optimization
