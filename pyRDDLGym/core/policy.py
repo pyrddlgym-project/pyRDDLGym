@@ -2,11 +2,13 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 import random
 import gymnasium as gym
+import os
 from typing import Dict
 import sys
 
 from pyRDDLGym.core.env import RDDLEnv
 from pyRDDLGym.core.debug.exception import RDDLRandPolicyVecNotImplemented
+
 
 class BaseAgent(metaclass=ABCMeta):
     '''Base class for policies.'''
@@ -24,8 +26,21 @@ class BaseAgent(metaclass=ABCMeta):
         '''Resets the policy and prepares it for the next episode.'''
         pass
     
-    def evaluate(self, env: RDDLEnv, episodes: int=1, 
-                 verbose: bool=False, render: bool=False, 
+    @staticmethod
+    def _format(state, width=80, indent=4):
+        state = {key: str(value) for (key, value) in state.items()}
+        klen = max(map(len, state.keys())) + 1
+        vlen = max(map(len, state.values())) + 1
+        cols = (width - indent) // (klen + vlen + 3)
+        result = ' ' * indent
+        for (count, (key, value)) in enumerate(state.items(), 1):
+            result += f'{key.rjust(klen)} = {value.ljust(vlen)}'
+            if count % cols == 0:
+                result += '\n' + ' ' * indent
+        return result
+        
+    def evaluate(self, env: RDDLEnv, episodes: int=1,
+                 verbose: bool=False, render: bool=False,
                  seed: int=None) -> Dict[str, float]:
         '''Evaluates the current agent on the specified environment by simulating
         roll-outs. Returns a dictionary of summary statistics of the returns
@@ -47,6 +62,11 @@ class BaseAgent(metaclass=ABCMeta):
         
         gamma = env.discount
         
+        # get terminal width
+        if verbose:
+            width = os.get_terminal_size().columns
+        
+        # start simulation
         history = np.zeros((episodes,))
         for episode in range(episodes):
             
@@ -54,6 +74,11 @@ class BaseAgent(metaclass=ABCMeta):
             total_reward, cuml_gamma = 0.0, 1.0
             self.reset()
             state, _ = env.reset(seed=seed)
+            
+            # printing
+            if verbose:
+                print(f'initial state = \n{self._format(state, width)}\n'
+                      + '-' * width)
             
             # simulate to end of horizon
             for step in range(env.horizon):
@@ -70,10 +95,11 @@ class BaseAgent(metaclass=ABCMeta):
                 # printing
                 if verbose: 
                     print(f'step       = {step}\n'
-                          f'state      = {state}\n'
-                          f'action     = {action}\n'
-                          f'next state = {next_state}\n'
-                          f'reward     = {reward}\n')
+                          f'action     = \n{self._format(action, width)}\n'
+                          f'next state = \n{self._format(next_state, width)}\n'
+                          f'reward     = {reward}\n'
+                          f'terminated = {done}\n'
+                          + '-' * width)
                 state = next_state
                 if done:
                     break
@@ -119,8 +145,10 @@ class RandomAgent(BaseAgent):
 
         if self.vectorized and not self.full_action_space:
             raise RDDLRandPolicyVecNotImplemented(
-                    f'Random Agent does not support vectorized spaces for partial action specification, '
-                    f'number of required actions is {num_actions}, where {sum(self.action_buckets)} is expected.')
+                f'Random Agent does not support vectorized spaces '
+                f'for partial action specification, '
+                f'number of required actions is {num_actions}, '
+                f'where {sum(self.action_buckets)} is expected.')
 
         self.num_actions = num_actions
         self.rng = random.Random(seed)
