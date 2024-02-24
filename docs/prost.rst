@@ -34,10 +34,7 @@ To build the Docker image, you will need to install Docker. Then, with Docker da
 
 .. code-block:: shell
 
-    docker build -t <docker name> .
-    
-where ``<docker name>`` is the name of the image.
-
+    docker build -t prost .
 
 Running the Container
 -------------------
@@ -46,10 +43,10 @@ To run a container from the built image:
 
 .. code-block:: shell
 
-    docker run --name <docker name> --mount type=bind,source=<rddl dir>,target=/RDDL prost <rounds> "<prost args>"
+    docker run --name <container name> --mount type=bind,source=<rddl dir>,target=/RDDL prost <rounds> "<prost args>"
 
 where:
-* ``<docker name>`` is the name specified above during build
+* ``<container name>`` is the name of the container you want to use
 * ``<rddl dir>`` is the path of the directory containing the RDDL domain.rddl and instance.rddl files you wish to run
 * ``<rounds>`` is the number of runs/episodes/trials of optimization
 * ``<prost args>`` are the arguments to pass to PROST, whose syntax is described `here <https://github.com/prost-planner/prost/blob/master/src/search/main.cc>`_. 
@@ -63,7 +60,7 @@ directory ``<output dir>`` in your local file system for further analysis:
 
 .. code-block:: shell
 
-    docker cp <docker name>:/OUTPUTS/ <output dir>
+    docker cp <container name>:/OUTPUTS/ <output dir>
 
 
 Using the Convenience Script
@@ -73,7 +70,7 @@ You do not need to run the commands described above, as we provide a script ``ru
 
 .. code-block:: shell
 
-    bash runprost.sh <docker name> <rddl dir> <rounds> <prost args> <output dir>
+    bash runprost.sh <container name> <rddl dir> <rounds> <prost args> <output dir>
  
 where the arguments are as described above.
 
