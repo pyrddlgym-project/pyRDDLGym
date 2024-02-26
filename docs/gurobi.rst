@@ -1,3 +1,5 @@
+.. _gurobiplan:
+
 pyRDDLGym-gurobi: Gurobi MIP Compiler and Planner
 ===============
 
