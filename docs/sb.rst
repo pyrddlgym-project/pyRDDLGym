@@ -1,3 +1,5 @@
+.. _rl:
+
 pyRDDLGym-rl: Reinforcement Learning
 ===============
 
