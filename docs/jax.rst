@@ -166,6 +166,8 @@ For example, copy and pasting the following will train the JAX Planner on the Qu
 Running from the Python API
 -------------------
 
+.. _jax-intro:
+
 pyRDDLGym-jax provides convenient tools to automatically compile a RDDL description of a problem to the above optimization problem:
 
 .. code-block:: python
@@ -372,10 +374,10 @@ This can be passed to the planner as follows:
 Changing the Planning Algorithm
 -------------------
 
-In the introductory example, you may have noticed that we defined the planning algorithm separately from the controller.
+In the :ref:`introductory example <jax-intro>`, you may have noticed that we defined the planning algorithm separately from the controller.
 Therefore, it is possible to incorporate new planning algorithms simply by extending the ``JaxBackpropPlanner`` class. 
 
-pyRDDLGym-jax currently provides one such extension based on backtracking line-search, which 
+pyRDDLGym-jax currently provides one such extension based on `backtracking line-search <https://en.wikipedia.org/wiki/Backtracking_line_search>`_, which 
 adaptively selects a learning rate at each iteration whose gradient update 
 provides the greatest improvement in the return objective. 
 
@@ -489,7 +491,7 @@ The ``FuzzyLogic`` instance can be passed to a planner through the config file, 
     planner = JaxRDDLBackpropPlanner(model, ..., logic=FuzzyLogic())
 
 By default, ``FuzzyLogic`` uses the `product t-norm <https://en.wikipedia.org/wiki/T-norm_fuzzy_logics#Motivation>`_
-to approximate the logical operations, the standard complement :math:`\sim a \approx 1 - a`, and
+fuzzy logic to approximate the logical operations, the standard complement :math:`\sim a \approx 1 - a`, and
 sigmoid approximations for other relational and functional operations.
 
 The latter introduces model hyper-parameters :math:`w`, which control the "sharpness" of the operation.
