@@ -1,3 +1,5 @@
+.. _prost:
+
 pyRDDLGym-prost: PROST Planner
 ===============
 
