@@ -16,10 +16,10 @@ Purpose and Benefits
 - Runs out-of-the-box in Python or within Colab
 - Compiler tools to extract Dynamic Bayesian Networks (DBNs) and Extended Algebraic Decision Diagrams (XADDs) for symbolic analysis of causal dependencies and transition distributions
 - Ready to use with out-of-the-box planners:
-	- JaxPlan: Planning through autodifferentiation
-	- GurobiPlan: Planning through mixed discrete-continuous optimization
-	- PROST: Monte Carlo Tree Search (MCTS)
-	- Deep Reinforcement Learning (DQN, PPO, etc.): Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
+	- :ref:`JaxPlan <jaxplan>`: Planning through autodifferentiation
+	- :ref:`GurobiPlan <gurobiplan>`: Planning through mixed discrete-continuous optimization
+	- :ref:`PROST <prost>`: Monte Carlo Tree Search (MCTS)
+	- :ref:`Deep Reinforcement Learning (DQN, PPO, etc.) <rl>`: Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
 	- Symbolic Dynamic Programming: Exact Symbolic regression-based planning and policy evaluation
 
 Status
