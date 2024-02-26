@@ -1,3 +1,5 @@
+.. _xadds:
+
 Symbolic Toolset for pyRDDLGym
 ##############################
 
