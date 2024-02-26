@@ -20,7 +20,7 @@ Purpose and Benefits
 	- :ref:`GurobiPlan <gurobiplan>`: Planning through mixed discrete-continuous optimization
 	- :ref:`PROST <prost>`: Monte Carlo Tree Search (MCTS)
 	- :ref:`Deep Reinforcement Learning (DQN, PPO, etc.) <rl>`: Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
-	- Symbolic Dynamic Programming: Exact Symbolic regression-based planning and policy evaluation
+	- :ref:`Symbolic Dynamic Programming <xadds>`: Exact Symbolic regression-based planning and policy evaluation
 
 Status
 ------
