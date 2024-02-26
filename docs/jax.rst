@@ -1,3 +1,5 @@
+.. _jaxplan:
+
 pyRDDLGym-jax: JAX Compiler and Planner
 ===============
 
