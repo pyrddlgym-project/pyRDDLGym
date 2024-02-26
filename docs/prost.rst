@@ -56,7 +56,7 @@ where:
 
 For example, to run the IPC 2014 version of PROST with default parameters, set ``<prost args>`` to ``[PROST -se [IPC2014]]``. 
 Additional notes about PROST command line arguments from Thomas Keller can be found 
-`here <https://github.com/ataitler/pyRDDLGym/tree/main/pyRDDLGym/Docker/PROST_Command_Line_Option_Notes_Thomas_Keller.txt>`_.
+`here <https://github.com/pyrddlgym-project/pyRDDLGym-prost/blob/main/prost/PROST_Command_Line_Option_Notes_Thomas_Keller.txt>`_.
 
 After the container runs, you can then copy the files from the container to a 
 directory ``<output dir>`` in your local file system for further analysis:
