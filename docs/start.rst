@@ -32,7 +32,7 @@ where both arguments must be valid file paths to domain and instance RDDL descri
    most workflows where gym or gymnasium environments are required.
 
 Writing new domains and instances is as easy as writing a few lines of text in a mathematical fashion!
-The complete and up-to-date syntax of the RDDL language is described here: :ref:`rddl-description`.
+The complete and up-to-date syntax of the RDDL language is described :ref:`here <rddl-description>`.
 
 Policies
 ----------------------------
