@@ -31,7 +31,7 @@ class BaseAgent(metaclass=ABCMeta):
         state = {key: str(value) for (key, value) in state.items()}
         klen = max(map(len, state.keys())) + 1
         vlen = max(map(len, state.values())) + 1
-        cols = (width - indent) // (klen + vlen + 3)
+        cols = max(1, (width - indent) // (klen + vlen + 3))
         result = ' ' * indent
         for (count, (key, value)) in enumerate(state.items(), 1):
             result += f'{key.rjust(klen)} = {value.ljust(vlen)}'
