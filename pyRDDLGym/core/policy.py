@@ -40,8 +40,7 @@ class BaseAgent(metaclass=ABCMeta):
         return result
         
     def evaluate(self, env: RDDLEnv, episodes: int=1,
-                 verbose: bool=False, render: bool=False,
-                 seed: int=None) -> Dict[str, float]:
+                 verbose: bool=False, render: bool=False) -> Dict[str, float]:
         '''Evaluates the current agent on the specified environment by simulating
         roll-outs. Returns a dictionary of summary statistics of the returns
         accumulated on the roll-outs.
@@ -51,7 +50,6 @@ class BaseAgent(metaclass=ABCMeta):
         :param verbose: whether to print the transition information to console
         at each step of the simulation
         :param render: visualize the domain using the env internal visualizer
-        :param seed: optional RNG seed for the environment
         '''
         
         # check compatibility with environment
@@ -65,6 +63,7 @@ class BaseAgent(metaclass=ABCMeta):
         # get terminal width
         if verbose:
             width = os.get_terminal_size().columns
+            sep_bar = '-' * width
         
         # start simulation
         history = np.zeros((episodes,))
@@ -73,12 +72,11 @@ class BaseAgent(metaclass=ABCMeta):
             # restart episode
             total_reward, cuml_gamma = 0.0, 1.0
             self.reset()
-            state, _ = env.reset(seed=seed)
+            state, _ = env.reset()
             
             # printing
             if verbose:
-                print(f'initial state = \n{self._format(state, width)}\n'
-                      + '-' * width)
+                print(f'initial state = \n{self._format(state, width)}')
             
             # simulate to end of horizon
             for step in range(env.horizon):
@@ -94,18 +92,20 @@ class BaseAgent(metaclass=ABCMeta):
                 
                 # printing
                 if verbose: 
-                    print(f'step       = {step}\n'
-                          f'action     = \n{self._format(action, width)}\n'
-                          f'next state = \n{self._format(next_state, width)}\n'
-                          f'reward     = {reward}\n'
-                          f'terminated = {done}\n'
-                          + '-' * width)
+                    print(f'{sep_bar}\n'
+                          f'step   = {step}\n'
+                          f'action = \n{self._format(action, width)}\n'
+                          f'state  = \n{self._format(next_state, width)}\n'
+                          f'reward = {reward}\n'
+                          f'done   = {done}')
                 state = next_state
                 if done:
                     break
             
             if verbose:
-                print(f'episode {episode + 1} ended with return {total_reward}')
+                print(f'\n'
+                      f'episode {episode + 1} ended with return {total_reward}\n'
+                      f'{"=" * width}')
             history[episode] = total_reward
         
         # summary statistics

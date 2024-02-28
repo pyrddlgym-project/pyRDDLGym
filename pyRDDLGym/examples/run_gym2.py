@@ -22,6 +22,7 @@ def main(domain, instance, episodes=1, seed=42):
     
     # set up the environment
     env = pyRDDLGym.make(domain, instance, enforce_action_constraints=True)
+    env.seed(seed)
     
     # set up an example agent
     agent = RandomAgent(action_space=env.action_space,
