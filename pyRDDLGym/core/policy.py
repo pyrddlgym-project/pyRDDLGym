@@ -121,14 +121,13 @@ class BaseAgent(metaclass=ABCMeta):
 class RandomAgent(BaseAgent):
     '''Uniformly pseudo-random policy.'''
 
-    def __init__(self, action_space, num_actions=1, seed=None, noop_values=None):
+    def __init__(self, action_space, num_actions=1, seed=None):
         '''Creates a new uniformly pseudo-random policy.
         
         :param action_space: the set of actions from which to sample uniformly
         :param num_actions: the number of samples to produce
         '''
         self.action_space = action_space
-        self.noop_values = noop_values
         self.action_buckets = []
         self.full_action_space = True
 
