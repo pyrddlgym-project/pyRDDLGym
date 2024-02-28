@@ -376,7 +376,12 @@ class RDDLSimulator:
         
         # update observation
         if self._pomdp:
-            obs = {var: None for var in rddl.observ_fluents}
+            if keep_tensors:
+                obs = {var: None for var in rddl.observ_fluents}
+            else:
+                obs = {}
+                for var in rddl.observ_fluents:
+                    obs.update(rddl.ground_var_with_value(var, None))
         else:
             obs = self.state
         
