@@ -15,7 +15,6 @@ from pyRDDLGym.core.debug.exception import (
 from pyRDDLGym.core.debug.logger import Logger, SimLogger
 from pyRDDLGym.core.parser.parser import RDDLParser
 from pyRDDLGym.core.parser.reader import RDDLReader
-from pyRDDLGym.core.seeding import RDDLEnvSeeder, RDDLEnvSeederFibonacci
 from pyRDDLGym.core.simulator import RDDLSimulator
 from pyRDDLGym.core.visualizer.chart import ChartVisualizer
 from pyRDDLGym.core.visualizer.heatmap import HeatmapVisualizer
@@ -45,8 +44,7 @@ class RDDLEnv(gym.Env):
                  debug: bool=False,
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
-                 backend_kwargs: typing.Dict={},
-                 seeds: RDDLEnvSeeder=RDDLEnvSeederFibonacci()):
+                 backend_kwargs: typing.Dict={}):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -64,7 +62,6 @@ class RDDLEnv(gym.Env):
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
         pass to backend (must not include logger)
-        :param seeds: an instance of RDDLEnvSeeder for generating RNG seeds
         '''
         super(RDDLEnv, self).__init__()
         
@@ -144,7 +141,6 @@ class RDDLEnv(gym.Env):
         self.trial = 0
         self.timestep = 0
         self.done = False
-        self.seeds = iter(seeds)
             
     def _rddl_to_gym_bounds(self, ranges):
         result = Dict()
@@ -272,9 +268,11 @@ class RDDLEnv(gym.Env):
         return obs, reward, terminated, truncated, {}
 
     def reset(self, seed=None, options=None):
-        sampler = self.sampler
+        if seed is not None:
+            self.seed(seed)
         
         # reset counters and internal state
+        sampler = self.sampler
         obs, terminated = sampler.reset()
         self.done = terminated
         self.state = sampler.states
@@ -300,18 +298,10 @@ class RDDLEnv(gym.Env):
                 self._movies += 1
             self._movie_generator.save_frame(image)            
         
-        # update random generator seed
-        if seed is not None:
-            self.seed(seed)
-        else:
-            seed = next(self.seeds)
-            if seed is not None:
-                self.seed(seed)
-
         # logging
         if self.simlogger:
             text = (f'######################################################\n'
-                    f'New Trial, seed={seed}\n'
+                    f'New Trial\n'
                     f'######################################################')
             self.simlogger.log_free(text)
             
