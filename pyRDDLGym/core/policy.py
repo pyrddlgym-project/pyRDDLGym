@@ -31,7 +31,7 @@ class BaseAgent(metaclass=ABCMeta):
         state = {key: str(value) for (key, value) in state.items()}
         klen = max(map(len, state.keys())) + 1
         vlen = max(map(len, state.values())) + 1
-        cols = (width - indent) // (klen + vlen + 3)
+        cols = max(1, (width - indent) // (klen + vlen + 3))
         result = ' ' * indent
         for (count, (key, value)) in enumerate(state.items(), 1):
             result += f'{key.rjust(klen)} = {value.ljust(vlen)}'
@@ -39,7 +39,7 @@ class BaseAgent(metaclass=ABCMeta):
                 result += '\n' + ' ' * indent
         return result
         
-    def evaluate(self, env: RDDLEnv, episodes: int=1,
+    def evaluate(self, env: RDDLEnv, episodes: int=1, 
                  verbose: bool=False, render: bool=False,
                  seed: int=None) -> Dict[str, float]:
         '''Evaluates the current agent on the specified environment by simulating
@@ -65,6 +65,7 @@ class BaseAgent(metaclass=ABCMeta):
         # get terminal width
         if verbose:
             width = os.get_terminal_size().columns
+            sep_bar = '-' * width
         
         # start simulation
         history = np.zeros((episodes,))
@@ -77,8 +78,7 @@ class BaseAgent(metaclass=ABCMeta):
             
             # printing
             if verbose:
-                print(f'initial state = \n{self._format(state, width)}\n'
-                      + '-' * width)
+                print(f'initial state = \n{self._format(state, width)}')
             
             # simulate to end of horizon
             for step in range(env.horizon):
@@ -94,19 +94,24 @@ class BaseAgent(metaclass=ABCMeta):
                 
                 # printing
                 if verbose: 
-                    print(f'step       = {step}\n'
-                          f'action     = \n{self._format(action, width)}\n'
-                          f'next state = \n{self._format(next_state, width)}\n'
-                          f'reward     = {reward}\n'
-                          f'terminated = {done}\n'
-                          + '-' * width)
+                    print(f'{sep_bar}\n'
+                          f'step   = {step}\n'
+                          f'action = \n{self._format(action, width)}\n'
+                          f'state  = \n{self._format(next_state, width)}\n'
+                          f'reward = {reward}\n'
+                          f'done   = {done}')
                 state = next_state
                 if done:
                     break
             
             if verbose:
-                print(f'episode {episode + 1} ended with return {total_reward}')
+                print(f'\n'
+                      f'episode {episode + 1} ended with return {total_reward}\n'
+                      f'{"=" * width}')
             history[episode] = total_reward
+            
+            # set the seed on the first episode only
+            seed = None
         
         # summary statistics
         return {
@@ -121,14 +126,13 @@ class BaseAgent(metaclass=ABCMeta):
 class RandomAgent(BaseAgent):
     '''Uniformly pseudo-random policy.'''
 
-    def __init__(self, action_space, num_actions=1, seed=None, noop_values=None):
+    def __init__(self, action_space, num_actions=1, seed=None):
         '''Creates a new uniformly pseudo-random policy.
         
         :param action_space: the set of actions from which to sample uniformly
         :param num_actions: the number of samples to produce
         '''
         self.action_space = action_space
-        self.noop_values = noop_values
         self.action_buckets = []
         self.full_action_space = True
 

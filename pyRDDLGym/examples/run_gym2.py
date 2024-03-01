@@ -32,7 +32,7 @@ def main(domain, instance, episodes=1, seed=42):
     # agent.evaluate(env, episodes=episodes, verbose=True, render=True)
     for episode in range(episodes):
         total_reward = 0
-        state, _ = env.reset()
+        state, _ = env.reset(seed=seed)
         for step in range(env.horizon):
             env.render()
             action = agent.sample_action(state)
@@ -48,6 +48,7 @@ def main(domain, instance, episodes=1, seed=42):
             if done:
                 break
         print(f'episode {episode} ended with return {total_reward}')
+        seed = None
     
     # important when logging to save all traces
     env.close()
