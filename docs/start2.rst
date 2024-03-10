@@ -148,7 +148,7 @@ More details about controlling error handling behavior can be found
    for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
    for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
 
-Logging Debug Data
+Generating Debug Logs
 --------------------------
 
 To log information about the RDDL compilation to a file for debugging, error reporting
