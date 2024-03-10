@@ -116,10 +116,33 @@ Alternatively, the ``evaluate()`` bypasses the need to write out the ``for`` loo
 
 .. code-block:: python
 	
-   total_reward = agent.evaluate(env, episodes=1, render=True)['mean']
+    total_reward = agent.evaluate(env, episodes=1, render=True)['mean']
   
 The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
 total rewards collected across episodes, such as mean, median, standard deviation, etc.
+
+Fixing the Random Seed
+------
+
+In order to get reproducible results when running an experiment, it is necessary to
+fix the RNG seed. This can be passed to ``env.reset()`` once at the start of the experiment:
+
+.. code-block:: python
+	
+    env.reset(seed=42)
+
+or alternatively passing it to ``agent.evaluate()`` as follows:
+
+.. code-block:: python
+	
+    agent.evaluate(env, seed=42)
+
+Other objects that require randomness typically support setting the random seed.
+For example, to fix the seed of the ``RandomAgent`` instance:
+
+.. code-block:: python
+
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions, seed=42)
 
 Spaces
 ------
