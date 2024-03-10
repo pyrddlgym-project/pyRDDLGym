@@ -148,39 +148,6 @@ More details about controlling error handling behavior can be found
    for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
    for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
 
-Setting the Random Seed
---------------------------
-
-To get reproducible randomness, it is necessary to fix the random seed used for generating pseudo-random numbers.
-In other use cases, it may be desirable to use the clock or some other method for setting the seed.
-
-The choice of seed can be controlled through the ``seeds`` argument of ``make()``, which accepts any 
-sequence (e.g. iterator, list, etc.) of integer values to seed the RNG at the start of each episode.
-By default, pyRDDLGym uses the deterministic Fibonacci sequence 1, 2, 3, 5, 8, 13... as the seed sequence,
-however any sequence of length at least the number of sample episodes can be provided.
-
-For example, to set the seed for each episode from a given list ``[x1, x2, x3, ...]``, 
-
-.. code-block:: python
- 
-    from pyRDDLGym.core.seeding import RDDLEnvSeederTimestamp	
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", seeds=[x1, x2, x3, ...])
-    
-To set the seed for each episode based on the wall clock:
-
-.. code-block:: python
- 
-    from pyRDDLGym.core.seeding import RDDLEnvSeederTimestamp	
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", seeds=RDDLEnvSeederTimestamp())
-
-The seed can also be set manually for each episode by passing it explicitly to the ``env.reset(seed)`` function.
-
-Some other elements may also produce randomness. For example, to set the seed of the ``RandomAgent`` instance:
-
-.. code-block:: python
-	
-    agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions, seed=42)
-
 Logging Debug Data
 --------------------------
 
