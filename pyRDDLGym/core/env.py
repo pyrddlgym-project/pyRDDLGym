@@ -41,7 +41,7 @@ class RDDLEnv(gym.Env):
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
                  vectorized: bool=False,
-                 debug: bool=False,
+                 debug_path: bool=False,
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
                  backend_kwargs: typing.Dict={}):
@@ -55,7 +55,8 @@ class RDDLEnv(gym.Env):
         in check that number of nondef actions don't exceed max-nondef-actions
         :param vectorized: whether actions and states are represented as
         dictionaries of numpy arrays (if True), or as dictionaries of scalars
-        :param debug: whether to log compilation information to a log file
+        :param debug_path: absolute path to file where debug log is saved,
+        excluding the file extension, None means no debugging
         :param log_path: absolute path to file where simulation log is saved,
         excluding the file extension, None means no logging
         :param backend: the subclass of RDDLSimulator to use as backend for
@@ -85,9 +86,10 @@ class RDDLEnv(gym.Env):
         self.max_allowed_actions = self.model.max_allowed_actions 
                 
         # for logging compilation data
-        log_fname = f'{self.model.domain_name}_{self.model.instance_name}'
-        logger = Logger(f'{log_fname}_debug.log') if debug else None
-        self.logger = logger
+        self.logger = None
+        if debug_path is not None and debug_path:
+            new_debug_path = _make_dir(debug_path)
+            self.logger = Logger(f'{new_debug_path}.log')
         
         # for logging simulation data
         self.simlogger = None
@@ -98,7 +100,7 @@ class RDDLEnv(gym.Env):
         
         # define the simulation backend  
         self.sampler = backend(self.model,
-                               logger=logger,
+                               logger=self.logger,
                                keep_tensors=self.vectorized,
                                **backend_kwargs)
         
