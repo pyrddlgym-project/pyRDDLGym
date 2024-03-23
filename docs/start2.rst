@@ -157,9 +157,10 @@ or diagnosis:
 .. code-block:: python
 	
     import pyRDDLGym
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", debug=True)
+    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", debug_path="\path\to\log\file")
 
-A log file will be created with the name <domain name>_<instance name>.log in the installation's root directory.
+where ``debug_path`` is the full path to the debug file minus the extension.
+A log file will be created in the specified path with the ``.log`` extension.
 
 Currently, the following information is logged:
 
@@ -168,6 +169,8 @@ Currently, the following information is logged:
 * calculated order of evaluation of CPFs
 * information used by the simulator for operating on pvariables stored as arrays
 * simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
+* if you are using ``pyRDDLGym-jax``, the computation graphs will also be logged
+* if you are using ``pyRDDLGym-rl``, the observation and action spaces information will also be logged
 
 Running pyRDDLGym through TCP
 -------------------
