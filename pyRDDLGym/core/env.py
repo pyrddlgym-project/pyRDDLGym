@@ -41,7 +41,7 @@ class RDDLEnv(gym.Env):
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
                  vectorized: bool=False,
-                 debug_path: bool=False,
+                 debug_path: str=None,
                  log_path: str=None,
                  backend: RDDLSimulator=RDDLSimulator,
                  backend_kwargs: typing.Dict={}):
