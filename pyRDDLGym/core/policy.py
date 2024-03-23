@@ -28,6 +28,8 @@ class BaseAgent(metaclass=ABCMeta):
     
     @staticmethod
     def _format(state, width=80, indent=4):
+        if len(state) == 0:
+            return str(state)
         state = {key: str(value) for (key, value) in state.items()}
         klen = max(map(len, state.keys())) + 1
         vlen = max(map(len, state.values())) + 1
