@@ -90,6 +90,7 @@ class RDDLEnv(gym.Env):
         if debug_path is not None and debug_path:
             new_debug_path = _make_dir(debug_path)
             self.logger = Logger(f'{new_debug_path}.log')
+            self.logger.clear()
         
         # for logging simulation data
         self.simlogger = None
