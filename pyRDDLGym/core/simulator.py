@@ -127,8 +127,6 @@ class RDDLSimulator:
         rddl = self.rddl
         
         # compile initial values
-        if self.logger is not None:
-            self.logger.clear()
         initializer = RDDLValueInitializer(rddl, logger=self.logger)
         self.init_values = initializer.initialize()
         
