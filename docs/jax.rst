@@ -538,6 +538,13 @@ It is possible to control these rules by subclassing ``FuzzyLogic``, or by
 passing different values to the ``tnorm`` or ``complement`` arguments to replace the product t-norm logic and
 standard complement, respectively.
 
+Computing the Gradients Manually
+-------------------
+
+The API also supports gradient calculation manually for custom applications.
+Please see the `worked example here <https://github.com/pyrddlgym-project/pyRDDLGym-jax/blob/main/pyRDDLGym_jax/examples/run_gradient.py>`_
+how to calculate the gradient of the return with respect to the policy parameters.
+
 
 Limitations
 -------------------
