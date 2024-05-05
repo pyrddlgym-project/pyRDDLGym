@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 import random
 import gymnasium as gym
-import os
+import shutil
 from typing import Dict
 import sys
 
@@ -66,7 +66,7 @@ class BaseAgent(metaclass=ABCMeta):
         
         # get terminal width
         if verbose:
-            width = os.get_terminal_size().columns
+            width = shutil.get_terminal_size().columns
             sep_bar = '-' * width
         
         # start simulation
