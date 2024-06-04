@@ -58,9 +58,9 @@ class BaseAgent(metaclass=ABCMeta):
         
         # check compatibility with environment
         if env.vectorized != self.use_tensor_obs:
-            raise Exception(f'RDDLEnv vectorized flag must match use_tensor_obs '
-                            f'of current policy, got {env.vectorized} and '
-                            f'{self.use_tensor_obs}, respectively.')
+            raise ValueError(f'RDDLEnv vectorized flag must match use_tensor_obs '
+                             f'of current policy, got {env.vectorized} and '
+                             f'{self.use_tensor_obs}, respectively.')
         
         gamma = env.discount
         
