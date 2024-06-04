@@ -8,6 +8,7 @@ from pyRDDLGym.core.debug.exception import (
     RDDLInvalidExpressionError,
     RDDLInvalidNumberOfArgumentsError,
     RDDLInvalidObjectError,
+    RDDLNotImplementedError,
     RDDLMissingCPFDefinitionError,
     RDDLRepeatedVariableError,
     RDDLTypeError,
@@ -54,6 +55,7 @@ class RDDLGrounder(BaseRDDLGrounder):
         
         self.objects = {}
         self.objects_rev = {}
+        self.enum_types = set()
         
         self.variable_types = {}
         self.variable_ranges = {}
@@ -143,7 +145,14 @@ class RDDLGrounder(BaseRDDLGrounder):
                 self.objects[obj_type[0]] = obj_type[1]
                 for obj in obj_type[1]:
                     self.objects_rev[obj] = obj_type[0]
-
+        for (obj_type, pvalues) in self.AST.domain.types:
+            if pvalues != 'object':
+                objects = RDDLGroundedModel.strip_literals(pvalues)
+                self.objects[obj_type] = objects
+                for obj in objects:
+                    self.objects_rev[obj] = obj_type
+                self.enum_types.add(obj_type)
+        
     def _ground_objects(self, args):
         objects_by_type = []
         for obj_type in args:
@@ -372,21 +381,30 @@ class RDDLGrounder(BaseRDDLGrounder):
         if expr.args[1] is None:
             # This is a constant: should really be etype = constant in parsed tree.
             pass
-        
         elif expr.args[1]:
             variation_list = []
             for arg in expr.args[1]:
-                if arg not in dic:
-                    raise RDDLUndefinedVariableError(
-                        f'Parameter <{arg}> is not defined in call to <{expr.args[0]}>.')
-                variation_list.append(dic[arg])
+                if arg[0] == '@':
+                    arg = RDDLGroundedModel.strip_literal(arg)
+                    if arg not in self.objects_rev:
+                        raise RDDLUndefinedVariableError(
+                            f'Literal <{arg}> is not defined in call to <{expr.args[0]}>.')
+                    variation_list.append(arg)
+                else:
+                    if isinstance(arg, Expression):
+                        raise RDDLNotImplementedError(
+                            'Nested pvariables cannot currently be grounded: '
+                            'grounder only supports a limited subset of '
+                            'RDDL grammar at this stage.')
+                    elif arg not in dic:                       
+                        raise RDDLUndefinedVariableError(
+                            f'Parameter <{arg}> is not defined in call to <{expr.args[0]}>.')
+                    variation_list.append(dic[arg])
             variation_list = [variation_list]
             new_name = self._generate_grounded_names(expr.args[0], variation_list)[0]
-            expr = Expression(('pvar_expr', (new_name, None)))
-            
+            expr = Expression(('pvar_expr', (new_name, None)))            
         else:
-            raise RDDLInvalidExpressionError(f'Malformed expression <{expr}>.')
-        
+            raise RDDLInvalidExpressionError(f'Malformed expression <{expr}>.')        
         return expr
 
     def _scan_expr_tree_abr(self, expr, dic):
@@ -396,6 +414,11 @@ class RDDLGrounder(BaseRDDLGrounder):
         return Expression((expr.etype[1], tuple(new_children)))
 
     def _scan_expr_tree_control(self, expr, dic):
+        if expr.etype[1] != 'if':
+            raise RDDLNotImplementedError(
+                f'Control flow of type <{expr.etype[1]}> cannot currently '
+                f'be grounded: grounder only supports a limited subset of '
+                f'RDDL grammar at this stage.')
         children_list = [
             self._scan_expr_tree(expr.args[0], dic),
             self._scan_expr_tree(expr.args[1], dic),
@@ -465,6 +488,10 @@ class RDDLGrounder(BaseRDDLGrounder):
                     # the "aggreg_recursive_operation_string" is set for that.
                     expr = Expression(('/', tuple(children_list)))
             return expr
+        else:
+            raise RDDLNotImplementedError(
+                f'Aggregation operation of type <{aggreg_type}> cannot be grounded, '
+                f'must be one of {list(AGGREG_OP_TO_STRING_DICT.keys())}.')
 
     def _scan_expr_tree(self, expr: Expression, dic) -> Expression:
         """Main dispatch method for recursively grounding the expression tree."""
@@ -489,6 +516,11 @@ class RDDLGrounder(BaseRDDLGrounder):
         if expression_type in dispatch_dict.keys():
             return dispatch_dict[expression_type](expr, dic)
         else:
+            if expression_type in {'matrix', 'randomvector'}:
+                raise RDDLNotImplementedError(
+                    f'Operations of type <{expression_type}> cannot currently '
+                    'be grounded: grounder only supports a limited subset of '
+                    'RDDL grammar at this stage.')
             new_children = []
             for child in expr.args:
                 new_children.append(self._scan_expr_tree(child, dic))
@@ -551,7 +583,7 @@ class RDDLGrounder(BaseRDDLGrounder):
         return horizon
 
     def _ground_max_actions(self):
-        numactions = self.AST.instance.max_nondef_actions
+        numactions = getattr(self.AST.instance, 'max_nondef_actions', 'pos-inf')
         if numactions == 'pos-inf':
             return len(self.actions)
         else:
