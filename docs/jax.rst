@@ -570,3 +570,33 @@ We cite several limitations of the current JAX planner:
 
 The goal of the JAX planner was not to replicate the state-of-the-art, but to provide a simple baseline that can be easily built-on.
 However, we welcome any suggestions or modifications about how to improve this algorithm on a broader subset of RDDL.
+
+
+Citations
+-------------------
+
+If you use the code provided in this repository, please use the following bibtex for citation:
+
+.. code-block:: bibtex
+
+    @inproceedings{
+        gimelfarb2024jaxplan,
+        title={JaxPlan and GurobiPlan: Optimization Baselines for Replanning in Discrete and Mixed Discrete and Continuous Probabilistic Domains},
+        author={Michael Gimelfarb and Ayal Taitler and Scott Sanner},
+        booktitle={34th International Conference on Automated Planning and Scheduling},
+        year={2024},
+        url={https://openreview.net/forum?id=7IKtmUpLEH}
+    }
+
+If you use the utility optimization setting, please include:
+
+    @inproceedings{patton2022distributional,
+        title={A distributional framework for risk-sensitive end-to-end planning in continuous mdps},
+        author={Patton, Noah and Jeong, Jihwan and Gimelfarb, Mike and Sanner, Scott},
+        booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
+        volume={36},
+        number={9},
+        pages={9894--9901},
+        year={2022}
+    }
+    

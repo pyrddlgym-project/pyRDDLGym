@@ -84,3 +84,19 @@ Reporting PROST Bugs
 Any PROST-specific issues should be directed to Thomas Keller by filing a bug report
 `here <https://github.com/prost-planner/prost>`_.
 
+Citations
+-------------------
+
+If you use the code provided in this repository, please use the following bibtex for citation:
+
+.. code-block:: bibtex
+
+    @inproceedings{keller2012prost,
+        title={PROST: Probabilistic planning based on UCT},
+        author={Keller, Thomas and Eyerich, Patrick},
+        booktitle={Proceedings of the International Conference on Automated Planning and Scheduling},
+        volume={22},
+        pages={119--127},
+        year={2012}
+    }
+
