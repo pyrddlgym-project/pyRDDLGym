@@ -590,6 +590,8 @@ If you use the code provided in this repository, please use the following bibtex
 
 If you use the utility optimization setting, please include:
 
+.. code-block:: bibtex
+
     @inproceedings{patton2022distributional,
         title={A distributional framework for risk-sensitive end-to-end planning in continuous mdps},
         author={Patton, Noah and Jeong, Jihwan and Gimelfarb, Mike and Sanner, Scott},
