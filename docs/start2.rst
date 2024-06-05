@@ -198,3 +198,113 @@ The ``rounds`` specifies the number of epsiodes/rounds of simulation to perform,
 and ``time`` specifies the time the server connection should remain open. The optional ``port``
 parameter allows multiple connections to be established in parallel at different ports. 
 Finally, the ``run()`` command starts the server.
+
+
+The pyRDDLGym Compiler (for Advanced Users)
+-------------------
+
+.. warning::
+   This section is intended for advanced users who wish to become familiar with the 
+   backend of pyRDDLGym. We can only provide limited support for backend-related 
+   topics (bug reports and pull requests are always welcome), 
+   and the API can change at any time making this guide obsolete at times.
+
+At the lowest level of abstraction of pyRDDLGym, syntactic analysis is performed statically whenever possible 
+for optimal performance, due to the fact that pyRDDLGym is written purely in Python
+and does not (currently) provide C/C++ binaries.
+
+The syntax analysis and compilation of RDDL description files into Python objects 
+happens statically when the environment is created, which are directly referenced 
+by the user-facing API (e.g. the ``RDDLEnv``, simulator, optimizers, etc.). 
+These objects include outputs from several distinct stages of compilation:
+
+.. list-table:: Compiler Components
+   :widths: 80 100
+   :header-rows: 1
+   
+   * - name 
+     - description
+   * - `RDDLParser <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/parser/parser.py>`_
+     - Parses the RDDL description file contents into an intermediate AST.
+   * - `RDDLPlanningModel <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/model.py>`_
+     - Converts the parsed AST into a user-friendly model object.
+   * - `RDDLValueInitializer <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/initializer.py>`_
+     - Compiles the initial values of all pvariables in the domain and instance description into numerical arrays.
+   * - `RDDLLevelAnalysis <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/levels.py>`_
+     - Compiles a graph summarizing the dependencies between (lifted) pvariables, and computes levels by analyzing the order of evaluation.
+   * - `RDDLObjectsTracer <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/tracer.py>`_
+     - Traces the RDDL AST to compile parameter info for pvariables, and performs type checking of pvars and parameters.
+
+The following code illustrates the parsing of a domain description, 
+returning a ``RDDL`` object that represents its AST representation:
+
+.. code-block:: python
+    
+    from pyRDDLGym.core.parser.reader import RDDLReader	
+    from pyRDDLGym.core.parser.parser import RDDLParser
+    
+    reader = RDDLReader("\path\to\domain.rddl", "\path\to\instance.rddl")
+    domain = reader.rddltxt
+    parser = RDDLParser()
+    parser.build()
+    ast = parser.parse(domain)
+
+The AST can then be passed to a ``RDDLPlanningModel``, which compiles
+the AST into a user-friendly API with accessible properties and functions 
+for operating on and modifying the (lifted) domain:
+
+.. code-block:: python
+
+    from pyRDDLGym.core.compiler.model import RDDLLiftedModel	
+    model = RDDLLiftedModel(ast)
+
+It is now possible to extract the initial values of the pvariables by using a ``RDDLValueInitializer``,
+which reads from the ``init-fluents`` block in the instance whenever possible, and
+otherwise from the ``default`` values in the domain:
+
+.. code-block:: python
+
+    from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer	
+    values = RDDLValueInitializer(model).initialize()
+
+It is also possible to compute the graph that summarizes the pvariables/CPFs on which each CPF depends,
+and run a topological sort on the graph to determine the correct order of CPF evaluation:
+
+.. code-block:: python
+
+    from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
+    
+    sorter = RDDLLevelAnalysis(model)
+    dependencies = sorter.build_call_graph()
+    levels = sorter.compute_levels()
+
+Finally, the code can be traced to compile static type information about each subexpression in the AST, which 
+includes for example any free parameters in the scope of the subexpression and their types,
+the type of the value returned by the subexpression during evaluation,
+or information that is expensive to compute dynamically during simulation 
+(e.g. instructions how to operate on pvariables stored as tensors):
+ 
+.. code-block:: python
+    
+    from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer    
+    trace_info = RDDLObjectsTracer(rddl, cpf_levels=levels).trace()
+
+This creates an object of type ``RDDLTracedObjects`` which can be queried for 
+compiled information about each subexpression in the AST, i.e.:
+
+.. code-block:: python
+    
+    trace_info.cached_objects_in_scope(expr)   # list free parameters in the scope of expr
+	trace_info.cached_object_type(expr)        # type of the value returned by expr, None if primitive
+	trace_info.cached_is_fluent(expr)          # whether expr is fluent (e.g. its returned value can change over time)
+	trace_info.cached_sim_info(expr)           # low-level instructions for operating on returned value of expr
+
+For debugging purposes, it is also possible to decompile the model representation
+back into a RDDL language string:
+
+.. code-block:: python
+
+    from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
+    rddl_string = RDDLDecompiler().decompile_domain(rddl)
+
+    
