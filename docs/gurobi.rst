@@ -92,8 +92,8 @@ To apply the second approach, you can pass these parameters as a dictionary to t
 
 .. code-block:: python
 
-    controller = GurobiOnlineController(rddl=model, plan=plan, rollout_horizon=5,
-                                        model_params={'TimeLimit': 60, 'OutputFlag': 1})
+    settings = {'TimeLimit': 60, 'OutputFlag': 1}
+    controller = GurobiOnlineController(rddl=model, plan=plan, ... model_params=settings)
 
 Current Limitations
 -------------------
@@ -105,3 +105,21 @@ We cite several limitations of the current baseline Gurobi optimizer:
 * Discrete non-linear domains can require exponential computation time
 	* the planner uses piecewise linear functions to approximate non-linearities, and quadratic expressions in other cases
 	* if the planner does not make progress, we recommend reducing the planning horizon, simplying the RDDL description as much as possible, or tweaking the parameters of the Gurobi model.
+
+Citations
+-------------------
+
+If you use the code provided in this repository, please use the following bibtex for citation:
+
+.. code-block:: bibtex
+
+    @inproceedings{
+        gimelfarb2024jaxplan,
+        title={JaxPlan and GurobiPlan: Optimization Baselines for Replanning in Discrete and Mixed Discrete and Continuous Probabilistic Domains},
+        author={Michael Gimelfarb and Ayal Taitler and Scott Sanner},
+        booktitle={34th International Conference on Automated Planning and Scheduling},
+        year={2024},
+        url={https://openreview.net/forum?id=7IKtmUpLEH}
+    }
+
+    

@@ -52,20 +52,13 @@ This software is distributed under the MIT License.
 
 Citing pyRDDLGym
 -----
+
 Please see our `paper <https://arxiv.org/abs/2211.05939>`_ describing pyRDDLGym. To cite:
 
-.. code-block:: python
+.. code-block:: bibtex
 
     @article{taitler2022pyrddlgym,
-      title={pyRDDLGym: From RDDL to Gym Environments},
-      author={Taitler, Ayal and Gimelfarb, Michael and Gopalakrishnan, Sriram and Mladenov, Martin and Liu, Xiaotian and Sanner, Scott},
-      journal={arXiv preprint arXiv:2211.05939},
-      year={2022}}
-
-Contributors
-------------
-- Ayal Taitler (University of Toronto, CA)
-- Michael Gimelfarb (University of Toronto, CA)
-- Sriram Gopalakrishnan (Arizona State University/J.P. Morgan, USA)
-- Martin Mladenov (Google, BR)
-- Jack Liu (University of Toronto, CA)
+        title={pyRDDLGym: From RDDL to Gym Environments},
+        author={Taitler, Ayal and Gimelfarb, Michael and Gopalakrishnan, Sriram and Mladenov, Martin and Liu, Xiaotian and Sanner, Scott},
+        journal={arXiv preprint arXiv:2211.05939},
+        year={2022}}
