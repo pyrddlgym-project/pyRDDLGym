@@ -94,6 +94,13 @@ pyRDDLGym provides a convenient class for producing a grounded model from a lift
 The ``grounded`` object returned is also an environment model, 
 so the properties discussed in the table at the top of the page work interchangeably with grounded and lifted models.
 
+.. warning::
+   Currently, the grounder only supports RDDL 1.0 syntax. Therefore, it does not ground
+   expressions containing switch statements, matrix operations, vector distributions and Discrete, 
+   nested pvariables, and parameters that are not located inside a pvariable 
+   (e.g. statements like ``?x == ?y``). There is currently (limited) support for enumerated types.
+   
+   
 Vectorized Input and Output
 -------------------
 
