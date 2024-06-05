@@ -285,7 +285,7 @@ or information that is expensive to compute dynamically during simulation
 .. code-block:: python
     
     from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer    
-    trace_info = RDDLObjectsTracer(rddl, cpf_levels=levels).trace()
+    trace_info = RDDLObjectsTracer(model, cpf_levels=levels).trace()
 
 This creates an object of type ``RDDLTracedObjects`` which can be queried for 
 compiled information about each subexpression in the AST, i.e.:
@@ -303,6 +303,6 @@ back into a RDDL language string:
 .. code-block:: python
 
     from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
-    rddl_string = RDDLDecompiler().decompile_domain(rddl)
+    rddl_string = RDDLDecompiler().decompile_domain(model)
 
     
