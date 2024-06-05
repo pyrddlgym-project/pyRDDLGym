@@ -225,15 +225,15 @@ These objects include outputs from several distinct stages of compilation:
    * - name 
      - description
    * - `RDDLParser <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/parser/parser.py>`_
-     - Parses the RDDL description file contents into an intermediate AST.
+     - Parses a RDDL description file into an intermediate AST.
    * - `RDDLPlanningModel <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/model.py>`_
-     - Converts the parsed AST into a user-friendly model object.
+     - Converts a parsed AST into a user-friendly model object.
    * - `RDDLValueInitializer <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/initializer.py>`_
-     - Compiles the initial values of all pvariables in the domain and instance description into numerical arrays.
+     - Compiles the initial values of all pvariables into numerical arrays.
    * - `RDDLLevelAnalysis <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/levels.py>`_
-     - Compiles a graph summarizing the dependencies between (lifted) pvariables, and computes levels by analyzing the order of evaluation.
+     - Summarizes the dependencies between CPFs, and computes their order of evaluation.
    * - `RDDLObjectsTracer <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/tracer.py>`_
-     - Traces the RDDL AST to compile parameter info for pvariables, and performs type checking of pvars and parameters.
+     - Traces the RDDL AST to compile type information about each subexpression, and does type checking.
 
 The following code illustrates the parsing of a domain description, 
 returning a ``RDDL`` object that represents its AST representation:
@@ -243,11 +243,10 @@ returning a ``RDDL`` object that represents its AST representation:
     from pyRDDLGym.core.parser.reader import RDDLReader	
     from pyRDDLGym.core.parser.parser import RDDLParser
     
-    reader = RDDLReader("\path\to\domain.rddl", "\path\to\instance.rddl")
-    domain = reader.rddltxt
+    rddl_string = RDDLReader("\path\to\domain.rddl", "\path\to\instance.rddl").rddltxt
     parser = RDDLParser()
     parser.build()
-    ast = parser.parse(domain)
+    ast = parser.parse(rddl_string)
 
 The AST can then be passed to a ``RDDLPlanningModel``, which compiles
 the AST into a user-friendly API with accessible properties and functions 
@@ -272,8 +271,7 @@ and run a topological sort on the graph to determine the correct order of CPF ev
 
 .. code-block:: python
 
-    from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
-    
+    from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis    
     sorter = RDDLLevelAnalysis(model)
     dependencies = sorter.build_call_graph()
     levels = sorter.compute_levels()
@@ -294,10 +292,10 @@ compiled information about each subexpression in the AST, i.e.:
 
 .. code-block:: python
     
-    trace_info.cached_objects_in_scope(expr)   # list free parameters in the scope of expr
-	trace_info.cached_object_type(expr)        # type of the value returned by expr, None if primitive
-	trace_info.cached_is_fluent(expr)          # whether expr is fluent (e.g. its returned value can change over time)
-	trace_info.cached_sim_info(expr)           # low-level instructions for operating on returned value of expr
+    trace_info.cached_objects_in_scope(expr)   # list free parameters in scope
+    trace_info.cached_object_type(expr)        # type of the value returned (None if primitive)
+    trace_info.cached_is_fluent(expr)          # whether expr is fluent (returned value can change over time)
+    trace_info.cached_sim_info(expr)           # low-level instructions for operating on returned value tensor
 
 For debugging purposes, it is also possible to decompile the model representation
 back into a RDDL language string:
