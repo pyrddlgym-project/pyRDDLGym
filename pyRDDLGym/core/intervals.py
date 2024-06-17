@@ -2,9 +2,10 @@ import numpy as np
 from typing import Dict, List, Set, Tuple, Union
 
 Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
-              
+
+from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
-from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer, RDDLTracedObjects
+from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer
 from pyRDDLGym.core.debug.exception import (
     print_stack_trace as PST,
     RDDLInvalidNumberOfArgumentsError,
@@ -12,32 +13,39 @@ from pyRDDLGym.core.debug.exception import (
     RDDLUndefinedVariableError
 )
 from pyRDDLGym.core.debug.logger import Logger
-from pyRDDLGym.core.parser.expr import Expression
 from pyRDDLGym.core.simulator import lngamma
 
 
 class RDDLIntervalAnalysis:
     
-    def __init__(self, rddl: RDDLPlanningModel, trace: RDDLTracedObjects,
-                 cpf_levels: Dict[str, List[str]],
-                 logger: Logger=None) -> None:
+    def __init__(self, rddl: RDDLPlanningModel, logger: Logger=None) -> None:
         '''Creates a new interval analysis object for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
-        :param trace: pre-computed tracing of the RDDL
-        :param cpf_levels: order of evaluation of CPFs
         :param logger: to log compilation information during tracing to file
         '''
         self.rddl = rddl
-        self.trace = trace
-        self.cpf_levels = cpf_levels
         self.logger = logger
+        
+        sorter = RDDLLevelAnalysis(rddl, allow_synchronous_state=True, logger=self.logger)
+        self.cpf_levels = sorter.compute_levels()
+          
+        tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=self.cpf_levels)
+        self.trace = tracer.trace()
         
         self.NUMPY_PROD_FUNC = np.frompyfunc(self._bound_product_scalar, nin=2, nout=1)    
         self.NUMPY_OR_FUNC = np.frompyfunc(self._bound_or_scalar, nin=2, nout=1)
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
     def bound(self, action_bounds: Bounds=None, per_epoch: bool=False) -> Bounds:
+        '''Computes intervals on all fluents and reward for the planning problem.
+        
+        :param action_bounds: optional bounds on action fluents (defaults to
+        a "random" policy otherwise)
+        :param per_epoch: if True, the returned bounds are tensors with leading
+        dimension indicating the decision epoch; if False, the returned bounds
+        are valid across all decision epochs.
+        '''
         
         # get initial values as bounds
         intervals = self._bound_initial_values()
@@ -83,8 +91,7 @@ class RDDLIntervalAnalysis:
             intervals[name] = (values, values)
         return intervals
             
-    def _bound_next_epoch(self, intervals, 
-                          action_bounds=None, per_epoch: bool=False):
+    def _bound_next_epoch(self, intervals, action_bounds=None, per_epoch: bool=False):
         rddl = self.rddl 
         
         # update action bounds from user
@@ -850,14 +857,14 @@ class RDDLIntervalAnalysis:
             return self._bound_chisquare(expr, intervals)
         elif name == 'Kumaraswamy':
             return self._bound_kumaraswamy(expr, intervals)
-        elif name == 'Discrete':
-            return self._bound_discrete(expr, intervals, False)
-        elif name == 'UnnormDiscrete':
-            return self._bound_discrete(expr, intervals, True)
-        elif name == 'Discrete(p)':
-            return self._bound_discrete_pvar(expr, intervals, False)
-        elif name == 'UnnormDiscrete(p)':
-            return self._bound_discrete_pvar(expr, intervals, True)
+        # elif name == 'Discrete':
+        #     return self._bound_discrete(expr, intervals, False)
+        # elif name == 'UnnormDiscrete':
+        #     return self._bound_discrete(expr, intervals, True)
+        # elif name == 'Discrete(p)':
+        #     return self._bound_discrete_pvar(expr, intervals, False)
+        # elif name == 'UnnormDiscrete(p)':
+        #     return self._bound_discrete_pvar(expr, intervals, True)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + PST(expr))
