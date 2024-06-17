@@ -30,8 +30,8 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 ## Contents
 - [Purpose and Benefits](#purpose-and-benefits)
 - [Installation](#installation)
+- [Example Scripts](#example-scripts)
 - [Usage](#usage)
-   - [Running the Example](#running-the-example)
    - [Loading an Environment](#loading-an-environment)
    - [Creating your Own Visualizer](#creating-your-own-visualizer)
    - [Recording Movies](#recording-movies)
