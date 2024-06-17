@@ -74,12 +74,16 @@ Since pyRDDLGym does not come with any premade environments, you can either load
 pip install rddlrepository
 ```
 
-## Usage
+## Example Scripts
 
-### Running the Example
+Several [example scripts](https://github.com/pyrddlgym-project/pyRDDLGym/tree/main/pyRDDLGym/examples) are provided to illustrate basic pyRDDLGym usage:
+* [run_gym.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym.py) launches a pyRDDLGym environment and evaluates a given policy
+* [run_gym2.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym2.py) is similar to the above, except the environment interaction is coded explicitly
+* [run_ground.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_ground.py) illustrates grounding a domain and instance
+* [run_intervals.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_intervals.py) computes lower and upper bounds on the policy value using interval arithmetic
+* [run_server.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_server.py) illustrates how to set up pyRDDLGym to send and receive messages through TCP
 
-pyRDDLGym comes with several run scripts as starting points for you to use in your own scripts.
-To simulate an environment, from the install directory of pyRDDLGym, type the following into a shell supporting the python command (you need rddlrepository):
+To simulate an environment for example, from the install directory of pyRDDLGym, type the following into a shell supporting the python command (you need rddlrepository):
 
 ```shell
 python -m pyRDDLGym.examples.run_gym "Cartpole_Continuous_gym" "0" 1
@@ -87,6 +91,9 @@ python -m pyRDDLGym.examples.run_gym "Cartpole_Continuous_gym" "0" 1
 
 which loads instance "0" of the CartPole control problem with continuous actions from rddlrepository and simulates it with a random policy for one episode.
 
+## Usage
+
+This section outlines some of the basic python API functions of pyRDDLGym in more detail.
 
 ### Loading an Environment
 
