@@ -331,7 +331,7 @@ class RDDLIntervalAnalysis:
         
         if op == '>=':
             lower = mask_fn(lower, l1 >= u2, 1)
-            upper = mask_fn(upper, u1 < l2, 1)
+            upper = mask_fn(upper, u1 < l2, 0)
             return lower, upper
         elif op == '>':
             lower = mask_fn(lower, l1 > u2, 1)
