@@ -296,7 +296,7 @@ class RDDLIntervalAnalysis:
         if n == 1 and op == '-':
             arg, = args
             lower, upper = self._bound(arg, intervals)
-            return (-upper, -lower)
+            return (-1 * upper, -1 * lower)
         
         # binary operator
         elif n == 2:
