@@ -35,8 +35,8 @@ def main(domain, instance, policy):
         action_bounds = None
     
     # evaluate lower and upper bounds on accumulated reward of random policy
-    reward_lower, reward_upper = analysis.bound(
-        action_bounds=action_bounds, per_epoch=True)['reward']
+    bounds = analysis.bound(action_bounds=action_bounds, per_epoch=True)
+    reward_lower, reward_upper = bounds['reward']    
     print(f'value lower bound = {np.sum(reward_lower)}, '
           f'value upper bound = {np.sum(reward_upper)}')
     
