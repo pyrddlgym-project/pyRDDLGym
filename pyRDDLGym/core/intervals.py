@@ -180,7 +180,7 @@ class RDDLIntervalAnalysis:
     
     def _cast_enum_values_to_int(self, var, values):
         if self.rddl.variable_ranges[var] in self.rddl.enum_types \
-        and not np.issubdtype(values.dtype, np.number):
+        and not np.issubdtype(np.atleast_1d(values).dtype, np.number):
             return self.NUMPY_LITERAL_TO_INT(values)
         else:
             return values
@@ -190,7 +190,7 @@ class RDDLIntervalAnalysis:
         return (lower, upper)
     
     def _bound_pvar(self, expr, intervals):
-        var, args = expr.args
+        var, _ = expr.args
         
         # free variable (e.g., ?x) and object converted to canonical index
         is_value, cached_info = self.trace.cached_sim_info(expr)
@@ -651,8 +651,8 @@ class RDDLIntervalAnalysis:
         
         # positive base, means well defined for any real power
         log1 = RDDLIntervalAnalysis._bound_func_monotone(l1, u1, np.log)
-        pow = RDDLIntervalAnalysis._bound_arithmetic_expr(log1, int2, '*')
-        l1pos, u1pos = RDDLIntervalAnalysis._bound_func_monotone(*pow, np.exp)
+        pow_ = RDDLIntervalAnalysis._bound_arithmetic_expr(log1, int2, '*')
+        l1pos, u1pos = RDDLIntervalAnalysis._bound_func_monotone(*pow_, np.exp)
         lower = mask_fn(lower, l1 > 0, l1pos, True)
         upper = mask_fn(upper, l1 > 0, u1pos, True)
             
@@ -660,26 +660,26 @@ class RDDLIntervalAnalysis:
         l2_is_int = np.equal(np.mod(l2, 1), 0)
         u2_is_int = np.equal(np.mod(u2, 1), 0)
         pow_valid = l2_is_int & u2_is_int & (l2 >= 0) & (l2 == u2)
-        pow = l2.astype(int) if np.shape(l2) else int(l2)
-        pow_even = (np.mod(pow, 2) == 0)
+        pow_ = l2.astype(int) if np.shape(l2) else int(l2)
+        pow_even = (np.mod(pow_, 2) == 0)
             
         # if the base interval contains 0
         case1 = pow_valid & (0 >= l1) & (0 <= u1)
         lower = mask_fn(lower, case1 & pow_even, 0)
-        upper = mask_fn(upper, case1 & (pow == 0), 1)
-        upper = mask_fn(upper, case1 & (pow > 0) & pow_even, 
-                        np.maximum(l1 ** pow, l2 ** pow), True)
-        lower = mask_fn(lower, case1 & ~pow_even, l1 ** pow, True)
-        upper = mask_fn(upper, case1 & ~pow_even, l2 ** pow, True)
+        upper = mask_fn(upper, case1 & (pow_ == 0), 1)
+        upper = mask_fn(upper, case1 & (pow_ > 0) & pow_even, 
+                        np.maximum(l1 ** pow_, l2 ** pow_), True)
+        lower = mask_fn(lower, case1 & ~pow_even, l1 ** pow_, True)
+        upper = mask_fn(upper, case1 & ~pow_even, l2 ** pow_, True)
             
         # if the base is strictly negative
         case2 = pow_valid & (u1 < 0)
-        lower = mask_fn(lower, case2 & (pow == 0), 1)
-        upper = mask_fn(upper, case2 & (pow == 0), 1)
-        lower = mask_fn(lower, case2 & pow_even, u1 ** pow, True)
-        upper = mask_fn(upper, case2 & pow_even, l1 ** pow, True)
-        lower = mask_fn(lower, case2 & ~pow_even, l1 ** pow, True)
-        upper = mask_fn(upper, case2 & ~pow_even, u1 ** pow, True)
+        lower = mask_fn(lower, case2 & (pow_ == 0), 1)
+        upper = mask_fn(upper, case2 & (pow_ == 0), 1)
+        lower = mask_fn(lower, case2 & pow_even, u1 ** pow_, True)
+        upper = mask_fn(upper, case2 & pow_even, l1 ** pow_, True)
+        lower = mask_fn(lower, case2 & ~pow_even, l1 ** pow_, True)
+        upper = mask_fn(upper, case2 & ~pow_even, u1 ** pow_, True)
         return lower, upper
     
     def _bound_func_binary(self, expr, intervals):
@@ -701,16 +701,7 @@ class RDDLIntervalAnalysis:
         elif name == 'max':
             return (np.maximum(l1, l2), np.maximum(u1, u2))
         
-        # TODO
-        elif name == 'mod':
-            raise RDDLNotImplementedError(
-                f'Binary function {name} is not supported.\n' + PST(expr))
-        
-        # TODO
-        elif name == 'fmod':
-            raise RDDLNotImplementedError(
-                f'Binary function {name} is not supported.\n' + PST(expr))
-        
+        # power
         elif name == 'pow':
             return self._bound_func_power(int1, int2)
         
@@ -766,9 +757,9 @@ class RDDLIntervalAnalysis:
     def _bound_if(self, expr, intervals):
         args = expr.args
         pred, arg1, arg2 = args
-        intp = (lp, up) = self._bound(pred, intervals)
-        int1 = (l1, u1) = self._bound(arg1, intervals)
-        int2 = (l2, u2) = self._bound(arg2, intervals)      
+        (lp, up) = self._bound(pred, intervals)
+        (l1, u1) = self._bound(arg1, intervals)
+        (l2, u2) = self._bound(arg2, intervals)      
         lower = np.minimum(l1, l2)
         upper = np.maximum(u1, u2)
         
@@ -780,6 +771,11 @@ class RDDLIntervalAnalysis:
         return (lower, upper)
             
     def _bound_switch(self, expr, intervals):
+        mask_fn = RDDLIntervalAnalysis._mask_assign
+        
+        # compute bounds on predicate
+        pred, *_ = expr.args
+        lower_pred, upper_pred = self._bound(pred, intervals)  
         
         # compute bounds on case expressions        
         cases, default = self.trace.cached_sim_info(expr)  
@@ -788,26 +784,22 @@ class RDDLIntervalAnalysis:
             (def_bounds if arg is None else self._bound(arg, intervals))
             for arg in cases
         ]
-        lower_case = [lower for (lower, _) in bounds]
-        upper_case = [upper for (_, upper) in bounds]
         
-        # check if the predicate is known with certainty      
-        pred, *_ = expr.args
-        lower_pred, upper_pred = self._bound(pred, intervals)  
-        if np.all(lower_pred == upper_pred):
-            sample_pred = lower_pred[np.newaxis, ...]
-            lower = np.take_along_axis(np.asarray(lower_case), sample_pred, axis=0)
-            upper = np.take_along_axis(np.asarray(upper_case), sample_pred, axis=0)
-            assert lower.shape[0] == 1
-            assert upper.shape[0] == 1
-            lower = lower[0, ...]
-            upper = upper[0, ...]
-        
-        # if not then need to take the widest possible bounds
-        else:
-            lower = np.minimum.reduce(lower_case)
-            upper = np.maximum.reduce(upper_case)
-        return (lower, upper)
+        # (pred == @o1) * expr1 + (pred == @o2) * expr2 ...
+        final_bounds = None
+        for (index, (lower_expr, upper_expr)) in enumerate(bounds):
+            lower_eq = np.zeros(np.shape(lower_expr), dtype=int)
+            upper_eq = np.ones(np.shape(upper_expr), dtype=int)
+            lower_eq = mask_fn(lower_eq, (lower_pred == upper_pred) & (lower_pred == index), 1)
+            upper_eq = mask_fn(upper_eq, (upper_pred < index) | (lower_pred > index), 0)
+            bounds_obj = RDDLIntervalAnalysis._bound_arithmetic_expr(
+                (lower_eq, upper_eq), (lower_expr, upper_expr), '*')      
+            if final_bounds is None:
+                final_bounds = bounds_obj
+            else:
+                final_bounds = RDDLIntervalAnalysis._bound_arithmetic_expr(
+                    final_bounds, bounds_obj, '+')
+        return final_bounds
     
     # ===========================================================================
     # random variables
@@ -857,14 +849,14 @@ class RDDLIntervalAnalysis:
             return self._bound_chisquare(expr, intervals)
         elif name == 'Kumaraswamy':
             return self._bound_kumaraswamy(expr, intervals)
-        # elif name == 'Discrete':
-        #     return self._bound_discrete(expr, intervals, False)
-        # elif name == 'UnnormDiscrete':
-        #     return self._bound_discrete(expr, intervals, True)
-        # elif name == 'Discrete(p)':
-        #     return self._bound_discrete_pvar(expr, intervals, False)
-        # elif name == 'UnnormDiscrete(p)':
-        #     return self._bound_discrete_pvar(expr, intervals, True)
+        elif name == 'Discrete':
+            return self._bound_discrete(expr, intervals, False)
+        elif name == 'UnnormDiscrete':
+            return self._bound_discrete(expr, intervals, True)
+        elif name == 'Discrete(p)':
+            return self._bound_discrete_pvar(expr, intervals, False)
+        elif name == 'UnnormDiscrete(p)':
+            return self._bound_discrete_pvar(expr, intervals, True)
         else:
             raise RDDLNotImplementedError(
                 f'Distribution {name} is not supported.\n' + PST(expr))
@@ -882,8 +874,8 @@ class RDDLIntervalAnalysis:
     def _bound_uniform(self, expr, intervals):
         args = expr.args
         a, b = args
-        intl = (la, ua) = self._bound(a, intervals)
-        intu = (lb, ub) = self._bound(b, intervals)
+        (la, ua) = self._bound(a, intervals)
+        (lb, ub) = self._bound(b, intervals)
         lower = la
         upper = ub
         return (lower, upper)
@@ -891,7 +883,7 @@ class RDDLIntervalAnalysis:
     def _bound_bernoulli(self, expr, intervals):
         args = expr.args
         p, = args
-        intp = (lp, up) = self._bound(p, intervals)
+        (lp, up) = self._bound(p, intervals)
         
         lower = np.zeros(shape=np.shape(lp), dtype=int)
         upper = np.ones(shape=np.shape(up), dtype=int)
@@ -902,8 +894,8 @@ class RDDLIntervalAnalysis:
     def _bound_normal(self, expr, intervals):
         args = expr.args
         mean, var = args
-        intm = (lm, um) = self._bound(mean, intervals)
-        intv = (lv, uv) = self._bound(var, intervals)
+        (lm, um) = self._bound(mean, intervals)
+        (lv, uv) = self._bound(var, intervals)
         
         lower = np.full(shape=np.shape(lm), fill_value=-np.inf)
         upper = np.full(shape=np.shape(um), fill_value=+np.inf)
@@ -914,7 +906,7 @@ class RDDLIntervalAnalysis:
     def _bound_poisson(self, expr, intervals):
         args = expr.args
         p, = args
-        intp = (lp, up) = self._bound(p, intervals)
+        (lp, up) = self._bound(p, intervals)
         
         lower = np.zeros(shape=np.shape(lp), dtype=int)
         upper = np.full(shape=np.shape(up), fill_value=np.inf)
@@ -923,7 +915,7 @@ class RDDLIntervalAnalysis:
     def _bound_exponential(self, expr, intervals):
         args = expr.args
         scale, = args
-        ints = (ls, us) = self._bound(scale, intervals)
+        (ls, us) = self._bound(scale, intervals)
         
         lower = np.zeros(shape=np.shape(ls))
         upper = np.full(shape=np.shape(us), fill_value=np.inf)
@@ -932,8 +924,8 @@ class RDDLIntervalAnalysis:
     def _bound_weibull(self, expr, intervals):
         args = expr.args
         shape, scale = args
-        intsh = (lsh, ush) = self._bound(shape, intervals)
-        intsc = (lsc, usc) = self._bound(scale, intervals)
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
         
         lower = np.zeros(shape=np.shape(lsh))
         upper = np.full(shape=np.shape(ush), fill_value=np.inf)
@@ -942,8 +934,8 @@ class RDDLIntervalAnalysis:
     def _bound_gamma(self, expr, intervals):
         args = expr.args
         shape, scale = args
-        intsh = (lsh, ush) = self._bound(shape, intervals)
-        intsc = (lsc, usc) = self._bound(scale, intervals)
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
         
         lower = np.zeros(shape=np.shape(ls))
         upper = np.full(shape=np.shape(us), fill_value=np.inf)
@@ -952,8 +944,8 @@ class RDDLIntervalAnalysis:
     def _bound_binomial(self, expr, intervals):
         args = expr.args
         n, p = args
-        intn = (ln, un) = self._bound(n, intervals)
-        intp = (lp, up) = self._bound(p, intervals)
+        (ln, un) = self._bound(n, intervals)
+        (lp, up) = self._bound(p, intervals)
         
         lower = np.zeros(shape=np.shape(ln), dtype=int)
         upper = np.copy(un)
@@ -964,8 +956,8 @@ class RDDLIntervalAnalysis:
     def _bound_beta(self, expr, intervals):
         args = expr.args
         shape, rate = args
-        ints = (ls, us) = self._bound(shape, intervals)
-        intr = (lr, ur) = self._bound(rate, intervals)
+        (ls, us) = self._bound(shape, intervals)
+        (lr, ur) = self._bound(rate, intervals)
         
         lower = np.zeros(shape=np.shape(ls))
         upper = np.ones(shape=np.shape(us))
@@ -975,7 +967,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         p, = args
         
-        intp = (lp, up) = self._bound(p, intervals)
+        (lp, up) = self._bound(p, intervals)
         lower = np.ones(shape=np.shape(lp), dtype=int)
         upper = np.full(shape=np.shape(up), fill_value=np.inf)
         return (lower, upper)
@@ -983,8 +975,8 @@ class RDDLIntervalAnalysis:
     def _bound_pareto(self, expr, intervals):
         args = expr.args
         shape, scale = args
-        intsh = (lsh, ush) = self._bound(shape, intervals)
-        intsc = (lsc, usc) = self._bound(scale, intervals)
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
         
         lower = lsc
         upper = np.full(shape=np.shape(usc), fill_value=np.inf)
@@ -993,7 +985,7 @@ class RDDLIntervalAnalysis:
     def _bound_student(self, expr, intervals):
         args = expr.args
         df, = args
-        intd = (ld, ud) = self._bound(df, intervals)
+        (ld, ud) = self._bound(df, intervals)
         
         lower = np.full(shape=np.shape(ld), fill_value=-np.inf)
         upper = np.full(shape=np.shape(ud), fill_value=+np.inf)
@@ -1002,8 +994,8 @@ class RDDLIntervalAnalysis:
     def _bound_gumbel(self, expr, intervals):
         args = expr.args
         mean, scale = args
-        intm = (lm, um) = self._bound(mean, intervals)
-        ints = (ls, us) = self._bound(scale, intervals)
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
         
         lower = np.full(shape=np.shape(lm), fill_value=-np.inf)
         upper = np.full(shape=np.shape(um), fill_value=+np.inf)
@@ -1012,8 +1004,8 @@ class RDDLIntervalAnalysis:
     def _bound_cauchy(self, expr, intervals):
         args = expr.args
         mean, scale = args
-        intm = (lm, um) = self._bound(mean, intervals)
-        ints = (ls, us) = self._bound(scale, intervals)
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
         
         lower = np.full(shape=np.shape(lm), fill_value=-np.inf)
         upper = np.full(shape=np.shape(um), fill_value=+np.inf)
@@ -1022,8 +1014,8 @@ class RDDLIntervalAnalysis:
     def _bound_gompertz(self, expr, intervals):
         args = expr.args
         shape, scale = args
-        intsh = (lsh, ush) = self._bound(shape, intervals)
-        intsc = (lsc, usc) = self._bound(scale, intervals)
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
         
         lower = np.zeros(shape=np.shape(lsh))
         upper = np.full(shape=np.shape(ush), fill_value=np.inf)
@@ -1032,7 +1024,7 @@ class RDDLIntervalAnalysis:
     def _bound_chisquare(self, expr, intervals):
         args = expr.args
         df, = args
-        intd = (ld, ud) = self._bound(df, intervals)
+        (ld, ud) = self._bound(df, intervals)
         
         lower = np.zeros(shape=np.shape(ld))
         upper = np.full(shape=np.shape(ud), fill_value=np.inf)
@@ -1041,9 +1033,38 @@ class RDDLIntervalAnalysis:
     def _bound_kumaraswamy(self, expr, intervals):
         args = expr.args
         a, b = args
-        inta = (la, ua) = self._bound(a, intervals)
-        intb = (lb, ub) = self._bound(b, intervals)
+        (la, ua) = self._bound(a, intervals)
+        (lb, ub) = self._bound(b, intervals)
         
         lower = np.zeros(shape=np.shape(la))
         upper = np.ones(shape=np.shape(ua))
         return (lower, upper)
+    
+    # ===========================================================================
+    # random variables with enum support
+    # ===========================================================================
+    
+    def _bound_discrete_helper(self, bounds):
+        lower = np.full(shape=np.shape(bounds[0][0]), fill_value=len(bounds), dtype=int)
+        upper = np.full(shape=np.shape(bounds[0][1]), fill_value=-1, dtype=int)
+        for (index, (lower_prob, upper_prob)) in enumerate(bounds):
+            nonzero = upper_prob > 0
+            lower[nonzero] = np.minimum(lower[nonzero], index)
+            upper[nonzero] = np.maximum(upper[nonzero], index)
+        return lower, upper
+        
+    def _bound_discrete(self, expr, intervals, unnorm):
+        sorted_args = self.trace.cached_sim_info(expr)
+        bounds = [self._bound(arg, intervals) for arg in sorted_args]
+        return self._bound_discrete_helper(bounds) 
+    
+    def _bound_discrete_pvar(self, expr, intervals, unnorm):
+        _, args = expr.args
+        arg, = args
+        lower_prob, upper_prob = self._bound(arg, intervals)
+        bounds = [(lower_prob[..., i], upper_prob[..., i])
+                  for i in range(lower_prob.shape[-1])]
+        return self._bound_discrete_helper(bounds)
+        
+        
+        

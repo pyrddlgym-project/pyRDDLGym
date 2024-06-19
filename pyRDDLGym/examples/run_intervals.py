@@ -18,11 +18,21 @@ from pyRDDLGym.core.intervals import RDDLIntervalAnalysis
 def main(domain, instance):
     
     # create the environment
-    env = pyRDDLGym.make(domain, instance, enforce_action_constraints=False)
+    env = pyRDDLGym.make(domain, instance, vectorized=True)
+    
+    # set range of action fluents to uniform over action space
+    analysis = RDDLIntervalAnalysis(env.model)
+    action_bounds = {}
+    for action, prange in env.model.action_ranges.items():
+        lower, upper = env._bounds[action]
+        if prange == 'bool':
+            lower = np.full(np.shape(lower), fill_value=0, dtype=int)
+            upper = np.full(np.shape(upper), fill_value=1, dtype=int)
+        action_bounds[action] = (lower, upper)
     
     # evaluate lower and upper bounds on accumulated reward of random policy
-    analysis = RDDLIntervalAnalysis(env.model)
-    reward_lower, reward_upper = analysis.bound(per_epoch=True)['reward']
+    reward_lower, reward_upper = analysis.bound(
+        action_bounds=action_bounds, per_epoch=True)['reward']
     print(f'value lower bound = {np.sum(reward_lower)}, '
           f'value upper bound = {np.sum(reward_upper)}')
     
