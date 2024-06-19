@@ -664,7 +664,7 @@ class RDDLIntervalAnalysis:
         l2_is_int = np.equal(np.mod(l2, 1), 0)
         u2_is_int = np.equal(np.mod(u2, 1), 0)
         pow_valid = l2_is_int & u2_is_int & (l2 >= 0) & (l2 == u2)
-        pow_ = l2.astype(int) if np.shape(l2) else int(l2)
+        pow_ = l2.astype(np.int64) if np.shape(l2) else int(l2)
         pow_even = (np.mod(pow_, 2) == 0)
             
         # if the base interval contains 0
