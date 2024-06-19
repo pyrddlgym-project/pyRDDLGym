@@ -181,7 +181,7 @@ class RDDLIntervalAnalysis:
     def _cast_enum_values_to_int(self, var, values):
         if self.rddl.variable_ranges[var] in self.rddl.enum_types \
         and not np.issubdtype(np.atleast_1d(values).dtype, np.number):
-            return self.NUMPY_LITERAL_TO_INT(values)
+            return self.NUMPY_LITERAL_TO_INT(values).astype(np.int64)
         else:
             return values
         
@@ -247,6 +247,7 @@ class RDDLIntervalAnalysis:
             dest = value
         return dest
     
+    # TODO: fix overflow
     @staticmethod
     def _bound_arithmetic_expr(int1, int2, op):
         (l1, u1), (l2, u2) = int1, int2
@@ -325,8 +326,8 @@ class RDDLIntervalAnalysis:
     @staticmethod
     def _bound_relational_expr(int1, int2, op):
         (l1, u1), (l2, u2) = int1, int2
-        lower = np.zeros(np.shape(l1), dtype=int)
-        upper = np.ones(np.shape(u1), dtype=int)
+        lower = np.zeros(np.shape(l1), dtype=np.int64)
+        upper = np.ones(np.shape(u1), dtype=np.int64)
         mask_fn = RDDLIntervalAnalysis._mask_assign
         
         if op == '>=':
@@ -436,6 +437,7 @@ class RDDLIntervalAnalysis:
     # aggregation
     # ===========================================================================
     
+    # TODO: fix overflow
     @staticmethod
     def _bound_product_scalar(int1, int2):
         (l1, u1), (l2, u2) = int1, int2
@@ -482,6 +484,7 @@ class RDDLIntervalAnalysis:
             array = numpyfunc.reduce(array, axis=axis)
         return RDDLIntervalAnalysis._unzip_single_array_to_bounds(array)
         
+    # TODO: fix overflow
     def _bound_aggregation(self, expr, intervals):
         _, op = expr.etype
         * _, arg = expr.args        
@@ -512,10 +515,10 @@ class RDDLIntervalAnalysis:
     # ===========================================================================
     
     UNARY_MONOTONE = {
-        'sgn': lambda x: np.sign(x).astype(int),
-        'round': lambda x: np.round(x).astype(int),
-        'floor': lambda x: np.floor(x).astype(int),
-        'ceil': lambda x: np.ceil(x).astype(int),
+        'sgn': lambda x: np.sign(x).astype(np.int64),
+        'round': lambda x: np.round(x).astype(np.int64),
+        'floor': lambda x: np.floor(x).astype(np.int64),
+        'ceil': lambda x: np.ceil(x).astype(np.int64),
         'acos': np.arccos,
         'asin': np.arcsin,
         'atan': np.arctan,
@@ -642,6 +645,7 @@ class RDDLIntervalAnalysis:
             raise RDDLNotImplementedError(
                 f'Unary function {name} is not supported.\n' + PST(expr))
     
+    # TODO: fix overflow
     @staticmethod
     def _bound_func_power(int1, int2):
         (l1, u1), (l2, u2) = int1, int2        
@@ -788,8 +792,8 @@ class RDDLIntervalAnalysis:
         # (pred == @o1) * expr1 + (pred == @o2) * expr2 ...
         final_bounds = None
         for (index, (lower_expr, upper_expr)) in enumerate(bounds):
-            lower_eq = np.zeros(np.shape(lower_expr), dtype=int)
-            upper_eq = np.ones(np.shape(upper_expr), dtype=int)
+            lower_eq = np.zeros(np.shape(lower_expr), dtype=np.int64)
+            upper_eq = np.ones(np.shape(upper_expr), dtype=np.int64)
             lower_eq = mask_fn(lower_eq, (lower_pred == upper_pred) & (lower_pred == index), 1)
             upper_eq = mask_fn(upper_eq, (upper_pred < index) | (lower_pred > index), 0)
             bounds_obj = RDDLIntervalAnalysis._bound_arithmetic_expr(
@@ -885,8 +889,8 @@ class RDDLIntervalAnalysis:
         p, = args
         (lp, up) = self._bound(p, intervals)
         
-        lower = np.zeros(shape=np.shape(lp), dtype=int)
-        upper = np.ones(shape=np.shape(up), dtype=int)
+        lower = np.zeros(shape=np.shape(lp), dtype=np.int64)
+        upper = np.ones(shape=np.shape(up), dtype=np.int64)
         lower = self._mask_assign(lower, lp >= 1, 1)
         upper = self._mask_assign(upper, up <= 0, 0)
         return (lower, upper)
@@ -908,7 +912,7 @@ class RDDLIntervalAnalysis:
         p, = args
         (lp, up) = self._bound(p, intervals)
         
-        lower = np.zeros(shape=np.shape(lp), dtype=int)
+        lower = np.zeros(shape=np.shape(lp), dtype=np.int64)
         upper = np.full(shape=np.shape(up), fill_value=np.inf)
         return (lower, upper)
     
@@ -947,7 +951,7 @@ class RDDLIntervalAnalysis:
         (ln, un) = self._bound(n, intervals)
         (lp, up) = self._bound(p, intervals)
         
-        lower = np.zeros(shape=np.shape(ln), dtype=int)
+        lower = np.zeros(shape=np.shape(ln), dtype=np.int64)
         upper = np.copy(un)
         lower = self._mask_assign(lower, (lp >= 1) & (ln > 0), ln, True)
         upper = self._mask_assign(upper, (up <= 0), 0)
@@ -968,7 +972,7 @@ class RDDLIntervalAnalysis:
         p, = args
         
         (lp, up) = self._bound(p, intervals)
-        lower = np.ones(shape=np.shape(lp), dtype=int)
+        lower = np.ones(shape=np.shape(lp), dtype=np.int64)
         upper = np.full(shape=np.shape(up), fill_value=np.inf)
         return (lower, upper)
     
@@ -1045,8 +1049,8 @@ class RDDLIntervalAnalysis:
     # ===========================================================================
     
     def _bound_discrete_helper(self, bounds):
-        lower = np.full(shape=np.shape(bounds[0][0]), fill_value=len(bounds), dtype=int)
-        upper = np.full(shape=np.shape(bounds[0][1]), fill_value=-1, dtype=int)
+        lower = np.full(shape=np.shape(bounds[0][0]), fill_value=len(bounds), dtype=np.int64)
+        upper = np.full(shape=np.shape(bounds[0][1]), fill_value=-1, dtype=np.int64)
         for (index, (lower_prob, upper_prob)) in enumerate(bounds):
             nonzero = upper_prob > 0
             lower[nonzero] = np.minimum(lower[nonzero], index)
