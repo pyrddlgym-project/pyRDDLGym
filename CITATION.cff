@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Taitler"
+  given-names: "Ayal"
+- family-names: "Gimelfarb"
+  given-names: "Michael"
+- family-names: "Jeong"
+  given-names: "Jihwan"
+- family-names: "Gopalakrishnan"
+  given-names: "Sriram"
+- family-names: "Mladenov"
+  given-names: "Martin"
+- family-names: "Liu"
+  given-names: "Xiaotian"
+- family-names: "Sanner"
+  given-names: "Scott"
+title: "pyRDDLGym"
+version: 2.0
+date-released: 2024-01-01
+preferred-citation:
+  type: conference-paper
+  authors:
+  - family-names: "Taitler"
+    given-names: "Ayal"
+  - family-names: "Gimelfarb"
+    given-names: "Michael"
+  - family-names: "Jeong"
+    given-names: "Jihwan"
+  - family-names: "Gopalakrishnan"
+    given-names: "Sriram"
+  - family-names: "Mladenov"
+    given-names: "Martin"
+  - family-names: "Liu"
+    given-names: "Xiaotian"
+  - family-names: "Sanner"
+    given-names: "Scott"
+  title: "pyRDDLGym: From RDDL to Gym Environments"
+  journal: "PRL Workshop – Bridging the Gap Between AI Planning and Reinforcement Learning"
+  url: "https://arxiv.org/abs/2211.05939"
+  month: 11
+  day: 11
+  year: 2022
