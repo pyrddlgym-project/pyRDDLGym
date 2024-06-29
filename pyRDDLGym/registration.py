@@ -50,8 +50,8 @@ def make(domain: str, instance: str, base_class=RDDLEnv, **env_kwargs) -> RDDLEn
     # check the repository exists
     spec = importlib.util.find_spec(REPO_MANAGER_MODULE)
     if spec is None:
-        raise ImportError(f'rddlrepository is not installed: '
-                          f'can be installed with \'pip install rddlrepository\'.')
+        raise ImportError('rddlrepository is not installed: '
+                          'can be installed with \'pip install rddlrepository\'.')
     
     # load the repository manager
     module = importlib.import_module(REPO_MANAGER_MODULE)

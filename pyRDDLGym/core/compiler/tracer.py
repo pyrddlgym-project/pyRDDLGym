@@ -97,18 +97,24 @@ class RDDLObjectsTracer:
         NOOP=2  # a scalar pvariable for example does not require any operation
     )
     
-    def __init__(self, rddl: RDDLPlanningModel, logger: Logger=None,
-                 cpf_levels: Dict[int, Set[str]]=None) -> None:
+    def __init__(self, rddl: RDDLPlanningModel, 
+                 logger: Logger=None,
+                 cpf_levels: Dict[int, Set[str]]=None,
+                 stochastic_is_fluent: bool=True) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         
         :param rddl: the RDDL domain to trace
         :param logger: to log compilation information during tracing to file
         :param cpf_levels: pre-computed CPF levels (will be computed internally
         if None)
+        :param stochastic_is_fluent: whether any stochastic sampling is 
+        considered a fluent expression for propagating is_fluent flags to 
+        expressions
         '''
         self.rddl = rddl
         self.logger = logger
         self.cpf_levels = cpf_levels
+        self.stochastic_is_fluent = stochastic_is_fluent
             
     @staticmethod
     def _check_not_object(arg, expr, out, msg):
@@ -197,7 +203,7 @@ class RDDLObjectsTracer:
         
         # log the fluent types
         if self.logger is not None:
-            message = f'[info] computed whether each CPF expression is fluent:\n'
+            message = '[info] computed whether each CPF expression is fluent:\n'
             for cpfs in levels.values():
                 for cpf in cpfs:
                     is_fluent = out._cached_is_fluent_cpf[cpf]
@@ -681,7 +687,7 @@ class RDDLObjectsTracer:
         # trace predicate
         self._trace(pred, objects, out)
         RDDLObjectsTracer._check_not_object(
-            pred, expr, out, f'Predicate of if statement')  
+            pred, expr, out, 'Predicate of if statement')  
         
         # trace branches
         is_fluent = out.cached_is_fluent(pred)
@@ -707,7 +713,7 @@ class RDDLObjectsTracer:
         # predicate must be a pvar
         if not pred.is_pvariable_expression():
             raise RDDLNotImplementedError(
-                f'Switch predicate is not a pvariable.\n' + 
+                'Switch predicate is not a pvariable.\n' + 
                 PST(expr, out._current_root))
             
         # type in pvariables scope must be a domain object
@@ -732,7 +738,7 @@ class RDDLObjectsTracer:
         # check for duplicated cases
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default case(s).\n' + 
+                'Duplicated literal or default case(s).\n' + 
                 PST(expr, out._current_root))
         
         # order cases by canonical ordering of objects
@@ -828,27 +834,29 @@ class RDDLObjectsTracer:
         # no duplicate cases are allowed
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Duplicated literal or default case(s).\n' + 
+                'Duplicated literal or default case(s).\n' + 
                 PST(expr, out._current_root))
         
         # no default cases are allowed
         if 'default' in case_dict:
             raise RDDLNotImplementedError(
-                f'Default case not allowed in Discrete distribution.\n' + 
+                'Default case not allowed in Discrete distribution.\n' + 
                 PST(expr, out._current_root))
             
         # order enum cases by canonical ordering of literals
         cached_sim_info, _ = self._order_cases(enum_type, case_dict, expr, out)
     
         # trace each case expression
+        is_fluent = self.stochastic_is_fluent
         for (i, arg) in enumerate(case_dict.values()):
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
                 arg, expr, out, f'Expression in case {i + 1} of Discrete') 
         
-        out._append(expr, objects, enum_type, True, cached_sim_info)
+        out._append(expr, objects, enum_type, is_fluent, cached_sim_info)
     
     def _trace_discrete_pvar(self, expr, objects, out):
         * pvars, args = expr.args
@@ -869,25 +877,29 @@ class RDDLObjectsTracer:
         new_objects = objects + iter_objects
         
         # trace the arguments
+        is_fluent = self.stochastic_is_fluent
         for (i, arg) in enumerate(args):
             self._trace(arg, new_objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
                 
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
                 arg, expr, out, f'Expression in case {i + 1} of Discrete') 
 
         (_, (_, enum_type)), = pvars
-        out._append(expr, objects, enum_type, True, None)
+        out._append(expr, objects, enum_type, is_fluent, None)
 
     def _trace_random_other(self, expr, objects, out):
+        is_fluent = self.stochastic_is_fluent
         for (i, arg) in enumerate(expr.args):
             self._trace(arg, objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
                 
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
                 arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}') 
         
-        out._append(expr, objects, None, True, None)
+        out._append(expr, objects, None, is_fluent, None)
         
     # ===========================================================================
     # random vector
@@ -935,6 +947,7 @@ class RDDLObjectsTracer:
          
         # trace all parameters
         enum_types = set()
+        is_fluent = self.stochastic_is_fluent
         for (i, arg) in enumerate(args):
             
             # sample_pvars cannot be argument parameters
@@ -958,6 +971,7 @@ class RDDLObjectsTracer:
             
             # trace argument
             self._trace(arg, batch_objects, out)
+            is_fluent = is_fluent or out.cached_is_fluent(arg)
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
@@ -985,7 +999,7 @@ class RDDLObjectsTracer:
                     f'but destination variable <{pvar}> is of type <{ptype}>.\n' + 
                     PST(expr, out._current_root))
              
-        out._append(expr, objects, None, True, sample_pvar_indices)
+        out._append(expr, objects, None, is_fluent, sample_pvar_indices)
 
     # ===========================================================================
     # matrix algebra
@@ -1034,7 +1048,7 @@ class RDDLObjectsTracer:
         self._trace(arg, new_objects, out)
         is_fluent = out.cached_is_fluent(arg)
         RDDLObjectsTracer._check_not_object(
-            arg, expr, out, f'Argument of matrix det')     
+            arg, expr, out, 'Argument of matrix det')     
         
         out._append(expr, objects, None, is_fluent, cached_sim_info)
         
