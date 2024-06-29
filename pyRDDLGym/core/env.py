@@ -43,7 +43,7 @@ class RDDLEnv(gym.Env):
                  vectorized: bool=False,
                  debug_path: str=None,
                  log_path: str=None,
-                 backend: RDDLSimulator=RDDLSimulator,
+                 backend: typing.Type=RDDLSimulator,
                  backend_kwargs: typing.Dict={}):
         '''Creates a new gym environment from the given RDDL domain + instance.
         
@@ -303,9 +303,9 @@ class RDDLEnv(gym.Env):
         
         # logging
         if self.simlogger:
-            text = (f'######################################################\n'
-                    f'New Trial\n'
-                    f'######################################################')
+            text = ('######################################################\n'
+                    'New Trial\n'
+                    '######################################################')
             self.simlogger.log_free(text)
             
         return obs, {}
