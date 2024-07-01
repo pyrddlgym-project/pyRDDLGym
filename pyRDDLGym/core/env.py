@@ -4,6 +4,7 @@ import numpy as np
 import os
 import pygame
 import typing
+from typing import Any, List, Optional, Type, Tuple
 
 from pyRDDLGym.core.compiler.model import RDDLLiftedModel
 from pyRDDLGym.core.constraints import RDDLConstraints
@@ -41,10 +42,10 @@ class RDDLEnv(gym.Env):
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
                  vectorized: bool=False,
-                 debug_path: str=None,
-                 log_path: str=None,
-                 backend: typing.Type=RDDLSimulator,
-                 backend_kwargs: typing.Dict={}):
+                 debug_path: Optional[str]=None,
+                 log_path: Optional[str]=None,
+                 backend: Type[RDDLSimulator]=RDDLSimulator,
+                 backend_kwargs: typing.Dict={}) -> None:
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -188,7 +189,7 @@ class RDDLEnv(gym.Env):
                 
         return result
     
-    def seed(self, seed=None):
+    def seed(self, seed: Optional[int]=None) -> List[Optional[int]]:
         self.sampler.seed(seed)
         return [seed]
     
@@ -226,7 +227,7 @@ class RDDLEnv(gym.Env):
                 fixed_actions[var] = values
         return fixed_actions
 
-    def step(self, actions):
+    def step(self, actions: Any) -> Tuple[Any, float, bool, bool, Any]:
         sampler = self.sampler
         
         if self.done:
@@ -270,7 +271,8 @@ class RDDLEnv(gym.Env):
         
         return obs, reward, terminated, truncated, {}
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed: Optional[int]=None, 
+              options: Optional[Any]=None) -> Tuple[Any, Any]:
         if seed is not None:
             self.seed(seed)
         
@@ -314,7 +316,7 @@ class RDDLEnv(gym.Env):
         return pygame.image.fromstring(
             pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
-    def render(self, to_display=True):
+    def render(self, to_display: bool=True) -> Any:
         image = None
         if self._visualizer is not None:
             if self.vectorized:
@@ -348,7 +350,7 @@ class RDDLEnv(gym.Env):
     
         return image
     
-    def close(self):
+    def close(self) -> None:
         if self.simlogger:
             self.simlogger.close()
         
