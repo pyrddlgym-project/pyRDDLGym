@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.debug.exception import (
@@ -29,7 +29,8 @@ class RDDLValueInitializer:
         'bool': False
     }
         
-    def __init__(self, rddl: RDDLPlanningModel, logger: Logger=None) -> None:
+    def __init__(self, rddl: RDDLPlanningModel, 
+                 logger: Optional[Logger]=None) -> None:
         '''Creates a new object to compile initial values from a RDDL file. 
         Initial values of parameterized variables are stored in numpy arrays.
         For a variable var(?x1, ?x2, ... ?xn), the numpy array has n dimensions, 

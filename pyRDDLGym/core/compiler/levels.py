@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, Optional, List
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.debug.exception import (
@@ -38,7 +38,7 @@ class RDDLLevelAnalysis:
     
     def __init__(self, rddl: RDDLPlanningModel,
                  allow_synchronous_state: bool=True,
-                 logger: Logger=None) -> None:
+                 logger: Optional[Logger]=None) -> None:
         '''Creates a new level analysis for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
