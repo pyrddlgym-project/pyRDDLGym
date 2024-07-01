@@ -2,7 +2,7 @@ from abc import ABCMeta
 import itertools
 import numpy as np
 from pprint import pformat
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 from pyRDDLGym.core.debug.exception import (
     print_stack_trace_root as PST,
@@ -34,7 +34,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         'bool': bool
     }
     
-    def __init__(self):
+    def __init__(self) -> None:
         
         # base
         self._AST = None
@@ -662,7 +662,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         else:
             return self.is_non_fluent_expression(expr.args)
     
-    def expr_to_str(self):
+    def expr_to_str(self) -> Dict[str, Any]:
         '''Returns a dictionary containing string representations of all 
         expressions in the current RDDL.
         '''
@@ -702,7 +702,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
     '''A class representing a RDDL domain + instance in lifted form.
     '''
     
-    def __init__(self, rddl):
+    def __init__(self, rddl) -> None:
         super(RDDLLiftedModel, self).__init__()
         
         self.ast = rddl

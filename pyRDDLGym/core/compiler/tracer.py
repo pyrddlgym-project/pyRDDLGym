@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, List, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
@@ -39,7 +39,7 @@ class RDDLTracedObjects:
         self._cached_sim_info.append(info)
         self._expr_from_id[expr.id] = expr
         
-    def cached_objects_in_scope(self, expr: Expression):
+    def cached_objects_in_scope(self, expr: Expression) -> Any:
         '''Returns the free variables/parameters in the scope of expression.'''
         return self._cached_objects_in_scope[expr.id]
     
@@ -55,7 +55,7 @@ class RDDLTracedObjects:
         '''Returns whether the CPF given by name is a fluent expression.'''
         return self._cached_is_fluent_cpf[name]
     
-    def cached_sim_info(self, expr: Expression) -> object:
+    def cached_sim_info(self, expr: Expression) -> Any:
         '''Returns compiled info that is specific to the expression.'''
         return self._cached_sim_info[expr.id]
     
@@ -98,8 +98,8 @@ class RDDLObjectsTracer:
     )
     
     def __init__(self, rddl: RDDLPlanningModel, 
-                 logger: Logger=None,
-                 cpf_levels: Dict[int, Set[str]]=None,
+                 logger: Optional[Logger]=None,
+                 cpf_levels: Optional[Dict[int, Set[str]]]=None,
                  stochastic_is_fluent: bool=True) -> None:
         '''Creates a new objects tracer object for the given RDDL domain.
         

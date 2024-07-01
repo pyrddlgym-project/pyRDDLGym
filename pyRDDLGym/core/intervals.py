@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, List, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
 
@@ -19,7 +19,7 @@ from pyRDDLGym.core.simulator import lngamma
 
 class RDDLIntervalAnalysis:
     
-    def __init__(self, rddl: RDDLPlanningModel, logger: Logger=None) -> None:
+    def __init__(self, rddl: RDDLPlanningModel, logger: Optional[Logger]=None) -> None:
         '''Creates a new interval analysis object for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
@@ -38,7 +38,7 @@ class RDDLIntervalAnalysis:
         self.NUMPY_OR_FUNC = np.frompyfunc(self._bound_or_scalar, nin=2, nout=1)
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
-    def bound(self, action_bounds: Bounds=None, per_epoch: bool=False) -> Bounds:
+    def bound(self, action_bounds: Optional[Bounds]=None, per_epoch: bool=False) -> Bounds:
         '''Computes intervals on all fluents and reward for the planning problem.
         
         :param action_bounds: optional bounds on action fluents (defaults to
