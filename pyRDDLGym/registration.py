@@ -1,10 +1,7 @@
 import importlib
 import os
+from typing import Type
 
-from pyRDDLGym.core.debug.exception import (
-    RDDLEnvironmentNotExistError,
-    RDDLInstanceNotExistError
-)
 from pyRDDLGym.core.env import RDDLEnv
 
 VALID_EXT = '.rddl'
@@ -12,7 +9,7 @@ REPO_MANAGER_MODULE = 'rddlrepository'  # uses alias
 REPO_MANAGER_CLASS = 'RDDLRepoManager'
 
 
-def make(domain: str, instance: str, base_class=RDDLEnv, **env_kwargs) -> RDDLEnv:
+def make(domain: str, instance: str, base_class: Type[RDDLEnv]=RDDLEnv, **env_kwargs) -> RDDLEnv:
     '''Creates a new RDDLEnv gym environment from domain and instance identifier
     or local file paths. 
     

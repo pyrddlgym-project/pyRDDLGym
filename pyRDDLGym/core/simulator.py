@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Set, Union
+from typing import Dict, Optional, Set, Union
 
 from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer
 from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
@@ -27,7 +27,7 @@ class RDDLSimulator:
     def __init__(self, rddl: RDDLPlanningModel,
                  allow_synchronous_state: bool=True,
                  rng: np.random.Generator=np.random.default_rng(),
-                 logger: Logger=None,
+                 logger: Optional[Logger]=None,
                  keep_tensors: bool=False) -> None:
         '''Creates a new simulator for the given RDDL model.
         
