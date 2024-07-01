@@ -3,7 +3,7 @@ import numpy as np
 import random
 import gymnasium as gym
 import shutil
-from typing import Dict
+from typing import Any, Dict, Optional
 import sys
 
 from pyRDDLGym.core.env import RDDLEnv
@@ -12,10 +12,11 @@ from pyRDDLGym.core.debug.exception import RDDLRandPolicyVecNotImplemented
 
 class BaseAgent(metaclass=ABCMeta):
     '''Base class for policies.'''
+    
     use_tensor_obs = False  # uses internal tensor representation of state
     
     @abstractmethod
-    def sample_action(self, state: object) -> object:
+    def sample_action(self, state: Any) -> Any:
         '''Samples an action from the current policy evaluated at the given state.
         
         :param state: the current state
@@ -43,7 +44,7 @@ class BaseAgent(metaclass=ABCMeta):
         
     def evaluate(self, env: RDDLEnv, episodes: int=1, 
                  verbose: bool=False, render: bool=False,
-                 seed: int=None) -> Dict[str, float]:
+                 seed: Optional[int]=None) -> Dict[str, float]:
         '''Evaluates the current agent on the specified environment by simulating
         roll-outs. Returns a dictionary of summary statistics of the returns
         accumulated on the roll-outs.
@@ -128,7 +129,8 @@ class BaseAgent(metaclass=ABCMeta):
 class RandomAgent(BaseAgent):
     '''Uniformly pseudo-random policy.'''
 
-    def __init__(self, action_space, num_actions=1, seed=None):
+    def __init__(self, action_space: Any, 
+                 num_actions: int=1, seed: Optional[int]=None) -> None:
         '''Creates a new uniformly pseudo-random policy.
         
         :param action_space: the set of actions from which to sample uniformly
@@ -161,7 +163,7 @@ class RandomAgent(BaseAgent):
         if seed is not None:
             self.action_space.seed(seed)
 
-    def sample_action(self, state=None):
+    def sample_action(self, state: Any=None) -> Any:
         s = self.action_space.sample()
         action = {}
         if not self.vectorized:
