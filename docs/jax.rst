@@ -43,12 +43,12 @@ Installing the Pre-Release Version via git
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-jax.git
 
 
-Changing the Simulation Backend to JAX
+Efficient Simulation using JAX
 -------------------
 
-By default, pyRDDLGym simulates using Python and stores the outputs of intermediate expressions in NumPy arrays.
-However, if additional structure such as gradients are required, or if simulation is slow using the default backend, 
-the environment can be compiled using JAX by changing the backend:
+By default, pyRDDLGym simulates using pure Python and stores the outputs of intermediate expressions in NumPy arrays.
+However, if additional structure (e.g. gradient calculations) or better performance is required, 
+the environment can be compiled using JAX and swapped with the default simulation backend:
 
 .. code-block:: python
 	
@@ -56,10 +56,9 @@ the environment can be compiled using JAX by changing the backend:
 	from pyRDDLGym_jax.core.simulator import JaxRDDLSimulator
 	env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", backend=JaxRDDLSimulator)
 	
-This is designed to be interchangeable with the default backend, so the numerical results should be the same.
-
 .. note::
-   All RDDL syntax (both new and old) is supported in the RDDL-to-JAX compiler.
+   All RDDL syntax (both new and old) is supported in the RDDL-to-JAX compiler. 
+   In almost all cases, the JAX backend should return numerical results identical to the default backend.
 
 
 Differentiable Planning: Deterministic Domains
@@ -139,7 +138,8 @@ Running the Basic Example
 -------------------
 
 A basic run script is provided to run the Jax Planner on any domain in rddlrepository, 
-provided a config file of hyper-parameters is available (currently, only a limited subset of configs are provided). 
+provided a config file of hyper-parameters is available 
+(currently, custom config files are provided for a limited subset of problems: the default config may be suboptimal for other problems). 
 The example can be run as follows in a standard shell, from the install directory of pyRDDLGym-jax:
 
 .. code-block:: shell
@@ -159,7 +159,7 @@ The ``<method>`` parameter warrants further explanation. Currently we support th
 * ``drp`` is the deep reactive policy network described `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_
 * ``replan`` is the same as ``slp`` except it uses periodic replanning as described above.
 
-For example, copy and pasting the following will train the JAX Planner on the Quadcopter domain with 4 drones:
+For example, the following will train the planner on the Quadcopter domain with 4 drones:
 
 .. code-block:: shell
 
@@ -176,13 +176,14 @@ pyRDDLGym-jax provides convenient tools to automatically compile a RDDL descript
 .. code-block:: python
 
     import pyRDDLGym
-    from pyRDDLGym_jax.core.planner import JaxBackpropPlanner, JaxOfflineController
+    from pyRDDLGym_jax.core.planner import JaxStraightLinePlan, JaxBackpropPlanner, JaxOfflineController
 
     # set up the environment (note the vectorized option must be True)
     env = pyRDDLGym.make("domain", "instance", vectorized=True)
 
     # create the planning algorithm
-    planner = JaxBackpropPlanner(rddl=env.model, **planner_args)
+    plan = JaxStraightLinePlan(**plan_args)
+    planner = JaxBackpropPlanner(rddl=env.model, plan=plan, **planner_args)
     controller = JaxOfflineController(planner, **train_args)
 
     # evaluate the planner
@@ -197,6 +198,12 @@ To use periodic replanning, simply change the controller type to online:
 
     controller = JaxOnlineController(planner, **train_args)	
 
+To use a deep reactive policy, simply change the ``plan`` type as follows:
+
+.. code-block:: python
+
+    plan = JaxDeepReactivePolicy(**plan_args)
+
 .. note::
    All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
 
@@ -207,8 +214,8 @@ but we strongly recommend creating and loading a configuration file as discussed
 Writing Configuration Files for Custom Problems
 -------------------
 
-The recommended way to load planner and training arguments is to write a configuration file with all the necessary hyper-parameters. 
-The basic structure of a configuration file is provided below for open-loop planning or replanning:
+The recommended way to manage planner settings is to write a configuration file with all the necessary hyper-parameters. 
+Below is the basic structure of a configuration file for straight-line planning:
 
 .. code-block:: shell
 
@@ -243,15 +250,16 @@ The configuration file can then be parsed and passed to the planner as follows:
 .. code-block:: python
 
     from pyRDDLGym_jax.core.planner import load_config
-    planner_args, _, train_args = load_config("/path/to/config.cfg")
+    planner_args, plan_args, train_args = load_config("/path/to/config.cfg")
     
     # continue as described above
+    plan = ...
     planner = ...
     controller = ...
 
 .. note::
    The ``rollout_horizon`` in the configuration file is optional, and defaults to the horizon specified in the RDDL description. 
-   For replanning methods, we recommend setting this parameter manually, and tuning it to get the best result.
+   For replanning methods, we recommend setting this parameter manually for best results.
 
 
 Writing Configuration Files for Policy Networks
@@ -268,7 +276,7 @@ change the ``method`` in the ``[Optimizer]`` section of the config file:
     method_kwargs={'topology': [128, 64]}
     ...
 
-This creates a neural network policy with the default ReLU activations, and two hidden layers with 128 and 64 neurons.
+This creates a neural network policy with the default tanh activation, and two hidden layers with 128 and 64 neurons.
 
 .. note::
    ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
@@ -324,7 +332,7 @@ In the JAX planner, it is possible to switch to the transformation method by set
 The JAX planner also supports concurrency constraints on actions of the form 
 :math:`\sum_i a_i \leq B` for some constant :math:`B`.
 If the ``max-nondef-actions`` property in the RDDL instance is less 
-than the total number of boolean action fluents, then ``JaxRDDLBackpropPlanner`` will automatically 
+than the total number of boolean action fluents, then ``JaxBackpropPlanner`` will automatically 
 apply a projected gradient step to ensure this constraint is satisfied at each optimization step, as described 
 `in this paper <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_.
 
@@ -345,7 +353,7 @@ symlog transform to the sampled rewards during backprop:
     \mathrm{symlog}(x) = \mathrm{sign}(x) * \ln(|x| + 1)
 
 which compresses the magnitudes of large positive and negative outcomes.
-The use of symlog can be enabled by setting ``use_symlog_reward = True`` in ``JaxBackpropPlanner``.
+This can be enabled by setting ``use_symlog_reward = True`` in ``JaxBackpropPlanner``.
 
 
 Utility Optimization
@@ -368,13 +376,13 @@ For example, to set the CVAR utility at 5 percent:
 
 .. code-block:: python
 
-    planner = JaxRDDLBackpropPlanner(..., utility="cvar", utility_kwargs={'alpha': 0.05})
+    planner = JaxBackpropPlanner(..., utility="cvar", utility_kwargs={'alpha': 0.05})
    
 Similarly, to set the entropic utility with risk aversion parameter 2:
 
 .. code-block:: python
 
-    planner = JaxRDDLBackpropPlanner(..., utility="entropic", utility_kwargs={'beta': 2.0})
+    planner = JaxBackpropPlanner(..., utility="entropic", utility_kwargs={'beta': 2.0})
 
 The utility function could also be provided explicitly as a callable that maps a JAX array to a scalar, 
 with optional additional keyword arguments specifying the hyper-parameters of the utility function:
@@ -386,7 +394,7 @@ with optional additional keyword arguments specifying the hyper-parameters of th
     def my_utility_function(x: jax.numpy.ndarray, aversion: float=1.0) -> float:
         return ...
         
-    planner = JaxRDDLBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
+    planner = JaxBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
     
 
 Changing the Planning Algorithm
@@ -399,7 +407,7 @@ pyRDDLGym-jax currently provides one such extension based on `backtracking line-
 adaptively selects a learning rate at each iteration whose gradient update 
 provides the greatest improvement in the return objective. 
 
-This optimizer can be used as a drop-in replacement for ``JaxRDDLBackpropPlanner`` as follows:
+This optimizer can be used as a drop-in replacement for ``JaxBackpropPlanner`` as follows:
 
 .. code-block:: python
 
@@ -506,7 +514,7 @@ The ``FuzzyLogic`` instance can be passed to a planner through the config file, 
 .. code-block:: python
     
     from pyRDDLGym.core.logic import FuzzyLogic
-    planner = JaxRDDLBackpropPlanner(model, ..., logic=FuzzyLogic())
+    planner = JaxBackpropPlanner(model, ..., logic=FuzzyLogic())
 
 By default, ``FuzzyLogic`` uses the `product t-norm <https://en.wikipedia.org/wiki/T-norm_fuzzy_logics#Motivation>`_
 fuzzy logic to approximate the logical operations, the standard complement :math:`\sim a \approx 1 - a`, and
