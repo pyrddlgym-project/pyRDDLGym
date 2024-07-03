@@ -38,7 +38,8 @@ class RDDLIntervalAnalysis:
         self.NUMPY_OR_FUNC = np.frompyfunc(self._bound_or_scalar, nin=2, nout=1)
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
-    def bound(self, action_bounds: Optional[Bounds]=None, per_epoch: bool=False) -> Bounds:
+    def bound(self, action_bounds: Optional[Bounds]=None, 
+              per_epoch: bool=False) -> Bounds:
         '''Computes intervals on all fluents and reward for the planning problem.
         
         :param action_bounds: optional bounds on action fluents (defaults to
@@ -92,7 +93,7 @@ class RDDLIntervalAnalysis:
             intervals[name] = (values, values)
         return intervals
             
-    def _bound_next_epoch(self, intervals, action_bounds=None, per_epoch: bool=False):
+    def _bound_next_epoch(self, intervals, action_bounds=None, per_epoch=False):
         rddl = self.rddl 
         
         # update action bounds from user
