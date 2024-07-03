@@ -355,24 +355,39 @@ By default, the JAX planner will optimize the expected sum of future reward, whi
 Following the framework `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_, 
 it is possible to optimize a non-linear utility of the return instead.
 
-For example, the entropic utility with risk-aversion parameter :math:`\beta` is
+The JAX planner currently supports several utility functions, namely those described in the paper above:
 
-.. math::
-    
-    U(a_1, \dots a_T) = -\frac{1}{\beta} \log \mathbb{E}\left[e^{-\beta \sum_t R(s_t, a_t)} \right]
+* "mean" is the risk-neutral or ordinary expected return measure
+* "mean_var" is the variance penalized return measure
+* "entropic" is the entropic or exponential utility measure
+* "cvar" is the conditional value at risk measure.
 
-This can be passed to the planner as follows:
+The utility function can be specified by passing a string or function to the ``utility`` argument of the planner,
+and its hyper-parameters can be passed through the ``utility_kwargs`` argument, which accepts a dictionary of name, value pairs.
+For example, to set the CVAR utility at 5 percent:
 
 .. code-block:: python
 
-    import jax.numpy as jnp
-    
-    def entropic(x, beta=0.00001):
-        return (-1.0 / beta) * jnp.log(jnp.mean(jnp.exp(-beta * x)) + 1e-12)
-       
-    planner = JaxRDDLBackpropPlanner(..., utility=entropic)
-    ...
+    planner = JaxRDDLBackpropPlanner(..., utility="cvar", utility_kwargs={'alpha': 0.05})
+   
+Similarly, to set the entropic utility with risk aversion parameter 2:
 
+.. code-block:: python
+
+    planner = JaxRDDLBackpropPlanner(..., utility="entropic", utility_kwargs={'beta': 2.0})
+
+The utility function could also be provided explicitly as a callable that maps a JAX array to a scalar, 
+with optional additional keyword arguments specifying the hyper-parameters of the utility function:
+
+.. code-block:: python
+    import jax
+
+    @jax.jit
+    def my_utility_function(x: jax.numpy.ndarray, aversion: float=1.0) -> float:
+        return ...
+        
+    planner = JaxRDDLBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
+    
 
 Changing the Planning Algorithm
 -------------------
@@ -388,9 +403,9 @@ This optimizer can be used as a drop-in replacement for ``JaxRDDLBackpropPlanner
 
 .. code-block:: python
 
-    from pyRDDLGym_jax.core.planner import JaxRDDLArmijoLineSearchPlanner, JaxOfflineController
+    from pyRDDLGym_jax.core.planner import JaxLineSearchPlanner, JaxOfflineController
     
-    planner = JaxRDDLArmijoLineSearchPlanner(env.model, **planner_args)
+    planner = JaxLineSearchPlanner(env.model, **planner_args)
     controller = JaxOfflineController(planner, **train_args)
 
 Like the default planner, the line-search planner is compatible with offline and online controllers, 
@@ -472,11 +487,11 @@ For instance, the ``classify`` function above could be implemented as follows:
     from pyRDDLGym_jax.core.logic import FuzzyLogic
 
     logic = FuzzyLogic()    
-    And, _ = logic.And()
-    Not, _ = logic.Not()
+    And, _ = logic.logical_and()
+    Not, _ = logic.logical_not()
     Gre, _ = logic.greater()
-    Or, _ = logic.Or()
-    If, _ = logic.If()
+    Or, _ = logic.logical_or()
+    If, _ = logic.control_if()
 
     def approximate_classify(x1, x2, w):
         q1 = And(Gre(x1, 0, w), Gre(x2, 0, w), w)
@@ -541,6 +556,7 @@ It is possible to control these rules by subclassing ``FuzzyLogic``, or by
 passing different values to the ``tnorm`` or ``complement`` arguments to replace the product t-norm logic and
 standard complement, respectively.
 
+   
 Computing the Gradients Manually
 -------------------
 
