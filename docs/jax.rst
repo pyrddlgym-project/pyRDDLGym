@@ -558,7 +558,7 @@ The following table summarizes the default rules used in ``FuzzyLogic``.
    * - if (c) then a else b
      - :math:`c * a + (1 - c) * b`
    * - :math:`a == b`
-     - :math:`1 - \tanh(w * (a - b)) ^ 2`
+     - :math:`1 - \tanh^2(w * (a - b))`
    * - :math:`a > b`, :math:`a >= b`
      - :math:`\mathrm{sigmoid}(w * (a - b))`
    * - :math:`\mathrm{signum}(a)`
