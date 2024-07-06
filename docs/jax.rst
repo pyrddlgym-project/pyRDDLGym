@@ -316,8 +316,6 @@ The full list of settings that can be specified in the configuration files are a
      - Set of operations with exact calculation on the forward pass
    * - eps
      - Small parameter to control underflow
-   * - use64bit
-     - Whether to use 64 bit precision instead of the default 32
    * - verbose
      - Whether to print messages during compilation to the console
    * - weight 
