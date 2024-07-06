@@ -380,7 +380,7 @@ The full list of settings that can be specified in the configuration files are a
    * - use_new_projection
      - Whether to use new gradient projection for boolean action preconditions
    * - wrap_non_bool
-     - Whether to wrap non-boolean actions with nonlinearity to satisfy box constraints
+     - Whether to wrap non-boolean actions with nonlinearity for box constraints
    * - wrap_sigmoid
      - Whether to wrap boolean actions with sigmoid
    * - wrap_softmax
@@ -408,7 +408,7 @@ The full list of settings that can be specified in the configuration files are a
    * - topology
      - List specifying number of neurons per hidden layer
    * - wrap_non_bool
-     - Whether to wrap non-boolean actions with nonlinearity to satisfy box constraints   
+     - Whether to wrap non-boolean actions with nonlinearity for box constraints   
 
 
 .. list-table:: ``[Training]``
