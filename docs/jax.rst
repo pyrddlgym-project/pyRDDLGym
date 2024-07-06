@@ -289,22 +289,40 @@ The full list of settings that can be specified in the configuration files are a
    * - Setting
      - Description
    * - comparison
-     - Type subclassing ``core.logic.SigmoidComparison``, specifies how relational operations are relaxed
+     - Type of ``core.logic.SigmoidComparison``, how comparisons are relaxed
    * - comparison_kwargs
      - kwargs to pass to comparison object constructor
    * - complement
-     - Type subclassing ``core.logic.Complement``, specifies how logical complement is relaxed
+     - Type of ``core.logic.Complement``, how logical complement is relaxed
    * - complement_kwargs
      - kwargs to pass to complement object constructor
    * - logic
-     - Type subclassing ``core.logic.FuzzyLogic``, specifies how exact expressions are relaxed
+     - Type of ``core.logic.FuzzyLogic``, how non-diff. expressions are relaxed
    * - logic_kwargs
      - kwargs to pass to logic object constructor
    * - tnorm
-     - Type subclassing ``core.logic.TNorm``, specifies tnorm for relaxing boolean expressions
+     - Type of ``core.logic.TNorm``, how logical expressions are relaxed
    * - tnorm_kwargs
-     - kwargs to pass to tnorm object constructor   
-   
+     - kwargs to pass to tnorm object constructor (see next table for options)
+
+
+.. list-table:: ``tnorm_kwargs`` in ``[Model]``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - debias
+     - Set of operations with exact calculation on the forward pass
+   * - eps
+     - Small parameter to control underflow
+   * - use64bit
+     - Whether to use 64 bit precision instead of the default 32
+   * - verbose
+     - Whether to print messages during compilation to the console
+   * - weight 
+     - Parameter for sigmoid and softmax approximations
+
 
 .. list-table:: ``[Optimizer]``
    :widths: 60 60
@@ -325,9 +343,9 @@ The full list of settings that can be specified in the configuration files are a
    * - cpfs_without_grad
      - A set of CPFs that do not allow gradients to flow through them
    * - method
-     - Type subclassing ``core.planner.JaxPlan``, specifies policy representation
+     - Type of ``core.planner.JaxPlan``, specifies the policy class
    * - method_kwargs
-     - kwargs to pass to policy object constructor
+     - kwargs to pass to policy constructor (see next two tables for options)
    * - optimizer
      - Name of optimizer from optax to use
    * - optimizer_kwargs
@@ -341,7 +359,56 @@ The full list of settings that can be specified in the configuration files are a
    * - utility
      - A utility function to optimize instead of expected return
    * - utility_kwargs
-     - kwargs to pass hyper-parameters to the utility function
+     - kwargs to pass hyper-parameters to the utility
+
+
+
+.. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxStraightLinePlan``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - initializer
+     - Type of ``jax.nn.initializers``, specifies parameter initialization
+   * - initializer_kwargs
+     - kwargs to pass to the initializer
+   * - max_constraint_iter
+     - Maximum iterations of gradient projection for boolean action preconditions
+   * - min_action_prob
+     - Minimum probability of boolean action to avoid sigmoid saturation
+   * - use_new_projection
+     - Whether to use new gradient projection for boolean action preconditions
+   * - wrap_non_bool
+     - Whether to wrap non-boolean actions with nonlinearity to satisfy box constraints
+   * - wrap_sigmoid
+     - Whether to wrap boolean actions with sigmoid
+   * - wrap_softmax
+     - Whether to wrap with softmax to satisfy boolean action preconditions
+
+
+.. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxDeepReactivePolicy``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description   
+   * - activation
+     - Name of activation for hidden layers, from ``jax.numpy`` or ``jax.nn`` 
+   * - initializer
+     - Type of ``haiku.initializers``, specifies parameter initialization
+   * - initializer_kwargs
+     - kwargs to pass to the initializer
+   * - normalize
+     - Whether to apply layer norm to inputs
+   * - normalize_per_layer
+     - Whether to apply layer norm to each input individually
+   * - normalizer_kwargs
+     - kwargs to pass to ``haiku.LayerNorm`` constructor for layer norm
+   * - topology
+     - List specifying number of neurons per hidden layer
+   * - wrap_non_bool
+     - Whether to wrap non-boolean actions with nonlinearity to satisfy box constraints   
 
 
 .. list-table:: ``[Training]``
@@ -359,9 +426,9 @@ The full list of settings that can be specified in the configuration files are a
    * - train_seconds
      - Maximum seconds to train for
    * - plot_step
-     - How often to update the graphical plan visualizer
+     - How often to update the plan visualizer
    * - plot_kwargs
-     - kwargs to pass to the graphical plan visualizer constructor
+     - kwargs to pass to plan visualizer constructor (see next table for options)
    * - policy_hyperparams
      - Dictionary of hyper-parameter values to pass to the policy
    * - print_progress
@@ -370,7 +437,19 @@ The full list of settings that can be specified in the configuration files are a
      - Whether to print summary information from the planner to console
    * - test_rolling_window
      - Smoothing window over which to calculate test return
-   
+
+
+.. list-table:: ``plot_kwargs`` in ``[Training]``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description   
+   * - show_action
+     - Whether to plot the average actions of the policy
+   * - show_violin
+     - Whether to plot the return distribution
+     
 
 Boolean Actions
 -------------------
