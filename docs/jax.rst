@@ -423,12 +423,10 @@ The full list of settings that can be specified in the configuration files are a
      - An integer to seed the RNG with for reproducibility
    * - model_params
      - Dictionary of hyper-parameter values to pass to the model relaxation
-   * - train_seconds
-     - Maximum seconds to train for
-   * - plot_step
-     - How often to update the plan visualizer
    * - plot_kwargs
      - kwargs to pass to plan visualizer constructor (see next table for options)
+   * - plot_step
+     - How often to update the plan visualizer
    * - policy_hyperparams
      - Dictionary of hyper-parameter values to pass to the policy
    * - print_progress
@@ -437,6 +435,8 @@ The full list of settings that can be specified in the configuration files are a
      - Whether to print summary information from the planner to console
    * - test_rolling_window
      - Smoothing window over which to calculate test return
+   * - train_seconds
+     - Maximum seconds to train for
 
 
 .. list-table:: ``plot_kwargs`` in ``[Training]``
