@@ -8,7 +8,8 @@ We also show how gradient ascent can be used to do optimal control.
 
 Requirements
 ------------
-This package requires Python 3.8+, as well as the following:
+
+This package requires Python 3.8+ with:
 
 * pyRDDLGym>=2.0
 * tqdm>=4.66
@@ -16,7 +17,7 @@ This package requires Python 3.8+, as well as the following:
 * optax>=0.1.9
 * dm-haiku>=0.0.10 
 
-To compile vectorized sampling operations, you will also need:
+To compile some discrete sampling operations (Binomial, Negative-Binomial, Multinomial), you will also need:
 
 * tensorflow>=2.13.0
 * tensorflow-probability>=0.21.0
@@ -29,23 +30,23 @@ To run the hyper-parameter tuning, you will also need:
 Installation
 -----------------
 
-You can install pyRDDLGym-jax and all of its requirements via pip:
+To install pyRDDLGym-jax and all of its requirements via pip:
 
 .. code-block:: shell
 
     pip install pyRDDLGym-jax
 
-You can also install the latest pre-release version via git:
+To install the latest pre-release version via git:
 
 .. code-block:: shell
 
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-jax.git
 
 
-Efficient Simulation using JAX
+Simulation using JAX
 -------------------
 
-pyRDDLGym simulates domains using pure Python and NumPy arrays.
+pyRDDLGym ordinarily simulates domains using pure Python and NumPy arrays.
 If you require additional structure (e.g. gradient calculations) or better simulation performance, 
 the environment can be compiled using JAX and swapped with the default simulation backend, as shown below:
 
@@ -60,7 +61,7 @@ the environment can be compiled using JAX and swapped with the default simulatio
    In almost all cases, the JAX backend should return numerical results identical to the default backend.
 
 
-Differentiable Planning: Deterministic Domains
+Differentiable Planning in Deterministic Domains
 -------------------
 
 The (open-loop) planning problem for a deterministic environment involves finding a sequence of actions (plan)
@@ -95,29 +96,28 @@ as explained `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/47
 pyRDDLGym-jax currently supports both options, which are detailed in a later section of this tutorial.
 
 
-Differentiable Planning: Stochastic Domains
+Differentiable Planning in Stochastic Domains
 -------------------
 
 A common problem of planning in stochastic domains is that the gradients of sampling nodes are not well-defined.
 pyRDDLGym-jax works around this problem by using the reparameterization trick.
 
 To illustrate, we can write :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
-although the latter is amenable to backpropagation while the first is not. 
-
+although the latter is amenable to backpropagation while the first is not.
 The reparameterization trick also works generally, assuming there exists a closed-form function f such that
 
 .. math::
 
     s_{t+1} = f(s_t, a_t, \xi_t)
     
-and :math:`\xi_t` are random variables drawn from some distribution independent of states or actions. 
+and :math:`\xi_t` are random variables drawn from some distribution independent of states and actions. 
 For a detailed discussion of reparameterization in the context of planning, 
 please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
 or `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
 
 pyRDDLGym-jax automatically performs reparameterization whenever possible. For some special cases,
 such as the Bernoulli and Discrete distribution, it applies the Gumbel-softmax trick 
-as described `in this paper <https://arxiv.org/pdf/1611.01144.pdf>`_. 
+as described `here <https://arxiv.org/pdf/1611.01144.pdf>`_. 
 Defining K independent samples from a standard Gumbel distribution :math:`g_1, \dots g_K`, we reparameterize the 
 random variable :math:`X` with probability mass function :math:`p_1, \dots p_K` as
 
@@ -132,7 +132,7 @@ where the argmax is approximated using the softmax function.
    is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
 
-Running the Basic Example
+Running pyRDDLGym-jax from the Command Line
 -------------------
 
 A basic script is provided to run the JAX planner on any domain in rddlrepository, 
@@ -166,7 +166,7 @@ For example, the following will perform open-loop control on the Quadcopter doma
     python -m pyRDDLGym_jax.examples.run_plan Quadcopter 1 slp
    
 
-Running from the Python API
+Running pyRDDLGym-jax from within Python
 -------------------
 
 .. _jax-intro:
@@ -212,7 +212,7 @@ The ``**planner_args`` and ``**train_args`` are keyword arguments passed during 
 but we strongly recommend creating and loading a configuration file as discussed next.
 
 
-Writing Configuration Files for Custom Problems
+Configuring pyRDDLGym-jax
 -------------------
 
 The recommended way to manage planner settings is to write a configuration file 
@@ -280,6 +280,97 @@ and two hidden layers with 128 and 64 neurons, respectively.
    ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
    Other policy representations could be defined by overriding this class and its abstract methods.
 
+The full list of settings that can be specified in the configuration files are as follows:
+
+.. list-table:: ``[Model]``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - comparison
+     - Type subclassing ``core.logic.SigmoidComparison``, specifies how relational operations are relaxed
+   * - comparison_kwargs
+     - kwargs to pass to comparison object constructor
+   * - complement
+     - Type subclassing ``core.logic.Complement``, specifies how logical complement is relaxed
+   * - complement_kwargs
+     - kwargs to pass to complement object constructor
+   * - logic
+     - Type subclassing ``core.logic.FuzzyLogic``, specifies how exact expressions are relaxed
+   * - logic_kwargs
+     - kwargs to pass to logic object constructor
+   * - tnorm
+     - Type subclassing ``core.logic.TNorm``, specifies tnorm for relaxing boolean expressions
+   * - tnorm_kwargs
+     - kwargs to pass to tnorm object constructor   
+   
+
+.. list-table:: ``[Optimizer]``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - action_bounds
+     - Dictionary of (lower, upper) bounds on each action-fluent
+   * - batch_size_test
+     - Batch size for evaluation
+   * - batch_size_train
+     - Batch size for training
+   * - clip_grad
+     - Clip gradients to within a given magnitude
+   * - compile_non_fluent_exact
+     - Model relaxations are not applied to non-fluent expressions
+   * - cpfs_without_grad
+     - A set of CPFs that do not allow gradients to flow through them
+   * - method
+     - Type subclassing ``core.planner.JaxPlan``, specifies policy representation
+   * - method_kwargs
+     - kwargs to pass to policy object constructor
+   * - optimizer
+     - Name of optimizer from optax to use
+   * - optimizer_kwargs
+     - kwargs to pass to optimizer constructor
+   * - rollout_horizon
+     - Rollout horizon of the computation graph
+   * - use64bit
+     - Whether to use 64 bit precision, instead of the default 32
+   * - use_symlog_reward
+     - Whether to apply the symlog transform to the immediate reward
+   * - utility
+     - A utility function to optimize instead of expected return
+   * - utility_kwargs
+     - kwargs to pass hyper-parameters to the utility function
+
+
+.. list-table:: ``[Training]``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - epochs
+     - Maximum number of iterations of gradient descent   
+   * - key
+     - An integer to seed the RNG with for reproducibility
+   * - model_params
+     - Dictionary of hyper-parameter values to pass to the model relaxation
+   * - train_seconds
+     - Maximum seconds to train for
+   * - plot_step
+     - How often to update the graphical plan visualizer
+   * - plot_kwargs
+     - kwargs to pass to the graphical plan visualizer constructor
+   * - policy_hyperparams
+     - Dictionary of hyper-parameter values to pass to the policy
+   * - print_progress
+     - Whether to print the progress bar from the planner to console
+   * - print_summary
+     - Whether to print summary information from the planner to console
+   * - test_rolling_window
+     - Smoothing window over which to calculate test return
+   
 
 Boolean Actions
 -------------------
@@ -429,13 +520,13 @@ Automatically Tuning Hyper-Parameters
 -------------------
 
 pyRDDLGym-jax provides a Bayesian optimization algorithm for automatically tuning 
-key hyper-parameters of the planner. It:
+key hyper-parameters of the planner, which:
 
 * supports multi-processing by evaluating multiple hyper-parameter settings in parallel
 * leverages Bayesian optimization to search the hyper-parameter space more efficiently
-* supports both straight-line planning and deep reactive policies.
+* supports straight-line planning, replanning, and deep reactive policies.
 
-The key hyper-parameters can be tuned as follows:
+The automatic tuning can be performed as follows:
 
 .. code-block:: python
 
@@ -574,7 +665,7 @@ It is possible to control these rules by subclassing ``FuzzyLogic``, or by
 passing different values to the ``tnorm`` or ``complement`` arguments.
 
    
-Computing the Gradients Manually
+Manual Gradient Calculation
 -------------------
 
 The API also supports manual gradient calculations for custom applications.
