@@ -747,6 +747,34 @@ passing different values to the ``tnorm`` or ``complement`` arguments.
 Manual Gradient Calculation
 -------------------
 
+As of version 0.3, it is possible to export the optimization problem for a given domain
+to another optimizer (for example, scipy or an optimization package). 
+
+To do this, call the ``as_optimization_problem`` function on the planner to rewrite
+the planning problem in terms of functions over 1D numpy arrays:
+
+.. code-block:: python
+    
+    planner = JaxBackpropPlanner(rddl=..., **planner_args)
+    loss_fn, grad_fn, guess, unravel_fn = planner.as_optimization_problem()
+
+The loss function ``loss_fn`` and gradient map ``grad_fn`` express policy parameters as 1D numpy arrays,
+so they can be used as inputs for other packages that do not make use of JAX. The 
+``unravel_fn`` allows the 1D array to be mapped back to a JAX pytree.
+
+For example, to optimize and evaluate a policy using scipy (ignoring constraints on actions):
+
+.. code-block:: python
+    from scipy.optimize import minimize
+
+    # compute optimal policy parameters
+    opt = minimize(loss_fn, jac=grad_fn, x0=guess, method='L-BFGS-B', options={'disp': True})
+    params = unravel_fn(opt.x)
+    
+    # evaluate the optimal plan as usual
+    controller = JaxOfflineController(planner, params=params, **train_args)
+    controller.evaluate(env, episodes=episodes, verbose=True, render=True)    
+
 The API also supports manual gradient calculations for custom applications.
 Please see the `worked example here <https://github.com/pyrddlgym-project/pyRDDLGym-jax/blob/main/pyRDDLGym_jax/examples/run_gradient.py>`_
 how to calculate the gradient of the return with respect to the policy parameters.
