@@ -300,13 +300,17 @@ The full list of settings that can be specified in the configuration files are a
      - Type of ``core.logic.FuzzyLogic``, how non-diff. expressions are relaxed
    * - logic_kwargs
      - kwargs to pass to logic object constructor
+   * - sampling
+     - Type of ``core.logic.RandomSampling``, how to sample discrete distributions
+   * - sampling_kwargs
+     - kwargs to pass to sampling object constructor
    * - tnorm
      - Type of ``core.logic.TNorm``, how logical expressions are relaxed
    * - tnorm_kwargs
      - kwargs to pass to tnorm object constructor (see next table for options)
 
 
-.. list-table:: ``tnorm_kwargs`` in ``[Model]``
+.. list-table:: ``logic_kwargs`` in ``[Model]``
    :widths: 60 60
    :header-rows: 1
 
