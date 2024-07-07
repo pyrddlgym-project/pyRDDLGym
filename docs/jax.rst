@@ -763,10 +763,11 @@ so they can be used as inputs for other packages that do not make use of JAX. Th
 For example, to optimize and evaluate a policy using scipy (ignoring constraints on actions):
 
 .. code-block:: python
+
     from scipy.optimize import minimize
 
     # compute optimal policy parameters
-    opt = minimize(loss_fn, jac=grad_fn, x0=guess, method='L-BFGS-B', options={'disp': True})
+    opt = minimize(loss_fn, jac=grad_fn, x0=guess, method='L-BFGS-B')
     params = unravel_fn(opt.x)
     
     # evaluate the optimal plan as usual
@@ -775,7 +776,7 @@ For example, to optimize and evaluate a policy using scipy (ignoring constraints
 
 The API also supports manual gradient calculations for custom applications.
 Please see the `worked example here <https://github.com/pyrddlgym-project/pyRDDLGym-jax/blob/main/pyRDDLGym_jax/examples/run_gradient.py>`_
-how to calculate the gradient of the return with respect to the policy parameters.
+to calculate the gradient of the return with respect to the policy parameters.
 
 
 Limitations
