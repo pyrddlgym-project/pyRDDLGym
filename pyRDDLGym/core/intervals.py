@@ -39,25 +39,30 @@ class RDDLIntervalAnalysis:
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
     def bound(self, action_bounds: Optional[Bounds]=None, 
-              per_epoch: bool=False) -> Bounds:
+              per_epoch: bool=False,
+              fluent_values: Optional[Dict[str, np.ndarray]]=None) -> Bounds:
         '''Computes intervals on all fluents and reward for the planning problem.
         
         :param action_bounds: optional bounds on action fluents (defaults to
         a "random" policy otherwise)
         :param per_epoch: if True, the returned bounds are tensors with leading
         dimension indicating the decision epoch; if False, the returned bounds
-        are valid across all decision epochs.
+        are valid across all decision epochs
+        :param fluent_values: a dictionary of fluent name keys, whose values
+        are numpy arrays of the same shape as the fluent tensors indicating 
+        fixed values to assign to those fluents (nan values are be ignored)
         '''
         
         # get initial values as bounds
-        intervals = self._bound_initial_values()
+        intervals = self._bound_initial_values(fluent_values)
         if per_epoch:
             result = {}
         
         # propagate bounds across time
         for _ in range(self.rddl.horizon):
             self._bound_next_epoch(
-                intervals, action_bounds=action_bounds, per_epoch=per_epoch)
+                intervals, action_bounds=action_bounds, per_epoch=per_epoch,
+                fluent_values=fluent_values)
             if per_epoch:
                 for (name, (lower, upper)) in intervals.items():
                     lower_all, upper_all = result.setdefault(name, ([], []))
@@ -72,7 +77,15 @@ class RDDLIntervalAnalysis:
         else:
             return intervals
     
-    def _bound_initial_values(self):
+    def _update_from_fixed(self, name, values, fluent_values):
+        if fluent_values is not None:
+            fixed_values = fluent_values.get(name, None)
+            if fixed_values is not None:
+                fixed_values = np.reshape(fixed_values, newshape=np.shape(values))
+                values = np.where(np.isnan(fixed_values), values, fixed_values)
+        return values
+        
+    def _bound_initial_values(self, fluent_values=None):
         rddl = self.rddl 
         
         # initially all bounds are calculated based on the initial values
@@ -90,10 +103,12 @@ class RDDLIntervalAnalysis:
             params = rddl.variable_params[name]
             shape = rddl.object_counts(params)
             values = np.reshape(values, newshape=shape)
+            values = self._update_from_fixed(name, values, fluent_values)
             intervals[name] = (values, values)
         return intervals
             
-    def _bound_next_epoch(self, intervals, action_bounds=None, per_epoch=False):
+    def _bound_next_epoch(self, intervals, action_bounds=None, per_epoch=False,
+                          fluent_values=None):
         rddl = self.rddl 
         
         # update action bounds from user
@@ -125,7 +140,14 @@ class RDDLIntervalAnalysis:
                 else:
                     lb0, ub0 = intervals[cpf]
                     intervals[cpf] = (np.minimum(lb0, lb1), np.maximum(ub0, ub1))
-        
+                
+                # override bounds from fixed
+                lb, ub = intervals[cpf]
+                name = rddl.prev_state.get(cpf, cpf)
+                lb = self._update_from_fixed(name, lb, fluent_values)
+                ub = self._update_from_fixed(name, ub, fluent_values)
+                intervals[cpf] = (lb, ub)
+                
         # compute bounds on reward
         reward_bounds = self._bound(rddl.reward, intervals)
         intervals['reward'] = reward_bounds
