@@ -34,11 +34,16 @@ def main(domain, instance, policy):
     else:
         action_bounds = None
     
+    # test of fluent bounds for cartpole
+    fluent_values = {'ang-vel': np.full(shape=(1,), fill_value=0.)}
+    
     # evaluate lower and upper bounds on accumulated reward of random policy
-    bounds = analysis.bound(action_bounds=action_bounds, per_epoch=True)
+    bounds = analysis.bound(action_bounds=action_bounds, per_epoch=True, 
+                            fluent_values=fluent_values)
     reward_lower, reward_upper = bounds['reward']    
     print(f'value lower bound = {np.sum(reward_lower)}, '
           f'value upper bound = {np.sum(reward_upper)}')
+    print(bounds)
     
     env.close()
 
