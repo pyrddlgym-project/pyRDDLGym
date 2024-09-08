@@ -48,7 +48,7 @@ For example, to initialize a random policy:
 
 .. code-block:: python
 
-    from pyRDDLgym.core.policy import RandomAgent
+    from pyRDDLGym.core.policy import RandomAgent
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
 
 All policies must implement a ``sample_action`` function for sampling an
