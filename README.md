@@ -68,7 +68,7 @@ You can install our package, along with all of its prerequisites, using pip
 pip install pyRDDLGym
 ```
 
-Since pyRDDLGym does not come with any premade environments, you can either load RDDL documents from your local file system, or install rddlrepository for easy access to preexisting domains
+Since pyRDDLGym does not come with any premade environments, you can either load RDDL documents from your local file system, or install [rddlrepository](https://github.com/pyrddlgym-project/rddlrepository) for easy access to preexisting domains
 
 ```shell
 pip install rddlrepository
