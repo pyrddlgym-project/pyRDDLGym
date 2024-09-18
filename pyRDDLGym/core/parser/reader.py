@@ -29,7 +29,10 @@ class RDDLReader(object):
         byte_data = dom_txt.encode("utf-8")
         if REPLACEMENT_CHAR_BYTES in byte_data:
             raise RDDLParseError(
-                "UnicodeDecodeError: Invalid byte sequence encountered in file after removing comments."
+                (
+                    "UnicodeDecodeError: Invalid byte sequence encountered",
+                    "in file after removing comments.",
+                )
             )
 
         # inspect rddl if three block are present - domain, non-fluent, instance
