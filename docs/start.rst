@@ -187,6 +187,9 @@ state similar to the standard console output:
 .. code-block:: python
 
     env.set_visualizer("text")
+    
+Calling ``env.set_visualizer(None, ...)`` will not change the visualizer already assigned: this is useful
+if you want to record movies using the default viz as described later.
 
 Using a Custom Visualizer
 -------------
@@ -221,8 +224,8 @@ A ``MovieGenerator`` class is provided to capture videos of the environment inte
 .. code-block:: python
     
     from pyRDDLGym.core.visualizer.movie import MovieGenerator
-    recorder = MovieGenerator("/path/to/save", "env_name")
-    env.set_visualizer(VizClass, movie_gen=recorder)
+    recorder = MovieGenerator("/path/to/save", "env_name", max_frames=999999)
+    env.set_visualizer(viz=None, movie_gen=recorder)
 
 Upon calling ``env.close()``, the images captured will be combined into video format and saved to the desired path.
 Any temporary files created to capture individual frames during interaction will be deleted from disk.
