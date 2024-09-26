@@ -200,9 +200,7 @@ class RDDLEnv(gym.Env):
     }
     
     def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False, **viz_kwargs):
-        if viz is None:
-            self._visualizer = ChartVisualizer(self.model)
-        else:
+        if viz is not None:
             if isinstance(viz, str):
                 viz = self.VISUALIZER_CLASSES.get(viz.lower(), None)
                 if viz is None:
