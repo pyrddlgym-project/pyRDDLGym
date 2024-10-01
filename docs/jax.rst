@@ -85,7 +85,7 @@ where the gradient of the reward at all times :math:`t \geq \tau` is computed vi
 
 .. math::
 
-	\nabla_{a_{\tau}} R(s_t, a_t) = \frac{d R(s_t, a_t)}{d s_{t}} \frac{d s_{t}}{d a_{\tau}} + \frac{d R(s_t, a_t)}{d a_{\tau}} = \frac{d R(s_t, a_t)}{d s_{t}} \frac{d f(s_\tau, a_\tau)}{d a_{\tau}} \prod_{k=\tau + 1}^{t-1}\frac{d f(s_k, a_k)}{d s_{k}} + \frac{d R(s_t, a_t)}{d a_{\tau}}.
+	\nabla_{a_{\tau}} R(s_t, a_t) = \frac{d R(s_t, a_t)}{d s_{t}} \frac{d f(s_\tau, a_\tau)}{d a_{\tau}} \prod_{k=\tau + 1}^{t-1}\frac{d f(s_k, a_k)}{d s_{k}} + \frac{d R(s_t, a_t)}{d a_{\tau}}.
 	
 In stochastic domains, an open-loop plan could be sub-optimal 
 because it fails to correct for deviations in the state from its anticipated course.
