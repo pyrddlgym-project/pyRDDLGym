@@ -19,7 +19,6 @@ This package requires Python 3.8+ with:
 
 To compile some discrete sampling operations (Binomial, Negative-Binomial, Multinomial), you will also need:
 
-* tensorflow>=2.13.0
 * tensorflow-probability>=0.21.0
 
 To run the hyper-parameter tuning, you will also need:
