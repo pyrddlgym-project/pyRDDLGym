@@ -12,7 +12,7 @@ Requirements
 This package requires Python 3.8+
 
 * pyRDDLGym>=2.0
-* gurobipy>=10.0.1
+* gurobipy>=10.0.0
 
 
 Installing via pip
@@ -22,7 +22,7 @@ You can install pyRDDLGym-gurobi and all of its requirements via pip:
 
 .. code-block:: shell
 
-    pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-gurobi
+    pip install pyRDDLGym-gurobi
 
 
 Running the Basic Example
