@@ -70,31 +70,74 @@ If you are working with the Python API, you can instantiate the environment and 
    Both are instances of pyRDDLGym's ``BaseAgent``, so the ``evaluate()`` 
    function can be used to streamline evaluation.
 
-  
-Passing Parameters to the Gurobi Backend
+ 
+Configuring pyRDDLGym-gurobi
 -------------------
 
-Gurobi is by its nature highly `configurable <https://www.gurobi.com/documentation/current/refman/parameters.html>`_. 
-Parameters can be passed to the Gurobi model through a ``gurobi.env`` file, or directly through the pyRDDLGym interface.
-
-Suppose we wish to instruct Gurobi to limit each optimization to 60 seconds, 
-and to print progress during optimization to console. 
-To apply the first approach, create a ``gurobi.env`` file in the same
-directory where your launch script is located, with the following content:
+The recommended way to manage planner settings is to write a configuration file 
+with all the necessary hyper-parameters, which follows the same general format
+as for the JAX planner. Below is the basic structure of a configuration file for straight-line planning:
 
 .. code-block:: shell
 
-    TimeLimit 60
-    OutputFlag 1
- 
-To apply the second approach, you can pass these parameters as a dictionary to the 
-``model_params`` argument of the controller instance:
+    [Gurobi]
+    NonConvex=2
+    OutputFlag=0
+
+    [Optimizer]
+    method='GurobiStraightLinePlan'
+    method_kwargs={}
+    rollout_horizon=5
+    verbose=1
+
+The configuration file contains two sections:
+
+* the ``[Gurobi]`` section dictates `parameters <https://www.gurobi.com/documentation/current/refman/parameters.html>`_ passed to the Gurobi engine
+* the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, and other aspects of the optimization like rollout horizon.
+
+The configuration file can then be parsed and passed to the planner as follows:
 
 .. code-block:: python
+    
+    import os
+    from pyRDDLGym_gurobi.core.planner import load_config
+    
+    # load the config
+    abs_path = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(abs_path, 'default.cfg') 
+    controller_kwargs = load_config(config_path)  
+    
+    # pass the parameters to the controller and proceed as usual
+    controller = GurobiOnlineController(rddl=env.model, **controller_kwargs)
+    ...
 
-    settings = {'TimeLimit': 60, 'OutputFlag': 1}
-    controller = GurobiOnlineController(rddl=model, plan=plan, ... model_params=settings)
+.. note::
+   You can also pass Gurobi backend parameters by creating a ``gurobi.env`` file in the same
+   directory where your launch script is located. However, we no longer recommend this approach.
 
+
+The full list of settings that can be specified in the ``[Optimizer]`` section of the configuration file are as follows:
+
+.. list-table:: ``[Optimizer]``
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - allow_synchronous_state
+     - Whether state variables can depend on each other synchronously
+   * - epsilon
+     - Small constant for comparing equality of numbers in Gurobi
+   * - float_range
+     - Range of floating values in Gurobi
+   * - piecewise_options
+     - Parameter string to configure Gurobi nonlinear approximation
+   * - rollout_horizon
+     - Length of the planning horizon
+   * - verbose
+     - Print nothing(0)/summary(1)/detailed(2) compiler messages
+
+ 
 Current Limitations
 -------------------
 
