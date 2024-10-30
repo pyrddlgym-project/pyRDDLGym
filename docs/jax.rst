@@ -339,6 +339,10 @@ The full list of settings that can be specified in the configuration files are a
      - Batch size for training
    * - clip_grad
      - Clip gradients to within a given magnitude
+   * - noise_grad_eta
+     - Scale of the gradient noise variance
+   * - noise_grad_gamma
+     - Decay rate of the gradient noise variance
    * - compile_non_fluent_exact
      - Model relaxations are not applied to non-fluent expressions
    * - cpfs_without_grad
