@@ -33,13 +33,12 @@ domain and instance of your choosing. To run this, navigate to the install direc
 
 .. code-block:: shell
 
-    python -m pyRDDLGym_gurobi.examples.run_plan <domain> <instance> <horizon>
+    python -m pyRDDLGym_gurobi.examples.run_plan <domain> <instance>
 
 where:
 
 * ``<domain>`` is the domain identifier as specified in rddlrepository, or a path pointing to a valid domain.rddl file
-* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance.rddl file
-* ``<horizon>`` is the lookahead horizon used by the planner.
+* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance.rddl file.
 
 
 Running from the Python API
