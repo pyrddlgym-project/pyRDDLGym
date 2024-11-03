@@ -636,9 +636,9 @@ RDDL supports the following aggregations over types:
      - the product of ``<expression>``
    * - ``avg_{...} [<expression>]``
      - the arithmetic average of ``<expression>``
-   * - ``minimum_{...} [<expression>]``
+   * - ``min_{...} [<expression>]``
      - the minimum of ``<expression>``
-   * - ``maximum_{...} [<expression>]``
+   * - ``max_{...} [<expression>]``
      - the maximum of ``<expression>``
 
 The new language extension now also supports ``argmin`` and ``argmin`` with the following
