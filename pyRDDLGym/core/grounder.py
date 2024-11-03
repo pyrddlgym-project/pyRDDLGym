@@ -373,7 +373,12 @@ class RDDLGrounder(BaseRDDLGrounder):
             updated_dict = copy.deepcopy(original_dict)
             updated_dict.update(zip(new_variables_list, instance))
             new_children.append(self._scan_expr_tree(expression, updated_dict))
-        new_expr = Expression((operation_string, tuple(new_children)))
+        if operation_string in ('min', 'max'):
+            new_expr = new_children[0]
+            for expr in new_children[1:]:
+                new_expr = Expression(('func', (operation_string, (new_expr, expr))))
+        else:
+            new_expr = Expression((operation_string, tuple(new_children)))
         return new_expr
 
     def _scan_expr_tree_pvar(self, expr: Expression, dic) -> Expression:
