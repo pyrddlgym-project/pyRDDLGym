@@ -16,6 +16,7 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 <img src="Images/cartpole.gif" width="120" height="120" margin=0/>
 <img src="Images/drones.gif" width="120" height="120" margin=0/>
 <img src="Images/elevators.gif" width="120" height="120" margin=0/>
+<img src="Images/hvac.gif" width="120" height="120" margin=0/>
 <img src="Images/mountaincar.gif" width="120" height="120" margin=0/>
 <img src="Images/powergen.gif" width="120" height="120" margin=0/>
 </p>
@@ -24,6 +25,7 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 <img src="Images/racecar.gif" width="120" height="120" margin=0/>
 <img src="Images/recsys.gif" width="120" height="120" margin=0/>
 <img src="Images/rovers.gif" width="120" height="120" margin=0/>
+<img src="Images/traffic.gif" width="120" height="120" margin=0/>
 <img src="Images/wildfire.gif" width="120" height="120" margin=0/>
 </p>
 
