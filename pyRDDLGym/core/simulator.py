@@ -177,7 +177,7 @@ class RDDLSimulator:
     
     @staticmethod
     def _check_type(value, valid, msg, expr, arg=None):
-        if not np.can_cast(value, valid):
+        if not np.can_cast(np.atleast_1d(value), valid):
             dtype = getattr(value, 'dtype', type(value))
             if arg is None:
                 raise RDDLTypeError(

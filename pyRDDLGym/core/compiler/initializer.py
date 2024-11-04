@@ -102,7 +102,8 @@ class RDDLValueInitializer:
             # convert scalar variable to scalar numpy array
             else:
                 values = init_values.get(var, default)
-                if isinstance(values, str) or not np.can_cast(values, dtype):
+                if isinstance(values, str) \
+                or not np.can_cast(np.atleast_1d(values), dtype):
                     raise RDDLTypeError(
                         f'Initial value {values} for variable <{var}> '
                         f'cannot be cast to required type <{prange}>.')
