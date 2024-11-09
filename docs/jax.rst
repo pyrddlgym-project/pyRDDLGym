@@ -303,6 +303,10 @@ The full list of settings that can be specified in the configuration files are a
      - Type of ``core.logic.RandomSampling``, how to sample discrete distributions
    * - sampling_kwargs
      - kwargs to pass to sampling object constructor
+   * - rounding
+     - Type of ``core.logic.Rounding``, how to round float to int values
+   * - rounding_kwargs
+     - kwargs to pass to rounding object constructor
    * - tnorm
      - Type of ``core.logic.TNorm``, how logical expressions are relaxed
    * - tnorm_kwargs
