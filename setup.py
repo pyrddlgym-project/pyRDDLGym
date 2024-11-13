@@ -25,7 +25,7 @@ setup(
       url="https://github.com/pyrddlgym-project/pyRDDLGym",
       packages=find_packages(),
       install_requires=['ply', 'pillow>=9.2.0', 'matplotlib>=3.5.0', 'numpy>=1.22', 'gymnasium', 'pygame', 'termcolor'],
-      python_requires=">=3.8,<=3.12",
+      python_requires=">=3.8,<3.13",
       package_data={'': ['*.cfg']},
       include_package_data=True,
       classifiers=[
