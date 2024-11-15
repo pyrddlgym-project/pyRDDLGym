@@ -5,26 +5,21 @@ pyRDDLGym-rl: Reinforcement Learning
 
 pyRDDLGym-rl provides wrappers for deep reinforcement learning algorithms (i.e. Stable Baselines 3 and RLlib) to work with pyRDDLGym.
 
-Requirements
-------------
-This package requires Python 3.8+, ``pyRDDLGym>=2.0`` together with one of
 
-* stable-baselines3>=2.2.1
-* ray[rllib]>=2.9.2
-
-Installing via pip
+Installing
 -----------------
 
+This package requires either ``stable-baselines3>=2.2.1`` or ``ray[rllib]>=2.9.2``.
 You can install pyRDDLGym-rl and all of its requirements via pip:
 
 .. code-block:: shell
 
-    pip install stable-baselines3  # need one of these two
-    pip install -U "ray[rllib]"
+    pip install stable-baselines3  # need this to run stable baselines agents
+    pip install -U "ray[rllib]"  # or this to run rllib agents
     pip install rddlrepository pyRDDLGym-rl
 
-Installing the Pre-Release Version via git
----------
+To install the latest pre-release version via git:
+
 .. code-block:: shell
 
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-rl.git
