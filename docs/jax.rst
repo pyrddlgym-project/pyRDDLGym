@@ -16,15 +16,12 @@ This package requires Python 3.8+ with:
 * jax>=0.4.12
 * optax>=0.1.9
 * dm-haiku>=0.0.10 
-
-To compile some discrete sampling operations (Binomial, Negative-Binomial, Multinomial), you will also need:
-
 * tensorflow-probability>=0.21.0
 
-To run the hyper-parameter tuning, you will also need:
+To run the hyper-parameter tuning and examples:
 
-* bayesian-optimization>=1.4.3
-
+* bayesian-optimization>=2.0.0
+* rddlrepository>=2.0
 
 Installation
 -----------------
@@ -33,7 +30,7 @@ To install pyRDDLGym-jax and all of its requirements via pip:
 
 .. code-block:: shell
 
-    pip install pyRDDLGym-jax
+    pip install pyRDDLGym-jax[extra]
 
 To install the latest pre-release version via git:
 
@@ -442,6 +439,10 @@ The full list of settings that can be specified in the configuration files are a
      - Whether to print the progress bar from the planner to console
    * - print_summary
      - Whether to print summary information from the planner to console
+   * - stopping_rule
+     - A stopping criterion for the optimizer, subclass of ``JaxPlannerStoppingRule``
+   * - stopping_rule_kwargs
+     - kwargs to pass to stopping rule constructor
    * - test_rolling_window
      - Smoothing window over which to calculate test return
    * - train_seconds
