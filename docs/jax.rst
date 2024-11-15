@@ -6,24 +6,7 @@ pyRDDLGym-jax: JAX Compiler and Planner
 In this tutorial, we discuss how a RDDL model can be compiled into a differentiable simulator using JAX. 
 We also show how gradient ascent can be used to do optimal control.
 
-Requirements
-------------
-
-This package requires Python 3.8+ with:
-
-* pyRDDLGym>=2.0
-* tqdm>=4.66
-* jax>=0.4.12
-* optax>=0.1.9
-* dm-haiku>=0.0.10 
-* tensorflow-probability>=0.21.0
-
-To run the hyper-parameter tuning and examples:
-
-* bayesian-optimization>=2.0.0
-* rddlrepository>=2.0
-
-Installation
+Installing
 -----------------
 
 To install pyRDDLGym-jax and all of its requirements via pip:
@@ -39,7 +22,7 @@ To install the latest pre-release version via git:
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-jax.git
 
 
-Simulation using JAX
+Simulating using JAX
 -------------------
 
 pyRDDLGym ordinarily simulates domains using pure Python and NumPy arrays.

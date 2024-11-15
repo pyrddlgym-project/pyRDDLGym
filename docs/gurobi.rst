@@ -7,18 +7,11 @@ In this tutorial, we discuss the compilation of RDDL into a Gurobi mixed-integer
 The Gurobi planner can optimize discrete state/action problems where the JAX planner could perform poorly.
 
 
-Requirements
-------------
-This package requires Python 3.8+
-
-* pyRDDLGym>=2.0
-* gurobipy>=10.0.0
-
-
-Installing via pip
+Installing
 -----------------
 
-You can install pyRDDLGym-gurobi and all of its requirements via pip:
+Before installing pyRDDLGym-gurobi, you will need to obtain a valid gurobi license.
+You can then install pyRDDLGym-gurobi and all of its requirements via pip:
 
 .. code-block:: shell
 

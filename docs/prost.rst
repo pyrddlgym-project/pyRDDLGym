@@ -8,7 +8,8 @@ the RDDL problem structure in order to improve the search. It is described `in t
 <https://ai.dmi.unibas.ch/papers/keller-eyerich-icaps2012.pdf>`_, and it works well for 
 stochastic problems with finite action spaces.
 
-Installation
+
+Installing
 -------------------
 
 This package is not designed to be installed like an ordinary Python package, so there is no pip installer.
