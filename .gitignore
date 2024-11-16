@@ -3,6 +3,9 @@
 
 *.pyc
 
+build/
+*.egg-info/
+
 .project
 .pydevproject
 .settings/
