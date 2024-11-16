@@ -1278,6 +1278,3 @@ class RDDLIntervalAnalysis:
         bounds = [(lower_prob[..., i], upper_prob[..., i])
                   for i in range(lower_prob.shape[-1])]
         return self._bound_discrete_helper(bounds)
-        
-        
-        
