@@ -719,23 +719,23 @@ The following table summarizes the default rules used in ``FuzzyLogic``.
    * - forall_{?p : type} x(?p)
      - :math:`\prod_{?p} x(?p)`
    * - if (c) then a else b
-     - `:math:`c * a + (1 - c) * b` <https://arxiv.org/pdf/2110.05651>`_
+     - :math:`c * a + (1 - c) * b` `[1] <https://arxiv.org/pdf/2110.05651>`_
    * - :math:`a == b`
-     - `:math:`1 - \tanh^2(w * (a - b))` <https://arxiv.org/pdf/2110.05651>`_
+     - :math:`1 - \tanh^2(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
    * - :math:`a > b`, :math:`a >= b`
-     - `:math:`\mathrm{sigmoid}(w * (a - b))` <https://arxiv.org/pdf/2110.05651>`_
-   * - :math:`\mathrm{signum}(a)`
+     - :math:`\mathrm{sigmoid}(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
+   * - argmax_{?p : type} x(?p)
+     - Softmax(x) `[1] <https://arxiv.org/pdf/2110.05651>`_
+   * - sgn(a)
      - :math:`\tanh(w * a)`
    * - floor(a)
-     -  `SoftFloor <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
+     - SoftFloor(a) `[2] <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
    * - round(a)
-     - `Source <https://arxiv.org/pdf/2006.09952>`_
-   * - argmax_{?p : type} x(?p)
-     - `Softmax <https://arxiv.org/pdf/2110.05651>`_
+     - `[3] <https://arxiv.org/pdf/2006.09952>`_
    * - Bernoulli(p)
-     - `Gumbel-Softmax <https://arxiv.org/pdf/1611.01144>`_
+     - Gumbel-Softmax(p) `[4] <https://arxiv.org/pdf/1611.01144>`_
    * - Discrete(type, {cases ...} )
-     - `Gumbel-Softmax <https://arxiv.org/pdf/1611.01144>`_
+     - Gumbel-Softmax(cases) `[4] <https://arxiv.org/pdf/1611.01144>`_
 
 It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
 passing different values to the ``tnorm`` or ``complement`` arguments.
