@@ -725,17 +725,17 @@ The following table summarizes the default rules used in ``FuzzyLogic``.
    * - :math:`a > b`, :math:`a >= b`
      - :math:`\mathrm{sigmoid}(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
    * - argmax_{?p : type} x(?p)
-     - Softmax(x) `[1] <https://arxiv.org/pdf/2110.05651>`_
+     - Softmax `[1] <https://arxiv.org/pdf/2110.05651>`_
    * - sgn(a)
      - :math:`\tanh(w * a)`
    * - floor(a)
-     - SoftFloor(a) `[2] <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
+     - SoftFloor `[2] <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
    * - round(a)
-     - `[3] <https://arxiv.org/pdf/2006.09952>`_
+     - See `[3] <https://arxiv.org/pdf/2006.09952>`_
    * - Bernoulli(p)
-     - Gumbel-Softmax(p) `[4] <https://arxiv.org/pdf/1611.01144>`_
+     - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
    * - Discrete(type, {cases ...} )
-     - Gumbel-Softmax(cases) `[4] <https://arxiv.org/pdf/1611.01144>`_
+     - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
 
 It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
 passing different values to the ``tnorm`` or ``complement`` arguments.
