@@ -719,19 +719,23 @@ The following table summarizes the default rules used in ``FuzzyLogic``.
    * - forall_{?p : type} x(?p)
      - :math:`\prod_{?p} x(?p)`
    * - if (c) then a else b
-     - :math:`c * a + (1 - c) * b`
+     - `:math:`c * a + (1 - c) * b` <https://arxiv.org/pdf/2110.05651>`_
    * - :math:`a == b`
-     - :math:`1 - \tanh^2(w * (a - b))`
+     - `:math:`1 - \tanh^2(w * (a - b))` <https://arxiv.org/pdf/2110.05651>`_
    * - :math:`a > b`, :math:`a >= b`
-     - :math:`\mathrm{sigmoid}(w * (a - b))`
+     - `:math:`\mathrm{sigmoid}(w * (a - b))` <https://arxiv.org/pdf/2110.05651>`_
    * - :math:`\mathrm{signum}(a)`
      - :math:`\tanh(w * a)`
+   * - floor(a)
+     -  `SoftFloor <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
+   * - round(a)
+     - `Source <https://arxiv.org/pdf/2006.09952>`_
    * - argmax_{?p : type} x(?p)
-     - :math:`\sum_{i = 1, 2, \dots |\mathrm{type}|} i * \mathrm{softmax}(w * x)[i]`
+     - `Softmax <https://arxiv.org/pdf/2110.05651>`_
    * - Bernoulli(p)
-     - Gumbel-Softmax trick
+     - `Gumbel-Softmax <https://arxiv.org/pdf/1611.01144>`_
    * - Discrete(type, {cases ...} )
-     - Gumbel-Softmax trick
+     - `Gumbel-Softmax <https://arxiv.org/pdf/1611.01144>`_
 
 It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
 passing different values to the ``tnorm`` or ``complement`` arguments.
