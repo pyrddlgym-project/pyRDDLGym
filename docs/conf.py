@@ -26,9 +26,9 @@ copyright = '2024, The pyRDDLGym Project'
 author = 'The pyRDDLGym Project'
 
 # The short X.Y version
-version = '1.3.0'
+version = '2.1.0'
 # The full version, including alpha/beta/rc tags
-release = '1.3.0'
+release = '2.1.0'
 
 
 # -- General configuration ---------------------------------------------------
