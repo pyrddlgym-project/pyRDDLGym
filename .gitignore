@@ -6,6 +6,7 @@
 
 .project
 .pydevproject
+.settings/
 *.pyc
 *.out
 .gitignore.bak
@@ -20,6 +21,7 @@ genGif.py
 VizRDDL/
 # Competition/
 TestingDomain/
+docs/_build
 
 # macOS
 .DS_Store
