@@ -18,7 +18,6 @@ sys.path.insert(0, os.path.abspath(".."))
 
 import pyRDDLGym
 
-import sphinx_book_theme
 
 # -- Project information -----------------------------------------------------
 
