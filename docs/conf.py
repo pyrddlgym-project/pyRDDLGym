@@ -85,6 +85,9 @@ html_theme_options = {
     "use_repository_button": True
 }
 
+html_title = "Documentation for the pyRDDLGym Project"
+html_logo = "rddllogo.gif"
+
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
