@@ -262,7 +262,7 @@ and two hidden layers with 128 and 64 neurons, respectively.
 The full list of settings that can be specified in the configuration files are as follows:
 
 .. list-table:: ``[Model]``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
@@ -294,7 +294,7 @@ The full list of settings that can be specified in the configuration files are a
 
 
 .. list-table:: ``logic_kwargs`` in ``[Model]``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
@@ -310,7 +310,7 @@ The full list of settings that can be specified in the configuration files are a
 
 
 .. list-table:: ``[Optimizer]``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
@@ -353,7 +353,7 @@ The full list of settings that can be specified in the configuration files are a
 
 
 .. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxStraightLinePlan``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
@@ -377,7 +377,7 @@ The full list of settings that can be specified in the configuration files are a
 
 
 .. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxDeepReactivePolicy``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
@@ -401,7 +401,7 @@ The full list of settings that can be specified in the configuration files are a
 
 
 .. list-table:: ``[Training]``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
@@ -433,7 +433,7 @@ The full list of settings that can be specified in the configuration files are a
 
 
 .. list-table:: ``plot_kwargs`` in ``[Training]``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting

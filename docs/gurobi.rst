@@ -111,7 +111,7 @@ The configuration file can then be parsed and passed to the planner as follows:
 The full list of settings that can be specified in the ``[Optimizer]`` section of the configuration file are as follows:
 
 .. list-table:: ``[Optimizer]``
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
