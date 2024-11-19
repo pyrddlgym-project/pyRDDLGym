@@ -1,6 +1,8 @@
 Getting Started: Basics
 ===============
 
+.. retrolite:: dummybook.ipynb
+
 Initializing Built-In Environments
 -------------------
 
