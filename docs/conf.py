@@ -93,7 +93,7 @@ html_logo = "rddllogo.gif"
 
 # thumbnails for nbsphinx
 nbsphinx_thumbnails = {
-    'notebooks/*': 'notebooks/notebook_icon.png'
+    'notebooks/*': '_static/notebook_icon.png'
 }
 
 # Theme options are theme-specific and customize the look and feel of a theme
