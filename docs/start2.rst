@@ -62,8 +62,8 @@ in each cpf, constraint relation, or the reward function of the RDDL domain:
 Grounding a Domain
 ------
 
-By default, pyRDDLGym works directly from the (lifted) domain description. 
-Parameterized variables (p-variables) are represented internally as numpy arrays,
+By default, pyRDDLGym simulates domains in a tensored manner directly from the (lifted) domain description. 
+Specifically, parameterized variables are represented internally as numpy arrays,
 whose values are propagated in a vectorized manner through mathematical expressions.
 
 However, sometimes it is required to work with the grounded representation. For example, 
@@ -104,13 +104,13 @@ so the properties discussed in the table at the top of the page work interchange
 Vectorized Input and Output
 -------------------
 
-Some algorithms require a vectorized representation of states and/or actions. 
+Some algorithms require a tensor representation of parameterized state-fluent outputs and/or action-fluent inputs. 
 The ``RDDLEnv`` class provides a ``vectorized`` option
-to work directly with the tensor representations of state and action fluents. 
+to allow tensor representations of state and action fluents to be passed into and out of pyRDDLGym. 
 
-For example, a ``bool`` action fluent ``put-out(?x, ?y)`` taking two parameters 
+For example, a ``bool`` action-fluent ``put-out(?x, ?y)`` taking two parameters 
 ``?x`` and ``?y``, with 3 objects each, would be provided as a boolean-valued 
-3-by-3 matrix, and state fluents are returned in a similar format.
+3-by-3 matrix. State-fluents would be returned in a similar format from the environment.
 
 This option can be enabled as follows:
 
@@ -219,7 +219,7 @@ by the user-facing API (e.g. the ``RDDLEnv``, simulator, optimizers, etc.).
 These objects include outputs from several distinct stages of compilation:
 
 .. list-table:: Compiler Components
-   :widths: 80 100
+   :widths: 60 120
    :header-rows: 1
    
    * - name 

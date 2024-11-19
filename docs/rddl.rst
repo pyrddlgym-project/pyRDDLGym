@@ -68,7 +68,7 @@ There are currently nine requirements that can be implemented in RDDL, as shown
 in the following table:
 
 .. list-table:: Possible Requirements
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - requirement
@@ -454,7 +454,7 @@ As of the time of this writing, RDDL syntax supports the following mathematical
 operations:
 
 .. list-table:: Basic Math Functions
-   :widths: 50 60
+   :widths: 40 80
    :header-rows: 1
 
    * - RDDL syntax
@@ -479,7 +479,7 @@ operations:
 the following exponential, logarithmic and transcendental functions:
 
 .. list-table:: Exponential, Logarithmic and Transcendental Functions
-   :widths: 50 60
+   :widths: 40 80
    :header-rows: 1
    
    * - RDDL syntax
@@ -625,7 +625,7 @@ such as sum and product are also supported:
 RDDL supports the following aggregations over types:
 
 .. list-table:: Aggregations
-   :widths: 60 60
+   :widths: 50 70
    :header-rows: 1
    
    * - RDDL syntax
@@ -674,7 +674,7 @@ Discrete Distributions
 RDDL currently supports the following discrete (int, bool or enumerated values) probability distributions:
 
 .. list-table:: Discrete Probability Distributions
-   :widths: 100 60 60
+   :widths: 90 90 40
    :header-rows: 1
    
    * - RDDL syntax
@@ -733,7 +733,7 @@ Continuous Distributions
 RDDL also currently supports the following continuous (real values) probability distributions:
 
 .. list-table:: Continuous Probability Distributions
-   :widths: 100 60 60
+   :widths: 60 120 40
    :header-rows: 1
    
    * - RDDL syntax
