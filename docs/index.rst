@@ -31,10 +31,11 @@ Planning Tools and Baselines
     Symbolic computation and dynamic programming in RDDL domains. <xadd>
 
 
-RDDL Specification and Other Resources
+Examples and Other Resources
 -----------
 
 .. toctree::
     :maxdepth: 1
     
-    The RDDL language. <rddl>
+    Example gallery. <examples>
+    Complete RDDL language specification. <rddl>
