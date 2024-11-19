@@ -2,7 +2,7 @@
 .idea/
 
 *.pyc
-
+docs/notebooks/.ipynb_checkpoints
 
 .project
 .pydevproject
