@@ -1,0 +1,46 @@
+domain test_domain {
+
+	requirements = {
+		concurrent,           // different reservoirs are controlled independently
+		reward-deterministic, // this domain does not use a stochastic reward
+        intermediate-nodes,   // this domain uses intermediate pvariable nodes
+		constrained-state     // this domain uses state constraints
+	};
+
+	types {
+		someobject: object;
+	};
+
+    pvariables {
+		// Constants
+        LIMIT(someobject): { non-fluent, real, default = 1.0 };
+
+        // Intermediate fluents
+        intermfluent(someobject): { interm-fluent, real };
+
+        // State fluents
+        realstatefluent(someobject): { state-fluent, real, default = 0.0 };
+
+        // Action fluents
+        actionfluent(someobject): { action-fluent, real, default = 0.0 };
+    };
+
+    cpfs {
+        intermfluent(?o) = realstatefluent(?o) + actionfluent(?o);
+        
+        realstatefluent'(?o) = intermfluent(?o);
+    };
+
+    reward = (sum_{?o : someobject} [ realstatefluent(?o) ]);
+
+    action-preconditions {
+		forall_{?o : someobject} actionfluent(?o) <= LIMIT(?o);
+		forall_{?o : someobject} actionfluent(?o) >= -LIMIT(?o);
+	};
+
+	state-invariants {
+		forall_{?o : someobject} realstatefluent(?o) <= LIMIT(?o);
+		forall_{?o : someobject} realstatefluent(?o) >= -LIMIT(?o);
+	};
+
+}
