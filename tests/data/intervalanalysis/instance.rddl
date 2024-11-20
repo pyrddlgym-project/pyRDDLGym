@@ -1,0 +1,21 @@
+non-fluents nf_test_domain {
+	domain = test_domain;
+	objects {
+		someobject : {o1};
+	};
+	non-fluents {
+		LIMIT(o1) = 1.0;
+	};
+}
+instance inst_test_domain {
+	domain = test_domain;
+	non-fluents = nf_test_domain;
+	
+	init-state {
+		realstatefluent(o1) = 0.0;
+	};
+	
+	max-nondef-actions = pos-inf;
+	horizon = 2;
+	discount = 1.0;
+}
