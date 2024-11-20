@@ -24,10 +24,10 @@ Planning Tools and Baselines
 .. toctree::
     :maxdepth: 1
 
-    Differentiable simulation and planning in RDDL domains with JAX. <jax>
-   	Gurobi optimization in RDDL domains. <gurobi>
-    Running the PROST Monte-Carlo planner in docker. <prost>
-    Reinforcement learning in RDDL with stable-baselines3 and rllib wrappers. <sb>
+    Gradient-based simulation and planning with JaxPlan. <jax>
+   	Planning by nonlinear programming with GurobiPlan. <gurobi>
+    Planning by Monte-Carlo Tree Search with PROST. <prost>
+    Reinforcement learning with stable-baselines3 and rllib. <sb>
     Symbolic computation and dynamic programming in RDDL domains. <xadd>
 
 

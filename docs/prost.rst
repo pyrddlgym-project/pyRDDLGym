@@ -1,6 +1,6 @@
 .. _prost:
 
-pyRDDLGym-prost: PROST Planner
+pyRDDLGym-prost: Planning by Monte-Carlo Tree Search with PROST.
 ===============
 
 The PROST planner is based on Monte-Carlo UCT search, but is heavily informed by 
