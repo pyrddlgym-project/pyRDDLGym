@@ -1,15 +1,15 @@
 .. _jaxplan:
 
-pyRDDLGym-jax: JAX Compiler and Planner
+pyRDDLGym-jax: Gradient-Based Simulation and Planning with JaxPlan
 ===============
 
-In this tutorial, we discuss how a RDDL model can be compiled into a differentiable simulator using JAX. 
-We also show how gradient ascent can be used to do optimal control.
+In this tutorial, we discuss how a RDDL model can be automatically compiled into a differentiable JAX simulator. 
+We also show how pyRDDLGym-jax (or JaxPlan as it is referred to in the literature) leverages gradient-based optimization to build optimal controllers. 
 
 Installing
 -----------------
 
-To install pyRDDLGym-jax and all of its requirements via pip:
+To install JaxPlan and all of its requirements via pip:
 
 .. code-block:: shell
 
@@ -72,14 +72,14 @@ One solution is to recompute the plan periodically or after each decision epoch,
 which is often called "replanning". An alternative approach is to learn a policy network 
 :math:`a_t \gets \pi_\theta(s_t)` 
 as explained `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_. 
-pyRDDLGym-jax currently supports both options, which are detailed in a later section of this tutorial.
+JaxPlan currently supports both options, which are detailed in a later section of this tutorial.
 
 
 Differentiable Planning in Stochastic Domains
 -------------------
 
 A common problem of planning in stochastic domains is that the gradients of sampling nodes are not well-defined.
-pyRDDLGym-jax works around this problem by using the reparameterization trick.
+JaxPlan works around this problem by using the reparameterization trick.
 
 To illustrate, we can write :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
 although the latter is amenable to backpropagation while the first is not.
@@ -94,7 +94,7 @@ For a detailed discussion of reparameterization in the context of planning,
 please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
 or `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
 
-pyRDDLGym-jax automatically performs reparameterization whenever possible. For some special cases,
+JaxPlan automatically performs reparameterization whenever possible. For some special cases,
 such as the Bernoulli and Discrete distribution, it applies the Gumbel-softmax trick 
 as described `here <https://arxiv.org/pdf/1611.01144.pdf>`_. 
 Defining K independent samples from a standard Gumbel distribution :math:`g_1, \dots g_K`, we reparameterize the 
@@ -111,7 +111,7 @@ where the argmax is approximated using the softmax function.
    is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
 
-Running pyRDDLGym-jax from the Command Line
+Running JaxPlan from the Command Line
 -------------------
 
 A basic script is provided to run the JAX planner on any domain in rddlrepository, 
@@ -145,12 +145,12 @@ For example, the following will perform open-loop control on the Quadcopter doma
     python -m pyRDDLGym_jax.examples.run_plan Quadcopter 1 slp
    
 
-Running pyRDDLGym-jax from within Python
+Running JaxPlan from within Python
 -------------------
 
 .. _jax-intro:
 
-pyRDDLGym-jax provides convenient tools to automatically compile a RDDL description 
+JaxPlan provides convenient tools to automatically compile a RDDL description 
 of a problem to an optimization problem:
 
 .. code-block:: python
@@ -191,7 +191,7 @@ The ``**planner_args`` and ``**train_args`` are keyword arguments passed during 
 but we strongly recommend creating and loading a configuration file as discussed next.
 
 
-Configuring pyRDDLGym-jax
+Configuring JaxPlan
 -------------------
 
 The recommended way to manage planner settings is to write a configuration file 
@@ -508,7 +508,7 @@ Reward Normalization
 
 Some domains yield rewards that vary significantly in magnitude between time steps, 
 making optimization difficult without some kind of normalization.
-Following `this paper <https://arxiv.org/pdf/2301.04104v1.pdf>`_, pyRDDLGym-jax can apply a 
+Following `this paper <https://arxiv.org/pdf/2301.04104v1.pdf>`_, JaxPlan can apply a 
 symlog transform to the sampled rewards during backprop:
 
 .. math::
@@ -570,7 +570,7 @@ In the :ref:`introductory example <jax-intro>`, we defined the planning algorith
 Therefore, it is possible to incorporate new planning algorithms simply by extending the 
 ``JaxBackpropPlanner`` class. 
 
-pyRDDLGym-jax currently provides one such extension based on
+JaxPlan currently provides one such extension based on
 `backtracking line-search <https://en.wikipedia.org/wiki/Backtracking_line_search>`_, which 
 adaptively selects a learning rate at each iteration whose gradient update 
 provides the greatest improvement in the return. 
@@ -591,7 +591,7 @@ and straight-line plans and deep reactive policies.
 Automatically Tuning Hyper-Parameters
 -------------------
 
-pyRDDLGym-jax provides a Bayesian optimization algorithm for automatically tuning 
+JaxPlan provides a Bayesian optimization algorithm for automatically tuning 
 key hyper-parameters of the planner, which:
 
 * supports multi-processing by evaluating multiple hyper-parameter settings in parallel
@@ -657,7 +657,7 @@ and logical expressions such as ``and`` and ``or`` do not have obvious derivativ
 To complicate matters further, the ``if`` statement depends on both ``x`` and ``y`` 
 so it does not have partial derivatives with respect to ``x`` nor ``y``.
 
-pyRDDLGym-jax works around these limitations by approximating such operations with 
+JaxPlan works around these limitations by approximating such operations with 
 JAX expressions that support derivatives.
 For instance, the ``classify`` function above could be implemented as follows:
  

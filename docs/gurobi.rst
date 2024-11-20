@@ -1,17 +1,17 @@
 .. _gurobiplan:
 
-pyRDDLGym-gurobi: Gurobi MIP Compiler and Planner
+pyRDDLGym-gurobi: Planning by Nonlinear Programming with GurobiPlan
 ===============
 
 In this tutorial, we discuss the compilation of RDDL into a Gurobi mixed-integer program (MIP) for computing optimal actions.
-The Gurobi planner can optimize discrete state/action problems where the JAX planner could perform poorly.
+We also discuss how pyRDDLGym-gurobi (or GurobiPlan as it is referred to in the literature) uses gurobi to build optimal controllers.
 
 
 Installing
 -----------------
 
-Before installing pyRDDLGym-gurobi, you will need to obtain a valid gurobi license.
-You can then install pyRDDLGym-gurobi and all of its requirements via pip:
+Before installing GurobiPlan, you will need to obtain a valid gurobi license.
+You can then install GurobiPlan and all of its requirements via pip:
 
 .. code-block:: shell
 
@@ -57,13 +57,13 @@ If you are working with the Python API, you can instantiate the environment and 
     env.close()
 		
 .. note::
-   An online and offline controller type are provided in pyRDDLGym-gurobi, 
+   An online and offline controller type are provided in GurobiPlan, 
    which mirror the functionality of the JAX planner discussed in the previous section.
    Both are instances of pyRDDLGym's ``BaseAgent``, so the ``evaluate()`` 
    function can be used to streamline evaluation.
 
  
-Configuring pyRDDLGym-gurobi
+Configuring GurobiPlan
 -------------------
 
 The recommended way to manage planner settings is to write a configuration file 

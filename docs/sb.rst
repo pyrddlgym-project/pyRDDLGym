@@ -1,6 +1,6 @@
 .. _rl:
 
-pyRDDLGym-rl: Reinforcement Learning
+pyRDDLGym-rl: Reinforcement Learning with stable-baselines3 and rllib.
 ===============
 
 pyRDDLGym-rl provides wrappers for deep reinforcement learning algorithms (i.e. Stable Baselines 3 and RLlib) to work with pyRDDLGym.
