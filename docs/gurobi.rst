@@ -21,7 +21,7 @@ You can then install GurobiPlan and all of its requirements via pip:
 Running the Basic Example
 -------------------
 
-The basic example provided in pyRDDLGym-gurobi will run the Gurobi planner on a 
+The basic example provided in pyRDDLGym-gurobi will run GurobiPlan on a 
 domain and instance of your choosing. To run this, navigate to the install directory of pyRDDLGym-gurobi, and run:
 
 .. code-block:: shell
@@ -133,7 +133,7 @@ The full list of settings that can be specified in the ``[Optimizer]`` section o
 Current Limitations
 -------------------
 
-We cite several limitations of the current baseline Gurobi optimizer:
+We cite several limitations of the current version of GurobiPlan:
 
 * Stochastic variables introduce computational difficulties since mixed-integer problems are inherently deterministic
 	* the planner currently applies determinization, where stochastic variables are substituted with their means (we hope to incorporate more sophisticated techniques from optimization to better deal with stochasticity)
