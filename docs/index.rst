@@ -15,7 +15,7 @@ Getting Started with pyRDDLGym
     Install instructions for pip and git. <install>
     Beginner tutorial: initializing environments and policies, visualization, recording movies and logging. <start>
     Advanced tutorial: model inspection, compilation, grounding, and debugging. <start2>
-   	Loading existing RDDL domains and instances. <rddlrepo>
+   	Managing problems using rddlrepository. <rddlrepo>
 
 
 Planning Tools and Baselines
@@ -28,7 +28,7 @@ Planning Tools and Baselines
    	Planning by nonlinear programming with GurobiPlan. <gurobi>
     Planning by Monte-Carlo Tree Search with PROST. <prost>
     Reinforcement learning with stable-baselines3 and rllib. <sb>
-    Symbolic computation and dynamic programming in RDDL domains. <xadd>
+    Symbolic dynamic programming in RDDL domains. <xadd>
 
 
 Examples and Other Resources
