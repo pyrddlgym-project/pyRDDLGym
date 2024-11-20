@@ -18,3 +18,11 @@ rddlrepository
 .. nbgallery::
    notebooks/loading_problems_in_rddlrepository
    notebooks/adding_domains_to_rddlrepository
+   
+  
+JaxPlan
+-----------
+ 
+.. nbgallery::
+   notebooks/open_loop_planning_with_jaxplan
+   
