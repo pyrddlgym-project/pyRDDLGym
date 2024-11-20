@@ -114,7 +114,7 @@ where the argmax is approximated using the softmax function.
 Running JaxPlan from the Command Line
 -------------------
 
-A basic script is provided to run the JAX planner on any domain in rddlrepository, 
+A basic script is provided to run JaxPlan on any domain in rddlrepository, 
 provided a config file of hyper-parameters is available 
 (currently, custom config files are provided for a limited subset of problems: 
 the default config could be suboptimal for other problems). 
@@ -469,7 +469,7 @@ but this is not recommended.
 Constraints on Action Fluents
 -------------------
 
-Currently, the JAX planner supports two different kind of actions constraints.
+Currently, JaxPlan supports two different kind of actions constraints.
 
 Box constraints are useful for bounding each action fluent independently within some range.
 Box constraints typically do not need to be specified manually, since they are automatically 
@@ -490,7 +490,7 @@ where ``lower#`` and ``upper#`` can be any list or nested list.
 By default, the box constraints on actions are enforced using the projected gradient method.
 An alternative approach is to map the actions to the box via a differentiable transformation, 
 as described by `equation 6 in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
-In the JAX planner, this can be enabled by setting ``wrap_non_bool = True``. 
+In JaxPlan, this can be enabled by setting ``wrap_non_bool = True``. 
 
 Concurrency constraints are typically of the form :math:`\sum_i a_i \leq B` for some constant :math:`B`.
 If the ``max-nondef-actions`` property in the RDDL instance is less 
@@ -522,12 +522,12 @@ This can be enabled by setting ``use_symlog_reward = True`` in ``JaxBackpropPlan
 Utility Optimization
 -------------------
 
-By default, the JAX planner will optimize the expected sum of future reward, 
+By default, JaxPlan will optimize the expected sum of future reward, 
 which may not be desirable for risk-sensitive applications where tail risk of the returns is important.
 Following `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_, 
 it is possible to optimize a non-linear utility of the return instead.
 
-The JAX planner currently supports several utility functions:
+JaxPlan currently supports several utility functions:
 
 * "mean" is the risk-neutral or ordinary expected return
 * "mean_var" is the variance penalized return
@@ -770,7 +770,7 @@ For details, please see the
 Limitations
 -------------------
 
-We cite several limitations of the current JAX planner:
+We cite several limitations of the current version of JaxPlan:
 
 * Not all operations have natural differentiable relaxations. Currently, the following are not supported:
 	* nested fluents such as ``fluent1(fluent2(?p))``
@@ -787,15 +787,15 @@ We cite several limitations of the current JAX planner:
 	* a low, or drastically improving, training loss with a similar test loss indicates that the continuous model relaxation is likely accurate around the optimum
 	* on the other hand, a low training loss and a high test loss indicates that the continuous model relaxation is poor.
 
-The goal of the JAX planner is to provide a simple baseline that can be easily built upon.
-However, we welcome any suggestions or modifications about how to improve the robustness of the JAX planner 
+The goal of JaxPlan is to provide a simple baseline that can be easily built upon.
+However, we welcome any suggestions or modifications about how to improve the robustness of JaxPlan 
 on a broader subset of RDDL.
 
 
 Citations
 -------------------
 
-If you use the code provided in this repository, please use the following bibtex for citation:
+If you use the code provided by JaxPlan, please use the following bibtex for citation:
 
 .. code-block:: bibtex
 
@@ -808,7 +808,7 @@ If you use the code provided in this repository, please use the following bibtex
         url={https://openreview.net/forum?id=7IKtmUpLEH}
     }
 
-If you use the utility optimization setting, please include:
+If you use the utility optimization setting in JaxPlan, please include:
 
 .. code-block:: bibtex
 
