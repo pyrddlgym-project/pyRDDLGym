@@ -808,17 +808,3 @@ If you use the code provided by JaxPlan, please use the following bibtex for cit
         url={https://openreview.net/forum?id=7IKtmUpLEH}
     }
 
-If you use the utility optimization setting in JaxPlan, please include:
-
-.. code-block:: bibtex
-
-    @inproceedings{patton2022distributional,
-        title={A distributional framework for risk-sensitive end-to-end planning in continuous mdps},
-        author={Patton, Noah and Jeong, Jihwan and Gimelfarb, Mike and Sanner, Scott},
-        booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
-        volume={36},
-        number={9},
-        pages={9894--9901},
-        year={2022}
-    }
-    
