@@ -101,5 +101,3 @@ def test_state_bounds():
         
     np.testing.assert_array_equal(realstatefluent_lower.flatten(), [-0.6, -0.7])
     np.testing.assert_array_equal(realstatefluent_upper.flatten(), [0.6, 0.7])
-    
-test_state_bounds()
