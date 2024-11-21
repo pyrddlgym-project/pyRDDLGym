@@ -28,4 +28,5 @@ JaxPlan
    notebooks/closed_loop_planning_drp_with_jaxplan
    notebooks/monitoring_progress_with_callbacks_in_jaxplan
    notebooks/saving_and_loading_policies_with_jaxplan
+   notebooks/tuning_hyperparameters_in_jaxplan
    
