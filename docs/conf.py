@@ -92,10 +92,13 @@ html_title = "Documentation for the pyRDDLGym Project"
 html_logo = "rddllogo.gif"
 
 # thumbnails for nbsphinx
-nbsphinx_execute = 'never'
 nbsphinx_thumbnails = {
     'notebooks/*': '_static/notebook_icon.png'
 }
+
+# precache notebooks
+nbsphinx_execute = 'never'
+jupyter_execute_notebooks = "off"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
