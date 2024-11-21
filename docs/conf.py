@@ -92,6 +92,7 @@ html_title = "Documentation for the pyRDDLGym Project"
 html_logo = "rddllogo.gif"
 
 # thumbnails for nbsphinx
+nbsphinx_execute = 'never'
 nbsphinx_thumbnails = {
     'notebooks/*': '_static/notebook_icon.png'
 }

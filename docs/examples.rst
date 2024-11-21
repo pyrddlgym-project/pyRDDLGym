@@ -25,4 +25,5 @@ JaxPlan
  
 .. nbgallery::
    notebooks/open_loop_planning_with_jaxplan
+   notebooks/closed_loop_planning_drp_with_jaxplan
    
