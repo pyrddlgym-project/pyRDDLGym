@@ -84,7 +84,7 @@ def test_state_bounds():
         setting up the state bounds.
     '''
     state_bounds = {
-        'statefluent': ( np.array([ -0.5 ]), np.array([ 0.5 ]) )
+        'realstatefluent': ( np.array([ -0.5 ]), np.array([ 0.5 ]) )
     }
     
     action_bounds = {
@@ -99,5 +99,7 @@ def test_state_bounds():
     
     realstatefluent_lower, realstatefluent_upper = bounds['realstatefluent']
         
-    np.testing.assert_array_equal(realstatefluent_lower.flatten(), [-0.5, -1.0])
-    np.testing.assert_array_equal(realstatefluent_upper.flatten(), [0.5, 1.0])
+    np.testing.assert_array_equal(realstatefluent_lower.flatten(), [-0.6, -0.7])
+    np.testing.assert_array_equal(realstatefluent_upper.flatten(), [0.6, 0.7])
+    
+test_state_bounds()
