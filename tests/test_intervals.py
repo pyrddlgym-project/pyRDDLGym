@@ -64,7 +64,7 @@ def test_action_bounds():
         setting up the action bounds.
     '''
     action_bounds = {
-        'actionfluent': ( np.array([ -0.5 ]), np.array([ 0.5 ]) )
+        'realactionfluent': ( np.array([ -0.5 ]), np.array([ 0.5 ]) )
     }
     
     bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, action_bounds)   
@@ -88,7 +88,7 @@ def test_state_bounds():
     }
     
     action_bounds = {
-        'actionfluent': ( np.array([ -0.1 ]), np.array([ 0.1 ]) )
+        'realactionfluent': ( np.array([ -0.1 ]), np.array([ 0.1 ]) )
     }
     
     bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, action_bounds, state_bounds)   

@@ -22,11 +22,11 @@ domain test_domain {
         realstatefluent(someobject): { state-fluent, real, default = 0.0 };
 
         // Action fluents
-        actionfluent(someobject): { action-fluent, real, default = 0.0 };
+        realactionfluent(someobject): { action-fluent, real, default = 0.0 };
     };
 
     cpfs {
-        intermfluent(?o) = realstatefluent(?o) + actionfluent(?o);
+        intermfluent(?o) = realstatefluent(?o) + realactionfluent(?o);
         
         realstatefluent'(?o) = intermfluent(?o);
     };
@@ -34,8 +34,8 @@ domain test_domain {
     reward = (sum_{?o : someobject} [ realstatefluent(?o) ]);
 
     action-preconditions {
-		forall_{?o : someobject} actionfluent(?o) <= LIMIT(?o);
-		forall_{?o : someobject} actionfluent(?o) >= -LIMIT(?o);
+		forall_{?o : someobject} realactionfluent(?o) <= LIMIT(?o);
+		forall_{?o : someobject} realactionfluent(?o) >= -LIMIT(?o);
 	};
 
 	state-invariants {
