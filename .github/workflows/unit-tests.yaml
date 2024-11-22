@@ -32,6 +32,11 @@ jobs:
           python -m pip install pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      - name: Install local pyRDDLgym
+        run: |
+          cd ..
+          pip install ./pyRDDLgym
+
       - name: Test with pytest
         run: |
           pytest
