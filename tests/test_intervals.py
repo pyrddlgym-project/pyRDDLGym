@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 import pyRDDLGym
-from pyRDDLGym.core.intervals import RDDLIntervalAnalysis
+from pyRDDLGym.core.intervals import RDDLIntervalAnalysis, IntervalAnalysisStrategy
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -24,13 +24,13 @@ def get_action_bounds_from_env(env):
         
     return action_bounds
 
-def perform_interval_analysis(domain, instance, action_bounds = None, state_bounds = None):
+def perform_interval_analysis(domain, instance, action_bounds = None, state_bounds = None, strategy = IntervalAnalysisStrategy.SUPPORT, percentiles = None):
     env = pyRDDLGym.make(domain, instance, vectorized=True)
     
     if action_bounds is None:
         action_bounds = get_action_bounds_from_env(env)
     
-    analysis = RDDLIntervalAnalysis(env.model)
+    analysis = RDDLIntervalAnalysis(env.model, strategy=strategy, percentiles=percentiles)
     bounds = analysis.bound(action_bounds=action_bounds, state_bounds=state_bounds, per_epoch=True)
     
     env.close()
@@ -101,3 +101,114 @@ def test_state_bounds():
         
     np.testing.assert_array_equal(realstatefluent_lower.flatten(), [-0.6, -0.7])
     np.testing.assert_array_equal(realstatefluent_upper.flatten(), [0.6, 0.7])
+    
+def test_diracdelta_propagation():
+    ''' Evaluate if the interval propagation works well to a state fluent
+        that has its next value sampled by a Dirac Delta distribution.
+    '''
+    fluent_name = 'diracdeltastatefluent'
+    
+    ## Support strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.SUPPORT)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [1.0, 1.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [1.0, 1.0])
+    
+    ## Mean strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.MEAN)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [1.0, 1.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [1.0, 1.0])
+    
+    ## Percentiles strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.PERCENTILE, percentiles=[0.1, 0.9])   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [1.0, 1.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [1.0, 1.0])
+    
+def test_bernoulli_propagation():
+    ''' Evaluate if the interval propagation works well to a state fluent
+        that has its next value sampled by a Bernoulli distribution.
+    '''
+    
+    fluent_name = 'bernoullistatefluent'
+    
+    ## Support strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.SUPPORT)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [0.0, 0.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [1.0, 1.0])
+    
+    ## Mean strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.MEAN)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [0.5, 0.5])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [0.5, 0.5])
+    
+    ## Percentiles strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.PERCENTILE, percentiles=[0.1, 0.9])   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [0.0, 0.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [1.0, 1.0])
+    
+def test_normal_propagation():
+    ''' Evaluate if the interval propagation works well to a state fluent
+        that has its next value sampled by a Normal distribution.
+    '''
+    
+    fluent_name = 'normalstatefluent'
+    
+    ## Support strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.SUPPORT)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [-np.inf, -np.inf])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [np.inf, np.inf])
+    
+    ## Mean strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.MEAN)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [0.0, 0.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [0.0, 0.0])
+    
+    ## Percentiles strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.PERCENTILE, percentiles=[0.1, 0.9])   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_almost_equal(fluent_lower.flatten(), [-1.281552, -1.281552], decimal=5)
+    np.testing.assert_array_almost_equal(fluent_upper.flatten(), [1.281552, 1.281552], decimal=5)
+    
+def test_weibull_propagation():
+    ''' Evaluate if the interval propagation works well to a state fluent
+        that has its next value sampled by a Weibull distribution.
+    '''
+    
+    fluent_name = 'weibullstatefluent'
+    
+    ## Support strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.SUPPORT)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [0.0, 0.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [np.inf, np.inf])
+    
+    ## Mean strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.MEAN)   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name]
+    np.testing.assert_array_equal(fluent_lower.flatten(), [5.0, 5.0])
+    np.testing.assert_array_equal(fluent_upper.flatten(), [5.0, 5.0])
+    
+    ## Percentiles strategy
+    bounds = perform_interval_analysis(TEST_DOMAIN, TEST_INSTANCE, strategy = IntervalAnalysisStrategy.PERCENTILE, percentiles=[0.1, 0.9])   
+    
+    fluent_lower, fluent_upper = bounds[fluent_name] # TODO: instead of using precalculated numbers, we could use other libs to evaluate this
+    np.testing.assert_array_almost_equal(fluent_lower.flatten(), [0.5268, 0.5268], decimal=5)
+    np.testing.assert_array_almost_equal(fluent_upper.flatten(), [11.51293, 11.51293], decimal=5)
