@@ -10,6 +10,7 @@ pyRDDLGym
    notebooks/simulating_pyrddlgym_random_policy
    notebooks/simulating_pyrddlgym_custom_policy
    notebooks/recording_movies_in_pyrddlgym
+   notebooks/grounding_a_problem_with_pyrddlgym
 
 
 rddlrepository
