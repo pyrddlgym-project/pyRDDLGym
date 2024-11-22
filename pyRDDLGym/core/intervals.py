@@ -914,8 +914,8 @@ class RDDLIntervalAnalysis:
             return self._bound_student(expr, intervals)
         elif name == 'Gumbel':
             return self._bound_gumbel(expr, intervals)
-        elif name == 'Laplace':
-            return self._bound_laplace(expr, intervals)
+        # elif name == 'Laplace':
+        #     return self._bound_laplace(expr, intervals)
         elif name == 'Cauchy':
             return self._bound_cauchy(expr, intervals)
         elif name == 'Gompertz':
@@ -982,8 +982,8 @@ class RDDLIntervalAnalysis:
             lower = np.zeros(shape=np.shape(lp), dtype=np.int64)
             upper = np.ones(shape=np.shape(up), dtype=np.int64)
 
-            lower = self._mask_assign(lower, lp >= lower_percentile, 1)
-            upper = self._mask_assign(upper, up <= upper_percentile, 0)
+            lower = self._mask_assign(lower, lower_percentile > (1 - lp), 1)
+            upper = self._mask_assign(upper, upper_percentile <= (1 - up), 0)
 
             return (lower, upper)
 
@@ -1007,8 +1007,8 @@ class RDDLIntervalAnalysis:
             # mean + std * normal_inverted_cdf(p)
             lower_percentile, upper_percentile = self.percentiles
 
-            lower = lm * np.sqrt(lv) * stats.norm.ppf(lower_percentile)
-            upper = um * np.sqrt(uv) * stats.norm.ppf(upper_percentile)
+            lower = lm + np.sqrt(lv) * stats.norm.ppf(lower_percentile)
+            upper = um + np.sqrt(uv) * stats.norm.ppf(upper_percentile)
             return (lower, upper)
 
         if self.strategy == IntervalAnalysisStrategy.MEAN:
