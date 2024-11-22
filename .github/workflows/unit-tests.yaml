@@ -34,7 +34,6 @@ jobs:
 
       - name: Install local pyRDDLgym
         run: |
-          cd ..
           pip install ./pyRDDLgym
 
       - name: Test with pytest
