@@ -253,7 +253,7 @@ class RDDLParser(object):
             ('left', 'ASSIGN_EQUAL'),
             ('left', 'EXISTS'),
             ('left', 'FORALL'),
-            ('left', 'AGG_OPER', 'ARGMAX', 'ARGMIN'),  # CHANGED BY MIKE ON JAN 15
+            ('left', 'AGG_OPER', 'ARGMAX', 'ARGMIN', 'DISCRETE', 'UNNORMDISCRETE'),  # CHANGED BY MIKE ON JAN 15
             ('left', 'EQUIV'),
             ('left', 'IMPLY'),
             ('left', 'OR'),
@@ -557,7 +557,8 @@ class RDDLParser(object):
         '''term : VAR
                 | ENUM_VAL
                 | pvar_expr
-                | argmaxmin_expr'''        
+                | argmaxmin_expr
+                | randomvar_from_pvar_expr'''        
         if isinstance(p[1], tuple):
             p[0] = Expression(p[1])
         else:
@@ -701,9 +702,9 @@ class RDDLParser(object):
     
     # CHANGED BY MIKE ON JAN 16
     def p_randomvar_from_pvar_expr(self, p):
-        '''randomvar_from_pvar_expr : DISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN
-                                    | UNNORMDISCRETE UNDERSCORE LCURLY typed_var_list RCURLY LPAREN expr RPAREN'''
-        p[0] = ('randomvar', (p[1] + '(p)', (*p[4], (p[7],))))
+        '''randomvar_from_pvar_expr : DISCRETE UNDERSCORE LCURLY typed_var_list RCURLY expr %prec DISCRETE
+                                    | UNNORMDISCRETE UNDERSCORE LCURLY typed_var_list RCURLY expr %prec UNNORMDISCRETE'''
+        p[0] = ('randomvar', (p[1] + '(p)', (*p[4], (p[6],))))
     
     # CHANGED BY MIKE ON JAN 17
     def p_randomvector_expr(self, p):

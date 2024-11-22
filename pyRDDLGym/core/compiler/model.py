@@ -868,7 +868,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                         f'{default}.')
                 
                 # type cast
-                if not np.can_cast(default, dtype):
+                if not np.can_cast(np.atleast_1d(default), dtype):
                     raise RDDLTypeError(
                         f'Default value {default} of variable <{pvar.name}> '
                         f'cannot be cast to required type <{prange}>.')
