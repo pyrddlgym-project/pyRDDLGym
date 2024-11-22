@@ -20,6 +20,10 @@ domain test_domain {
 
         // State fluents
         realstatefluent(someobject): { state-fluent, real, default = 0.0 };
+        diracdeltastatefluent(someobject): { state-fluent, real, default = 0.0 };
+        bernoullistatefluent(someobject): { state-fluent, bool, default = false };
+        normalstatefluent(someobject): { state-fluent, real, default = 0.0 };
+        weibullstatefluent(someobject): { state-fluent, real, default = 0.0 };
 
         // Action fluents
         realactionfluent(someobject): { action-fluent, real, default = 0.0 };
@@ -28,6 +32,11 @@ domain test_domain {
     cpfs {
         intermfluent(?o) = realstatefluent(?o) + realactionfluent(?o);
         
+        diracdeltastatefluent'(?o) = DiracDelta(1.0);
+        bernoullistatefluent'(?o) = Bernoulli(0.5);
+        normalstatefluent'(?o) = Normal(0.0, 1.0);
+        weibullstatefluent'(?o) = Weibull(1.0, 5.0);
+
         realstatefluent'(?o) = intermfluent(?o);
     };
 
