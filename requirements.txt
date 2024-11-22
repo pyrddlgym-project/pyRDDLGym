@@ -4,4 +4,5 @@ gymnasium
 numpy>=1.22
 pygame
 ply
+scipy
 termcolor
