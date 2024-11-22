@@ -914,6 +914,7 @@ class RDDLIntervalAnalysis:
             return self._bound_student(expr, intervals)
         elif name == 'Gumbel':
             return self._bound_gumbel(expr, intervals)
+        # not implemented
         # elif name == 'Laplace':
         #     return self._bound_laplace(expr, intervals)
         elif name == 'Cauchy':
