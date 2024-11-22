@@ -1,6 +1,16 @@
+import traceback
 import numpy as np
-from scipy.special import gamma
-import scipy.stats as stats
+
+# try to load scipy
+try:
+    from scipy.special import gamma
+    import scipy.stats as stats
+except Exception:
+    raise_warning('failed to import scipy: '
+                  'some interval arithmetic operations will fail.', 'red')
+    traceback.print_exc()
+    gamma = None
+    stats = None
 
 from typing import Dict, Optional, Tuple
 from enum import Enum
@@ -22,6 +32,7 @@ from pyRDDLGym.core.simulator import lngamma
 
 
 class IntervalAnalysisStrategy(Enum):
+    '''Specifies how bounds on random variables should be propagated.'''
     SUPPORT = 1
     PERCENTILE = 2
     MEAN = 3
