@@ -13,16 +13,26 @@ import sys
 import numpy as np
 
 import pyRDDLGym
-from pyRDDLGym.core.intervals import RDDLIntervalAnalysis
+from pyRDDLGym.core.intervals import (
+    RDDLIntervalAnalysis, RDDLIntervalAnalysisPercentile, RDDLIntervalAnalysisMean
+)
 
 
-def main(domain, instance, policy):
+def main(domain, instance, policy, method):
     
     # create the environment
     env = pyRDDLGym.make(domain, instance, vectorized=True)
     
+    # create the method
+    if method == 'support':
+        analysis = RDDLIntervalAnalysis(env.model)
+    elif method == 'mean':
+        analysis = RDDLIntervalAnalysisMean(env.model)
+    else:
+        p = float(method)
+        analysis = RDDLIntervalAnalysisPercentile(env.model, (p, 1 - p))
+        
     # set range of action fluents to uniform over action space
-    analysis = RDDLIntervalAnalysis(env.model)
     if policy == 'random':
         action_bounds = {}
         for action, prange in env.model.action_ranges.items():
@@ -45,8 +55,9 @@ def main(domain, instance, policy):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    if len(args) < 3:
-        print('python run_intervals.py <domain> <instance> <policy>')
+    if len(args) < 4:
+        print('python run_intervals.py <domain> <instance> <policy> <method>')
         exit(1)
-    kwargs = {'domain': args[0], 'instance': args[1], 'policy': args[2]}
+    kwargs = {'domain': args[0], 'instance': args[1], 
+              'policy': args[2], 'method': args[3]}
     main(**kwargs)
