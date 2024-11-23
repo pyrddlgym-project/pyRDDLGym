@@ -1338,7 +1338,9 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         # scale * Exp1, where Exp1 is percentile of Exponential(1)
         lower_pctl, upper_pctl = self.percentiles
         exp1 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
-        return self._bound_arithmetic_expr((ls, us), exp1, '*')
+        lower, upper = self._bound_arithmetic_expr((ls, us), exp1, '*')
+        lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
+        return (lower, upper)
      
     def _bound_weibull(self, expr, intervals):
         args = expr.args
@@ -1352,7 +1354,9 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         one = (np.ones_like(lsh), np.ones_like(ush))
         inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
         shaped_weibull = self._bound_func_power(weibull_01, inv_shape)
-        return self._bound_arithmetic_expr((lsc, usc), shaped_weibull, '*')
+        lower, upper = self._bound_arithmetic_expr((lsc, usc), shaped_weibull, '*')
+        lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
+        return (lower, upper)
     
     def _bound_gamma(self, expr, intervals):
         # TODO: implement percentile Gamma interval
@@ -1382,7 +1386,10 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         one = (np.ones_like(lsh), np.ones_like(ush))
         inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
         shaped_pareto = self._bound_func_power(pareto_01, inv_shape)
-        return self._bound_arithmetic_expr((lsc, usc), shaped_pareto, '*')
+        lower, upper = self._bound_arithmetic_expr((lsc, usc), shaped_pareto, '*')
+        lower = np.maximum(lower, lsc)
+        upper = np.maximum(upper, lower)
+        return (lower, upper)
     
     def _bound_student(self, expr, intervals):
         args = expr.args
@@ -1453,7 +1460,9 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         lower_shaped, upper_shaped = self._bound_arithmetic_expr(
             percentiles, (lsh, ush), '/')
         percentiles2 = (np.log(1 + lower_shaped), np.log(1 + upper_shaped))
-        return self._bound_arithmetic_expr(percentiles2, (lsc, usc), '/')
+        lower, upper = self._bound_arithmetic_expr(percentiles2, (lsc, usc), '/')
+        lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
+        return (lower, upper)
     
     def _bound_chisquare(self, expr, intervals):
         # TODO: implement percentile Chi-Squared interval
