@@ -1295,6 +1295,7 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         p, = args
         (lp, up) = self._bound(p, intervals)
         
+        # TODO: check Bernoulli percentile
         lower_percentile, upper_percentile = self.percentiles
         lower = np.zeros(shape=np.shape(lp), dtype=np.int64)
         upper = np.ones(shape=np.shape(up), dtype=np.int64)
@@ -1308,11 +1309,13 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         (lm, um) = self._bound(mean, intervals)
         (lv, uv) = self._bound(var, intervals)
         
-        # mean + std * normal_inverted_cdf(p)
-        lower_percentile, upper_percentile = self.percentiles
-        lower = lm + np.sqrt(uv) * stats.norm.ppf(lower_percentile)
-        upper = um + np.sqrt(uv) * stats.norm.ppf(upper_percentile)
-        return (lower, upper)
+        # mean + std * Z, where Z is (lower-pctl, upper-pctl)
+        lower_pctl, upper_pctl = self.percentiles
+        Z = (stats.norm.ppf(lower_pctl), stats.norm.ppf(upper_pctl))
+        std = self._bound_func_monotone(lv, uv, np.sqrt)
+        std_Z = self._bound_arithmetic_expr(std, Z, '*')
+        bounds = self._bound_arithmetic_expr((lm, um), std_Z, '+')
+        return bounds
     
     def _bound_poisson(self, expr, intervals):
         # TODO: implement percentile Poisson interval
@@ -1323,11 +1326,11 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         scale, = args
         (ls, us) = self._bound(scale, intervals)
         
-        # -scale * ln(1 - percentile)
-        lower_percentile, upper_percentile = self.percentiles
-        lower = ls * (-np.log(1 - lower_percentile))
-        upper = us * (-np.log(1 - upper_percentile))
-        return (lower, upper)
+        # scale * Exp1, where Exp1 is percentiles of standard exponential
+        lower_pctl, upper_pctl = self.percentiles
+        exp1 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
+        bounds = self._bound_arithmetic_expr((ls, us), exp1, '*')
+        return bounds
      
     def _bound_weibull(self, expr, intervals):
         args = expr.args
@@ -1336,10 +1339,13 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         (lsc, usc) = self._bound(scale, intervals)
         
         # scale * (-ln(1 - p))^(1 / shape)
-        lower_percentile, upper_percentile = self.percentiles
-        lower = lsc * (-np.log(1 - lower_percentile)) ** (1 / lsh)
-        upper = usc * (-np.log(1 - upper_percentile)) ** (1 / ush)
-        return (lower, upper)
+        lower_pctl, upper_pctl = self.percentiles
+        wb = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
+        wb_shaped = self._bound_func_power(wb, inv_shape)
+        bounds = self._bound_arithmetic_expr((lsc, usc), wb_shaped, '*')
+        return bounds
     
     def _bound_gamma(self, expr, intervals):
         # TODO: implement percentile Gamma interval
@@ -1367,9 +1373,9 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         (ld, ud) = self._bound(df, intervals)
         
         # student_inverted_cdf(df) at the lowest degree of freedom
-        lower_percentile, upper_percentile = self.percentiles
-        lower = stats.t.ppf(lower_percentile, df=ld)
-        upper = stats.t.ppf(upper_percentile, df=ld)
+        lower_pctl, upper_pctl = self.percentiles
+        lower = stats.t.ppf(lower_pctl, df=ld)
+        upper = stats.t.ppf(upper_pctl, df=ld)
         return (lower, upper)
     
     def _bound_gumbel(self, expr, intervals):
