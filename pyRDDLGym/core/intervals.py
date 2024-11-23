@@ -3,6 +3,17 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
 
+# try to load scipy
+try:
+    from scipy.special import gamma
+    import scipy.stats as stats
+except Exception:
+    raise_warning('failed to import scipy: '
+                  'some interval arithmetic operations will fail.', 'red')
+    traceback.print_exc()
+    gamma = None
+    stats = None
+
 from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.compiler.tracer import RDDLObjectsTracer
@@ -1259,19 +1270,21 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
     configurable by the user.
     '''
     
-    def __init__(self, *args, percentiles: Tuple[float, float], **kwargs):
+    def __init__(self, rddl: RDDLPlanningModel, 
+                 percentiles: Tuple[float, float], 
+                 logger: Optional[Logger]=None):
         '''Creates a new interval analysis object for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
-        :param logger: to log compilation information during tracing to file
         :param percentiles: percentiles used to compute bounds
+        :param logger: to log compilation information during tracing to file
         '''
         self.percentiles = percentiles
         lower, upper = self.percentiles
         if lower < 0 or lower > 1 or upper < 0 or upper > 1 or lower > upper:
             raise ValueError('Percentiles must be in the range [0, 1] and lower <= upper.')
     
-        super().__init__(*args, **kwargs)
+        super().__init__(rddl, logger=logger)
     
     def _bound_uniform(self, expr, intervals):
         # TODO: implement percentile Uniform interval
