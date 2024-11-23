@@ -877,8 +877,9 @@ class RDDLIntervalAnalysis:
             return self._bound_gamma(expr, intervals)
         elif name == 'Binomial':
             return self._bound_binomial(expr, intervals)
-        elif name == 'NegativeBinomial':
-            return self._bound_negative_binomial(expr, intervals)
+        # TODO: Implement Negative-Binomial intervals
+        # elif name == 'NegativeBinomial':
+        #    return self._bound_negative_binomial(expr, intervals)
         elif name == 'Beta':
             return self._bound_beta(expr, intervals)
         elif name == 'Geometric':
@@ -1129,9 +1130,6 @@ class RDDLIntervalAnalysis:
 
 class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
     '''Interval analysis that replaces distributions with their mean.
-        
-    :param rddl: the RDDL domain to analyze
-    :param logger: to log compilation information during tracing to file
     '''
     
     def _bound_uniform(self, expr, intervals):
@@ -1252,4 +1250,122 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
     def _bound_kumaraswamy(self, expr, intervals):
         # TODO: implement mean Kumaraswamy interval
         raise NotImplementedError("Mean strategy is not implemented for Kumaraswamy distribution yet.")
+
+
+class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
+    '''Interval analysis that replaces distributions with their lower and upper
+    percentiles. This is a middle ground, since intervals with normally unbounded
+    support can produce bounded intervals, with the percentiles being 
+    configurable by the user.
+    '''
+    
+    def __init__(self, *args, percentiles: Tuple[float, float], **kwargs):
+        '''Creates a new interval analysis object for the given RDDL domain.
+        
+        :param rddl: the RDDL domain to analyze
+        :param logger: to log compilation information during tracing to file
+        :param percentiles: percentiles used to compute bounds
+        '''
+        self.percentiles = percentiles
+        lower, upper = self.percentiles
+        if lower < 0 or lower > 1 or upper < 0 or upper > 1 or lower > upper:
+            raise ValueError('Percentiles must be in the range [0, 1] and lower <= upper.')
+    
+        super().__init__(*args, **kwargs)
+    
+    def _bound_uniform(self, expr, intervals):
+        # TODO: implement percentile Uniform interval
+        raise NotImplementedError("Percentile strategy is not implemented for Uniform distribution yet.")
+    
+    def _bound_bernoulli(self, expr, intervals):
+        args = expr.args
+        p, = args
+        (lp, up) = self._bound(p, intervals)
+        
+        lower_percentile, upper_percentile = self.percentiles
+        lower = np.zeros(shape=np.shape(lp), dtype=np.int64)
+        upper = np.ones(shape=np.shape(up), dtype=np.int64)
+        lower = self._mask_assign(lower, lower_percentile > (1 - lp), 1)
+        upper = self._mask_assign(upper, upper_percentile <= (1 - up), 0)
+        return (lower, upper)
+    
+    def _bound_normal(self, expr, intervals):
+        args = expr.args
+        mean, var = args
+        (lm, um) = self._bound(mean, intervals)
+        (lv, uv) = self._bound(var, intervals)
+        
+        # mean + std * normal_inverted_cdf(p)
+        lower_percentile, upper_percentile = self.percentiles
+        lower = lm + np.sqrt(lv) * stats.norm.ppf(lower_percentile)
+        upper = um + np.sqrt(uv) * stats.norm.ppf(upper_percentile)
+        return (lower, upper)
+    
+    def _bound_poisson(self, expr, intervals):
+        # TODO: implement percentile Poisson interval
+        raise NotImplementedError("Percentile strategy is not implemented for Poisson distribution yet.")
+    
+    def _bound_exponential(self, expr, intervals):
+        # TODO: implement percentile Exponential interval
+        raise NotImplementedError("Percentile strategy is not implemented for Exponential distribution yet.")
      
+    def _bound_weibull(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # scale * (-ln(1 - p))^(1 / shape)
+        lower_percentile, upper_percentile = self.percentiles
+        lower = lsc * (-np.log(1 - lower_percentile)) ** (1 / lsh)
+        upper = usc * (-np.log(1 - upper_percentile)) ** (1 / ush)
+        return (lower, upper)
+    
+    def _bound_gamma(self, expr, intervals):
+        # TODO: implement percentile Gamma interval
+        raise NotImplementedError("Percentile strategy is not implemented for Gamma distribution yet.")
+    
+    def _bound_binomial(self, expr, intervals):
+        # TODO: implement percentile Binomial interval
+        raise NotImplementedError("Percentile strategy is not implemented for Binomial distribution yet.")
+    
+    def _bound_beta(self, expr, intervals):
+        # TODO: implement percentile Beta interval
+        raise NotImplementedError("Percentile strategy is not implemented for Beta distribution yet.")
+    
+    def _bound_geometric(self, expr, intervals):
+        # TODO: implement percentile Geometric interval
+        raise NotImplementedError("Percentile strategy is not implemented for Geometric distribution yet.")
+    
+    def _bound_pareto(self, expr, intervals):
+        # TODO: implement percentile Pareto interval
+        raise NotImplementedError("Percentile strategy is not implemented for Pareto distribution yet.")
+    
+    def _bound_student(self, expr, intervals):
+        # TODO: implement percentile Student interval
+        raise NotImplementedError("Percentile strategy is not implemented for Student distribution yet.")
+    
+    def _bound_gumbel(self, expr, intervals):
+        # TODO: implement percentile Gumbel interval
+        raise NotImplementedError("Percentile strategy is not implemented for Gumbel distribution yet.")
+    
+    def _bound_laplace(self, expr, intervals):
+        # TODO: implement percentile Laplace interval
+        raise NotImplementedError("Percentile strategy is not implemented for Laplace distribution yet.")
+    
+    def _bound_cauchy(self, expr, intervals):
+        # TODO: implement percentile Cauchy interval
+        raise NotImplementedError("Percentile strategy is not implemented for Cauchy distribution yet.")
+    
+    def _bound_gompertz(self, expr, intervals):
+        # TODO: implement percentile Gompertz interval
+        raise NotImplementedError("Percentile strategy is not implemented for Gompertz distribution yet.")
+    
+    def _bound_chisquare(self, expr, intervals):
+        # TODO: implement percentile Chi-Squared interval
+        raise NotImplementedError("Percentile strategy is not implemented for Chi-square distribution yet.")
+    
+    def _bound_kumaraswamy(self, expr, intervals):
+        # TODO: implement percentile Kumaraswamy interval
+        raise NotImplementedError("Percentile strategy is not implemented for Kumaraswamy distribution yet.")
+    
