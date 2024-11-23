@@ -1371,8 +1371,18 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         raise NotImplementedError("Percentile strategy is not implemented for Geometric distribution yet.")
     
     def _bound_pareto(self, expr, intervals):
-        # TODO: implement percentile Pareto interval
-        raise NotImplementedError("Percentile strategy is not implemented for Pareto distribution yet.")
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # scale * (1 - percentile) ** (-1 / shape)
+        lower_pctl, upper_pctl = self.percentiles
+        pareto_01 = (1. / (1. - lower_pctl), 1. / (1. - upper_pctl))
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
+        shaped_pareto = self._bound_func_power(pareto_01, inv_shape)
+        return self._bound_arithmetic_expr((lsc, usc), shaped_pareto, '*')
     
     def _bound_student(self, expr, intervals):
         args = expr.args
