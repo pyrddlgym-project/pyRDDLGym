@@ -1319,8 +1319,15 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         raise NotImplementedError("Percentile strategy is not implemented for Poisson distribution yet.")
     
     def _bound_exponential(self, expr, intervals):
-        # TODO: implement percentile Exponential interval
-        raise NotImplementedError("Percentile strategy is not implemented for Exponential distribution yet.")
+        args = expr.args
+        scale, = args
+        (ls, us) = self._bound(scale, intervals)
+        
+        # -scale * ln(1 - percentile)
+        lower_percentile, upper_percentile = self.percentiles
+        lower = ls * (-np.log(1 - lower_percentile))
+        upper = us * (-np.log(1 - upper_percentile))
+        return (lower, upper)
      
     def _bound_weibull(self, expr, intervals):
         args = expr.args
