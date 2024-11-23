@@ -1125,3 +1125,131 @@ class RDDLIntervalAnalysis:
         bounds = [(lower_prob[..., i], upper_prob[..., i])
                   for i in range(lower_prob.shape[-1])]
         return self._bound_discrete_helper(bounds)
+
+
+class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
+    '''Interval analysis that replaces distributions with their mean.
+        
+    :param rddl: the RDDL domain to analyze
+    :param logger: to log compilation information during tracing to file
+    '''
+    
+    def _bound_uniform(self, expr, intervals):
+        args = expr.args
+        a, b = args
+        (la, ua) = self._bound(a, intervals)
+        (lb, ub) = self._bound(b, intervals)
+        lower = (la + lb) / 2
+        upper = (ua + ub) / 2
+        return (lower, upper)
+    
+    def _bound_bernoulli(self, expr, intervals):
+        args = expr.args
+        p, = args
+        return self._bound(p, intervals)
+    
+    def _bound_normal(self, expr, intervals):
+        args = expr.args
+        mean, var = args
+        (lm, um) = self._bound(mean, intervals)
+        (lv, uv) = self._bound(var, intervals)
+        return (lm, um)
+    
+    def _bound_poisson(self, expr, intervals):
+        args = expr.args
+        p, = args
+        return self._bound(p, intervals)
+    
+    def _bound_exponential(self, expr, intervals):
+        args = expr.args
+        scale, = args
+        return self._bound(scale, intervals)
+    
+    def _bound_weibull(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # scale * gamma(1 + 1 / shape)
+        lower = lsc * gamma(1 + 1 / lsh)
+        upper = usc * gamma(1 + 1 / ush)
+        return (lower, upper)
+    
+    def _bound_gamma(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # shape * scale
+        return RDDLIntervalAnalysis._bound_arithmetic_expr((lsh, ush), (lsc, usc), '*')
+    
+    def _bound_binomial(self, expr, intervals):
+        args = expr.args
+        n, p = args
+        (ln, un) = self._bound(n, intervals)
+        (lp, up) = self._bound(p, intervals)
+        
+        # n * p
+        return RDDLIntervalAnalysis._bound_arithmetic_expr((ln, un), (lp, up), '*')
+    
+    def _bound_beta(self, expr, intervals):
+        # TODO: implement mean Beta interval
+        raise NotImplementedError("Mean strategy is not implemented for Beta distribution yet.")
+    
+    def _bound_geometric(self, expr, intervals):
+        args = expr.args
+        p, = args        
+        (lp, up) = self._bound(p, intervals)
+        
+        # 1 / p
+        one = np.ones_like(up)
+        return RDDLIntervalAnalysis._bound_arithmetic_expr((one, one), (lp, up), '/')
+    
+    def _bound_pareto(self, expr, intervals):
+        # TODO: implement mean Pareto interval
+        raise NotImplementedError("Mean strategy is not implemented for Pareto distribution yet.")
+    
+    def _bound_student(self, expr, intervals):
+        args = expr.args
+        df, = args
+        (ld, ud) = self._bound(df, intervals)
+        lower = np.zeros_like(ld)
+        upper = np.zeros_like(ud)
+        return (lower, upper)
+    
+    def _bound_gumbel(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # mean + euler-mascheroni * scale
+        lower = lm + 0.577215664901532 * ls
+        upper = um + 0.577215664901532 * us
+        return (lower, upper)
+    
+    def _bound_laplace(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        return (lm, um)
+    
+    def _bound_cauchy(self, expr, intervals):
+        raise ValueError("The mean of a Cauchy distribution is not defined.")
+    
+    def _bound_gompertz(self, expr, intervals):
+        # TODO: implement mean Gompertz interval
+        raise NotImplementedError("Mean strategy is not implemented for Gompertz distribution yet.")
+    
+    def _bound_chisquare(self, expr, intervals):
+        args = expr.args
+        df, = args
+        return self._bound(df, intervals)
+    
+    def _bound_kumaraswamy(self, expr, intervals):
+        # TODO: implement mean Kumaraswamy interval
+        raise NotImplementedError("Mean strategy is not implemented for Kumaraswamy distribution yet.")
+     
