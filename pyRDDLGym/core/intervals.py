@@ -1386,12 +1386,43 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         raise NotImplementedError("Percentile strategy is not implemented for Gumbel distribution yet.")
     
     def _bound_laplace(self, expr, intervals):
-        # TODO: implement percentile Laplace interval
-        raise NotImplementedError("Percentile strategy is not implemented for Laplace distribution yet.")
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # if percentile <= 0.5 then mean + scale * ln(2 percentile)
+        # otherwise mean - scale * ln(2 - 2 percentile)
+        lower_pctl, upper_pctl = self.percentiles
+        if lower_pctl <= 0.5:
+            lower_lap01 = np.log(2 * lower_pctl)
+        else:
+            lower_lap01 = -np.log(2 - 2 * lower_pctl)
+        if upper_pctl <= 0.5:
+            upper_lap01 = np.log(2 * upper_pctl)
+        else:
+            upper_lap01 = -np.log(2 - 2 * upper_pctl)
+        scale_lap01 = self._bound_arithmetic_expr(
+            (lower_lap01, upper_lap01), (ls, us), '*')
+        bounds = self._bound_arithmetic_expr((lm, um), scale_lap01, '+')
+        return bounds
     
     def _bound_cauchy(self, expr, intervals):
-        # TODO: implement percentile Cauchy interval
-        raise NotImplementedError("Percentile strategy is not implemented for Cauchy distribution yet.")
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # scale * C01 + mean, where C01 are the percentiles of Cauchy(0, 1)
+        lower_pctl, upper_pctl = self.percentiles
+        lower_pctl = np.pi * (lower_pctl - 0.5)
+        upper_pctl = np.pi * (upper_pctl - 0.5)
+        lower_c01 = np.minimum(np.tan(lower_pctl), np.tan(upper_pctl))
+        upper_c01 = np.maximum(np.tan(lower_pctl), np.tan(upper_pctl))
+        scale_c01 = self._bound_arithmetic_expr(
+            (lower_c01, upper_c01), (ls, us), '*')
+        bounds = self._bound_arithmetic_expr((lm, um), scale_c01, '+')
+        return bounds
     
     def _bound_gompertz(self, expr, intervals):
         # TODO: implement percentile Gompertz interval
