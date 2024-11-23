@@ -1362,8 +1362,15 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         raise NotImplementedError("Percentile strategy is not implemented for Pareto distribution yet.")
     
     def _bound_student(self, expr, intervals):
-        # TODO: implement percentile Student interval
-        raise NotImplementedError("Percentile strategy is not implemented for Student distribution yet.")
+        args = expr.args
+        df, = args
+        (ld, ud) = self._bound(df, intervals)
+        
+        # student_inverted_cdf(df) at the lowest degree of freedom
+        lower_percentile, upper_percentile = self.percentiles
+        lower = stats.t.ppf(lower_percentile, df=ld)
+        upper = stats.t.ppf(upper_percentile, df=ld)
+        return (lower, upper)
     
     def _bound_gumbel(self, expr, intervals):
         # TODO: implement percentile Gumbel interval
