@@ -1289,6 +1289,14 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
     
         super().__init__(rddl, logger=logger)
     
+    @staticmethod
+    def _bound_location_scale(percentiles, mean, scale):
+        '''For a location scale member X with given percentiles, computes
+        the interval for mean + scale * X.'''
+        scaled_percentiles = self._bound_arithmetic_expr(percentiles, scale, '*')
+        bounds = self._bound_arithmetic_expr(mean, scaled_percentiles, '+')
+        return bounds
+        
     def _bound_uniform(self, expr, intervals):
         # TODO: implement percentile Uniform interval
         raise NotImplementedError("Percentile strategy is not implemented for Uniform distribution yet.")
@@ -1312,13 +1320,11 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         (lm, um) = self._bound(mean, intervals)
         (lv, uv) = self._bound(var, intervals)
         
-        # mean + std * Z, where Z is (lower-pctl, upper-pctl)
+        # mean + std * Z, where Z is percentile of Normal(0, 1)
         lower_pctl, upper_pctl = self.percentiles
-        Z = (stats.norm.ppf(lower_pctl), stats.norm.ppf(upper_pctl))
-        std = self._bound_func_monotone(lv, uv, np.sqrt)
-        std_Z = self._bound_arithmetic_expr(std, Z, '*')
-        bounds = self._bound_arithmetic_expr((lm, um), std_Z, '+')
-        return bounds
+        normal_01 = (stats.norm.ppf(lower_pctl), stats.norm.ppf(upper_pctl))
+        scale = self._bound_func_monotone(lv, uv, np.sqrt)
+        return self._bound_location_scale(normal_01, (lm, um), scale)
     
     def _bound_poisson(self, expr, intervals):
         # TODO: implement percentile Poisson interval
@@ -1329,11 +1335,10 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         scale, = args
         (ls, us) = self._bound(scale, intervals)
         
-        # scale * Exp1, where Exp1 is percentiles of standard exponential
+        # scale * Exp1, where Exp1 is percentile of Exponential(1)
         lower_pctl, upper_pctl = self.percentiles
         exp1 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
-        bounds = self._bound_arithmetic_expr((ls, us), exp1, '*')
-        return bounds
+        return self._bound_arithmetic_expr((ls, us), exp1, '*')
      
     def _bound_weibull(self, expr, intervals):
         args = expr.args
@@ -1343,12 +1348,11 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         
         # scale * (-ln(1 - p))^(1 / shape)
         lower_pctl, upper_pctl = self.percentiles
-        wb = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
+        weibull_01 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
         one = (np.ones_like(lsh), np.ones_like(ush))
         inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
-        wb_shaped = self._bound_func_power(wb, inv_shape)
-        bounds = self._bound_arithmetic_expr((lsc, usc), wb_shaped, '*')
-        return bounds
+        shaped_weibull = self._bound_func_power(weibull_01, inv_shape)
+        return self._bound_arithmetic_expr((lsc, usc), shaped_weibull, '*')
     
     def _bound_gamma(self, expr, intervals):
         # TODO: implement percentile Gamma interval
@@ -1382,8 +1386,15 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         return (lower, upper)
     
     def _bound_gumbel(self, expr, intervals):
-        # TODO: implement percentile Gumbel interval
-        raise NotImplementedError("Percentile strategy is not implemented for Gumbel distribution yet.")
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # mean - scale * ln(-ln(percentiles))
+        lower_pctl, upper_pctl = self.percentiles
+        gumbel_01 = (-np.log(-np.log(lower_pctl)), -np.log(-np.log(upper_pctl)))
+        return self._bound_location_scale(gumbel_01, (lm, um), (ls, us))
     
     def _bound_laplace(self, expr, intervals):
         args = expr.args
@@ -1402,10 +1413,8 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
             upper_lap01 = np.log(2 * upper_pctl)
         else:
             upper_lap01 = -np.log(2 - 2 * upper_pctl)
-        scale_lap01 = self._bound_arithmetic_expr(
-            (lower_lap01, upper_lap01), (ls, us), '*')
-        bounds = self._bound_arithmetic_expr((lm, um), scale_lap01, '+')
-        return bounds
+        laplace_01 = (lower_lap01, upper_lap01)
+        return self._bound_location_scale(laplace_01, (lm, um), (ls, us))
     
     def _bound_cauchy(self, expr, intervals):
         args = expr.args
@@ -1419,14 +1428,22 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         upper_pctl = np.pi * (upper_pctl - 0.5)
         lower_c01 = np.minimum(np.tan(lower_pctl), np.tan(upper_pctl))
         upper_c01 = np.maximum(np.tan(lower_pctl), np.tan(upper_pctl))
-        scale_c01 = self._bound_arithmetic_expr(
-            (lower_c01, upper_c01), (ls, us), '*')
-        bounds = self._bound_arithmetic_expr((lm, um), scale_c01, '+')
-        return bounds
+        cauchy_01 = (lower_c01, upper_c01)
+        return self._bound_location_scale(cauchy_01, (lm, um), (ls, us))
     
     def _bound_gompertz(self, expr, intervals):
-        # TODO: implement percentile Gompertz interval
-        raise NotImplementedError("Percentile strategy is not implemented for Gompertz distribution yet.")
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # (1/scale) * ln(1 - (1/shape) * ln(1 - G)) where G is standard Gompertz
+        lower_pctl, upper_pctl = self.percentiles
+        percentiles = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
+        lower_shaped, upper_shaped = self._bound_arithmetic_expr(
+            percentiles, (lsh, ush), '/')
+        percentiles2 = (np.log(1 + lower_shaped), np.log(1 + upper_shaped))
+        return self._bound_arithmetic_expr(percentiles2, (lsc, usc), '/')
     
     def _bound_chisquare(self, expr, intervals):
         # TODO: implement percentile Chi-Squared interval
