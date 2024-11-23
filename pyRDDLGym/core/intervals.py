@@ -1310,7 +1310,7 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         
         # mean + std * normal_inverted_cdf(p)
         lower_percentile, upper_percentile = self.percentiles
-        lower = lm + np.sqrt(lv) * stats.norm.ppf(lower_percentile)
+        lower = lm + np.sqrt(uv) * stats.norm.ppf(lower_percentile)
         upper = um + np.sqrt(uv) * stats.norm.ppf(upper_percentile)
         return (lower, upper)
     
