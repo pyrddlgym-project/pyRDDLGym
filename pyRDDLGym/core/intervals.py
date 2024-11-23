@@ -1153,7 +1153,9 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
     def _bound_bernoulli(self, expr, intervals):
         args = expr.args
         p, = args
-        return self._bound(p, intervals)
+        lower, upper = self._bound(p, intervals)
+        lower, upper = np.clip(lower, 0., 1.), np.clip(upper, 0., 1.)
+        return (lower, upper)
     
     def _bound_normal(self, expr, intervals):
         args = expr.args
@@ -1165,12 +1167,16 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
     def _bound_poisson(self, expr, intervals):
         args = expr.args
         p, = args
-        return self._bound(p, intervals)
+        lower, upper = self._bound(p, intervals)
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
     
     def _bound_exponential(self, expr, intervals):
         args = expr.args
         scale, = args
-        return self._bound(scale, intervals)
+        lower, upper = self._bound(scale, intervals)
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
     
     def _bound_weibull(self, expr, intervals):
         args = expr.args
@@ -1183,8 +1189,9 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         lshinv, ushinv = self._bound_arithmetic_expr(one, (lsh, ush), '/')
         func, x_crit = self.UNARY_U_SHAPED['gamma']
         lgam, ugam = self._bound_func_u_shaped(1 + lshinv, 1 + ushinv, x_crit, func)
-        bounds = self._bound_arithmetic_expr((lsc, ush), (lgam, ugam), '*')
-        return bounds
+        lower, upper = self._bound_arithmetic_expr((lsc, ush), (lgam, ugam), '*')
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
     
     def _bound_gamma(self, expr, intervals):
         args = expr.args
@@ -1193,7 +1200,10 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         (lsc, usc) = self._bound(scale, intervals)
         
         # shape * scale
-        return RDDLIntervalAnalysis._bound_arithmetic_expr((lsh, ush), (lsc, usc), '*')
+        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(
+            (lsh, ush), (lsc, usc), '*')
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
     
     def _bound_binomial(self, expr, intervals):
         args = expr.args
@@ -1202,11 +1212,22 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         (lp, up) = self._bound(p, intervals)
         
         # n * p
-        return RDDLIntervalAnalysis._bound_arithmetic_expr((ln, un), (lp, up), '*')
+        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(
+            (ln, un), (lp, up), '*')
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
     
     def _bound_beta(self, expr, intervals):
-        # TODO: implement mean Beta interval
-        raise NotImplementedError("Mean strategy is not implemented for Beta distribution yet.")
+        args = expr.args
+        shape, rate = args
+        (ls, us) = self._bound(shape, intervals)
+        (lr, ur) = self._bound(rate, intervals)
+        
+        # a / (a + b) = 1 / (1 + b / a)
+        lower_ratio, upper_ratio = self._bound_arithmetic_expr((lr, ur), (ls, us), '/')
+        lower = np.clip(1. / (1. + upper_ratio), 0., 1.)
+        upper = np.clip(1. / (1. + lower_ratio), 0., 1.)
+        return (lower, upper)
     
     def _bound_geometric(self, expr, intervals):
         args = expr.args
@@ -1215,7 +1236,10 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         
         # 1 / p
         one = np.ones_like(up)
-        return RDDLIntervalAnalysis._bound_arithmetic_expr((one, one), (lp, up), '/')
+        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(
+            (one, one), (lp, up), '/')
+        lower, upper = np.maximum(lower, 1.), np.maximum(upper, 1.)
+        return (lower, upper)
     
     def _bound_pareto(self, expr, intervals):
         # TODO: implement mean Pareto interval
@@ -1237,10 +1261,8 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         
         # mean + euler-mascheroni * scale
         euler_masch = (0.577215664901532, 0.577215664901532)
-        (lsc, usc) = self._bound_arithmetic_expr(euler_masch, (ls, us), '*')
-        lower = lm + lsc
-        upper = um + usc
-        return (lower, upper)
+        scaled_gumbel = self._bound_arithmetic_expr(euler_masch, (ls, us), '*')
+        return self._bound_arithmetic_expr(scaled_gumbel, (lm, um), '+')
     
     def _bound_laplace(self, expr, intervals):
         args = expr.args
@@ -1259,7 +1281,9 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
     def _bound_chisquare(self, expr, intervals):
         args = expr.args
         df, = args
-        return self._bound(df, intervals)
+        lower, upper = self._bound(df, intervals)
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
     
     def _bound_kumaraswamy(self, expr, intervals):
         # TODO: implement mean Kumaraswamy interval
@@ -1289,8 +1313,7 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
     
         super().__init__(rddl, logger=logger)
     
-    @staticmethod
-    def _bound_location_scale(percentiles, mean, scale):
+    def _bound_location_scale(self, percentiles, mean, scale):
         '''For a location scale member X with given percentiles, computes
         the interval for mean + scale * X.'''
         scaled_percentiles = self._bound_arithmetic_expr(percentiles, scale, '*')
