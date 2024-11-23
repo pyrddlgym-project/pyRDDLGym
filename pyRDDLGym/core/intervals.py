@@ -5,13 +5,11 @@ Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
 
 # try to load scipy
 try:
-    from scipy.special import gamma
     import scipy.stats as stats
 except Exception:
     raise_warning('failed to import scipy: '
                   'some interval arithmetic operations will fail.', 'red')
     traceback.print_exc()
-    gamma = None
     stats = None
 
 from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
@@ -1181,9 +1179,12 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         (lsc, usc) = self._bound(scale, intervals)
         
         # scale * gamma(1 + 1 / shape)
-        lower = lsc * gamma(1 + 1 / lsh)
-        upper = usc * gamma(1 + 1 / ush)
-        return (lower, upper)
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        lshinv, ushinv = self._bound_arithmetic_expr(one, (lsh, ush), '/')
+        func, x_crit = self.UNARY_U_SHAPED['gamma']
+        lgam, ugam = self._bound_func_u_shaped(1 + lshinv, 1 + ushinv, x_crit, func)
+        bounds = self._bound_arithmetic_expr((lsc, ush), (lgam, ugam), '*')
+        return bounds
     
     def _bound_gamma(self, expr, intervals):
         args = expr.args
@@ -1235,8 +1236,10 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         (ls, us) = self._bound(scale, intervals)
         
         # mean + euler-mascheroni * scale
-        lower = lm + 0.577215664901532 * ls
-        upper = um + 0.577215664901532 * us
+        euler_masch = (0.577215664901532, 0.577215664901532)
+        (lsc, usc) = self._bound_arithmetic_expr(euler_masch, (ls, us), '*')
+        lower = lm + lsc
+        upper = um + usc
         return (lower, upper)
     
     def _bound_laplace(self, expr, intervals):
