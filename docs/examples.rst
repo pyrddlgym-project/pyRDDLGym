@@ -31,5 +31,6 @@ JaxPlan
    notebooks/monitoring_progress_with_callbacks_in_jaxplan
    notebooks/saving_and_loading_policies_with_jaxplan
    notebooks/tuning_hyperparameters_in_jaxplan
+   notebooks/building_optimization_problem_with_jaxplan
    notebooks/accelerating_simulation_with_jax
    
