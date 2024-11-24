@@ -1242,8 +1242,16 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         return (lower, upper)
     
     def _bound_pareto(self, expr, intervals):
-        # TODO: implement mean Pareto interval
-        raise NotImplementedError("Mean strategy is not implemented for Pareto distribution yet.")
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # shape * scale / (shape - 1)
+        lsh1, ush1 = np.maximum(lsh, 1.), np.maximum(ush, 1.)
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        linv, uinv = self._bound_arithmetic_expr(one, (lsh1, ush1), '/')
+        return self._bound_arithmetic_expr((lsc, usc), (1 - uinv, 1 - linv), '/')
     
     def _bound_student(self, expr, intervals):
         args = expr.args
@@ -1321,8 +1329,20 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         return bounds
         
     def _bound_uniform(self, expr, intervals):
-        # TODO: implement percentile Uniform interval
-        raise NotImplementedError("Percentile strategy is not implemented for Uniform distribution yet.")
+        args = expr.args
+        a, b = args
+        (la, ua) = self._bound(a, intervals)
+        (lb, ub) = self._bound(b, intervals)
+        
+        # a + (b - a) * U, where U is percentile of Uniform(0, 1)
+        lower_percentile, upper_percentile = self.percentiles
+        lower_u01 = np.ones_like(la) * lower_percentile
+        upper_u01 = np.ones_like(ua) * upper_percentile
+        scaled_a = self._bound_arithmetic_expr(
+            (la, ua), (1 - upper_u01, 1 - lower_u01), '*')
+        scaled_b = self._bound_arithmetic_expr(
+            (lb, ub), (lower_u01, upper_u01), '*')
+        return self._bound_arithmetic_expr(scaled_a, scaled_b, '+')
     
     def _bound_bernoulli(self, expr, intervals):
         args = expr.args
