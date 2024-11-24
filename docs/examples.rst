@@ -33,4 +33,11 @@ JaxPlan
    notebooks/tuning_hyperparameters_in_jaxplan
    notebooks/building_optimization_problem_with_jaxplan
    notebooks/accelerating_simulation_with_jax
-   
+  
+
+pyRDDLGym-rl
+-----------
+
+.. nbgallery::
+   notebooks/training_ppo_policy_using_stable_baselines3
+   notebooks/training_ppo_policy_using_rllib
