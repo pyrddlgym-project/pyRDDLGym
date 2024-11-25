@@ -11,6 +11,7 @@ pyRDDLGym
    notebooks/simulating_pyrddlgym_custom_policy
    notebooks/recording_movies_in_pyrddlgym
    notebooks/grounding_a_problem_with_pyrddlgym
+   notebooks/extracting_info_from_compiled_model_with_pyrddlgym
    notebooks/analyzing_fluent_dependencies
 
 
