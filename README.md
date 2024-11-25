@@ -8,15 +8,13 @@
 A Python toolkit for auto-generation of OpenAI Gym environments from Relational Dynamic Influence Diagram Language (RDDL) description files.
 This is currently the official parser, simulator and evaluation system for RDDL in Python, with new features and enhancements to the RDDL language.<br />
 
-<p align="center">
+<p align="middle">
 <img src="Images/cartpole.gif" width="120" height="120" margin=0/>
 <img src="Images/drones.gif" width="120" height="120" margin=0/>
 <img src="Images/elevators.gif" width="120" height="120" margin=0/>
 <img src="Images/hvac.gif" width="120" height="120" margin=0/>
 <img src="Images/mountaincar.gif" width="120" height="120" margin=0/>
 <img src="Images/powergen.gif" width="120" height="120" margin=0/>
-</p>
-<p align="center">
 <img src="Images/quadcopter.gif" width="120" height="120" margin=0/>
 <img src="Images/racecar.gif" width="120" height="120" margin=0/>
 <img src="Images/recsys.gif" width="120" height="120" margin=0/>
