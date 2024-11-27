@@ -1,16 +1,8 @@
 import numpy as np
+import traceback
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
-
-# try to load scipy
-try:
-    import scipy.stats as stats
-except Exception:
-    raise_warning('failed to import scipy: '
-                  'some interval arithmetic operations will fail.', 'red')
-    traceback.print_exc()
-    stats = None
 
 from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
@@ -24,6 +16,15 @@ from pyRDDLGym.core.debug.exception import (
 )
 from pyRDDLGym.core.debug.logger import Logger
 from pyRDDLGym.core.simulator import lngamma
+
+# try to load scipy
+try:
+    import scipy.stats as stats
+except Exception:
+    raise_warning('failed to import scipy: '
+                  'some interval arithmetic operations will fail.', 'red')
+    traceback.print_exc()
+    stats = None
 
 
 class RDDLIntervalAnalysis:
