@@ -1,4 +1,5 @@
 import numpy as np
+import traceback
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
@@ -16,11 +17,22 @@ from pyRDDLGym.core.debug.exception import (
 from pyRDDLGym.core.debug.logger import Logger
 from pyRDDLGym.core.simulator import lngamma
 
+# try to load scipy
+try:
+    import scipy.stats as stats
+except Exception:
+    raise_warning('failed to import scipy: '
+                  'some interval arithmetic operations will fail.', 'red')
+    traceback.print_exc()
+    stats = None
+
 
 class RDDLIntervalAnalysis:
     
     def __init__(self, rddl: RDDLPlanningModel, logger: Optional[Logger]=None) -> None:
         '''Creates a new interval analysis object for the given RDDL domain.
+        Bounds on probability distributions are calculated using their exact
+        support, which can be unbounded intervals.
         
         :param rddl: the RDDL domain to analyze
         :param logger: to log compilation information during tracing to file
@@ -39,18 +51,21 @@ class RDDLIntervalAnalysis:
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
     def bound(self, action_bounds: Optional[Bounds]=None, 
-              per_epoch: bool=False) -> Bounds:
+              per_epoch: bool=False,
+              state_bounds: Optional[Bounds]=None) -> Bounds:
         '''Computes intervals on all fluents and reward for the planning problem.
         
         :param action_bounds: optional bounds on action fluents (defaults to
         a "random" policy otherwise)
         :param per_epoch: if True, the returned bounds are tensors with leading
         dimension indicating the decision epoch; if False, the returned bounds
-        are valid across all decision epochs.
+        are valid across all decision epochs
+        :param state_bounds: optional bounds on state fluents (defaults to
+        the initial state values otherwise).
         '''
         
         # get initial values as bounds
-        intervals = self._bound_initial_values()
+        intervals = self._bound_initial_values(state_bounds)
         if per_epoch:
             result = {}
         
@@ -72,7 +87,7 @@ class RDDLIntervalAnalysis:
         else:
             return intervals
     
-    def _bound_initial_values(self):
+    def _bound_initial_values(self, state_bounds=None):
         rddl = self.rddl 
         
         # initially all bounds are calculated based on the initial values
@@ -90,7 +105,10 @@ class RDDLIntervalAnalysis:
             params = rddl.variable_params[name]
             shape = rddl.object_counts(params)
             values = np.reshape(values, newshape=shape)
-            intervals[name] = (values, values)
+            if state_bounds is not None and name in state_bounds:
+                intervals[name] = state_bounds[name]
+            else:
+                intervals[name] = (values, values)
         return intervals
             
     def _bound_next_epoch(self, intervals, action_bounds=None, per_epoch=False):
@@ -158,10 +176,11 @@ class RDDLIntervalAnalysis:
             result = self._bound_control(expr, intervals)
         elif etype == 'randomvar':
             result = self._bound_random(expr, intervals)
-        elif etype == 'randomvector':
-            result = self._bound_random_vector(expr, intervals)
-        elif etype == 'matrix':
-            result = self._bound_matrix(expr, intervals)
+        # TODO: complete randomvector and matrix
+        # elif etype == 'randomvector':
+        #     result = self._bound_random_vector(expr, intervals)
+        # elif etype == 'matrix':
+        #     result = self._bound_matrix(expr, intervals)
         else:
             raise RDDLNotImplementedError(
                 f'Internal error: expression type {etype} is not supported.\n' + 
@@ -240,6 +259,13 @@ class RDDLIntervalAnalysis:
     
     @staticmethod
     def _mask_assign(dest, mask, value, mask_value=False):
+        '''Assings a value to a destination array based on a mask.
+        
+        :param dest: the destination array to assign to
+        :param mask: the mask array to determine where to assign
+        :param value: the value to assign
+        :param mask_value: if True, the value is also masked
+        '''
         assert (np.shape(dest) == np.shape(mask))
         if np.shape(dest):
             if mask_value:
@@ -861,8 +887,9 @@ class RDDLIntervalAnalysis:
             return self._bound_gamma(expr, intervals)
         elif name == 'Binomial':
             return self._bound_binomial(expr, intervals)
-        elif name == 'NegativeBinomial':
-            return self._bound_negative_binomial(expr, intervals)
+        # TODO: Implement Negative-Binomial intervals
+        # elif name == 'NegativeBinomial':
+        #    return self._bound_negative_binomial(expr, intervals)
         elif name == 'Beta':
             return self._bound_beta(expr, intervals)
         elif name == 'Geometric':
@@ -971,8 +998,8 @@ class RDDLIntervalAnalysis:
         (lsh, ush) = self._bound(shape, intervals)
         (lsc, usc) = self._bound(scale, intervals)
         
-        lower = np.zeros(shape=np.shape(ls), dtype=np.float64)
-        upper = np.full(shape=np.shape(us), fill_value=np.inf, dtype=np.float64)
+        lower = np.zeros(shape=np.shape(lsh), dtype=np.float64)
+        upper = np.full(shape=np.shape(ush), fill_value=np.inf, dtype=np.float64)
         return (lower, upper)
     
     def _bound_binomial(self, expr, intervals):
@@ -1026,6 +1053,16 @@ class RDDLIntervalAnalysis:
         return (lower, upper)
     
     def _bound_gumbel(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        lower = np.full(shape=np.shape(lm), fill_value=-np.inf, dtype=np.float64)
+        upper = np.full(shape=np.shape(um), fill_value=+np.inf, dtype=np.float64)
+        return (lower, upper)
+    
+    def _bound_laplace(self, expr, intervals):
         args = expr.args
         mean, scale = args
         (lm, um) = self._bound(mean, intervals)
@@ -1099,6 +1136,383 @@ class RDDLIntervalAnalysis:
         bounds = [(lower_prob[..., i], upper_prob[..., i])
                   for i in range(lower_prob.shape[-1])]
         return self._bound_discrete_helper(bounds)
+
+
+class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
+    '''Interval analysis that replaces distributions with their mean.
+    '''
+    
+    def _bound_uniform(self, expr, intervals):
+        args = expr.args
+        a, b = args
+        (la, ua) = self._bound(a, intervals)
+        (lb, ub) = self._bound(b, intervals)
+        lower = (la + lb) / 2
+        upper = (ua + ub) / 2
+        return (lower, upper)
+    
+    def _bound_bernoulli(self, expr, intervals):
+        args = expr.args
+        p, = args
+        lower, upper = self._bound(p, intervals)
+        lower, upper = np.clip(lower, 0., 1.), np.clip(upper, 0., 1.)
+        return (lower, upper)
+    
+    def _bound_normal(self, expr, intervals):
+        args = expr.args
+        mean, var = args
+        (lm, um) = self._bound(mean, intervals)
+        (lv, uv) = self._bound(var, intervals)
+        return (lm, um)
+    
+    def _bound_poisson(self, expr, intervals):
+        args = expr.args
+        p, = args
+        lower, upper = self._bound(p, intervals)
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
+    
+    def _bound_exponential(self, expr, intervals):
+        args = expr.args
+        scale, = args
+        lower, upper = self._bound(scale, intervals)
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
+    
+    def _bound_weibull(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
         
+        # scale * gamma(1 + 1 / shape)
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        lshinv, ushinv = self._bound_arithmetic_expr(one, (lsh, ush), '/')
+        func, x_crit = self.UNARY_U_SHAPED['gamma']
+        lgam, ugam = self._bound_func_u_shaped(1 + lshinv, 1 + ushinv, x_crit, func)
+        lower, upper = self._bound_arithmetic_expr((lsc, ush), (lgam, ugam), '*')
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
+    
+    def _bound_gamma(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
         
+        # shape * scale
+        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(
+            (lsh, ush), (lsc, usc), '*')
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
+    
+    def _bound_binomial(self, expr, intervals):
+        args = expr.args
+        n, p = args
+        (ln, un) = self._bound(n, intervals)
+        (lp, up) = self._bound(p, intervals)
         
+        # n * p
+        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(
+            (ln, un), (lp, up), '*')
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
+    
+    def _bound_beta(self, expr, intervals):
+        args = expr.args
+        shape, rate = args
+        (ls, us) = self._bound(shape, intervals)
+        (lr, ur) = self._bound(rate, intervals)
+        
+        # a / (a + b) = 1 / (1 + b / a)
+        lower_ratio, upper_ratio = self._bound_arithmetic_expr((lr, ur), (ls, us), '/')
+        lower = np.clip(1. / (1. + upper_ratio), 0., 1.)
+        upper = np.clip(1. / (1. + lower_ratio), 0., 1.)
+        return (lower, upper)
+    
+    def _bound_geometric(self, expr, intervals):
+        args = expr.args
+        p, = args        
+        (lp, up) = self._bound(p, intervals)
+        
+        # 1 / p
+        one = np.ones_like(up)
+        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(
+            (one, one), (lp, up), '/')
+        lower, upper = np.maximum(lower, 1.), np.maximum(upper, 1.)
+        return (lower, upper)
+    
+    def _bound_pareto(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # shape * scale / (shape - 1)
+        lsh1, ush1 = np.maximum(lsh, 1.), np.maximum(ush, 1.)
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        linv, uinv = self._bound_arithmetic_expr(one, (lsh1, ush1), '/')
+        return self._bound_arithmetic_expr((lsc, usc), (1 - uinv, 1 - linv), '/')
+    
+    def _bound_student(self, expr, intervals):
+        args = expr.args
+        df, = args
+        (ld, ud) = self._bound(df, intervals)
+        lower = np.zeros_like(ld)
+        upper = np.zeros_like(ud)
+        return (lower, upper)
+    
+    def _bound_gumbel(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # mean + euler-mascheroni * scale
+        euler_masch = (0.577215664901532, 0.577215664901532)
+        scaled_gumbel = self._bound_arithmetic_expr(euler_masch, (ls, us), '*')
+        return self._bound_arithmetic_expr(scaled_gumbel, (lm, um), '+')
+    
+    def _bound_laplace(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        return (lm, um)
+    
+    def _bound_cauchy(self, expr, intervals):
+        raise ValueError("The mean of a Cauchy distribution is not defined.")
+    
+    def _bound_gompertz(self, expr, intervals):
+        # TODO: implement mean Gompertz interval
+        raise NotImplementedError("Mean strategy is not implemented for Gompertz distribution yet.")
+    
+    def _bound_chisquare(self, expr, intervals):
+        args = expr.args
+        df, = args
+        lower, upper = self._bound(df, intervals)
+        lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
+        return (lower, upper)
+    
+    def _bound_kumaraswamy(self, expr, intervals):
+        # TODO: implement mean Kumaraswamy interval
+        raise NotImplementedError("Mean strategy is not implemented for Kumaraswamy distribution yet.")
+
+
+class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
+    '''Interval analysis that replaces distributions with their lower and upper
+    percentiles. This is a middle ground, since intervals with normally unbounded
+    support can produce bounded intervals, with the percentiles being 
+    configurable by the user.
+    '''
+    
+    def __init__(self, rddl: RDDLPlanningModel, 
+                 percentiles: Tuple[float, float], 
+                 logger: Optional[Logger]=None):
+        '''Creates a new interval analysis object for the given RDDL domain.
+        
+        :param rddl: the RDDL domain to analyze
+        :param percentiles: percentiles used to compute bounds
+        :param logger: to log compilation information during tracing to file
+        '''
+        self.percentiles = percentiles
+        lower, upper = self.percentiles
+        if lower < 0 or lower > 1 or upper < 0 or upper > 1 or lower > upper:
+            raise ValueError('Percentiles must be in the range [0, 1] and lower <= upper.')
+    
+        super().__init__(rddl, logger=logger)
+    
+    def _bound_location_scale(self, percentiles, mean, scale):
+        '''For a location scale member X with given percentiles, computes
+        the interval for mean + scale * X.'''
+        scaled_percentiles = self._bound_arithmetic_expr(percentiles, scale, '*')
+        bounds = self._bound_arithmetic_expr(mean, scaled_percentiles, '+')
+        return bounds
+        
+    def _bound_uniform(self, expr, intervals):
+        args = expr.args
+        a, b = args
+        (la, ua) = self._bound(a, intervals)
+        (lb, ub) = self._bound(b, intervals)
+        
+        # a + (b - a) * U, where U is percentile of Uniform(0, 1)
+        lower_percentile, upper_percentile = self.percentiles
+        lower_u01 = np.ones_like(la) * lower_percentile
+        upper_u01 = np.ones_like(ua) * upper_percentile
+        scaled_a = self._bound_arithmetic_expr(
+            (la, ua), (1 - upper_u01, 1 - lower_u01), '*')
+        scaled_b = self._bound_arithmetic_expr(
+            (lb, ub), (lower_u01, upper_u01), '*')
+        return self._bound_arithmetic_expr(scaled_a, scaled_b, '+')
+    
+    def _bound_bernoulli(self, expr, intervals):
+        args = expr.args
+        p, = args
+        (lp, up) = self._bound(p, intervals)
+        
+        # TODO: check Bernoulli percentile
+        lower_percentile, upper_percentile = self.percentiles
+        lower = np.zeros(shape=np.shape(lp), dtype=np.int64)
+        upper = np.ones(shape=np.shape(up), dtype=np.int64)
+        lower = self._mask_assign(lower, lower_percentile > (1 - lp), 1)
+        upper = self._mask_assign(upper, upper_percentile <= (1 - up), 0)
+        return (lower, upper)
+    
+    def _bound_normal(self, expr, intervals):
+        args = expr.args
+        mean, var = args
+        (lm, um) = self._bound(mean, intervals)
+        (lv, uv) = self._bound(var, intervals)
+        
+        # mean + std * Z, where Z is percentile of Normal(0, 1)
+        lower_pctl, upper_pctl = self.percentiles
+        normal_01 = (stats.norm.ppf(lower_pctl), stats.norm.ppf(upper_pctl))
+        scale = self._bound_func_monotone(lv, uv, np.sqrt)
+        return self._bound_location_scale(normal_01, (lm, um), scale)
+    
+    def _bound_poisson(self, expr, intervals):
+        # TODO: implement percentile Poisson interval
+        raise NotImplementedError("Percentile strategy is not implemented for Poisson distribution yet.")
+    
+    def _bound_exponential(self, expr, intervals):
+        args = expr.args
+        scale, = args
+        (ls, us) = self._bound(scale, intervals)
+        
+        # scale * Exp1, where Exp1 is percentile of Exponential(1)
+        lower_pctl, upper_pctl = self.percentiles
+        exp1 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
+        lower, upper = self._bound_arithmetic_expr((ls, us), exp1, '*')
+        lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
+        return (lower, upper)
+     
+    def _bound_weibull(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # scale * (-ln(1 - p))^(1 / shape)
+        lower_pctl, upper_pctl = self.percentiles
+        weibull_01 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
+        shaped_weibull = self._bound_func_power(weibull_01, inv_shape)
+        lower, upper = self._bound_arithmetic_expr((lsc, usc), shaped_weibull, '*')
+        lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
+        return (lower, upper)
+    
+    def _bound_gamma(self, expr, intervals):
+        # TODO: implement percentile Gamma interval
+        raise NotImplementedError("Percentile strategy is not implemented for Gamma distribution yet.")
+    
+    def _bound_binomial(self, expr, intervals):
+        # TODO: implement percentile Binomial interval
+        raise NotImplementedError("Percentile strategy is not implemented for Binomial distribution yet.")
+    
+    def _bound_beta(self, expr, intervals):
+        # TODO: implement percentile Beta interval
+        raise NotImplementedError("Percentile strategy is not implemented for Beta distribution yet.")
+    
+    def _bound_geometric(self, expr, intervals):
+        # TODO: implement percentile Geometric interval
+        raise NotImplementedError("Percentile strategy is not implemented for Geometric distribution yet.")
+    
+    def _bound_pareto(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # scale * (1 - percentile) ** (-1 / shape)
+        lower_pctl, upper_pctl = self.percentiles
+        pareto_01 = (1. / (1. - lower_pctl), 1. / (1. - upper_pctl))
+        one = (np.ones_like(lsh), np.ones_like(ush))
+        inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
+        shaped_pareto = self._bound_func_power(pareto_01, inv_shape)
+        lower, upper = self._bound_arithmetic_expr((lsc, usc), shaped_pareto, '*')
+        lower = np.maximum(lower, lsc)
+        upper = np.maximum(upper, lower)
+        return (lower, upper)
+    
+    def _bound_student(self, expr, intervals):
+        args = expr.args
+        df, = args
+        (ld, ud) = self._bound(df, intervals)
+        
+        # student_inverted_cdf(df) at the lowest degree of freedom
+        lower_pctl, upper_pctl = self.percentiles
+        lower = stats.t.ppf(lower_pctl, df=ld)
+        upper = stats.t.ppf(upper_pctl, df=ld)
+        return (lower, upper)
+    
+    def _bound_gumbel(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # mean - scale * ln(-ln(percentiles))
+        lower_pctl, upper_pctl = self.percentiles
+        gumbel_01 = (-np.log(-np.log(lower_pctl)), -np.log(-np.log(upper_pctl)))
+        return self._bound_location_scale(gumbel_01, (lm, um), (ls, us))
+    
+    def _bound_laplace(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # if percentile <= 0.5 then mean + scale * ln(2 percentile)
+        # otherwise mean - scale * ln(2 - 2 percentile)
+        lower_pctl, upper_pctl = self.percentiles
+        if lower_pctl <= 0.5:
+            lower_lap01 = np.log(2 * lower_pctl)
+        else:
+            lower_lap01 = -np.log(2 - 2 * lower_pctl)
+        if upper_pctl <= 0.5:
+            upper_lap01 = np.log(2 * upper_pctl)
+        else:
+            upper_lap01 = -np.log(2 - 2 * upper_pctl)
+        laplace_01 = (lower_lap01, upper_lap01)
+        return self._bound_location_scale(laplace_01, (lm, um), (ls, us))
+    
+    def _bound_cauchy(self, expr, intervals):
+        args = expr.args
+        mean, scale = args
+        (lm, um) = self._bound(mean, intervals)
+        (ls, us) = self._bound(scale, intervals)
+        
+        # scale * C01 + mean, where C01 are the percentiles of Cauchy(0, 1)
+        lower_pctl, upper_pctl = self.percentiles
+        lower_pctl = np.pi * (lower_pctl - 0.5)
+        upper_pctl = np.pi * (upper_pctl - 0.5)
+        lower_c01 = np.minimum(np.tan(lower_pctl), np.tan(upper_pctl))
+        upper_c01 = np.maximum(np.tan(lower_pctl), np.tan(upper_pctl))
+        cauchy_01 = (lower_c01, upper_c01)
+        return self._bound_location_scale(cauchy_01, (lm, um), (ls, us))
+    
+    def _bound_gompertz(self, expr, intervals):
+        args = expr.args
+        shape, scale = args
+        (lsh, ush) = self._bound(shape, intervals)
+        (lsc, usc) = self._bound(scale, intervals)
+        
+        # (1/scale) * ln(1 - (1/shape) * ln(1 - G)) where G is standard Gompertz
+        lower_pctl, upper_pctl = self.percentiles
+        percentiles = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
+        lower_shaped, upper_shaped = self._bound_arithmetic_expr(
+            percentiles, (lsh, ush), '/')
+        percentiles2 = (np.log(1 + lower_shaped), np.log(1 + upper_shaped))
+        lower, upper = self._bound_arithmetic_expr(percentiles2, (lsc, usc), '/')
+        lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
+        return (lower, upper)
+    
+    def _bound_chisquare(self, expr, intervals):
+        # TODO: implement percentile Chi-Squared interval
+        raise NotImplementedError("Percentile strategy is not implemented for Chi-square distribution yet.")
+    
+    def _bound_kumaraswamy(self, expr, intervals):
+        # TODO: implement percentile Kumaraswamy interval
+        raise NotImplementedError("Percentile strategy is not implemented for Kumaraswamy distribution yet.")
+    
