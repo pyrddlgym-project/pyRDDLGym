@@ -33,7 +33,7 @@ the environment can be compiled using JAX and replace the default simulation bac
 	
 	import pyRDDLGym
 	from pyRDDLGym_jax.core.simulator import JaxRDDLSimulator
-	env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", backend=JaxRDDLSimulator)
+	env = pyRDDLGym.make("CartPole_Continuous_gym", "0", backend=JaxRDDLSimulator)
 	
 .. note::
    All RDDL syntax (both new and old) is supported in the RDDL-to-JAX compiler. 
@@ -115,12 +115,7 @@ where the argmax is approximated using the softmax function.
 Running JaxPlan from the Command Line
 -------------------
 
-A basic script is provided to run JaxPlan on any domain in rddlrepository, 
-provided a config file of hyper-parameters is available 
-(currently, custom config files are provided for a limited subset of problems: 
-the default config could be suboptimal for other problems). 
-
-The example can be run as follows in a standard shell, from the install directory of pyRDDLGym-jax:
+A basic shell script is provided to run JaxPlan on any domain in rddlrepository:
 
 .. code-block:: shell
     
@@ -128,12 +123,12 @@ The example can be run as follows in a standard shell, from the install director
     
 where:
 
-* ``<domain>`` is the domain identifier in rddlrepository, or a path pointing to a valid domain.rddl file
-* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance.rddl file
+* ``<domain>`` is the domain identifier in rddlrepository, or a path pointing to a valid domain file
+* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance file
 * ``<method>`` is the planning method to use (see below)
 * ``<episodes>`` is the (optional) number of episodes to evaluate the final policy.
 
-The ``<method>`` parameter warrants further explanation. Currently we support three possible modes:
+The ``<method>`` parameter warrants further explanation. Currently the script supports three possible modes:
 
 * ``slp`` is the straight-line open-loop planner described `in this paper <https://proceedings.neurips.cc/paper/2017/file/98b17f068d5d9b7668e19fb8ae470841-Paper.pdf>`_
 * ``drp`` is the deep reactive policy network described `in this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_
@@ -194,8 +189,7 @@ Configuring JaxPlan
 -------------------
 
 The recommended way to manage planner settings is to write a configuration file 
-with all the necessary hyper-parameters. 
-Below is the basic structure of a configuration file for straight-line planning:
+with all the necessary hyper-parameters. Below is a basic configuration file for straight-line planning:
 
 .. code-block:: shell
 
@@ -212,7 +206,6 @@ Below is the basic structure of a configuration file for straight-line planning:
     optimizer_kwargs={'learning_rate': 0.001}
     batch_size_train=1
     batch_size_test=1
-    rollout_horizon=5
 
     [Training]
     key=42
@@ -222,7 +215,7 @@ Below is the basic structure of a configuration file for straight-line planning:
 The configuration file contains three sections:
 
 * the ``[Model]`` section dictates how non-differentiable expressions are handled (as discussed later in the tutorial)
-* the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, the ``optax`` SGD optimizer and its hyper-parameters, etc.
+* the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, the optimizer, etc.
 * the ``[Training]`` section indicates budget on iterations or time, hyper-parameters for the policy, etc.
 
 The configuration file can then be parsed and passed to the planner as follows:
@@ -506,21 +499,21 @@ JaxPlan currently supports several utility functions:
 
 The utility function can be specified by passing a string or function to the ``utility`` argument of the planner,
 and its hyper-parameters can be passed through the ``utility_kwargs`` argument, 
-which accepts a dictionary of name, value pairs.
+which accepts a dictionary of name-value pairs.
 
-For example, to set the CVAR utility at 5 percent:
+For example, to set the CVAR utility at 0.05:
 
 .. code-block:: python
 
     planner = JaxBackpropPlanner(..., utility="cvar", utility_kwargs={'alpha': 0.05})
    
-Similarly, to set the entropic utility with risk aversion parameter 2:
+Similarly, to set the entropic utility with parameter 2:
 
 .. code-block:: python
 
     planner = JaxBackpropPlanner(..., utility="entropic", utility_kwargs={'beta': 2.0})
 
-The utility function could also be provided explicitly as a callable that maps a JAX array to a scalar, 
+The utility function could also be provided explicitly as a function mapping a JAX array to a scalar, 
 with additional arguments specifying the hyper-parameters of the utility function referred to by name:
 
 .. code-block:: python
@@ -543,7 +536,7 @@ key hyper-parameters of the planner, which:
 * leverages Bayesian optimization to search the hyper-parameter space more efficiently
 * supports all types of policies that use config files.
 
-To run the automated tuning on the most important hyper-parameters, a script has already been prepared for you:
+To run the automated tuning on the most important hyper-parameters, a script has already been prepared:
 
 .. code-block:: shell
 
@@ -551,7 +544,7 @@ To run the automated tuning on the most important hyper-parameters, a script has
     
 where:
 
-* ``domain`` and ``instance`` describe the problem you are tuning on
+* ``domain`` and ``instance`` specify the domain and instance names
 * ``method`` is the planning method (i.e., slp, drp, replan)
 * ``trials`` is the (optional) number of trials/episodes to average in evaluating each hyper-parameter setting
 * ``iters`` is the (optional) maximum number of iterations/evaluations of Bayesian optimization to perform
@@ -559,7 +552,7 @@ where:
  
 
 In order to perform automatic tuning on a particular set of hyper-parameters, first you must specify a config file template
-where concrete hyper-parameter values you wish to tune are written with abstract variable names.
+where concrete hyper-parameter to tune are replaced by keywords.
 For instance, to tune the model relaxation weight and learning rate of a straight-line planner:
 
 .. code-block:: shell
@@ -578,11 +571,11 @@ For instance, to tune the model relaxation weight and learning rate of a straigh
     ...
 
 .. warning::
-   Variables defined above will be replaced during tuning with concrete values using a simple string replacement.
-   This means you must select variable names not already used (nor appear as substrings in) other parts of the config file.
+   Keywords defined above will be replaced during tuning with concrete values using a simple string replacement.
+   This means you must select keywords that are not already used (nor appear as substrings) in other parts of the config file.
    
 Next, you must indicate the variables you defined, their search ranges, and any transformations you wish to apply.
-The following code provides the essential steps necessary to run tuning for a straight-line plan:
+The following code provides the essential steps for a straight-line plan:
 
 .. code-block:: python
 
@@ -614,7 +607,7 @@ The following code provides the essential steps necessary to run tuning for a st
     planner_args, _, train_args = load_config_from_string(tuning.best_config)
     ...
     
-The tuning code is generic and supports tuning of most numeric parameters that are specified in the config file.
+JaxPlan supports tuning most numeric parameters that can be specified in the config file.
 If you wish to tune a replanning algorithm that trains at every decision epoch, set ``online=True``.
 
 
@@ -622,7 +615,7 @@ Dealing with Non-Differentiable Expressions
 -------------------
 
 Many RDDL programs contain expressions that do not support derivatives.
-A common technique to deal with this is to rewrite non-differentiable operations as similar differentiable ones.
+A common technique to deal with this is to approximate non-differentiable operations as similar differentiable ones.
 
 For instance, consider the following problem of classifying points ``(x, y)`` in 2D-space as 
 +1 if they lie in the top-right or bottom-left quadrants, and -1 otherwise:
@@ -667,7 +660,7 @@ For instance, the ``classify`` function above could be implemented as follows:
         pred, w = _if(cond, +1, -1, w)
         return pred
 
-Calling ``approximate_classify`` with ``x=0.5``, ``y=1.5`` and ``w=10`` returns 0.98661363, 
+Calling ``approximate_classify()`` with ``x=0.5``, ``y=1.5`` and ``w=10`` returns 0.98661363, 
 which is very close to 1.
 
 The ``FuzzyLogic`` instance can be passed to a planner through the config file, or directly as follows:
@@ -682,10 +675,8 @@ to approximate the logical operations, the standard complement :math:`\sim a \ap
 sigmoid approximations for other relational and functional operations.
 
 The latter introduces model hyper-parameters :math:`w`, which control the "sharpness" of the operation.
-Higher values mean the approximation approaches its exact counterpart, at the cost of sparse and 
-possibly numerically unstable gradients. 
-
-These hyper-parameters be retrieved and modified at run-time, such as during optimization, as follows:
+Higher values mean the approximation is more accurate, but at the cost of numerical instability. 
+These hyper-parameters be retrieved and modified at any time as follows:
 
 .. code-block:: python
 
@@ -733,15 +724,11 @@ passing custom objects to its ``tnorm``, ``complement`` or other constructor arg
 Manual Gradient Calculation
 -------------------
 
-As of version 0.3, it is possible to export the optimization problem for a given problem
-to another optimizer (for example scipy). 
-
-To do this, call the ``as_optimization_problem`` function on the planner to rewrite
-the planning problem in terms of functions over 1D numpy arrays:
+As of version 0.3, it is possible to export the optimization problem in JaxPlan
+to another optimizer (e.g., scipy):
 
 .. code-block:: python
     
-    planner = JaxBackpropPlanner(rddl=..., **planner_args)
     loss_fn, grad_fn, guess, unravel_fn = planner.as_optimization_problem()
 
 The loss function ``loss_fn`` and gradient map ``grad_fn`` express policy parameters as 1D numpy arrays,

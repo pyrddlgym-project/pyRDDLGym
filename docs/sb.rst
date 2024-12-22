@@ -36,8 +36,8 @@ To run the stable-baselines3 example, navigate to the install directory of pyRDD
 
 where:
 
-* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain.rddl file
-* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance.rddl file
+* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain file
+* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance file
 * ``<method>`` is the RL algorithm to use [a2c, ddpg, dqn, ppo, sac, td3]
 * ``<steps>`` is the (optional) number of samples to generate from the environment for training
 * ``<learning_rate>`` is the (optional) learning rate to specify for the algorithm.
@@ -53,8 +53,8 @@ To run the RLlib example, from the install directory of pyRDDLGym-rl, type:
     
 where:
 
-* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain.rddl file
-* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance.rddl file
+* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain file
+* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance file
 * ``<method>`` is the RL algorithm to use [dqn, ppo, sac]
 * ``<iters>`` is the (optional) number of iterations of training.
 

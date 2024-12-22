@@ -4,16 +4,14 @@ Getting Started: Basics
 Initializing Built-In Environments
 -------------------
 
-To initialize a built-in environment from rddlrepository 
-(you must have it installed, i.e. ``pip install rddlrepository``):
+To initialize a built-in environment from the `rddlrepository <https://github.com/pyrddlgym-project/rddlrepository>`_:
 
 .. code-block:: python
 
     import pyRDDLGym
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", **other_kwargs)
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
 
-where "Cartpole_Continuous_gym" is the name of the domain and "0" is the name of the instance.
-``**other_kwargs`` is an optional set of keyword arguments that can be passed to the environment.
+where "CartPole_Continuous_gym" is the name of the domain and "0" is the instance.
 
 Initializing Environments from RDDL Files
 -------------------
@@ -38,11 +36,10 @@ Policies
 ----------------------------
 
 A policy interacts with an environment by providing actions or controls in each state.
-pyRDDLGym provides two simple policies 
-(in addition to Baselines discussed in future sections, many of which are also policies):
+pyRDDLGym provides two simple policies, which are all instances of ``pyRDDLGym.core.policy.BaseAgent``:
 
-- **NoOpAgent** - returns the default action values specified in the RDDL domain.
-- **RandomAgent** - samples a random action according to the env.action_space and the maximum number of allowed concurrent actions as specified in the RDDL file.
+- ``NoOpAgent`` returns the default action values specified in the RDDL domain.
+- ``RandomAgent`` samples a random action according to the ``env.action_space`` and the maximum number of concurrent actions specified in the RDDL file.
 
 For example, to initialize a random policy:
 
@@ -51,8 +48,7 @@ For example, to initialize a random policy:
     from pyRDDLGym.core.policy import RandomAgent
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
 
-All policies must implement a ``sample_action`` function for sampling an
-action in each state:
+All policies must implement a ``sample_action()`` function for sampling an action in each state:
 
 .. code-block:: python
 
@@ -60,9 +56,22 @@ action in each state:
  
 .. note::
    Random policies respect only box constraints, due to limitations in Gym.
-   To handle arbitrary nonlinear constraints, implement a custom ``Agent``
-   with its own ``sample_action`` function.
-   
+   To handle arbitrary nonlinear constraints, implement a custom ``BaseAgent``
+   with its own ``sample_action()`` function.
+
+To implement your own custom policy, inherit from ``pyRDDLGym.core.policy.BaseAgent``:
+
+.. code-block:: python
+
+    from pyRDDLGym.core.policy import BaseAgent
+    
+    class CustomAgent(BaseAgent):
+    
+        def sample_action(self, state=None):
+            # here goes the code that returns the current action
+            ...     
+
+
 Interacting with an Environment
 ----------------------------
 
@@ -83,9 +92,9 @@ list of objects separated by ``__`` (2 underscores). To illustrate, for the flue
    any missing key-value pairs in the dictionary will be assigned the default (or no-op) values
    as specified in the RDDL domain description.
 
-Now lets see what a complete agent-environment loop looks like in pyRDDLGym.
-The example below will run the ``Cartpole_Continuous_gym`` environment for a single episode/trial.
-The ``env.render()`` function displays a pop-up window rendering the current state to the screen:
+We now show what a complete agent-environment loop looks like in pyRDDLGym.
+The example below will run the ``CartPole_Continuous_gym`` environment for a single episode/trial, 
+rendering the state to the screen in real time:
 
 .. code-block:: python
 
@@ -93,7 +102,7 @@ The ``env.render()`` function displays a pop-up window rendering the current sta
     from pyRDDLGym.core.policy import RandomAgent
 
     # set up the Mars Rover instance 0
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0")
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
     
     # set up a random policy
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
@@ -112,20 +121,20 @@ The ``env.render()`` function displays a pop-up window rendering the current sta
             break
     print(f'episode ended with reward {total_reward}')
 
-Alternatively, the ``evaluate()`` bypasses the need to write out the ``for`` loop above:
+Alternatively, the ``evaluate()`` bypasses the need to write out the entire loop:
 
 .. code-block:: python
 	
     total_reward = agent.evaluate(env, episodes=1, render=True)['mean']
   
 The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
-total rewards collected across episodes, such as mean, median, standard deviation, etc.
+total rewards collected across episodes, such as mean, median, and standard deviation.
 
 Fixing the Random Seed
 ------
 
 In order to get reproducible results when running an experiment, it is necessary to
-fix the RNG seed. This can be passed to ``env.reset()`` once at the start of the experiment:
+fix the random seed. This can be passed to ``env.reset()`` once at the start of the experiment:
 
 .. code-block:: python
 	
@@ -162,7 +171,7 @@ For box constraints, the conversion happens as follows:
 
 .. note::
    Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gymnasium.
-   If no valid box bounds for a fluent are available, they are set to ``[-np.inf, np.inf]``
+   If no valid box bounds for a fluent are available, they are set to ``(-np.inf, np.inf)``
 
 Using Built-In Visualizers
 -------------
@@ -174,21 +183,16 @@ Assigning a visualizer for an environment can be done by calling
 ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object (or a string identifier).
 
 For example, to assign the ``ChartVisualizer`` or the ``HeatmapVisualizer``, 
-which use line charts or heatmaps to track the state across time:
+which use line charts or heatmaps to track the state across time, 
+or the ``TextVisualizer``, which produces a textual representation of the state:
 
 .. code-block:: python
 
     env.set_visualizer("chart")
     env.set_visualizer("heatmap")
-
-To assign the ``TextVisualizer``, which produces a textual representation of the 
-state similar to the standard console output:
-
-.. code-block:: python
-
     env.set_visualizer("text")
     
-Calling ``env.set_visualizer(None, ...)`` will not change the visualizer already assigned: this is useful
+Calling ``env.set_visualizer(viz=None, ...)`` will not change the visualizer already assigned: this is useful
 if you want to record movies using the default viz as described later.
 
 Using a Custom Visualizer
@@ -201,8 +205,9 @@ To assign a custom visualizer object ``MyDomainViz`` that implements a valid ``r
     from pyRDDLGym.core.visualizer.viz import BaseViz 
 
     class MyDomainViz(BaseViz)
-        # here goes the visualization implementation
+        
         def render(self, state):
+            # here goes the visualization implementation
             ...
 
     env.set_visualizer(MyDomainViz)
@@ -224,7 +229,7 @@ A ``MovieGenerator`` class is provided to capture videos of the environment inte
 .. code-block:: python
     
     from pyRDDLGym.core.visualizer.movie import MovieGenerator
-    recorder = MovieGenerator("/path/to/save", "env_name", max_frames=999999)
+    recorder = MovieGenerator("/folder/path/to/save/animation", "env_name", max_frames=999999)
     env.set_visualizer(viz=None, movie_gen=recorder)
 
 Upon calling ``env.close()``, the images captured will be combined into video format and saved to the desired path.
@@ -233,8 +238,7 @@ Any temporary files created to capture individual frames during interaction will
 .. note::
    Videos will not be saved until the environment is closed with ``env.close()``. However, frames will be recorded
    to disk continuously while the environment interaction is taking place (to save RAM), which will be used to generate the video.
-   Therefore, it is important to not delete these images while the recording is 
-   taking place, which will be deleted automatically once recording is complete.
+   Therefore, it is important to not delete these images while the recording is taking place.
 
 Logging Simulation Data
 --------------------------
@@ -244,7 +248,7 @@ readable CSV file for later analysis:
 
 .. code-block:: python
 	
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", log_path="path/to/output.csv")
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", log_path="/path/to/output.csv")
                             
 Upon interacting with the environment, pyRDDLGym appends the new observations to the log file at the
 specified path. Logging continues until ``env.close()`` is called.
