@@ -168,7 +168,6 @@ of a problem to an optimization problem:
 
     # evaluate the planner
     controller.evaluate(env, episodes=1, verbose=True, render=True)
-
     env.close()
 
 Here, we have used an open-loop controller. 
@@ -202,9 +201,9 @@ Below is the basic structure of a configuration file for straight-line planning:
 
     [Model]
     logic='FuzzyLogic'
-    logic_kwargs={'weight': 20}
-    tnorm='ProductTNorm'
-    tnorm_kwargs={}
+    comparison_kwargs={'weight': 20}
+    rounding_kwargs={'weight': 20}
+    control_kwargs={'weight': 20}
 
     [Optimizer]
     method='JaxStraightLinePlan'
@@ -267,46 +266,34 @@ The full list of settings that can be specified in the configuration files are a
 
    * - Setting
      - Description
-   * - comparison
-     - Type of ``core.logic.SigmoidComparison``, how comparisons are relaxed
-   * - comparison_kwargs
-     - kwargs to pass to comparison object constructor
-   * - complement
-     - Type of ``core.logic.Complement``, how logical complement is relaxed
-   * - complement_kwargs
-     - kwargs to pass to complement object constructor
    * - logic
      - Type of ``core.logic.FuzzyLogic``, how non-diff. expressions are relaxed
    * - logic_kwargs
      - kwargs to pass to logic object constructor
-   * - sampling
-     - Type of ``core.logic.RandomSampling``, how to sample discrete distributions
-   * - sampling_kwargs
-     - kwargs to pass to sampling object constructor
+   * - complement
+     - Type of ``core.logic.Complement``, how logical complement is relaxed
+   * - complement_kwargs
+     - kwargs to pass to complement object constructor
+   * - comparison
+     - Type of ``core.logic.SigmoidComparison``, how comparisons are relaxed
+   * - comparison_kwargs
+     - kwargs to pass to comparison object constructor
+   * - control
+     - Type of ``core.logic.ControlFlow``, how comparisons are relaxed
+   * - control_kwargs
+     - kwargs to pass to control flow object constructor
    * - rounding
      - Type of ``core.logic.Rounding``, how to round float to int values
    * - rounding_kwargs
      - kwargs to pass to rounding object constructor
+   * - sampling
+     - Type of ``core.logic.RandomSampling``, how to sample discrete distributions
+   * - sampling_kwargs
+     - kwargs to pass to sampling object constructor
    * - tnorm
      - Type of ``core.logic.TNorm``, how logical expressions are relaxed
    * - tnorm_kwargs
      - kwargs to pass to tnorm object constructor (see next table for options)
-
-
-.. list-table:: ``logic_kwargs`` in ``[Model]``
-   :widths: 40 80
-   :header-rows: 1
-
-   * - Setting
-     - Description
-   * - debias
-     - Set of operations with exact calculation on the forward pass
-   * - eps
-     - Small parameter to control underflow
-   * - verbose
-     - Whether to print messages during compilation to the console
-   * - weight 
-     - Parameter for sigmoid and softmax approximations
 
 
 .. list-table:: ``[Optimizer]``
@@ -323,26 +310,26 @@ The full list of settings that can be specified in the configuration files are a
      - Batch size for training
    * - clip_grad
      - Clip gradients to within a given magnitude
-   * - noise_grad_eta
-     - Scale of the gradient noise variance
-   * - noise_grad_gamma
-     - Decay rate of the gradient noise variance
    * - compile_non_fluent_exact
      - Model relaxations are not applied to non-fluent expressions
    * - cpfs_without_grad
      - A set of CPFs that do not allow gradients to flow through them
+   * - line_search_kwargs
+     - Arguments for zoom line search to apply after optimizer
    * - method
      - Type of ``core.planner.JaxPlan``, specifies the policy class
    * - method_kwargs
      - kwargs to pass to policy constructor (see next two tables for options)
+   * - noise_kwargs
+     - Arguments for gradient noise: ``noise_grad_eta``, ``noise_grad_gamma`` and ``seed``
    * - optimizer
      - Name of optimizer from optax to use
    * - optimizer_kwargs
-     - kwargs to pass to optimizer constructor
+     - kwargs to pass to optimizer constructor, i.e. ``learning_rate``
    * - rollout_horizon
      - Rollout horizon of the computation graph
    * - use64bit
-     - Whether to use 64 bit precision, instead of the default 32
+     - Whether to use 64 bit precision instead of 32
    * - use_symlog_reward
      - Whether to apply the symlog transform to the immediate reward
    * - utility
@@ -406,16 +393,14 @@ The full list of settings that can be specified in the configuration files are a
 
    * - Setting
      - Description
+   * - dashboard
+     - Whether to display training results in a dashboard
    * - epochs
      - Maximum number of iterations of gradient descent   
    * - key
      - An integer to seed the RNG with for reproducibility
    * - model_params
      - Dictionary of hyper-parameter values to pass to the model relaxation
-   * - plot_kwargs
-     - kwargs to pass to plan visualizer constructor (see next table for options)
-   * - plot_step
-     - How often to update the plan visualizer
    * - policy_hyperparams
      - Dictionary of hyper-parameter values to pass to the policy
    * - print_progress
@@ -431,17 +416,6 @@ The full list of settings that can be specified in the configuration files are a
    * - train_seconds
      - Maximum seconds to train for
 
-
-.. list-table:: ``plot_kwargs`` in ``[Training]``
-   :widths: 40 80
-   :header-rows: 1
-
-   * - Setting
-     - Description   
-   * - show_action
-     - Whether to plot the average actions of the policy
-   * - show_violin
-     - Whether to plot the return distribution
      
 
 Boolean Actions
