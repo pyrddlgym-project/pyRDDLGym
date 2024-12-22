@@ -541,12 +541,26 @@ key hyper-parameters of the planner, which:
 
 * supports multi-processing by evaluating multiple hyper-parameter settings in parallel
 * leverages Bayesian optimization to search the hyper-parameter space more efficiently
-* supports all versions of the Jax Planner policies that use config files.
+* supports all types of policies that use config files.
 
-In order to perform automatic tuning, first you must specify a config file template
-in which you replace concrete hyper-parameter values you wish to tune with abstract variable names.
-For instance, if you wish to tune the model relaxation weight and learning rate of a straight-line planner,
-your config would look something like this:
+To run the automated tuning on the most important hyper-parameters, a script has already been prepared for you:
+
+.. code-block:: shell
+
+    python -m pyRDDLGym_jax.examples.run_tune <domain> <instance> <method> <trials> <iters> <workers>
+    
+where:
+
+* ``domain`` and ``instance`` describe the problem you are tuning on
+* ``method`` is the planning method (i.e., slp, drp, replan)
+* ``trials`` is the (optional) number of trials/episodes to average in evaluating each hyper-parameter setting
+* ``iters`` is the (optional) maximum number of iterations/evaluations of Bayesian optimization to perform
+* ``workers`` is the (optional) number of parallel evaluations to be done at each iteration, e.g. maximum total evaluations is ``trials * workers``.
+ 
+
+In order to perform automatic tuning on a particular set of hyper-parameters, first you must specify a config file template
+where concrete hyper-parameter values you wish to tune are written with abstract variable names.
+For instance, to tune the model relaxation weight and learning rate of a straight-line planner:
 
 .. code-block:: shell
 
@@ -567,9 +581,8 @@ your config would look something like this:
    Variables defined above will be replaced during tuning with concrete values using a simple string replacement.
    This means you must select variable names not already used (nor appear as substrings in) other parts of the config file.
    
-Next, you must indicate to the Bayesian optimizer the variables you defined to tune,
-as well as their search ranges and any transformations you wish to apply.
-The following code provides the essential steps necessary to run the tuning for a straight-line plan:
+Next, you must indicate the variables you defined, their search ranges, and any transformations you wish to apply.
+The following code provides the essential steps necessary to run tuning for a straight-line plan:
 
 .. code-block:: python
 
