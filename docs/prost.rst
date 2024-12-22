@@ -24,7 +24,7 @@ where the project files will be cloned into.
 
 When you run this command, you will find:
 
-* a ``Dockerfile`` that instructs Docker how to build the image with all the dependencies
+* ``Dockerfile`` that instructs Docker how to build the image with all the dependencies
 * ``prost.sh`` file that calls PROST from the command line
 * ``rddlsim.py`` file that runs ``prost.sh`` from Python
 * ``runprost.sh`` file that you can use to automate the build and run process (as described below).

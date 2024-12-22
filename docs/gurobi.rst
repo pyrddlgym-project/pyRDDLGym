@@ -30,8 +30,8 @@ domain and instance of your choosing. To run this, navigate to the install direc
 
 where:
 
-* ``<domain>`` is the domain identifier as specified in rddlrepository, or a path pointing to a valid domain.rddl file
-* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance.rddl file.
+* ``<domain>`` is the domain identifier as specified in rddlrepository, or a path pointing to a valid domain file
+* ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance file.
 
 
 Running from the Python API
@@ -87,19 +87,15 @@ The configuration file contains two sections:
 * the ``[Gurobi]`` section dictates `parameters <https://www.gurobi.com/documentation/current/refman/parameters.html>`_ passed to the Gurobi engine
 * the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, and other aspects of the optimization like rollout horizon.
 
-The configuration file can then be parsed and passed to the planner as follows:
+The configuration file can then be parsed and passed to GurobiPlan as follows:
 
 .. code-block:: python
     
     import os
     from pyRDDLGym_gurobi.core.planner import load_config
     
-    # load the config
-    abs_path = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(abs_path, 'default.cfg') 
-    controller_kwargs = load_config(config_path)  
-    
     # pass the parameters to the controller and proceed as usual
+    controller_kwargs = load_config("/path/to/config/file")  
     controller = GurobiOnlineController(rddl=env.model, **controller_kwargs)
     ...
 

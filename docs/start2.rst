@@ -10,7 +10,7 @@ These can be accessed through the ``model`` field of a ``RDDLEnv``:
 .. code-block:: python
 	
     import pyRDDLGym
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0")
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
     model = env.model
 
 Below are some commonly used fields of ``model`` that can be accessed directly.
@@ -62,7 +62,7 @@ in each cpf, constraint relation, or the reward function of the RDDL domain:
 Grounding a Domain
 ------
 
-By default, pyRDDLGym simulates domains in a tensored manner directly from the (lifted) domain description. 
+By default, pyRDDLGym simulates domains in a vectorized manner directly from the (lifted) domain description. 
 Specifically, parameterized variables are represented internally as numpy arrays,
 whose values are propagated in a vectorized manner through mathematical expressions.
 
@@ -78,7 +78,7 @@ given a p-variable ``some-var(?x, ?y)`` of two parameters ``?x`` and ``?y``, and
     cpf___x2__y2' = some-var___x2__y2 + 1.0;
     ...
 
-where ``x1, x2...`` are the values of ``?x`` and ``y1, y2...`` are the values of ``?y``.
+where ``x1, x2...`` are the objects of ``?x`` and ``y1, y2...`` are the objects of ``?y``.
 In other words, all p-variables are replaced by sets of non-parameterized variables (one per valid combination of objects),
 and all expressions are replaced by sets of expressions whose p-variable dependencies are replaced by their non-parameterized
 counterparts. In all cases, the grounded and lifted representations should produce the same numerical results, 
@@ -91,14 +91,13 @@ pyRDDLGym provides a convenient class for producing a grounded model from a lift
     from pyRDDLGym.core.grounder import RDDLGrounder
     grounded = RDDLGrounder(env.model._AST).ground()
 
-The ``grounded`` object returned is also an environment model, 
-so the properties discussed in the table at the top of the page work interchangeably with grounded and lifted models.
+The ``grounded`` object returned is also an environment model, so a lot of the functionality described on this page also applies to it.
 
 .. warning::
    Currently, the grounder only supports RDDL 1.0 syntax. Therefore, it does not ground
    expressions containing switch statements, matrix operations, vector distributions and Discrete, 
-   nested pvariables, and parameters that are not located inside a pvariable 
-   (e.g. statements like ``?x == ?y``). There is currently (limited) support for enumerated types.
+   nested pvariables, and free parameters outside a pvariable (e.g. ``?x == ?y``). 
+   There is currently (limited) support for enumerated types.
    
    
 Vectorized Input and Output
@@ -117,7 +116,7 @@ This option can be enabled as follows:
 .. code-block:: python
 	
     import pyRDDLGym
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", vectorized=True)
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", vectorized=True)
 
 With this option enabled, the bounds of the ``observation_space`` and ``action_space`` 
 of the environment are instances of ``gymnasium.spaces.Box`` with the correct shape and dtype.
@@ -126,18 +125,16 @@ Exception Handling
 ------
 
 By default, ``evaluate()`` will not raise errors if action preconditions or state invariants are violated.
-State invariant violations are stored in the ``truncated`` field returned by ``env.step()``. If you wish to enforce action
-constraints, simply initialize your environment like this:
+State invariant violations are stored in the ``truncated`` field returned by ``env.step()``. 
+If you wish to enforce action constraints, simply initialize your environment like this:
 
 .. code-block:: python
 	
     import pyRDDLGym
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", enforce_action_constraints=True)
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", enforce_action_constraints=True)
 
 By default, ``evaluate()`` will not raise an exception if a numerical error occurs during an intermediate calculation,
-such as divide by zero or under/overflow. This behavior can be controlled through numpy. 
-
-For example, if you wish to raise/catch all numerical errors, you can add the following lines
+such as divide by zero or under/overflow. If you wish to raise/catch all numerical errors, add the following lines
 before calling ``env.evaluate()``:
 
 .. code-block:: python
@@ -158,13 +155,12 @@ More details about controlling error handling behavior can be found
 Generating Debug Logs
 --------------------------
 
-To log information about the RDDL compilation to a file for debugging, error reporting
-or diagnosis:
+To log information about the RDDL compilation to a file for debugging:
 
 .. code-block:: python
 	
     import pyRDDLGym
-    env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", debug_path="\path\to\log\file")
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", debug_path="\path\to\log\file")
 
 where ``debug_path`` is the full path to the debug file minus the extension.
 A log file will be created in the specified path with the ``.log`` extension.

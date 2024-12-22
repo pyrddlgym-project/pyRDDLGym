@@ -3,15 +3,7 @@ Installation Guide
 
 Requirements
 ------------
-We require Python 3.8+.
-
-* ply
-* pillow>=9.2.0
-* numpy>=1.22
-* matplotlib>=3.5.0
-* gymnasium
-* pygame
-* termcolor
+We require Python 3.8+ and the packages `listed here <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/requirements.txt>`_.
 
 Installing via pip
 -----------------
@@ -25,7 +17,7 @@ To run the basic examples, you will also need ``rddlrepository``
 
     pip install rddlrepository
 
-We recommend installing under a conda virtual environment:
+We recommend installing everything together under a conda virtual environment:
 
 .. code-block:: shell
 
