@@ -27,7 +27,7 @@ Simulating using JAX
 
 pyRDDLGym ordinarily simulates domains using pure Python and NumPy arrays.
 If you require additional structure (e.g. gradient calculations) or better simulation performance, 
-the environment can be compiled using JAX and swapped with the default simulation backend, as shown below:
+the environment can be compiled using JAX and replace the default simulation backend, as shown below:
 
 .. code-block:: python
 	
@@ -38,6 +38,7 @@ the environment can be compiled using JAX and swapped with the default simulatio
 .. note::
    All RDDL syntax (both new and old) is supported in the RDDL-to-JAX compiler. 
    In almost all cases, the JAX backend should return numerical results identical to the default backend.
+   However, not all operations currently support gradient backpropagation (see the Limitations section).
 
 
 Differentiable Planning in Deterministic Domains
@@ -151,7 +152,7 @@ Running JaxPlan from within Python
 .. _jax-intro:
 
 JaxPlan provides convenient tools to automatically compile a RDDL description 
-of a problem to an optimization problem:
+of a problem to an optimization problem. To initialize and run an open-loop controller:
 
 .. code-block:: python
 
@@ -170,14 +171,13 @@ of a problem to an optimization problem:
     controller.evaluate(env, episodes=1, verbose=True, render=True)
     env.close()
 
-Here, we have used an open-loop controller. 
-To use periodic replanning, simply change the controller type as below:
+To use periodic replanning, simply change the controller type to:
 
 .. code-block:: python
 
     controller = JaxOnlineController(planner, **train_args)	
 
-To use a deep reactive policy, simply change the ``plan`` type as follows:
+To use a deep reactive policy, simply change the ``plan`` type to:
 
 .. code-block:: python
 
@@ -232,14 +232,10 @@ The configuration file can then be parsed and passed to the planner as follows:
     from pyRDDLGym_jax.core.planner import load_config
     planner_args, plan_args, train_args = load_config("/path/to/config.cfg")
     
-    # continue as described above
+    # continue as described in the previous section
     plan = ...
     planner = ...
     controller = ...
-
-.. note::
-   The ``rollout_horizon`` in the configuration file is optional, and defaults to the horizon specified in the RDDL description. 
-   For replanning methods, we recommend setting this parameter manually for best results.
 
 To configure a policy network instead, change the ``method`` in the ``[Optimizer]`` section of the config file:
 
@@ -432,7 +428,7 @@ hyper-parameter that controls the sharpness of the approximation.
 
 .. warning::
    If the sigmoid wrapping is used, then the weights ``w`` should be specified in 
-   ``policy_hyperparams`` for each boolean action fluent when interfacing with the planner.
+   ``policy_hyperparams`` for each boolean action fluent (as a dictionary) when interfacing with the planner.
    
 At test time, the action is aliased by evaluating the expression 
 :math:`a > 0.5`, or equivalently :math:`\theta > 0`.
@@ -459,7 +455,7 @@ The syntax for specifying optional box constraints in the ``[Optimizer]`` sectio
     ...
     action_bounds={ <action_name1>: (lower1, upper1), <action_name2>: (lower2, upper2), ... }
    
-where ``lower#`` and ``upper#`` can be any list or nested list.
+where ``lower#`` and ``upper#`` can be any list, nested list or array.
 
 By default, the box constraints on actions are enforced using the projected gradient method.
 An alternative approach is to map the actions to the box via a differentiable transformation, 
@@ -537,31 +533,6 @@ with additional arguments specifying the hyper-parameters of the utility functio
     planner = JaxBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
     
 
-Using Another Planning Algorithm
--------------------
-
-In the :ref:`introductory example <jax-intro>`, we defined the planning algorithm separately from the controller.
-Therefore, it is possible to incorporate new planning algorithms simply by extending the 
-``JaxBackpropPlanner`` class. 
-
-JaxPlan currently provides one such extension based on
-`backtracking line-search <https://en.wikipedia.org/wiki/Backtracking_line_search>`_, which 
-adaptively selects a learning rate at each iteration whose gradient update 
-provides the greatest improvement in the return. 
-
-This optimizer can be used as a drop-in replacement for ``JaxBackpropPlanner`` as follows:
-
-.. code-block:: python
-
-    from pyRDDLGym_jax.core.planner import JaxLineSearchPlanner, JaxOfflineController
-    
-    planner = JaxLineSearchPlanner(env.model, **planner_args)
-    controller = JaxOfflineController(planner, **train_args)
-
-Like the default planner, the line-search planner is compatible with offline and online controllers, 
-and straight-line plans and deep reactive policies.
-
-
 Automatically Tuning Hyper-Parameters
 -------------------
 
@@ -570,43 +541,66 @@ key hyper-parameters of the planner, which:
 
 * supports multi-processing by evaluating multiple hyper-parameter settings in parallel
 * leverages Bayesian optimization to search the hyper-parameter space more efficiently
-* supports straight-line planning, replanning, and deep reactive policies.
+* supports all versions of the Jax Planner policies that use config files.
 
-The automatic tuning can be performed as follows:
+In order to perform automatic tuning, first you must specify a config file template
+in which you replace concrete hyper-parameter values you wish to tune with abstract variable names.
+For instance, if you wish to tune the model relaxation weight and learning rate of a straight-line planner,
+your config would look something like this:
+
+.. code-block:: shell
+
+    [Model]
+    logic='FuzzyLogic'
+    comparison_kwargs={'weight': MODEL_WEIGHT_TUNE}
+    rounding_kwargs={'weight': MODEL_WEIGHT_TUNE}
+    control_kwargs={'weight': MODEL_WEIGHT_TUNE}
+
+    [Optimizer]
+    method='JaxStraightLinePlan'
+    method_kwargs={}
+    optimizer='rmsprop'
+    optimizer_kwargs={'learning_rate': LEARNING_RATE_TUNE}
+    ...
+
+Next, you must indicate to the Bayesian optimizer the variables you defined to tune,
+as well as their search ranges and any transformations you wish to apply.
+The following code provides the essential steps necessary to run the tuning:
+
+The automatic tuning can be performed as follows, for a straight-line plan:
 
 .. code-block:: python
 
     import pyRDDLGym
-    from pyRDDLGym_jax.core.tuning import JaxParameterTuningSLP
+    from pyRDDLGym_jax.core.tuning import JaxParameterTuning, Hyperparameter
+    from pyRDDLGym_jax.core.planner import load_config_from_string, JaxBackpropPlanner, JaxOfflineController
     
     # set up the environment   
     env = pyRDDLGym.make(domain, instance, vectorized=True)
     
-    # set up the tuning instance
-    tuning = JaxParameterTuningSLP(env=env,
-                                   train_epochs=epochs,
-                                   timeout_training=timeout,
-                                   eval_trials=trials,
-                                   planner_kwargs=planner_args,
-                                   plan_kwargs=plan_args,
-                                   num_workers=workers,
-                                   gp_iters=iters)
-
-    # tune and report the best hyper-parameters found
-    best = tuning.tune(key=key, filename="/path/to/log.csv")
-    print(f'best parameters found: {best}')
+    # load the abstract config file with planner settings
+    with open('path/to/config.cfg', 'r') as file:
+        config_template = file.read() 
     
-The ``__init__`` method requires the ``num_workers`` parameter to specify the 
-number of parallel processes and the ``gp_iters`` to specify the number of iterations of Bayesian optimization. 
-
-Upon executing this code, a dictionary of the best hyper-parameters 
-(e.g. learning rate, policy network architecture, model hyper-parameters, etc.) is returned.
-A log of the previous sets of hyper-parameters suggested by the algorithm is also recorded.
-
-Policy networks and replanning can be tuned by replacing ``JaxParameterTuningSLP`` with 
-``JaxParameterTuningDRP`` and ``JaxParameterTuningSLPReplan``, respectively. 
-This will also tune the architecture (number of neurons, layers) of the policy network 
-and the ``rollout_horizon`` for replanning.
+    # map parameters in the config that will be tuned
+    def power_10(x):
+        return 10.0 ** x
+    
+    hyperparams = [Hyperparameter('MODEL_WEIGHT_TUNE', -1., 5., power_10),
+                   Hyperparameter('LEARNING_RATE_TUNE', -5., 1., power_10)]
+    
+    # build the tuner and tune (online indicates not to use replanning)
+    tuning = JaxParameterTuning(env=env,
+                                config_template=config_template, hyperparams=hyperparams,
+                                online=False, eval_trials=trials, num_workers=workers, gp_iters=iters)
+    tuning.tune(key=42, log_file='path/to/logfile.log')
+    
+    # parse the concrete config file with the best tuned values, and evaluate as usual
+    planner_args, _, train_args = load_config_from_string(tuning.best_config)
+    ...
+    
+The tuning code is generic and supports tuning of most numeric parameters that are specified in the config file.
+If you wish to tune a replanning algorithm that trains at every decision epoch, set ``online=True``.
 
 
 Dealing with Non-Differentiable Expressions
@@ -640,17 +634,23 @@ For instance, the ``classify`` function above could be implemented as follows:
     from pyRDDLGym_jax.core.logic import FuzzyLogic
 
     logic = FuzzyLogic()    
-    And, _ = logic.logical_and()
-    Not, _ = logic.logical_not()
-    Gre, _ = logic.greater()
-    Or, _ = logic.logical_or()
-    If, _ = logic.control_if()
+    model_params = {}
+    _and = logic.logical_and(0, model_params)
+    _not = logic.logical_not(1, model_params)
+    _gre = logic.greater(2, model_params)
+    _or = logic.logical_or(3, model_params)
+    _if = logic.control_if(4, model_params)
 
     def approximate_classify(x1, x2, w):
-        q1 = And(Gre(x1, 0, w), Gre(x2, 0, w), w)
-        q2 = And(Not(Gre(x1, 0, w), w), Not(Gre(x2, 0, w), w), w)
-        cond = Or(q1, q2, w)
-        return If(cond, +1, -1, w)
+        q1, w = _gre(x1, 0, w)
+        q2, w = _gre(x2, 0, w)
+        q3, w = _and(q1, q2, w)
+        q4, w = _not(q1, w)
+        q5, w = _not(q2, w)
+        q6, w = _and(q4, q5, w)        
+        cond, w = _or(q3, q6, w)
+        pred, w = _if(cond, +1, -1, w)
+        return pred
 
 Calling ``approximate_classify`` with ``x=0.5``, ``y=1.5`` and ``w=10`` returns 0.98661363, 
 which is very close to 1.
@@ -712,7 +712,7 @@ The following table summarizes the default rules used in ``FuzzyLogic``.
      - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
 
 It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
-passing different values to the ``tnorm`` or ``complement`` arguments.
+passing custom objects to its ``tnorm``, ``complement`` or other constructor arguments.
 
    
 Manual Gradient Calculation
@@ -750,10 +750,10 @@ We cite several limitations of the current version of JaxPlan:
 	* nested fluents such as ``fluent1(fluent2(?p))``
 	* distributions that are not naturally reparameterizable such as Poisson, Gamma and Beta
 * Some relaxations can accumulate high error
-	* this is particularly problematic when stacking CPFs for long roll-out horizons, so we recommend reducing or tuning the rollout-horizon for best results
+	* this is particularly problematic when stacking CPFs for long roll-out horizons, so we recommend reducing or tuning the rollout horizon for best results
 * Some relaxations may not be mathematically consistent with one another:
 	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
-	* if this is a concern, it is recommended to override some operations in ``ProductLogic`` to suit the user's needs
+	* if this is a concern, it is recommended to override some operations in ``FuzzyLogic`` to suit the user's needs
 * Termination conditions and state/action constraints are not considered in the optimization
 	* constraints are logged in the optimizer callback and can be used to define loss functions that take the constraints into account
 * The optimizer can fail to make progress when the structure of the problem is largely discrete:
