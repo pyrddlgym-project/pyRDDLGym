@@ -563,11 +563,13 @@ your config would look something like this:
     optimizer_kwargs={'learning_rate': LEARNING_RATE_TUNE}
     ...
 
+.. warning::
+   Variables defined above will be replaced during tuning with concrete values using a simple string replacement.
+   This means you must select variable names not already used (nor appear as substrings in) other parts of the config file.
+   
 Next, you must indicate to the Bayesian optimizer the variables you defined to tune,
 as well as their search ranges and any transformations you wish to apply.
-The following code provides the essential steps necessary to run the tuning:
-
-The automatic tuning can be performed as follows, for a straight-line plan:
+The following code provides the essential steps necessary to run the tuning for a straight-line plan:
 
 .. code-block:: python
 
