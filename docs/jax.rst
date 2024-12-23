@@ -581,7 +581,7 @@ The following code provides the essential steps for a straight-line plan:
 
     import pyRDDLGym
     from pyRDDLGym_jax.core.tuning import JaxParameterTuning, Hyperparameter
-    from pyRDDLGym_jax.core.planner import load_config_from_string, JaxBackpropPlanner, JaxOfflineController
+    from pyRDDLGym_jax.core.planner import load_config_from_string
     
     # set up the environment   
     env = pyRDDLGym.make(domain, instance, vectorized=True)
@@ -592,16 +592,15 @@ The following code provides the essential steps for a straight-line plan:
     
     # map parameters in the config that will be tuned
     def power_10(x):
-        return 10.0 ** x
-    
-    hyperparams = [Hyperparameter('MODEL_WEIGHT_TUNE', -1., 5., power_10),
-                   Hyperparameter('LEARNING_RATE_TUNE', -5., 1., power_10)]
+        return 10.0 ** x    
+    hyperparams = [Hyperparameter("MODEL_WEIGHT_TUNE", -1., 5., power_10),
+                   Hyperparameter("LEARNING_RATE_TUNE", -5., 1., power_10)]
     
     # build the tuner and tune (online indicates not to use replanning)
     tuning = JaxParameterTuning(env=env,
                                 config_template=config_template, hyperparams=hyperparams,
                                 online=False, eval_trials=trials, num_workers=workers, gp_iters=iters)
-    tuning.tune(key=42, log_file='path/to/logfile.log')
+    tuning.tune(key=42, log_file="path/to/logfile.log")
     
     # parse the concrete config file with the best tuned values, and evaluate as usual
     planner_args, _, train_args = load_config_from_string(tuning.best_config)
@@ -646,7 +645,35 @@ A full list of arguments to the tuning constructor is shown below:
      - Maximum amount of time to allocate to tuning
    * - verbose
      - Whether to print intermediate results to the standard console
-   
+
+
+JaxPlan Dashboard
+-------------------
+
+As of JaxPlan version 1.0, the embedded visualization tools have been replaced with 
+a plotly dashboard, which offers a much more comprehensive and efficient way to introspect trained policies.
+
+.. image:: jaxplan_dashboard.png
+    :width: 600
+    :alt: JaxPlan Dashboard
+    
+    
+To activate the dashboard for planning, simply add the following line in the config file:
+
+.. code-block:: shell
+
+    [Training]
+    ...
+    dashboard=True
+
+
+To activate the dashboard for tuning, simply add the ``show_dashboard=True`` argument to the ``tuning.tune()`` function:
+
+.. code-block:: python
+
+    tuning.tune(key=42, log_file="path/to/logfile.log", show_dashboard=True)
+
+
 
 Dealing with Non-Differentiable Expressions
 -------------------
