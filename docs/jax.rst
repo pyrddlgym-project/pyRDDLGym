@@ -610,6 +610,43 @@ The following code provides the essential steps for a straight-line plan:
 JaxPlan supports tuning most numeric parameters that can be specified in the config file.
 If you wish to tune a replanning algorithm that trains at every decision epoch, set ``online=True``.
 
+A full list of arguments to the tuning constructor is shown below:
+
+.. list-table:: ``JaxParameterTuning`` constructor arguments
+   :widths: 60 60
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - acquisition
+     - ``AcquisitionFunction`` object for the Gaussian process
+   * - config_template
+     - Config file content with abstract parameters to tune as described above
+   * - env
+     - The ``RDDLEnv`` instance
+   * - eval_trials
+     - Number of independent trials/rollouts to evaluate each hyper-parameter combination
+   * - gp_init_kwargs
+     - Optional keyword arguments to pass to the Gaussian process constructor
+   * - gp_iters
+     - Number of rounds of tuning to perform
+   * - gp_params
+     - Optional additional keyword arguments to pass to the Gaussian process (i.e. kernel)
+   * - hyperparams
+     - List of ``Hyperparameter`` objects
+   * - num_workers
+     - Number of parallel evaluations to perform in each round of tuning
+   * - online
+     - Whether to use replanning mode for tuning
+   * - poll_frequency
+     - How often to check for completed processes (defaults to 0.2 seconds)
+   * - pool_context
+     - The type of pool context for multiprocessing (defaults to "spawn")
+   * - timeout_tuning
+     - Maximum amount of time to allocate to tuning
+   * - verbose
+     - Whether to print intermediate results to the standard console
+   
 
 Dealing with Non-Differentiable Expressions
 -------------------
