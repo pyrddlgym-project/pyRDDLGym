@@ -613,7 +613,7 @@ If you wish to tune a replanning algorithm that trains at every decision epoch, 
 A full list of arguments to the tuning constructor is shown below:
 
 .. list-table:: ``JaxParameterTuning`` constructor arguments
-   :widths: 60 60
+   :widths: 40 80
    :header-rows: 1
 
    * - Setting
