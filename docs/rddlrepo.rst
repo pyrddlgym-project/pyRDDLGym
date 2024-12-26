@@ -50,6 +50,14 @@ Problems are organized by context (e.g. year of the competition, standalone):
     print(manager.list_problems_by_context("standalone"))   # list all standalone problems
     print(manager.list_problems_by_context("ippc2018"))     # list all problems from IPPC 2018
 
+.. raw:: html 
+
+   <a href="notebooks/loading_problems_in_rddlrepository.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Loading a problem from the rddlrepository.
+   </a>
+   
+   
 
 Retrieving Specific Problems
 ---------
@@ -81,6 +89,15 @@ To return the pyRDDLGym visualizer class:
 
     viz_class = problem_info.get_visualizer()
 
+
+.. raw:: html 
+
+   <a href="notebooks/loading_problems_in_rddlrepository.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Loading a problem from the rddlrepository.
+   </a>
+   
+   
  
 Loading Environments in pyRDDLGym
 ---------
@@ -100,6 +117,15 @@ This can also be done directly using rddlrepository:
     env = pyRDDLGym.make(domain=problem_info.get_domain(), instance=problem_info.get_instance("1"))
     env.set_visualizer(problem_info.get_visualizer())
 
+
+.. raw:: html 
+
+   <a href="notebooks/loading_problems_in_rddlrepository.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Loading a problem from the rddlrepository.
+   </a>
+   
+   
 
 Registering your Own Problems and Instances
 ---------
@@ -135,3 +161,11 @@ To register an instance for an existing domain for later access:
     """
     problem_info.register_instance("MyInstance", instance_content)
  
+
+ .. raw:: html 
+
+   <a href="notebooks/adding_domains_to_rddlrepository.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Adding domains to the rddlrepository.
+   </a>
+   
