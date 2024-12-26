@@ -61,8 +61,8 @@ All policies must implement a ``sample_action()`` function for sampling an actio
 
 .. raw:: html 
 
-   <a href="notebooks/simulating_pyrddlgym_random_policy.html" style="padding:10px;> 
-       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;">
+   <a href="notebooks/simulating_pyrddlgym_random_policy.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
        Related example: Simulating an environment in pyRDDLGym with a built-in policy.
    </a>
 
