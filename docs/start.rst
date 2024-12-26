@@ -79,6 +79,13 @@ To implement your own custom policy, inherit from ``pyRDDLGym.core.policy.BaseAg
             # here goes the code that returns the current action
             ...     
 
+.. raw:: html 
+
+   <a href="notebooks/simulating_pyrddlgym_custom_policy.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Simulating an environment in pyRDDLGym with a custom policy.
+   </a>
+   
 
 Interacting with an Environment
 ----------------------------
@@ -248,6 +255,14 @@ Any temporary files created to capture individual frames during interaction will
    to disk continuously while the environment interaction is taking place (to save RAM), which will be used to generate the video.
    Therefore, it is important to not delete these images while the recording is taking place.
 
+.. raw:: html 
+
+   <a href="notebooks/recording_movies_in_pyrddlgym.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Recording a movie of a simulation in pyRDDLGym.
+   </a>
+   
+   
 Logging Simulation Data
 --------------------------
 
