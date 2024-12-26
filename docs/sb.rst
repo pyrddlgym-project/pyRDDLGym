@@ -84,7 +84,16 @@ The following example sets up the Stable Baselines 3 PPO algorithm to work with 
     ppo_agent.evaluate(env, episodes=1, verbose=True, render=True)
     
     env.close()
- 
+
+
+.. raw:: html 
+
+   <a href="notebooks/training_ppo_policy_using_stable_baselines3.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Training a PPO policy with Stable Baselines 3.
+   </a>
+   
+   
 Running RLlib from the Python API
 -------------------
 
@@ -117,7 +126,16 @@ The following example sets up the RLlib PPO algorithm to work with pyRDDLGym:
     ppo_agent.evaluate(env_creator(config), episodes=1, verbose=True, render=True)
 	
     env.close()
-	
+
+
+.. raw:: html 
+
+   <a href="notebooks/training_ppo_policy_using_rllib.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Training a PPO policy with rllib.
+   </a>
+   
+   
 The Environment Wrapper
 -------------------
 

@@ -40,6 +40,13 @@ the environment can be compiled using JAX and replace the default simulation bac
    In almost all cases, the JAX backend should return numerical results identical to the default backend.
    However, not all operations currently support gradient backpropagation (see the Limitations section).
 
+.. raw:: html 
+
+   <a href="notebooks/accelerating_simulation_with_jax.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Accelerating simulation with JAX.
+   </a>
+   
 
 Differentiable Planning in Deterministic Domains
 -------------------
@@ -166,12 +173,28 @@ of a problem to an optimization problem. To initialize and run an open-loop cont
     controller.evaluate(env, episodes=1, verbose=True, render=True)
     env.close()
 
+.. raw:: html 
+
+   <a href="notebooks/open_loop_planning_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Open-loop planning with straightline plans in JaxPlan.
+   </a>
+   
+   
 To use periodic replanning, simply change the controller type to:
 
 .. code-block:: python
 
     controller = JaxOnlineController(planner, **train_args)	
+    
+.. raw:: html 
 
+   <a href="notebooks/closed_loop_replanning_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Closed-loop replanning with JaxPlan.
+   </a>
+   
+   
 To use a deep reactive policy, simply change the ``plan`` type to:
 
 .. code-block:: python
@@ -180,7 +203,14 @@ To use a deep reactive policy, simply change the ``plan`` type to:
 
 .. note::
    All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
+   
+.. raw:: html 
 
+   <a href="notebooks/closed_loop_planning_drp_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Closed-loop planning with deep reactive policies in JaxPlan.
+   </a>
+   
 The ``**planner_args`` and ``**train_args`` are keyword arguments passed during initialization, 
 but we strongly recommend creating and loading a configuration file as discussed next.
 
@@ -524,7 +554,14 @@ with additional arguments specifying the hyper-parameters of the utility functio
         return ...
         
     planner = JaxBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
-    
+
+.. raw:: html 
+
+   <a href="notebooks/risk_aware_planning_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Risk-aware planning with RAPTOR in JaxPlan.
+   </a>
+
 
 Automatically Tuning Hyper-Parameters
 -------------------
@@ -645,7 +682,14 @@ A full list of arguments to the tuning constructor is shown below:
      - Maximum amount of time to allocate to tuning
    * - verbose
      - Whether to print intermediate results to the standard console
+     
+.. raw:: html 
 
+   <a href="notebooks/tuning_hyperparameters_in_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Tuning policy hyper-parameters in JaxPlan.
+   </a>
+   
 
 JaxPlan Dashboard
 -------------------
@@ -806,6 +850,14 @@ The API also supports manual return gradient calculations for custom application
 For details, please see the 
 `worked example here <https://github.com/pyrddlgym-project/pyRDDLGym-jax/blob/main/pyRDDLGym_jax/examples/run_gradient.py>`_.
 
+.. raw:: html 
+
+   <a href="notebooks/building_optimization_problem_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Building an optimization problem for third-party optimizers.
+   </a>
+   
+   
 
 Limitations
 -------------------
