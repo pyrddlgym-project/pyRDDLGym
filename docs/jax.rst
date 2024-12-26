@@ -201,9 +201,6 @@ To use a deep reactive policy, simply change the ``plan`` type to:
 
     plan = JaxDeepReactivePolicy(**plan_args)
 
-.. note::
-   All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
-   
 .. raw:: html 
 
    <a href="notebooks/closed_loop_planning_drp_with_jaxplan.html"> 
@@ -214,6 +211,9 @@ To use a deep reactive policy, simply change the ``plan`` type to:
 The ``**planner_args`` and ``**train_args`` are keyword arguments passed during initialization, 
 but we strongly recommend creating and loading a configuration file as discussed next.
 
+.. note::
+   All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
+   
 
 Configuring JaxPlan
 -------------------
@@ -260,6 +260,14 @@ The configuration file can then be parsed and passed to the planner as follows:
     planner = ...
     controller = ...
 
+.. raw:: html 
+
+   <a href="notebooks/open_loop_planning_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Open-loop planning with straightline plans in JaxPlan.
+   </a>
+   
+   
 To configure a policy network instead, change the ``method`` in the ``[Optimizer]`` section of the config file:
 
 .. code-block:: shell
@@ -273,6 +281,13 @@ To configure a policy network instead, change the ``method`` in the ``[Optimizer
 This creates a neural network policy with the default ``tanh`` activation 
 and two hidden layers with 128 and 64 neurons, respectively.
 
+.. raw:: html 
+
+   <a href="notebooks/closed_loop_planning_drp_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Closed-loop planning with deep reactive policies in JaxPlan.
+   </a>
+   
 .. note::
    ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
    Other policy representations could be defined by overriding this class and its abstract methods.
