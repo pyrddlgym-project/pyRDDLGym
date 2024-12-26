@@ -59,6 +59,14 @@ All policies must implement a ``sample_action()`` function for sampling an actio
    To handle arbitrary nonlinear constraints, implement a custom ``BaseAgent``
    with its own ``sample_action()`` function.
 
+.. raw:: html 
+
+   <a href="notebooks/simulating_pyrddlgym_random_policy.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:32px;height:32px;margin-right:5px;">
+       Related example: Simulating an environment in pyRDDLGym with a built-in policy.
+   </a>
+
+
 To implement your own custom policy, inherit from ``pyRDDLGym.core.policy.BaseAgent``:
 
 .. code-block:: python
