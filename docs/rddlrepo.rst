@@ -162,7 +162,7 @@ To register an instance for an existing domain for later access:
     problem_info.register_instance("MyInstance", instance_content)
  
 
- .. raw:: html 
+.. raw:: html 
 
    <a href="notebooks/adding_domains_to_rddlrepository.html"> 
        <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
