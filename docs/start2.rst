@@ -59,6 +59,14 @@ in each cpf, constraint relation, or the reward function of the RDDL domain:
 - the ``etype()`` function provides basic information about the expression, such as its type
 - the ``args()`` function provides its sub-expressions, which consists of other ``Expression`` objects, aggregation variables, or other information required by the engine.
 
+.. raw:: html 
+
+   <a href="notebooks/extracting_info_from_compiled_model_with_pyrddlgym.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Extracting information from the compiled planning problem.
+   </a>
+   
+   
 Grounding a Domain
 ------
 
@@ -98,6 +106,13 @@ The ``grounded`` object returned is also an environment model, so a lot of the f
    expressions containing switch statements, matrix operations, vector distributions and Discrete, 
    nested pvariables, and free parameters outside a pvariable (e.g. ``?x == ?y``). 
    There is currently (limited) support for enumerated types.
+
+.. raw:: html 
+
+   <a href="notebooks/grounding_a_problem_with_pyrddlgym.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Grounding a problem in pyRDDLGym.
+   </a>
    
    
 Vectorized Input and Output
@@ -272,6 +287,14 @@ and run a topological sort on the graph to determine the correct order of CPF ev
     dependencies = sorter.build_call_graph()
     levels = sorter.compute_levels()
 
+.. raw:: html 
+
+   <a href="notebooks/analyzing_fluent_dependencies.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Analyzing fluent dependencies and evaluation order.
+   </a>
+   
+   
 Finally, the code can be traced to compile static type information about each subexpression in the AST, which 
 includes for example any free parameters in the scope of the subexpression and their types,
 the type of the value returned by the subexpression during evaluation,
