@@ -711,6 +711,8 @@ A full list of arguments to the tuning constructor is shown below:
      - How often to check for completed processes (defaults to 0.2 seconds)
    * - pool_context
      - The type of pool context for multiprocessing (defaults to "spawn")
+   * - rollouts_per_trial
+     - For ``online=False``, how many evaluation rollouts to perform per ``eval_trial``
    * - timeout_tuning
      - Maximum amount of time to allocate to tuning
    * - verbose
