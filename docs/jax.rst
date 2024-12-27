@@ -367,13 +367,13 @@ The full list of settings that can be specified in the configuration files are a
    * - cpfs_without_grad
      - A set of CPFs that do not allow gradients to flow through them
    * - line_search_kwargs
-     - Arguments for zoom line search to apply after optimizer
+     - `Arguments for optional zoom line search <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.scale_by_zoom_linesearch>`_
    * - method
      - Type of ``core.planner.JaxPlan``, specifies the policy class
    * - method_kwargs
      - kwargs to pass to policy constructor (see next two tables for options)
    * - noise_kwargs
-     - Arguments for gradient noise: ``noise_grad_eta``, ``noise_grad_gamma`` and ``seed``
+     - `Arguments for gradient noise <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.add_noise>`_: ``noise_grad_eta``, ``noise_grad_gamma`` and ``seed``
    * - optimizer
      - Name of optimizer from optax to use
    * - optimizer_kwargs
