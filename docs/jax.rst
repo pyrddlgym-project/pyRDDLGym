@@ -9,12 +9,30 @@ We also show how pyRDDLGym-jax (or JaxPlan as it is referred to in the literatur
 Installing
 -----------------
 
-To install JaxPlan and all of its requirements via pip:
+To install the bare-bones version of JaxPlan with minimum installation requirements:
 
+.. code-block:: shell
+
+    pip install pyRDDLGym-jax
+
+To install JaxPlan with the automatic hyper-parameter tuning and rddlrepository:
+    
 .. code-block:: shell
 
     pip install pyRDDLGym-jax[extra]
 
+(Since version 1.0) To install JaxPlan with the visualization dashboard:
+
+.. code-block:: shell
+
+    pip install pyRDDLGym-jax[dashboard]
+
+(Since version 1.0) To install JaxPlan with all options:
+
+.. code-block:: shell
+
+    pip install pyRDDLGym-jax[extra,dashboard]
+    
 To install the latest pre-release version via git:
 
 .. code-block:: shell
