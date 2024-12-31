@@ -88,7 +88,7 @@ Several [example scripts](https://github.com/pyrddlgym-project/pyRDDLGym/tree/ma
 To simulate an environment for example, from the install directory of pyRDDLGym, type the following into a shell supporting the python command (you need rddlrepository):
 
 ```shell
-python -m pyRDDLGym.examples.run_gym "Cartpole_Continuous_gym" "0" 1
+python -m pyRDDLGym.examples.run_gym "CartPole_Continuous_gym" "0" 1
 ```
 
 which loads instance "0" of the CartPole control problem with continuous actions from rddlrepository and simulates it with a random policy for one episode.
@@ -103,7 +103,7 @@ Instantiation of an existing environment by name is as easy as:
 
 ```python
 import pyRDDLGym
-env = pyRDDLGym.make("Cartpole_Continuous_gym", "0")
+env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
 ```
 
 Loading your own domain files is just as straightforward
