@@ -1,4 +1,3 @@
-from io import BytesIO
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
@@ -137,10 +136,10 @@ class ChartVisualizer(BaseViz):
         
     def convert2img(self, fig, ax):
         fig.canvas.draw()
-        buf = BytesIO() 
-        fig.savefig(buf, format='png') 
-        buf.seek(0)
-        img = Image.open(buf)
+        data = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+        data = data[:, :, :3]
+        img = Image.fromarray(data)
         self._img = img
         return img
 
