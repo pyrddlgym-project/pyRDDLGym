@@ -340,7 +340,7 @@ class RDDLIntervalAnalysis:
         
         else:
             raise RDDLNotImplementedError(
-                f'Arithmetic operator {op} is not supported.\n' + PST(expr))
+                f'Arithmetic operator {op} is not supported.\n')
         
     def _bound_arithmetic(self, expr, intervals):
         _, op = expr.etype
@@ -406,7 +406,7 @@ class RDDLIntervalAnalysis:
             return RDDLIntervalAnalysis._bound_relational_expr(int2, int1, '>=')
         else:
             raise RDDLNotImplementedError(
-                f'Relational operator {op} is not supported.\n' + PST(expr))
+                f'Relational operator {op} is not supported.\n')
          
     def _bound_relational(self, expr, intervals):
         _, op = expr.etype
@@ -452,7 +452,7 @@ class RDDLIntervalAnalysis:
         
         else:
             raise RDDLNotImplementedError(
-                f'Logical operator {op} is not supported.\n' + PST(expr))
+                f'Logical operator {op} is not supported.\n')
            
     def _bound_logical(self, expr, intervals):
         _, op = expr.etype

@@ -162,10 +162,10 @@ class RDDLObjectsTracer:
                 for (index, (pvar, prange)) in enumerate(objects):
                     if not RDDLPlanningModel.is_free_object(pvar):
                         raise RDDLTypeError(
-                            f'Definition for CPF <{name}> requires free '
+                            f'Definition for CPF <{cpf}> requires free '
                             f'object(s) on the left-hand side, but '
                             f'got the following expression at position {index + 1}:\n' + 
-                            PST(pvar, f'CPF <{name}>'))
+                            PST(pvar, f'CPF <{cpf}>'))
                 
                 # trace the expression
                 out._current_root = f'CPF {cpf}'

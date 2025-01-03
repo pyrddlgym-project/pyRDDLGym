@@ -43,7 +43,7 @@ class RDDLValueInitializer:
         self.rddl = rddl
         self.logger = logger
     
-    def initialize(self) -> Dict[str, Union[np.ndarray, INT, REAL, bool]]:
+    def initialize(self) -> Dict[str, Union[np.ndarray, np.integer, np.floating, bool]]:
         '''Compiles all initial values of all variables for the current RDDL file.
         A dictionary is returned with variable names as keys (as they appear in
         the RDDL) and value arrays as values.'''
