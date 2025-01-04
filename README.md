@@ -4,7 +4,7 @@
 [![PyPI Version](https://img.shields.io/pypi/v/pyRDDLGym.svg)](https://pypi.org/project/pyRDDLGym/)
 [![Documentation Status](https://readthedocs.org/projects/pyrddlgym/badge/?version=latest)](https://pyrddlgym.readthedocs.io/en/latest/)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Cumulative PyPI Downloads](https://img.shields.io/pypi/dm/pyrddlgym)
+[![Cumulative PyPI Downloads](https://img.shields.io/pypi/dm/pyrddlgym)](https://pypistats.org/packages/pyrddlgym)
 
 [Purpose](#purpose-and-benefits) | [Installation](#installation) | [Example Scripts](#example-scripts) | [Usage](#usage) | [Status](#status) | [Citing](#citing-pyrddlgym)
 
