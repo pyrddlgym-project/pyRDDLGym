@@ -5,6 +5,8 @@
 [![Documentation Status](https://readthedocs.org/projects/pyrddlgym/badge/?version=latest)](https://pyrddlgym.readthedocs.io/en/latest/)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
+[Purpose](#purpose-and-benefits) | [Installation](#installation) | [Example Scripts](#example-scripts) | [Usage](#usage) | [Status](#status) | [Citing](#citing-pyrddlgym)
+
 > [!WARNING]  
 > As of Feb 9, 2024, the pyRDDLGym API has been updated to version 2.0, and is no longer backwards compatible with the previous stable version 1.4.4.
 > While we strongly recommend that you update to 2.0, in case you require the old API, you can install the last stable version with pip:
@@ -33,20 +35,6 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 <img src="Images/uav.gif" width="120" height="120" margin=0/>
 <img src="Images/wildfire.gif" width="120" height="120" margin=0/>
 </p>
-
-## Contents
-- [Purpose and Benefits](#purpose-and-benefits)
-- [Installation](#installation)
-- [Example Scripts](#example-scripts)
-- [Usage](#usage)
-   - [Loading an Environment](#loading-an-environment)
-   - [Creating your Own Visualizer](#creating-your-own-visualizer)
-   - [Recording Movies](#recording-movies)
-   - [Interacting with an Environment](#interacting-with-an-environment)
-- [Status](#status)
-- [Citing pyRDDLGym](#citing-pyrddlgym)
-- [License](#license)
-- [Contributors](#contributors)
 
 ## Purpose and Benefits
 
@@ -222,11 +210,3 @@ Please see our [paper](https://arxiv.org/abs/2211.05939) describing pyRDDLGym. I
 
 ## License
 This software is distributed under the MIT License.
-
-## Contributors
-- Ayal Taitler (University of Toronto, CA)
-- Michael Gimelfarb (University of Toronto, CA)
-- Jihwan Jeong (University of Toronto, CA)
-- Sriram Gopalakrishnan (Arizona State University/J.P. Morgan, USA)
-- Martin Mladenov (Google, BR)
-- Jack Liu (University of Toronto, CA)
