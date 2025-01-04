@@ -76,7 +76,9 @@ pip install rddlrepository
 
 ## Example Scripts
 
-Several [example scripts](https://github.com/pyrddlgym-project/pyRDDLGym/tree/main/pyRDDLGym/examples) are provided to illustrate basic pyRDDLGym usage:
+The best source of pyRDDLGym related examples is the [example gallery of Jupyter notebooks hosted on our documentation site](https://pyrddlgym.readthedocs.io/en/latest/examples.html).
+
+Several [example scripts](https://github.com/pyrddlgym-project/pyRDDLGym/tree/main/pyRDDLGym/examples) are packaged with pyRDDLGym to highlight the core usage:
 * [run_gym.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym.py) launches a pyRDDLGym environment and evaluates a given policy
 * [run_gym2.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym2.py) is similar to the above, except the environment interaction is coded explicitly
 * [run_ground.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_ground.py) illustrates grounding a domain and instance
