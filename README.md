@@ -56,11 +56,16 @@ This is currently the official parser, simulator and evaluation system for RDDL 
   
 ## Installation
 
-We require Python 3.8+ and the following packages: ``ply``, ``pillow>=9.2.0``, ``numpy>=1.22``, ``matplotlib>=3.5.0``, ``gymnasium``, ``pygame``, ``termcolor``.
-You can install our package, along with all of its prerequisites, using pip
+To install via pip:
 
 ```shell
 pip install pyRDDLGym
+```
+
+To install the pre-release version via git:
+
+```shell
+git clone https://github.com/pyRDDLGym-project/pyRDDLGym.git
 ```
 
 Since pyRDDLGym does not come with any premade environments, you can either load RDDL documents from your local file system, or install [rddlrepository](https://github.com/pyrddlgym-project/rddlrepository) for easy access to preexisting domains
