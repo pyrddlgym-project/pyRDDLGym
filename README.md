@@ -1,5 +1,10 @@
 # pyRDDLGym
 
+![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
+[![PyPI Version](https://img.shields.io/pypi/v/pyRDDLGym.svg)](https://pypi.org/project/pyRDDLGym/)
+[![Documentation Status](https://readthedocs.org/projects/pyrddlgym/badge/?version=latest)](https://pyrddlgym.readthedocs.io/en/latest/)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
 > [!WARNING]  
 > As of Feb 9, 2024, the pyRDDLGym API has been updated to version 2.0, and is no longer backwards compatible with the previous stable version 1.4.4.
 > While we strongly recommend that you update to 2.0, in case you require the old API, you can install the last stable version with pip:
@@ -119,7 +124,7 @@ You can also pass custom settings to the make command, i.e.:
 
 ```python
 import pyRDDLGym
-env = pyRDDLGym.make("Cartpole_Continuous_gym", "0", enforce_action_constraints=True, ...)
+env = pyRDDLGym.make("CartPole_Continuous_gym", "0", enforce_action_constraints=True, ...)
 ```
 
 ### Creating your Own Visualizer
