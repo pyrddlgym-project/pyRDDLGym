@@ -1,6 +1,6 @@
 # pyRDDLGym
 
-![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 [![PyPI Version](https://img.shields.io/pypi/v/pyRDDLGym.svg)](https://pypi.org/project/pyRDDLGym/)
 [![Documentation Status](https://readthedocs.org/projects/pyrddlgym/badge/?version=latest)](https://pyrddlgym.readthedocs.io/en/latest/)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
