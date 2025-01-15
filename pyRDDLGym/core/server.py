@@ -116,6 +116,8 @@ class RDDLSimServer:
                 "state": json.loads(
                     str(state)
                     .replace('\'', '"')
+                    .replace('np.True_', 'true')
+                    .replace('np.False_', 'false')
                     .replace('True', 'true')
                     .replace('False', 'false')
                 ),
@@ -143,6 +145,8 @@ class RDDLSimServer:
                     "state": json.loads(
                         str(state)
                         .replace('\'', '"')
+                        .replace('np.True_', 'true')
+                        .replace('np.False_', 'false')
                         .replace('True', 'true')
                         .replace('False', 'false')),
                     "actions": False,
