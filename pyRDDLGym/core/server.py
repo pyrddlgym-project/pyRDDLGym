@@ -110,6 +110,8 @@ class RDDLSimServer:
             data = self.receive_message(connection)
             actions = self.process_action(data)
 
+            print(state)
+            print(actions)
             self.logs[-1].append({
                 "state": json.loads(
                     str(state)
