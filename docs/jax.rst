@@ -384,6 +384,8 @@ The full list of settings that can be specified in the configuration files are a
      - Name of optimizer from optax to use
    * - optimizer_kwargs
      - kwargs to pass to optimizer constructor, i.e. ``learning_rate``
+   * - pgpe
+     - Optional instance of type ``PGPE`` (see table below for parameters passed to ``GaussianPGPE``)
    * - rollout_horizon
      - Rollout horizon of the computation graph
    * - use64bit
