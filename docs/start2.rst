@@ -1,6 +1,47 @@
 Getting Started: Advanced Tools
 ===============
 
+Evaluating Invariants and Preconditions
+-------------------
+
+The ``RDDLEnv`` provides built-in logic to validate states and actions constraints automatically
+according to their RDDL descriptions (which throws an error upon violation, by default). However, 
+in some applications, you may wish to evaluate constraints yourself. Constraint checking functions are
+implemented in the ``sampler`` field of a ``RDDLEnv``:
+
+.. code-block:: python
+	
+    import pyRDDLGym
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
+    backend = env.sampler
+
+One common use case is to validate actions before executing them in the environment 
+(perhaps reverting to a default action if they are invalid):
+
+.. code-block:: python
+	
+    if backend.check_action_preconditions(actions, silent=True):
+        return actions
+    else: 
+        return default_actions   # upon violation
+    
+
+Below are the commonly used functions of ``sampler`` that can be accessed directly:
+
+.. list-table:: Commonly-used functions accessible in ``sampler``
+   :widths: 40 80
+   :header-rows: 1
+   
+   * - syntax
+     - description
+   * - ``check_state_invariants(silent)``
+     - returns a bool indicating if all state invariants are satisfied (``silent`` will not raise an exception)
+   * - ``check_action_preconditions(actions, silent)``
+     - returns a bool indicating if all action preconditions are satisfied (``silent`` will not raise an exception)
+   * - ``check_terminal_states()``
+     - returns a bool indicating if any termination condition is satisfied
+
+
 Inspecting the Model
 -------------------
 
@@ -13,10 +54,10 @@ These can be accessed through the ``model`` field of a ``RDDLEnv``:
     env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
     model = env.model
 
-Below are some commonly used fields of ``model`` that can be accessed directly.
+Below are some commonly used fields of ``model`` that can be accessed directly:
 	
 .. list-table:: Commonly-used properties accessible in ``model``
-   :widths: 50 60
+   :widths: 40 80
    :header-rows: 1
    
    * - syntax
@@ -65,8 +106,7 @@ in each cpf, constraint relation, or the reward function of the RDDL domain:
        <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
        Related example: Extracting information from the compiled planning problem.
    </a>
-   
-   
+      
 Grounding a Domain
 ------
 
