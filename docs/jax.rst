@@ -385,7 +385,9 @@ The full list of settings that can be specified in the configuration files are a
    * - optimizer_kwargs
      - kwargs to pass to optimizer constructor, i.e. ``learning_rate``
    * - pgpe
-     - Optional instance of type ``PGPE`` (see table below for parameters passed to ``GaussianPGPE``)
+     - Optional type of ``core.planner.PGPE`` for parallel policy gradient calculation
+   * - pgpe_kwargs
+     - kwargs to pass to PGPE constructor (for ``GaussianPGPE`` see table below)
    * - rollout_horizon
      - Rollout horizon of the computation graph
    * - use64bit
