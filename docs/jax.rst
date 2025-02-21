@@ -136,6 +136,12 @@ where the argmax is approximated using the softmax function.
    For general non-reparameterizable distributions, the result of the gradient calculation 
    is fully dependent on the JAX implementation: it could return a zero or NaN gradient, or raise an exception.
 
+Since version 2.0, JaxPlan provides an option to run a
+`parameter-exploring policy gradient (PGPE) <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_
+algorithm in parallel alongside the original planner. By replacing the policy parameters with the 
+better of the two planners, this provides a safe backup in case the model relaxations 
+used in the original planner are poor (see section below). 
+
 
 Running JaxPlan from the Command Line
 -------------------
@@ -468,6 +474,31 @@ The full list of settings that can be specified in the configuration files are a
    * - train_seconds
      - Maximum seconds to train for
 
+
+.. list-table:: ``GaussianPGPE`` Policy Gradient Fallback
+   :widths: 40 80
+   :header-rows: 1
+
+   * - Setting
+     - Description
+   * - batch_size
+     - Number of parameters to sample per gradient descent step
+   * - init_sigma
+     - Initial standard deviation
+   * - sigma_range
+     - Clipping bounds for standard deviation
+   * - scale_reward
+     - Whether to apply reward scaling during parameter updates
+   * - super_symmetric
+     - Whether to use super-symmetric sampling for standard deviation
+   * - super_symmetric_accurate
+     - Whether to use the accurate formula for super symmetric sampling
+   * - optimizer
+     - Name of optimizer from optax to use
+   * - optimizer_kwargs_mu
+     - kwargs to pass to optimizer constructor for mean, i.e. ``learning_rate``
+   * - optimizer_kwargs_sigma
+     - kwargs to pass to optimizer constructor for std, i.e. ``learning_rate``
      
 
 Boolean Actions
