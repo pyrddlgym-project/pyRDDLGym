@@ -485,20 +485,20 @@ The full list of settings that can be specified in the configuration files are a
      - Number of parameters to sample per gradient descent step
    * - init_sigma
      - Initial standard deviation
-   * - sigma_range
-     - Clipping bounds for standard deviation
-   * - scale_reward
-     - Whether to apply reward scaling during parameter updates
-   * - super_symmetric
-     - Whether to use super-symmetric sampling for standard deviation
-   * - super_symmetric_accurate
-     - Whether to use the accurate formula for super symmetric sampling
    * - optimizer
      - Name of optimizer from optax to use
    * - optimizer_kwargs_mu
      - kwargs to pass to optimizer constructor for mean, i.e. ``learning_rate``
    * - optimizer_kwargs_sigma
      - kwargs to pass to optimizer constructor for std, i.e. ``learning_rate``
+   * - scale_reward
+     - Whether to apply reward scaling during parameter updates
+   * - sigma_range
+     - Clipping bounds for standard deviation
+   * - super_symmetric
+     - Whether to use super-symmetric sampling for standard deviation
+   * - super_symmetric_accurate
+     - Whether to use the accurate formula for super symmetric sampling
      
 
 Boolean Actions
