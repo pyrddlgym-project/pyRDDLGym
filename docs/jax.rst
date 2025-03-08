@@ -475,8 +475,14 @@ The full list of settings that can be specified in the configuration files are a
      - Description
    * - batch_size
      - Number of parameters to sample per gradient descent step
+   * - end_entropy_coeff
+     - Ending entropy regularization coeffient
    * - init_sigma
      - Initial standard deviation
+   * - max_kl_update
+     - Maximum bound on kl-divergence between successive updates
+   * - min_reward_scale
+     - Minimum reward scaling factor if ``scale_reward = True``
    * - optimizer
      - Name of optimizer from optax to use
    * - optimizer_kwargs_mu
@@ -487,6 +493,8 @@ The full list of settings that can be specified in the configuration files are a
      - Whether to apply reward scaling during parameter updates
    * - sigma_range
      - Clipping bounds for standard deviation
+   * - start_entropy_coeff
+     - Starting entropy regularization coeffient
    * - super_symmetric
      - Whether to use super-symmetric sampling for standard deviation
    * - super_symmetric_accurate
