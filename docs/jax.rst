@@ -102,8 +102,7 @@ An alternative approach is to optimize a `deep reactive policy network <https://
 JaxPlan currently supports both options.
 
 A secondary problem in stochastic domains is that the gradients of sampling nodes are not well-defined.
-JaxPlan works around this problem by using the reparameterization trick (and other tricks) 
-to convert any RDDL problem description to a differentiable stochastic program. 
+JaxPlan works around this problem by using the reparameterization trick.
 To illustrate, we can write :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
 although the latter is amenable to backpropagation while the first is not.
 
@@ -118,8 +117,8 @@ For a detailed discussion of reparameterization in the context of planning,
 please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
 or `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
 
-JaxPlan automatically performs reparameterization whenever possible. For some cases
-such as the Bernoulli and Discrete distribution, it applies the `Gumbel-softmax trick <https://arxiv.org/pdf/1611.01144.pdf>`_. 
+JaxPlan automatically performs reparameterization whenever possible. 
+For Bernoulli, Discrete (and similar) distributions, it applies the `Gumbel-softmax trick <https://arxiv.org/pdf/1611.01144.pdf>`_. 
 For other distributions without natural reparameterization 
 (e.g. Poisson), JaxPlan applies a `variety of differentiable relaxations <https://github.com/pyrddlgym-project/pyRDDLGym-jax?tab=readme-ov-file#citing-jaxplan>`_ 
 to facilitate gradient calculation approximately.
@@ -597,10 +596,10 @@ which may not be desirable for risk-sensitive applications where tail risk of th
 JaxPlan can also optimize `non-linear utility functions <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_:
 
 * "mean" is the risk-neutral or ordinary expected return
-* "mean_var" is the variance penalized return
 * "mean_std" is the standard deviation penalized return
-* "mean_dev" is the mean-deviation risk measure
+* "mean_var" is the variance penalized return
 * "mean_semidev" is the mean-semideviation risk measure
+* "mean_semivar" is the mean-semivariance risk measure
 * "entropic" (or "exponential") is the entropic or exponential utility
 * "cvar" is the conditional value at risk.
 
