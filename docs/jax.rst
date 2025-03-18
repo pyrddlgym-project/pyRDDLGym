@@ -386,10 +386,14 @@ The full list of settings that can be specified in the configuration files are a
      - Name of optimizer from `optax <https://optax.readthedocs.io/en/latest/api/optimizers.html>`_ to use
    * - optimizer_kwargs
      - kwargs to pass to optimizer constructor, i.e. ``learning_rate``
+   * - parallel_updates
+     - Number of independent policies to initialize and update in parallel
    * - pgpe
      - Optional type of ``core.planner.PGPE`` for `parallel policy gradient update <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_
    * - pgpe_kwargs
      - kwargs to pass to PGPE constructor (for ``GaussianPGPE`` see table below)
+   * - print_warnings
+     - Whether to print compilation warnings to console (errors will still be printed)
    * - rollout_horizon
      - Rollout horizon of the computation graph
    * - use64bit
@@ -505,6 +509,8 @@ The full list of settings that can be specified in the configuration files are a
      - Whether to print the progress bar from the planner to console
    * - print_summary
      - Whether to print summary information from the planner to console
+   * - restart_epochs
+     - Number of consecutive epochs without progress to restart optimizer
    * - stopping_rule
      - A stopping criterion for the optimizer, subclass of ``JaxPlannerStoppingRule``
    * - stopping_rule_kwargs
