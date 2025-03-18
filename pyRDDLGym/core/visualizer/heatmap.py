@@ -14,17 +14,16 @@ class HeatmapVisualizer(BaseViz):
                  steps_history=None,
                  figure_size=(10, 10),
                  dpi=100,
-                 fontsize=10,
+                 fontsize=10, minfontsize=4,
                  cmap='seismic',
-                 loccol='black',
                  scale_full_history: bool=True,
                  ranges=None) -> None:
         self._model = model
         self._figure_size = figure_size
         self._dpi = dpi
         self._fontsize = fontsize
+        self._minfontsize = minfontsize
         self._cmap = cmap
-        self._loccol = loccol
         self._scale_full_history = scale_full_history
         self._ranges = ranges
         
@@ -41,25 +40,35 @@ class HeatmapVisualizer(BaseViz):
         self._historic_min_max = {}
         for (state, values) in self._model.state_fluents.items():
             values = np.atleast_1d(values)
-            self._state_hist[state] = np.full(shape=(len(values), self._steps),
-                                              fill_value=np.nan)
+            self._state_hist[state] = np.full(
+                shape=(len(values), self._steps), fill_value=np.nan)
             self._state_shapes[state] = self._model.object_counts(
                 self._model.variable_params[state])
             self._labels[state] = list(map(
-                ','.join, 
-                self._model.ground_types(self._model.variable_params[state])
-            ))
+                ','.join, self._model.ground_types(self._model.variable_params[state])))
             self._historic_min_max[state] = (np.inf, -np.inf)
         self._step = 0
         self._drawn_artists = False
         
+    def adjust_tick_label_size(self, ax, labels):
+        fig = ax.figure
+        dpi = fig.dpi
+        _, figure_height = fig.get_size_inches()
+        scaling_factor = (figure_height * dpi) / len(labels)
+        valid_font = scaling_factor / 5 >= self._minfontsize
+        if valid_font:
+            font_size = max(self._minfontsize, min(self._fontsize, scaling_factor / 5))
+            ax.tick_params(axis='y', labelsize=font_size)
+            ax.yaxis.set_ticks([0, len(labels)])
+            ax.yaxis.set(ticks=np.arange(0.5, len(labels), 1), ticklabels=labels)
+            ax.set_yticklabels(labels)
+
     def _setup(self):
         
         # prepare plot
-        self._fig, self._ax = plt.subplots(len(self._state_hist), 1,
-                                           squeeze=True,
-                                           figsize=self._figure_size,
-                                           sharex=True)
+        self._fig, self._ax = plt.subplots(
+            len(self._state_hist), 1,
+            squeeze=True, figsize=self._figure_size, sharex=True)
         if len(self._state_hist) == 1:
             self._ax = (self._ax,)
             
@@ -71,26 +80,16 @@ class HeatmapVisualizer(BaseViz):
             # title, labels and cursor line
             self._ax[y].xaxis.label.set_fontsize(self._fontsize)
             self._ax[y].yaxis.label.set_fontsize(self._fontsize)
-            self._ax[y].title.set_text(state)
-            self._ax[y].set_xlabel('decision epoch')
+            if y == len(self._state_hist) - 1:
+                self._ax[y].set_xlabel('decision epoch')
             self._ax[y].set_ylabel(state)
             
             im = self._ax[y].pcolormesh(values, 
-                                        edgecolors=self._loccol, 
-                                        linewidth=0.5, 
                                         cmap=self._cmap, 
-                                        vmin=0.0, 
-                                        vmax=0.0)         
+                                        vmin=0.0, vmax=0.0)         
             plt.colorbar(im, ax=self._ax[y])
             self._lines[state] = im
-            
-            labels = self._labels[state]
-            self._ax[y].yaxis.set_ticks([0, len(labels)])
-            self._ax[y].yaxis.set(ticks=np.arange(0.5, len(labels), 1), 
-                                  ticklabels=labels) 
-            self._ax[y].set_yticklabels(labels,
-                                        fontdict={"fontsize": self._fontsize},
-                                        rotation=30)
+            self.adjust_tick_label_size(self._ax[y], self._labels[state])
         plt.tight_layout()
                     
         self._backgrounds = [self._fig.canvas.copy_from_bbox(ax.bbox) for ax in self._ax]
