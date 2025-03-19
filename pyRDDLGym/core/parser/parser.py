@@ -248,6 +248,8 @@ class RDDLParser(object):
 
         self.tokens = self.lexer.tokens
 
+        self.reverse_tokens = {value: key for (key, value) in self.lexer.reserved.items()}
+
         self.precedence = (
             ('left', 'IF'),
             ('left', 'ASSIGN_EQUAL'),
@@ -1066,6 +1068,7 @@ class RDDLParser(object):
         line1 = max(line_err - 5, 0)
         line2 = min(line_err + 5, len(lines) - 1)
         
+        # print source of error
         exception_str = 'Syntax error on line {}:\n...'.format(line_err)
         for l in range(line1, line2):
             if l == line_err:
@@ -1073,7 +1076,14 @@ class RDDLParser(object):
             else:
                 exception_str += '\n   ' + lines[l]
         exception_str += '\n...'
-        
+
+        # try to identify cause of error
+        if p and p.type in self.reverse_tokens:
+            exception_str += '\n' + (f'Invalid use of reserved keyword: '
+                                     f'{self.reverse_tokens[p.type]}.')
+        elif p:
+            exception_str += '\n' + f'Invalid symbol or keyword: {p.value}.'
+
         if self.debugging:
             exception_str += 'See log file {} for details.'.format(self.parsing_logfile)
         
