@@ -38,9 +38,22 @@ class RDDLReader(object):
         # inspect rddl if three block are present - domain, non-fluent, instance
         m = re.search(self.domain_block, dom_txt)
         if m is None:
-            raise RDDLParseError(
-                "domain {...} block is missing or contains a syntax error."
-            )
+            if 'reward' not in dom_txt:
+                raise RDDLParseError(
+                    "reward expression is missing or contains a syntax error."
+                )
+            elif 'cpfs' not in dom_txt:
+                raise RDDLParseError(
+                    "cpfs {...} block is missing or contains a syntax error."
+                )
+            elif 'pvariables' not in dom_txt:
+                raise RDDLParseError(
+                    "pvariables {...} block is missing or contains a syntax error."
+                )
+            else:
+                raise RDDLParseError(
+                    "domain {...} block is missing or contains a syntax error."
+                )
 
         domaintxt = m.group(0)
         m = re.search(self.nonfluent_in_domain, domaintxt)
