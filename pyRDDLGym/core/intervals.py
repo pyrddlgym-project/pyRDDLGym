@@ -889,9 +889,8 @@ class RDDLIntervalAnalysis:
             return self._bound_gamma(expr, intervals)
         elif name == 'Binomial':
             return self._bound_binomial(expr, intervals)
-        # TODO: Implement Negative-Binomial intervals
-        # elif name == 'NegativeBinomial':
-        #    return self._bound_negative_binomial(expr, intervals)
+        elif name == 'NegativeBinomial':
+            return self._bound_negative_binomial(expr, intervals)
         elif name == 'Beta':
             return self._bound_beta(expr, intervals)
         elif name == 'Geometric':
@@ -1016,6 +1015,18 @@ class RDDLIntervalAnalysis:
         upper = self._mask_assign(upper, (up <= 0), 0)
         return (lower, upper)
     
+    def _bound_negative_binomial(self, expr, intervals):
+        args = expr.args
+        n, p = args
+        (ln, un) = self._bound(n, intervals)
+        (lp, up) = self._bound(p, intervals)
+
+        lower = np.ones(shape=np.shape(lp), dtype=np.int64)
+        upper = np.full(shape=np.shape(up), fill_value=np.inf, dtype=np.float64)
+        lower = self._mask_assign(lower, (up <= 0), np.inf)
+        upper = self._mask_assign(upper, (lp >= 1), 0)
+        return (lower, upper)
+
     def _bound_beta(self, expr, intervals):
         args = expr.args
         shape, rate = args
@@ -1215,6 +1226,18 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
         return (lower, upper)
     
+    def _bound_negative_binomial(self, expr, intervals):
+        args = expr.args
+        n, p = args
+        lun = self._bound(n, intervals)
+        lup = (lp, up) = self._bound(p, intervals)
+
+        # n * (1 - p) / p
+        numer = RDDLIntervalAnalysis._bound_arithmetic_expr(lun, (1 - up, 1 - lp), '*')
+        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(numer, lup, '/')
+        lower, upper = np.maximum(lower, 0), np.maximum(upper, 0)
+        return (lower, upper)
+
     def _bound_beta(self, expr, intervals):
         args = expr.args
         shape, rate = args
@@ -1394,8 +1417,13 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         return self._bound_location_scale(normal_01, lum, scale)
     
     def _bound_poisson(self, expr, intervals):
-        # TODO: implement percentile Poisson interval
-        raise NotImplementedError("Percentile strategy is not implemented for Poisson distribution yet.")
+        args = expr.args
+        p, = args
+        lp, up = self._bound(p, intervals)
+        lower_pctl, upper_pctl = self.percentiles
+        lower = np.maximum(stats.poisson.ppf(lower_pctl, lp), 0.0)
+        upper = np.maximum(stats.poisson.ppf(upper_pctl, up), 0.0)
+        return (lower, upper)
     
     def _bound_exponential(self, expr, intervals):
         args = expr.args
@@ -1432,6 +1460,10 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
     def _bound_binomial(self, expr, intervals):
         # TODO: implement percentile Binomial interval
         raise NotImplementedError("Percentile strategy is not implemented for Binomial distribution yet.")
+    
+    def _bound_negative_binomial(self, expr, intervals):
+        # TODO: implement percentile NegativeBinomial interval
+        raise NotImplementedError("Percentile strategy is not implemented for NegativeBinomial distribution yet.")
     
     def _bound_beta(self, expr, intervals):
         # TODO: implement percentile Beta interval
