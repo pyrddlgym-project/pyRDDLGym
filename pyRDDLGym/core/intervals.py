@@ -1571,8 +1571,19 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         return (lower, upper)
     
     def _bound_chisquare(self, expr, intervals):
-        # TODO: implement percentile Chi-Squared interval
-        raise NotImplementedError("Percentile strategy is not implemented for Chi-square distribution yet.")
+        args = expr.args
+        df, = args
+        ldf, udf = self._bound(df, intervals)
+
+        # evaluate inverse quantiles at lower and upper degree of freedom
+        lower_pctl, upper_pctl = self.percentiles
+        lower = stats.chi2.ppf(lower_pctl, ldf)
+        upper = stats.chi2.ppf(upper_pctl, udf)
+        lower = self._mask_assign(lower, ldf <= 0, 0.0)
+        upper = self._mask_assign(upper, udf <= 0, 0.0)
+        lower = self._mask_assign(lower, ~np.isfinite(ldf), np.inf)
+        upper = self._mask_assign(upper, ~np.isfinite(udf), np.inf)
+        return (lower, upper)        
     
     def _bound_kumaraswamy(self, expr, intervals):
         # TODO: implement percentile Kumaraswamy interval
