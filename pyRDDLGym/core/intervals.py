@@ -1583,6 +1583,7 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         args = expr.args
         df, = args
         ldf, udf = self._bound(df, intervals)
+        ldf, udf = np.maximum(ldf, 0), np.maximum(udf, 0)   
 
         # evaluate inverse quantiles at lower and upper degree of freedom
         lower_pctl, upper_pctl = self.percentiles
