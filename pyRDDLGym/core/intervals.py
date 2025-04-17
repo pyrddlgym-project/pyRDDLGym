@@ -1,8 +1,9 @@
 import numpy as np
 import traceback
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
-Bounds = Dict[str, Tuple[np.ndarray, np.ndarray]]
+Interval = Tuple[np.ndarray, np.ndarray]
+Bounds = Dict[str, Interval]
 
 from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
@@ -48,8 +49,6 @@ class RDDLIntervalAnalysis:
         tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=self.cpf_levels)
         self.trace = tracer.trace()
         
-        self.NUMPY_PROD_FUNC = np.frompyfunc(self._bound_product_scalar, nin=2, nout=1)    
-        self.NUMPY_OR_FUNC = np.frompyfunc(self._bound_or_scalar, nin=2, nout=1)
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
     def bound(self, action_bounds: Optional[Bounds]=None, 
@@ -287,8 +286,8 @@ class RDDLIntervalAnalysis:
             value = (1. * x) * y
         else:
             raise RDDLNotImplementedError(f'Safe operation {op} is not supported.')
-        if np.issubdtype(np.atleast_1d(x).dtype, np.integer) \
-        and np.issubdtype(np.atleast_1d(y).dtype, np.integer) \
+        if np.issubdtype(np.result_type(x), np.integer) \
+        and np.issubdtype(np.result_type(y), np.integer) \
         and np.any(np.abs(value) >= 2 ** 64 - 1):
             raise_warning(f'Arguments of operation {op} are integer, '
                           f'but the operation would result in overflow: '
@@ -302,27 +301,26 @@ class RDDLIntervalAnalysis:
             return x * y
         
     @staticmethod
-    def _bound_arithmetic_expr(int1, int2, op):
+    def bound_arithmetic_expr(int1: Interval, int2: Interval, op: str) -> Interval:
         (l1, u1), (l2, u2) = int1, int2
+        op_fn = RDDLIntervalAnalysis._op_without_overflow
         
         # [a, b] + [c, d] = [a + c, b + d]
         if op == '+':
-            lower = RDDLIntervalAnalysis._op_without_overflow(l1, l2, '+')
-            upper = RDDLIntervalAnalysis._op_without_overflow(u1, u2, '+')
+            lower = op_fn(l1, l2, '+')
+            upper = op_fn(u1, u2, '+')
             return (lower, upper)
         
         # [a, b] - [c, d] = [a, d] - [b, c]
         elif op == '-':
-            lower = RDDLIntervalAnalysis._op_without_overflow(l1, u2, '-')
-            upper = RDDLIntervalAnalysis._op_without_overflow(u1, l2, '-')
+            lower = op_fn(l1, u2, '-')
+            upper = op_fn(u1, l2, '-')
             return (lower, upper)
         
         # [a, b] * [c, d] 
         elif op == '*':
-            parts = [RDDLIntervalAnalysis._op_without_overflow(l1, l2, '*'), 
-                     RDDLIntervalAnalysis._op_without_overflow(l1, u2, '*'), 
-                     RDDLIntervalAnalysis._op_without_overflow(u1, l2, '*'), 
-                     RDDLIntervalAnalysis._op_without_overflow(u1, u2, '*')]
+            parts = [op_fn(l1, l2, '*'), op_fn(l1, u2, '*'), 
+                     op_fn(u1, l2, '*'), op_fn(u1, u2, '*')]
             lower = np.minimum.reduce(parts)
             upper = np.maximum.reduce(parts)
             return (lower, upper)
@@ -337,12 +335,10 @@ class RDDLIntervalAnalysis:
             u2_inv = mask_fn(u2_inv, l2 == 0, +np.inf)
             l2_inv = mask_fn(l2_inv, zero_in_open, -np.inf)
             u2_inv = mask_fn(u2_inv, zero_in_open, +np.inf)
-            int2_inv = (l2_inv, u2_inv)    
-            return RDDLIntervalAnalysis._bound_arithmetic_expr(int1, int2_inv, '*')
+            return RDDLIntervalAnalysis.bound_arithmetic_expr(int1, (l2_inv, u2_inv), '*')
         
         else:
-            raise RDDLNotImplementedError(
-                f'Arithmetic operator {op} is not supported.\n')
+            raise RDDLNotImplementedError(f'Arithmetic operator {op} is not supported.\n')
         
     def _bound_arithmetic(self, expr, intervals):
         _, op = expr.etype
@@ -360,14 +356,14 @@ class RDDLIntervalAnalysis:
             lhs, rhs = args
             int1 = self._bound(lhs, intervals)
             int2 = self._bound(rhs, intervals)
-            return self._bound_arithmetic_expr(int1, int2, op)
+            return self.bound_arithmetic_expr(int1, int2, op)
         
         # ternary and higher order operator
         elif n >= 2 and op in ('+', '*'):
             int_res = self._bound(args[0], intervals)
             for arg in args[1:]:
                 int_arg = self._bound(arg, intervals)
-                int_res = self._bound_arithmetic_expr(int_res, int_arg, op)
+                int_res = self.bound_arithmetic_expr(int_res, int_arg, op)
             return int_res
         
         else:
@@ -376,11 +372,11 @@ class RDDLIntervalAnalysis:
                 f'number of arguments.\n' + PST(expr))
     
     # ===========================================================================
-    # boolean
+    # relational
     # ===========================================================================
     
     @staticmethod
-    def _bound_relational_expr(int1, int2, op):
+    def bound_relational_expr(int1: Interval, int2: Interval, op: str) -> Interval:
         (l1, u1), (l2, u2) = int1, int2
         lower = np.zeros(np.shape(l1), dtype=np.int64)
         upper = np.ones(np.shape(u1), dtype=np.int64)
@@ -403,12 +399,11 @@ class RDDLIntervalAnalysis:
             upper = mask_fn(upper, (l1 == u1) & (l2 == u2) & (l1 == u2), 0)
             return (lower, upper)
         elif op == '<':
-            return RDDLIntervalAnalysis._bound_relational_expr(int2, int1, '>')
+            return RDDLIntervalAnalysis.bound_relational_expr(int2, int1, '>')
         elif op == '<=':
-            return RDDLIntervalAnalysis._bound_relational_expr(int2, int1, '>=')
+            return RDDLIntervalAnalysis.bound_relational_expr(int2, int1, '>=')
         else:
-            raise RDDLNotImplementedError(
-                f'Relational operator {op} is not supported.\n')
+            raise RDDLNotImplementedError(f'Relational operator {op} is not supported.\n')
          
     def _bound_relational(self, expr, intervals):
         _, op = expr.etype
@@ -416,45 +411,49 @@ class RDDLIntervalAnalysis:
         lhs, rhs = args
         int1 = self._bound(lhs, intervals)
         int2 = self._bound(rhs, intervals)
-        return self._bound_relational_expr(int1, int2, op)
+        return self.bound_relational_expr(int1, int2, op)
+    
+    # ===========================================================================
+    # logical
+    # ===========================================================================
     
     @staticmethod
-    def _bound_logical_expr(int1, int2, op):
+    def bound_logical_expr(int1: Interval, int2: Optional[Interval], op: str) -> Interval:
+        if op == '&':
+            op = '^'
+
         if op == '^':
-            return RDDLIntervalAnalysis._bound_arithmetic_expr(int1, int2, '*')
+            return RDDLIntervalAnalysis.bound_arithmetic_expr(int1, int2, '*')
         
         # x | y = ~(~x & ~y)
         elif op == '|':
-            not1 = RDDLIntervalAnalysis._bound_logical_expr(int1, None, '~')
-            not2 = RDDLIntervalAnalysis._bound_logical_expr(int2, None, '~')
-            not12 = RDDLIntervalAnalysis._bound_logical_expr(not1, not2, '^')
-            return RDDLIntervalAnalysis._bound_logical_expr(not12, None, '~')
+            not1 = RDDLIntervalAnalysis.bound_logical_expr(int1, None, '~')
+            not2 = RDDLIntervalAnalysis.bound_logical_expr(int2, None, '~')
+            not12 = RDDLIntervalAnalysis.bound_logical_expr(not1, not2, '^')
+            return RDDLIntervalAnalysis.bound_logical_expr(not12, None, '~')
         
         # x ~ y = (x | y) ^ ~(x & y)
         elif op == '~':
             if int2 is None:
                 l1, u1 = int1
-                lower = 1 - u1
-                upper = 1 - l1
-                return (lower, upper)
+                return (1 - u1, 1 - l1)
             else:
-                or12 = RDDLIntervalAnalysis._bound_logical_expr(int1, int2, '|')
-                and12 = RDDLIntervalAnalysis._bound_logical_expr(int1, int2, '^')
-                not12 = RDDLIntervalAnalysis._bound_logical_expr(and12, None, '~')
-                return RDDLIntervalAnalysis._bound_logical_expr(or12, not12, '^')
+                or12 = RDDLIntervalAnalysis.bound_logical_expr(int1, int2, '|')
+                and12 = RDDLIntervalAnalysis.bound_logical_expr(int1, int2, '^')
+                not12 = RDDLIntervalAnalysis.bound_logical_expr(and12, None, '~')
+                return RDDLIntervalAnalysis.bound_logical_expr(or12, not12, '^')
         
         # x => y = ~x | y
         elif op == '=>':
-            not1 = RDDLIntervalAnalysis._bound_logical_expr(int1, None, '~')
-            return RDDLIntervalAnalysis._bound_logical_expr(not1, int2, '|')
+            not1 = RDDLIntervalAnalysis.bound_logical_expr(int1, None, '~')
+            return RDDLIntervalAnalysis.bound_logical_expr(not1, int2, '|')
         
         # x <=> y = x == y
         elif op == '<=>':
-            return RDDLIntervalAnalysis._bound_relational_expr(int1, int2, '==')
+            return RDDLIntervalAnalysis.bound_relational_expr(int1, int2, '==')
         
         else:
-            raise RDDLNotImplementedError(
-                f'Logical operator {op} is not supported.\n')
+            raise RDDLNotImplementedError(f'Logical operator {op} is not supported.\n')
            
     def _bound_logical(self, expr, intervals):
         _, op = expr.etype
@@ -467,21 +466,21 @@ class RDDLIntervalAnalysis:
         if n == 1:
             arg, = args
             int1 = self._bound(arg, intervals)
-            return self._bound_logical_expr(int1, None, op)
+            return self.bound_logical_expr(int1, None, op)
         
         # binary operator
         elif n == 2:
             lhs, rhs = args
             int1 = self._bound(lhs, intervals)
             int2 = self._bound(rhs, intervals)
-            return self._bound_logical_expr(int1, int2, op)
+            return self.bound_logical_expr(int1, int2, op)
         
         # ternary and higher order operator
         elif n >= 2 and op in ('^', '|'):
             int_res = self._bound(args[0], intervals)
             for arg in args[1:]:
                 int_arg = self._bound(arg, intervals)
-                int_res = self._bound_logical_expr(int_res, int_arg, op)
+                int_res = self.bound_logical_expr(int_res, int_arg, op)
             return int_res
         
         else:
@@ -496,10 +495,9 @@ class RDDLIntervalAnalysis:
     @staticmethod
     def _bound_product_scalar(int1, int2):
         (l1, u1), (l2, u2) = int1, int2
-        parts = [RDDLIntervalAnalysis._op_without_overflow(l1, l2, '*'), 
-                 RDDLIntervalAnalysis._op_without_overflow(l1, u2, '*'), 
-                 RDDLIntervalAnalysis._op_without_overflow(u1, l2, '*'),
-                 RDDLIntervalAnalysis._op_without_overflow(u1, u2, '*')]
+        op_fn = RDDLIntervalAnalysis._op_without_overflow
+        parts = [op_fn(l1, l2, '*'), op_fn(l1, u2, '*'), 
+                 op_fn(u1, l2, '*'), op_fn(u1, u2, '*')]
         lower = min(parts)
         upper = max(parts)
         return (lower, upper)
@@ -509,12 +507,14 @@ class RDDLIntervalAnalysis:
         (l1, u1), (l2, u2) = int1, int2
         l1, u1 = (1 - u1, 1 - l1)
         l2, u2 = (1 - u2, 1 - l2)        
-        parts = [l1 * l2, l1 * u2, u1 * l2, u1 * u2]
-        not_l, not_u = min(parts), max(parts)        
-        lower = 1 - not_u
-        upper = 1 - not_l
+        parts = [l1 * l2, l1 * u2, u1 * l2, u1 * u2] 
+        lower = 1 - max(parts)
+        upper = 1 - min(parts)
         return (lower, upper)        
     
+    NUMPY_PROD_FUNC = np.frompyfunc(_bound_product_scalar, nin=2, nout=1)    
+    NUMPY_OR_FUNC = np.frompyfunc(_bound_or_scalar, nin=2, nout=1)
+        
     @staticmethod
     def _zip_bounds_to_single_array(lower, upper):
         shape = np.shape(lower)
@@ -541,32 +541,38 @@ class RDDLIntervalAnalysis:
         for axis in sorted(axes, reverse=True):
             array = numpyfunc.reduce(array, axis=axis)
         return RDDLIntervalAnalysis._unzip_single_array_to_bounds(array)
-        
-    # TODO: fix overflow
-    def _bound_aggregation(self, expr, intervals):
-        _, op = expr.etype
-        * _, arg = expr.args        
-        lower, upper = self._bound(arg, intervals)
-        
-        # aggregate bound calculation over axes
-        _, axes = self.trace.cached_sim_info(expr)
+    
+    @staticmethod
+    def bound_aggregation_expr(interval: Interval, op: str, 
+                               axes: Union[int, Tuple[int, ...]]) -> Interval:
+        lower, upper = interval
         if op == 'sum':
-            return (np.sum(lower, axis=axes), np.sum(upper, axis=axes))        
+            return (np.sum(lower, axis=axes), np.sum(upper, axis=axes))
         elif op == 'avg':
-            return (np.mean(lower, axis=axes), np.mean(upper, axis=axes))        
+            return (np.mean(lower, axis=axes), np.mean(upper, axis=axes))
         elif op == 'prod':
-            return self._bound_aggregation_func(lower, upper, axes, self.NUMPY_PROD_FUNC)        
+            return RDDLIntervalAnalysis._bound_aggregation_func(
+                lower, upper, axes, RDDLIntervalAnalysis.NUMPY_PROD_FUNC)
         elif op == 'minimum':
             return (np.min(lower, axis=axes), np.min(upper, axis=axes))        
         elif op == 'maximum':
             return (np.max(lower, axis=axes), np.max(upper, axis=axes))        
         elif op == 'forall':
-            return self._bound_aggregation_func(lower, upper, axes, self.NUMPY_PROD_FUNC)        
+            return RDDLIntervalAnalysis._bound_aggregation_func(
+                lower, upper, axes, RDDLIntervalAnalysis.NUMPY_PROD_FUNC)        
         elif op == 'exists':
-            return self._bound_aggregation_func(lower, upper, axes, self.NUMPY_OR_FUNC)
+            return RDDLIntervalAnalysis._bound_aggregation_func(
+                lower, upper, axes, RDDLIntervalAnalysis.NUMPY_OR_FUNC)
         else:        
             raise RDDLNotImplementedError(
-                f'Aggregation operator {op} is not supported.\n' + PST(expr))
+                f'Aggregation operator {op} is not supported.\n')
+
+    def _bound_aggregation(self, expr, intervals):
+        _, op = expr.etype
+        *_, arg = expr.args        
+        interval = self._bound(arg, intervals)
+        _, axes = self.trace.cached_sim_info(expr)
+        return self.bound_aggregation_expr(interval, op, axes)
     
     # ===========================================================================
     # function
@@ -595,20 +601,16 @@ class RDDLIntervalAnalysis:
     }
     
     @staticmethod
-    def _bound_func_monotone(l, u, func):
+    def _bound_func_monotone(interval, func):
+        l, u = interval
         fl, fu = func(l), func(u)
         lower = np.minimum(fl, fu)
         upper = np.maximum(fl, fu)
         return (lower, upper)
     
     @staticmethod
-    def _next_multiple(start, offset, period=2 * np.pi):
-        multiples = -np.floor_divide(start - offset, -period)
-        next_up = period * multiples + offset
-        return next_up
-        
-    @staticmethod
-    def _bound_func_u_shaped(l, u, x_crit, func):
+    def _bound_func_u_shaped(interval, x_crit, func):
+        l, u = interval
         fl, fu = func(l), func(u)
         f_crit = func(x_crit)
         lower = np.full(shape=np.shape(l), fill_value=f_crit)
@@ -620,19 +622,26 @@ class RDDLIntervalAnalysis:
         upper = mask_fn(upper, u <= x_crit, fl, True)
         return (lower, upper)
     
-    def _bound_func_unary(self, expr, intervals):
-        _, name = expr.etype
-        arg, = expr.args
-        l, u = self._bound(arg, intervals)
-        
+    @staticmethod
+    def _next_multiple(start, offset, period=2 * np.pi):
+        multiples = -np.floor_divide(start - offset, -period)
+        next_up = period * multiples + offset
+        return next_up
+    
+    @staticmethod
+    def bound_unary_func(interval: Interval, name: str) -> Interval:
+        mask_fn = RDDLIntervalAnalysis._mask_assign
+        l, u = interval
+
         # f is monotone, x in [a, b] => f(x) in [f(a), f(b)]
-        if name in self.UNARY_MONOTONE:
-            return self._bound_func_monotone(l, u, self.UNARY_MONOTONE[name])
+        if name in RDDLIntervalAnalysis.UNARY_MONOTONE:
+            return RDDLIntervalAnalysis._bound_func_monotone(
+                interval, RDDLIntervalAnalysis.UNARY_MONOTONE[name])
         
         # f is a u-shaped function
-        elif name in self.UNARY_U_SHAPED:
-            func, x_crit = self.UNARY_U_SHAPED[name]
-            return self._bound_func_u_shaped(l, u, x_crit, func)
+        elif name in RDDLIntervalAnalysis.UNARY_U_SHAPED:
+            func, x_crit = RDDLIntervalAnalysis.UNARY_U_SHAPED[name]
+            return RDDLIntervalAnalysis._bound_func_u_shaped(interval, x_crit, func)
         
         # special functions sin
         elif name == 'sin':
@@ -644,14 +653,14 @@ class RDDLIntervalAnalysis:
             
             # any infinity results in [-1, 1]
             has_inf = (l == -np.inf) | (u == np.inf)
-            lower = self._mask_assign(lower, has_inf, -1.0)
-            upper = self._mask_assign(upper, has_inf, +1.0)
+            lower = mask_fn(lower, has_inf, -1.0)
+            upper = mask_fn(upper, has_inf, +1.0)
             
             # find critical points
-            next_max = self._next_multiple(l, np.pi / 2)
-            next_min = self._next_multiple(l, 3 * np.pi / 2)
-            lower = self._mask_assign(lower, next_min <= u, -1.0)
-            upper = self._mask_assign(upper, next_max <= u, +1.0)
+            next_max = RDDLIntervalAnalysis._next_multiple(l, np.pi / 2)
+            next_min = RDDLIntervalAnalysis._next_multiple(l, 3 * np.pi / 2)
+            lower = mask_fn(lower, next_min <= u, -1.0)
+            upper = mask_fn(upper, next_max <= u, +1.0)
             return lower, upper
         
         # special functions cos
@@ -664,14 +673,14 @@ class RDDLIntervalAnalysis:
             
             # any infinity results in [-1, 1]
             has_inf = (l == -np.inf) | (u == np.inf)
-            lower = self._mask_assign(lower, has_inf, -1.0)
-            upper = self._mask_assign(upper, has_inf, +1.0)
+            lower = mask_fn(lower, has_inf, -1.0)
+            upper = mask_fn(upper, has_inf, +1.0)
             
             # find critical points
-            next_max = self._next_multiple(l, 0)
-            next_min = self._next_multiple(l, np.pi)
-            lower = self._mask_assign(lower, next_min <= u, -1.0)
-            upper = self._mask_assign(upper, next_max <= u, +1.0)
+            next_max = RDDLIntervalAnalysis._next_multiple(l, 0)
+            next_min = RDDLIntervalAnalysis._next_multiple(l, np.pi)
+            lower = mask_fn(lower, next_min <= u, -1.0)
+            upper = mask_fn(upper, next_max <= u, +1.0)
             return lower, upper
         
         # special functions tan
@@ -684,25 +693,24 @@ class RDDLIntervalAnalysis:
             
             # any infinity results in [-inf, inf]
             has_inf = (l == -np.inf) | (u == np.inf)
-            lower = self._mask_assign(lower, has_inf, -np.inf)
-            upper = self._mask_assign(upper, has_inf, +np.inf)
+            lower = mask_fn(lower, has_inf, -np.inf)
+            upper = mask_fn(upper, has_inf, +np.inf)
             
             # an asymptote is inside the open interval, set to [-inf, inf]
-            next_asymptote = self._next_multiple(l, np.pi / 2, np.pi)
+            next_asymptote = RDDLIntervalAnalysis._next_multiple(l, np.pi / 2, np.pi)
             asymptote_in_open = (l < next_asymptote) & (u > next_asymptote)
-            lower = self._mask_assign(lower, asymptote_in_open, -np.inf)
-            upper = self._mask_assign(upper, asymptote_in_open, +np.inf)
+            lower = mask_fn(lower, asymptote_in_open, -np.inf)
+            upper = mask_fn(upper, asymptote_in_open, +np.inf)
             
             # an asymptote is on an edge
-            lower = self._mask_assign(lower, l == next_asymptote, -np.inf)
-            upper = self._mask_assign(upper, u == next_asymptote, +np.inf)
-            upper = self._mask_assign(upper, u == next_asymptote + np.pi, +np.inf)            
+            lower = mask_fn(lower, l == next_asymptote, -np.inf)
+            upper = mask_fn(upper, u == next_asymptote, +np.inf)
+            upper = mask_fn(upper, u == next_asymptote + np.pi, +np.inf)            
             return lower, upper
         
         else:
-            raise RDDLNotImplementedError(
-                f'Unary function {name} is not supported.\n' + PST(expr))
-    
+            raise RDDLNotImplementedError(f'Unary function {name} is not supported.\n')
+
     # TODO: fix overflow
     @staticmethod
     def _bound_func_power(int1, int2):
@@ -712,9 +720,9 @@ class RDDLIntervalAnalysis:
         mask_fn = RDDLIntervalAnalysis._mask_assign
         
         # positive base, means well defined for any real power
-        log1 = RDDLIntervalAnalysis._bound_func_monotone(l1, u1, np.log)
-        pow_ = RDDLIntervalAnalysis._bound_arithmetic_expr(log1, int2, '*')
-        l1pos, u1pos = RDDLIntervalAnalysis._bound_func_monotone(*pow_, np.exp)
+        log1 = RDDLIntervalAnalysis.bound_unary_func(int1, 'ln')
+        pow_ = RDDLIntervalAnalysis.bound_arithmetic_expr(log1, int2, '*')
+        l1pos, u1pos = RDDLIntervalAnalysis.bound_unary_func(pow_, 'exp')
         lower = mask_fn(lower, l1 > 0, l1pos, True)
         upper = mask_fn(upper, l1 > 0, u1pos, True)
             
@@ -744,16 +752,14 @@ class RDDLIntervalAnalysis:
         upper = mask_fn(upper, case2 & ~pow_even, u1 ** pow_, True)
         return (lower, upper)
     
-    def _bound_func_binary(self, expr, intervals):
-        _, name = expr.etype
-        arg1, arg2 = expr.args
-        int1 = (l1, u1) = self._bound(arg1, intervals)
-        int2 = (l2, u2) = self._bound(arg2, intervals)
-        
+    @staticmethod
+    def bound_binary_func(int1: Interval, int2: Interval, name: str) -> Interval:
+        (l1, u1), (l2, u2) = int1, int2
+
         # div(x, y) = floor(x / y)
         if name == 'div': 
-            l, u = self._bound_arithmetic_expr(int1, int2, '/')
-            return self._bound_func_monotone(l, u, np.floor)
+            lu = RDDLIntervalAnalysis.bound_arithmetic_expr(int1, int2, '/')
+            return RDDLIntervalAnalysis.bound_unary_func(lu, 'floor')
         
         # min([a, b], [c, d]) = (min[a, c], min[b, d])
         elif name == 'min':
@@ -765,52 +771,58 @@ class RDDLIntervalAnalysis:
         
         # power
         elif name == 'pow':
-            return self._bound_func_power(int1, int2)
+            return RDDLIntervalAnalysis._bound_func_power(int1, int2)
         
         # log[x, b] = log[x] / log[b]
         elif name == 'log':
             if np.any(l2 <= 0):
-                raise ValueError(
-                    f'Function {name} with base <= 0 is not supported.\n' + PST(expr))
+                raise ValueError(f'Function {name} with base <= 0 is not supported.\n')
             if np.any(l1 <= 0):
-                raise ValueError(
-                    f'Function {name} with argument <= 0 is not supported.\n' + PST(expr))                    
-            log1 = self._bound_func_monotone(l1, u1, np.log)
-            log2 = self._bound_func_monotone(l2, u2, np.log)
-            return self._bound_arithmetic_expr(log1, log2, '/')
+                raise ValueError(f'Function {name} with argument <= 0 is not supported.\n')                    
+            log1 = RDDLIntervalAnalysis.bound_unary_func(int1, 'ln')
+            log2 = RDDLIntervalAnalysis.bound_unary_func(int2, 'ln')
+            return RDDLIntervalAnalysis.bound_arithmetic_expr(log1, log2, '/')
         
         # hypot[x, y] = sqrt[x * x + y * y]
         elif name == 'hypot': 
-            pow1 = self._bound_func_u_shaped(l1, u1, 0, np.square)
-            pow2 = self._bound_func_u_shaped(l2, u2, 0, np.square)
-            l, u = self._bound_arithmetic_expr(pow1, pow2, '+')
-            return self._bound_func_monotone(l, u, np.sqrt)
+            pow1 = RDDLIntervalAnalysis._bound_func_u_shaped(int1, 0, np.square)
+            pow2 = RDDLIntervalAnalysis._bound_func_u_shaped(int2, 0, np.square)
+            lu = RDDLIntervalAnalysis.bound_arithmetic_expr(pow1, pow2, '+')
+            return RDDLIntervalAnalysis.bound_unary_func(lu, 'sqrt')
         
         else:
-            raise RDDLNotImplementedError(
-                f'Binary function {name} is not supported.\n' + PST(expr))
-        
+            raise RDDLNotImplementedError(f'Binary function {name} is not supported.\n')        
+
     def _bound_func(self, expr, intervals):
         _, name = expr.etype
         args = expr.args
         n = len(args)
         
+        # unary function
         if n == 1:
-            return self._bound_func_unary(expr, intervals)
+            _, name = expr.etype
+            arg, = expr.args
+            lu = self._bound(arg, intervals)        
+            return self.bound_unary_func(lu, name)
+        
+        # binary function
         elif n == 2:
-            return self._bound_func_binary(expr, intervals)
+            _, name = expr.etype
+            arg1, arg2 = expr.args
+            int1 = self._bound(arg1, intervals)
+            int2 = self._bound(arg2, intervals)
+            return self.bound_binary_func(int1, int2, name)
+        
         else:
             raise RDDLNotImplementedError(
-                f'Function {name} with {n} arguments is not supported.\n' + 
-                PST(expr))
+                f'Function {name} with {n} arguments is not supported.\n' + PST(expr))
             
     # ===========================================================================
     # control flow
     # ===========================================================================
     
     def _bound_control(self, expr, intervals):
-        _, op = expr.etype
-        
+        _, op = expr.etype        
         if op == 'if':
             return self._bound_if(expr, intervals)
         else:
@@ -826,14 +838,14 @@ class RDDLIntervalAnalysis:
         upper = np.maximum(u1, u2)
         
         # reduce range if the predicate is known with certainty
-        lower = self._mask_assign(lower, lp >= 1, l1, True)
-        upper = self._mask_assign(upper, lp >= 1, u1, True)
-        lower = self._mask_assign(lower, up <= 0, l2, True)
-        upper = self._mask_assign(upper, up <= 0, u2, True)
+        mask_fn = RDDLIntervalAnalysis._mask_assign
+        lower = mask_fn(lower, lp >= 1, l1, True)
+        upper = mask_fn(upper, lp >= 1, u1, True)
+        lower = mask_fn(lower, up <= 0, l2, True)
+        upper = mask_fn(upper, up <= 0, u2, True)
         return (lower, upper)
             
     def _bound_switch(self, expr, intervals):
-        mask_fn = RDDLIntervalAnalysis._mask_assign
         
         # compute bounds on predicate
         pred, *_ = expr.args
@@ -848,18 +860,19 @@ class RDDLIntervalAnalysis:
         ]
         
         # (pred == @o1) * expr1 + (pred == @o2) * expr2 ...
+        mask_fn = RDDLIntervalAnalysis._mask_assign
         final_bounds = None
-        for (index, (lower_expr, upper_expr)) in enumerate(bounds):
+        for (i, (lower_expr, upper_expr)) in enumerate(bounds):
             lower_eq = np.zeros(np.shape(lower_expr), dtype=np.int64)
             upper_eq = np.ones(np.shape(upper_expr), dtype=np.int64)
-            lower_eq = mask_fn(lower_eq, (lower_pred == upper_pred) & (lower_pred == index), 1)
-            upper_eq = mask_fn(upper_eq, (upper_pred < index) | (lower_pred > index), 0)
-            bounds_obj = RDDLIntervalAnalysis._bound_arithmetic_expr(
+            lower_eq = mask_fn(lower_eq, (lower_pred == upper_pred) & (lower_pred == i), 1)
+            upper_eq = mask_fn(upper_eq, (upper_pred < i) | (lower_pred > i), 0)
+            bounds_obj = RDDLIntervalAnalysis.bound_arithmetic_expr(
                 (lower_eq, upper_eq), (lower_expr, upper_expr), '*')      
             if final_bounds is None:
                 final_bounds = bounds_obj
             else:
-                final_bounds = RDDLIntervalAnalysis._bound_arithmetic_expr(
+                final_bounds = RDDLIntervalAnalysis.bound_arithmetic_expr(
                     final_bounds, bounds_obj, '+')
         return final_bounds
     
@@ -936,10 +949,8 @@ class RDDLIntervalAnalysis:
     def _bound_uniform(self, expr, intervals):
         args = expr.args
         a, b = args
-        (la, ua) = self._bound(a, intervals)
-        (lb, ub) = self._bound(b, intervals)
-        lower = la
-        upper = ub
+        (lower, _) = self._bound(a, intervals)
+        (_, upper) = self._bound(b, intervals)
         return (lower, upper)
     
     def _bound_bernoulli(self, expr, intervals):
@@ -987,7 +998,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         shape, scale = args
         (lsh, ush) = self._bound(shape, intervals)
-        (lsc, usc) = self._bound(scale, intervals)
+        _ = self._bound(scale, intervals)
         
         lower = np.zeros(shape=np.shape(lsh), dtype=np.float64)
         upper = np.full(shape=np.shape(ush), fill_value=np.inf, dtype=np.float64)
@@ -997,7 +1008,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         shape, scale = args
         (lsh, ush) = self._bound(shape, intervals)
-        (lsc, usc) = self._bound(scale, intervals)
+        _ = self._bound(scale, intervals)
         
         lower = np.zeros(shape=np.shape(lsh), dtype=np.float64)
         upper = np.full(shape=np.shape(ush), fill_value=np.inf, dtype=np.float64)
@@ -1018,7 +1029,7 @@ class RDDLIntervalAnalysis:
     def _bound_negative_binomial(self, expr, intervals):
         args = expr.args
         n, p = args
-        (ln, un) = self._bound(n, intervals)
+        _ = self._bound(n, intervals)
         (lp, up) = self._bound(p, intervals)
 
         lower = np.ones(shape=np.shape(lp), dtype=np.int64)
@@ -1031,7 +1042,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         shape, rate = args
         (ls, us) = self._bound(shape, intervals)
-        (lr, ur) = self._bound(rate, intervals)
+        _ = self._bound(rate, intervals)
         
         lower = np.zeros(shape=np.shape(ls), dtype=np.float64)
         upper = np.ones(shape=np.shape(us), dtype=np.float64)
@@ -1049,7 +1060,7 @@ class RDDLIntervalAnalysis:
     def _bound_pareto(self, expr, intervals):
         args = expr.args
         shape, scale = args
-        (lsh, ush) = self._bound(shape, intervals)
+        _ = self._bound(shape, intervals)
         (lsc, usc) = self._bound(scale, intervals)
         
         lower = lsc
@@ -1069,7 +1080,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         mean, scale = args
         (lm, um) = self._bound(mean, intervals)
-        (ls, us) = self._bound(scale, intervals)
+        _ = self._bound(scale, intervals)
         
         lower = np.full(shape=np.shape(lm), fill_value=-np.inf, dtype=np.float64)
         upper = np.full(shape=np.shape(um), fill_value=+np.inf, dtype=np.float64)
@@ -1079,7 +1090,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         mean, scale = args
         (lm, um) = self._bound(mean, intervals)
-        (ls, us) = self._bound(scale, intervals)
+        _ = self._bound(scale, intervals)
         
         lower = np.full(shape=np.shape(lm), fill_value=-np.inf, dtype=np.float64)
         upper = np.full(shape=np.shape(um), fill_value=+np.inf, dtype=np.float64)
@@ -1089,7 +1100,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         mean, scale = args
         (lm, um) = self._bound(mean, intervals)
-        (ls, us) = self._bound(scale, intervals)
+        _ = self._bound(scale, intervals)
         
         lower = np.full(shape=np.shape(lm), fill_value=-np.inf, dtype=np.float64)
         upper = np.full(shape=np.shape(um), fill_value=+np.inf, dtype=np.float64)
@@ -1099,7 +1110,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         shape, scale = args
         (lsh, ush) = self._bound(shape, intervals)
-        (lsc, usc) = self._bound(scale, intervals)
+        _ = self._bound(scale, intervals)
         
         lower = np.zeros(shape=np.shape(lsh), dtype=np.float64)
         upper = np.full(shape=np.shape(ush), fill_value=np.inf, dtype=np.float64)
@@ -1118,7 +1129,7 @@ class RDDLIntervalAnalysis:
         args = expr.args
         a, b = args
         (la, ua) = self._bound(a, intervals)
-        (lb, ub) = self._bound(b, intervals)
+        _ = self._bound(b, intervals)
         
         lower = np.zeros(shape=np.shape(la), dtype=np.float64)
         upper = np.ones(shape=np.shape(ua), dtype=np.float64)
@@ -1160,7 +1171,7 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         a, b = args
         lua = self._bound(a, intervals)
         lub = self._bound(b, intervals)
-        lsum, usum = self._bound_arithmetic_expr(lua, lub, '+')
+        lsum, usum = self.bound_arithmetic_expr(lua, lub, '+')
         return (lsum / 2, usum / 2)
     
     def _bound_bernoulli(self, expr, intervals):
@@ -1196,11 +1207,10 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         
         # scale * gamma(1 + 1 / shape)
         one = (np.ones_like(lsh), np.ones_like(ush))
-        shinv = self._bound_arithmetic_expr(one, lush, '/')
-        shinvp1 = self._bound_arithmetic_expr(one, shinv, '+')
-        func, x_crit = self.UNARY_U_SHAPED['gamma']
-        lugam = self._bound_func_u_shaped(*shinvp1, x_crit, func)
-        lower, upper = self._bound_arithmetic_expr(lusc, lugam, '*')
+        shinv = self.bound_arithmetic_expr(one, lush, '/')
+        shinvp1 = self.bound_arithmetic_expr(one, shinv, '+')
+        lugam = self.bound_unary_func(shinvp1, 'gamma')
+        lower, upper = self.bound_arithmetic_expr(lusc, lugam, '*')
         lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
         return (lower, upper)
     
@@ -1211,7 +1221,7 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         lusc = self._bound(scale, intervals)
         
         # shape * scale
-        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(lush, lusc, '*')
+        lower, upper = RDDLIntervalAnalysis.bound_arithmetic_expr(lush, lusc, '*')
         lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
         return (lower, upper)
     
@@ -1222,7 +1232,7 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         lup = self._bound(p, intervals)
         
         # n * p
-        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(lun, lup, '*')
+        lower, upper = RDDLIntervalAnalysis.bound_arithmetic_expr(lun, lup, '*')
         lower, upper = np.maximum(lower, 0.), np.maximum(upper, 0.)
         return (lower, upper)
     
@@ -1233,8 +1243,8 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         lup = (lp, up) = self._bound(p, intervals)
 
         # n * (1 - p) / p
-        numer = RDDLIntervalAnalysis._bound_arithmetic_expr(lun, (1 - up, 1 - lp), '*')
-        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(numer, lup, '/')
+        numer = RDDLIntervalAnalysis.bound_arithmetic_expr(lun, (1 - up, 1 - lp), '*')
+        lower, upper = RDDLIntervalAnalysis.bound_arithmetic_expr(numer, lup, '/')
         lower, upper = np.maximum(lower, 0), np.maximum(upper, 0)
         return (lower, upper)
 
@@ -1245,8 +1255,8 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         lur = self._bound(rate, intervals)
         
         # a / (a + b)
-        lusum = self._bound_arithmetic_expr(lush, lur, '+')
-        lower, upper = self._bound_arithmetic_expr(lush, lusum, '/')
+        lusum = self.bound_arithmetic_expr(lush, lur, '+')
+        lower, upper = self.bound_arithmetic_expr(lush, lusum, '/')
         lower, upper = np.clip(lower, 0., 1.), np.clip(upper, 0., 1.)
         return (lower, upper)
     
@@ -1257,7 +1267,7 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         
         # 1 / p
         ones = (np.ones_like(lp), np.ones_like(up))
-        lower, upper = RDDLIntervalAnalysis._bound_arithmetic_expr(ones, (lp, up), '/')
+        lower, upper = RDDLIntervalAnalysis.bound_arithmetic_expr(ones, (lp, up), '/')
         lower, upper = np.maximum(lower, 1.), np.maximum(upper, 1.)
         return (lower, upper)
     
@@ -1270,9 +1280,9 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         # shape * scale / (shape - 1)
         lush = np.maximum(lsh, 1.), np.maximum(ush, 1.)
         ones = (np.ones_like(lsh), np.ones_like(ush))
-        numer = self._bound_arithmetic_expr(lush, lusc, '*')
-        denom = self._bound_arithmetic_expr(lush, ones, '-')
-        return self._bound_arithmetic_expr(numer, denom, '/')
+        numer = self.bound_arithmetic_expr(lush, lusc, '*')
+        denom = self.bound_arithmetic_expr(lush, ones, '-')
+        return self.bound_arithmetic_expr(numer, denom, '/')
     
     def _bound_student(self, expr, intervals):
         args = expr.args
@@ -1290,8 +1300,8 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         
         # mean + euler-mascheroni * scale
         euler_masch = (0.577215664901532, 0.577215664901532)
-        scaled_gumbel = self._bound_arithmetic_expr(euler_masch, lusc, '*')
-        return self._bound_arithmetic_expr(scaled_gumbel, lum, '+')
+        scaled_gumbel = self.bound_arithmetic_expr(euler_masch, lusc, '*')
+        return self.bound_arithmetic_expr(scaled_gumbel, lum, '+')
     
     def _bound_laplace(self, expr, intervals):
         args = expr.args
@@ -1314,10 +1324,10 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         lusc = self._bound(scale, intervals)
 
         # exp(shape) * Ei(-shape) / scale
-        ei = self._bound_func_monotone(-ush, -lsh, scipy.special.expi)
-        exp = self._bound_func_monotone(lsh, ush, np.exp)
-        prod = self._bound_arithmetic_expr(exp, ei, '*')
-        return self._bound_arithmetic_expr(prod, lusc, '/')
+        ei = self._bound_func_monotone((-ush, -lsh), scipy.special.expi)
+        exp = self.bound_unary_func((lsh, ush), 'exp')
+        prod = self.bound_arithmetic_expr(exp, ei, '*')
+        return self.bound_arithmetic_expr(prod, lusc, '/')
     
     def _bound_chisquare(self, expr, intervals):
         args = expr.args
@@ -1330,19 +1340,18 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         args = expr.args
         a, b = args
         (la, ua) = self._bound(a, intervals)
-        (lb, ub) = self._bound(b, intervals)
+        lub = self._bound(b, intervals)
 
         one = (np.ones_like(la), np.ones_like(ua))
-        ainv = self._bound_arithmetic_expr(one, (la, ua), '/')
-        ainvp1 = self._bound_arithmetic_expr(one, ainv, '+')
-        sumab = self._bound_arithmetic_expr(ainvp1, (lb, ub), '+')
-        func, x_crit = self.UNARY_U_SHAPED['gamma']
-        agam = self._bound_func_u_shaped(*ainvp1, x_crit, func)
-        bgam = self._bound_func_u_shaped(lb, ub, x_crit, func)
-        sumgam = self._bound_func_u_shaped(*sumab, x_crit, func)
-        numer = self._bound_arithmetic_expr(
-            (lb, ub), self._bound_arithmetic_expr(agam, bgam, '*'), '*')
-        return self._bound_arithmetic_expr(numer, sumgam, '/')
+        ainv = self.bound_arithmetic_expr(one, (la, ua), '/')
+        ainvp1 = self.bound_arithmetic_expr(one, ainv, '+')
+        sumab = self.bound_arithmetic_expr(ainvp1, lub, '+')
+        agam = self.bound_unary_func(ainvp1, 'gamma')
+        bgam = self.bound_unary_func(lub, 'gamma')
+        sumgam = self.bound_unary_func(sumab, 'gamma')
+        numer = self.bound_arithmetic_expr(
+            lub, self.bound_arithmetic_expr(agam, bgam, '*'), '*')
+        return self.bound_arithmetic_expr(numer, sumgam, '/')
 
 
 class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
@@ -1354,7 +1363,7 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
     
     def __init__(self, rddl: RDDLPlanningModel, 
                  percentiles: Tuple[float, float], 
-                 logger: Optional[Logger]=None):
+                 logger: Optional[Logger]=None) -> None:
         '''Creates a new interval analysis object for the given RDDL domain.
         
         :param rddl: the RDDL domain to analyze
@@ -1371,25 +1380,24 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
     def _bound_location_scale(self, percentiles, mean, scale):
         '''For a location scale member X with given percentiles, computes
         the interval for mean + scale * X.'''
-        scaled_percentiles = self._bound_arithmetic_expr(percentiles, scale, '*')
-        bounds = self._bound_arithmetic_expr(mean, scaled_percentiles, '+')
+        scaled_percentiles = self.bound_arithmetic_expr(percentiles, scale, '*')
+        bounds = self.bound_arithmetic_expr(mean, scaled_percentiles, '+')
         return bounds
         
     def _bound_uniform(self, expr, intervals):
         args = expr.args
         a, b = args
         (la, ua) = self._bound(a, intervals)
-        (lb, ub) = self._bound(b, intervals)
+        lub = self._bound(b, intervals)
         
         # a + (b - a) * U, where U is percentile of Uniform(0, 1)
         lower_percentile, upper_percentile = self.percentiles
         lower_u01 = np.ones_like(la) * lower_percentile
         upper_u01 = np.ones_like(ua) * upper_percentile
-        scaled_a = self._bound_arithmetic_expr(
-            (la, ua), (1 - upper_u01, 1 - lower_u01), '*')
-        scaled_b = self._bound_arithmetic_expr(
-            (lb, ub), (lower_u01, upper_u01), '*')
-        return self._bound_arithmetic_expr(scaled_a, scaled_b, '+')
+        lu_u01_inv = (1 - upper_u01, 1 - lower_u01)
+        scaled_a = self.bound_arithmetic_expr((la, ua), lu_u01_inv, '*')
+        scaled_b = self.bound_arithmetic_expr(lub, (lower_u01, upper_u01), '*')
+        return self.bound_arithmetic_expr(scaled_a, scaled_b, '+')
     
     def _bound_bernoulli(self, expr, intervals):
         args = expr.args
@@ -1408,18 +1416,18 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         args = expr.args
         mean, var = args
         lum = self._bound(mean, intervals)
-        (lv, uv) = self._bound(var, intervals)
+        luv = self._bound(var, intervals)
         
         # mean + std * Z, where Z is percentile of Normal(0, 1)
         lower_pctl, upper_pctl = self.percentiles
         normal_01 = (stats.norm.ppf(lower_pctl), stats.norm.ppf(upper_pctl))
-        scale = self._bound_func_monotone(lv, uv, np.sqrt)
+        scale = self.bound_unary_func(luv, 'sqrt')
         return self._bound_location_scale(normal_01, lum, scale)
     
     def _bound_poisson(self, expr, intervals):
         args = expr.args
         p, = args
-        lp, up = self._bound(p, intervals)
+        (lp, up) = self._bound(p, intervals)
         lower_pctl, upper_pctl = self.percentiles
         lower = np.maximum(stats.poisson.ppf(lower_pctl, lp), 0.0)
         upper = np.maximum(stats.poisson.ppf(upper_pctl, up), 0.0)
@@ -1433,7 +1441,7 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         # scale * Exp1, where Exp1 is percentile of Exponential(1)
         lower_pctl, upper_pctl = self.percentiles
         exp1 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
-        lower, upper = self._bound_arithmetic_expr(lusc, exp1, '*')
+        lower, upper = self.bound_arithmetic_expr(lusc, exp1, '*')
         lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
         return (lower, upper)
      
@@ -1447,9 +1455,9 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         lower_pctl, upper_pctl = self.percentiles
         weibull_01 = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
         one = (np.ones_like(lsh), np.ones_like(ush))
-        inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
-        shaped_weibull = self._bound_func_power(weibull_01, inv_shape)
-        lower, upper = self._bound_arithmetic_expr(lusc, shaped_weibull, '*')
+        inv_shape = self.bound_arithmetic_expr(one, (lsh, ush), '/')
+        shaped_weibull = self.bound_binary_func(weibull_01, inv_shape, 'pow')
+        lower, upper = self.bound_arithmetic_expr(lusc, shaped_weibull, '*')
         lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
         return (lower, upper)
     
@@ -1483,9 +1491,9 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         lower_pctl, upper_pctl = self.percentiles
         pareto_01 = (1. / (1. - lower_pctl), 1. / (1. - upper_pctl))
         one = (np.ones_like(lsh), np.ones_like(ush))
-        inv_shape = self._bound_arithmetic_expr(one, (lsh, ush), '/')
-        shaped_pareto = self._bound_func_power(pareto_01, inv_shape)
-        lower, upper = self._bound_arithmetic_expr((lsc, usc), shaped_pareto, '*')
+        inv_shape = self.bound_arithmetic_expr(one, (lsh, ush), '/')
+        shaped_pareto = self.bound_binary_func(pareto_01, inv_shape, 'pow')
+        lower, upper = self.bound_arithmetic_expr((lsc, usc), shaped_pareto, '*')
         lower = np.maximum(lower, lsc)
         upper = np.maximum(upper, lower)
         return (lower, upper)
@@ -1556,9 +1564,9 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         # (1/scale) * ln(1 - (1/shape) * ln(1 - G)) where G is standard Gompertz
         lower_pctl, upper_pctl = self.percentiles
         percentiles = (-np.log(1 - lower_pctl), -np.log(1 - upper_pctl))
-        lower_shaped, upper_shaped = self._bound_arithmetic_expr(percentiles, lush, '/')
+        lower_shaped, upper_shaped = self.bound_arithmetic_expr(percentiles, lush, '/')
         percentiles2 = (np.log(1 + lower_shaped), np.log(1 + upper_shaped))
-        lower, upper = self._bound_arithmetic_expr(percentiles2, lusc, '/')
+        lower, upper = self.bound_arithmetic_expr(percentiles2, lusc, '/')
         lower, upper = np.maximum(lower, 0.0), np.maximum(upper, 0.0)
         return (lower, upper)
     
