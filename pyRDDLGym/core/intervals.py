@@ -1428,9 +1428,16 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         args = expr.args
         p, = args
         (lp, up) = self._bound(p, intervals)
+        lp, up = np.maximum(lp, 0), np.maximum(up, 0)   
+        
+        # percentiles of Poisson distribution at lower, upper of rate
         lower_pctl, upper_pctl = self.percentiles
-        lower = np.maximum(stats.poisson.ppf(lower_pctl, lp), 0.0)
-        upper = np.maximum(stats.poisson.ppf(upper_pctl, up), 0.0)
+        lower = stats.poisson.ppf(lower_pctl, lp)
+        upper = stats.poisson.ppf(upper_pctl, up)
+        lower = self._mask_assign(lower, lp <= 0, 0.0)
+        upper = self._mask_assign(upper, up <= 0, 0.0)
+        lower = self._mask_assign(lower, ~np.isfinite(lp), np.inf)
+        upper = self._mask_assign(upper, ~np.isfinite(up), np.inf)
         return (lower, upper)
     
     def _bound_exponential(self, expr, intervals):
@@ -1507,6 +1514,8 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         lower_pctl, upper_pctl = self.percentiles
         lower = stats.t.ppf(lower_pctl, df=ld)
         upper = stats.t.ppf(upper_pctl, df=ld)
+        lower = self._mask_assign(lower, ld <= 0, -np.inf)
+        upper = self._mask_assign(upper, ld <= 0, +np.inf)
         return (lower, upper)
     
     def _bound_gumbel(self, expr, intervals):
