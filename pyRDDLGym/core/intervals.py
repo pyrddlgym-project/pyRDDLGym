@@ -1485,8 +1485,14 @@ class RDDLIntervalAnalysisPercentile(RDDLIntervalAnalysis):
         raise NotImplementedError("Percentile strategy is not implemented for Beta distribution yet.")
     
     def _bound_geometric(self, expr, intervals):
-        # TODO: implement percentile Geometric interval
-        raise NotImplementedError("Percentile strategy is not implemented for Geometric distribution yet.")
+        args = expr.args
+        p, = args
+        (lp, up) = self._bound(p, intervals)
+        
+        lower_pctl, upper_pctl = self.percentiles
+        lower = stats.geom.ppf(lower_pctl, up)
+        upper = stats.geom.ppf(upper_pctl, lp)
+        return (lower, upper)
     
     def _bound_pareto(self, expr, intervals):
         args = expr.args
