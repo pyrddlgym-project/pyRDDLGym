@@ -115,6 +115,7 @@ class HeatmapVisualizer(BaseViz):
         states = {name: np.full(shape=shape, fill_value=np.nan)
                   for (name, shape) in self._state_shapes.items()}
         for (name, value) in state.items():
+            value = self._model.object_to_index.get(value, value)
             if name not in self._model.variable_params:  # lifted
                 var, objects = RDDLPlanningModel.parse_grounded(name)
                 states[var][self._model.object_indices(objects)] = value
