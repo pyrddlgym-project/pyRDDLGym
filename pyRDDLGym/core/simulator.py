@@ -367,10 +367,18 @@ class RDDLSimulator:
         # update state
         self.state = {}
         for state in rddl.state_fluents:
+            
+            # convert object integer to string representation
+            state_values = subs[state]
+            ptype = self.rddl.variable_ranges[state]
+            if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                state_values = self.rddl.index_to_object_string_array(ptype, state_values)
+
+            # optional grounding of state dictionary
             if keep_tensors:
-                self.state[state] = subs[state]
+                self.state[state] = state_values
             else:
-                self.state.update(rddl.ground_var_with_values(state, subs[state]))
+                self.state.update(rddl.ground_var_with_values(state, state_values))
         
         # update observation
         if self._pomdp:
@@ -409,20 +417,38 @@ class RDDLSimulator:
         # update state
         self.state = {}
         for (state, next_state) in rddl.next_state.items():
+
+            # set state = state' for the next epoch
             subs[state] = subs[next_state]
+
+            # convert object integer to string representation
+            state_values = subs[state]
+            ptype = self.rddl.variable_ranges[state]
+            if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                state_values = self.rddl.index_to_object_string_array(ptype, state_values)
+
+            # optional grounding of state dictionary
             if keep_tensors:
-                self.state[state] = subs[state]
+                self.state[state] = state_values
             else:
-                self.state.update(rddl.ground_var_with_values(state, subs[state]))
+                self.state.update(rddl.ground_var_with_values(state, state_values))
         
         # update observation
         if self._pomdp: 
             obs = {}
             for var in rddl.observ_fluents:
+
+                # convert object integer to string representation
+                obs_values = subs[var]
+                ptype = self.rddl.variable_ranges[var]
+                if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                    obs_values = self.rddl.index_to_object_string_array(ptype, obs_values)
+
+                # optional grounding of observ-fluent dictionary    
                 if keep_tensors:
-                    obs[var] = subs[var]
+                    obs[var] = obs_values
                 else:
-                    obs.update(rddl.ground_var_with_values(var, subs[var]))
+                    obs.update(rddl.ground_var_with_values(var, obs_values))
         else:
             obs = self.state
         

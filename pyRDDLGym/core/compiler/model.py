@@ -583,6 +583,26 @@ class RDDLPlanningModel(metaclass=ABCMeta):
             grounded.update(self.ground_var_with_values(var, values))
         return grounded
     
+    def index_to_object_string_array(self, vtype: str, values: np.ndarray) -> np.ndarray:
+        '''Given an object type and integer values array, returns an array where each
+        element of the values array is replaced by the object string with that index.
+        '''
+
+        # get the objects of the type
+        objects = self.type_to_objects.get(vtype, None)
+        if objects is None:
+            raise RDDLTypeError(f'Type {vtype} is not valid, '
+                                f'must be one of {set(self.type_to_objects.keys())}.')
+        objects = np.asarray(objects)
+        
+        # make sure values is integer type
+        value_type = np.asarray(values).dtype
+        if not np.issubdtype(value_type, np.integer):
+            raise ValueError(f'values must be of integer type, got {value_type}.')
+        
+        # use fancy numpy indexing
+        return objects[values]
+    
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given variable can be assigned the
         list of objects in the given order to its type parameters.
