@@ -256,6 +256,8 @@ class RDDLSimulator:
             new_actions = self.noop_actions.copy()
             for (action, value) in actions.items(): 
                 if action in new_actions:
+                    RDDLSimulator._check_type(
+                        value, np.asarray(new_actions[action]).dtype, action, expr='')
                     new_actions[action] = value
                 else:
                     raise RDDLInvalidActionError(
@@ -269,6 +271,8 @@ class RDDLSimulator:
             for (action, value) in actions.items(): 
                 value = rddl.object_to_index.get(value, value)
                 if action in new_actions:  # no parameters
+                    RDDLSimulator._check_type(
+                        value, np.asarray(new_actions[action]).dtype, action, expr='')
                     new_actions[action] = value
                 else:  # must have parameters
                     var, objects = RDDLPlanningModel.parse_grounded(action)
