@@ -603,6 +603,28 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         # use fancy numpy indexing
         return objects[values]
     
+    def object_string_to_index_array(self, vtype: str, values: np.ndarray) -> np.ndarray:
+        '''Given an object type and string object array, returns an array where each
+        element of the values array is replaced by the index of the object.
+        '''
+
+        # get the objects of the type
+        objects = self.type_to_objects.get(vtype, None)
+        if objects is None:
+            raise RDDLTypeError(f'Type {vtype} is not valid, '
+                                f'must be one of {set(self.type_to_objects.keys())}.')
+        
+        # make sure values is string type
+        values = np.asarray(values)
+        if values.dtype.type is not np.str_:
+            raise ValueError(f'values must of string type, got {values.dtype.type}.')
+        
+        # use fancy numpy indexing
+        result = np.zeros(shape=np.shape(values), dtype=int)
+        for obj in objects:
+            result[values == obj] = self.object_to_index[obj]
+        return result
+    
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given variable can be assigned the
         list of objects in the given order to its type parameters.
