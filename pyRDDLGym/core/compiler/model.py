@@ -620,9 +620,14 @@ class RDDLPlanningModel(metaclass=ABCMeta):
             raise ValueError(f'values must of string type, got {values.dtype.type}.')
         
         # use fancy numpy indexing
-        result = np.zeros(shape=np.shape(values), dtype=int)
+        result = np.full(shape=np.shape(values), fill_value=-1, dtype=int)
         for obj in objects:
             result[values == obj] = self.object_to_index[obj]
+        
+        # check that all values are filled in - those that are not are invalid
+        if np.any(result < 0):
+            raise RDDLInvalidObjectError(
+                f'{set(values[result < 0])} are not valid objects of type <{vtype}>.')
         return result
     
     def is_compatible(self, var: str, objects: List[str]) -> bool:
