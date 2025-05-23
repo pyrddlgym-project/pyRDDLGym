@@ -282,15 +282,15 @@ class RDDLSimulator:
                     raise RDDLInvalidActionError(
                         f'Grounded value specification of action-fluent <{ground_action}> '
                         f'received an array where a scalar value is required.')
-                elif ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                if ptype not in RDDLValueInitializer.NUMPY_TYPES:
                     value = rddl.object_to_index.get(value, value)
                 tensor = sim_actions[action]
                 RDDLSimulator._check_type(value, tensor.dtype, action, expr='')
                 indices = rddl.object_indices(objects)
-                if len(indices) != tensor.ndim:
+                if len(indices) != np.ndim(tensor):
                     raise RDDLInvalidActionError(
                         f'Grounded action-fluent name <{ground_action}> '
-                        f'requires {tensor.ndim} parameters, got {len(indices)}.')
+                        f'requires {np.ndim(tensor)} parameters, got {len(indices)}.')
                 tensor[indices] = value 
             
             # vectorized assignment
