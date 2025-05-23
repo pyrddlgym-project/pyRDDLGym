@@ -213,18 +213,6 @@ class RDDLEnv(gym.Env):
         self._movies = 0
         self.to_render = False
     
-    def _fix_boolean_actions(self, actions):
-        fixed_actions = self._noop_actions.copy()
-        for (var, values) in actions.items():
-            if self._action_ranges.get(var, '') == 'bool':
-                if np.shape(values):
-                    fixed_actions[var] = np.asarray(values, dtype=bool)
-                else:
-                    fixed_actions[var] = bool(values)
-            else:
-                fixed_actions[var] = values
-        return fixed_actions
-
     def step(self, actions: Any) -> Tuple[Any, float, bool, bool, Any]:
         sampler = self.sampler
         
@@ -234,13 +222,13 @@ class RDDLEnv(gym.Env):
                 'current episode has terminated or truncated: please call reset().')
             
         # fix actions and check constraints
-        actions = self._fix_boolean_actions(actions)
-        sampler.check_default_action_count(actions, self.enforce_count_non_bool)
+        sim_actions = sampler.prepare_actions_for_sim(actions)
+        sampler.check_default_action_count(sim_actions, self.enforce_count_non_bool)
         if self.enforce_action_constraints:
-            sampler.check_action_preconditions(actions, silent=False)
+            sampler.check_action_preconditions(sim_actions, silent=False)
         
         # sample next state and reward
-        obs, reward, terminated = sampler.step(actions)
+        obs, reward, terminated = sampler.step(sim_actions)
         self.state = sampler.states
             
         # produce array outputs for vectorized option

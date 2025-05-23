@@ -19,7 +19,7 @@ from pyRDDLGym.core.debug.exception import (
 from pyRDDLGym.core.debug.logger import Logger
 from pyRDDLGym.core.parser.expr import Value
 
-Args = Dict[str, Value]
+Args = Dict[str, Union[Value, np.ndarray]]
 
         
 class RDDLSimulator:
@@ -248,64 +248,78 @@ class RDDLSimulator:
     # main sampling routines
     # ===========================================================================
     
-    def _process_actions(self, actions):
+    def prepare_actions_for_sim(self, actions: Args) -> Args:
+        '''Prepares action dictionary for the vectorized format required by the simulator.'''
         rddl = self.rddl
         
-        # if actions are numpy arrays, just assign directly without copy
-        if self.keep_tensors:
-            new_actions = self.noop_actions.copy()
-            for (action, value) in actions.items(): 
-                if action in new_actions:
-                    RDDLSimulator._check_type(
-                        value, np.asarray(new_actions[action]).dtype, action, expr='')
-                    new_actions[action] = value
-                else:
+        sim_actions = {action: np.copy(value) 
+                       for (action, value) in self.noop_actions.items()}
+        for (action, value) in actions.items(): 
+
+            # get lifted action name
+            objects = []
+            ground_action = action
+            if action not in sim_actions:
+                action, objects = RDDLPlanningModel.parse_grounded(action)
+            
+            # check that the action is valid
+            if action not in sim_actions:
+                raise RDDLInvalidActionError(
+                    f'<{action}> is not a valid action-fluent, ' 
+                    f'must be one of {set(sim_actions.keys())}.')
+            
+            # grounded assignment
+            ptype = rddl.action_ranges[action]
+            if objects:
+                if np.shape(value):
                     raise RDDLInvalidActionError(
-                        f'<{action}> is not a valid action-fluent, ' 
-                        f'must be one of {set(new_actions.keys())}.')
-        
-        # start with the no-op actions, and fill in values from actions
-        else:            
-            new_actions = {action: np.copy(value) 
-                           for (action, value) in self.noop_actions.items()}
-            for (action, value) in actions.items(): 
-                value = rddl.object_to_index.get(value, value)
-                if action in new_actions:  # no parameters
-                    RDDLSimulator._check_type(
-                        value, np.asarray(new_actions[action]).dtype, action, expr='')
-                    new_actions[action] = value
-                else:  # must have parameters
-                    var, objects = RDDLPlanningModel.parse_grounded(action)
-                    tensor = new_actions.get(var, None)
-                    if tensor is None: 
-                        raise RDDLInvalidActionError(
-                            f'<{action}> is not a valid action-fluent, ' 
-                            f'must be one of {set(new_actions.keys())}.')
-                    RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
-                    tensor[rddl.object_indices(objects)] = value     
+                        f'Grounded value specification of action-fluent <{ground_action}> '
+                        f'received an array where a scalar value is required.')
+                if ptype == 'bool':
+                    value = bool(value)
+                elif ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                    value = rddl.object_to_index.get(value, value)
+                tensor = sim_actions[action]
+                RDDLSimulator._check_type(value, tensor.dtype, action, expr='')
+                indices = rddl.object_indices(objects)
+                if len(indices) != tensor.ndim:
+                    raise RDDLInvalidActionError(
+                        f'Grounded action-fluent name <{ground_action}> '
+                        f'requires {tensor.ndim} parameters, got {len(indices)}.')
+                tensor[indices] = value 
+            
+            # vectorized assignment
+            else:
+                tensor = sim_actions[action]
+                if np.shape(value) != np.shape(tensor):
+                    raise RDDLInvalidActionError(
+                        f'Value array for action <{action}> must be of shape '
+                        f'{np.shape(tensor)}, got array of shape {np.shape(value)}.')      
+                if ptype == 'bool' and np.shape(value):
+                    value = np.asarray(value, dtype=bool)
+                if np.asarray(value).dtype.type is np.str_:
+                    value = rddl.object_string_to_index_array(ptype, value)
+                RDDLSimulator._check_type(value, np.asarray(tensor).dtype, action, expr='')
+                sim_actions[action] = value
 
         # check action ranges for enum valued
-        for (action, values) in new_actions.items():
-            ptype = self.rddl.action_ranges[action]
+        for (action, value) in sim_actions.items(): 
+            ptype = rddl.action_ranges[action]
             if ptype not in RDDLValueInitializer.NUMPY_TYPES:
-                max_index = len(self.rddl.type_to_objects[ptype]) - 1
-                values_arr = np.asarray(values)
-                if not np.all((values_arr >= 0) & (values_arr <= max_index)):
+                max_index = len(rddl.type_to_objects[ptype]) - 1
+                value_arr = np.asarray(value)
+                if not np.all((value_arr >= 0) & (value_arr <= max_index)):
                     raise RDDLInvalidActionError(
                         f'Values of action-fluent <{action}> of type <{ptype}> '
                         f'are not valid, must be in the range [0, {max_index}].')
 
-        return new_actions
+        return sim_actions
     
     def check_default_action_count(self, actions: Args, 
                                    enforce_for_non_bool: bool=True) -> None:
         '''Throws an exception if the actions do not satisfy max-nondef-actions.'''     
-        if self.keep_tensors:
-            action_ranges = self.rddl.action_ranges
-            noop_actions = self.noop_actions
-        else:
-            action_ranges = self.grounded_action_ranges
-            noop_actions = self.grounded_noop_actions
+        action_ranges = self.rddl.action_ranges
+        noop_actions = self.noop_actions
             
         total_non_default = 0
         for (var, values) in actions.items():
@@ -348,8 +362,7 @@ class RDDLSimulator:
         return True
     
     def check_action_preconditions(self, actions: Args, silent: bool=False) -> bool:
-        '''Throws an exception if the action preconditions are not satisfied.'''     
-        actions = self._process_actions(actions)
+        '''Throws an exception if the action preconditions are not satisfied.'''  
         self.subs.update(actions)
         
         for (i, precond) in enumerate(self.rddl.preconditions):
@@ -422,7 +435,6 @@ class RDDLSimulator:
         '''
         rddl = self.rddl
         keep_tensors = self.keep_tensors
-        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
