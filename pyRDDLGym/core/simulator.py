@@ -282,7 +282,19 @@ class RDDLSimulator:
                             f'<{action}> is not a valid action-fluent, ' 
                             f'must be one of {set(new_actions.keys())}.')
                     RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
-                    tensor[rddl.object_indices(objects)] = value                
+                    tensor[rddl.object_indices(objects)] = value     
+
+        # check action ranges for enum valued
+        for (action, values) in new_actions.items():
+            ptype = self.rddl.action_ranges[action]
+            if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                max_index = len(self.rddl.type_to_objects[ptype]) - 1
+                values_arr = np.asarray(values)
+                if not np.all((values_arr >= 0) & (values_arr <= max_index)):
+                    raise RDDLInvalidActionError(
+                        f'Values of action-fluent <{action}> of type <{ptype}> '
+                        f'are not valid, must be in the range [0, {max_index}].')
+
         return new_actions
     
     def check_default_action_count(self, actions: Args, 
