@@ -268,15 +268,20 @@ class RDDLSimulator:
                     f'<{action}> is not a valid action-fluent, ' 
                     f'must be one of {set(sim_actions.keys())}.')
             
-            # grounded assignment
+            # boolean fix
             ptype = rddl.action_ranges[action]
+            if ptype == 'bool':
+                if np.shape(value):
+                    value = np.asarray(value, dtype=bool)
+                else:
+                    value = bool(value)
+            
+            # grounded assignment
             if objects:
                 if np.shape(value):
                     raise RDDLInvalidActionError(
                         f'Grounded value specification of action-fluent <{ground_action}> '
                         f'received an array where a scalar value is required.')
-                if ptype == 'bool':
-                    value = bool(value)
                 elif ptype not in RDDLValueInitializer.NUMPY_TYPES:
                     value = rddl.object_to_index.get(value, value)
                 tensor = sim_actions[action]
@@ -295,8 +300,6 @@ class RDDLSimulator:
                     raise RDDLInvalidActionError(
                         f'Value array for action <{action}> must be of shape '
                         f'{np.shape(tensor)}, got array of shape {np.shape(value)}.')      
-                if ptype == 'bool' and np.shape(value):
-                    value = np.asarray(value, dtype=bool)
                 if np.asarray(value).dtype.type is np.str_:
                     value = rddl.object_string_to_index_array(ptype, value)
                 RDDLSimulator._check_type(value, np.asarray(tensor).dtype, action, expr='')
