@@ -19,7 +19,7 @@ from pyRDDLGym.core.debug.exception import (
 from pyRDDLGym.core.debug.logger import Logger
 from pyRDDLGym.core.parser.expr import Value
 
-Args = Dict[str, Value]
+Args = Dict[str, Union[Value, np.ndarray]]
 
         
 class RDDLSimulator:
@@ -28,7 +28,8 @@ class RDDLSimulator:
                  allow_synchronous_state: bool=True,
                  rng: np.random.Generator=np.random.default_rng(),
                  logger: Optional[Logger]=None,
-                 keep_tensors: bool=False) -> None:
+                 keep_tensors: bool=False,
+                 objects_as_strings: bool=True) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param rddl: the RDDL model
@@ -37,12 +38,15 @@ class RDDLSimulator:
         :param logger: to log information about compilation to file
         :param keep_tensors: whether the sampler takes actions and
         returns state in numpy array form
+        :param objects_as_strings: whether to return object values as strings (defaults
+        to integer indices if False)
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
         self.rng = rng
         self.logger = logger
         self.keep_tensors = keep_tensors
+        self.objects_as_strings = objects_as_strings
         
         self._compile()
         
@@ -244,48 +248,81 @@ class RDDLSimulator:
     # main sampling routines
     # ===========================================================================
     
-    def _process_actions(self, actions):
+    def prepare_actions_for_sim(self, actions: Args) -> Args:
+        '''Prepares action dictionary for the vectorized format required by the simulator.'''
         rddl = self.rddl
         
-        # if actions are numpy arrays, just assign directly without copy
-        if self.keep_tensors:
-            new_actions = self.noop_actions.copy()
-            for (action, value) in actions.items(): 
-                if action in new_actions:
-                    new_actions[action] = value
+        sim_actions = {action: np.copy(value) 
+                       for (action, value) in self.noop_actions.items()}
+        for (action, value) in actions.items(): 
+
+            # get lifted action name
+            objects = []
+            ground_action = action
+            if action not in sim_actions:
+                action, objects = RDDLPlanningModel.parse_grounded(action)
+            
+            # check that the action is valid
+            if action not in sim_actions:
+                raise RDDLInvalidActionError(
+                    f'<{action}> is not a valid action-fluent, ' 
+                    f'must be one of {set(sim_actions.keys())}.')
+            
+            # boolean fix
+            ptype = rddl.action_ranges[action]
+            if ptype == 'bool':
+                if np.shape(value):
+                    value = np.asarray(value, dtype=bool)
                 else:
+                    value = bool(value)
+            
+            # grounded assignment
+            if objects:
+                if np.shape(value):
                     raise RDDLInvalidActionError(
-                        f'<{action}> is not a valid action-fluent, ' 
-                        f'must be one of {set(new_actions.keys())}.')
-        
-        # start with the no-op actions, and fill in values from actions
-        else:            
-            new_actions = {action: np.copy(value) 
-                           for (action, value) in self.noop_actions.items()}
-            for (action, value) in actions.items(): 
-                value = rddl.object_to_index.get(value, value)
-                if action in new_actions:  # no parameters
-                    new_actions[action] = value
-                else:  # must have parameters
-                    var, objects = RDDLPlanningModel.parse_grounded(action)
-                    tensor = new_actions.get(var, None)
-                    if tensor is None: 
-                        raise RDDLInvalidActionError(
-                            f'<{action}> is not a valid action-fluent, ' 
-                            f'must be one of {set(new_actions.keys())}.')
-                    RDDLSimulator._check_type(value, tensor.dtype, action, expr='')            
-                    tensor[rddl.object_indices(objects)] = value                
-        return new_actions
+                        f'Grounded value specification of action-fluent <{ground_action}> '
+                        f'received an array where a scalar value is required.')
+                if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                    value = rddl.object_to_index.get(value, value)
+                tensor = sim_actions[action]
+                RDDLSimulator._check_type(value, tensor.dtype, action, expr='')
+                indices = rddl.object_indices(objects)
+                if len(indices) != np.ndim(tensor):
+                    raise RDDLInvalidActionError(
+                        f'Grounded action-fluent name <{ground_action}> '
+                        f'requires {np.ndim(tensor)} parameters, got {len(indices)}.')
+                tensor[indices] = value 
+            
+            # vectorized assignment
+            else:
+                tensor = sim_actions[action]
+                if np.shape(value) != np.shape(tensor):
+                    raise RDDLInvalidActionError(
+                        f'Value array for action <{action}> must be of shape '
+                        f'{np.shape(tensor)}, got array of shape {np.shape(value)}.')      
+                if np.asarray(value).dtype.type is np.str_:
+                    value = rddl.object_string_to_index_array(ptype, value)
+                RDDLSimulator._check_type(value, np.asarray(tensor).dtype, action, expr='')
+                sim_actions[action] = value
+
+        # check action ranges for enum valued
+        for (action, value) in sim_actions.items(): 
+            ptype = rddl.action_ranges[action]
+            if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                max_index = len(rddl.type_to_objects[ptype]) - 1
+                value_arr = np.asarray(value)
+                if not np.all((value_arr >= 0) & (value_arr <= max_index)):
+                    raise RDDLInvalidActionError(
+                        f'Values of action-fluent <{action}> of type <{ptype}> '
+                        f'are not valid, must be in the range [0, {max_index}].')
+
+        return sim_actions
     
     def check_default_action_count(self, actions: Args, 
                                    enforce_for_non_bool: bool=True) -> None:
         '''Throws an exception if the actions do not satisfy max-nondef-actions.'''     
-        if self.keep_tensors:
-            action_ranges = self.rddl.action_ranges
-            noop_actions = self.noop_actions
-        else:
-            action_ranges = self.grounded_action_ranges
-            noop_actions = self.grounded_noop_actions
+        action_ranges = self.rddl.action_ranges
+        noop_actions = self.noop_actions
             
         total_non_default = 0
         for (var, values) in actions.items():
@@ -328,8 +365,7 @@ class RDDLSimulator:
         return True
     
     def check_action_preconditions(self, actions: Args, silent: bool=False) -> bool:
-        '''Throws an exception if the action preconditions are not satisfied.'''     
-        actions = self._process_actions(actions)
+        '''Throws an exception if the action preconditions are not satisfied.'''  
         self.subs.update(actions)
         
         for (i, precond) in enumerate(self.rddl.preconditions):
@@ -367,10 +403,19 @@ class RDDLSimulator:
         # update state
         self.state = {}
         for state in rddl.state_fluents:
+            
+            # convert object integer to string representation
+            state_values = subs[state]
+            if self.objects_as_strings:
+                ptype = rddl.variable_ranges[state]
+                if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                    state_values = rddl.index_to_object_string_array(ptype, state_values)
+
+            # optional grounding of state dictionary
             if keep_tensors:
-                self.state[state] = subs[state]
+                self.state[state] = state_values
             else:
-                self.state.update(rddl.ground_var_with_values(state, subs[state]))
+                self.state.update(rddl.ground_var_with_values(state, state_values))
         
         # update observation
         if self._pomdp:
@@ -393,7 +438,6 @@ class RDDLSimulator:
         '''
         rddl = self.rddl
         keep_tensors = self.keep_tensors
-        actions = self._process_actions(actions)
         subs = self.subs
         subs.update(actions)
         
@@ -409,20 +453,40 @@ class RDDLSimulator:
         # update state
         self.state = {}
         for (state, next_state) in rddl.next_state.items():
+
+            # set state = state' for the next epoch
             subs[state] = subs[next_state]
+
+            # convert object integer to string representation
+            state_values = subs[state]
+            if self.objects_as_strings:
+                ptype = rddl.variable_ranges[state]
+                if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                    state_values = rddl.index_to_object_string_array(ptype, state_values)
+
+            # optional grounding of state dictionary
             if keep_tensors:
-                self.state[state] = subs[state]
+                self.state[state] = state_values
             else:
-                self.state.update(rddl.ground_var_with_values(state, subs[state]))
+                self.state.update(rddl.ground_var_with_values(state, state_values))
         
         # update observation
         if self._pomdp: 
             obs = {}
             for var in rddl.observ_fluents:
+
+                # convert object integer to string representation
+                obs_values = subs[var]
+                if self.objects_as_strings:
+                    ptype = rddl.variable_ranges[var]
+                    if ptype not in RDDLValueInitializer.NUMPY_TYPES:
+                        obs_values = rddl.index_to_object_string_array(ptype, obs_values)
+
+                # optional grounding of observ-fluent dictionary    
                 if keep_tensors:
-                    obs[var] = subs[var]
+                    obs[var] = obs_values
                 else:
-                    obs.update(rddl.ground_var_with_values(var, subs[var]))
+                    obs.update(rddl.ground_var_with_values(var, obs_values))
         else:
             obs = self.state
         
@@ -1309,7 +1373,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
                  levels: Dict[int, Set[str]], 
                  trace_info: object,
                  rng: np.random.Generator=np.random.default_rng(),
-                 keep_tensors: bool=False) -> None:
+                 keep_tensors: bool=False, 
+                 objects_as_strings: bool=True) -> None:
         self.init_values = init_values
         self.levels = levels
         self.traced = trace_info
@@ -1319,7 +1384,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
             allow_synchronous_state=True,
             rng=rng,
             logger=None,
-            keep_tensors=keep_tensors)        
+            keep_tensors=keep_tensors,
+            objects_as_strings=objects_as_strings)        
     
     def _compile(self):
         rddl = self.rddl
