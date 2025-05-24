@@ -1373,7 +1373,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
                  levels: Dict[int, Set[str]], 
                  trace_info: object,
                  rng: np.random.Generator=np.random.default_rng(),
-                 keep_tensors: bool=False) -> None:
+                 keep_tensors: bool=False, 
+                 objects_as_strings: bool=True) -> None:
         self.init_values = init_values
         self.levels = levels
         self.traced = trace_info
@@ -1383,7 +1384,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
             allow_synchronous_state=True,
             rng=rng,
             logger=None,
-            keep_tensors=keep_tensors)        
+            keep_tensors=keep_tensors,
+            objects_as_strings=objects_as_strings)        
     
     def _compile(self):
         rddl = self.rddl
