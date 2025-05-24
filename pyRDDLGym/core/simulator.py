@@ -407,9 +407,9 @@ class RDDLSimulator:
             # convert object integer to string representation
             state_values = subs[state]
             if self.objects_as_strings:
-                ptype = self.rddl.variable_ranges[state]
+                ptype = rddl.variable_ranges[state]
                 if ptype not in RDDLValueInitializer.NUMPY_TYPES:
-                    state_values = self.rddl.index_to_object_string_array(ptype, state_values)
+                    state_values = rddl.index_to_object_string_array(ptype, state_values)
 
             # optional grounding of state dictionary
             if keep_tensors:
@@ -460,9 +460,9 @@ class RDDLSimulator:
             # convert object integer to string representation
             state_values = subs[state]
             if self.objects_as_strings:
-                ptype = self.rddl.variable_ranges[state]
+                ptype = rddl.variable_ranges[state]
                 if ptype not in RDDLValueInitializer.NUMPY_TYPES:
-                    state_values = self.rddl.index_to_object_string_array(ptype, state_values)
+                    state_values = rddl.index_to_object_string_array(ptype, state_values)
 
             # optional grounding of state dictionary
             if keep_tensors:
@@ -478,9 +478,9 @@ class RDDLSimulator:
                 # convert object integer to string representation
                 obs_values = subs[var]
                 if self.objects_as_strings:
-                    ptype = self.rddl.variable_ranges[var]
+                    ptype = rddl.variable_ranges[var]
                     if ptype not in RDDLValueInitializer.NUMPY_TYPES:
-                        obs_values = self.rddl.index_to_object_string_array(ptype, obs_values)
+                        obs_values = rddl.index_to_object_string_array(ptype, obs_values)
 
                 # optional grounding of observ-fluent dictionary    
                 if keep_tensors:
