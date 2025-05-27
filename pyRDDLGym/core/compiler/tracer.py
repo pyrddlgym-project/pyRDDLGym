@@ -297,10 +297,10 @@ class RDDLObjectsTracer:
             # check var is a domain object
             literal = RDDLPlanningModel.strip_literal(var)        
             enum_type = rddl.object_to_type[literal]  
-            if enum_type not in rddl.enum_types:
+            if enum_type not in rddl.type_to_objects:
                 raise RDDLInvalidObjectError(
-                    f'Object <{var}> must be of a domain-defined object type '
-                    f'in {rddl.enum_types}, got type <{enum_type}>. '
+                    f'<{var}> must be of an object type in {rddl.type_to_objects}, '
+                    f'got type <{enum_type}>. '
                     f'Please check expression for <{out._current_root}>.')
             
             # map to canonical index - for pvariable fill an array with it
