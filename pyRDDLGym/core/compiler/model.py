@@ -422,7 +422,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         if objects:
             if len(objects) != 1:
                 raise RDDLInvalidObjectError(
-                    f'Variable {expr} contains multiple fluent separators.')
+                    f'Variable <{expr}> contains multiple fluent separators '
+                    f'{RDDLPlanningModel.FLUENT_SEP}.')
             objects = objects[0].split(RDDLPlanningModel.OBJECT_SEP)
         if is_primed:
             var += PRIME
@@ -461,8 +462,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
             params = self.variable_params.get(name, None)
             if params is not None and not params:
                 raise RDDLInvalidObjectError(
-                    f'Ambiguous reference to object or '
-                    f'parameter-free variable with identical name <{name}>. {msg}')
+                    f'Can not disambiguate reference to object or '
+                    f'pvariable with identical names <{name}>. {msg}')
             return True
         
         # this must be something else...
@@ -598,7 +599,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         # make sure values is integer type
         value_type = np.asarray(values).dtype
         if not np.issubdtype(value_type, np.integer):
-            raise ValueError(f'values must be of integer type, got {value_type}.')
+            raise ValueError(f'Values must be of integer type, '
+                             f'got values of type {value_type}.')
         
         # use fancy numpy indexing
         return objects[values]
@@ -617,7 +619,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         # make sure values is string type
         values = np.asarray(values)
         if values.dtype.type is not np.str_:
-            raise ValueError(f'values must of string type, got {values.dtype.type}.')
+            raise ValueError(f'Values must be of string type, '
+                             f'got values of type {values.dtype.type}.')
         
         # use fancy numpy indexing
         result = np.full(shape=np.shape(values), fill_value=-1, dtype=int)
@@ -793,7 +796,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 objects[name] = ast_objects.get(name, None)
                 if objects[name] is None:
                     raise RDDLInvalidObjectError(
-                        f'Type <{name}> has no object defined in the instance.')
+                        f'Type <{name}> has no objects defined in the instance.')
                 objects[name] = RDDLPlanningModel.strip_literals(objects[name])
                 
             # domain object
@@ -806,7 +809,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 if obj in objects_rev:
                     if objects_rev[obj] == name:
                         raise RDDLInvalidObjectError(
-                            f'Type <{name}> contains duplicated object <{obj}>.')
+                            f'Type <{name}> contains repeated object <{obj}>.')
                     else:
                         raise RDDLInvalidObjectError(
                             f'Types <{name}> and <{objects_rev[obj]}> '
@@ -838,14 +841,14 @@ class RDDLLiftedModel(RDDLPlanningModel):
             # make sure variable is not defined more than once
             if name in var_params:
                 raise RDDLRepeatedVariableError(
-                    f'{pvar.fluent_type} <{name}> has the same name as '
-                    f'another {var_types[name]} variable.')
+                    f'pvariable <{name}> of type {pvar.fluent_type} has the same name as '
+                    f'another pvariable of type {var_types[name]}.')
                 
             # make sure name does not contain separators
             for separator in (RDDLPlanningModel.FLUENT_SEP, RDDLPlanningModel.OBJECT_SEP):
                 if separator in name:
                     raise RDDLInvalidObjectError(
-                        f'Variable name <{name}> contains an '
+                        f'pvariable name <{name}> contains an '
                         f'illegal separator {separator}.')
             
             # record variable type
@@ -902,7 +905,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 default = RDDLPlanningModel.strip_literal(default)
                 if default not in self.type_to_objects.get(prange, set()):
                     raise RDDLTypeError(
-                        f'Default value {default} of variable <{pvar.name}> '
+                        f'Default value <{default}> of pvariable <{pvar.name}> '
                         f'is not an object of type <{prange}>.')                     
             
             # is a primitive
@@ -910,15 +913,14 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 dtype = RDDLPlanningModel.PRIMITIVE_TYPES.get(prange, None)
                 if dtype is None:
                     raise RDDLTypeError(
-                        f'Type <{prange}> of variable <{pvar.name}> is an object '
-                        f'or enumerated type, but assigned a default value '
-                        f'{default}.')
+                        f'Range <{prange}> of pvariable <{pvar.name}> is an object '
+                        f'or enumerated type, but assigned a default value <{default}>.')
                 
                 # type cast
                 if not np.can_cast(np.atleast_1d(default), dtype):
                     raise RDDLTypeError(
-                        f'Default value {default} of variable <{pvar.name}> '
-                        f'cannot be cast to required type <{prange}>.')
+                        f'Default value <{default}> of pvariable <{pvar.name}> '
+                        f'can not be cast to required type <{prange}>.')
                 default = dtype(default)
             
         return default
@@ -968,12 +970,12 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 if value_type != required_type:
                     if value_type is None:
                         raise RDDLInvalidObjectError(
-                            f'State-fluent <{name}> of type <{required_type}> '
+                            f'State-fluent <{name}> of range <{required_type}> '
                             f'is initialized in init-state block with undefined '
                             f'object <{value}>.')
                     else:
                         raise RDDLInvalidObjectError(
-                            f'State-fluent <{name}> of type <{required_type}> '
+                            f'State-fluent <{name}> of range <{required_type}> '
                             f'is initialized in init-state block with object '
                             f'<{value}> of type {value_type}.')
                         
@@ -1025,12 +1027,12 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 if value_type != required_type:
                     if value_type is None:
                         raise RDDLInvalidObjectError(
-                            f'Non-fluent <{name}> of type <{required_type}> '
+                            f'Non-fluent <{name}> of range <{required_type}> '
                             f'is initialized in non-fluents block with '
                             f'undefined object <{value}>.')
                     else:
                         raise RDDLInvalidObjectError(
-                            f'Non-fluent <{name}> of type <{required_type}> '
+                            f'Non-fluent <{name}> of range <{required_type}> '
                             f'is initialized in non-fluents block with object '
                             f'<{value}> of type <{value_type}>.')
                         
@@ -1086,13 +1088,12 @@ class RDDLLiftedModel(RDDLPlanningModel):
             types = self.variable_params.get(name, None)
             if types is None:
                 raise RDDLUndefinedCPFError(
-                    f'CPF <{name}> is not defined in pvariable block.')
+                    f'CPF <{name}> is not declared in pvariables block.')
             
             # make sure the CPF is not defined multiple times
             if name in cpfs:
                 raise RDDLInvalidExpressionError(
-                    f'Expression for CPF <{name}> is defined more than once '
-                    'in the domain.')
+                    f'Expression for CPF <{name}> is repeated in cpfs block.')
                 
             # make sure the number of parameters matches that in cpfs {...}
             if objects is None:
@@ -1123,7 +1124,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                                'next-state-fluent', 'observ-fluent'} \
             and var not in cpfs:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{var}> is not defined in cpfs block.')
+                    f'CPF <{var}> of type {fluent_type} is not defined in cpfs block.')
                     
         self.cpfs = cpfs
     

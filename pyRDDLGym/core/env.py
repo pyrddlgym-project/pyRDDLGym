@@ -184,8 +184,8 @@ class RDDLEnv(gym.Env):
             # unknown type
             else:
                 raise RDDLTypeError(
-                    f'Type <{prange}> of fluent <{var}> is not valid, '
-                    f'must be an enumerated or primitive type (real, int, bool).')
+                    f'Range <{prange}> of fluent <{var}> is not valid, '
+                    f'must be an enumerated or primitive type.')
                 
         return result
     
@@ -205,7 +205,7 @@ class RDDLEnv(gym.Env):
                 viz = self.VISUALIZER_CLASSES.get(viz.lower(), None)
                 if viz is None:
                     raise ValueError(
-                        f'Visualizer type {viz} is invalid, '
+                        f'Visualizer type <{viz}> is invalid, '
                         f'must be one of {list(self.VISUALIZER_CLASSES.keys())}')
             self._visualizer = viz(self.model, **viz_kwargs)
         self._movie_generator = movie_gen

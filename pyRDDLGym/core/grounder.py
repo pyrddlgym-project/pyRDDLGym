@@ -218,8 +218,9 @@ class RDDLGrounder(BaseRDDLGrounder):
             for g in grounded:
                 if g in self.variable_types:
                     raise RDDLRepeatedVariableError(
-                        f'{pvariable.fluent_type} <{g}> has the same name as '
-                        f'another pvariable {self.variable_types[g]}.')
+                        f'pvariable <{g}> of type {pvariable.fluent_type} '
+                        f'has the same name as another pvariable '
+                        f'of type {self.variable_types[g]}.')
                 primed_g = (g + PRIME) if pvariable.is_state_fluent() else g
                 self.variable_types[g] = pvariable.fluent_type
                 if pvariable.is_state_fluent():

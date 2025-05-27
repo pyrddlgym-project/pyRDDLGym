@@ -298,7 +298,7 @@ class RDDLSimulator:
                 tensor = sim_actions[action]
                 if np.shape(value) != np.shape(tensor):
                     raise RDDLInvalidActionError(
-                        f'Value array for action <{action}> must be of shape '
+                        f'Value array for action-fluent <{action}> must be of shape '
                         f'{np.shape(tensor)}, got array of shape {np.shape(value)}.')      
                 if np.asarray(value).dtype.type is np.str_:
                     value = rddl.object_string_to_index_array(ptype, value)
@@ -331,14 +331,14 @@ class RDDLSimulator:
             prange = action_ranges.get(var, None)
             if prange is None:
                 raise RDDLInvalidActionError(
-                    f'<{var}> is not a valid action fluent, '
+                    f'<{var}> is not a valid action-fluent, '
                     f'must be one of {set(action_ranges.keys())}.')
             
             # check that action shape is valid
             default_values = noop_actions[var]
             if np.shape(values) != np.shape(default_values):
                 raise RDDLInvalidActionError(
-                    f'Value array for action <{var}> must be of shape '
+                    f'Value array for action-fluent <{var}> must be of shape '
                     f'{np.shape(default_values)}, got array of shape '
                     f'{np.shape(values)}.')
             
@@ -596,7 +596,7 @@ class RDDLSimulator:
                     return numpy_op(sample_lhs, sample_rhs)
                 except:
                     raise ArithmeticError(
-                        f'Cannot evaluate arithmetic operation {op} '
+                        f'Can not evaluate arithmetic operation {op} '
                         f'at {sample_lhs} and {sample_rhs}.\n' + 
                         print_stack_trace(expr))
         
@@ -786,7 +786,7 @@ class RDDLSimulator:
                 return unary_op(sample)
             except:
                 raise ArithmeticError(
-                    f'Cannot evaluate unary function {name} at {sample}.\n' + 
+                    f'Can not evaluate unary function {name} at {sample}.\n' + 
                     print_stack_trace(expr))
         
         # binary function
@@ -805,7 +805,7 @@ class RDDLSimulator:
                 return binary_op(sample_lhs, sample_rhs)
             except:
                 raise ArithmeticError(
-                    f'Cannot evaluate binary function {name} at '
+                    f'Can not evaluate binary function {name} at '
                     f'{sample_lhs} and {sample_rhs}.\n' + print_stack_trace(expr))
         
         raise RDDLNotImplementedError(
