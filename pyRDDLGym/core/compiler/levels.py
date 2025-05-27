@@ -106,7 +106,7 @@ class RDDLLevelAnalysis:
             
             # objects are ignored
             elif not pvars and rddl.is_object(
-                name, f'Please check expression for CPF {cpf}.'): 
+                name, f'Please check expression for CPF <{cpf}>.'): 
                 pass
             
             # variable defined in pvariables {..} scope
@@ -163,13 +163,15 @@ class RDDLLevelAnalysis:
                 # completely illegal dependency
                 if dep_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES[cpf_type]:
                     raise RDDLInvalidDependencyInCPFError(
-                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>.') 
+                        f'CPF <{cpf}> of type {cpf_type} '
+                        f'can not depend on variable <{dep}> of type {dep_type}.') 
                 
                 # s' cannot depend on s' if allow_synchronous_state = False
                 elif not self.allow_synchronous_state \
                 and cpf_type == dep_type == 'next-state-fluent':
                     raise RDDLInvalidDependencyInCPFError(
-                        f'{cpf_type} <{cpf}> cannot depend on {dep_type} <{dep}>, '
+                        f'CPF <{cpf}> of type {cpf_type} '
+                        f'can not depend on variable <{dep}> of type {dep_type}, '
                         f'set allow_synchronous_state=True to allow this.')                
     
     def _validate_cpf_definitions(self, graph):
@@ -181,8 +183,7 @@ class RDDLLevelAnalysis:
             if fluent_type in RDDLLevelAnalysis.VALID_DEPENDENCIES \
             and cpf not in graph:
                 raise RDDLMissingCPFDefinitionError(
-                    f'{fluent_type} CPF <{cpf}> is not defined '
-                    f'in cpfs {{...}} block.')
+                    f'CPF <{cpf}> of type {fluent_type} is not defined in cpfs block.')
                     
     # ===========================================================================
     # topological sort
@@ -254,7 +255,7 @@ def _sort_variables(order, graph, var, unmarked, temp):
     elif var in temp:
         cycle = ', '.join(temp)
         raise RDDLInvalidDependencyInCPFError(
-            f'Cyclic dependency detected among CPFs {{{cycle}}}.')
+            f'Cyclic dependency detected within CPFs {{{cycle}}}.')
         
     # recursively sort all variables on which var depends
     else: 

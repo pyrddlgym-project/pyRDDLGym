@@ -178,7 +178,7 @@ class RDDLObjectsTracer:
                 if (cpf_range in rddl.enum_types and expr_range != cpf_range) \
                 or (cpf_range not in rddl.type_to_objects and expr_range is not None):
                     raise RDDLTypeError(
-                        f'CPF <{cpf}> expression expects type <{cpf_range}>, '
+                        f'CPF <{cpf}> expression expects expression of type <{cpf_range}>, '
                         f'got expression of type <{expr_range}>.\n' + 
                         PST(expr, out._current_root))
 
@@ -721,7 +721,7 @@ class RDDLObjectsTracer:
         enum_type = rddl.variable_ranges.get(var, None)
         if enum_type not in rddl.enum_types:
             raise RDDLTypeError(
-                f'Type <{enum_type}> of switch predicate <{var}> is not a '
+                f'Range <{enum_type}> of switch predicate <{var}> is not a '
                 f'domain-defined object, must be one of {rddl.enum_types}.\n' + 
                 PST(expr, out._current_root))
             
@@ -738,7 +738,7 @@ class RDDLObjectsTracer:
         # check for duplicated cases
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                'Duplicated literal or default case(s).\n' + 
+                'Repeated literal or default case(s).\n' + 
                 PST(expr, out._current_root))
         
         # order cases by canonical ordering of objects
@@ -755,7 +755,7 @@ class RDDLObjectsTracer:
         obj_types = set(map(out.cached_object_type, case_dict.values()))
         if len(obj_types) != 1:
             raise RDDLTypeError(
-                f'Case expressions in switch statement cannot produce values '
+                f'Case expressions in switch statement can not produce values '
                 f'of different object types {obj_types}\n' + 
                 PST(expr, out._current_root))    
                                 
@@ -770,7 +770,7 @@ class RDDLObjectsTracer:
         for _case in case_dict:
             if _case != 'default' and rddl.object_to_type.get(_case, None) != enum_type:
                 raise RDDLInvalidObjectError(
-                    f'Object <{_case}> does not belong to type <{enum_type}>, '
+                    f'Object <{_case}> is not an object of type <{enum_type}>, '
                     f'must be one of {set(enum_values)}.\n' + 
                     PST(expr, out._current_root))
         
@@ -834,7 +834,7 @@ class RDDLObjectsTracer:
         # no duplicate cases are allowed
         if len(case_dict) != len(cases):
             raise RDDLInvalidNumberOfArgumentsError(
-                'Duplicated literal or default case(s).\n' + 
+                'Repeated literal or default case(s).\n' + 
                 PST(expr, out._current_root))
         
         # no default cases are allowed
@@ -937,7 +937,7 @@ class RDDLObjectsTracer:
         sample_pvar_set = set(sample_pvars)
         if len(sample_pvar_set) != len(sample_pvars):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Sampling parameter(s) {sample_pvars} of {op} are duplicated.\n' + 
+                f'Sampling parameter(s) {sample_pvars} of {op} are repeated.\n' + 
                 PST(expr, out._current_root))
         
         # sample_pvars are excluded when tracing arguments (e.g., mean)

@@ -75,9 +75,9 @@ class RDDLValueInitializer:
             dtype = RDDLValueInitializer.NUMPY_TYPES.get(prange, None)
             if default is None or dtype is None:
                 raise RDDLTypeError(
-                    f'Type <{prange}> of variable <{var}> is not valid, '
-                    f'must be either an enumerated type in '
-                    f'{rddl.enum_types} or an object type in '
+                    f'Range <{prange}> of pvariable <{var}> is not valid, '
+                    f'must be an enumerated type in {rddl.enum_types} '
+                    f'or a numeric type in '
                     f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
                         
             # convert a parameterized variable to dimensioned numpy array
@@ -95,8 +95,8 @@ class RDDLValueInitializer:
                     # cast to the required type
                     if not np.can_cast(values, dtype):
                         raise RDDLTypeError(
-                            f'Initial values {values} for variable <{var}> '
-                            f'cannot all be cast to required type <{prange}>.')
+                            f'Initial values {values} of pvariable <{var}> '
+                            f'can not all be cast to required type <{prange}>.')
                     values = np.asarray(values, dtype=dtype)
             
             # convert scalar variable to scalar numpy array
@@ -105,8 +105,8 @@ class RDDLValueInitializer:
                 if isinstance(values, str) \
                 or not np.can_cast(np.atleast_1d(values), dtype):
                     raise RDDLTypeError(
-                        f'Initial value {values} for variable <{var}> '
-                        f'cannot be cast to required type <{prange}>.')
+                        f'Initial values {values} of pvariable <{var}> '
+                        f'can not all be cast to required type <{prange}>.')
                 values = dtype(values)         
                        
             np_init_values[var] = values
@@ -136,7 +136,7 @@ class RDDLValueInitializer:
             if obj is not None:
                 if self.rddl.object_to_type.get(obj, None) != prange:
                     raise RDDLInvalidObjectError(
-                        f'<{obj}> assigned to pvariable <{var}> in instance '
+                        f'Value <{obj}> assigned to pvariable <{var}> in instance '
                         f'is not an object of type <{prange}>.')
                 indices[i] = self.rddl.object_to_index[obj]
                 
