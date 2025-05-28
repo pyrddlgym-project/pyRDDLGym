@@ -1001,7 +1001,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                         raise RDDLInvalidObjectError(
                             f'State-fluent <{name}> of range <{required_type}> '
                             f'is initialized in init-state block with object '
-                            f'<{value}> of type {value_type}.')
+                            f'<{value}> of type <{value_type}>.')
             
             # make sure no duplication
             if gname in already_set:
