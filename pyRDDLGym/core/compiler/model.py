@@ -942,7 +942,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                     index = values.index(None)
                     raise RDDLUndefinedVariableError(
                         f'pvariable <{name}> does not have a default value and '
-                        f'no initial value for {params[index]}.')
+                        f'no initial value for <{params[index]}>.')
                 else:
                     raise RDDLUndefinedVariableError(
                         f'pvariable <{name}> does not have a default value and '
