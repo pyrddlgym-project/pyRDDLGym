@@ -68,6 +68,15 @@ class RDDLValueInitializer:
             
             # domain objects are treated as int
             if prange in rddl.type_to_objects:
+
+                # do not allow default statements for non-enum types
+                if prange not in rddl.enum_types \
+                and rddl.variable_defaults.get(var, None) is not None:
+                    raise RDDLTypeError(
+                        f'Setting a default value for pvariable <{var}> of range <{prange}> '
+                        f'would require a concrete object '
+                        f'that can not be specified in the domain, '
+                        f'please specify initial value(s) in the instance.')
                 prange = 'int'
             
             # get default value and dtype

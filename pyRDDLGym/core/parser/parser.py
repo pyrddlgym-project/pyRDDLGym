@@ -382,17 +382,23 @@ class RDDLParser(object):
 
     def p_nonfluent_def(self, p):
         #    0                1    2          3        4         5    6          7   8           9           10         11
-        '''nonfluent_def : IDENT param_list LCURLY NON_FLUENT COMMA type_spec COMMA DEFAULT ASSIGN_EQUAL range_const RCURLY SEMI'''
+        '''nonfluent_def : IDENT param_list LCURLY NON_FLUENT COMMA type_spec COMMA DEFAULT ASSIGN_EQUAL range_const RCURLY SEMI
+                         | IDENT param_list LCURLY NON_FLUENT COMMA type_spec RCURLY SEMI'''
         # print("here")
         if len(p) == 13:
             p[0] = PVariable(name=p[1], fluent_type='non-fluent', range_type=p[6], param_types=p[2], default=p[10])
+        elif len(p) == 9:
+            p[0] = PVariable(name=p[1], fluent_type='non-fluent', range_type=p[6], param_types=p[2], default=None)
         else:
             p[0] = PVariable(name=p[1], fluent_type='non-fluent', range_type=p[6], default=p[10])
 
     def p_statefluent_def(self, p):
-        '''statefluent_def : IDENT param_list LCURLY STATE COMMA type_spec COMMA DEFAULT ASSIGN_EQUAL range_const RCURLY SEMI'''
+        '''statefluent_def : IDENT param_list LCURLY STATE COMMA type_spec COMMA DEFAULT ASSIGN_EQUAL range_const RCURLY SEMI
+                           | IDENT param_list LCURLY STATE COMMA type_spec RCURLY SEMI'''
         if len(p) == 13:
             p[0] = PVariable(name=p[1], fluent_type='state-fluent', range_type=p[6], param_types=p[2], default=p[10])
+        elif len(p) == 9:
+            p[0] = PVariable(name=p[1], fluent_type='state-fluent', range_type=p[6], param_types=p[2], default=None)
         else:
             p[0] = PVariable(name=p[1], fluent_type='state-fluent', range_type=p[6], default=p[10])
 
