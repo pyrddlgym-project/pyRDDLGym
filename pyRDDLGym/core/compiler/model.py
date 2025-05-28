@@ -10,6 +10,7 @@ from pyRDDLGym.core.debug.exception import (
     RDDLInvalidNumberOfArgumentsError,
     RDDLInvalidObjectError,
     RDDLMissingCPFDefinitionError,
+    RDDLNotImplementedError,
     RDDLRepeatedVariableError,
     RDDLTypeError,
     RDDLUndefinedCPFError,
@@ -900,6 +901,13 @@ class RDDLLiftedModel(RDDLPlanningModel):
         prange, default = pvar.range, pvar.default
         if default is not None:
             
+            # do not allow object action fluents
+            if pvar.is_action_fluent() \
+                and prange not in RDDLPlanningModel.PRIMITIVE_TYPES \
+                and prange not in self.enum_types:
+                raise RDDLNotImplementedError(
+                    f'Object-valued action-fluents <{pvar.name}> are not currently supported.')      
+
             # is an object
             if isinstance(default, str):
                 default = RDDLPlanningModel.strip_literal(default)
@@ -925,6 +933,21 @@ class RDDLLiftedModel(RDDLPlanningModel):
             
         return default
     
+    def _validate_initial_values(self, values_dict):
+        for (name, values) in values_dict.items():
+            if values is None \
+            or (isinstance(values, (tuple, list, set)) and None in values):
+                if self.variable_params[name]:
+                    params = self.variable_groundings[name]
+                    index = values.index(None)
+                    raise RDDLUndefinedVariableError(
+                        f'pvariable <{name}> does not have a default value and '
+                        f'no initial value for {params[index]}.')
+                else:
+                    raise RDDLUndefinedVariableError(
+                        f'pvariable <{name}> does not have a default value and '
+                        f'no initial value.')
+
     def _extract_states(self):
         PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         
@@ -978,13 +1001,14 @@ class RDDLLiftedModel(RDDLPlanningModel):
                             f'State-fluent <{name}> of range <{required_type}> '
                             f'is initialized in init-state block with object '
                             f'<{value}> of type {value_type}.')
-                        
+
             grounded_states[gname] = value
         
         self.state_fluents = self._grounded_dict_to_dict_of_list(states)  
         self.state_ranges = statesranges   
         self.next_state = nextstates
         self.prev_state = prevstates
+        self._validate_initial_values(self.state_fluents)
     
     def _extract_non_fluents(self):
         
@@ -1039,6 +1063,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
             grounded_names[gname] = value
                                         
         self.non_fluents = self._grounded_dict_to_dict_of_list(non_fluents)
+        self._validate_initial_values(self.non_fluents)
     
     def _value_list_or_scalar_from_default(self, pvar):
         default = self.variable_defaults[pvar.name]
