@@ -17,6 +17,7 @@ A Python toolkit for auto-generation of OpenAI Gym environments from Relational 
 This is currently the official parser, simulator and evaluation system for RDDL in Python, with new features and enhancements to the RDDL language.<br />
 
 <p align="middle">
+<img src="Images/acrobot.gif" width="120" height="120" margin=0/>
 <img src="Images/cartpole.gif" width="120" height="120" margin=0/>
 <img src="Images/drones.gif" width="120" height="120" margin=0/>
 <img src="Images/elevators.gif" width="120" height="120" margin=0/>
@@ -33,7 +34,6 @@ This is currently the official parser, simulator and evaluation system for RDDL 
 <img src="Images/reservoir.gif" width="120" height="120" margin=0/>
 <img src="Images/rovers.gif" width="120" height="120" margin=0/>
 <img src="Images/traffic.gif" width="120" height="120" margin=0/>
-<img src="Images/uav.gif" width="120" height="120" margin=0/>
 <img src="Images/wildfire.gif" width="120" height="120" margin=0/>
 </p>
 
