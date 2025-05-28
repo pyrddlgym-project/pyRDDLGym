@@ -965,7 +965,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 
         # update the state values with the values in the instance
         init_state_info = getattr(self.ast.instance, 'init_state', [])
-        already_set = set()
+        already_set = {}
         for ((name, params), value) in init_state_info:
                 
             # check whether name is a valid state-fluent
@@ -1004,12 +1004,12 @@ class RDDLLiftedModel(RDDLPlanningModel):
                             f'<{value}> of type <{value_type}>.')
             
             # make sure no duplication
-            if gname in already_set:
+            if gname in already_set and already_set[gname] != value:
                 raise RDDLRepeatedVariableError(
-                    f'Initial values of state-fluent <{gname}> '
-                    f'are assigned more than once in the instance.')
+                    f'Multiple distinct initial values assigned to state-fluent <{gname}> '
+                    f'in the instance.')
             else:
-                already_set.add(gname)
+                already_set[gname] = value
 
             grounded_states[gname] = value
         
@@ -1032,7 +1032,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
         
         # update non-fluent values with the values in the instance
         non_fluent_info = getattr(self.ast.non_fluents, 'init_non_fluent', [])
-        already_set = set()
+        already_set = {}
         for ((name, params), value) in non_fluent_info:
                 
             # check whether name is a valid non-fluent
@@ -1071,12 +1071,12 @@ class RDDLLiftedModel(RDDLPlanningModel):
                             f'<{value}> of type <{value_type}>.')
                         
             # make sure no duplication
-            if gname in already_set:
+            if gname in already_set and already_set[gname] != value:
                 raise RDDLRepeatedVariableError(
-                    f'Initial values of non-fluent <{gname}> '
-                    f'are assigned more than once in the instance.')
+                    f'Multiple distinct initial values assigned to non-fluent <{gname}> '
+                    f'in the instance.')
             else:
-                already_set.add(gname)
+                already_set[gname] = value
 
             grounded_names[gname] = value
                                         
