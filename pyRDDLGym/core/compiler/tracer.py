@@ -297,9 +297,9 @@ class RDDLObjectsTracer:
             # check var is a domain object
             literal = RDDLPlanningModel.strip_literal(var)        
             enum_type = rddl.object_to_type[literal]  
-            if enum_type not in rddl.type_to_objects:
+            if enum_type not in rddl.enum_types:
                 raise RDDLInvalidObjectError(
-                    f'<{var}> must be of an object type in {rddl.type_to_objects}, '
+                    f'<{var}> must be of an enumerated type in {rddl.enum_types}, '
                     f'got type <{enum_type}>. '
                     f'Please check expression for <{out._current_root}>.')
             
@@ -430,6 +430,13 @@ class RDDLObjectsTracer:
                         f'of type <{args_types[i]}>, got <{arg}> '
                         f'of type <{enum_type}>.\n' + PST(expr, out._current_root))
                 
+                # only allow enumerated types as literals
+                if enum_type not in rddl.enum_types:
+                    raise RDDLInvalidObjectError(
+                        f'Argument {i + 1} of variable <{var}> '
+                        f'must be of an enumerated type in {rddl.enum_types}, '
+                        f'got type <{enum_type}>.\n' + PST(expr, out._current_root))
+
                 # extract value at current dimension at object's canonical index
                 slices[i] = rddl.object_to_index[literal]
                 do_slice = True
@@ -721,8 +728,8 @@ class RDDLObjectsTracer:
         enum_type = rddl.variable_ranges.get(var, None)
         if enum_type not in rddl.enum_types:
             raise RDDLTypeError(
-                f'Range <{enum_type}> of switch predicate <{var}> is not a '
-                f'domain-defined object, must be one of {rddl.enum_types}.\n' + 
+                f'Range <{enum_type}> of switch predicate <{var}> is not an '
+                f'enumerated type, must be one of {rddl.enum_types}.\n' + 
                 PST(expr, out._current_root))
             
         # default statement becomes ("default", expr)
@@ -822,8 +829,8 @@ class RDDLObjectsTracer:
         # object type must be a valid domain object type
         if enum_type not in rddl.enum_types:
             raise RDDLTypeError(
-                f'Type <{enum_type}> in Discrete distribution is not a '
-                f'domain-defined object, must be one of {rddl.enum_types}.\n' + 
+                f'Type <{enum_type}> in Discrete distribution is not an '
+                f'enumerated type, must be one of {rddl.enum_types}.\n' + 
                 PST(expr, out._current_root))        
         case_dict = dict(case_tup for (_, case_tup) in cases) 
         
