@@ -397,11 +397,13 @@ class RDDLGrounder(BaseRDDLGrounder):
         """Ground out a pvar expression."""
         if expr.args[1] is None:
             # This is a constant: should really be etype = constant in parsed tree.
-            if RDDLGroundedModel.is_free_object(expr.args[0]) \
-            or expr.args[0][0] == '@':
-                raise RDDLNotImplementedError(
-                    f'Free parameter <{expr.args[0]}> outside the scope of '
-                    f'a pvariable can not currently be grounded.')
+            if RDDLGroundedModel.is_free_object(expr.args[0]) or expr.args[0][0] == '@':
+                arg = RDDLGroundedModel.strip_literal(expr.args[0])
+                ptype = self.objects_rev.get(arg, None)
+                if ptype not in self.enum_types:
+                    raise RDDLNotImplementedError(
+                        f'Free parameter <{expr.args[0]}> outside the scope of '
+                        f'a pvariable can not currently be grounded.')
             pass
         elif expr.args[1]:
             variation_list = []
