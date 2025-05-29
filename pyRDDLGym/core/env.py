@@ -152,7 +152,7 @@ class RDDLEnv(gym.Env):
             shape = self._shapes[var]
             
             # enumerated values converted to Discrete space
-            if prange in self.model.enum_types:
+            if prange in self.model.type_to_objects:
                 num_objects = len(self.model.type_to_objects[prange])
                 if self.vectorized:
                     result[var] = Box(0, num_objects - 1, shape=shape, dtype=np.int32)
