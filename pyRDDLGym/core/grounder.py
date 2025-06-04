@@ -101,7 +101,13 @@ class RDDLGrounder(BaseRDDLGrounder):
         model.object_to_type = {}
         model.object_to_index = {}
         model.enum_types = set()
-        
+        for ptype in self.enum_types:
+            model.type_to_objects[ptype] = self.objects[ptype]
+            for (i, obj) in enumerate(self.objects[ptype]):
+                model.object_to_type[obj] = ptype
+                model.object_to_index[obj] = i
+            model.enum_types.add(ptype)
+
         model.variable_types = self.variable_types
         model.variable_ranges = self.variable_ranges
         model.variable_params = self.variable_params
@@ -221,6 +227,11 @@ class RDDLGrounder(BaseRDDLGrounder):
                         f'pvariable <{g}> of type {pvariable.fluent_type} '
                         f'has the same name as another pvariable '
                         f'of type {self.variable_types[g]}.')
+                if pvariable.range in self.objects \
+                and pvariable.range not in self.enum_types:
+                    raise RDDLNotImplementedError(
+                        f'pvariable of non-enumerated object type <{pvariable.range}> '
+                        f'can not currently be grounded.')
                 primed_g = (g + PRIME) if pvariable.is_state_fluent() else g
                 self.variable_types[g] = pvariable.fluent_type
                 if pvariable.is_state_fluent():
@@ -386,13 +397,13 @@ class RDDLGrounder(BaseRDDLGrounder):
         """Ground out a pvar expression."""
         if expr.args[1] is None:
             # This is a constant: should really be etype = constant in parsed tree.
-            if RDDLGroundedModel.is_free_object(expr.args[0]) \
-            or expr.args[0][0] == '@':
-                raise RDDLNotImplementedError(
-                    f'Free parameter <{expr.args[0]}> outside the scope of '
-                    'a pvariable cannot currently be grounded: '
-                    'grounder only supports a limited subset of '
-                    'RDDL grammar at this stage.')
+            if RDDLGroundedModel.is_free_object(expr.args[0]) or expr.args[0][0] == '@':
+                arg = RDDLGroundedModel.strip_literal(expr.args[0])
+                ptype = self.objects_rev.get(arg, None)
+                if ptype not in self.enum_types:
+                    raise RDDLNotImplementedError(
+                        f'Free parameter <{expr.args[0]}> outside the scope of '
+                        f'a pvariable can not currently be grounded.')
             pass
         elif expr.args[1]:
             variation_list = []
@@ -406,9 +417,7 @@ class RDDLGrounder(BaseRDDLGrounder):
                 else:
                     if isinstance(arg, Expression):
                         raise RDDLNotImplementedError(
-                            'Nested pvariables cannot currently be grounded: '
-                            'grounder only supports a limited subset of '
-                            'RDDL grammar at this stage.')
+                            'Nested pvariables can not currently be grounded.')
                     elif arg not in dic:                       
                         raise RDDLUndefinedVariableError(
                             f'Parameter <{arg}> is not defined in call to <{expr.args[0]}>.')
@@ -429,9 +438,7 @@ class RDDLGrounder(BaseRDDLGrounder):
     def _scan_expr_tree_control(self, expr, dic):
         if expr.etype[1] != 'if':
             raise RDDLNotImplementedError(
-                f'Control flow of type <{expr.etype[1]}> cannot currently '
-                f'be grounded: grounder only supports a limited subset of '
-                f'RDDL grammar at this stage.')
+                f'Control flow of type <{expr.etype[1]}> can not currently be grounded.')
         children_list = [
             self._scan_expr_tree(expr.args[0], dic),
             self._scan_expr_tree(expr.args[1], dic),
@@ -442,6 +449,14 @@ class RDDLGrounder(BaseRDDLGrounder):
         return Expression(('if', tuple(children_list)))
 
     def _scan_expr_tree_func(self, expr, dic):
+
+        # not allowed function types
+        etype, op = expr.etype
+        if etype == 'randomvar' \
+        and op in ['Discrete', 'Discrete(p)', 'UnnormDiscrete', 'UnnormDiscrete(p)']:
+            raise RDDLNotImplementedError(
+                f'Random sampling of type <{op}> can not currently be grounded.')
+
         new_children = []
         for child in expr.args:
             new_children.append(self._scan_expr_tree(child, dic))
@@ -503,7 +518,7 @@ class RDDLGrounder(BaseRDDLGrounder):
             return expr
         else:
             raise RDDLNotImplementedError(
-                f'Aggregation operation of type <{aggreg_type}> cannot be grounded, '
+                f'Aggregation operation of type <{aggreg_type}> can not be grounded, '
                 f'must be one of {list(AGGREG_OP_TO_STRING_DICT.keys())}.')
 
     def _scan_expr_tree(self, expr: Expression, dic) -> Expression:
@@ -531,9 +546,7 @@ class RDDLGrounder(BaseRDDLGrounder):
         else:
             if expression_type in {'matrix', 'randomvector'}:
                 raise RDDLNotImplementedError(
-                    f'Operations of type <{expression_type}> cannot currently '
-                    'be grounded: grounder only supports a limited subset of '
-                    'RDDL grammar at this stage.')
+                    f'Operation of type <{expression_type}> can not currently be grounded.')
             new_children = []
             for child in expr.args:
                 new_children.append(self._scan_expr_tree(child, dic))

@@ -58,7 +58,7 @@ class RDDLValueInitializer:
         # domain objects are converted to integers
         for (var, values) in init_values.items():
             prange = rddl.variable_ranges[var]
-            if prange in rddl.enum_types:
+            if prange in rddl.type_to_objects:
                 init_values[var] = self._objects_to_ints(values, prange, var)
         
         # create a tensor for each pvar with the init_values
@@ -67,7 +67,16 @@ class RDDLValueInitializer:
         for (var, prange) in rddl.variable_ranges.items():
             
             # domain objects are treated as int
-            if prange in rddl.enum_types:
+            if prange in rddl.type_to_objects:
+
+                # do not allow default statements for non-enum types
+                if prange not in rddl.enum_types \
+                and rddl.variable_defaults.get(var, None) is not None:
+                    raise RDDLTypeError(
+                        f'Setting a default value for pvariable <{var}> of range <{prange}> '
+                        f'would require a concrete object '
+                        f'that can not be specified in the domain, '
+                        f'please specify initial value(s) in the instance.')
                 prange = 'int'
             
             # get default value and dtype
@@ -76,7 +85,7 @@ class RDDLValueInitializer:
             if default is None or dtype is None:
                 raise RDDLTypeError(
                     f'Range <{prange}> of pvariable <{var}> is not valid, '
-                    f'must be an enumerated type in {rddl.enum_types} '
+                    f'must be an object type in {set(rddl.type_to_objects.keys())} '
                     f'or a numeric type in '
                     f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
                         
