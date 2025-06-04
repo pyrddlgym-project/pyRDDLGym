@@ -69,7 +69,7 @@ To install the pre-release version via git:
 git clone https://github.com/pyRDDLGym-project/pyRDDLGym.git
 ```
 
-Since pyRDDLGym does not come with any premade environments, you can either load RDDL documents from your local file system, or install [rddlrepository](https://github.com/pyrddlgym-project/rddlrepository) for easy access to preexisting domains
+Since pyRDDLGym does not come with any premade environments, you can either load RDDL documents from your local file system, or install [rddlrepository](https://github.com/pyrddlgym-project/rddlrepository) for easy access to preexisting domains:
 
 ```shell
 pip install rddlrepository
@@ -79,35 +79,27 @@ pip install rddlrepository
 
 The best source of pyRDDLGym related examples is the [example gallery of Jupyter notebooks hosted on our documentation site](https://pyrddlgym.readthedocs.io/en/latest/examples.html).
 
-Several [example scripts](https://github.com/pyrddlgym-project/pyRDDLGym/tree/main/pyRDDLGym/examples) are packaged with pyRDDLGym to highlight the core usage:
-* [run_gym.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym.py) launches a pyRDDLGym environment and evaluates a given policy
-* [run_gym2.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym2.py) is similar to the above, except the environment interaction is coded explicitly
+Several example scripts are packaged with pyRDDLGym to highlight the core usage:
+* [run_gym.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym.py) launches a pyRDDLGym environment and evaluates the random policy
+* [run_gym2.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_gym2.py) is similar to the above but illustrates the environment interaction explicitly
 * [run_ground.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_ground.py) illustrates grounding a domain and instance
 * [run_intervals.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_intervals.py) computes lower and upper bounds on the policy value using interval arithmetic
 * [run_server.py](https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/examples/run_server.py) illustrates how to set up pyRDDLGym to send and receive messages through TCP
 
-To simulate an environment for example, from the install directory of pyRDDLGym, type the following into a shell supporting the python command (you need rddlrepository):
-
-```shell
-python -m pyRDDLGym.examples.run_gym "CartPole_Continuous_gym" "0" 1
-```
-
-which loads instance "0" of the CartPole control problem with continuous actions from rddlrepository and simulates it with a random policy for one episode.
-
 ## Usage
 
-This section outlines some of the basic python API functions of pyRDDLGym in more detail.
+This section outlines some of the basic python API functions of pyRDDLGym.
 
 ### Loading an Environment
 
-Instantiation of an existing environment by name is as easy as:
+Instantiation of an existing environment is nearly identical to OpenAI gym (i.e., to load instance 0 of the CartPole domain):
 
 ```python
 import pyRDDLGym
 env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
 ```
 
-Loading your own domain files is just as straightforward
+You can also load your own domain and instance files:
 
 ```python
 import pyRDDLGym
@@ -116,31 +108,11 @@ env = pyRDDLGym.make("/path/to/domain.rddl", "/path/to/instance.rddl")
 
 Both versions above instantiate ``env`` as an OpenAI gym environment, so that the usual ``reset()`` and ``step()`` calls work as intended.
 
-You can also pass custom settings to the make command, i.e.:
+You can also pass custom settings to make (i.e., to validate actions at each step):
 
 ```python
 import pyRDDLGym
 env = pyRDDLGym.make("CartPole_Continuous_gym", "0", enforce_action_constraints=True, ...)
-```
-
-### Creating your Own Visualizer
-
-You can design your own visualizer by subclassing from ``pyRDDLGym.core.visualizer.viz.BaseViz`` and overriding the ``render(state)`` method.
-Then, changing the visualizer of the environment is easy
-
-```python
-viz_class = ...   # the class name of your custom viz
-env.set_visualizer(viz_class)
-```
-
-### Recording Movies
-
-You can record an animated gif or movie of the agent interaction with an environment (described below). To do this, simply pass a ``MovieGenerator`` object to the ``set_visualizer`` method:
-
-```python
-from pyRDDLGym.core.visualizer.movie import MovieGenerator
-movie_gen = MovieGenerator("/path/where/to/save", "env_name")
-env.set_visualizer(viz_class, movie_gen=movie_gen)
 ```
 
 ### Interacting with an Environment
@@ -159,8 +131,8 @@ All agent instances support one-line evaluation in a given environment:
 stats = agent.evaluate(env, episodes=1, verbose=True, render=True)
 ```
 
-which returns a dictionary of summary statistics (e.g. "mean", "std", etc...), and which also visualizes the domain in real time. 
-Of course, if you wish, the standard OpenAI gym interaction is still available to you:
+which returns a dictionary of summary statistics (e.g. "mean", "std", etc...) and also visualizes the interaction in real time. 
+Of course, you can also use a loop as customary in OpenAI gym:
 
 ```python
 total_reward = 0
@@ -169,16 +141,12 @@ for step in range(env.horizon):
     env.render()
     action = agent.sample_action(state)
     next_state, reward, terminated, truncated, _ = env.step(action)
-    print(f'state = {state}, action = {action}, reward = {reward}')
     total_reward += reward
     state = next_state
     done = terminated or truncated
     if done:
         break
-print(f'episode ended with reward {total_reward}')
-
-# release all viz resources, and finish logging if used
-env.close()
+env.close()   # close visualizer and release resources
 ```
 
 > [!NOTE]  
@@ -189,6 +157,29 @@ env.close()
 > There are two known issues not documented with RDDL:
 > 1. the minus (-) arithmetic operation must have spaces on both sides, otherwise there is ambiguity whether it refers to a mathematical operation or to variables
 > 2. aggregation-union-precedence parsing requires for encapsulating parentheses around aggregations, e.g., (sum_{}[]).
+
+### Creating your Own Visualizer
+
+You can design your own visualizer by subclassing ``pyRDDLGym.core.visualizer.viz.BaseViz`` and overriding the ``render(state)`` method.
+Then, changing the visualizer of the environment is easy:
+
+```python
+viz_class = ...   # the class name of your custom viz
+env.set_visualizer(viz_class)
+```
+
+### Recording Movies
+
+You can record an animated gif or movie when interacting with an environment. 
+Simply pass a ``MovieGenerator`` object to the ``set_visualizer`` method:
+
+```python
+from pyRDDLGym.core.visualizer.movie import MovieGenerator
+movie_gen = MovieGenerator("/path/where/to/save", "env_name")
+env.set_visualizer(viz_class, movie_gen=movie_gen)
+
+# continue with normal interaction
+```
 
 ## Status
 
