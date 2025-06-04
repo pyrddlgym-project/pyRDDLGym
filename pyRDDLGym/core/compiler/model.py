@@ -10,6 +10,7 @@ from pyRDDLGym.core.debug.exception import (
     RDDLInvalidNumberOfArgumentsError,
     RDDLInvalidObjectError,
     RDDLMissingCPFDefinitionError,
+    RDDLNotImplementedError,
     RDDLRepeatedVariableError,
     RDDLTypeError,
     RDDLUndefinedCPFError,
@@ -900,6 +901,13 @@ class RDDLLiftedModel(RDDLPlanningModel):
         prange, default = pvar.range, pvar.default
         if default is not None:
             
+            # do not allow object action fluents
+            if pvar.is_action_fluent() \
+                and prange not in RDDLPlanningModel.PRIMITIVE_TYPES \
+                and prange not in self.enum_types:
+                raise RDDLNotImplementedError(
+                    f'Object-valued action-fluents <{pvar.name}> are not currently supported.')      
+
             # is an object
             if isinstance(default, str):
                 default = RDDLPlanningModel.strip_literal(default)
@@ -925,6 +933,21 @@ class RDDLLiftedModel(RDDLPlanningModel):
             
         return default
     
+    def _validate_initial_values(self, values_dict):
+        for (name, values) in values_dict.items():
+            if values is None \
+            or (isinstance(values, (tuple, list, set)) and None in values):
+                if self.variable_params[name]:
+                    params = self.variable_groundings[name]
+                    index = values.index(None)
+                    raise RDDLUndefinedVariableError(
+                        f'pvariable <{name}> does not have a default value and '
+                        f'no initial value for <{params[index]}>.')
+                else:
+                    raise RDDLUndefinedVariableError(
+                        f'pvariable <{name}> does not have a default value and '
+                        f'no initial value.')
+
     def _extract_states(self):
         PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         
@@ -942,6 +965,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 
         # update the state values with the values in the instance
         init_state_info = getattr(self.ast.instance, 'init_state', [])
+        already_set = {}
         for ((name, params), value) in init_state_info:
                 
             # check whether name is a valid state-fluent
@@ -977,14 +1001,23 @@ class RDDLLiftedModel(RDDLPlanningModel):
                         raise RDDLInvalidObjectError(
                             f'State-fluent <{name}> of range <{required_type}> '
                             f'is initialized in init-state block with object '
-                            f'<{value}> of type {value_type}.')
-                        
+                            f'<{value}> of type <{value_type}>.')
+            
+            # make sure no duplication
+            if gname in already_set and already_set[gname] != value:
+                raise RDDLRepeatedVariableError(
+                    f'Multiple distinct initial values assigned to state-fluent <{gname}> '
+                    f'in the instance.')
+            else:
+                already_set[gname] = value
+
             grounded_states[gname] = value
         
         self.state_fluents = self._grounded_dict_to_dict_of_list(states)  
         self.state_ranges = statesranges   
         self.next_state = nextstates
         self.prev_state = prevstates
+        self._validate_initial_values(self.state_fluents)
     
     def _extract_non_fluents(self):
         
@@ -999,6 +1032,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
         
         # update non-fluent values with the values in the instance
         non_fluent_info = getattr(self.ast.non_fluents, 'init_non_fluent', [])
+        already_set = {}
         for ((name, params), value) in non_fluent_info:
                 
             # check whether name is a valid non-fluent
@@ -1036,9 +1070,18 @@ class RDDLLiftedModel(RDDLPlanningModel):
                             f'is initialized in non-fluents block with object '
                             f'<{value}> of type <{value_type}>.')
                         
+            # make sure no duplication
+            if gname in already_set and already_set[gname] != value:
+                raise RDDLRepeatedVariableError(
+                    f'Multiple distinct initial values assigned to non-fluent <{gname}> '
+                    f'in the instance.')
+            else:
+                already_set[gname] = value
+
             grounded_names[gname] = value
                                         
         self.non_fluents = self._grounded_dict_to_dict_of_list(non_fluents)
+        self._validate_initial_values(self.non_fluents)
     
     def _value_list_or_scalar_from_default(self, pvar):
         default = self.variable_defaults[pvar.name]
