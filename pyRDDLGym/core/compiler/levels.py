@@ -1,4 +1,6 @@
-from typing import Dict, Optional, List
+from collections import deque
+
+from typing import Dict, Optional, List, Set
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.debug.exception import (
@@ -233,6 +235,34 @@ class RDDLLevelAnalysis:
                             f'\t{levels_info}\n')
         
         return result
+    
+    # ===========================================================================
+    # reachability analysis
+    # ===========================================================================
+
+    def compute_dependencies(self, include_non_fluents: bool=False) -> Dict[str, Set[str]]:
+        '''Computes all direct/indirect dependencies between fluents for the current RDDL.
+
+        :param include_non_fluents: whether to include non-fluents in call graph
+        '''
+        graph = self.build_call_graph(include_non_fluents=include_non_fluents)
+
+        # compute reachability for given node
+        def bfs(start):
+            queue = deque([start])
+            visited = set([start])
+            while queue:
+                node = queue.popleft()
+                for neighbor in graph.get(node, []):
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        queue.append(neighbor)
+            visited.remove(start)
+            return visited 
+    
+        # compute reachability for all nodes
+        reachability = {node: bfs(node) for node in graph}
+        return reachability
     
 # ===========================================================================
 # helper functions for performing topological sort
