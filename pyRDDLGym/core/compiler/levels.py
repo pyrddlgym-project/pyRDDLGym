@@ -22,18 +22,20 @@ class RDDLLevelAnalysis:
     # this specifies the valid dependencies that can occur between variable types
     # in the RDDL language
     VALID_DEPENDENCIES = {
-        'derived-fluent': {'state-fluent', 'derived-fluent'},
+        'derived-fluent': {'state-fluent', 'derived-fluent', 'non-fluent'},
         'interm-fluent': {'action-fluent', 'state-fluent',
-                          'derived-fluent', 'interm-fluent'},
+                          'derived-fluent', 'interm-fluent', 'non-fluent'},
         'next-state-fluent': {'action-fluent', 'state-fluent',
-                              'derived-fluent', 'interm-fluent', 'next-state-fluent'},
+                              'derived-fluent', 'interm-fluent', 'next-state-fluent', 
+                              'non-fluent'},
         'observ-fluent': {'action-fluent',
-                          'derived-fluent', 'interm-fluent', 'next-state-fluent'},
+                          'derived-fluent', 'interm-fluent', 'next-state-fluent', 
+                          'non-fluent'},
         'reward': {'action-fluent', 'state-fluent',
-                   'derived-fluent', 'interm-fluent', 'next-state-fluent'},
-        'invariant': {'state-fluent'},
-        'precondition': {'state-fluent', 'action-fluent'},
-        'termination': {'state-fluent'}
+                   'derived-fluent', 'interm-fluent', 'next-state-fluent', 'non-fluent'},
+        'invariant': {'state-fluent', 'non-fluent'},
+        'precondition': {'state-fluent', 'action-fluent', 'non-fluent'},
+        'termination': {'state-fluent', 'non-fluent'}
     }
     
     def __init__(self, rddl: RDDLPlanningModel,
@@ -54,18 +56,20 @@ class RDDLLevelAnalysis:
     # call graph construction
     # ===========================================================================
     
-    def build_call_graph(self) -> Dict[str, List[str]]:
+    def build_call_graph(self, include_non_fluents: bool=False) -> Dict[str, List[str]]:
         '''Builds a call graph for the current RDDL, where keys represent parent
         expressions (e.g., CPFs, reward) and values are sets of variables on 
         which each parent depends. Also handles validation of the call graph to
         make sure it follows RDDL rules.
+
+        :param include_non_fluents: whether to include non-fluents in call graph
         '''
         rddl = self.rddl
         
         # compute call graph of CPs and check validity
         cpf_graph = {}
         for (name, (_, expr)) in rddl.cpfs.items():
-            self._update_call_graph(cpf_graph, name, expr)
+            self._update_call_graph(cpf_graph, name, expr, include_non_fluents)
             if name not in cpf_graph:
                 cpf_graph[name] = set()
         self._validate_dependencies(cpf_graph)
@@ -80,7 +84,7 @@ class RDDLLevelAnalysis:
         ):
             call_graph_expr = {}
             for expr in exprs:
-                self._update_call_graph(call_graph_expr, name, expr)
+                self._update_call_graph(call_graph_expr, name, expr, include_non_fluents)
             self._validate_dependencies(call_graph_expr)
         
         # produce reproducible order of graph dependencies
@@ -88,10 +92,10 @@ class RDDLLevelAnalysis:
                      for (name, deps) in cpf_graph.items()}
         return cpf_graph
     
-    def _update_call_graph(self, graph, cpf, expr):
+    def _update_call_graph(self, graph, cpf, expr, nfs):
         if isinstance(expr, (tuple, list, set)):
             for arg in expr:
-                self._update_call_graph(graph, cpf, arg)
+                self._update_call_graph(graph, cpf, arg, nfs)
         
         elif not isinstance(expr, Expression):
             pass
@@ -120,16 +124,16 @@ class RDDLLevelAnalysis:
                         f'expression for CPF <{cpf}>.')
                 
                 # if var is a fluent assign it as dependent of cpf
-                elif var_type != 'non-fluent':
+                elif nfs or var_type != 'non-fluent':
                     graph.setdefault(cpf, set()).add(name)
                 
                 # if a nested fluent
                 if pvars is not None:
-                    self._update_call_graph(graph, cpf, pvars)
+                    self._update_call_graph(graph, cpf, pvars, nfs)
         
         # scan compound expression
         elif not expr.is_constant_expression():
-            self._update_call_graph(graph, cpf, expr.args)
+            self._update_call_graph(graph, cpf, expr.args, nfs)
     
     # ===========================================================================
     # call graph validation
