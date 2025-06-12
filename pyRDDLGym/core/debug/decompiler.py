@@ -1,4 +1,7 @@
-from typing import Dict, List, Union
+import numpy as np
+from typing import Dict, List, Union, TYPE_CHECKING
+if TYPE_CHECKING:
+    from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 
 from pyRDDLGym.core.parser.expr import Expression
 from pyRDDLGym.core.parser.cpf import CPF
@@ -8,6 +11,10 @@ class RDDLDecompiler:
     '''Converts AST representation (e.g., Expression) to a string that represents
     the corresponding expression in RDDL.'''
     
+    # ===========================================================================
+    # main subroutines
+    # ===========================================================================
+
     def decompile_expr(self, expr: Expression, level: int=0) -> str:
         '''Converts an AST expression to a string representing valid RDDL code.
         
@@ -27,7 +34,7 @@ class RDDLDecompiler:
         rhs = self.decompile_expr(cpf.expr, level)
         return f'{lhs} = {rhs};'
     
-    def decompile_exprs(self, rddl, level: int=0) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
+    def decompile_exprs(self, rddl: 'RDDLPlanningModel', level: int=0) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
         '''Converts a RDDL model to a dictionary of decompiled expression strings,
         as they would appear in the domain description file.'''
         decompiled = {}
@@ -42,10 +49,11 @@ class RDDLDecompiler:
                                       for expr in rddl.terminations]
         return decompiled
     
-    def decompile_domain(self, rddl) -> str:
+    def decompile_domain(self, rddl: 'RDDLPlanningModel') -> str:
         '''Converts a RDDL model to a RDDL domain description file.'''
         decompiled = self.decompile_exprs(rddl, level=2)
         
+        # decompile types
         decompiled_types = ''
         if rddl.type_to_objects:
             decompiled_types = '\n\ttypes {'
@@ -57,6 +65,7 @@ class RDDLDecompiler:
                     decompiled_types += f'\n\t\t{name}: object;'
             decompiled_types += '\n\t};'
         
+        # decompile pvars {} block
         decompiled_pvars = '\n\tpvariables {'
         for pvars in (rddl.non_fluents, rddl.derived_fluents, rddl.interm_fluents, 
                       rddl.state_fluents, rddl.observ_fluents, rddl.action_fluents):
@@ -81,13 +90,16 @@ class RDDLDecompiler:
                                         f'{{ {ptype}, {prange}, default = {dv} }};'
         decompiled_pvars += '\n\t};'
         
+        # decompile cpfs {} block
         decompiled_cpfs = '\n\tcpfs {'
         for (name, expr) in decompiled['cpfs'].items():
             decompiled_cpfs += f'\n\n\t\t{name} = {expr};'
         decompiled_cpfs += '\n\t};'
         
+        # decompile reward function
         decompiled_reward = f'\n\treward = {decompiled["reward"]};'
         
+        # decompile state-invariants {} block
         decompiled_invariants = ''
         if decompiled['invariants']:
             decompiled_invariants = '\n\n\tstate-invariants {'
@@ -95,6 +107,7 @@ class RDDLDecompiler:
                 decompiled_invariants += f'\n\t\t{expr};'
             decompiled_invariants += '\n\t};'
         
+        # decompile action-preconditions {} block
         decompiled_preconds = ''
         if decompiled['preconditions']:
             decompiled_preconds = '\n\n\taction-preconditions {'
@@ -102,6 +115,7 @@ class RDDLDecompiler:
                 decompiled_preconds += f'\n\t\t{expr};'
             decompiled_preconds += '\n\t};'
         
+        # decompile terminations {} block
         decompiled_terminals = ''
         if decompiled['terminations']:
             decompiled_terminals = '\n\n\ttermination {'
@@ -109,6 +123,7 @@ class RDDLDecompiler:
                 decompiled_terminals += f'\n\t\t{expr};'
             decompiled_terminals += '\n\t};'
         
+        # decompile domain {} block
         decompiled_domain = (
             f'domain {rddl.domain_name} {{'
             f'\n{decompiled_types}'
@@ -120,7 +135,110 @@ class RDDLDecompiler:
             f'{decompiled_terminals}'
             f'\n}}')
         return decompiled_domain
+    
+    def decompile_instance(self, rddl: 'RDDLPlanningModel') -> str:
+        '''Converts a RDDL model to a RDDL instance description file.'''
+
+        # domain name statement
+        decompiled_domain_name = f'\tdomain = {rddl.domain_name};'
+
+        # objects {} block
+        all_objects = {name: objects 
+                       for (name, objects) in rddl.type_to_objects.items()
+                       if name not in rddl.enum_types}
+        decompiled_objects = ''
+        if all_objects:
+            decompiled_objects += '\n\tobjects {'
+            for (name, objects) in all_objects.items():
+                objects_str = ', '.join(objects)
+                decompiled_objects += f'\n\t\t{name} : {{ {objects_str} }};'
+            decompiled_objects += '\n\t};'
         
+        # nonfluents {} block
+        decompiled_nonfluents = ''
+        nonfluents_statements = []
+        for (name, values) in rddl.non_fluents.items():
+            default_value = rddl.variable_defaults[name]
+            for (gname, gvalue) in rddl.ground_var_with_values(name, values):
+                if gvalue != default_value:
+                    gvar, objects = rddl.parse_grounded(gname)
+                    if objects:
+                        objects_str = '(' + ','.join(objects) + ')'
+                    else:
+                        objects_str = ''
+                    gvalue = str(gvalue)
+                    if gvalue == 'True':
+                        gvalue = 'true'
+                    elif gvalue == 'False':
+                        gvalue = 'false'
+                    assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
+                    nonfluents_statements.append(assign_expr)
+        if nonfluents_statements:
+            decompiled_nonfluents = '\n\tnon-fluents {'
+            decompiled_nonfluents += '\n' + '\n'.join(nonfluents_statements)
+            decompiled_nonfluents += '\n\t};'
+        
+        # decompile non-fluents {} overall block
+        decompiled_nonfluents_block = (
+            f'non-fluents {rddl.instance_name}_nf {{'
+            f'\n{decompiled_domain_name}'
+            f'\n{decompiled_objects}'
+            f'\n{decompiled_nonfluents}'
+            f'\n}}'
+        )
+
+        # decompile non-fluents name
+        decompiled_nonfluents_name = f'\tnon-fluents = {rddl.instance_name}_nf;'
+
+        # decompile init-state {} block
+        decompiled_initstate = ''
+        initstate_statements = []
+        for (name, values) in rddl.state_fluents.items():
+            default_value = rddl.variable_defaults[name]
+            for (gname, gvalue) in rddl.ground_var_with_values(name, values):
+                if gvalue != default_value:
+                    gvar, objects = rddl.parse_grounded(gname)
+                    if objects:
+                        objects_str = '(' + ','.join(objects) + ')'
+                    else:
+                        objects_str = ''
+                    gvalue = str(gvalue)
+                    if gvalue == 'True':
+                        gvalue = 'true'
+                    elif gvalue == 'False':
+                        gvalue = 'false'
+                    assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
+                    initstate_statements.append(assign_expr)
+        if initstate_statements:
+            decompiled_initstate = '\n\tinit-state {'
+            decompiled_initstate += '\n' + '\n'.join(initstate_statements)
+            decompiled_initstate += '\n\t};'
+
+        # decompile constants
+        max_allowed_actions = getattr(rddl.ast.instance, 'max_nondef_actions', 'pos-inf')
+        decompiled_maxnondefactions = f'\tmax-nondef-actions = {max_allowed_actions};'
+        decompiled_horizon = f'\thorizon = {rddl.horizon};'
+        decompiled_discount = f'\tdiscount = {rddl.discount};'
+
+        # decompile instance overall block
+        decompiled_instance_block = (
+            f'instance {rddl.instance_name} {{'
+            f'\n{decompiled_domain_name}'
+            f'\n{decompiled_nonfluents_name}'
+            f'\n{decompiled_initstate}'
+            f'\n{decompiled_maxnondefactions}'
+            f'\n{decompiled_horizon}'
+            f'\n{decompiled_discount}'
+            f'\n}}'
+        )
+
+        decompiled_instance = decompiled_nonfluents_block + '\n\n' + decompiled_instance_block
+        return decompiled_instance
+
+    # ===========================================================================
+    # helper subroutines
+    # ===========================================================================
+
     def _decompile(self, expr, enclose, level):
         etype, _ = expr.etype
         if etype == 'constant':
