@@ -77,9 +77,7 @@ class RDDLDecompiler:
                 decompiled_params = ''
                 if rddl.variable_params[name]:
                     decompiled_params = '(' + ', '.join(rddl.variable_params[name]) + ')' 
-                dv = str(rddl.variable_defaults[name])
-                if dv == 'True' or dv == 'False':
-                    dv = dv.lower()
+                dv = self._value_to_string(rddl.variable_defaults[name])
                 if prange not in ['real', 'int', 'bool']:
                     dv = f'@{dv}'
                 if ptype in ['interm-fluent', 'derived-fluent', 'observ-fluent']:
@@ -93,6 +91,10 @@ class RDDLDecompiler:
         # decompile cpfs {} block
         decompiled_cpfs = '\n\tcpfs {'
         for (name, expr) in decompiled['cpfs'].items():
+            params_and_types, _ = rddl.cpfs[name]
+            if params_and_types:
+                params = ', '.join(p for p, _ in params_and_types)
+                name = f'{name}({params})'
             decompiled_cpfs += f'\n\n\t\t{name} = {expr};'
         decompiled_cpfs += '\n\t};'
         
@@ -166,11 +168,7 @@ class RDDLDecompiler:
                         objects_str = '(' + ','.join(objects) + ')'
                     else:
                         objects_str = ''
-                    gvalue = str(gvalue)
-                    if gvalue == 'True':
-                        gvalue = 'true'
-                    elif gvalue == 'False':
-                        gvalue = 'false'
+                    gvalue = self._value_to_string(gvalue)
                     assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
                     nonfluents_statements.append(assign_expr)
         if nonfluents_statements:
@@ -202,11 +200,7 @@ class RDDLDecompiler:
                         objects_str = '(' + ','.join(objects) + ')'
                     else:
                         objects_str = ''
-                    gvalue = str(gvalue)
-                    if gvalue == 'True':
-                        gvalue = 'true'
-                    elif gvalue == 'False':
-                        gvalue = 'false'
+                    gvalue = self._value_to_string(gvalue)
                     assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
                     initstate_statements.append(assign_expr)
         if initstate_statements:
@@ -273,14 +267,25 @@ class RDDLDecompiler:
                 value += f'({args})'
         return value
 
+    @staticmethod
+    def _value_to_string(value):
+        if value is None:
+            return 'None'
+        elif isinstance(value, float):
+            value = np.format_float_positional(value)
+            if value.endswith('.'):
+                value += '0'
+            return value
+        else:
+            value = str(value)
+            if value == 'True':
+                value = 'true'
+            elif value == 'False':
+                value = 'false'
+            return value
+
     def _decompile_constant(self, expr, enclose, level):
-        value = expr.args
-        value = str(value)
-        if value == 'True':
-            value = 'true'
-        elif value == 'False':
-            value = 'false'
-        return value
+        return self._value_to_string(expr.args)
         
     def _decompile_pvar(self, expr, enclose, level):
         _, name = expr.etype
@@ -345,7 +350,8 @@ class RDDLDecompiler:
                     decompiled = self._decompile(value, False, level + 1)
                     cases[i] = f'default : {decompiled}'
             cases = f',\n{indent}'.join(cases)
-            value = f'switch({pred}) {{ \n{indent}{cases}\n }}'
+            indentm1 = '\t' * level
+            value = f'switch({pred}) {{ \n{indent}{cases}\n{indentm1} }}'
 
         if enclose: 
             value = f'( {value} )'
