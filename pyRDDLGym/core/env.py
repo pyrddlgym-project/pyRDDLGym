@@ -4,7 +4,7 @@ import numpy as np
 import os
 import pygame
 import typing
-from typing import Any, List, Optional, Type, Tuple
+from typing import Any, List, Optional, Type, Tuple, Union
 
 from pyRDDLGym.core.compiler.model import RDDLLiftedModel
 from pyRDDLGym.core.constraints import RDDLConstraints
@@ -37,8 +37,8 @@ def _make_dir(log_path):
 class RDDLEnv(gym.Env):
     '''A gym environment class for RDDL domains.'''
     
-    def __init__(self, domain: str,
-                 instance: str,
+    def __init__(self, domain: Union[str, RDDLLiftedModel],
+                 instance: Optional[str],
                  enforce_action_constraints: bool=False,
                  enforce_action_count_non_bool: bool=True,
                  vectorized: bool=False,
@@ -74,14 +74,17 @@ class RDDLEnv(gym.Env):
         self.vectorized = vectorized
         
         # read and parse domain and instance
-        reader = RDDLReader(domain, instance)
-        domain = reader.rddltxt
-        parser = RDDLParser(lexer=None, verbose=False)
-        parser.build()
-        rddl = parser.parse(domain)
+        if isinstance(domain, RDDLLiftedModel):
+            self.model = domain
+        else:
+            reader = RDDLReader(domain, instance)
+            domain = reader.rddltxt
+            parser = RDDLParser(lexer=None, verbose=False)
+            parser.build()
+            rddl = parser.parse(domain)
+            self.model = RDDLLiftedModel(rddl)
         
-        # define the RDDL model
-        self.model = RDDLLiftedModel(rddl)
+        # define the RDDL model        
         self.horizon = self.model.horizon
         self.discount = self.model.discount
         self.max_allowed_actions = self.model.max_allowed_actions 
