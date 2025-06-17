@@ -107,6 +107,32 @@ in each cpf, constraint relation, or the reward function of the RDDL domain:
        Related example: Extracting information from the compiled planning problem.
    </a>
       
+Modifying the Problem Programmatically
+------
+
+The model supports modification of key properties. For example, it is possible to change non-fluents 
+in the previous example, such as the mass of the cart:
+
+.. code-block:: python
+
+    import pyRDDLGym
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
+    model = env.model
+    model.non_fluents['CART-MASS'] = 20.0
+
+However, ``env`` will not reflect changes to the model, since the ``make()`` function 
+caches and precomputes certain information such as non-fluent values.
+A long workaround is to decompile the model into RDDL code, save it to disk, and call ``make()`` again.
+A simpler solution is to create a new environment by passing the modified model directly:
+
+.. code-block:: python
+
+    old_viz = env._visualizer.__class__
+    new_env = pyRDDLGym.make(model, None)
+    new_env.set_visualizer(old_viz)
+
+The ``new_env`` is a copy of ``env`` with a modified cart mass.
+
 Grounding a Domain
 ------
 
