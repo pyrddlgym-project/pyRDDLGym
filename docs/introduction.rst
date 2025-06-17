@@ -22,27 +22,27 @@ Purpose and Benefits
 	- :ref:`Deep Reinforcement Learning (DQN, PPO, etc.) <rl>`: Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
 	- :ref:`Symbolic Dynamic Programming <xadds>`: Exact Symbolic regression-based planning and policy evaluation
 
-Status
+Features and Limitations
 ------
 
-Additional features have been added to the language:
+pyRDDLGym expands on the RDDL language officially defined in rddlsim:
 
-- terminal states can now be explicitly defined in a separate termination block
-- direct inquiry of state and action spaces is supported through the standard action space and state space properties of OpenAI gym environments; this is currently only supported for simple constraints such as box constraints
-- an effort was made to ensure that enumerated (enum) and object types are as interchangeable as possible, i.e. an aggregation operation could now be performed over either
-- parameter equality and disequality are supported for object and enum parameters, i.e., expressions ``?p == ?r`` and ``?p ~= ?q`` can be evaluated to True or False
-- arbitrarily-level nested indexing is now supported, e.g., ``fluent'(?p, ?q) = outer(inner(?p, ?q))``
-- a very large number of univariate distributions are now supported
-- multivariate distributions such as Multivariate normal, Student, Dirichlet, and multinomial are now supported
-- matrix algebra operations such as determinant, inverse and Cholesky decomposition are now supported
-- ``argmax`` and ``argmin`` over enumerated types are now supported
-- simulation is vectorized under-the-hood in order to provide reasonable performance while working in pure Python (a faster JAX compiler and simulator is also available).
+- domains and instances are compiled to standard OpenAI Gym environments, and are usable with existing workflows that rely upon OpenAI Gym
+- simulation is vectorized to provide reasonable performance in pure Python (a faster JAX compiler and simulator is available in pyRDDLGym-jax)
+- terminal states can be explicitly defined in a separate termination block
+- enum and object types are interchangeable in most calculations, enhancing the flexibility of valid RDDL operations
+- object-valued fluents are supported
+- arbitrarily-level nested evaluation of pvariables is supported, e.g., ``fluent'(?p, ?q) = outer(inner(?p, ?q))``
+- ``argmax`` and ``argmin`` aggregations are supported
+- new probability distributions such as Laplace, Gumbel, Kumaraswamy are supported
+- multivariate distributions such as Normal, Student, Dirichlet and Multinomial are supported
+- matrix operations such as determinant, inverse and Cholesky decomposition are supported.
 
 The following features have been omitted (or marked as deprecated) from the RDDL language in pyRDDLGym:
 
-- derived-fluent are still supported, but they are considered deprecated and will be removed from future versions
-- fluent levels are deprecated and are reasoned automatically, thus specifying levels explicitly is no longer required
-- the state-action-constraint block is not implemented and is considered deprecated; only the newer syntax of specifying state-invariants and action-preconditions is supported.
+- the state-action-constraint block is not implemented; only the newer syntax including state-invariants and action-preconditions is supported.
+- derived-fluent pvariables are still supported but considered deprecated, and may be removed in future versions
+- fluent levels are reasoned automatically, thus specifying levels explicitly is no longer required.
 
 This toolkit was the official evaluation system of the `2023 IPC RL and planning track <https://ataitler.github.io/IPPC2023/>`_.
 
