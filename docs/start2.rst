@@ -133,7 +133,7 @@ A simpler solution is to create a new environment by passing the modified model 
 
 The ``new_env`` is a copy of ``env`` with a modified cart mass.
 
-Grounding a Domain
+Grounding a Problem
 ------
 
 By default, pyRDDLGym simulates domains in a vectorized manner directly from the (lifted) domain description. 
@@ -232,6 +232,20 @@ More details about controlling error handling behavior can be found
    ``if (pvar(?x) == 0) then default(?x) else 1.0 / pvar(?x)`` will evaluate ``1.0 / pvar(?x)`` first
    for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
    for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
+
+Generating RDDL Code from Models
+--------------------------
+
+It is possible to decompile a Python model object back into (cleaned up) RDDL code. This is useful for 
+generating RDDL descriptions of problems that have been modified programmatically in Python:
+
+.. code-block:: python
+
+    from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
+    decompiler = RDDLDecompiler()
+    domain_rddl = decompiler.decompile_domain(model)   # domain.rddl
+    instance_rddl = decompiler.decompile_instance(model)    # instance.rddl
+
 
 Generating Debug Logs
 --------------------------
@@ -381,13 +395,4 @@ compiled information about each subexpression in the AST, i.e.:
     trace_info.cached_object_type(expr)        # type of the value returned (None if primitive)
     trace_info.cached_is_fluent(expr)          # whether expr is fluent (returned value can change over time)
     trace_info.cached_sim_info(expr)           # low-level instructions for operating on returned value tensor
-
-For debugging purposes, it is also possible to decompile the model representation
-back into a RDDL language string:
-
-.. code-block:: python
-
-    from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
-    rddl_string = RDDLDecompiler().decompile_domain(model)
-
-    
+   
