@@ -908,9 +908,10 @@ We cite several limitations of the current version of JaxPlan:
 	* nested fluents such as ``fluent1(fluent2(?p))``
 * Some relaxations can accumulate high error
 	* this is particularly problematic for long horizon, so we recommend reducing or tuning the rollout horizon for best results
+  * the model relaxations and their hyper-parameters should also be tweaked for optimal results
 * Some relaxations may not be mathematically consistent with one another:
 	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
-	* if this is a concern, it is recommended to override some operations in ``FuzzyLogic`` to suit the user's needs
+	* if this is a concern, it is recommended to override some operations in ``FuzzyLogic``
 * Termination conditions and state/action constraints are not considered in the optimization
 	* constraints are logged in the optimizer callback and can be used to define loss functions that take the constraints into account
 * The optimizer can fail to make progress when the structure of the problem is largely discrete:
