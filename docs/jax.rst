@@ -69,7 +69,7 @@ the environment can use a JAX simulation backend instead:
 Differentiable Planning in Deterministic Domains
 -------------------
 
-The open-loop planning problem for a deterministic environment involves finding a sequence of actions (plan)
+The open-loop planning problem for a deterministic environment seeks a sequence of actions (plan)
 that maximize accumulated reward over a fixed horizon
 
 .. math::
@@ -85,28 +85,22 @@ Specifically, given learning rate :math:`\eta > 0`, gradient ascent updates the 
 	
 	a_{\tau}' = a_{\tau} + \eta \sum_{t=1}^{T} \nabla_{a_\tau} R(s_t, a_t),
 	
-where the gradient of the reward at all times :math:`t \geq \tau` is computed via the chain rule:
-
-.. math::
-
-	\nabla_{a_{\tau}} R(s_t, a_t) = \frac{d R(s_t, a_t)}{d s_{t}} \frac{d f(s_\tau, a_\tau)}{d a_{\tau}} \prod_{k=\tau + 1}^{t-1}\frac{d f(s_k, a_k)}{d s_{k}} + \frac{d R(s_t, a_t)}{d a_{\tau}}.
-
+where the gradient of the reward at all times :math:`t \geq \tau` is computed by automatic differentiation in JAX.
 
 Differentiable Planning in Stochastic Domains
 -------------------
 
-In stochastic domains, an open-loop plan could be sub-optimal 
-because it fails to correct for deviations in the state from its anticipated course.
-One solution is to "replan" periodically or after each decision epoch. 
-An alternative approach is to optimize a `deep reactive policy network <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ :math:`a_t \gets \pi_\theta(s_t)`.
-JaxPlan currently supports both options.
+An open-loop plan could be sub-optimal by failing to correct for deviations in the state trajectory from its anticipated course.
+One solution is to "replan" periodically or at each decision epoch. 
+Another solution is to compute a closed-loop `deep reactive policy network <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ :math:`a_t \gets \pi_\theta(s_t)`.
+JaxPlan supports both options.
 
-A secondary problem in stochastic domains is that the gradients of sampling nodes are not well-defined.
-JaxPlan works around this problem by using the reparameterization trick.
-To illustrate, we can write :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
-although the latter is amenable to backpropagation while the first is not.
+A secondary problem is that the gradients of stochastic samples are not well-defined.
+JaxPlan works around this by using the reparameterization trick, 
+i.e. writing :math:`s_{t+1} = \mathcal{N}(s_t, a_t^2)` as :math:`s_{t+1} = s_t + a_t * \mathcal{N}(0, 1)`, 
+where the latter is amenable to backprop while the first is not.
 
-The reparameterization trick also works generally, assuming there exists a closed-form function f such that
+The reparameterization trick can be generalized, assuming there exists a closed-form function f such that
 
 .. math::
 
@@ -117,15 +111,17 @@ For a detailed discussion of reparameterization in the context of planning,
 please see `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
 or `this paper <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_.
 
-JaxPlan automatically performs reparameterization whenever possible. 
-For Bernoulli, Discrete (and similar) distributions, it applies the `Gumbel-softmax trick <https://arxiv.org/pdf/1611.01144.pdf>`_. 
+JaxPlan automatically reparameterizes whenever possible. 
+For Bernoulli, Discrete and related distributions on finite support, it applies 
+the `Gumbel-softmax trick <https://arxiv.org/pdf/1611.01144.pdf>`_. 
 For other distributions without natural reparameterization 
-(e.g. Poisson), JaxPlan applies a `variety of differentiable relaxations <https://github.com/pyrddlgym-project/pyRDDLGym-jax?tab=readme-ov-file#citing-jaxplan>`_ 
-to facilitate gradient calculation approximately.
+(i.e. Poisson, Binomial), JaxPlan applies `various differentiable relaxations <https://github.com/pyrddlgym-project/pyRDDLGym-jax?tab=readme-ov-file#citing-jaxplan>`_ 
+to approximate the gradients.
 
 .. note::
-   As of JaxPlan version 2.2 (JAX version 0.4.25), most discrete and continuous distributions support gradients in at least some
-   uses cases. The only exceptions are Binomial (supported for small counts), Negative-Binomial and Multinomial distributions.
+   As of JaxPlan version 2.2 (JAX version 0.4.25), most discrete and continuous distributions 
+   support gradients for the most common use cases. The notable exceptions are Binomial 
+   (supported for small counts only), NegativeBinomial and Multinomial.
 
 
 Running JaxPlan from the Command Line
@@ -135,20 +131,21 @@ A basic shell script is provided to run JaxPlan on a specific problem instance:
 
 .. code-block:: shell
     
-    jaxplan plan <domain> <instance> <method> <episodes>
+    jaxplan plan <domain> <instance> <method> --episodes <episodes>
     
 where:
 
 * ``<domain>`` is the domain identifier in rddlrepository, or a path pointing to a valid domain file
 * ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance file
-* ``<method>`` is the planning method to use (see below)
+* ``<method>`` is the planning method to use (i.e. drp, slp, replan) or a path to a valid .cfg file
 * ``<episodes>`` is the (optional) number of episodes to evaluate the final policy.
 
 The ``<method>`` parameter describes the type of planning representation:
 
 * ``slp`` is the `straight-line plan <https://proceedings.neurips.cc/paper/2017/file/98b17f068d5d9b7668e19fb8ae470841-Paper.pdf>`_
 * ``drp`` is the `deep reactive policy network <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
-* ``replan`` is the same as ``slp`` except using replanning at every decision epoch.
+* ``replan`` uses replanning at every decision epoch
+* any other argument is interpreted as a file path to a valid configuration file.
 
 For example, the following will train an open-loop controller to fly 4 drones:
 
@@ -226,8 +223,8 @@ To use a deep reactive policy, simply change the ``plan`` type to:
 Configuring JaxPlan
 -------------------
 
-The recommended way to manage planner settings is to write a configuration file 
-with all the necessary hyper-parameters, i.e. for straight-line planning:
+The recommended way to manage planner settings is to write a configuration (.cfg) file 
+with all required hyper-parameters, i.e. for straight-line planning:
 
 .. code-block:: shell
 
@@ -254,7 +251,7 @@ The configuration file contains three sections:
 
 * the ``[Model]`` section dictates how non-differentiable expressions are handled (as discussed later in the tutorial)
 * the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, the optimizer, etc.
-* the ``[Training]`` section indicates budget on iterations or time, hyper-parameters for the policy, etc.
+* the ``[Training]`` section indicates budget on iterations or time, etc.
 
 The configuration file can then be parsed and passed to the planner as follows:
 
@@ -549,7 +546,7 @@ JaxPlan supports two different kinds of actions constraints.
 
 Box constraints are useful for bounding each action fluent independently within some range.
 Box constraints typically do not need to be specified manually, since they are automatically 
-parsed from the ``action_preconditions`` as defined in the RDDL domain description file.
+parsed from the ``action_preconditions`` in the RDDL domain description.
 
 However, if the user wishes, it is possible to override these bounds
 by passing a dictionary of bounds for each action fluent into the ``action_bounds`` argument. 
@@ -568,11 +565,10 @@ An alternative approach is to map the actions to the box via a
 `differentiable transformation <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
 In JaxPlan, this can be enabled by setting ``wrap_non_bool = True``. 
 
-Concurrency constraints are typically of the form :math:`\sum_i a_i \leq B` for some constant :math:`B`.
-If the ``max-nondef-actions`` property in the RDDL instance is less 
-than the total number of boolean action fluents, then ``JaxBackpropPlanner`` will automatically 
-apply a `projected gradient procedure <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_ 
-to ensure this constraint is satisfied at each optimization step (for straight-line plans only, currently).
+Concurrency constraints are of the form :math:`\sum_i a_i \leq B` where :math:`B`
+is ``max-nondef-actions`` in the RDDL instance. ``JaxBackpropPlanner`` will automatically 
+apply `projected gradient <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_ 
+to satisfy constraints at each optimization step (for straight-line plans only).
 
 .. note::
    Concurrency constraints on action-fluents are applied to boolean actions only: 
@@ -911,14 +907,14 @@ We cite several limitations of the current version of JaxPlan:
 * Not all operations have natural differentiable relaxations. Currently, the following are not supported:
 	* nested fluents such as ``fluent1(fluent2(?p))``
 * Some relaxations can accumulate high error
-	* this is particularly problematic when stacking CPFs for long roll-out horizons, so we recommend reducing or tuning the rollout horizon for best results
+	* this is particularly problematic for long horizon, so we recommend reducing or tuning the rollout horizon for best results
 * Some relaxations may not be mathematically consistent with one another:
 	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
 	* if this is a concern, it is recommended to override some operations in ``FuzzyLogic`` to suit the user's needs
 * Termination conditions and state/action constraints are not considered in the optimization
 	* constraints are logged in the optimizer callback and can be used to define loss functions that take the constraints into account
 * The optimizer can fail to make progress when the structure of the problem is largely discrete:
-	* to diagnose this, compare the training loss to the test loss over time, and at the time of convergence
+	* to diagnose this, monitor the training loss and the test loss over time
 	* a low, or drastically improving, training loss with a similar test loss indicates that the continuous model relaxation is likely accurate around the optimum
 	* on the other hand, a low training loss and a high test loss indicates that the continuous model relaxation is poor.
 
