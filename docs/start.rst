@@ -145,11 +145,11 @@ Alternatively, the ``evaluate()`` bypasses the need to write out the entire loop
 The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
 total rewards collected across episodes, such as mean, median, and standard deviation.
 
-Fixing the Random Seed
+Setting the Random Seed
 ------
 
 In order to get reproducible results when running an experiment, it is necessary to
-fix the random seed. This can be passed to ``env.reset()`` once at the start of the experiment:
+set the random seed. This can be passed to ``env.reset()`` once at the start of the experiment:
 
 .. code-block:: python
 	
@@ -162,7 +162,7 @@ or alternatively passing it to ``agent.evaluate()`` as follows:
     agent.evaluate(env, seed=42)
 
 Other objects that require randomness typically support setting the random seed.
-For example, to fix the seed of the ``RandomAgent`` instance:
+For example, to set the seed of the ``RandomAgent`` instance:
 
 .. code-block:: python
 
