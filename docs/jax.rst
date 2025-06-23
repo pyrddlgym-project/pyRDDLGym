@@ -606,7 +606,9 @@ JaxPlan can also optimize `non-linear utility functions <https://ojs.aaai.org/in
 * "mean_var" is the variance penalized return
 * "mean_semidev" is the mean-semideviation risk measure
 * "mean_semivar" is the mean-semivariance risk measure
+* "sharpe" is the sharpe ratio
 * "entropic" (or "exponential") is the entropic or exponential utility
+* "var" is the value at risk
 * "cvar" is the conditional value at risk.
 
 The utility function can be specified by passing one of the above strings to the ``utility`` argument of the planner,
