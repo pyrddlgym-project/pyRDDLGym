@@ -623,7 +623,7 @@ JaxPlan can also optimize a subset of `non-linear utility functions <https://ojs
 A utility function can be specified by passing a string above to the ``utility`` argument of the planner,
 and optional hyper-parameters dict to the ``utility_kwargs`` argument, i.e. for CVAR at 5 percent:
 
-.. code-block:: python
+.. code-block:: shell
 
     [Optimizer]
     utility='cvar'
@@ -820,12 +820,13 @@ so it does not have partial derivatives with respect to ``x`` nor ``y``.
 
 JaxPlan works around these limitations by approximating such operations with JAX expressions that support derivatives.
 The ``FuzzyLogic`` describes how relaxations are performed, and it is highly configurable. 
-It can be passed to a planner through the config file, or directly as follows:
+It can be passed to a planner by specifying:
 
-.. code-block:: python
+.. code-block:: shell
     
-    from pyRDDLGym.core.logic import FuzzyLogic
-    planner = JaxBackpropPlanner(model, ..., logic=FuzzyLogic())
+    [Model]
+    logic='FuzzyLogic'
+
 
 By default, ``FuzzyLogic`` uses `t-norm fuzzy logics <https://en.wikipedia.org/wiki/T-norm_fuzzy_logics#Motivation>`_
 to approximate the logical operations, and a 
