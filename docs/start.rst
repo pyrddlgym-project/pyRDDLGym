@@ -1,8 +1,11 @@
 Getting Started: Basics
 ===============
 
-Initializing Built-In Environments
+Initializing Environments
 -------------------
+
+Built-In Environments
+^^^^^^^^^^^^^^^^^^^
 
 To initialize a built-in environment from the `rddlrepository <https://github.com/pyrddlgym-project/rddlrepository>`_:
 
@@ -13,8 +16,8 @@ To initialize a built-in environment from the `rddlrepository <https://github.co
 
 where "CartPole_Continuous_gym" is the name of the domain and "0" is the instance.
 
-Initializing Environments from RDDL Files
--------------------
+From RDDL Files
+^^^^^^^^^^^^^^^^^^^
 
 To initialize an environment from RDDL description files stored on the file system:
 
@@ -36,10 +39,14 @@ Policies
 ----------------------------
 
 A policy interacts with an environment by providing actions or controls in each state.
+
+Built-In Policies
+^^^^^^^^^^^^^^^^^^^
+
 pyRDDLGym provides two simple policies, which are all instances of ``pyRDDLGym.core.policy.BaseAgent``:
 
 - ``NoOpAgent`` returns the default action values specified in the RDDL domain.
-- ``RandomAgent`` samples a random action according to the ``env.action_space`` and the maximum number of concurrent actions specified in the RDDL file.
+- ``RandomAgent`` samples a random action according to the ``env.action_space`` and the ``max-nondef-actions``.
 
 For example, to initialize a random policy:
 
@@ -67,6 +74,9 @@ All policies must implement a ``sample_action()`` function for sampling an actio
    </a>
 
 
+Custom Policies
+^^^^^^^^^^^^^^^^^^^
+
 To implement your own custom policy, inherit from ``pyRDDLGym.core.policy.BaseAgent``:
 
 .. code-block:: python
@@ -75,7 +85,7 @@ To implement your own custom policy, inherit from ``pyRDDLGym.core.policy.BaseAg
     
     class CustomAgent(BaseAgent):
     
-        def sample_action(self, state=None):
+        def sample_action(self, state):
             # here goes the code that returns the current action
             ...     
 
@@ -90,8 +100,11 @@ To implement your own custom policy, inherit from ``pyRDDLGym.core.policy.BaseAg
 Interacting with an Environment
 ----------------------------
 
-Interaction with an environment is done by calling ``env.step()`` 
+Interaction with an environment is done by calling ``env.step(action)`` 
 and ``env.reset()``, just like regular Gym/Gymnasium.
+
+Structure of State and Action Fluents
+^^^^^^^^^^^^^^^^^^^
 
 All fluent values are passed and received as Python ``dict`` objects,
 whose keys are valid fluent names as defined in the RDDL domain description.
@@ -102,13 +115,19 @@ In pyRDDLGym, the fluent name must be followed by ``___`` (3 underscores), then 
 list of objects separated by ``__`` (2 underscores). To illustrate, for the fluent
 ``put-out(?x, ?y)``, the required key for objects ``(x1, y1)`` is ``put-out___x1__y1``.
 
+Another option is to pass a dict whose keys are lifted fluent names, i.e. ``put-out``, in which
+case the values must be numpy arrays (of the necessary shape and dtype).
+
 .. note::
    When passing an action dictionary to a ``RDDLEnv``,
    any missing key-value pairs in the dictionary will be assigned the default (or no-op) values
    as specified in the RDDL domain description.
 
+Interaction Loop
+^^^^^^^^^^^^^^^^^^^
+
 We now show what a complete agent-environment loop looks like in pyRDDLGym.
-The example below will run the ``CartPole_Continuous_gym`` environment for a single episode/trial, 
+The example below will run the ``CartPole_Continuous_gym`` environment for a single episode, 
 rendering the state to the screen in real time:
 
 .. code-block:: python
@@ -145,29 +164,6 @@ Alternatively, the ``evaluate()`` bypasses the need to write out the entire loop
 The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
 total rewards collected across episodes, such as mean, median, and standard deviation.
 
-Setting the Random Seed
-------
-
-In order to get reproducible results when running an experiment, it is necessary to
-set the random seed. This can be passed to ``env.reset()`` once at the start of the experiment:
-
-.. code-block:: python
-	
-    env.reset(seed=42)
-
-or alternatively passing it to ``agent.evaluate()`` as follows:
-
-.. code-block:: python
-	
-    agent.evaluate(env, seed=42)
-
-Other objects that require randomness typically support setting the random seed.
-For example, to set the seed of the ``RandomAgent`` instance:
-
-.. code-block:: python
-
-    agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions, seed=42)
-
 Spaces
 ------
 
@@ -188,13 +184,40 @@ For box constraints, the conversion happens as follows:
    Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gymnasium.
    If no valid box bounds for a fluent are available, they are set to ``(-np.inf, np.inf)``
 
-Using Built-In Visualizers
+
+Setting the Random Seed
+------
+
+In order to get reproducible results, it is necessary to set the random seed. 
+This can be passed to ``env.reset()`` once at the start of the experiment:
+
+.. code-block:: python
+	
+    env.reset(seed=42)
+
+or alternatively to ``agent.evaluate()``:
+
+.. code-block:: python
+	
+    agent.evaluate(env, seed=42)
+
+Other objects that require randomness typically support setting random seeds.
+For example, to set the seed of the ``RandomAgent`` instance:
+
+.. code-block:: python
+
+    agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions, seed=42)
+
+Visualizing Environments
 -------------
 
-Every domain has a default visualizer assigned to it, which is either a graphical 
-``ChartVisualizer`` that plots the state trajectory over time, or a custom domain-dependent implementation.
+Built-In Visualizers
+^^^^^^^^^^^^^^^^^^^
 
-Assigning a visualizer for an environment can be done by calling 
+Every domain has a default visualizer assigned to it, which is either a 
+``ChartVisualizer`` that plots the state trajectory as a graph, or a domain-dependent implementation.
+
+Assigning a visualizer to an environment can be done by calling 
 ``env.set_visualizer(viz)`` with ``viz`` as the desired visualization object (or a string identifier).
 
 For example, to assign the ``ChartVisualizer`` or the ``HeatmapVisualizer``, 
@@ -210,8 +233,8 @@ or the ``TextVisualizer``, which produces a textual representation of the state:
 Calling ``env.set_visualizer(viz=None, ...)`` will not change the visualizer already assigned: this is useful
 if you want to record movies using the default viz as described later.
 
-Using a Custom Visualizer
--------------
+Custom Visualizers
+^^^^^^^^^^^^^^^^^^^
 
 To assign a custom visualizer object ``MyDomainViz`` that implements a valid ``render(state)`` method,
 
