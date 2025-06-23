@@ -46,7 +46,8 @@ extensions = [
     "sphinx_book_theme",
     "nbsphinx",
     "sphinx_gallery.load_style",    
-    "myst_nb"
+    "myst_nb",
+    "sphinx_toolbox.collapse"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
