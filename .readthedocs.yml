@@ -20,7 +20,7 @@ build:
     python: "3.9"
   jobs:
     post_create_environment:
-      - python -m pip install sphinx_book_theme nbsphinx sphinx-gallery myst-nb
+      - python -m pip install sphinx_book_theme sphinx-toolbox nbsphinx sphinx-gallery myst-nb
   
 python:
   install:
