@@ -133,6 +133,8 @@ to approximate the gradients.
 Running JaxPlan
 -------------------
 
+.. _jax-intro:
+
 From the Command Line
 ^^^^^^^^^^^^^^^^^^^
 
@@ -164,10 +166,7 @@ For example, the following will train an open-loop controller to fly 4 drones:
    
 
 From Python
--------------------
 ^^^^^^^^^^^^^^^^^^^
-
-.. _jax-intro:
 
 To initialize and run an open-loop controller in Python:
 
@@ -530,13 +529,10 @@ Configuration files can be parsed and passed to the planner as follows:
         - Maximum seconds to train for
 
 
-Boolean Actions
--------------------
-
 Constraints on Action-Fluents
 -------------------
 
-Supporting Boolean Action-Fluents
+Boolean Action-Fluents
 ^^^^^^^^^^^^^^^^^^^
 
 By default, boolean actions are wrapped using the sigmoid function:
@@ -607,7 +603,7 @@ which compresses the magnitudes of large positive or negative outcomes.
 This can be controlled by ``use_symlog_reward``.
 
 
-Utility Optimization
+Risk-Aware Planning with Utility Optimization
 -------------------
 
 By default, JaxPlan will optimize the expected sum of future reward, 
@@ -784,7 +780,7 @@ If you wish to tune a replanning algorithm set ``online=True``.
    </a>
    
 
-JaxPlan Dashboard
+VIsualizing with Dashboard
 -------------------
 
 As of JaxPlan version 1.0, the embedded visualization tools have been replaced with 
@@ -945,7 +941,7 @@ We also welcome any suggestions or modifications about how to improve the robust
 on a broader subset of RDDL.
 
 
-Citations
+Citation
 -------------------
 
 If you use the code provided by JaxPlan, please use the following bibtex for citation:
