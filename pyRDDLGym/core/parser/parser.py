@@ -1071,11 +1071,11 @@ class RDDLParser(object):
     def p_error(self, p):
         line_err = p.lineno - 1
         lines = self._input.splitlines()
-        line1 = max(line_err - 5, 0)
+        line1 = max(line_err - 4, 0)
         line2 = min(line_err + 5, len(lines) - 1)
         
         # print source of error
-        exception_str = 'Syntax error on line {}:\n...'.format(line_err)
+        exception_str = 'Syntax error on line {}:\n...'.format(line_err + 1)
         for l in range(line1, line2):
             if l == line_err:
                 exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[0m'
