@@ -4,7 +4,7 @@ pyRDDLGym-jax: Gradient-Based Simulation and Planning with JaxPlan
 ===============
 
 In this tutorial, we discuss how a RDDL model can be automatically compiled into a differentiable JAX simulator. 
-We also show how pyRDDLGym-jax (or JaxPlan) leverages gradient-based optimization to design optimal controllers. 
+We also show how pyRDDLGym-jax (or JaxPlan) leverages gradient-based optimization for optimal control. 
 
 Installing
 -----------------
@@ -66,8 +66,11 @@ the environment can use a JAX simulation backend instead:
    </a>
    
 
-Differentiable Planning in Deterministic Domains
+Background on Differentiable Planning 
 -------------------
+
+Open-Loop Planning
+^^^^^^^^^^^^^^^^^^^
 
 The open-loop planning problem for a deterministic environment seeks a sequence of actions (plan)
 that maximize accumulated reward over a fixed horizon
@@ -76,9 +79,9 @@ that maximize accumulated reward over a fixed horizon
 
 	\max_{a_1, \dots a_T} \sum_{t=1}^{T} R(s_t, a_t), \quad s_{t + 1} = f(s_t, a_t)
 	
-If the state and action spaces are continuous, and f and R are differentiable functions, 
+If the state and action spaces are continuous, and f and R are differentiable, 
 `gradient ascent can optimize the actions <https://proceedings.neurips.cc/paper/2017/file/98b17f068d5d9b7668e19fb8ae470841-Paper.pdf>`_.
-Specifically, given learning rate :math:`\eta > 0`, gradient ascent updates the plan
+Specifically, given learning rate :math:`\eta`, gradient ascent updates the plan
 :math:`a_\tau'` at decision epoch :math:`\tau` as
 
 .. math::
@@ -87,13 +90,16 @@ Specifically, given learning rate :math:`\eta > 0`, gradient ascent updates the 
 	
 where the gradient of the reward at all times :math:`t \geq \tau` is computed by automatic differentiation in JAX.
 
-Differentiable Planning in Stochastic Domains
--------------------
+Closed-Loop Planning
+^^^^^^^^^^^^^^^^^^^
 
 An open-loop plan could be sub-optimal by failing to correct for deviations in the state trajectory from its anticipated course.
 One solution is to "replan" periodically or at each decision epoch. 
 Another solution is to compute a closed-loop `deep reactive policy network <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ :math:`a_t \gets \pi_\theta(s_t)`.
 JaxPlan supports both options.
+
+Reparameterization Trick for Stochastic Problems
+^^^^^^^^^^^^^^^^^^^
 
 A secondary problem is that the gradients of stochastic samples are not well-defined.
 JaxPlan works around this by using the reparameterization trick, 
@@ -127,7 +133,7 @@ to approximate the gradients.
 Running JaxPlan from the Command Line
 -------------------
 
-A basic shell script is provided to run JaxPlan on a specific problem instance:
+A command line app is provided to run JaxPlan on a specific problem instance:
 
 .. code-block:: shell
     
@@ -217,8 +223,11 @@ To use a deep reactive policy, simply change the ``plan`` type to:
    </a>
    
 .. note::
+   ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
+   Other policy representations could be defined by overriding this class and its abstract methods.
    All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
-   
+
+
 
 Configuring JaxPlan
 -------------------
@@ -249,11 +258,27 @@ with all required hyper-parameters, i.e. for straight-line planning:
 
 The configuration file contains three sections:
 
-* the ``[Model]`` section dictates how non-differentiable expressions are handled (as discussed later in the tutorial)
-* the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, the optimizer, etc.
-* the ``[Training]`` section indicates budget on iterations or time, etc.
+* ``[Model]`` dictates how non-differentiable expressions are handled (discussed later)
+* ``[Optimizer]`` requires a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, optimizer, etc.
+* ``[Training]`` indicates budget on iterations, time, verbosity, etc.
+   
+To use a policy network with two hidden layers of size 128:
 
-The configuration file can then be parsed and passed to the planner as follows:
+.. code-block:: shell
+
+    [Optimizer]
+    method='JaxDeepReactivePolicy'
+    method_kwargs={'topology': [128, 128]}
+  
+To use replanning with a straight-line plan and a lookahead horizon of 5:
+
+.. code-block:: shell
+
+    [Optimizer]
+    method='JaxStraightlinePlan'
+    rollout_horizon=5
+  
+Configuration files can be parsed and passed to the planner as follows:
 
 .. code-block:: python
 
@@ -264,40 +289,6 @@ The configuration file can then be parsed and passed to the planner as follows:
     plan = ...
     planner = ...
     controller = ...
-
-.. raw:: html 
-
-   <a href="notebooks/open_loop_planning_with_jaxplan.html"> 
-       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
-       Related example: Open-loop planning with straightline plans in JaxPlan.
-   </a>
-   
-   
-To configure a policy network, change the ``method`` in the ``[Optimizer]`` section of the config file:
-
-.. code-block:: shell
-
-    ...
-    [Optimizer]
-    method='JaxDeepReactivePolicy'
-    method_kwargs={'topology': [128, 64]}
-    ...
-
-This creates a neural network policy with the default ``tanh`` activation 
-and two hidden layers of sizes 128 and 64, respectively.
-
-.. raw:: html 
-
-   <a href="notebooks/closed_loop_planning_drp_with_jaxplan.html"> 
-       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
-       Related example: Closed-loop planning with deep reactive policies in JaxPlan.
-   </a>
-   
-.. note::
-   ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
-   Other policy representations could be defined by overriding this class and its abstract methods.
-
-The full list of settings that can be specified in the configuration files are as follows:
 
 .. collapse:: Possible settings for ``[Model]`` section
    
@@ -567,12 +558,11 @@ parsed from the ``action_preconditions`` in the RDDL domain description.
 
 However, if the user wishes, it is possible to override these bounds
 by passing a dictionary of bounds for each action fluent into the ``action_bounds`` argument. 
-The syntax for specifying optional box constraints in the ``[Optimizer]`` section of the config file is:
+The syntax for specifying optional box constraints in the config file is:
 
 .. code-block:: shell
 	
     [Optimizer]
-    ...
     action_bounds={ <action_name1>: (lower1, upper1), <action_name2>: (lower2, upper2), ... }
    
 where ``lower#`` and ``upper#`` can be any list, nested list or array.
@@ -611,8 +601,8 @@ Utility Optimization
 -------------------
 
 By default, JaxPlan will optimize the expected sum of future reward, 
-which may not be desirable for risk-sensitive applications where tail risk of the returns is important.
-JaxPlan can also optimize `non-linear utility functions <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_:
+which may not be desirable for risk-sensitive applications.
+JaxPlan can also optimize a subset of `non-linear utility functions <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_:
 
 * "mean" is the risk-neutral or ordinary expected return
 * "mean_std" is the standard deviation penalized return
@@ -624,15 +614,14 @@ JaxPlan can also optimize `non-linear utility functions <https://ojs.aaai.org/in
 * "var" is the value at risk
 * "cvar" is the conditional value at risk.
 
-The utility function can be specified by passing one of the above strings to the ``utility`` argument of the planner,
-and its hyper-parameters can be passed as a dictionary to the ``utility_kwargs`` argument.
-
-For example, to set the CVAR utility at 5 percent, or the entropic utility with scale 2:
+A utility function can be specified by passing a string above to the ``utility`` argument of the planner,
+and optional hyper-parameters dict to the ``utility_kwargs`` argument, i.e. for CVAR at 5 percent:
 
 .. code-block:: python
 
-    planner = JaxBackpropPlanner(..., utility="cvar", utility_kwargs={'alpha': 0.05})
-    planner = JaxBackpropPlanner(..., utility="entropic", utility_kwargs={'beta': 2.0})
+    [Optimizer]
+    utility='cvar'
+    utility_kwargs={'alpha': 0.05}
 
 The utility function could also be provided explicitly as a function mapping a JAX array to a scalar, 
 with additional arguments specifying the hyper-parameters of the utility function referred to by name:
@@ -698,7 +687,7 @@ where concrete hyper-parameter to tune are replaced by keywords, i.e.:
    Keywords defined above will be replaced during tuning with concrete values using a simple string replacement.
    This means you must select keywords that are not already used (nor appear as substrings) in other parts of the config file.
    
-Next, indicate the variables you defined, their search ranges, and any transformations you wish to apply in the Python code:
+Next, for each config variable, specify its search range and transformation to apply:
 
 .. code-block:: python
 
@@ -715,7 +704,7 @@ Next, indicate the variables you defined, their search ranges, and any transform
     
     # map parameters in the config that will be tuned
     def power_10(x):
-        return 10.0 ** x    # maps the parameters from posterior space back to JaxPlan
+        return 10.0 ** x
     hyperparams = [Hyperparameter("MODEL_WEIGHT_TUNE", -1., 5., power_10),
                    Hyperparameter("LEARNING_RATE_TUNE", -5., 1., power_10)]
     
@@ -731,8 +720,6 @@ Next, indicate the variables you defined, their search ranges, and any transform
     
 JaxPlan supports tuning most numeric parameters that can be specified in the config file.
 If you wish to tune a replanning algorithm set ``online=True``.
-
-A full list of arguments to the tuning constructor is shown below.
 
 .. collapse:: Possible settings for ``JaxParameterTuning``
 
@@ -791,7 +778,6 @@ To activate the dashboard for planning, simply add the following line in the con
 .. code-block:: shell
 
     [Training]
-    ...
     dashboard=True
 
 
@@ -840,8 +826,6 @@ These hyper-parameters be retrieved and modified at any time as follows:
     model_params[key] = ...
     planner.optimize(..., model_params=model_params)
 
-The following table summarizes the default rules used in ``FuzzyLogic``.
-
 .. collapse:: Default rules for ``FuzzyLogic``
 
     .. list-table:: Default Differentiable Mathematical Operations
@@ -876,19 +860,26 @@ The following table summarizes the default rules used in ``FuzzyLogic``.
         - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
 
 It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
-passing custom objects to its ``tnorm``, ``complement`` or other constructor arguments.
+modifying ``tnorm``, ``complement`` or other constructor arguments in the config.
 
-Since version 2.0, JaxPlan provides an option to run
-`parameter-exploring policy gradients (PGPE) <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_
-alongside the original planner as a failsafe, replacing the planner parameters 
-in case the model relaxations are poor and JaxPlan cannot make progress.
+Since version 2.0, JaxPlan runs a parallel instance of
+`parameter-exploring policy gradients (PGPE) <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_.
+In some cases, this allows JaxPlan to continue making progress when the model relaxations are poor. 
+It can be configured as follows:
+
+
+.. code-block:: shell
+
+    [Optimizer]
+    pgpe='GaussianPGPE'
+    pgpe_kwargs=...
 
    
 Manual Gradient Calculation
 -------------------
 
 As of version 0.3, it is possible to export the optimization problem in JaxPlan
-to another optimizer (e.g., scipy):
+to be solved by another optimizer (e.g., scipy):
 
 .. code-block:: python
     
@@ -897,13 +888,6 @@ to another optimizer (e.g., scipy):
 The loss function ``loss_fn`` and gradient map ``grad_fn`` express policy parameters as 1D numpy arrays,
 so they can be used as inputs for other packages that do not make use of JAX. The 
 ``unravel_fn`` allows the 1D array to be mapped back to a JAX pytree.
-
-For example, to optimize and evaluate a policy using scipy, please see the 
-`worked example here <https://github.com/pyrddlgym-project/pyRDDLGym-jax/blob/main/pyRDDLGym_jax/examples/run_scipy.py>`_.
-
-The API also supports manual return gradient calculations for custom applications.
-For details, please see the 
-`worked example here <https://github.com/pyrddlgym-project/pyRDDLGym-jax/blob/main/pyRDDLGym_jax/examples/run_gradient.py>`_.
 
 .. raw:: html 
 
