@@ -389,6 +389,10 @@ The full list of settings that can be specified in the configuration files are a
      - Optional type of ``core.planner.PGPE`` for `parallel policy gradient update <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_
    * - pgpe_kwargs
      - kwargs to pass to PGPE constructor (for ``GaussianPGPE`` see table below)
+   * - preprocessor
+     - Optional type of ``core.planner.Preprocessor`` for preprocessing fluent tensors (i.e. normalization, etc.)
+   * - preprocessor_kwargs
+     - kwargs to pass to preprocessor constructor
    * - print_warnings
      - Whether to print compilation warnings to console (errors will still be printed)
    * - rollout_horizon
