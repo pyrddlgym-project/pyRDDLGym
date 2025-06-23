@@ -6,8 +6,9 @@ Evaluating Invariants and Preconditions
 
 The ``RDDLEnv`` provides built-in logic to validate states and actions constraints automatically
 according to their RDDL descriptions (which throws an error upon violation, by default). However, 
-in some applications, you may wish to evaluate constraints yourself. Constraint checking functions are
-implemented in the ``sampler`` field of a ``RDDLEnv``:
+in some applications, you may wish to evaluate constraints yourself. 
+
+Constraint checking functions are implemented in the ``sampler`` field of a ``RDDLEnv``:
 
 .. code-block:: python
 	
@@ -25,7 +26,6 @@ One common use case is to validate actions before executing them in the environm
     else: 
         return default_actions   # upon violation
     
-
 Below are the commonly used functions of ``sampler`` that can be accessed directly:
 
 .. list-table:: Commonly-used functions accessible in ``sampler``
@@ -158,14 +158,14 @@ and all expressions are replaced by sets of expressions whose p-variable depende
 counterparts. In all cases, the grounded and lifted representations should produce the same numerical results, 
 albeit in a slightly different format.
  
-pyRDDLGym provides a convenient class for producing a grounded model from a lifted domain representation, as shown below:
+pyRDDLGym provides a convenient API for producing a grounded model:
 
 .. code-block:: python
     
     from pyRDDLGym.core.grounder import RDDLGrounder
-    grounded = RDDLGrounder(env.model._AST).ground()
+    model = RDDLGrounder(env.model._AST).ground()
 
-The ``grounded`` object returned is also an environment model, so a lot of the functionality described on this page also applies to it.
+Much of the functionality for inspecting and operating on models described on this page also apply to grounded models.
 
 .. warning::
    Currently, the grounder only supports RDDL 1.0 syntax. Therefore, it does not ground
@@ -233,7 +233,7 @@ More details about controlling error handling behavior can be found
    for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
    for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
 
-Generating RDDL Code from Models
+Decompiling Models into RDDL
 --------------------------
 
 It is possible to decompile a Python model object back into (cleaned up) RDDL code. This is useful for 
@@ -247,7 +247,7 @@ generating RDDL descriptions of problems that have been modified programmaticall
     instance_rddl = decompiler.decompile_instance(model)    # instance.rddl
 
 
-Generating Debug Logs
+Debug Logging
 --------------------------
 
 To log information about the RDDL compilation to a file for debugging:
@@ -326,6 +326,9 @@ These objects include outputs from several distinct stages of compilation:
    * - `RDDLObjectsTracer <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyRDDLGym/core/compiler/tracer.py>`_
      - Traces the RDDL AST to compile type information about each subexpression, and does type checking.
 
+Parsing
+^^^^^^^^^^^^^^^^^^^
+
 The following code illustrates the parsing of a domain description, 
 returning a ``RDDL`` object that represents its AST representation:
 
@@ -339,6 +342,9 @@ returning a ``RDDL`` object that represents its AST representation:
     parser.build()
     ast = parser.parse(rddl_string)
 
+Model Objects
+^^^^^^^^^^^^^^^^^^^
+
 The AST can then be passed to a ``RDDLPlanningModel``, which compiles
 the AST into a user-friendly API with accessible properties and functions 
 for operating on and modifying the (lifted) domain:
@@ -348,6 +354,9 @@ for operating on and modifying the (lifted) domain:
     from pyRDDLGym.core.compiler.model import RDDLLiftedModel	
     model = RDDLLiftedModel(ast)
 
+Initializing Values
+^^^^^^^^^^^^^^^^^^^
+
 It is now possible to extract the initial values of the pvariables by using a ``RDDLValueInitializer``,
 which reads from the ``init-fluents`` block in the instance whenever possible, and
 otherwise from the ``default`` values in the domain:
@@ -356,6 +365,9 @@ otherwise from the ``default`` values in the domain:
 
     from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer	
     values = RDDLValueInitializer(model).initialize()
+
+Analyzing Fluent Dependencies
+^^^^^^^^^^^^^^^^^^^
 
 It is also possible to compute the graph that summarizes the pvariables/CPFs on which each CPF depends,
 and run a topological sort on the graph to determine the correct order of CPF evaluation:
@@ -374,7 +386,9 @@ and run a topological sort on the graph to determine the correct order of CPF ev
        Related example: Analyzing fluent dependencies and evaluation order.
    </a>
    
-   
+Tracing and Static Compilation
+^^^^^^^^^^^^^^^^^^^
+
 Finally, the code can be traced to compile static type information about each subexpression in the AST, which 
 includes for example any free parameters in the scope of the subexpression and their types,
 the type of the value returned by the subexpression during evaluation,
