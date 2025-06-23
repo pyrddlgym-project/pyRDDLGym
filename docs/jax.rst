@@ -299,227 +299,240 @@ and two hidden layers of sizes 128 and 64, respectively.
 
 The full list of settings that can be specified in the configuration files are as follows:
 
-.. list-table:: ``[Model]``
-   :widths: 40 80
-   :header-rows: 1
+.. collapse:: Possible settings for ``[Model]`` section
+   
+    .. list-table:: ``[Model]``
+      :widths: 40 80
+      :header-rows: 1
 
-   * - Setting
-     - Description
-   * - logic
-     - Type of ``core.logic.FuzzyLogic``, how expressions are relaxed
-   * - logic_kwargs
-     - kwargs to pass to logic object constructor
-   * - complement
-     - Type of ``core.logic.Complement``, how logical complement is relaxed
-   * - complement_kwargs
-     - kwargs to pass to complement object constructor
-   * - comparison
-     - Type of ``core.logic.SigmoidComparison``, how comparisons are relaxed
-   * - comparison_kwargs
-     - kwargs to pass to comparison object constructor
-   * - control
-     - Type of ``core.logic.ControlFlow``, how comparisons are relaxed
-   * - control_kwargs
-     - kwargs to pass to control flow object constructor
-   * - rounding
-     - Type of ``core.logic.Rounding``, how to round float to int values
-   * - rounding_kwargs
-     - kwargs to pass to rounding object constructor
-   * - sampling
-     - Type of ``core.logic.RandomSampling``, how to sample discrete distributions
-   * - sampling_kwargs
-     - kwargs to pass to sampling object constructor (see table below for default options)
-   * - tnorm
-     - Type of ``core.logic.TNorm``, how logical expressions are relaxed
-   * - tnorm_kwargs
-     - kwargs to pass to tnorm object constructor
-
-
-.. list-table:: ``sampling_kwargs`` in ``[Model]`` for ``SoftRandomSampling``
-   :widths: 40 80
-   :header-rows: 1
-
-   * - Setting
-     - Description
-   * - bernoulli_gumbel_softmax
-     - Whether to use Gumbel-Softmax for Bernoulli relaxation
-   * - binomial_max_bins
-     - Maximum bins for Binomial relaxation
-   * - poisson_exp_sampling
-     - Whether to use `exponential sampling <https://arxiv.org/abs/2405.14473>`_ for Poisson relaxation
-   * - poisson_max_bins
-     - Maximum bins for Poisson relaxation
-   * - poisson_min_cdf
-     - Required cdf within truncated region to use Poisson relaxation
+      * - Setting
+        - Description
+      * - logic
+        - Type of ``core.logic.FuzzyLogic``, how expressions are relaxed
+      * - logic_kwargs
+        - kwargs to pass to logic object constructor
+      * - complement
+        - Type of ``core.logic.Complement``, how logical complement is relaxed
+      * - complement_kwargs
+        - kwargs to pass to complement object constructor
+      * - comparison
+        - Type of ``core.logic.SigmoidComparison``, how comparisons are relaxed
+      * - comparison_kwargs
+        - kwargs to pass to comparison object constructor
+      * - control
+        - Type of ``core.logic.ControlFlow``, how comparisons are relaxed
+      * - control_kwargs
+        - kwargs to pass to control flow object constructor
+      * - rounding
+        - Type of ``core.logic.Rounding``, how to round float to int values
+      * - rounding_kwargs
+        - kwargs to pass to rounding object constructor
+      * - sampling
+        - Type of ``core.logic.RandomSampling``, how to sample discrete distributions
+      * - sampling_kwargs
+        - kwargs to pass to sampling object constructor (see table below for default options)
+      * - tnorm
+        - Type of ``core.logic.TNorm``, how logical expressions are relaxed
+      * - tnorm_kwargs
+        - kwargs to pass to tnorm object constructor
 
 
-.. list-table:: ``[Optimizer]``
-   :widths: 40 80
-   :header-rows: 1
+.. collapse:: Possible settings for ``sampling_kwargs`` in ``[Model]`` section for ``SoftRandomSampling``
 
-   * - Setting
-     - Description
-   * - action_bounds
-     - Dictionary of (lower, upper) bounds on each action-fluent
-   * - batch_size_test
-     - Batch size for evaluation
-   * - batch_size_train
-     - Batch size for training
-   * - clip_grad
-     - Clip gradients to within a given magnitude
-   * - compile_non_fluent_exact
-     - Whether model relaxations are skipped for non-fluent expressions
-   * - cpfs_without_grad
-     - A set of CPFs that do not allow gradients to flow through them
-   * - line_search_kwargs
-     - Arguments for optional `zoom line search <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.scale_by_zoom_linesearch>`_
-   * - method
-     - Type of ``core.planner.JaxPlan``, specifies the policy class
-   * - method_kwargs
-     - kwargs to pass to policy constructor (see next two tables for options)
-   * - noise_kwargs
-     - Arguments for optional `gradient noise <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.add_noise>`_: ``noise_grad_eta``, ``noise_grad_gamma`` and ``seed``
-   * - optimizer
-     - Name of optimizer from `optax <https://optax.readthedocs.io/en/latest/api/optimizers.html>`_ to use
-   * - optimizer_kwargs
-     - kwargs to pass to optimizer constructor, i.e. ``learning_rate``
-   * - parallel_updates
-     - Number of independent policies to initialize and update in parallel
-   * - pgpe
-     - Optional type of ``core.planner.PGPE`` for `parallel policy gradient update <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_
-   * - pgpe_kwargs
-     - kwargs to pass to PGPE constructor (for ``GaussianPGPE`` see table below)
-   * - preprocessor
-     - Optional type of ``core.planner.Preprocessor`` for preprocessing fluent tensors (i.e. normalization, etc.)
-   * - preprocessor_kwargs
-     - kwargs to pass to preprocessor constructor
-   * - print_warnings
-     - Whether to print compilation warnings to console (errors will still be printed)
-   * - rollout_horizon
-     - Rollout horizon of the computation graph
-   * - use64bit
-     - Whether to use 64 bit precision
-   * - use_symlog_reward
-     - Whether to apply the `symlog transform <https://arxiv.org/abs/2301.04104>`_ to the returns
-   * - utility
-     - Optional utility function to optimize
-   * - utility_kwargs
-     - kwargs to pass hyper-parameters to utility
+    .. list-table:: ``sampling_kwargs`` in ``[Model]`` for ``SoftRandomSampling``
+      :widths: 40 80
+      :header-rows: 1
+
+      * - Setting
+        - Description
+      * - bernoulli_gumbel_softmax
+        - Whether to use Gumbel-Softmax for Bernoulli relaxation
+      * - binomial_max_bins
+        - Maximum bins for Binomial relaxation
+      * - poisson_exp_sampling
+        - Whether to use `exponential sampling <https://arxiv.org/abs/2405.14473>`_ for Poisson relaxation
+      * - poisson_max_bins
+        - Maximum bins for Poisson relaxation
+      * - poisson_min_cdf
+        - Required cdf within truncated region to use Poisson relaxation
 
 
+.. collapse:: Possible settings for ``[Optimizer]`` section
 
-.. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxStraightLinePlan``
-   :widths: 40 80
-   :header-rows: 1
+    .. list-table:: ``[Optimizer]``
+      :widths: 40 80
+      :header-rows: 1
 
-   * - Setting
-     - Description
-   * - initializer
-     - Type of ``jax.nn.initializers``, specifies parameter initialization
-   * - initializer_kwargs
-     - kwargs to pass to the initializer
-   * - max_constraint_iter
-     - Maximum iterations of `gradient projection <https://ipc2018-probabilistic.bitbucket.io/planner-abstracts/conformant-sogbofa-ipc18.pdf>`_ for boolean action preconditions
-   * - min_action_prob
-     - Minimum probability of boolean action to avoid sigmoid saturation
-   * - use_new_projection
-     - Whether to use new sorting gradient projection for boolean action preconditions
-   * - wrap_non_bool
-     - Whether to wrap non-boolean actions with nonlinearity for box constraints
-   * - wrap_sigmoid
-     - Whether to wrap boolean actions with sigmoid
-   * - wrap_softmax
-     - Whether to wrap with softmax to satisfy boolean action preconditions
-
-
-.. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxDeepReactivePolicy``
-   :widths: 40 80
-   :header-rows: 1
-
-   * - Setting
-     - Description   
-   * - activation
-     - Name of activation for hidden layers, from ``jax.numpy`` or ``jax.nn`` 
-   * - initializer
-     - Type of ``haiku.initializers``, specifies parameter initialization
-   * - initializer_kwargs
-     - kwargs to pass to the initializer
-   * - normalize
-     - Whether to apply `layer norm to inputs <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_
-   * - normalize_per_layer
-     - Whether to apply layer norm to each input individually
-   * - normalizer_kwargs
-     - kwargs to pass to ``haiku.LayerNorm`` constructor for layer norm
-   * - topology
-     - List specifying number of neurons per hidden layer
-   * - wrap_non_bool
-     - Whether to wrap non-boolean actions with nonlinearity for box constraints   
-
-
-.. list-table:: ``GaussianPGPE`` Policy Gradient Fallback
-   :widths: 40 80
-   :header-rows: 1
-
-   * - Setting
-     - Description
-   * - batch_size
-     - Number of parameters to sample per gradient descent step
-   * - end_entropy_coeff
-     - Ending entropy regularization coeffient
-   * - init_sigma
-     - Initial standard deviation
-   * - max_kl_update
-     - Maximum bound on kl-divergence between successive updates
-   * - min_reward_scale
-     - Minimum reward scaling factor if ``scale_reward = True``
-   * - optimizer
-     - Name of optimizer from optax to use
-   * - optimizer_kwargs_mu
-     - kwargs to pass to optimizer constructor for mean, i.e. ``learning_rate``
-   * - optimizer_kwargs_sigma
-     - kwargs to pass to optimizer constructor for std, i.e. ``learning_rate``
-   * - scale_reward
-     - Whether to apply reward scaling during parameter updates
-   * - sigma_range
-     - Clipping bounds for standard deviation
-   * - start_entropy_coeff
-     - Starting entropy regularization coeffient
-   * - super_symmetric
-     - Whether to use super-symmetric sampling for standard deviation
-   * - super_symmetric_accurate
-     - Whether to use the accurate formula for super symmetric sampling
+      * - Setting
+        - Description
+      * - action_bounds
+        - Dictionary of (lower, upper) bounds on each action-fluent
+      * - batch_size_test
+        - Batch size for evaluation
+      * - batch_size_train
+        - Batch size for training
+      * - clip_grad
+        - Clip gradients to within a given magnitude
+      * - compile_non_fluent_exact
+        - Whether model relaxations are skipped for non-fluent expressions
+      * - cpfs_without_grad
+        - A set of CPFs that do not allow gradients to flow through them
+      * - line_search_kwargs
+        - Arguments for optional `zoom line search <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.scale_by_zoom_linesearch>`_
+      * - method
+        - Type of ``core.planner.JaxPlan``, specifies the policy class
+      * - method_kwargs
+        - kwargs to pass to policy constructor (see next two tables for options)
+      * - noise_kwargs
+        - Arguments for optional `gradient noise <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.add_noise>`_: ``noise_grad_eta``, ``noise_grad_gamma`` and ``seed``
+      * - optimizer
+        - Name of optimizer from `optax <https://optax.readthedocs.io/en/latest/api/optimizers.html>`_ to use
+      * - optimizer_kwargs
+        - kwargs to pass to optimizer constructor, i.e. ``learning_rate``
+      * - parallel_updates
+        - Number of independent policies to initialize and update in parallel
+      * - pgpe
+        - Optional type of ``core.planner.PGPE`` for `parallel policy gradient update <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_
+      * - pgpe_kwargs
+        - kwargs to pass to PGPE constructor (for ``GaussianPGPE`` see table below)
+      * - preprocessor
+        - Optional type of ``core.planner.Preprocessor`` for preprocessing fluent tensors (i.e. normalization, etc.)
+      * - preprocessor_kwargs
+        - kwargs to pass to preprocessor constructor
+      * - print_warnings
+        - Whether to print compilation warnings to console (errors will still be printed)
+      * - rollout_horizon
+        - Rollout horizon of the computation graph
+      * - use64bit
+        - Whether to use 64 bit precision
+      * - use_symlog_reward
+        - Whether to apply the `symlog transform <https://arxiv.org/abs/2301.04104>`_ to the returns
+      * - utility
+        - Optional utility function to optimize
+      * - utility_kwargs
+        - kwargs to pass hyper-parameters to utility
 
 
-.. list-table:: ``[Training]``
-   :widths: 40 80
-   :header-rows: 1
+.. collapse:: Possible settings for ``method_kwargs`` in ``[Optimizer]`` section for ``JaxStraightLinePlan``
 
-   * - Setting
-     - Description
-   * - dashboard
-     - Whether to display training results in a dashboard
-   * - epochs
-     - Maximum number of iterations of gradient descent   
-   * - key
-     - An integer to seed the RNG with for reproducibility
-   * - model_params
-     - Dictionary of hyper-parameter values to pass to the model relaxation
-   * - policy_hyperparams
-     - Dictionary of hyper-parameter values to pass to the policy
-   * - print_progress
-     - Whether to print the progress bar from the planner to console
-   * - print_summary
-     - Whether to print summary information from the planner to console
-   * - restart_epochs
-     - Number of consecutive epochs without progress to restart optimizer
-   * - stopping_rule
-     - A stopping criterion for the optimizer, subclass of ``JaxPlannerStoppingRule``
-   * - stopping_rule_kwargs
-     - kwargs to pass to stopping rule constructor
-   * - test_rolling_window
-     - Smoothing window over which to calculate test return
-   * - train_seconds
-     - Maximum seconds to train for
+    .. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxStraightLinePlan``
+      :widths: 40 80
+      :header-rows: 1
+
+      * - Setting
+        - Description
+      * - initializer
+        - Type of ``jax.nn.initializers``, specifies parameter initialization
+      * - initializer_kwargs
+        - kwargs to pass to the initializer
+      * - max_constraint_iter
+        - Maximum iterations of `gradient projection <https://ipc2018-probabilistic.bitbucket.io/planner-abstracts/conformant-sogbofa-ipc18.pdf>`_ for boolean action preconditions
+      * - min_action_prob
+        - Minimum probability of boolean action to avoid sigmoid saturation
+      * - use_new_projection
+        - Whether to use new sorting gradient projection for boolean action preconditions
+      * - wrap_non_bool
+        - Whether to wrap non-boolean actions with nonlinearity for box constraints
+      * - wrap_sigmoid
+        - Whether to wrap boolean actions with sigmoid
+      * - wrap_softmax
+        - Whether to wrap with softmax to satisfy boolean action preconditions
+
+
+.. collapse:: Possible settings for ``method_kwargs`` in ``[Optimizer]`` section for ``JaxDeepReactivePolicy``
+
+    .. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxDeepReactivePolicy``
+      :widths: 40 80
+      :header-rows: 1
+
+      * - Setting
+        - Description   
+      * - activation
+        - Name of activation for hidden layers, from ``jax.numpy`` or ``jax.nn`` 
+      * - initializer
+        - Type of ``haiku.initializers``, specifies parameter initialization
+      * - initializer_kwargs
+        - kwargs to pass to the initializer
+      * - normalize
+        - Whether to apply `layer norm to inputs <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_
+      * - normalize_per_layer
+        - Whether to apply layer norm to each input individually
+      * - normalizer_kwargs
+        - kwargs to pass to ``haiku.LayerNorm`` constructor for layer norm
+      * - topology
+        - List specifying number of neurons per hidden layer
+      * - wrap_non_bool
+        - Whether to wrap non-boolean actions with nonlinearity for box constraints   
+
+
+.. collapse:: Possible settings for ``GaussianPGPE`` policy gradient
+
+    .. list-table:: ``GaussianPGPE`` Policy Gradient Fallback
+      :widths: 40 80
+      :header-rows: 1
+
+      * - Setting
+        - Description
+      * - batch_size
+        - Number of parameters to sample per gradient descent step
+      * - end_entropy_coeff
+        - Ending entropy regularization coeffient
+      * - init_sigma
+        - Initial standard deviation
+      * - max_kl_update
+        - Maximum bound on kl-divergence between successive updates
+      * - min_reward_scale
+        - Minimum reward scaling factor if ``scale_reward = True``
+      * - optimizer
+        - Name of optimizer from optax to use
+      * - optimizer_kwargs_mu
+        - kwargs to pass to optimizer constructor for mean, i.e. ``learning_rate``
+      * - optimizer_kwargs_sigma
+        - kwargs to pass to optimizer constructor for std, i.e. ``learning_rate``
+      * - scale_reward
+        - Whether to apply reward scaling during parameter updates
+      * - sigma_range
+        - Clipping bounds for standard deviation
+      * - start_entropy_coeff
+        - Starting entropy regularization coeffient
+      * - super_symmetric
+        - Whether to use super-symmetric sampling for standard deviation
+      * - super_symmetric_accurate
+        - Whether to use the accurate formula for super symmetric sampling
+
+
+.. collapse:: Possible settings for ``[Training]`` section
+
+    .. list-table:: ``[Training]``
+      :widths: 40 80
+      :header-rows: 1
+
+      * - Setting
+        - Description
+      * - dashboard
+        - Whether to display training results in a dashboard
+      * - epochs
+        - Maximum number of iterations of gradient descent   
+      * - key
+        - An integer to seed the RNG with for reproducibility
+      * - model_params
+        - Dictionary of hyper-parameter values to pass to the model relaxation
+      * - policy_hyperparams
+        - Dictionary of hyper-parameter values to pass to the policy
+      * - print_progress
+        - Whether to print the progress bar from the planner to console
+      * - print_summary
+        - Whether to print summary information from the planner to console
+      * - restart_epochs
+        - Number of consecutive epochs without progress to restart optimizer
+      * - stopping_rule
+        - A stopping criterion for the optimizer, subclass of ``JaxPlannerStoppingRule``
+      * - stopping_rule_kwargs
+        - kwargs to pass to stopping rule constructor
+      * - test_rolling_window
+        - Smoothing window over which to calculate test return
+      * - train_seconds
+        - Maximum seconds to train for
 
 
 Boolean Actions
@@ -625,12 +638,10 @@ The utility function could also be provided explicitly as a function mapping a J
 with additional arguments specifying the hyper-parameters of the utility function referred to by name:
 
 .. code-block:: python
-    import jax
 
     @jax.jit
-    def my_utility_function(x: jax.numpy.ndarray, aversion: float=1.0) -> float:
+    def my_utility_function(x, aversion: float=1.0) -> float:
         return ...
-        
     planner = JaxBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
 
 .. raw:: html 
@@ -721,44 +732,46 @@ Next, indicate the variables you defined, their search ranges, and any transform
 JaxPlan supports tuning most numeric parameters that can be specified in the config file.
 If you wish to tune a replanning algorithm set ``online=True``.
 
-A full list of arguments to the tuning constructor is shown below:
+A full list of arguments to the tuning constructor is shown below.
 
-.. list-table:: ``JaxParameterTuning`` constructor arguments
-   :widths: 40 80
-   :header-rows: 1
+.. collapse:: Possible settings for ``JaxParameterTuning``
 
-   * - Setting
-     - Description
-   * - acquisition
-     - ``AcquisitionFunction`` object for the Gaussian process
-   * - config_template
-     - Config file content with abstract parameters to tune as described above
-   * - env
-     - The ``RDDLEnv`` instance
-   * - eval_trials
-     - Number of independent trials/rollouts to evaluate each hyper-parameter combination
-   * - gp_init_kwargs
-     - Optional keyword arguments to pass to the Gaussian process constructor
-   * - gp_iters
-     - Number of rounds of tuning to perform
-   * - gp_params
-     - Optional additional keyword arguments to pass to the Gaussian process (i.e. kernel)
-   * - hyperparams
-     - List of ``Hyperparameter`` objects
-   * - num_workers
-     - Number of parallel evaluations to perform in each round of tuning
-   * - online
-     - Whether to use replanning mode for tuning
-   * - poll_frequency
-     - How often to check for completed processes (defaults to 0.2 seconds)
-   * - pool_context
-     - The type of pool context for multiprocessing (defaults to "spawn")
-   * - rollouts_per_trial
-     - For ``online=False``, how many evaluation rollouts to perform per ``eval_trial``
-   * - timeout_tuning
-     - Maximum amount of time to allocate to tuning
-   * - verbose
-     - Whether to print intermediate results to the standard console
+    .. list-table:: ``JaxParameterTuning`` constructor arguments
+      :widths: 40 80
+      :header-rows: 1
+
+      * - Setting
+        - Description
+      * - acquisition
+        - ``AcquisitionFunction`` object for the Gaussian process
+      * - config_template
+        - Config file content with abstract parameters to tune as described above
+      * - env
+        - The ``RDDLEnv`` instance
+      * - eval_trials
+        - Number of independent trials/rollouts to evaluate each hyper-parameter combination
+      * - gp_init_kwargs
+        - Optional keyword arguments to pass to the Gaussian process constructor
+      * - gp_iters
+        - Number of rounds of tuning to perform
+      * - gp_params
+        - Optional additional keyword arguments to pass to the Gaussian process (i.e. kernel)
+      * - hyperparams
+        - List of ``Hyperparameter`` objects
+      * - num_workers
+        - Number of parallel evaluations to perform in each round of tuning
+      * - online
+        - Whether to use replanning mode for tuning
+      * - poll_frequency
+        - How often to check for completed processes (defaults to 0.2 seconds)
+      * - pool_context
+        - The type of pool context for multiprocessing (defaults to "spawn")
+      * - rollouts_per_trial
+        - For ``online=False``, how many evaluation rollouts to perform per ``eval_trial``
+      * - timeout_tuning
+        - Maximum amount of time to allocate to tuning
+      * - verbose
+        - Whether to print intermediate results to the standard console
      
 .. raw:: html 
 
@@ -773,12 +786,6 @@ JaxPlan Dashboard
 
 As of JaxPlan version 1.0, the embedded visualization tools have been replaced with 
 a plotly dashboard, which offers a much more comprehensive and efficient way to introspect trained policies.
-
-.. image:: jaxplan_dashboard.png
-    :width: 600
-    :alt: JaxPlan Dashboard
-    
-    
 To activate the dashboard for planning, simply add the following line in the config file:
 
 .. code-block:: shell
@@ -835,36 +842,38 @@ These hyper-parameters be retrieved and modified at any time as follows:
 
 The following table summarizes the default rules used in ``FuzzyLogic``.
 
-.. list-table:: Default Differentiable Mathematical Operations
-   :widths: 60 60
-   :header-rows: 1
+.. collapse:: Default rules for ``FuzzyLogic``
 
-   * - Exact RDDL Operation
-     - Approximate Operation
-   * - :math:`a \text{ ^ } b`
-     - :math:`a * b`
-   * - :math:`\sim a`
-     - :math:`1 - a`
-   * - forall_{?p : type} x(?p)
-     - :math:`\prod_{?p} x(?p)`
-   * - if (c) then a else b
-     - :math:`c * a + (1 - c) * b` `[1] <https://arxiv.org/pdf/2110.05651>`_
-   * - :math:`a == b`
-     - :math:`1 - \tanh^2(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
-   * - :math:`a > b`, :math:`a >= b`
-     - :math:`\mathrm{sigmoid}(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
-   * - argmax_{?p : type} x(?p)
-     - Softmax `[1] <https://arxiv.org/pdf/2110.05651>`_
-   * - sgn(a)
-     - :math:`\tanh(w * a)`
-   * - floor(a)
-     - SoftFloor `[2] <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
-   * - round(a)
-     - See `[3] <https://arxiv.org/pdf/2006.09952>`_
-   * - Bernoulli(p)
-     - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
-   * - Discrete(type, {cases ...} )
-     - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
+    .. list-table:: Default Differentiable Mathematical Operations
+      :widths: 60 60
+      :header-rows: 1
+
+      * - Exact RDDL Operation
+        - Approximate Operation
+      * - :math:`a \text{ ^ } b`
+        - :math:`a * b`
+      * - :math:`\sim a`
+        - :math:`1 - a`
+      * - forall_{?p : type} x(?p)
+        - :math:`\prod_{?p} x(?p)`
+      * - if (c) then a else b
+        - :math:`c * a + (1 - c) * b` `[1] <https://arxiv.org/pdf/2110.05651>`_
+      * - :math:`a == b`
+        - :math:`1 - \tanh^2(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
+      * - :math:`a > b`, :math:`a >= b`
+        - :math:`\mathrm{sigmoid}(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
+      * - argmax_{?p : type} x(?p)
+        - Softmax `[1] <https://arxiv.org/pdf/2110.05651>`_
+      * - sgn(a)
+        - :math:`\tanh(w * a)`
+      * - floor(a)
+        - SoftFloor `[2] <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
+      * - round(a)
+        - See `[3] <https://arxiv.org/pdf/2006.09952>`_
+      * - Bernoulli(p)
+        - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
+      * - Discrete(type, {cases ...} )
+        - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
 
 It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
 passing custom objects to its ``tnorm``, ``complement`` or other constructor arguments.
