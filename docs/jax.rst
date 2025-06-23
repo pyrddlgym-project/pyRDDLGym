@@ -158,7 +158,7 @@ The ``<method>`` parameter describes the type of planning representation:
 * ``replan`` uses replanning at every decision epoch
 * any other argument is interpreted as a file path to a valid configuration file.
 
-For example, the following will train an open-loop controller to fly 4 drones:
+For example, the following will execute an open-loop controller to fly 4 drones:
 
 .. code-block:: shell
 
@@ -228,6 +228,8 @@ To use a deep reactive policy, simply change the ``plan`` type to:
 .. note::
    ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
    Other policy representations could be defined by overriding this class and its abstract methods.
+   
+.. note::
    All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
 
 
@@ -273,12 +275,11 @@ To use a policy network with two hidden layers of size 128:
     method='JaxDeepReactivePolicy'
     method_kwargs={'topology': [128, 128]}
   
-To use replanning with a straight-line plan and a lookahead horizon of 5:
+To use replanning with a lookahead horizon of 5:
 
 .. code-block:: shell
 
     [Optimizer]
-    method='JaxStraightlinePlan'
     rollout_horizon=5
   
 Configuration files can be parsed and passed to the planner as follows:
@@ -561,7 +562,7 @@ parsed from the ``action_preconditions`` in the RDDL domain description.
 
 However, if the user wishes, it is possible to override these bounds
 by passing a dictionary of bounds for each action fluent into the ``action_bounds`` argument. 
-The syntax for specifying optional box constraints in the config file is:
+The syntax for specifying optional box constraints in the config is:
 
 .. code-block:: shell
 	
@@ -570,10 +571,9 @@ The syntax for specifying optional box constraints in the config file is:
    
 where ``lower#`` and ``upper#`` can be any list, nested list or array.
 
-By default, the box constraints on actions are enforced using the projected gradient method.
-An alternative approach is to map the actions to the box via a 
-`differentiable transformation <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
-In JaxPlan, this can be enabled by setting ``wrap_non_bool = True``. 
+By default, box constraints are enforced using projected gradient.
+An alternative approach applies a `differentiable transformation <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
+to action fluents. In JaxPlan, this can be enabled by setting ``wrap_non_bool = True``. 
 
 Concurrency
 ^^^^^^^^^^^^^^^^^^^
@@ -584,8 +584,8 @@ apply `projected gradient <https://ojs.aaai.org/index.php/ICAPS/article/view/346
 to satisfy constraints at each optimization step (for straight-line plans only).
 
 .. note::
-   Concurrency constraints on action-fluents are applied to boolean actions only.
-   Deep reactive policies only support :math:`B = 1`.
+   Concurrency constraints are applied to boolean actions only.
+   Deep reactive policies only support :math:`B = 1` by applying a softmax trick.
 
 
 Reward Normalization
