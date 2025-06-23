@@ -130,8 +130,11 @@ to approximate the gradients.
    (supported for small counts only), NegativeBinomial and Multinomial.
 
 
-Running JaxPlan from the Command Line
+Running JaxPlan
 -------------------
+
+From the Command Line
+^^^^^^^^^^^^^^^^^^^
 
 A command line app is provided to run JaxPlan on a specific problem instance:
 
@@ -160,8 +163,9 @@ For example, the following will train an open-loop controller to fly 4 drones:
     jaxplan plan Quadcopter 1 slp
    
 
-Running JaxPlan from within Python
+From Python
 -------------------
+^^^^^^^^^^^^^^^^^^^
 
 .. _jax-intro:
 
@@ -529,6 +533,12 @@ Configuration files can be parsed and passed to the planner as follows:
 Boolean Actions
 -------------------
 
+Constraints on Action-Fluents
+-------------------
+
+Supporting Boolean Action-Fluents
+^^^^^^^^^^^^^^^^^^^
+
 By default, boolean actions are wrapped using the sigmoid function:
 
 .. math::
@@ -546,11 +556,8 @@ At test time, the action is aliased by evaluating the expression
 :math:`a > 0.5`, or equivalently :math:`\theta > 0`. 
 The sigmoid wrapper can be controlled by setting ``wrap_sigmoid``.
 
-
-Constraints on Action Fluents
--------------------
-
-JaxPlan supports two different kinds of actions constraints.
+Box Constraints
+^^^^^^^^^^^^^^^^^^^
 
 Box constraints are useful for bounding each action fluent independently within some range.
 Box constraints typically do not need to be specified manually, since they are automatically 
@@ -572,14 +579,17 @@ An alternative approach is to map the actions to the box via a
 `differentiable transformation <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_.
 In JaxPlan, this can be enabled by setting ``wrap_non_bool = True``. 
 
+Concurrency
+^^^^^^^^^^^^^^^^^^^
+
 Concurrency constraints are of the form :math:`\sum_i a_i \leq B` where :math:`B`
 is ``max-nondef-actions`` in the RDDL instance. ``JaxBackpropPlanner`` will automatically 
 apply `projected gradient <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_ 
 to satisfy constraints at each optimization step (for straight-line plans only).
 
 .. note::
-   Concurrency constraints on action-fluents are applied to boolean actions only: 
-   e.g., real and int actions are currently ignored.
+   Concurrency constraints on action-fluents are applied to boolean actions only.
+   Deep reactive policies only support :math:`B = 1`.
 
 
 Reward Normalization
@@ -650,7 +660,10 @@ JaxPlan provides a Bayesian optimization algorithm for automatically tuning key 
 * leverages Bayesian optimization to search the hyper-parameter space more efficiently
 * supports all types of policies that use config files.
 
-To run the automated tuning on the most important hyper-parameters, a console command is packaged with JaxPlan:
+From the Command Line
+^^^^^^^^^^^^^^^^^^^
+
+The command line app runs the automated tuning on the most important hyper-parameters:
 
 .. code-block:: shell
 
@@ -665,7 +678,10 @@ where:
 * ``workers`` is the (optional) number of parallel evaluations to be done at each iteration, e.g. maximum total evaluations is ``trials * workers``
 * ``dashboard`` is whether the optimizations are tracked and displayed in a dashboard application.
 
-To perform automatic tuning on a custom set of hyper-parameters, first specify a config file template
+From Python
+^^^^^^^^^^^^^^^^^^^
+
+To customize the hyper-parameter tuning algorithm in detail, first specify a config file template
 where concrete hyper-parameter to tune are replaced by keywords, i.e.:
 
 .. code-block:: shell
@@ -781,8 +797,11 @@ To activate the dashboard for planning, simply add the following line in the con
     dashboard=True
 
 
-Dealing with Non-Differentiable Expressions
+Dealing with Non-Differentiability
 -------------------
+
+Model Relaxations
+^^^^^^^^^^^^^^^^^^^
 
 Many RDDL programs contain expressions that do not support derivatives.
 A common technique to deal with this is to approximate non-differentiable operations using similar differentiable ones.
@@ -826,6 +845,9 @@ These hyper-parameters be retrieved and modified at any time as follows:
     model_params[key] = ...
     planner.optimize(..., model_params=model_params)
 
+It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
+modifying ``tnorm``, ``complement`` or other constructor arguments in the config.
+
 .. collapse:: Default rules for ``FuzzyLogic``
 
     .. list-table:: Default Differentiable Mathematical Operations
@@ -859,14 +881,14 @@ These hyper-parameters be retrieved and modified at any time as follows:
       * - Discrete(type, {cases ...} )
         - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
 
-It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
-modifying ``tnorm``, ``complement`` or other constructor arguments in the config.
+
+Other Techniques
+^^^^^^^^^^^^^^^^^^^
 
 Since version 2.0, JaxPlan runs a parallel instance of
 `parameter-exploring policy gradients (PGPE) <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_.
 In some cases, this allows JaxPlan to continue making progress when the model relaxations are poor. 
 It can be configured as follows:
-
 
 .. code-block:: shell
 
