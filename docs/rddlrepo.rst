@@ -13,17 +13,17 @@ The rddlrepository:
 Installing
 ---------
 
-To install directly with pip:
+To install with pip:
 
 .. code-block:: shell
 
     pip install rddlrepository
 
 
-The Repository Manager
+Listing Available Domains
 ---------
 
-The core object for extracting problems and instances is the ``RDDLRepoManager`` object:
+The core object for extracting domains and instances is the ``RDDLRepoManager`` object:
 
 .. code-block:: python
 
@@ -42,7 +42,9 @@ To list all domains currently available in rddlrepository:
 
     print(manager.list_problems())
 
-Problems are organized by context (e.g. year of the competition, standalone):
+Domains are organized by context (e.g. competition year, benchmark set) 
+with names usually following the syntax ``<domain name>_<context>`` 
+(except for standalone domains where the context is excluded from the name)
 
 .. code-block:: python
 
@@ -58,17 +60,16 @@ Problems are organized by context (e.g. year of the competition, standalone):
    </a>
    
    
-
-Retrieving Specific Problems
+Retrieving Domain Information
 ---------
 
-The information for a specific problem or domain is a ``ProblemInfo`` instance:
+The information for a specific domain is stored in a ``ProblemInfo`` instance:
 
 .. code-block:: python
 
     problem_info = manager.get_problem("EarthObservation_ippc2018")
 
-will load the EarthObservation domain information from the ippc2018 context.
+will load the EarthObservation domain from the ippc2018 context.
 
 To list all the instances of a domain:
 
@@ -76,7 +77,7 @@ To list all the instances of a domain:
 
     print(problem_info.list_instances())
 
-To return the paths of the domain and an instance (1):
+To return the paths of the domain and instance:
 
 .. code-block:: python
 
@@ -99,17 +100,17 @@ To return the pyRDDLGym visualizer class:
    
    
  
-Loading Environments in pyRDDLGym
+Loading an Environment in pyRDDLGym
 ---------
 
-In the introduction to pyRDDLGym, we already presented the standard way to load an environment:
+In the introduction to pyRDDLGym, we presented the recommended way to load an environment:
 
 .. code-block:: python
 
     import pyRDDLGym
     env = pyRDDLGym.make("EarthObservation_ippc2018", "1")
 
-This can also be done directly using rddlrepository:
+This can also be done explicitly using rddlrepository:
 
 .. code-block:: python
     
@@ -127,7 +128,7 @@ This can also be done directly using rddlrepository:
    
    
 
-Registering your Own Problems and Instances
+Registering a New Domain or Instance
 ---------
 
 To register a new context in rddlrepository for later access:
@@ -136,7 +137,7 @@ To register a new context in rddlrepository for later access:
 
     manager.register_context("MyContext")
 
-To register a new problem in a given context for later access:
+To register a new domain in a given context for later access:
 
 .. code-block:: python
 
