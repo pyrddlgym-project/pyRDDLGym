@@ -21,6 +21,8 @@ Purpose and Benefits
 	- :ref:`PROST <prost>`: Monte Carlo Tree Search (MCTS)
 	- :ref:`Deep Reinforcement Learning (DQN, PPO, etc.) <rl>`: Popular Reinforcement Learning (RL) algorithms from Stable Baselines and RLlib
 	- :ref:`Symbolic Dynamic Programming <xadds>`: Exact Symbolic regression-based planning and policy evaluation
+- Official evaluation system of the `2023 IPC RL and planning track <https://ataitler.github.io/IPPC2023/>`_.
+
 
 Features and Limitations
 ------
@@ -44,7 +46,12 @@ The following features have been omitted (or marked as deprecated) from the RDDL
 - derived-fluent pvariables are still supported but considered deprecated, and may be removed in future versions
 - fluent levels are reasoned automatically, thus specifying levels explicitly is no longer required.
 
-This toolkit was the official evaluation system of the `2023 IPC RL and planning track <https://ataitler.github.io/IPPC2023/>`_.
+.. warning::
+    The minus ``-`` arithmetic operation must have spaces on both sides, otherwise it is impossible to disambiguate with variable names.
+
+.. warning::
+    Aggregation-union-precedence parsing requires encapsulating parentheses around aggregations, e.g., ``(sum_{}[])``.
+
 
 License
 -------
