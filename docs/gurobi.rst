@@ -4,25 +4,27 @@ pyRDDLGym-gurobi: Planning by Nonlinear Programming with GurobiPlan
 ===============
 
 In this tutorial, we discuss the compilation of RDDL into a Gurobi mixed-integer program (MIP) for computing optimal actions.
-We also discuss how pyRDDLGym-gurobi (or GurobiPlan as it is referred to in the literature) uses gurobi to build optimal controllers.
+We also discuss how pyRDDLGym-gurobi (or GurobiPlan) uses gurobi to do optimal control.
 
 
 Installing
 -----------------
 
 Before installing GurobiPlan, you will need to obtain a valid gurobi license.
-You can then install GurobiPlan and all of its requirements via pip:
+You can then install GurobiPlan and all its requirements via pip:
 
 .. code-block:: shell
 
     pip install pyRDDLGym-gurobi
 
 
-Running the Basic Example
+Running GurobiPlan
 -------------------
 
-The basic example provided in pyRDDLGym-gurobi will run GurobiPlan on a 
-domain and instance of your choosing. To run this, navigate to the install directory of pyRDDLGym-gurobi, and run:
+From the Command Line
+^^^^^^^^^^^^^^^^^^^
+
+From the install directory of pyRDDLGym-gurobi run:
 
 .. code-block:: shell
 
@@ -34,10 +36,10 @@ where:
 * ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance file.
 
 
-Running from the Python API
--------------------
+From Python
+^^^^^^^^^^^^^^^^^^^
 
-If you are working with the Python API, you can instantiate the environment and planner as follows:
+In Python, instantiate the environment and planner as follows:
 
 .. code-block:: python
 
@@ -53,14 +55,11 @@ If you are working with the Python API, you can instantiate the environment and 
 
     # Run the planner
     controller.evaluate(env, episodes=1, verbose=True, render=True)
-	
     env.close()
 		
 .. note::
-   An online and offline controller type are provided in GurobiPlan, 
-   which mirror the functionality of the JAX planner discussed in the previous section.
-   Both are instances of pyRDDLGym's ``BaseAgent``, so the ``evaluate()`` 
-   function can be used to streamline evaluation.
+   An online and offline controller are provided in GurobiPlan mirroring the functionality of JaxPlan.
+   Both are instances of pyRDDLGym's ``BaseAgent``, so the ``evaluate()`` function can streamline evaluation.
 
  
 Configuring GurobiPlan
@@ -68,7 +67,7 @@ Configuring GurobiPlan
 
 The recommended way to manage planner settings is to write a configuration file 
 with all the necessary hyper-parameters, which follows the same general format
-as for the JAX planner. Below is the basic structure of a configuration file for straight-line planning:
+as JaxPlan, i.e. for straight-line planning:
 
 .. code-block:: shell
 
@@ -86,23 +85,6 @@ The configuration file contains two sections:
 
 * the ``[Gurobi]`` section dictates `parameters <https://www.gurobi.com/documentation/current/refman/parameters.html>`_ passed to the Gurobi engine
 * the ``[Optimizer]`` section contains a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, and other aspects of the optimization like rollout horizon.
-
-The configuration file can then be parsed and passed to GurobiPlan as follows:
-
-.. code-block:: python
-    
-    import os
-    from pyRDDLGym_gurobi.core.planner import load_config
-    
-    # pass the parameters to the controller and proceed as usual
-    controller_kwargs = load_config("/path/to/config/file")  
-    controller = GurobiOnlineController(rddl=env.model, **controller_kwargs)
-    ...
-
-.. note::
-   You can also pass Gurobi backend parameters by creating a ``gurobi.env`` file in the same
-   directory where your launch script is located. However, we no longer recommend this approach.
-
 
 The full list of settings that can be specified in the ``[Optimizer]`` section of the configuration file are as follows:
 
@@ -125,19 +107,35 @@ The full list of settings that can be specified in the ``[Optimizer]`` section o
    * - verbose
      - Print nothing(0)/summary(1)/detailed(2) compiler messages
 
+The configuration file can then be parsed and passed to GurobiPlan as follows:
+
+.. code-block:: python
+    
+    import os
+    from pyRDDLGym_gurobi.core.planner import load_config
+    
+    # pass the parameters to the controller and proceed as usual
+    controller_kwargs = load_config("/path/to/config/file")  
+    controller = GurobiOnlineController(rddl=env.model, **controller_kwargs)
+    ...
+
+.. note::
+   You can also pass Gurobi backend parameters by creating a ``gurobi.env`` file in the same
+   directory where your launch script is located.
+
  
-Current Limitations
+Limitations
 -------------------
 
 We cite several limitations of the current version of GurobiPlan:
 
 * Stochastic variables introduce computational difficulties since mixed-integer problems are inherently deterministic
-	* the planner currently applies determinization, where stochastic variables are substituted with their means (we hope to incorporate more sophisticated techniques from optimization to better deal with stochasticity)
+	* the planner currently applies determinization, where stochastic variables are replaced with their means
 * Discrete non-linear domains can require exponential computation time
-	* the planner uses piecewise linear functions to approximate non-linearities, and quadratic expressions in other cases
-	* if the planner does not make progress, we recommend reducing the planning horizon, simplying the RDDL description as much as possible, or tweaking the parameters of the Gurobi model.
+	* GurobiPlan uses piecewise linear functions to approximate non-linearities, and quadratic expressions in other cases
+	* we recommend reducing the planning horizon, simplying the RDDL as much as possible, and tweaking the Gurobi specific parameters.
 
-Citations
+Citation
 -------------------
 
 If you use the code provided in this repository, please use the following bibtex for citation:
