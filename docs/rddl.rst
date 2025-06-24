@@ -896,20 +896,20 @@ the outer scope to serve as "batch" dimensions, i.e.
 
     det_{?<value1> : <variable_name1>, ?<value2> : <variable_name2>} <expression>( ?<value1>, ?<value2>, ?<value3>, ... )
 
-The syntax for computing the matrix inverse, pseudo-inverse and Cholesky factor of ``<expression>`` is
+The syntax for computing the matrix inverse, pseudo-inverse and Cholesky factor is
 
 .. code-block:: shell
 
-    inverse[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
-    pinverse[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
-    cholesky[ row=?<value1>, col=?<value2> ] <expression>( ?<value1>, ?<value2> )
+    inverse[ row=?<value1>, col=?<value2> ][<pvariable>( ?<value1>, ?<value2> )]
+    pinverse[ row=?<value1>, col=?<value2> ][<pvariable>( ?<value1>, ?<value2> )]
+    cholesky[ row=?<value1>, col=?<value2> ] <pvariable>( ?<value1>, ?<value2> )]
 
 Similar to vectorized sampling, these operations produce a matrix rather than a scalar,
 so ``?<value1>`` and ``?<value2>`` must be variables defined in the outer scope 
 into which the inverse matrix will be assigned. Also, to break ambiguity between
 which of ``?<value1>`` and ``?<value2>`` corresponds to the row and column dimensions
-of ``<expression>``, they must be explicitly assigned to the row and column dimensions as
+of ``<pvariable>``, they must be explicitly assigned to the row and column dimensions as
 in the code above, i.e. ``?<value1>`` runs over the rows and 
-``?<value2>`` runs over the columns of the "matrix" produced by ``<expression>``. 
-As with determinant, this calculation can be "batched" if ``<expression>`` is 
+``?<value2>`` runs over the columns of the "matrix" produced by ``<pvariable>``. 
+As with determinant, this calculation can be "batched" if ``<pvariable>`` is 
 appropriately parameterized by other variables from the outer scope.
