@@ -161,15 +161,18 @@ class RDDLDecompiler:
         nonfluents_statements = []
         for (name, values) in rddl.non_fluents.items():
             default_value = rddl.variable_defaults[name]
-            for (gname, gvalue) in rddl.ground_var_with_values(name, values):
-                if gvalue != default_value:
-                    gvar, objects = rddl.parse_grounded(gname)
-                    if objects:
-                        objects_str = '(' + ','.join(objects) + ')'
-                    else:
-                        objects_str = ''
-                    gvalue = self._value_to_string(gvalue)
-                    assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
+            if isinstance(values, (list, tuple, set)):
+                for (gname, gvalue) in rddl.ground_var_with_values(name, values):
+                    if gvalue != default_value:
+                        gvar, objects = rddl.parse_grounded(gname)
+                        objects_str = ('(' + ','.join(objects) + ')') if objects else ''
+                        gvalue = self._value_to_string(gvalue)
+                        assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
+                        nonfluents_statements.append(assign_expr)
+            else:
+                if values != default_value:
+                    values = self._value_to_string(values)
+                    assign_expr = f'\t\t{name} = {values};'
                     nonfluents_statements.append(assign_expr)
         if nonfluents_statements:
             decompiled_nonfluents = '\n\tnon-fluents {'
@@ -193,15 +196,18 @@ class RDDLDecompiler:
         initstate_statements = []
         for (name, values) in rddl.state_fluents.items():
             default_value = rddl.variable_defaults[name]
-            for (gname, gvalue) in rddl.ground_var_with_values(name, values):
-                if gvalue != default_value:
-                    gvar, objects = rddl.parse_grounded(gname)
-                    if objects:
-                        objects_str = '(' + ','.join(objects) + ')'
-                    else:
-                        objects_str = ''
-                    gvalue = self._value_to_string(gvalue)
-                    assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
+            if isinstance(values, (list, tuple, set)):
+                for (gname, gvalue) in rddl.ground_var_with_values(name, values):
+                    if gvalue != default_value:
+                        gvar, objects = rddl.parse_grounded(gname)
+                        objects_str = ('(' + ','.join(objects) + ')') if objects else ''
+                        gvalue = self._value_to_string(gvalue)
+                        assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
+                        initstate_statements.append(assign_expr)
+            else:
+                if values != default_value:
+                    values = self._value_to_string(values)
+                    assign_expr = f'\t\t{name} = {values};'
                     initstate_statements.append(assign_expr)
         if initstate_statements:
             decompiled_initstate = '\n\tinit-state {'

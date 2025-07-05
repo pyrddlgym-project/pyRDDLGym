@@ -27,6 +27,7 @@ def main(domain, instance):
     # decompile and print model
     decompiler = RDDLDecompiler()
     print(decompiler.decompile_domain(grounded_model))
+    print(decompiler.decompile_instance(grounded_model))
     
     env.close()
 
