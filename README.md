@@ -16,26 +16,7 @@
 A Python toolkit for auto-generation of OpenAI Gym environments from Relational Dynamic Influence Diagram Language (RDDL) description files.
 This is currently the official parser, simulator and evaluation system for RDDL in Python, with new features and enhancements to the RDDL language.<br />
 
-<p align="middle">
-<img src="Images/acrobot.gif" width="120" height="120" margin=0/>
-<img src="Images/cartpole.gif" width="120" height="120" margin=0/>
-<img src="Images/drones.gif" width="120" height="120" margin=0/>
-<img src="Images/elevators.gif" width="120" height="120" margin=0/>
-<img src="Images/hvac.gif" width="120" height="120" margin=0/>
-<img src="Images/intruders.gif" width="120" height="120" margin=0/>
-<img src="Images/mountaincar.gif" width="120" height="120" margin=0/>
-<img src="Images/pendulum.gif" width="120" height="120" margin=0/>
-<img src="Images/pong.gif" width="120" height="120" margin=0/>
-<img src="Images/powergen.gif" width="120" height="120" margin=0/>
-<img src="Images/quadcopter.gif" width="120" height="120" margin=0/>
-<img src="Images/racecar.gif" width="120" height="120" margin=0/>
-<img src="Images/reacher.gif" width="120" height="120" margin=0/>
-<img src="Images/recsys.gif" width="120" height="120" margin=0/>
-<img src="Images/reservoir.gif" width="120" height="120" margin=0/>
-<img src="Images/rovers.gif" width="120" height="120" margin=0/>
-<img src="Images/traffic.gif" width="120" height="120" margin=0/>
-<img src="Images/wildfire.gif" width="120" height="120" margin=0/>
-</p>
+<img src="Images/examples.gif" margin=0/>
 
 ## Purpose and Benefits
 
