@@ -41,6 +41,7 @@ class RDDLSimulator:
         returns state in numpy array form
         :param objects_as_strings: whether to return object values as strings (defaults
         to integer indices if False)
+        :param python_functions: dictionary of external Python functions to call from RDDL
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
@@ -1435,7 +1436,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
                  trace_info: object,
                  rng: np.random.Generator=np.random.default_rng(),
                  keep_tensors: bool=False, 
-                 objects_as_strings: bool=True) -> None:
+                 objects_as_strings: bool=True,
+                 python_functions: Optional[Dict[str, Callable]]=None) -> None:
         self.init_values = init_values
         self.levels = levels
         self.traced = trace_info
@@ -1446,7 +1448,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
             rng=rng,
             logger=None,
             keep_tensors=keep_tensors,
-            objects_as_strings=objects_as_strings)        
+            objects_as_strings=objects_as_strings,
+            python_functions=python_functions)        
     
     def _compile(self):
         rddl = self.rddl
