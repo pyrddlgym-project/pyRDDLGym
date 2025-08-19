@@ -577,6 +577,7 @@ class RDDLParser(object):
         '''expr : pvar_expr
                 | group_expr
                 | function_expr
+                | pyfunction_expr
                 | relational_expr
                 | boolean_expr
                 | quantifier_expr
@@ -608,6 +609,27 @@ class RDDLParser(object):
     def p_function_expr(self, p):
         '''function_expr : IDENT LBRACK expr_list RBRACK'''
         p[0] = ('func', (p[1], p[3]))
+
+    # added by Mike on Aug 18, 2025    
+    def p_pyfunction_term_list(self, p):
+        '''pyfunction_term_list : pyfunction_term_list COMMA randomvector_pvar_expr
+                                | randomvector_pvar_expr
+                                | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_pyfunction_expr(self, p):
+        '''pyfunction_expr : DOLLAR_SIGN IDENT LBRACK randomvector_term_list RBRACK
+                           | DOLLAR_SIGN IDENT LBRACK randomvector_term_list RBRACK LPAREN pyfunction_term_list RPAREN'''
+        if len(p) == 6:
+            p[0] = Expression(('pyfunc', (p[2], (p[4], []))))
+        elif len(p) == 9:
+            p[0] = Expression(('pyfunc', (p[2], (p[4], p[7]))))
 
     def p_relational_expr(self, p):
         '''relational_expr : expr COMP_EQUAL expr
