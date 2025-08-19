@@ -43,6 +43,8 @@ class Expression(object):
             return ('relational', self._expr[0])
         elif self._expr[0] == 'func':
             return ('func', self._expr[1][0])
+        elif self._expr[0] == 'pyfunc':
+            return ('pyfunc', self._expr[1][0])
         elif self._expr[0] == 'sum':
             return ('aggregation', 'sum')
         elif self._expr[0] == 'prod':
@@ -94,6 +96,8 @@ class Expression(object):
         elif self._expr[0] in ['>=', '<=', '<', '>', '==', '~=']:
             return self._expr[1]
         elif self._expr[0] == 'func':
+            return self._expr[1][1]
+        elif self._expr[0] == 'pyfunc':
             return self._expr[1][1]
         elif self._expr[0] in ['sum', 'prod', 'avg', 'max', 'min', 'forall', 'exists', 'argmin', 'argmax']:
             return self._expr[1]

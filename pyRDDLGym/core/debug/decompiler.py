@@ -251,6 +251,8 @@ class RDDLDecompiler:
             return self._decompile_aggregation(expr, enclose, level)   
         elif etype == 'func':
             return self._decompile_func(expr, enclose, level) 
+        elif etype == 'pyfunc':
+            return self._decompile_pyfunc(expr, enclose, level) 
         elif etype == 'control':
             return self._decompile_control(expr, enclose, level)        
         elif etype == 'randomvar':
@@ -330,6 +332,13 @@ class RDDLDecompiler:
         decompiled = ', '.join(self._decompile(arg, False, level) 
                                for arg in expr.args)
         return f'{op}[{decompiled}]'
+    
+    def _decompile_pyfunc(self, expr, enclose, level):
+        _, op = expr.etype
+        pvars, args = expr.args
+        args = ', '.join(self._decompile(arg, False, level) for arg in args)
+        pvars = ', '.join(pvars)
+        return f'{op}[{pvars}]({args})'
             
     def _decompile_control(self, expr, enclose, level):
         _, op = expr.etype
