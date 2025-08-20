@@ -544,7 +544,7 @@ class RDDLGrounder(BaseRDDLGrounder):
         if expression_type in dispatch_dict.keys():
             return dispatch_dict[expression_type](expr, dic)
         else:
-            if expression_type in {'matrix', 'randomvector'}:
+            if expression_type in {'matrix', 'randomvector', 'pyfunc'}:
                 raise RDDLNotImplementedError(
                     f'Operation of type <{expression_type}> can not currently be grounded.')
             new_children = []

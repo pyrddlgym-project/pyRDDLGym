@@ -79,7 +79,10 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         # instance info
         self._discount = None
         self._horizon = None
-        self._max_allowed_actions = None        
+        self._max_allowed_actions = None    
+
+        # external functions
+        self._pyfuncs = {}    
         
     # ===========================================================================
     # base properties
@@ -367,6 +370,18 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def max_allowed_actions(self, val):
         self._max_allowed_actions = val
     
+    # ===========================================================================
+    # external functions
+    # ===========================================================================
+    
+    @property
+    def python_functions(self):
+        return self._pyfuncs
+
+    @python_functions.setter
+    def python_functions(self, val):
+        self._pyfuncs = val
+
     # ===========================================================================
     # class methods for general RDDL syntax rules
     # ===========================================================================
@@ -681,6 +696,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
             return True
         
         elif etype == 'randomvar' or etype == 'randomvector':
+            return False
+        
+        elif etype == 'pyfunc':
             return False
         
         elif etype == 'pvar':
