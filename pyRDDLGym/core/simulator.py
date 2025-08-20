@@ -831,7 +831,7 @@ class RDDLSimulator:
         for arg in args:
             sample = self._sample(arg, subs)
             shape = np.shape(sample)
-            new_shape = (np.prod(shape[:num_free_vars]),) + shape[num_free_vars:]
+            new_shape = (np.prod(shape[:num_free_vars], dtype=int),) + shape[num_free_vars:]
             flat_sample = np.reshape(sample, new_shape)
             flat_samples.append(flat_sample)
         
@@ -871,7 +871,7 @@ class RDDLSimulator:
         output = np.reshape(output, free_dims + pyfunc_dims)
         
         # rearrange the output dimensions to match the outer scope
-        source_indices = len(free_dims) + np.arange(len(pyfunc_dims))
+        source_indices = len(free_dims) + np.arange(len(pyfunc_dims), dtype=int)
         dest_indices = self.traced.cached_sim_info(expr)
         output = np.moveaxis(output, source=source_indices, destination=dest_indices)
         return output
