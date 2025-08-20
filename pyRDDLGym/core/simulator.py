@@ -843,7 +843,7 @@ class RDDLSimulator:
         pyfunc = self.python_functions.get(pyfunc_name)
         if pyfunc is None:
             raise ValueError(
-                f'Undefined external Python function with name <{pyfunc_name}>, '
+                f'Undefined external Python function <{pyfunc_name}>, '
                 f'must be one of {list(self.python_functions.keys())}.\n' +  
                 print_stack_trace(expr))
         output = np.array([pyfunc(*inputs) for inputs in zip(*flat_samples)])
@@ -854,14 +854,14 @@ class RDDLSimulator:
         pyfunc_dims = np.shape(output)[1:]
         if len(require_dims) != len(pyfunc_dims):
             raise ValueError(
-                f'Output of external Python function returned an array with '
+                f'Output of external Python function <{pyfunc_name}> returned array with '
                 f'{len(pyfunc_dims)} dimensions, which does not match the '
                 f'number of captured parameter(s) {len(require_dims)}.\n' +  
                 print_stack_trace(expr))
         for (param, require_dim, actual_dim) in zip(captured_vars, require_dims, pyfunc_dims):
             if require_dim != actual_dim:
                 raise ValueError(
-                    f'Output of external Python function returned an array with '
+                    f'Output of external Python function <{pyfunc_name}> returned array with '
                     f'{actual_dim} elements for captured parameter <{param}>, '
                     f'which does not match the number of objects {require_dim}.\n' + 
                     print_stack_trace(expr))

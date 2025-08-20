@@ -610,15 +610,17 @@ class RDDLObjectsTracer:
         bad_pvars = {pvar for pvar in sample_pvars if pvar not in scope_pvars}
         if bad_pvars:
             raise RDDLInvalidObjectError(
-                f'Sampling parameter(s) {bad_pvars} of {op} are not defined in '
-                f'outer scope, must be one of {set(scope_pvars.keys())}.\n' + 
+                f'Sampling parameter(s) {bad_pvars} of external Python function <{op}> '
+                f'are not defined in outer scope, '
+                f'must be one of {set(scope_pvars.keys())}.\n' + 
                 PST(expr, out._current_root))
         
         # check duplicates in sample_pvars
         sample_pvar_set = set(sample_pvars)
         if len(sample_pvar_set) != len(sample_pvars):
             raise RDDLInvalidNumberOfArgumentsError(
-                f'Sampling parameter(s) {sample_pvars} of {op} are repeated.\n' + 
+                f'Sampling parameter(s) {sample_pvars} of external Python function <{op}> '
+                f'are repeated.\n' + 
                 PST(expr, out._current_root))
         
         # sample_pvars are excluded when tracing arguments
@@ -637,7 +639,8 @@ class RDDLObjectsTracer:
             if bad_pvars:
                 raise RDDLInvalidObjectError(
                     f'Parameter(s) {bad_pvars} of argument <{name}> at position '
-                    f'{i + 1} of {op} can not be sampling parameter(s) '
+                    f'{i + 1} of external Python function <{op}> '
+                    f'can not be sampling parameter(s) '
                     f'{sample_pvar_set}.\n' + PST(expr, out._current_root))
             
             # trace argument
@@ -645,7 +648,7 @@ class RDDLObjectsTracer:
             
             # argument cannot be object type
             RDDLObjectsTracer._check_not_object(
-                arg, expr, out, f'Argument {i + 1} of {op}') 
+                arg, expr, out, f'Argument {i + 1} of external Python function <{op}>') 
             
         sample_pvar_indices = tuple(scope_pvars[pvar] for pvar in sample_pvars)
         out._append(expr, objects, None, True, sample_pvar_indices)
