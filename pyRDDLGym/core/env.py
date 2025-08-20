@@ -84,11 +84,6 @@ class RDDLEnv(gym.Env):
             rddl = parser.parse(domain)
             self.model = RDDLLiftedModel(rddl)
         
-        # handle external Python functions
-        python_functions = backend_kwargs.get('python_functions', None)
-        if python_functions is not None:
-            self.model.python_functions = python_functions
-
         # define the RDDL model        
         self.horizon = self.model.horizon
         self.discount = self.model.discount
