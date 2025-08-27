@@ -848,20 +848,28 @@ class RDDLSimulator:
                 print_stack_trace(expr))
         output = np.array([pyfunc(*inputs) for inputs in zip(*flat_samples)])
         
+        # check the output type is correct
+        if not np.issubdtype(output.dtype, np.number) \
+        and not np.issubdtype(output.dtype, np.bool_):
+            raise ValueError(
+                f'External Python function <{pyfunc_name}> returned array of '
+                f'type {output.dtype}, which is not a primitive type.\n' +  
+                print_stack_trace(expr))
+    
         # check the output shape of captured part is correct
         captured_types = [t for (p, t) in scope_vars if p in captured_vars]
         require_dims = self.rddl.object_counts(captured_types)
         pyfunc_dims = np.shape(output)[1:]
         if len(require_dims) != len(pyfunc_dims):
             raise ValueError(
-                f'Output of external Python function <{pyfunc_name}> returned array with '
+                f'External Python function <{pyfunc_name}> returned array with '
                 f'{len(pyfunc_dims)} dimensions, which does not match the '
                 f'number of captured parameter(s) {len(require_dims)}.\n' +  
                 print_stack_trace(expr))
         for (param, require_dim, actual_dim) in zip(captured_vars, require_dims, pyfunc_dims):
             if require_dim != actual_dim:
                 raise ValueError(
-                    f'Output of external Python function <{pyfunc_name}> returned array with '
+                    f'External Python function <{pyfunc_name}> returned array with '
                     f'{actual_dim} elements for captured parameter <{param}>, '
                     f'which does not match the number of objects {require_dim}.\n' + 
                     print_stack_trace(expr))
