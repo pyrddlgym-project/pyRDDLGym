@@ -232,6 +232,8 @@ class RDDLObjectsTracer:
             self._trace_aggregation(expr, objects, out)
         elif etype == 'func':
             self._trace_func(expr, objects, out)
+        elif etype == 'pyfunc':
+            self._trace_pyfunc(expr, objects, out)
         elif etype == 'control':
             self._trace_control(expr, objects, out)
         elif etype == 'randomvar':
@@ -598,7 +600,59 @@ class RDDLObjectsTracer:
                 arg, expr, out, f'Argument {i + 1} of function {expr.etype[1]}') 
         
         out._append(expr, objects, None, is_fluent, None)
+    
+    def _trace_pyfunc(self, expr, objects, out):
+        _, op = expr.etype
+        sample_pvars, args = expr.args
+        
+        # check that all sample_pvars are defined in the outer scope
+        scope_pvars = {pvar: i for (i, (pvar, _)) in enumerate(objects)}
+        bad_pvars = {pvar for pvar in sample_pvars if pvar not in scope_pvars}
+        if bad_pvars:
+            raise RDDLInvalidObjectError(
+                f'Sampling parameter(s) {bad_pvars} of external Python function <{op}> '
+                f'are not defined in outer scope, '
+                f'must be one of {set(scope_pvars.keys())}.\n' + 
+                PST(expr, out._current_root))
+        
+        # check duplicates in sample_pvars
+        sample_pvar_set = set(sample_pvars)
+        if len(sample_pvar_set) != len(sample_pvars):
+            raise RDDLInvalidNumberOfArgumentsError(
+                f'Sampling parameter(s) {sample_pvars} of external Python function <{op}> '
+                f'are repeated.\n' + 
+                PST(expr, out._current_root))
+        
+        # sample_pvars are excluded when tracing arguments
+        # because they are only introduced through sampling which follows after 
+        # evaluation of the arguments in a depth-first traversal
+        batch_objects = [pvar for pvar in objects if pvar[0] not in sample_pvar_set]
+         
+        # trace all parameters
+        for (i, arg) in enumerate(args):
             
+            # sample_pvars cannot be argument parameters
+            name, pvars = arg.args
+            if pvars is None:
+                pvars = []
+            bad_pvars = {pvar for pvar in pvars if pvar in sample_pvar_set}
+            if bad_pvars:
+                raise RDDLInvalidObjectError(
+                    f'Parameter(s) {bad_pvars} of argument <{name}> at position '
+                    f'{i + 1} of external Python function <{op}> '
+                    f'can not be sampling parameter(s) '
+                    f'{sample_pvar_set}.\n' + PST(expr, out._current_root))
+            
+            # trace argument
+            self._trace(arg, batch_objects, out)
+            
+            # argument cannot be object type
+            RDDLObjectsTracer._check_not_object(
+                arg, expr, out, f'Argument {i + 1} of external Python function <{op}>') 
+            
+        sample_pvar_indices = tuple(scope_pvars[pvar] for pvar in sample_pvars)
+        out._append(expr, objects, None, True, sample_pvar_indices)
+        
     # ===========================================================================
     # aggregation
     # ===========================================================================
