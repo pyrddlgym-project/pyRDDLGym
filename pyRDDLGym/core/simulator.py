@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Optional, Set, Union
+from typing import Callable, Dict, Optional, Set, Union
 
 from pyRDDLGym.core.compiler.initializer import RDDLValueInitializer
 from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
@@ -29,7 +29,8 @@ class RDDLSimulator:
                  rng: np.random.Generator=np.random.default_rng(),
                  logger: Optional[Logger]=None,
                  keep_tensors: bool=False,
-                 objects_as_strings: bool=True) -> None:
+                 objects_as_strings: bool=True,
+                 python_functions: Optional[Dict[str, Callable]]=None) -> None:
         '''Creates a new simulator for the given RDDL model.
         
         :param rddl: the RDDL model
@@ -40,6 +41,7 @@ class RDDLSimulator:
         returns state in numpy array form
         :param objects_as_strings: whether to return object values as strings (defaults
         to integer indices if False)
+        :param python_functions: dictionary of external Python functions to call from RDDL
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
@@ -47,6 +49,9 @@ class RDDLSimulator:
         self.logger = logger
         self.keep_tensors = keep_tensors
         self.objects_as_strings = objects_as_strings
+        if python_functions is None:
+            python_functions = {}
+        self.python_functions = python_functions
         
         self._compile()
         
@@ -513,6 +518,8 @@ class RDDLSimulator:
             return self._sample_aggregation(expr, subs)
         elif etype == 'func':
             return self._sample_func(expr, subs)
+        elif etype == 'pyfunc':
+            return self._sample_pyfunc(expr, subs)
         elif etype == 'control':
             return self._sample_control(expr, subs)
         elif etype == 'randomvar':
@@ -811,6 +818,72 @@ class RDDLSimulator:
         raise RDDLNotImplementedError(
             f'Function {name} is not supported.\n' + print_stack_trace(expr))
     
+    def _sample_pyfunc(self, expr, subs):
+        _, pyfunc_name = expr.etype
+        captured_vars, args = expr.args
+        scope_vars = self.traced.cached_objects_in_scope(expr)
+                       
+        # evaluate inputs to the function
+        # first dimensions are non-captured vars in outer scope followed by all the _
+        free_vars = [p for p in scope_vars if p[0] not in captured_vars]
+        num_free_vars = len(free_vars)
+        flat_samples = []
+        for arg in args:
+            sample = self._sample(arg, subs)
+            shape = np.shape(sample)
+            new_shape = (np.prod(shape[:num_free_vars], dtype=int),) + shape[num_free_vars:]
+            flat_sample = np.reshape(sample, new_shape)
+            flat_samples.append(flat_sample)
+        
+        # now all the inputs have dimensions equal to (k,) + the number of _ occurences
+        # k is the number of possible non-captured object combinations
+        # evaluate the function independently for each combination
+        # output dimension for each combination is captured variables (n1, n2, ...)
+        # so the total dimension of the output array is (k, n1, n2, ...)
+        pyfunc = self.python_functions.get(pyfunc_name)
+        if pyfunc is None:
+            raise RDDLUndefinedVariableError(
+                f'Undefined external Python function <{pyfunc_name}>, '
+                f'must be one of {list(self.python_functions.keys())}.\n' +  
+                print_stack_trace(expr))
+        output = np.array([pyfunc(*inputs) for inputs in zip(*flat_samples)])
+        
+        # check the output type is correct
+        if not np.issubdtype(output.dtype, np.number) \
+        and not np.issubdtype(output.dtype, np.bool_):
+            raise ValueError(
+                f'External Python function <{pyfunc_name}> returned array of '
+                f'type {output.dtype}, which is not a primitive type.\n' +  
+                print_stack_trace(expr))
+    
+        # check the output shape of captured part is correct
+        captured_types = [t for (p, t) in scope_vars if p in captured_vars]
+        require_dims = self.rddl.object_counts(captured_types)
+        pyfunc_dims = np.shape(output)[1:]
+        if len(require_dims) != len(pyfunc_dims):
+            raise ValueError(
+                f'External Python function <{pyfunc_name}> returned array with '
+                f'{len(pyfunc_dims)} dimensions, which does not match the '
+                f'number of captured parameter(s) {len(require_dims)}.\n' +  
+                print_stack_trace(expr))
+        for (param, require_dim, actual_dim) in zip(captured_vars, require_dims, pyfunc_dims):
+            if require_dim != actual_dim:
+                raise ValueError(
+                    f'External Python function <{pyfunc_name}> returned array with '
+                    f'{actual_dim} elements for captured parameter <{param}>, '
+                    f'which does not match the number of objects {require_dim}.\n' + 
+                    print_stack_trace(expr))
+
+        # unravel the combinations k back into their original dimensions
+        free_dims = self.rddl.object_counts(p for (_, p) in free_vars)
+        output = np.reshape(output, free_dims + pyfunc_dims)
+        
+        # rearrange the output dimensions to match the outer scope
+        source_indices = len(free_dims) + np.arange(len(pyfunc_dims), dtype=int)
+        dest_indices = self.traced.cached_sim_info(expr)
+        output = np.moveaxis(output, source=source_indices, destination=dest_indices)
+        return output
+
     # ===========================================================================
     # control flow
     # ===========================================================================
@@ -1374,7 +1447,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
                  trace_info: object,
                  rng: np.random.Generator=np.random.default_rng(),
                  keep_tensors: bool=False, 
-                 objects_as_strings: bool=True) -> None:
+                 objects_as_strings: bool=True,
+                 python_functions: Optional[Dict[str, Callable]]=None) -> None:
         self.init_values = init_values
         self.levels = levels
         self.traced = trace_info
@@ -1385,7 +1459,8 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
             rng=rng,
             logger=None,
             keep_tensors=keep_tensors,
-            objects_as_strings=objects_as_strings)        
+            objects_as_strings=objects_as_strings,
+            python_functions=python_functions)        
     
     def _compile(self):
         rddl = self.rddl
