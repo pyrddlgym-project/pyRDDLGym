@@ -8,6 +8,9 @@ from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.env import RDDLEnv
 
 
+EOM = '\n\n\n'
+
+
 class RDDLSimServer:
     """Creates a TCP/IP server that listens to the provided port and passes
     messages between a pyRDDLGym environment and a client that is
@@ -82,7 +85,6 @@ class RDDLSimServer:
               f"for {self.problem}.", flush=True)
         msg = self.build_session_request_msg()
         self.send_message(connection, msg)
-        session_request_expected = False
         print("INFO: Session initialized.\n", flush=True)
 
         while self.roundsleft > 0:
@@ -164,19 +166,20 @@ class RDDLSimServer:
             json.dump(self.logs, f)
 
     def send_message(self, connection, msg):
-        # print(f"sending message: {msg}")
-        connection.send(str.encode(msg))
+        connection.send(str.encode(msg + EOM))
 
     def receive_message(self, connection):
-        data = connection.recv(8192)
-        if data:
-            data = data.decode("UTF-8")
-            data = data[:-1]
-            # print(f"received message: {data}")
-        else:
-            print("FATAL: connection lost.")
-            exit(1)
-        return data
+        message = ''
+        while not message.endswith(EOM):
+            data = connection.recv(8192)
+            if data:
+                data = data.decode("UTF-8")
+                message += data
+            else:
+                print("FATAL: connection lost.")
+                exit(1)
+        message = message.split(EOM)[0]
+        return message
 
     def build_session_request_msg(self):
         msg = "<session-init>"
