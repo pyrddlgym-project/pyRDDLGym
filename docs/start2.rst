@@ -291,6 +291,32 @@ parameter allows multiple connections to be established in parallel at different
 Finally, the ``run()`` command starts the server.
 
 
+Embedding External Python Functions within RDDL
+--------------------------
+
+Starting in pyRDDLGym 2.5, it is possible to embed arbitrary Python functions within RDDL description files.
+The general syntax is described :ref:`here <external-functions>` in more details. 
+
+To successfully compile a RDDL description file that contains external function references, i.e.:
+
+.. code-block:: shell
+	
+    cpf1 = $Func1[...](...);
+    cpf2 = $Func2[...](...);
+
+you must provide a dictionary with name - function mappings when building the environment, where each function
+must respect both the input and output signatures as they are described in the RDDL file:
+
+.. code-block:: python
+	  
+    def func1(...):
+        return ...
+    def func2(...):
+        return ...
+
+    env = pyRDDLGym.make(..., backend_kwargs={'python_functions': {'Func1': func1, 'Func2': func2}})
+
+
 The pyRDDLGym Compiler (for Advanced Users)
 -------------------
 

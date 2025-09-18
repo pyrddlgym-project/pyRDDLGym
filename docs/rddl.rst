@@ -914,6 +914,7 @@ in the code above, i.e. ``?<value1>`` runs over the rows and
 As with determinant, this calculation can be "batched" if ``<pvariable>`` is 
 appropriately parameterized by other variables from the outer scope.
 
+.. _external-functions:
 
 External Function Calls
 ^^^^^^^^^^^^^^^^^^^
