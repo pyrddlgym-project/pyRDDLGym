@@ -913,3 +913,65 @@ in the code above, i.e. ``?<value1>`` runs over the rows and
 ``?<value2>`` runs over the columns of the "matrix" produced by ``<pvariable>``. 
 As with determinant, this calculation can be "batched" if ``<pvariable>`` is 
 appropriately parameterized by other variables from the outer scope.
+
+
+External Function Calls
+^^^^^^^^^^^^^^^^^^^
+
+The syntax for external function calls is a slightly generalized version of the syntax for multivariate sampling.
+In its most generic form, an external function call can be written in RDDL as:
+
+.. code-block:: shell
+
+    $MyFunctionName[?p1, ?p2, ...](pvar1(...), pvar2(...), ...).
+  
+Here, ``$MyFunctionName`` is the name of the function to evaluate, which must output a single scalar or tensor value.
+``?p1, ?p2, ...`` are the parameters in the outer scope of the call that should receive the corresponding dimensions of the output,
+thus these parameters define the output signature of the function.
+``pvar1, pvar2, ...`` is a list of pvariables whose parameters must be either free variables (e.g., ``?x``), enum objects (e.g., ``@x``), 
+or underscores ``_``; these define the input signature of the function. 
+In the latter case, an underscore ``_`` within a pvariable (e.g., ``pvar1(_)``) indicates that 
+the input to the function is a vector/tensor including all possible evaluations 
+(e.g., ``pvar1(?x)``) of objects of the type at ``_`` (e.g., ``?x``).
+
+The aforementioned syntax covers all possible combinations of scalar/vectorized inputs and scalar/vectorized outputs.
+Below we discuss the most common use cases:
+
+* scalar inputs and scalar outputs (e.g., a single operation from R to R):
+
+.. code-block:: shell
+
+    output = $MyFunctionName[](pvar1, pvar2);
+
+* tensor inputs and tensor outputs, if the external python function cannot be vectorized (e.g., a complex autoregressive time series transformation) -- in this case, the function is called many times in a naive for loop over ``?p``:
+
+.. code-block:: shell
+
+    output(?p) = $MyFunctionName[](pvar1(?p), pvar2(?p));
+
+* tensor inputs and tensor outputs, if the external python function is vectorized (e.g., cross product, SVD, gradient descent) -- the function is called once on vectorized representations of ``pvar1(?p), pvar(?p)`` to return a vectorized representation of ``output(?p)``:
+
+.. code-block:: shell
+
+    output(?p) = $MyFunctionName[?p](pvar1(_), pvar2(_));
+
+* tensor inputs and scalar outputs (e.g., dot product, determinant):
+
+.. code-block:: shell
+
+    output = $MyFunctionName[](pvar1(_), pvar2(_));
+
+* scalar inputs and tensor outputs (e.g., feature map):
+
+.. code-block:: shell
+
+    output(?p) = $MyFunctionName[?p](pvar1, pvar2);
+
+* mixed inputs and outputs and high-dimensional extensions (e.g., convolutions):
+
+.. code-block:: shell
+
+    output(?p, ?q) = $MyFunctionName[?q](pvar1(_, ?p), pvar2(?p));
+    output(?q, ?r, ?s) = $MyFunctionName[?q, ?r, ?s](pvar1(_), pvar2(_));
+
+  
