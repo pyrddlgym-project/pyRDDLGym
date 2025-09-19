@@ -13,6 +13,8 @@ pyRDDLGym
    notebooks/grounding_a_problem_with_pyrddlgym
    notebooks/extracting_info_from_compiled_model_with_pyrddlgym
    notebooks/analyzing_fluent_dependencies
+   notebooks/calling_external_functions
+   
 
 
 rddlrepository
