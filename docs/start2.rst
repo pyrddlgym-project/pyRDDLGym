@@ -317,6 +317,14 @@ must respect both the input and output signatures as they are described in the R
     env = pyRDDLGym.make(..., backend_kwargs={'python_functions': {'Func1': func1, 'Func2': func2}})
 
 
+.. raw:: html 
+
+   <a href="notebooks/calling_external_functions.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Calling External Python Functions in pyRDDLGym.
+   </a>
+   
+
 The pyRDDLGym Compiler (for Advanced Users)
 -------------------
 
