@@ -30,8 +30,11 @@ When you run this command, you will find:
 * ``runprost.sh`` file that you can use to automate the build and run process (as described below).
 
 
-Building the Image
+Running PROST
 -------------------
+
+Building the Image
+^^^^^^^^^^^^^^^^^^^
 
 To build the Docker image, you will need to install Docker. Then, with Docker daemon running, build the image as follows:
 
@@ -40,7 +43,7 @@ To build the Docker image, you will need to install Docker. Then, with Docker da
     docker build -t prost .
 
 Running the Container
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 To run a container from the built image:
 
@@ -68,7 +71,7 @@ directory ``<output dir>`` in your local file system for further analysis:
 
 
 Using the Convenience Script
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 You do not need to run the commands described above, as we provide a script ``runprost.sh`` to automate the process:
 

@@ -24,7 +24,7 @@ Purpose and Benefits
 - Official evaluation system of the `2023 IPC RL and planning track <https://ataitler.github.io/IPPC2023/>`_.
 
 
-Features and Limitations
+New Features
 ------
 
 pyRDDLGym expands on the RDDL language officially defined in rddlsim:
@@ -38,7 +38,11 @@ pyRDDLGym expands on the RDDL language officially defined in rddlsim:
 - ``argmax`` and ``argmin`` aggregations are supported
 - new probability distributions such as Laplace, Gumbel, Kumaraswamy are supported
 - multivariate distributions such as Normal, Student, Dirichlet and Multinomial are supported
-- matrix operations such as determinant, inverse and Cholesky decomposition are supported.
+- matrix operations such as determinant, inverse and Cholesky decomposition are supported
+- external Python function calls within RDDL CPFs are supported (allows any third-party computation plugged seamlessly into RDDL).
+
+Deprecations and Limitations
+------
 
 The following features have been omitted (or marked as deprecated) from the RDDL language in pyRDDLGym:
 

@@ -164,29 +164,8 @@ Alternatively, the ``evaluate()`` bypasses the need to write out the entire loop
 The ``agent.evaluate()`` call returns a dictionary of summary statistics about the 
 total rewards collected across episodes, such as mean, median, and standard deviation.
 
-Spaces
-------
-
-The state and action spaces of a ``RDDLEnv`` are standard ``gymnasium.spaces`` and are
-accessible via ``env.state_space`` and ``env.action_space``, respectively.
-In most cases, state and action spaces are ``gymnasium.spaces.Dict`` objects, whose key-value pairs
-are fluent names and their current values.
-
-To compute bounds on RDDL fluents, pyRDDLGym analyzes the 
-``action-preconditions`` and ``state-invariants`` expressions. 
-For box constraints, the conversion happens as follows:
-
-- real -> ``Box(l, u)`` where ``(l, u)`` are the bounds on the fluent
-- int -> ``Discrete(l, u)`` where ``(l, u)`` are the bounds on the fluent
-- bool -> ``Discrete(2)``
-
-.. note::
-   Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gymnasium.
-   If no valid box bounds for a fluent are available, they are set to ``(-np.inf, np.inf)``
-
-
 Setting the Random Seed
-------
+^^^^^^^^^^^^^^^^^^^
 
 In order to get reproducible results, it is necessary to set the random seed. 
 This can be passed to ``env.reset()`` once at the start of the experiment:
@@ -207,6 +186,28 @@ For example, to set the seed of the ``RandomAgent`` instance:
 .. code-block:: python
 
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions, seed=42)
+
+
+Gym Spaces
+------
+
+The state and action spaces of a ``RDDLEnv`` are standard ``gymnasium.spaces`` and are
+accessible via ``env.state_space`` and ``env.action_space``, respectively.
+In most cases, state and action spaces are ``gymnasium.spaces.Dict`` objects, whose key-value pairs
+are fluent names and their current values.
+
+To compute bounds on RDDL fluents, pyRDDLGym analyzes the 
+``action-preconditions`` and ``state-invariants`` expressions. 
+For box constraints, the conversion happens as follows:
+
+- real -> ``Box(l, u)`` where ``(l, u)`` are the bounds on the fluent
+- int -> ``Discrete(l, u)`` where ``(l, u)`` are the bounds on the fluent
+- bool -> ``Discrete(2)``
+
+.. note::
+   Any constraints that cannot be rewritten as box constraints are ignored, due to limitations of Gymnasium.
+   If no valid box bounds for a fluent are available, they are set to ``(-np.inf, np.inf)``
+
 
 Visualizing Environments
 -------------

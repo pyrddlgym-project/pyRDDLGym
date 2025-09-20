@@ -25,10 +25,13 @@ To install the latest pre-release version via git:
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-rl.git
 
 
-Running the Basic Stable Baselines 3 Example
+Running Stable Baselines
 -------------------
 
-To run the stable-baselines3 example, navigate to the install directory of pyRDDLGym-rl, and type:
+From the Command Line
+^^^^^^^^^^^^^^^^^^^
+
+To run the example script, navigate to the install directory of pyRDDLGym-rl, and type:
 
 .. code-block:: shell
 
@@ -42,27 +45,11 @@ where:
 * ``<steps>`` is the (optional) number of samples to generate from the environment for training
 * ``<learning_rate>`` is the (optional) learning rate to specify for the algorithm.
 
-Running the Basic RLlib Example
--------------------
 
-To run the RLlib example, from the install directory of pyRDDLGym-rl, type:
+From Python
+^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: shell
-
-    python -m pyRDDLGym_rl.examples.run_rllib <domain> <instance> <method> <iters>
-    
-where:
-
-* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain file
-* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance file
-* ``<method>`` is the RL algorithm to use [dqn, ppo, sac]
-* ``<iters>`` is the (optional) number of iterations of training.
-
-
-Running Stable Baselines 3 from the Python API
--------------------
-
-The following example sets up the Stable Baselines 3 PPO algorithm to work with pyRDDLGym:
+The following Python script sets up the PPO algorithm to work with pyRDDLGym:
 
 .. code-block:: python
 	
@@ -93,11 +80,31 @@ The following example sets up the Stable Baselines 3 PPO algorithm to work with 
        Related example: Training a PPO policy with Stable Baselines 3.
    </a>
    
-   
-Running RLlib from the Python API
+
+Running RLlib
 -------------------
 
-The following example sets up the RLlib PPO algorithm to work with pyRDDLGym:
+From the Command Line
+^^^^^^^^^^^^^^^^^^^
+
+To run the RLlib example, from the install directory of pyRDDLGym-rl, type:
+
+.. code-block:: shell
+
+    python -m pyRDDLGym_rl.examples.run_rllib <domain> <instance> <method> <iters>
+    
+where:
+
+* ``<domain>`` is the name of the domain in rddlrepository, or a path pointing to a domain file
+* ``<instance>`` is the name of the instance in rddlrepository, or a path pointing to an instance file
+* ``<method>`` is the RL algorithm to use [dqn, ppo, sac]
+* ``<iters>`` is the (optional) number of iterations of training.
+
+
+From the Python API
+^^^^^^^^^^^^^^^^^^^
+
+The following example sets up the PPO algorithm to work with pyRDDLGym:
 
 .. code-block:: python
 	
@@ -181,6 +188,7 @@ a (4,) array of float type.
    The action simplification rules apply ``max-nondef-actions`` only to boolean actions, 
    and assume this value is either 1 or greater than or equal to the total number of boolean actions.
    Any other scenario is currently not supported in pyRDDLGym-rl and will raise an exception.
+   
    
 Limitations
 -------------------
