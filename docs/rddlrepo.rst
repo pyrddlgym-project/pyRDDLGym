@@ -65,7 +65,7 @@ with names usually following the syntax ``<domain name>_<context>``
    
    
 Retrieving Information about a Domain or Instance
----------
+^^^^^^^^^^^^^^
 
 The information for a specific domain is stored in a ``ProblemInfo`` instance:
 
