@@ -14,7 +14,7 @@ Getting Started with pyRDDLGym
     Purpose, benefits, license, and how to cite. <introduction>
     Install instructions for pip and git. <install>
     Beginner tutorial: initializing environments and policies, visualization, recording movies and logging. <start>
-    Advanced tutorial: model inspection, compilation, grounding, and debugging. <start2>
+    Advanced tutorial: model inspection, compilation, grounding, debugging, and external functions. <start2>
    	Managing problems using rddlrepository. <rddlrepo>
 
 
