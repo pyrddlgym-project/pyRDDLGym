@@ -38,6 +38,7 @@ JaxPlan
    notebooks/tuning_hyperparameters_in_jaxplan
    notebooks/building_optimization_problem_with_jaxplan
    notebooks/accelerating_simulation_with_jax
+   notebooks/calling_external_jax_functions_with_jaxplan
   
 
 pyRDDLGym-rl

@@ -323,6 +323,19 @@ must respect both the input and output signatures as they are described in the R
        <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
        Related example: Calling External Python Functions in pyRDDLGym.
    </a>
+
+.. note::
+    JaxPlan requires additional structure on external functions, namely that they should support JAX's JIT compilation.
+    This implies that any external functions in an environment used by JaxPlan must consist entirely of JAX supported operations (i.e. JAX, flax, haiku, optax, etc).
+    However, functions that use non-JAX operations (including for example pyTorch or TensorFlow operations) can still be used in pyRDDLGym!
+
+.. raw:: html 
+
+   <a href="notebooks/calling_external_jax_functions_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Calling External JAX Functions in JaxPlan.
+   </a>
+
    
 
 The pyRDDLGym Compiler (for Advanced Users)
