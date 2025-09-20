@@ -65,6 +65,9 @@ In Python, instantiate the environment and planner as follows:
 Configuring GurobiPlan
 -------------------
 
+Configuration Files
+^^^^^^^^^^^^^^^^^^^
+
 The recommended way to manage planner settings is to write a configuration file 
 with all the necessary hyper-parameters, which follows the same general format
 as JaxPlan, i.e. for straight-line planning:
@@ -88,24 +91,30 @@ The configuration file contains two sections:
 
 The full list of settings that can be specified in the ``[Optimizer]`` section of the configuration file are as follows:
 
-.. list-table:: ``[Optimizer]``
-   :widths: 40 80
-   :header-rows: 1
+.. collapse:: Possible settings for ``[Optimizer]`` section
 
-   * - Setting
-     - Description
-   * - allow_synchronous_state
-     - Whether state variables can depend on each other synchronously
-   * - epsilon
-     - Small constant for comparing equality of numbers in Gurobi
-   * - float_range
-     - Range of floating values in Gurobi
-   * - piecewise_options
-     - Parameter string to configure Gurobi nonlinear approximation
-   * - rollout_horizon
-     - Length of the planning horizon
-   * - verbose
-     - Print nothing(0)/summary(1)/detailed(2) compiler messages
+  .. list-table:: ``[Optimizer]``
+    :widths: 40 80
+    :header-rows: 1
+
+    * - Setting
+      - Description
+    * - allow_synchronous_state
+      - Whether state variables can depend on each other synchronously
+    * - epsilon
+      - Small constant for comparing equality of numbers in Gurobi
+    * - float_range
+      - Range of floating values in Gurobi
+    * - piecewise_options
+      - Parameter string to configure Gurobi nonlinear approximation
+    * - rollout_horizon
+      - Length of the planning horizon
+    * - verbose
+      - Print nothing(0)/summary(1)/detailed(2) compiler messages
+
+
+Using Configuration Files
+^^^^^^^^^^^^^^^^^^^
 
 The configuration file can then be parsed and passed to GurobiPlan as follows:
 

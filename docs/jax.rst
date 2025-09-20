@@ -237,6 +237,9 @@ To use a deep reactive policy, simply change the ``plan`` type to:
 Configuring JaxPlan
 -------------------
 
+Configuration Files
+^^^^^^^^^^^^^^^^^^^
+
 The recommended way to manage planner settings is to write a configuration (.cfg) file 
 with all required hyper-parameters, i.e. for straight-line planning:
 
@@ -281,7 +284,10 @@ To use replanning with a lookahead horizon of 5:
 
     [Optimizer]
     rollout_horizon=5
-  
+
+Using Configuration Files
+^^^^^^^^^^^^^^^^^^^
+
 Configuration files can be parsed and passed to the planner as follows:
 
 .. code-block:: python
@@ -293,6 +299,9 @@ Configuration files can be parsed and passed to the planner as follows:
     plan = ...
     planner = ...
     controller = ...
+
+Possible JaxPlan Settings
+^^^^^^^^^^^^^^^^^^^
 
 .. collapse:: Possible settings for ``[Model]`` section
    
@@ -879,13 +888,13 @@ modifying ``tnorm``, ``complement`` or other constructor arguments in the config
         - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
 
 
-Other Techniques
+Parameter-Exploring Policy Gradient
 ^^^^^^^^^^^^^^^^^^^
 
 Since version 2.0, JaxPlan runs a parallel instance of
 `parameter-exploring policy gradients (PGPE) <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_.
-In some cases, this allows JaxPlan to continue making progress when the model relaxations are poor. 
-It can be configured as follows:
+In some cases, this allows JaxPlan to continue making progress when the model relaxations are poor 
+or the gradient descent optimizer otherwise fails to make progress. It can be configured as follows:
 
 .. code-block:: shell
 
@@ -894,9 +903,10 @@ It can be configured as follows:
     pgpe_kwargs=...
 
    
-Manual Gradient Calculation
--------------------
+Third-Party Optimizers
+^^^^^^^^^^^^^^^^^^^
 
+Non-gradient based methods such as global optimization methods could work when gradients are uninformative.
 As of version 0.3, it is possible to export the optimization problem in JaxPlan
 to be solved by another optimizer (e.g., scipy):
 

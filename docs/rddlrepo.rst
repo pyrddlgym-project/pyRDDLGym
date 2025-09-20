@@ -20,7 +20,7 @@ To install with pip:
     pip install rddlrepository
 
 
-Listing Available Domains
+Retrieving Information about Domains and Instances
 ---------
 
 The core object for extracting domains and instances is the ``RDDLRepoManager`` object:
@@ -35,6 +35,10 @@ The core object for extracting domains and instances is the ``RDDLRepoManager`` 
    containing the locations of all domains and instances for fast access. 
    While you do not need this option in normal operation, in case you add your 
    own domains or the manifest becomes corrupt, you can force it to be recreated.
+
+
+Listing Available Domains
+^^^^^^^^^^^^^^
 
 To list all domains currently available in rddlrepository:
 
@@ -60,7 +64,7 @@ with names usually following the syntax ``<domain name>_<context>``
    </a>
    
    
-Retrieving Domain Information
+Retrieving Information about a Domain or Instance
 ---------
 
 The information for a specific domain is stored in a ``ProblemInfo`` instance:
