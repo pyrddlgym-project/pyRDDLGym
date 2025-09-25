@@ -31,15 +31,15 @@ pyRDDLGym expands on the RDDL language officially defined in rddlsim:
 
 - domains and instances are compiled to standard OpenAI Gym environments, and are usable with existing workflows that rely upon OpenAI Gym
 - simulation is vectorized to provide reasonable performance in pure Python (a faster JAX compiler and simulator is available in pyRDDLGym-jax)
-- terminal states can be explicitly defined in a separate termination block
+- terminal states can be explicitly defined in a termination block
 - enum and object types are interchangeable in most calculations, enhancing the flexibility of valid RDDL operations
-- object-valued fluents are supported
-- arbitrarily-level nested evaluation of pvariables is supported, e.g., ``fluent'(?p, ?q) = outer(inner(?p, ?q))``
-- ``argmax`` and ``argmin`` aggregations are supported
-- new probability distributions such as Laplace, Gumbel, Kumaraswamy are supported
-- multivariate distributions such as Normal, Student, Dirichlet and Multinomial are supported
-- matrix operations such as determinant, inverse and Cholesky decomposition are supported
-- external Python function calls within RDDL CPFs are supported (allows any third-party computation plugged seamlessly into RDDL).
+- object-valued fluents
+- arbitrarily-level nested evaluation of pvariables, e.g., ``fluent'(?p, ?q) = outer(inner(?p, ?q))``
+- ``argmax`` and ``argmin`` aggregations
+- new probability distributions such as Laplace, Gumbel, Kumaraswamy
+- multivariate distributions such as Normal, Student, Dirichlet and Multinomial
+- matrix operations such as determinant, inverse and Cholesky decomposition
+- external Python function calls in RDDL CPFs (allows any Python function plugged seamlessly into RDDL).
 
 Deprecations and Limitations
 ------
