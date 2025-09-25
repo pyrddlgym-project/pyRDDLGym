@@ -188,7 +188,7 @@ For example, to set the seed of the ``RandomAgent`` instance:
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions, seed=42)
 
 
-Hnadling Simulation Errors
+Handling Simulation Errors
 ^^^^^^^^^^^^^^^^^^^
 
 By default, ``evaluate()`` will not raise errors if action preconditions or state invariants are violated.

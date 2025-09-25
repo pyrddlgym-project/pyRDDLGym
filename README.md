@@ -73,7 +73,7 @@ This section outlines some of the basic python API functions of pyRDDLGym.
 
 ### Loading an Environment
 
-Instantiation of an existing environment is nearly identical to OpenAI gym (i.e., to load instance 0 of the CartPole domain):
+Instantiation of an existing environment follows OpenAI gym (i.e., instance 0 of CartPole):
 
 ```python
 import pyRDDLGym
@@ -83,7 +83,6 @@ env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
 You can also load your own domain and instance files:
 
 ```python
-import pyRDDLGym
 env = pyRDDLGym.make("/path/to/domain.rddl", "/path/to/instance.rddl")
 ```
 
@@ -92,18 +91,30 @@ Both versions above instantiate ``env`` as an OpenAI gym environment, so that th
 You can also pass custom settings to make (i.e., to validate actions at each step):
 
 ```python
-import pyRDDLGym
 env = pyRDDLGym.make("CartPole_Continuous_gym", "0", enforce_action_constraints=True, ...)
 ```
 
 ### Interacting with an Environment
 
-Agents map states to actions through the ``sample_action(obs)`` function, and can be used to interact with an environment. 
-For example, to initialize a random agent:
+Policies map states to actions through the ``sample_action(obs)`` function, and can be used to interact with an environment. For example, to initialize a random agent:
 
 ```python
 from pyRDDLGym.core.policy import RandomAgent
 agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
+```
+
+You can use the policy to directly interact with the environment:
+
+```python
+state, _ = env.reset()
+for epoch in range(env.horizon):
+    env.render()
+    action = agent.sample_action(state)
+    next_state, reward, terminated, truncated, _ = env.step(action)
+    state = next_state
+    if terminated or truncated:
+        break
+env.close()
 ```
 
 All agent instances support one-line evaluation in a given environment:
@@ -112,23 +123,7 @@ All agent instances support one-line evaluation in a given environment:
 stats = agent.evaluate(env, episodes=1, verbose=True, render=True)
 ```
 
-which returns a dictionary of summary statistics (e.g. "mean", "std", etc...) and also visualizes the interaction in real time. 
-Of course, you can also use a loop as customary in OpenAI gym:
-
-```python
-total_reward = 0
-state, _ = env.reset()
-for step in range(env.horizon):
-    env.render()
-    action = agent.sample_action(state)
-    next_state, reward, terminated, truncated, _ = env.step(action)
-    total_reward += reward
-    state = next_state
-    done = terminated or truncated
-    if done:
-        break
-env.close()   # close visualizer and release resources
-```
+which returns a dictionary of summary statistics (e.g. "mean", "std", etc...).
 
 > [!NOTE]  
 > All observations (for a POMDP), states (for an MDP) and actions are represented by ``dict`` objects, whose keys correspond to the appropriate fluents as defined in the RDDL description.
@@ -139,13 +134,20 @@ env.close()   # close visualizer and release resources
 > 1. the minus (-) arithmetic operation must have spaces on both sides, otherwise there is ambiguity whether it refers to a mathematical operation or to variables
 > 2. aggregation-union-precedence parsing requires for encapsulating parentheses around aggregations, e.g., (sum_{}[]).
 
-### Creating your Own Visualizer
+### Visualization
 
-You can design your own visualizer by subclassing ``pyRDDLGym.core.visualizer.viz.BaseViz`` and overriding the ``render(state)`` method.
-Then, changing the visualizer of the environment is easy:
+pyRDDLGym supports several standard visualization modes:
 
 ```python
-viz_class = ...   # the class name of your custom viz
+env.set_visualizer("chart")
+env.set_visualizer("heatmap")
+env.set_visualizer("text")
+```
+
+You can also design your own visualizer by subclassing ``pyRDDLGym.core.visualizer.viz.BaseViz`` and overriding the ``render(state)`` method. Then, changing the visualizer of the environment is easy:
+
+```python
+viz_class = ...   # the type/class of your custom viz
 env.set_visualizer(viz_class)
 ```
 
@@ -156,8 +158,8 @@ Simply pass a ``MovieGenerator`` object to the ``set_visualizer`` method:
 
 ```python
 from pyRDDLGym.core.visualizer.movie import MovieGenerator
-movie_gen = MovieGenerator("/path/where/to/save", "env_name")
-env.set_visualizer(viz_class, movie_gen=movie_gen)
+recorder = MovieGenerator("/path/where/to/save", "env_name")
+env.set_visualizer(viz_class, movie_gen=recorder)
 
 # continue with normal interaction
 ```
