@@ -101,7 +101,7 @@ where:
 * ``<iters>`` is the (optional) number of iterations of training.
 
 
-From the Python API
+From Python
 ^^^^^^^^^^^^^^^^^^^
 
 The following example sets up the PPO algorithm to work with pyRDDLGym:

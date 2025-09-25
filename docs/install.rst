@@ -5,19 +5,13 @@ Requirements
 ------------
 We require Python 3.8+ and the packages `listed here <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/requirements.txt>`_.
 
-Installing via pip
+Installation
 -----------------
-.. code-block:: shell
 
-    pip install pyRDDLGym
+Official Version from PyPI
+^^^^^^^^^^^^^^^^^
 
-To run the basic examples, you will also need ``rddlrepository``
-
-.. code-block:: shell
-
-    pip install rddlrepository
-
-We recommend installing everything together under a conda virtual environment:
+We recommend installing pyRDDLGym and rddlrepository together in a shared conda virtual environment:
 
 .. code-block:: shell
 
@@ -25,8 +19,11 @@ We recommend installing everything together under a conda virtual environment:
     conda activate rddl
     pip install pyrddlgym rddlrepository
 
-Installing the Pre-Release Version via git
----------
+Pre-Release Version via git
+^^^^^^^^^^^^^^^^^
+
+If you wish to install the latest pre-release version from Github:
+
 .. code-block:: shell
 
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym.git

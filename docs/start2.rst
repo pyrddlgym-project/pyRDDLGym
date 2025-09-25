@@ -17,7 +17,7 @@ Constraint checking functions are implemented in the ``sampler`` field of a ``RD
     backend = env.sampler
 
 One common use case is to validate actions before executing them in the environment 
-(perhaps reverting to a default action if they are invalid):
+(perhaps reverting to a default action if invalid):
 
 .. code-block:: python
 	
@@ -117,8 +117,7 @@ in the previous example, such as the mass of the cart:
 
     import pyRDDLGym
     env = pyRDDLGym.make("CartPole_Continuous_gym", "0")
-    model = env.model
-    model.non_fluents['CART-MASS'] = 20.0
+    env.model.non_fluents['CART-MASS'] = 20.0
 
 However, ``env`` will not reflect changes to the model, since the ``make()`` function 
 caches and precomputes certain information such as non-fluent values.
@@ -127,9 +126,8 @@ A simpler solution is to create a new environment by passing the modified model 
 
 .. code-block:: python
 
-    old_viz = env._visualizer.__class__
-    new_env = pyRDDLGym.make(model, None)
-    new_env.set_visualizer(old_viz)
+    new_env = pyRDDLGym.make(model, instance=None)
+    new_env.set_visualizer(env._visualizer.__class__)
 
 The ``new_env`` is a copy of ``env`` with a modified cart mass.
 
@@ -202,37 +200,6 @@ This option can be enabled as follows:
 With this option enabled, the bounds of the ``observation_space`` and ``action_space`` 
 of the environment are instances of ``gymnasium.spaces.Box`` with the correct shape and dtype.
 
-Exception Handling
-------
-
-By default, ``evaluate()`` will not raise errors if action preconditions or state invariants are violated.
-State invariant violations are stored in the ``truncated`` field returned by ``env.step()``. 
-If you wish to enforce action constraints, simply initialize your environment like this:
-
-.. code-block:: python
-	
-    import pyRDDLGym
-    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", enforce_action_constraints=True)
-
-By default, ``evaluate()`` will not raise an exception if a numerical error occurs during an intermediate calculation,
-such as divide by zero or under/overflow. If you wish to raise/catch all numerical errors, add the following lines
-before calling ``env.evaluate()``:
-
-.. code-block:: python
-
-    import numpy as np
-    np.seterror(all='raise')
-
-More details about controlling error handling behavior can be found 
-`here <https://numpy.org/doc/stable/reference/generated/numpy.seterr.html>`_.
-
-.. warning::
-   Currently, branched error handling in operations such as ``if`` and ``switch`` 
-   is incompatible with vectorized computation. To illustrate, an expression like
-   ``if (pvar(?x) == 0) then default(?x) else 1.0 / pvar(?x)`` will evaluate ``1.0 / pvar(?x)`` first
-   for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
-   for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
-
 Decompiling Models into RDDL
 --------------------------
 
@@ -247,7 +214,7 @@ generating RDDL descriptions of problems that have been modified programmaticall
     instance_rddl = decompiler.decompile_instance(model)    # instance.rddl
 
 
-Debug Logging
+Writing Logs for Debugging
 --------------------------
 
 To log information about the RDDL compilation to a file for debugging:
