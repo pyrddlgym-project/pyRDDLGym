@@ -103,7 +103,7 @@ Interacting with an Environment
 Interaction with an environment is done by calling ``env.step(action)`` 
 and ``env.reset()``, just like regular Gym/Gymnasium.
 
-Structure of State and Action Fluents
+Reading and Passing Fluents
 ^^^^^^^^^^^^^^^^^^^
 
 All fluent values are passed and received as Python ``dict`` objects,
@@ -188,8 +188,40 @@ For example, to set the seed of the ``RandomAgent`` instance:
     agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions, seed=42)
 
 
-Gym Spaces
-------
+Hnadling Simulation Errors
+^^^^^^^^^^^^^^^^^^^
+
+By default, ``evaluate()`` will not raise errors if action preconditions or state invariants are violated.
+State invariant violations are stored in the ``truncated`` field returned by ``env.step()``. 
+If you wish to enforce action constraints, simply initialize your environment like this:
+
+.. code-block:: python
+	
+    import pyRDDLGym
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", enforce_action_constraints=True)
+
+By default, ``evaluate()`` will not raise an exception if a numerical error occurs during an intermediate calculation,
+such as divide by zero or under/overflow. If you wish to raise/catch all numerical errors, add the following
+before calling ``evaluate()``:
+
+.. code-block:: python
+
+    import numpy as np
+    np.seterror(all='raise')
+
+More details about controlling error handling behavior can be found 
+`here <https://numpy.org/doc/stable/reference/generated/numpy.seterr.html>`_.
+
+.. warning::
+   Branched error handling in operations such as ``if`` and ``switch`` 
+   is incompatible with vectorized computation. To illustrate, an expression like
+   ``if (pvar(?x) == 0) then default(?x) else 1.0 / pvar(?x)`` will evaluate ``1.0 / pvar(?x)`` first
+   for all values of ``?x``, regardless of the branch condition, and will thus trigger an exception if ``pvar(?x) == 0``
+   for some value of ``?x``. For the time being, we recommend suppressing errors as described above.
+
+
+Gym ``state_space`` and ``action_space``
+^^^^^^^^^^^^^^^^^^^
 
 The state and action spaces of a ``RDDLEnv`` are standard ``gymnasium.spaces`` and are
 accessible via ``env.state_space`` and ``env.action_space``, respectively.

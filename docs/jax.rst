@@ -9,38 +9,38 @@ We also show how pyRDDLGym-jax (or JaxPlan) leverages gradient-based optimizatio
 Installing
 -----------------
 
-To install the bare-bones version of JaxPlan with minimum installation requirements:
+To install the **bare-bones** version of JaxPlan with minimum installation requirements:
 
 .. code-block:: shell
 
     pip install pyRDDLGym-jax
 
-To install JaxPlan with the automatic hyper-parameter tuning and rddlrepository:
+To install JaxPlan with the automatic **hyper-parameter tuning and rddlrepository**:
     
 .. code-block:: shell
 
     pip install pyRDDLGym-jax[extra]
 
-(Since version 1.0) To install JaxPlan with the visualization dashboard:
+(Since version 1.0) To install JaxPlan with the **visualization dashboard**:
 
 .. code-block:: shell
 
     pip install pyRDDLGym-jax[dashboard]
 
-(Since version 1.0) To install JaxPlan with all options:
+(Since version 1.0) To install JaxPlan with **all options**:
 
 .. code-block:: shell
 
     pip install pyRDDLGym-jax[extra,dashboard]
     
-To install the latest pre-release version via git:
+To install the **pre-release version** via git:
 
 .. code-block:: shell
 
     pip install git+https://github.com/pyrddlgym-project/pyRDDLGym-jax.git
 
 
-Simulating using JAX
+Simulating Environments using JAX
 -------------------
 
 pyRDDLGym ordinarily simulates domains using numPy.
@@ -98,7 +98,7 @@ One solution is to "replan" periodically or at each decision epoch.
 Another solution is to compute a closed-loop `deep reactive policy network <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ :math:`a_t \gets \pi_\theta(s_t)`.
 JaxPlan supports both options.
 
-Reparameterization Trick for Stochastic Problems
+Stochastic Reparameterization Trick
 ^^^^^^^^^^^^^^^^^^^
 
 A secondary problem is that the gradients of stochastic samples are not well-defined.
@@ -300,7 +300,7 @@ Configuration files can be parsed and passed to the planner as follows:
     planner = ...
     controller = ...
 
-Possible JaxPlan Settings
+List of Configurable Settings
 ^^^^^^^^^^^^^^^^^^^
 
 .. collapse:: Possible settings for ``[Model]`` section
@@ -597,65 +597,6 @@ to satisfy constraints at each optimization step (for straight-line plans only).
    Deep reactive policies only support :math:`B = 1` by applying a softmax trick.
 
 
-Reward Normalization
--------------------
-
-Some domains yield rewards that vary significantly in magnitude between time steps, 
-making optimization difficult without some kind of normalization.
-JaxPlan can apply an optional `symlog transform <https://arxiv.org/pdf/2301.04104v1.pdf>`_ to the sampled returns
-
-.. math::
-    
-    \mathrm{symlog}(x) = \mathrm{sign}(x) * \ln(|x| + 1)
-
-which compresses the magnitudes of large positive or negative outcomes.
-This can be controlled by ``use_symlog_reward``.
-
-
-Risk-Aware Planning with Utility Optimization
--------------------
-
-By default, JaxPlan will optimize the expected sum of future reward, 
-which may not be desirable for risk-sensitive applications.
-JaxPlan can also optimize a subset of `non-linear utility functions <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_:
-
-* "mean" is the risk-neutral or ordinary expected return
-* "mean_std" is the standard deviation penalized return
-* "mean_var" is the variance penalized return
-* "mean_semidev" is the mean-semideviation risk measure
-* "mean_semivar" is the mean-semivariance risk measure
-* "sharpe" is the sharpe ratio
-* "entropic" (or "exponential") is the entropic or exponential utility
-* "var" is the value at risk
-* "cvar" is the conditional value at risk.
-
-A utility function can be specified by passing a string above to the ``utility`` argument of the planner,
-and optional hyper-parameters dict to the ``utility_kwargs`` argument, i.e. for CVAR at 5 percent:
-
-.. code-block:: shell
-
-    [Optimizer]
-    utility='cvar'
-    utility_kwargs={'alpha': 0.05}
-
-The utility function could also be provided explicitly as a function mapping a JAX array to a scalar, 
-with additional arguments specifying the hyper-parameters of the utility function referred to by name:
-
-.. code-block:: python
-
-    @jax.jit
-    def my_utility_function(x, aversion: float=1.0) -> float:
-        return ...
-    planner = JaxBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
-
-.. raw:: html 
-
-   <a href="notebooks/risk_aware_planning_with_jaxplan.html"> 
-       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
-       Related example: Risk-aware planning with RAPTOR in JaxPlan.
-   </a>
-
-
 Automatically Tuning Hyper-Parameters
 -------------------
 
@@ -800,6 +741,50 @@ To activate the dashboard for planning, simply add the following line in the con
 
     [Training]
     dashboard=True
+
+
+Risk-Aware Planning with Utility Optimization
+-------------------
+
+By default, JaxPlan will optimize the expected sum of future reward, 
+which may not be desirable for risk-sensitive applications.
+JaxPlan can also optimize a subset of `non-linear utility functions <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_:
+
+* "mean" is the risk-neutral or ordinary expected return
+* "mean_std" is the standard deviation penalized return
+* "mean_var" is the variance penalized return
+* "mean_semidev" is the mean-semideviation risk measure
+* "mean_semivar" is the mean-semivariance risk measure
+* "sharpe" is the sharpe ratio
+* "entropic" (or "exponential") is the entropic or exponential utility
+* "var" is the value at risk
+* "cvar" is the conditional value at risk.
+
+A utility function can be specified by passing a string above to the ``utility`` argument of the planner,
+and optional hyper-parameters dict to the ``utility_kwargs`` argument, i.e. for CVAR at 5 percent:
+
+.. code-block:: shell
+
+    [Optimizer]
+    utility='cvar'
+    utility_kwargs={'alpha': 0.05}
+
+The utility function could also be provided explicitly as a function mapping a JAX array to a scalar, 
+with additional arguments specifying the hyper-parameters of the utility function referred to by name:
+
+.. code-block:: python
+
+    @jax.jit
+    def my_utility_function(x, aversion: float=1.0) -> float:
+        return ...
+    planner = JaxBackpropPlanner(..., utility=my_utility_function, utility_kwargs={'aversion': 2.0})
+
+.. raw:: html 
+
+   <a href="notebooks/risk_aware_planning_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Risk-aware planning with RAPTOR in JaxPlan.
+   </a>
 
 
 Dealing with Non-Differentiability
