@@ -200,6 +200,7 @@ This option can be enabled as follows:
 With this option enabled, the bounds of the ``observation_space`` and ``action_space`` 
 of the environment are instances of ``gymnasium.spaces.Box`` with the correct shape and dtype.
 
+
 Decompiling Models into RDDL
 --------------------------
 
@@ -213,29 +214,6 @@ generating RDDL descriptions of problems that have been modified programmaticall
     domain_rddl = decompiler.decompile_domain(model)   # domain.rddl
     instance_rddl = decompiler.decompile_instance(model)    # instance.rddl
 
-
-Writing Logs for Debugging
---------------------------
-
-To log information about the RDDL compilation to a file for debugging:
-
-.. code-block:: python
-	
-    import pyRDDLGym
-    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", debug_path="\path\to\log\file")
-
-where ``debug_path`` is the full path to the debug file minus the extension.
-A log file will be created in the specified path with the ``.log`` extension.
-
-Currently, the following information is logged:
-
-* description of pvariables as they are stored in memory (e.g., parameters, data type, data shape)
-* dependency graph between CPFs
-* calculated order of evaluation of CPFs
-* information used by the simulator for operating on pvariables stored as arrays
-* simulation bounds for state and action fluents (unbounded or non-box constraints are represented as [-inf, inf])
-* if you are using ``pyRDDLGym-jax``, the computation graphs will also be logged
-* if you are using ``pyRDDLGym-rl``, the observation and action spaces information will also be logged
 
 Running pyRDDLGym through TCP
 -------------------

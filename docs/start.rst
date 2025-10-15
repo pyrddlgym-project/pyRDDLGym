@@ -292,8 +292,12 @@ To assign a custom visualizer object ``MyDomainViz`` that implements a valid ``r
 All visualizers can be activated in an environment by calling ``env.render()``
 on each call to ``env.step()`` or ``env.reset()``, just like regular Gym/Gymnasium.
 
+
+Logging Information
+-------------
+
 Recording Movies
---------------------------
+^^^^^^^^^^^^^^^^^^^
 
 A ``MovieGenerator`` class is provided to capture videos of the environment interaction over time:
 
@@ -320,7 +324,7 @@ Any temporary files created to capture individual frames during interaction will
    
    
 Logging Simulation Data
---------------------------
+^^^^^^^^^^^^^^^^^^^
 
 A record of all past interactions with an environment can be logged to a machine
 readable CSV file for later analysis:
@@ -331,3 +335,27 @@ readable CSV file for later analysis:
                             
 Upon interacting with the environment, pyRDDLGym appends the new observations to the log file at the
 specified path. Logging continues until ``env.close()`` is called.
+
+
+Debugging Logs
+^^^^^^^^^^^^^^^^^^^
+
+To log information about the RDDL compilation to a file for debugging:
+
+.. code-block:: python
+	
+    import pyRDDLGym
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", debug_path="\path\to\log\file")
+
+where ``debug_path`` is the full path to the debug file minus the extension.
+A log file will be created in the specified path with the ``.log`` extension.
+
+Currently, the following information is logged:
+
+* description of pvariables as they are stored in memory (e.g., parameters, data type, data shape)
+* dependency graph between CPFs
+* calculated order of evaluation of CPFs
+* information used by the simulator for operating on pvariables stored as arrays
+* simulation bounds for state and action fluents
+* if you are using ``pyRDDLGym-jax``, the computation graphs will also be logged
+* if you are using ``pyRDDLGym-rl``, the observation and action spaces information will also be logged
