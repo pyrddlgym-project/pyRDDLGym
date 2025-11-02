@@ -97,7 +97,6 @@ class ChartVisualizer(BaseViz):
         # prepare artists
         self._lines = {}
         for (y, (state, values)) in enumerate(self._state_hist.items()):
-            values = values[::-1,:]
             self._lines[state] = []
             
             # title, labels and cursor line
@@ -186,8 +185,7 @@ class ChartVisualizer(BaseViz):
 
         # draw color plots
         for (y, (state, values)) in enumerate(self._state_hist.items()):
-            values = values[::-1,:]
-
+            
             # scaling of y axis
             vmin, vmax = None, None
             if self._scale_full_history:
