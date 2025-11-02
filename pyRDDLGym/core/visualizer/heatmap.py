@@ -75,7 +75,6 @@ class HeatmapVisualizer(BaseViz):
         # prepare artists
         self._lines = {}
         for (y, (state, values)) in enumerate(self._state_hist.items()):
-            values = values[::-1, :]
             
             # title, labels and cursor line
             self._ax[y].xaxis.label.set_fontsize(self._fontsize)
@@ -127,7 +126,6 @@ class HeatmapVisualizer(BaseViz):
         
         # draw color plots
         for (y, (state, values)) in enumerate(self._state_hist.items()):
-            values = values[::-1, :]
            
             # scaling of y axis
             vmin, vmax = None, None
