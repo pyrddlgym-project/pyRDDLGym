@@ -381,6 +381,8 @@ List of Configurable Settings
         - Whether model relaxations are skipped for non-fluent expressions
       * - cpfs_without_grad
         - A set of CPFs that do not allow gradients to flow through them
+      * - ema_decay
+        - Decay rate of exponential moving average of policy parameters
       * - line_search_kwargs
         - Arguments for optional `zoom line search <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.scale_by_zoom_linesearch>`_
       * - method
