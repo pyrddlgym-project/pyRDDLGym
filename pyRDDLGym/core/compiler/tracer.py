@@ -471,7 +471,7 @@ class RDDLObjectsTracer:
                     indices = np.arange(len(rddl.type_to_objects[ptype]))
                     newshape = [1] * len(objects)
                     newshape[index_of_arg] = indices.size
-                    indices = np.reshape(indices, newshape=newshape)
+                    indices = np.reshape(indices, newshape)
                     indices = np.broadcast_to(indices, shape=object_shape)
                     slices[i] = indices 
                 

@@ -98,8 +98,7 @@ class RDDLValueInitializer:
                     values = np.full(shape=shape, fill_value=default, dtype=dtype)
                 else:
                     values = np.reshape(
-                        [(default if v is None else v) for v in values], 
-                        newshape=shape, order='C')
+                        [(default if v is None else v) for v in values], shape, order='C')
                     
                     # cast to the required type
                     if not np.can_cast(values, dtype):
