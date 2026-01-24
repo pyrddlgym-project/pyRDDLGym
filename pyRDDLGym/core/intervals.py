@@ -105,7 +105,7 @@ class RDDLIntervalAnalysis:
         for (name, values) in init_values.items():
             params = rddl.variable_params[name]
             shape = rddl.object_counts(params)
-            values = np.reshape(values, newshape=shape)
+            values = np.reshape(values, shape)
             if state_bounds is not None and name in state_bounds:
                 intervals[name] = state_bounds[name]
             else:
@@ -522,7 +522,7 @@ class RDDLIntervalAnalysis:
         upper = np.ravel(upper, order='C')
         bounds = np.empty(lower.size, dtype=object)
         bounds[:] = list(zip(lower, upper))
-        bounds = np.reshape(bounds, newshape=shape, order='C')
+        bounds = np.reshape(bounds, shape, order='C')
         return bounds
     
     @staticmethod
@@ -531,8 +531,8 @@ class RDDLIntervalAnalysis:
             return array
         shape = np.shape(array)
         array = np.ravel(array, order='C')
-        lower = np.reshape([p[0] for p in array], newshape=shape, order='C')
-        upper = np.reshape([p[1] for p in array], newshape=shape, order='C')
+        lower = np.reshape([p[0] for p in array], shape, order='C')
+        upper = np.reshape([p[1] for p in array], shape, order='C')
         return (lower, upper)
     
     @staticmethod
