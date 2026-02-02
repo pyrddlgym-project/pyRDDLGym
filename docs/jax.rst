@@ -899,18 +899,27 @@ Limitations
 We cite several limitations of the current version of JaxPlan:
 
 * Not all operations have natural differentiable relaxations or are supported by the compiler:
-  - nested fluents such as ``fluent1(fluent2(?p))``
-  - Multinomial sampling
+
+  * nested fluents such as ``fluent1(fluent2(?p))``
+  * Multinomial sampling
+
 * Some relaxations can accumulate high error:
-  - particularly problematic for long rollout horizon, so we recommend reducing or tuning it
-  - model relaxations and hyper-parameters can be tuned for optimal results
+
+  * particularly problematic for long rollout horizon, so we recommend reducing or tuning it
+  * model relaxations and hyper-parameters can be tuned for optimal results
+
 * Some relaxations can not be mathematically consistent with one another:
-  - dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in most cases should be close
-	- it is recommended to override operations in the compiler if this is a concern
+
+  * dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in most cases should be close
+	* it is recommended to override operations in the compiler if this is a concern
+
 * Termination conditions and complex (i.e. nonlinear) state or action constraints are not included in the optimization:
-  - constraints can be logged in the optimizer callback and used during optimization (e.g. to build lagrangians)
+
+  * constraints can be logged in the optimizer callback and used during optimization (e.g. to build lagrangians)
+
 * Optimizer can fail to make progress when the problem is largely discrete:
-  - to diagnose, monitor and compare the training loss and the test loss over time
+
+  * to diagnose, monitor and compare the training loss and the test loss over time
 
 The goal of JaxPlan is to provide a standard planning baseline that can be easily built upon.
 We also welcome any suggestions or modifications about how to improve the robustness of JaxPlan 
