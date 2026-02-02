@@ -125,9 +125,9 @@ For other distributions without natural reparameterization
 to approximate the gradients.
 
 .. note::
-   As of JaxPlan version 2.2 (JAX version 0.4.25), most discrete and continuous distributions 
-   support gradients for the most common use cases. The notable exceptions are Binomial 
-   (supported for small counts only), NegativeBinomial and Multinomial.
+   As of JaxPlan version 3.0, most discrete and continuous distributions 
+   support gradients for the most common use cases. The notable exception is Multinomial 
+   which does not yet support non-zero gradients.
 
 
 Running JaxPlan
@@ -233,7 +233,6 @@ To use a deep reactive policy, simply change the ``plan`` type to:
    All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
 
 
-
 Configuring JaxPlan
 -------------------
 
@@ -245,36 +244,32 @@ with all required hyper-parameters, i.e. for straight-line planning:
 
 .. code-block:: shell
 
-    [Model]
-    logic='FuzzyLogic'
-    comparison_kwargs={'weight': 20}
-    rounding_kwargs={'weight': 20}
-    control_kwargs={'weight': 20}
+    [Compiler]
+    method='DefaultJaxRDDLCompilerWithGrad'
+    sigmoid_weight=20
 
-    [Optimizer]
+    [Planner]
     method='JaxStraightLinePlan'
     method_kwargs={}
     optimizer='rmsprop'
     optimizer_kwargs={'learning_rate': 0.001}
-    batch_size_train=1
-    batch_size_test=1
 
-    [Training]
+    [Optimize]
     key=42
     epochs=5000
     train_seconds=30
 
 The configuration file contains three sections:
 
-* ``[Model]`` dictates how non-differentiable expressions are handled (discussed later)
-* ``[Optimizer]`` requires a ``method`` argument to indicate the type of plan/policy, its hyper-parameters, optimizer, etc.
-* ``[Training]`` indicates budget on iterations, time, verbosity, etc.
+* ``[Compiler]`` dictates how RDDL expressions are translated to JAX
+* ``[Planner]`` indicate the type of plan or policy, its hyper-parameters, optimizer, etc.
+* ``[Optimize]`` indicates budget on iterations, time, verbosity, etc.
    
 To use a policy network with two hidden layers of size 128:
 
 .. code-block:: shell
 
-    [Optimizer]
+    [Planner]
     method='JaxDeepReactivePolicy'
     method_kwargs={'topology': [128, 128]}
   
@@ -282,159 +277,160 @@ To use replanning with a lookahead horizon of 5:
 
 .. code-block:: shell
 
-    [Optimizer]
+    [Optimize]
     rollout_horizon=5
 
 Using Configuration Files
 ^^^^^^^^^^^^^^^^^^^
 
-Configuration files can be parsed and passed to the planner as follows:
+Configuration files can be parsed as follows, then passed to the `plan`, `planner` and `controller` as shown in the previous example above:
 
 .. code-block:: python
 
     from pyRDDLGym_jax.core.planner import load_config
     planner_args, plan_args, train_args = load_config("/path/to/config.cfg")
-    
-    # continue as described in the previous section
-    plan = ...
-    planner = ...
-    controller = ...
 
 List of Configurable Settings
 ^^^^^^^^^^^^^^^^^^^
 
-.. collapse:: Possible settings for ``[Model]`` section
+.. collapse:: Possible config parameters under ``[Compiler]``
    
-    .. list-table:: ``[Model]``
+    .. list-table:: ``[Compiler]`` settings for all ``JaxRDDLCompilerWithGrad`` instances
       :widths: 40 80
       :header-rows: 1
 
       * - Setting
         - Description
-      * - logic
-        - Type of ``core.logic.FuzzyLogic``, how expressions are relaxed
-      * - logic_kwargs
-        - kwargs to pass to logic object constructor
-      * - complement
-        - Type of ``core.logic.Complement``, how logical complement is relaxed
-      * - complement_kwargs
-        - kwargs to pass to complement object constructor
-      * - comparison
-        - Type of ``core.logic.SigmoidComparison``, how comparisons are relaxed
-      * - comparison_kwargs
-        - kwargs to pass to comparison object constructor
-      * - control
-        - Type of ``core.logic.ControlFlow``, how comparisons are relaxed
-      * - control_kwargs
-        - kwargs to pass to control flow object constructor
-      * - rounding
-        - Type of ``core.logic.Rounding``, how to round float to int values
-      * - rounding_kwargs
-        - kwargs to pass to rounding object constructor
-      * - sampling
-        - Type of ``core.logic.RandomSampling``, how to sample discrete distributions
-      * - sampling_kwargs
-        - kwargs to pass to sampling object constructor (see table below for default options)
-      * - tnorm
-        - Type of ``core.logic.TNorm``, how logical expressions are relaxed
-      * - tnorm_kwargs
-        - kwargs to pass to tnorm object constructor
-
-
-.. collapse:: Possible settings for ``sampling_kwargs`` in ``[Model]`` section for ``SoftRandomSampling``
-
-    .. list-table:: ``sampling_kwargs`` in ``[Model]`` for ``SoftRandomSampling``
+      * - allow_synchronous_state
+        - Whether next state variables allowed to depend on other next state variables
+      * - cpfs_without_grad
+        - Set of cpfs whose gradients are to be ignored (use STE estimator)
+      * - method
+        - Type of ``core.logic.JaxRDDLCompilerWithGrad`` defines translation from RDDL to JAX
+      * - print_warnings
+        - Whether to print compilation warnings
+      * - use64bit
+        - Whether to use 64 bit arithmetic
+    
+    .. list-table:: ``[Compiler]`` settings for ``DefaultJaxRDDLCompilerWithGrad``
       :widths: 40 80
       :header-rows: 1
 
       * - Setting
         - Description
-      * - bernoulli_gumbel_softmax
-        - Whether to use Gumbel-Softmax for Bernoulli relaxation
-      * - binomial_max_bins
-        - Maximum bins for Binomial relaxation
-      * - poisson_exp_sampling
-        - Whether to use `exponential sampling <https://arxiv.org/abs/2405.14473>`_ for Poisson relaxation
-      * - poisson_max_bins
-        - Maximum bins for Poisson relaxation
+      * - argmax_weight
+        - Controls strength of softmax relaxation of argmax and argmin operators
+      * - bernoulli_sigmoid_weight
+        - Controls strength of sigmoid relaxation of Bernoulli
+      * - binomial_eps
+        - Underflow correction of Binomial
+      * - binomial_nbins
+        - Maximum bins for Binomial relaxation before switching to Normal approximation
+      * - binomial_softmax_weight
+        - Controls strength of softmax relaxation of Binomial
+      * - discrete_eps
+        - Underflow correction of Discrete 
+      * - discrete_softmax_weight
+        - Controls strength of softmax relaxation of Discrete
+      * - floor_weight
+        - Controls strength of tanh relaxation of floor and ceil operators
+      * - geometric_eps
+        - Underflow correction of Geometric
+      * - geometric_floor_weight
+        - Controls strength of tanh relaxation of floor operator in Geometric
+      * - poisson_comparison_weight
+        - Controls strength of exponential approximation of Poisson
       * - poisson_min_cdf
-        - Required cdf within truncated region to use Poisson relaxation
+        - Controls when to use exponential or Normal approximation of Poisson
+      * - poisson_nbins
+        - Maximum bins for Poisson relaxation before switching to Normal approximation
+      * - round_weight
+        - Controls strength of tanh relaxation of round operators
+      * - sigmoid_weight
+        - Controls strength of sigmoid/tanh relaxation of relational operators
+      * - sqrt_eps
+        - Underflow correction of sqrt operators
+      * - switch_weight
+        - Controls strength of softmax relaxation of switch operators
+      * - use_floor_ste
+        - Whether to use STE for floor relaxation
+      * - use_if_else_ste
+        - Whether to use STE for if-then-else relaxation
+      * - use_logic_ste
+        - Whether to use STE for relaxation of logical operators
+      * - use_round_ste
+        - Whether to use STE for round relaxation
+      * - use_sigmoid_ste
+        - Whether to use STE for sigmoid-relaxed operators
+      * - use_tanh_ste
+        - Whether to use STE for tanh-relaxed operators (e.g. sign)
 
 
-.. collapse:: Possible settings for ``[Optimizer]`` section
+.. collapse:: Possible config parameters under ``[Planner]``
 
-    .. list-table:: ``[Optimizer]``
+    .. list-table:: ``[Planner]``
       :widths: 40 80
       :header-rows: 1
 
       * - Setting
         - Description
       * - action_bounds
-        - Dictionary of (lower, upper) bounds on each action-fluent
+        - Dict of (lower, upper) bound tensors for each action-fluent
       * - batch_size_test
         - Batch size for evaluation
       * - batch_size_train
         - Batch size for training
       * - clip_grad
-        - Clip gradients to within a given magnitude
-      * - compile_non_fluent_exact
-        - Whether model relaxations are skipped for non-fluent expressions
-      * - cpfs_without_grad
-        - A set of CPFs that do not allow gradients to flow through them
+        - Bound on gradient magnitude
+      * - dashboard
+        - Whether to show a dashboard with training progress
       * - ema_decay
-        - Decay rate of exponential moving average of policy parameters
+        - Decay rate of EMA of policy parameters
       * - line_search_kwargs
-        - Arguments for optional `zoom line search <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.scale_by_zoom_linesearch>`_
+        - Arguments for `zoom line search <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.scale_by_zoom_linesearch>`_
       * - method
-        - Type of ``core.planner.JaxPlan``, specifies the policy class
+        - Type of ``core.planner.JaxPlan`` specifies the policy class
       * - method_kwargs
-        - kwargs to pass to policy constructor (see next two tables for options)
+        - Arguments for policy constructor (see next tables for options)
       * - noise_kwargs
-        - Arguments for optional `gradient noise <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.add_noise>`_: ``noise_grad_eta``, ``noise_grad_gamma`` and ``seed``
+        - Arguments for `gradient noise <https://optax.readthedocs.io/en/latest/api/transformations.html#optax.add_noise>`_
       * - optimizer
-        - Name of optimizer from `optax <https://optax.readthedocs.io/en/latest/api/optimizers.html>`_ to use
+        - Name of optimizer from `optax <https://optax.readthedocs.io/en/latest/api/optimizers.html>`_
       * - optimizer_kwargs
-        - kwargs to pass to optimizer constructor, i.e. ``learning_rate``
+        - Arguments for optimizer constructor such as ``learning_rate``
       * - parallel_updates
-        - Number of independent policies to initialize and update in parallel
+        - Number of independent policies to optimize in parallel
       * - pgpe
-        - Optional type of ``core.planner.PGPE`` for `parallel policy gradient update <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_
+        - Type of ``core.planner.PGPE`` for parameter-exploring policy gradient update
       * - pgpe_kwargs
-        - kwargs to pass to PGPE constructor (for ``GaussianPGPE`` see table below)
+        - Arguments for PGPE constructor (see table below for default choices)
       * - preprocessor
-        - Optional type of ``core.planner.Preprocessor`` for preprocessing fluent tensors (i.e. normalization, etc.)
+        - Type of ``core.planner.Preprocessor`` for input preprocessing such as normalization
       * - preprocessor_kwargs
-        - kwargs to pass to preprocessor constructor
-      * - print_warnings
-        - Whether to print compilation warnings to console (errors will still be printed)
+        - Arguments for preprocessor constructor
       * - rollout_horizon
         - Rollout horizon of the computation graph
-      * - use64bit
-        - Whether to use 64 bit precision
       * - use_symlog_reward
-        - Whether to apply the `symlog transform <https://arxiv.org/abs/2301.04104>`_ to the returns
+        - Whether to apply `symlog transform <https://arxiv.org/abs/2301.04104>`_ to returns
       * - utility
-        - Optional utility function to optimize
+        - Utility function to optimize
       * - utility_kwargs
-        - kwargs to pass hyper-parameters to utility
+        - Arguments for utility such as hyper-parameters
 
-
-.. collapse:: Possible settings for ``method_kwargs`` in ``[Optimizer]`` section for ``JaxStraightLinePlan``
-
-    .. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxStraightLinePlan``
+    .. list-table:: Possible ``method_kwargs`` arguments for ``JaxStraightLinePlan``
       :widths: 40 80
       :header-rows: 1
 
       * - Setting
         - Description
       * - initializer
-        - Type of ``jax.nn.initializers``, specifies parameter initialization
+        - Type of ``jax.nn.initializers``
       * - initializer_kwargs
-        - kwargs to pass to the initializer
+        - Arguments for initializer constructor
       * - max_constraint_iter
-        - Maximum iterations of `gradient projection <https://ipc2018-probabilistic.bitbucket.io/planner-abstracts/conformant-sogbofa-ipc18.pdf>`_ for boolean action preconditions
+        - Maximum iterations of `gradient projection <https://ipc2018-probabilistic.bitbucket.io/planner-abstracts/conformant-sogbofa-ipc18.pdf>`_
       * - min_action_prob
-        - Minimum probability of boolean action to avoid sigmoid saturation
+        - Minimum bound on boolean action to avoid sigmoid saturation
       * - use_new_projection
         - Whether to use new sorting gradient projection for boolean action preconditions
       * - wrap_non_bool
@@ -442,38 +438,32 @@ List of Configurable Settings
       * - wrap_sigmoid
         - Whether to wrap boolean actions with sigmoid
       * - wrap_softmax
-        - Whether to wrap with softmax to satisfy boolean action preconditions
+        - Whether to wrap boolean actions with softmax to satisfy ``max-nondef-actions``
 
-
-.. collapse:: Possible settings for ``method_kwargs`` in ``[Optimizer]`` section for ``JaxDeepReactivePolicy``
-
-    .. list-table:: ``method_kwargs`` in ``[Optimizer]`` for ``JaxDeepReactivePolicy``
+    .. list-table:: Possible ``method_kwargs`` arguments for ``JaxDeepReactivePolicy``
       :widths: 40 80
       :header-rows: 1
 
       * - Setting
         - Description   
       * - activation
-        - Name of activation for hidden layers, from ``jax.numpy`` or ``jax.nn`` 
+        - Activation for hidden layers in ``jax.numpy`` or ``jax.nn`` 
       * - initializer
-        - Type of ``haiku.initializers``, specifies parameter initialization
+        - Type of ``haiku.initializers``
       * - initializer_kwargs
-        - kwargs to pass to the initializer
+        - Arguments for initializer constructor
       * - normalize
-        - Whether to apply `layer norm to inputs <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_
+        - Whether to apply layer norm to inputs
       * - normalize_per_layer
         - Whether to apply layer norm to each input individually
       * - normalizer_kwargs
-        - kwargs to pass to ``haiku.LayerNorm`` constructor for layer norm
+        - Arguments for ``haiku.LayerNorm`` constructor
       * - topology
         - List specifying number of neurons per hidden layer
       * - wrap_non_bool
         - Whether to wrap non-boolean actions with nonlinearity for box constraints   
 
-
-.. collapse:: Possible settings for ``GaussianPGPE`` policy gradient
-
-    .. list-table:: ``GaussianPGPE`` Policy Gradient Fallback
+    .. list-table:: Possible ``pgpe_kwargs`` arguments for ``GaussianPGPE``
       :widths: 40 80
       :header-rows: 1
 
@@ -484,61 +474,59 @@ List of Configurable Settings
       * - end_entropy_coeff
         - Ending entropy regularization coeffient
       * - init_sigma
-        - Initial standard deviation
+        - Initial standard deviation of meta policy
       * - max_kl_update
         - Maximum bound on kl-divergence between successive updates
       * - min_reward_scale
-        - Minimum reward scaling factor if ``scale_reward = True``
+        - Minimum scaling factor for ``scale_reward``
       * - optimizer
-        - Name of optimizer from optax to use
+        - Name of optimizer from ``optax``
       * - optimizer_kwargs_mu
-        - kwargs to pass to optimizer constructor for mean, i.e. ``learning_rate``
+        - Arguments for optimizer constructor for mean such as ``learning_rate``
       * - optimizer_kwargs_sigma
-        - kwargs to pass to optimizer constructor for std, i.e. ``learning_rate``
+        - Arguments for optimizer constructor for std such as ``learning_rate``
       * - scale_reward
-        - Whether to apply reward scaling during parameter updates
+        - Whether to apply reward scaling in parameter updates
       * - sigma_range
-        - Clipping bounds for standard deviation
+        - Clipping bounds for standard deviation of meta policy
       * - start_entropy_coeff
         - Starting entropy regularization coeffient
       * - super_symmetric
         - Whether to use super-symmetric sampling for standard deviation
       * - super_symmetric_accurate
-        - Whether to use the accurate formula for super symmetric sampling
+        - Whether to use the accurate formula for super symmetric sampling in the paper
 
 
-.. collapse:: Possible settings for ``[Training]`` section
+.. collapse:: Possible config parameters under ``[Optimize]``
 
-    .. list-table:: ``[Training]``
+    .. list-table:: ``[Optimize]``
       :widths: 40 80
       :header-rows: 1
 
       * - Setting
         - Description
-      * - dashboard
-        - Whether to display training results in a dashboard
       * - epochs
-        - Maximum number of iterations of gradient descent   
+        - Maximum number of iterations
       * - key
-        - An integer to seed the RNG with for reproducibility
+        - RNG seed for JAX
       * - model_params
-        - Dictionary of hyper-parameter values to pass to the model relaxation
+        - Dict of hyper-parameter values for the model relaxation
       * - policy_hyperparams
-        - Dictionary of hyper-parameter values to pass to the policy
+        - Dict of hyper-parameter values for the policy
+      * - print_hyperparams
+        - Whether to print the planner hyper-parameters
       * - print_progress
-        - Whether to print the progress bar from the planner to console
+        - Whether to show the progress bar
       * - print_summary
-        - Whether to print summary information from the planner to console
-      * - restart_epochs
-        - Number of consecutive epochs without progress to restart optimizer
+        - Whether to print the planner summary
       * - stopping_rule
-        - A stopping criterion for the optimizer, subclass of ``JaxPlannerStoppingRule``
+        - Type of ``JaxPlannerStoppingRule`` for stopping the optimizer
       * - stopping_rule_kwargs
-        - kwargs to pass to stopping rule constructor
+        - Arguments for stopping rule constructor
       * - test_rolling_window
-        - Smoothing window over which to calculate test return
+        - Smoothing window for test return calculation
       * - train_seconds
-        - Maximum seconds to train for
+        - Maximum seconds to iterate
 
 
 Constraints on Action-Fluents
@@ -577,7 +565,7 @@ The syntax for specifying optional box constraints in the config is:
 
 .. code-block:: shell
 	
-    [Optimizer]
+    [Optimize]
     action_bounds={ <action_name1>: (lower1, upper1), <action_name2>: (lower2, upper2), ... }
    
 where ``lower#`` and ``upper#`` can be any list, nested list or array.
@@ -634,17 +622,15 @@ where concrete hyper-parameter to tune are replaced by keywords, i.e.:
 
 .. code-block:: shell
 
-    [Model]
-    logic='FuzzyLogic'
-    comparison_kwargs={'weight': MODEL_WEIGHT_TUNE}
-    rounding_kwargs={'weight': MODEL_WEIGHT_TUNE}
-    control_kwargs={'weight': MODEL_WEIGHT_TUNE}
+    [Compiler]
+    method='DefaultJaxRDDLCompilerWithGrad'
+    sigmoid_weight=TUNABLE_WEIGHT
 
-    [Optimizer]
+    [Planner]
     method='JaxStraightLinePlan'
     method_kwargs={}
     optimizer='rmsprop'
-    optimizer_kwargs={'learning_rate': LEARNING_RATE_TUNE}
+    optimizer_kwargs={'learning_rate': TUNABLE_LEARNING_RATE}
     ...
 
 .. warning::
@@ -669,8 +655,8 @@ Next, for each config variable, specify its search range and transformation to a
     # map parameters in the config that will be tuned
     def power_10(x):
         return 10.0 ** x
-    hyperparams = [Hyperparameter("MODEL_WEIGHT_TUNE", -1., 5., power_10),
-                   Hyperparameter("LEARNING_RATE_TUNE", -5., 1., power_10)]
+    hyperparams = [Hyperparameter("TUNABLE_WEIGHT", -1., 5., power_10),
+                   Hyperparameter("TUNABLE_LEARNING_RATE", -5., 1., power_10)]
     
     # build the tuner and tune (online indicates not to use replanning)
     tuning = JaxParameterTuning(env=env,
@@ -741,7 +727,7 @@ To activate the dashboard for planning, simply add the following line in the con
 
 .. code-block:: shell
 
-    [Training]
+    [Planner]
     dashboard=True
 
 
@@ -767,7 +753,7 @@ and optional hyper-parameters dict to the ``utility_kwargs`` argument, i.e. for 
 
 .. code-block:: shell
 
-    [Optimizer]
+    [Planner]
     utility='cvar'
     utility_kwargs={'alpha': 0.05}
 
@@ -815,64 +801,59 @@ To complicate matters further, the ``if`` statement depends on both ``x`` and ``
 so it does not have partial derivatives with respect to ``x`` nor ``y``.
 
 JaxPlan works around these limitations by approximating such operations with JAX expressions that support derivatives.
-The ``FuzzyLogic`` describes how relaxations are performed, and it is highly configurable. 
-It can be passed to a planner by specifying:
+The ``JaxRDDLCompilerWithGrad`` describes how relaxations are performed, and it is highly configurable and inheritable. 
+The type of compiler instance can be passed to a planner by specifying:
 
 .. code-block:: shell
     
-    [Model]
-    logic='FuzzyLogic'
+    [Compiler]
+    method='MyJaxRDDLCompilerWithGradType'
+    method_kwargs=...
 
 
-By default, ``FuzzyLogic`` uses `t-norm fuzzy logics <https://en.wikipedia.org/wiki/T-norm_fuzzy_logics#Motivation>`_
-to approximate the logical operations, and a 
-`variety of differentiable relaxations from the literature <https://github.com/pyrddlgym-project/pyRDDLGym-jax?tab=readme-ov-file#citing-jaxplan>`_ 
-to support other operations automatically.
+The default ``DefaultJaxRDDLCompilerWithGrad`` implements a 
+variety of differentiable relaxations from the `literature <https://github.com/pyrddlgym-project/pyRDDLGym-jax?tab=readme-ov-file#citing-jaxplan>`_ 
+that have been carefully tuned for the best possible results, but they are also constantly improving with each new release.
 
-Some operations introduce model hyper-parameters to control the quality of the approximation.
-These hyper-parameters be retrieved and modified at any time as follows:
+.. list-table:: Default ``DefaultJaxRDDLCompilerWithGrad`` rules
+  :widths: 60 60
+  :header-rows: 1
+
+  * - Exact RDDL Operation
+    - Approximate Operation
+  * - ^, &, |, ~, forall, exists, etc.
+    - `Fuzzy logic https://www.sciencedirect.com/science/article/pii/S0004370221001533`_
+  * - ==, >, <, >=, <=, sgn, etc.
+    - `Tanh <https://arxiv.org/pdf/2110.05651>`_ and `Sigmoid <https://arxiv.org/pdf/2110.05651>`_
+  * - argmax, argmin
+    - `Softmax <https://arxiv.org/pdf/2110.05651>`_
+  * - sgn
+    - `Tanh <https://arxiv.org/pdf/2110.05651>`_
+  * - floor, div, mod, etc.
+    - `SoftFloor <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
+  * - round
+    - `SoftRound <https://arxiv.org/pdf/2006.09952>`_
+  * - if-then-else
+    - `Linear <https://arxiv.org/pdf/2110.05651>`_
+  * - switch
+    - `Softmax <https://arxiv.org/pdf/2110.05651>`_
+  * - Bernoulli, Discrete
+    - `Gumbel-Softmax <https://arxiv.org/pdf/1611.01144>`_ or `Sigmoid <https://arxiv.org/pdf/2110.05651>`_
+  * - Geometric
+    - `SoftFloor <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
+  * - Binomial
+    - `Gumbel-Softmax <https://arxiv.org/pdf/1611.01144>`_ for small population, Normal for large population
+  * - Poisson
+    - `rsample https://arxiv.org/pdf/2405.14473`_ for small rate, Normal for large rate
+
+Some relaxations naturally introduce hyper-parameters to control the quality of the approximation.
+These hyper-parameters can be retrieved and modified programmatically as follows:
 
 .. code-block:: python
 
     model_params = planner.compiled.model_params
     model_params[key] = ...
     planner.optimize(..., model_params=model_params)
-
-It is possible to control these rules by subclassing ``FuzzyLogic``, or by 
-modifying ``tnorm``, ``complement`` or other constructor arguments in the config.
-
-.. collapse:: Default rules for ``FuzzyLogic``
-
-    .. list-table:: Default Differentiable Mathematical Operations
-      :widths: 60 60
-      :header-rows: 1
-
-      * - Exact RDDL Operation
-        - Approximate Operation
-      * - :math:`a \text{ ^ } b`
-        - :math:`a * b`
-      * - :math:`\sim a`
-        - :math:`1 - a`
-      * - forall_{?p : type} x(?p)
-        - :math:`\prod_{?p} x(?p)`
-      * - if (c) then a else b
-        - :math:`c * a + (1 - c) * b` `[1] <https://arxiv.org/pdf/2110.05651>`_
-      * - :math:`a == b`
-        - :math:`1 - \tanh^2(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
-      * - :math:`a > b`, :math:`a >= b`
-        - :math:`\mathrm{sigmoid}(w * (a - b))` `[1] <https://arxiv.org/pdf/2110.05651>`_
-      * - argmax_{?p : type} x(?p)
-        - Softmax `[1] <https://arxiv.org/pdf/2110.05651>`_
-      * - sgn(a)
-        - :math:`\tanh(w * a)`
-      * - floor(a)
-        - SoftFloor `[2] <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
-      * - round(a)
-        - See `[3] <https://arxiv.org/pdf/2006.09952>`_
-      * - Bernoulli(p)
-        - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
-      * - Discrete(type, {cases ...} )
-        - Gumbel-Softmax `[4] <https://arxiv.org/pdf/1611.01144>`_
 
 
 Parameter-Exploring Policy Gradient
@@ -881,21 +862,21 @@ Parameter-Exploring Policy Gradient
 Since version 2.0, JaxPlan runs a parallel instance of
 `parameter-exploring policy gradients (PGPE) <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_.
 In some cases, this allows JaxPlan to continue making progress when the model relaxations are poor 
-or the gradient descent optimizer otherwise fails to make progress. It can be configured as follows:
+or the gradient descent optimizer fails to make progress. It can be configured as follows:
 
 .. code-block:: shell
 
-    [Optimizer]
+    [Planner]
     pgpe='GaussianPGPE'
-    pgpe_kwargs=...
+    pgpe_kwargs={'optimizer_kwargs_mu': {'learning_rate': 0.01}, 'optimizer_kwargs_sigma': {'learning_rate': 0.01}}
 
    
 Third-Party Optimizers
 ^^^^^^^^^^^^^^^^^^^
 
-Non-gradient based methods such as global optimization methods could work when gradients are uninformative.
+Gradient-free methods such as global optimization could work when gradients are uninformative.
 As of version 0.3, it is possible to export the optimization problem in JaxPlan
-to be solved by another optimizer (e.g., scipy):
+to be solved by another optimizer such as scipy:
 
 .. code-block:: python
     
@@ -912,27 +893,25 @@ so they can be used as inputs for other packages that do not make use of JAX. Th
        Related example: Building an optimization problem for third-party optimizers.
    </a>
    
-   
 
 Limitations
 -------------------
 
 We cite several limitations of the current version of JaxPlan:
 
-* Not all operations have natural differentiable relaxations. Currently, the following are not supported:
+* Not all operations have natural differentiable relaxations or are supported by the compiler:
 	* nested fluents such as ``fluent1(fluent2(?p))``
-* Some relaxations can accumulate high error
-	* this is particularly problematic for long horizon, so we recommend reducing or tuning the rollout horizon for best results
-  * the model relaxations and their hyper-parameters should also be tweaked for optimal results
-* Some relaxations may not be mathematically consistent with one another:
-	* no guarantees are provided about dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in many cases should be close
-	* if this is a concern, it is recommended to override some operations in ``FuzzyLogic``
-* Termination conditions and state/action constraints are not considered in the optimization
-	* constraints are logged in the optimizer callback and can be used to define loss functions that take the constraints into account
-* The optimizer can fail to make progress when the structure of the problem is largely discrete:
-	* to diagnose this, monitor the training loss and the test loss over time
-	* a low, or drastically improving, training loss with a similar test loss indicates that the continuous model relaxation is likely accurate around the optimum
-	* on the other hand, a low training loss and a high test loss indicates that the continuous model relaxation is poor.
+  * Multinomial sampling
+* Some relaxations can accumulate high error:
+	* particularly problematic for long rollout horizon, so we recommend reducing or tuning it
+  * model relaxations and hyper-parameters can be tuned for optimal results
+* Some relaxations can not be mathematically consistent with one another:
+	* dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in most cases should be close
+	* it is recommended to override operations in the compiler if this is a concern
+* Termination conditions and complex (i.e. nonlinear) state or action constraints are not included in the optimization:
+	* constraints can be logged in the optimizer callback and used during optimization (e.g. to build lagrangians)
+* Optimizer can fail to make progress when the problem is largely discrete:
+	* to diagnose, monitor and compare the training loss and the test loss over time
 
 The goal of JaxPlan is to provide a standard planning baseline that can be easily built upon.
 We also welcome any suggestions or modifications about how to improve the robustness of JaxPlan 
