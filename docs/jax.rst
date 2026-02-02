@@ -45,7 +45,7 @@ Simulating Environments using JAX
 
 pyRDDLGym ordinarily simulates domains using numPy.
 If you require additional structure such as gradients, or better simulation performance, 
-the environment can use a JAX simulation backend instead:
+switch to a JAX simulation backend:
 
 .. code-block:: python
 	
@@ -56,7 +56,7 @@ the environment can use a JAX simulation backend instead:
 .. note::
    All RDDL syntax (both new and old) is supported in the RDDL-to-JAX compiler. 
    In almost all cases, the JAX backend should return numerical results identical to the default backend.
-   However, not all operations currently support gradients (see the Limitations section).
+   However, not all operations can support gradients (see Limitations).
 
 .. raw:: html 
 
@@ -147,7 +147,7 @@ where:
 
 * ``<domain>`` is the domain identifier in rddlrepository, or a path pointing to a valid domain file
 * ``<instance>`` is the instance identifier in rddlrepository, or a path pointing to a valid instance file
-* ``<method>`` is the planning method to use (i.e. drp, slp, replan) or a path to a valid .cfg file
+* ``<method>`` is the planning method to use (i.e. drp, slp, replan) or a path to a valid config file
 * ``<episodes>`` is the (optional) number of episodes to evaluate the final policy.
 
 The ``<method>`` parameter describes the type of planning representation:
@@ -243,8 +243,8 @@ Configuration Files
 As of JaxPlan version 3.0, the configuration file contains three sections:
 
 * ``[Compiler]`` dictates how RDDL expressions are translated to JAX
-* ``[Planner]`` indicate the type of plan or policy, its hyper-parameters, optimizer, etc.
-* ``[Optimize]`` indicates budget on iterations, time, verbosity, etc.
+* ``[Planner]`` specifies the type of plan or policy, its hyper-parameters, optimizer, etc.
+* ``[Optimize]`` specifies budget on iterations, time limit, stopping rule, etc.
    
 For straight-line planning, below is an example of a working configuration file:
 
@@ -521,7 +521,7 @@ Expand the following sections to see which parameters can be set in each section
 Using Configuration Files
 ^^^^^^^^^^^^^^^^^^^
 
-Configuration files can be parsed and passed to the `plan`, `planner` and `controller` as in the basic example:
+Configuration files can be parsed and passed to the ``plan``, ``planner`` and ``controller`` as in the basic example:
 
 .. code-block:: python
 
@@ -544,13 +544,13 @@ By default, boolean actions are wrapped using the sigmoid function:
     a = \frac{1}{1 + e^{-w \theta}},
 
 where :math:`\theta` are the trainable action parameters and :math:`w` is a 
-hyper-parameter controlling the sharpness. This can be controlled in JaxPlan by setting ``wrap_sigmoid``.
+hyper-parameter controlling the sharpness. 
+At test time, the action is aliased by evaluating the expression :math:`a > 0.5`, or equivalently :math:`\theta > 0`. 
+This setting can be controlled in JaxPlan by setting ``wrap_sigmoid``.
 
 .. warning::
    If ``wrap_sigmoid = True``, then ``w`` should be specified in ``policy_hyperparams`` dictionary per boolean action fluent.
    
-At test time, the action is aliased by evaluating the expression :math:`a > 0.5`, or equivalently :math:`\theta > 0`. 
-
 
 Box Constraints
 ^^^^^^^^^^^^^^^^^^^
@@ -559,14 +559,14 @@ Box constraints are useful for bounding each action fluent independently within 
 Box constraints typically do not need to be specified manually, since they are automatically 
 parsed from the ``action_preconditions`` in the RDDL domain description.
 
-However, if the user wishes, it is possible to override these bounds
+However, it is possible to override these bounds
 by passing a dictionary of bounds for each action fluent into the ``action_bounds`` argument. 
 The syntax for specifying optional box constraints in the config is:
 
 .. code-block:: shell
 	
     [Optimize]
-    action_bounds={ <action_name1>: (lower1, upper1), <action_name2>: (lower2, upper2), ... }
+    action_bounds={ <action_fluent1>: (lower1, upper1), <action_fluent2>: (lower2, upper2), ... }
    
 where ``lower#`` and ``upper#`` can be any list, nested list or array.
 
@@ -584,13 +584,13 @@ to satisfy constraints at each optimization step (for straight-line plans only).
 
 .. note::
    Concurrency constraints are applied to boolean actions only.
-   Deep reactive policies only support :math:`B = 1` by applying a softmax trick.
+   Deep reactive policies currently support only :math:`B = 1`.
 
 
 Automatically Tuning Hyper-Parameters
 -------------------
 
-JaxPlan provides a Bayesian optimization algorithm for automatically tuning key hyper-parameters of the planner. It:
+JaxPlan provides a Bayesian optimization algorithm for automatically tuning hyper-parameters:
 
 * supports multi-processing by evaluating multiple hyper-parameter settings in parallel
 * leverages Bayesian optimization to search the hyper-parameter space more efficiently
@@ -599,7 +599,7 @@ JaxPlan provides a Bayesian optimization algorithm for automatically tuning key 
 From the Command Line
 ^^^^^^^^^^^^^^^^^^^
 
-The command line app runs the automated tuning on the most important hyper-parameters:
+The command line app runs the automated tuning on several key hyper-parameters:
 
 .. code-block:: shell
 
@@ -617,8 +617,9 @@ where:
 From Python
 ^^^^^^^^^^^^^^^^^^^
 
-To customize the hyper-parameter tuning algorithm in detail, first specify a config file template
-where concrete hyper-parameter to tune are replaced by keywords, i.e.:
+To customize the hyper-parameter tuning algorithm in detail, first create an abstract config file,
+where concrete hyper-parameters to tune are replaced by keywords. To tune the sigmoid relaxation in the compiler and
+the optimizer learning rate, for example:
 
 .. code-block:: shell
 
@@ -634,22 +635,21 @@ where concrete hyper-parameter to tune are replaced by keywords, i.e.:
     ...
 
 .. warning::
-   Keywords defined above will be replaced during tuning with concrete values using a simple string replacement.
-   This means you must select keywords that are not already used (nor appear as substrings) in other parts of the config file.
+   During tuning, keywords are replaced by concrete values via simple string matching.
+   Therefore, you must select keywords not appearing (as substrings) in any other parts of the config file.
    
 Next, for each config variable, specify its search range and transformation to apply:
 
 .. code-block:: python
 
-    import pyRDDLGym
     from pyRDDLGym_jax.core.tuning import JaxParameterTuning, Hyperparameter
     from pyRDDLGym_jax.core.planner import load_config_from_string
-    
-    # set up the environment   
-    env = pyRDDLGym.make(domain, instance, vectorized=True)
-    
+
+    # load env as usual
+    ...
+
     # load the abstract config file with planner settings
-    with open('path/to/config.cfg', 'r') as file:
+    with open('path/to/config', 'r') as file:
         config_template = file.read() 
     
     # map parameters in the config that will be tuned
@@ -659,17 +659,16 @@ Next, for each config variable, specify its search range and transformation to a
                    Hyperparameter("TUNABLE_LEARNING_RATE", -5., 1., power_10)]
     
     # build the tuner and tune (online indicates not to use replanning)
-    tuning = JaxParameterTuning(env=env,
-                                config_template=config_template, hyperparams=hyperparams,
+    tuning = JaxParameterTuning(env=env, config_template=config_template, hyperparams=hyperparams,
                                 online=False, eval_trials=trials, num_workers=workers, gp_iters=iters)
-    tuning.tune(key=42, log_file="path/to/logfile.log")
+    tuning.tune(key=42, log_file="path/to/logfile")
     
     # parse the concrete config file with the best tuned values, and evaluate as usual
     planner_args, _, train_args = load_config_from_string(tuning.best_config)
     ...
     
-JaxPlan supports tuning most numeric parameters that can be specified in the config file.
-If you wish to tune a replanning algorithm set ``online=True``.
+JaxPlan supports tuning most numeric parameters in the config file. 
+If you wish to tune the replanning mode set ``online=True``.
 
 .. collapse:: Possible settings for ``JaxParameterTuning``
 
@@ -721,8 +720,8 @@ If you wish to tune a replanning algorithm set ``online=True``.
 VIsualizing with Dashboard
 -------------------
 
-As of JaxPlan version 1.0, the embedded visualization tools have been replaced with 
-a plotly dashboard, which offers a much more comprehensive and efficient way to introspect trained policies.
+As of version 1.0, the embedded visualization tools have been replaced with 
+a plotly dashboard, offering a more comprehensive way to introspect trained policies.
 To activate the dashboard for planning, simply add the following line in the config file:
 
 .. code-block:: shell
@@ -734,7 +733,7 @@ To activate the dashboard for planning, simply add the following line in the con
 Risk-Aware Planning with Utility Optimization
 -------------------
 
-By default, JaxPlan will optimize the expected sum of future reward, 
+By default, JaxPlan will optimize the expected discounted sum of future reward, 
 which may not be desirable for risk-sensitive applications.
 JaxPlan can also optimize a subset of `non-linear utility functions <https://ojs.aaai.org/index.php/AAAI/article/view/21226>`_:
 
@@ -860,7 +859,9 @@ Parameter-Exploring Policy Gradient
 Since version 2.0, JaxPlan runs a parallel instance of
 `parameter-exploring policy gradients (PGPE) <https://link.springer.com/chapter/10.1007/978-3-319-09903-3_13>`_.
 In some cases, this allows JaxPlan to continue making progress when the model relaxations are poor 
-or the gradient descent optimizer fails to make progress. It can be configured as follows:
+or the gradient descent optimizer fails to make progress. 
+
+It is enabled by default, but can be configured in the config file as follows:
 
 .. code-block:: shell
 
@@ -873,7 +874,7 @@ Third-Party Optimizers
 ^^^^^^^^^^^^^^^^^^^
 
 Gradient-free methods such as global optimization could work when gradients are uninformative.
-As of version 0.3, it is possible to export the optimization problem in JaxPlan
+As of version 0.3, it is possible to export the optimization problem
 to be solved by another optimizer such as scipy:
 
 .. code-block:: python
@@ -898,18 +899,18 @@ Limitations
 We cite several limitations of the current version of JaxPlan:
 
 * Not all operations have natural differentiable relaxations or are supported by the compiler:
-  * nested fluents such as ``fluent1(fluent2(?p))``
-  * Multinomial sampling
+  - nested fluents such as ``fluent1(fluent2(?p))``
+  - Multinomial sampling
 * Some relaxations can accumulate high error:
-  * particularly problematic for long rollout horizon, so we recommend reducing or tuning it
-  * model relaxations and hyper-parameters can be tuned for optimal results
+  - particularly problematic for long rollout horizon, so we recommend reducing or tuning it
+  - model relaxations and hyper-parameters can be tuned for optimal results
 * Some relaxations can not be mathematically consistent with one another:
-  * dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in most cases should be close
-	* it is recommended to override operations in the compiler if this is a concern
+  - dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in most cases should be close
+	- it is recommended to override operations in the compiler if this is a concern
 * Termination conditions and complex (i.e. nonlinear) state or action constraints are not included in the optimization:
-  * constraints can be logged in the optimizer callback and used during optimization (e.g. to build lagrangians)
+  - constraints can be logged in the optimizer callback and used during optimization (e.g. to build lagrangians)
 * Optimizer can fail to make progress when the problem is largely discrete:
-  * to diagnose, monitor and compare the training loss and the test loss over time
+  - to diagnose, monitor and compare the training loss and the test loss over time
 
 The goal of JaxPlan is to provide a standard planning baseline that can be easily built upon.
 We also welcome any suggestions or modifications about how to improve the robustness of JaxPlan 
