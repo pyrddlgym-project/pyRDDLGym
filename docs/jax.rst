@@ -125,9 +125,8 @@ For other distributions without natural reparameterization
 to approximate the gradients.
 
 .. note::
-   As of JaxPlan version 3.0, most discrete and continuous distributions 
-   support gradients for the most common use cases. The notable exception is Multinomial 
-   which does not yet support non-zero gradients.
+   As of JaxPlan version 3.0, most discrete and continuous distributions support gradients (approximate when required). 
+   The notable exception is Multinomial which does not yet support non-zero gradients.
 
 
 Running JaxPlan
@@ -190,13 +189,15 @@ To initialize and run an open-loop controller in Python:
 The ``**plan_args``, ``**planner_args`` and ``**train_args`` are keyword arguments passed during initialization, 
 but we strongly recommend using configuration files as discussed in the next section.
 
+.. note::
+   All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
+
 .. raw:: html 
 
    <a href="notebooks/open_loop_planning_with_jaxplan.html"> 
        <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
        Related example: Open-loop planning with straightline plans in JaxPlan.
    </a>
-   
    
 To use periodic replanning, simply change the controller type to:
 
@@ -228,19 +229,24 @@ To use a deep reactive policy, simply change the ``plan`` type to:
 .. note::
    ``JaxStraightlinePlan`` and ``JaxDeepReactivePolicy`` are instances of the abstract class ``JaxPlan``. 
    Other policy representations could be defined by overriding this class and its abstract methods.
-   
-.. note::
-   All controllers are instances of pyRDDLGym's ``BaseAgent`` and support the ``evaluate()`` function. 
 
 
 Configuring JaxPlan
 -------------------
 
+The recommended way to manage planner settings is to write a configuration file 
+with all required hyper-parameters. 
+
 Configuration Files
 ^^^^^^^^^^^^^^^^^^^
 
-The recommended way to manage planner settings is to write a configuration (.cfg) file 
-with all required hyper-parameters, i.e. for straight-line planning:
+As of JaxPlan version 3.0, the configuration file contains three sections:
+
+* ``[Compiler]`` dictates how RDDL expressions are translated to JAX
+* ``[Planner]`` indicate the type of plan or policy, its hyper-parameters, optimizer, etc.
+* ``[Optimize]`` indicates budget on iterations, time, verbosity, etc.
+   
+For straight-line planning, below is an example of a working configuration file:
 
 .. code-block:: shell
 
@@ -259,12 +265,6 @@ with all required hyper-parameters, i.e. for straight-line planning:
     epochs=5000
     train_seconds=30
 
-The configuration file contains three sections:
-
-* ``[Compiler]`` dictates how RDDL expressions are translated to JAX
-* ``[Planner]`` indicate the type of plan or policy, its hyper-parameters, optimizer, etc.
-* ``[Optimize]`` indicates budget on iterations, time, verbosity, etc.
-   
 To use a policy network with two hidden layers of size 128:
 
 .. code-block:: shell
@@ -273,27 +273,16 @@ To use a policy network with two hidden layers of size 128:
     method='JaxDeepReactivePolicy'
     method_kwargs={'topology': [128, 128]}
   
-To use replanning with a lookahead horizon of 5:
+To use replanning with a rollout horizon of 5:
 
 .. code-block:: shell
 
     [Optimize]
     rollout_horizon=5
 
-Using Configuration Files
-^^^^^^^^^^^^^^^^^^^
+Expand the following sections to see which parameters can be set in each section (for version 3.0):
 
-Configuration files can be parsed as follows, then passed to the `plan`, `planner` and `controller` as shown in the previous example above:
-
-.. code-block:: python
-
-    from pyRDDLGym_jax.core.planner import load_config
-    planner_args, plan_args, train_args = load_config("/path/to/config.cfg")
-
-List of Configurable Settings
-^^^^^^^^^^^^^^^^^^^
-
-.. collapse:: Possible config parameters under ``[Compiler]``
+.. collapse:: Possible config parameters under [Compiler]
    
     .. list-table:: ``[Compiler]`` settings for all ``JaxRDDLCompilerWithGrad`` instances
       :widths: 40 80
@@ -366,7 +355,7 @@ List of Configurable Settings
         - Whether to use STE for tanh-relaxed operators (e.g. sign)
 
 
-.. collapse:: Possible config parameters under ``[Planner]``
+.. collapse:: Possible config parameters under [Planner]
 
     .. list-table:: ``[Planner]``
       :widths: 40 80
@@ -497,7 +486,7 @@ List of Configurable Settings
         - Whether to use the accurate formula for super symmetric sampling in the paper
 
 
-.. collapse:: Possible config parameters under ``[Optimize]``
+.. collapse:: Possible config parameters under [Optimize]
 
     .. list-table:: ``[Optimize]``
       :widths: 40 80
@@ -529,6 +518,19 @@ List of Configurable Settings
         - Maximum seconds to iterate
 
 
+Using Configuration Files
+^^^^^^^^^^^^^^^^^^^
+
+Configuration files can be parsed and passed to the `plan`, `planner` and `controller` as in the basic example:
+
+.. code-block:: python
+
+    from pyRDDLGym_jax.core.planner import load_config
+    planner_args, plan_args, train_args = load_config("/path/to/config")
+    # continue to initialize plan, planner and controller
+    ...
+
+
 Constraints on Action-Fluents
 -------------------
 
@@ -541,16 +543,14 @@ By default, boolean actions are wrapped using the sigmoid function:
     
     a = \frac{1}{1 + e^{-w \theta}},
 
-where :math:`\theta` denotes the trainable action parameters, and :math:`w` denotes a 
-hyper-parameter that controls the sharpness of the approximation.
+where :math:`\theta` are the trainable action parameters and :math:`w` is a 
+hyper-parameter controlling the sharpness. This can be controlled in JaxPlan by setting ``wrap_sigmoid``.
 
 .. warning::
-   If the sigmoid wrapping is used, then the weights ``w`` should be specified in 
-   ``policy_hyperparams`` for each boolean action fluent (as a dictionary) when interfacing with the planner.
+   If ``wrap_sigmoid = True``, then ``w`` should be specified in ``policy_hyperparams`` dictionary per boolean action fluent.
    
-At test time, the action is aliased by evaluating the expression 
-:math:`a > 0.5`, or equivalently :math:`\theta > 0`. 
-The sigmoid wrapper can be controlled by setting ``wrap_sigmoid``.
+At test time, the action is aliased by evaluating the expression :math:`a > 0.5`, or equivalently :math:`\theta > 0`. 
+
 
 Box Constraints
 ^^^^^^^^^^^^^^^^^^^
@@ -572,7 +572,7 @@ where ``lower#`` and ``upper#`` can be any list, nested list or array.
 
 By default, box constraints are enforced using projected gradient.
 An alternative approach applies a `differentiable transformation <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
-to action fluents. In JaxPlan, this can be enabled by setting ``wrap_non_bool = True``. 
+to action fluents. In JaxPlan, this can be controlled by setting ``wrap_non_bool``. 
 
 Concurrency
 ^^^^^^^^^^^^^^^^^^^
@@ -822,13 +822,11 @@ that have been carefully tuned for the best possible results, but they are also 
   * - Exact RDDL Operation
     - Approximate Operation
   * - ^, &, |, ~, forall, exists, etc.
-    - `Fuzzy logic https://www.sciencedirect.com/science/article/pii/S0004370221001533`_
+    - `Fuzzy t-norm logic <https://www.sciencedirect.com/science/article/pii/S0004370221001533>`_
   * - ==, >, <, >=, <=, sgn, etc.
     - `Tanh <https://arxiv.org/pdf/2110.05651>`_ and `Sigmoid <https://arxiv.org/pdf/2110.05651>`_
   * - argmax, argmin
     - `Softmax <https://arxiv.org/pdf/2110.05651>`_
-  * - sgn
-    - `Tanh <https://arxiv.org/pdf/2110.05651>`_
   * - floor, div, mod, etc.
     - `SoftFloor <https://www.tensorflow.org/probability/api_docs/python/tfp/substrates/jax/bijectors/Softfloor>`_
   * - round
@@ -844,7 +842,7 @@ that have been carefully tuned for the best possible results, but they are also 
   * - Binomial
     - `Gumbel-Softmax <https://arxiv.org/pdf/1611.01144>`_ for small population, Normal for large population
   * - Poisson
-    - `rsample https://arxiv.org/pdf/2405.14473`_ for small rate, Normal for large rate
+    - `rsample <https://arxiv.org/pdf/2405.14473>`_ for small rate, Normal for large rate
 
 Some relaxations naturally introduce hyper-parameters to control the quality of the approximation.
 These hyper-parameters can be retrieved and modified programmatically as follows:
@@ -900,18 +898,18 @@ Limitations
 We cite several limitations of the current version of JaxPlan:
 
 * Not all operations have natural differentiable relaxations or are supported by the compiler:
-	* nested fluents such as ``fluent1(fluent2(?p))``
+  * nested fluents such as ``fluent1(fluent2(?p))``
   * Multinomial sampling
 * Some relaxations can accumulate high error:
-	* particularly problematic for long rollout horizon, so we recommend reducing or tuning it
+  * particularly problematic for long rollout horizon, so we recommend reducing or tuning it
   * model relaxations and hyper-parameters can be tuned for optimal results
 * Some relaxations can not be mathematically consistent with one another:
-	* dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in most cases should be close
+  * dichotomy of equality, e.g. a == b, a > b and a < b do not necessarily "sum" to one, but in most cases should be close
 	* it is recommended to override operations in the compiler if this is a concern
 * Termination conditions and complex (i.e. nonlinear) state or action constraints are not included in the optimization:
-	* constraints can be logged in the optimizer callback and used during optimization (e.g. to build lagrangians)
+  * constraints can be logged in the optimizer callback and used during optimization (e.g. to build lagrangians)
 * Optimizer can fail to make progress when the problem is largely discrete:
-	* to diagnose, monitor and compare the training loss and the test loss over time
+  * to diagnose, monitor and compare the training loss and the test loss over time
 
 The goal of JaxPlan is to provide a standard planning baseline that can be easily built upon.
 We also welcome any suggestions or modifications about how to improve the robustness of JaxPlan 
