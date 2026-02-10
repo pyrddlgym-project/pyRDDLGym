@@ -19,6 +19,13 @@ To install with pip:
 
     pip install rddlrepository
 
+.. note::
+   If you are reinstalling a new version of rddlrepository on top of an old one, 
+   you must rebuild the manifest. If you are using an older version of rddlrepository < 2.2, 
+   you must go to your installation directory of rddlrepository and delete the ``manifest.csv`` file in the ``core`` subdirectory 
+   (it will be rebuilt automatically). If you are using a new version of rddlrepository >= 2.2, 
+   simply open a console in your current Python environment and type ``rddlrepo build``.
+
 
 Retrieving Information about Domains and Instances
 ---------
