@@ -574,9 +574,10 @@ The syntax for specifying optional box constraints in the config is:
    
 where ``lower#`` and ``upper#`` can be any list, nested list or array.
 
-By default, box constraints are enforced using projected gradient.
-An alternative approach applies a `differentiable transformation <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
-to action fluents. In JaxPlan, this can be controlled by setting ``wrap_non_bool``. 
+.. note::
+   By default, box constraints are enforced using projected gradient.
+   An alternative approach applies a `differentiable transformation <https://ojs.aaai.org/index.php/AAAI/article/view/4744>`_ 
+   to action fluents. In JaxPlan, this can be controlled by setting ``wrap_non_bool``. 
 
 Concurrency
 ^^^^^^^^^^^^^^^^^^^
@@ -584,10 +585,11 @@ Concurrency
 Cardinality constraints are of the form :math:`\sum_i a_i \leq B` where :math:`B`
 is ``max-nondef-actions`` in the RDDL instance. 
 
-For SLPs, ``JaxBackpropPlanner`` will automatically 
-apply `projected gradient <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_ 
-to satisfy constraints at each optimization step. For DRPs, ``JaxBackpropPlanner`` will automatically
-use a `differentiable top-k projection <https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/DL2/sampling/subsets.html>`_.
+.. note::
+   For SLPs, ``JaxBackpropPlanner`` will automatically 
+   apply `projected gradient <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_ 
+   to satisfy constraints at each optimization step. For DRPs, ``JaxBackpropPlanner`` will automatically
+   use a `differentiable top-k projection <https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/DL2/sampling/subsets.html>`_.
 
 
 Automatically Tuning Hyper-Parameters
