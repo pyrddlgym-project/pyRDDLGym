@@ -298,6 +298,8 @@ Expand the following sections to see which parameters can be set in each section
         - Type of ``core.logic.JaxRDDLCompilerWithGrad`` defines translation from RDDL to JAX
       * - print_warnings
         - Whether to print compilation warnings
+      * - stochastic_is_fluent
+        - Whether traced stochastic nodes are seen as fluent even if all arguments are not
       * - use64bit
         - Whether to use 64 bit arithmetic
     
@@ -447,6 +449,8 @@ Expand the following sections to see which parameters can be set in each section
         - Whether to apply layer norm to each input individually
       * - normalizer_kwargs
         - Arguments for ``haiku.LayerNorm`` constructor
+      * - softmax_output_weight
+        - Weight for softmax projection in cardinality constraints
       * - topology
         - List specifying number of neurons per hidden layer
       * - wrap_non_bool
@@ -577,14 +581,13 @@ to action fluents. In JaxPlan, this can be controlled by setting ``wrap_non_bool
 Concurrency
 ^^^^^^^^^^^^^^^^^^^
 
-Concurrency constraints are of the form :math:`\sum_i a_i \leq B` where :math:`B`
-is ``max-nondef-actions`` in the RDDL instance. ``JaxBackpropPlanner`` will automatically 
-apply `projected gradient <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_ 
-to satisfy constraints at each optimization step (for straight-line plans only).
+Cardinality constraints are of the form :math:`\sum_i a_i \leq B` where :math:`B`
+is ``max-nondef-actions`` in the RDDL instance. 
 
-.. note::
-   Concurrency constraints are applied to boolean actions only.
-   Deep reactive policies currently support only :math:`B = 1`.
+For SLPs, ``JaxBackpropPlanner`` will automatically 
+apply `projected gradient <https://ojs.aaai.org/index.php/ICAPS/article/view/3467>`_ 
+to satisfy constraints at each optimization step. For DRPs, ``JaxBackpropPlanner`` will automatically
+use a `differentiable top-k projection <https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/DL2/sampling/subsets.html>`_.
 
 
 Automatically Tuning Hyper-Parameters
