@@ -451,6 +451,10 @@ Expand the following sections to see which parameters can be set in each section
         - Arguments for ``haiku.LayerNorm`` constructor
       * - softmax_output_weight
         - Weight for softmax projection in cardinality constraints
+      * - time_dependent
+        - Whether the policy is time dependent
+      * - time_embedding_dim
+        - Dimension of the time embedding when time_dependent
       * - topology
         - List specifying number of neurons per hidden layer
       * - wrap_non_bool
