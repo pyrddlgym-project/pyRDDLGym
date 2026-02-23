@@ -45,7 +45,8 @@ class RDDLEnv(gym.Env):
                  debug_path: Optional[str]=None,
                  log_path: Optional[str]=None,
                  backend: Type[RDDLSimulator]=RDDLSimulator,
-                 backend_kwargs: typing.Dict={}) -> None:
+                 backend_kwargs: typing.Dict={},
+                 parser_type: Type[RDDLParser]=RDDLParser) -> None:
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -64,6 +65,7 @@ class RDDLEnv(gym.Env):
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
         pass to backend (must not include logger)
+        :param parser_type: the type of the parser (for overriding default RDDL grammar)
         '''
         super(RDDLEnv, self).__init__()
         
@@ -79,7 +81,7 @@ class RDDLEnv(gym.Env):
         else:
             reader = RDDLReader(domain, instance)
             domain = reader.rddltxt
-            parser = RDDLParser(lexer=None, verbose=False)
+            parser = parser_type(lexer=None, verbose=False)
             parser.build()
             rddl = parser.parse(domain)
             self.model = RDDLLiftedModel(rddl)
