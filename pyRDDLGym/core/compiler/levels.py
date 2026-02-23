@@ -37,7 +37,8 @@ class RDDLLevelAnalysis:
                    'derived-fluent', 'interm-fluent', 'next-state-fluent', 'non-fluent'},
         'invariant': {'state-fluent', 'non-fluent'},
         'precondition': {'state-fluent', 'action-fluent', 'non-fluent'},
-        'termination': {'state-fluent', 'non-fluent'}
+        'termination': {'state-fluent', 'non-fluent'},
+        'policy': {'state-fluent', 'observ-fluent', 'non-fluent'}
     }
     
     def __init__(self, rddl: RDDLPlanningModel,
@@ -94,6 +95,24 @@ class RDDLLevelAnalysis:
                      for (name, deps) in cpf_graph.items()}
         return cpf_graph
     
+    def build_policy_call_graph(self, include_non_fluents: bool=True) -> Dict[str, List[str]]:
+        '''Builds a call graph for the policy.
+        
+        :param include_non_fluents: whether to include non-fluents in call graph
+        '''
+        rddl = self.rddl
+
+        # build policy call graph and check validity
+        policy_graph = {}
+        for (name, (_, expr)) in rddl.policy.items():
+            self._update_call_graph(policy_graph, name, expr, include_non_fluents)
+        self._validate_dependencies_for_policy(policy_graph)
+
+        # produce reproducible order of graph dependencies
+        policy_graph = {name: sorted(deps) 
+                        for (name, deps) in policy_graph.items()}
+        return policy_graph
+
     def _update_call_graph(self, graph, cpf, expr, nfs):
         if isinstance(expr, (tuple, list, set)):
             for arg in expr:
@@ -191,6 +210,18 @@ class RDDLLevelAnalysis:
                 raise RDDLMissingCPFDefinitionError(
                     f'CPF <{cpf}> of type {fluent_type} is not defined in cpfs block.')
                     
+    def _validate_dependencies_for_policy(self, graph):
+        for (act, deps) in graph.items():
+            act_type = self.rddl.variable_types.get(act, act)
+
+            # check that all dependencies are valid
+            for dep in deps: 
+                dep_type = self.rddl.variable_types.get(dep, dep)
+                if dep_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES['policy']:
+                    raise RDDLInvalidDependencyInCPFError(
+                        f'Action <{act}> of type {act_type} '
+                        f'can not depend on variable <{dep}> of type {dep_type}.')                
+
     # ===========================================================================
     # topological sort
     # ===========================================================================

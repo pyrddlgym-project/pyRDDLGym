@@ -71,6 +71,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         self._cpf_to_level = None
         self._reward = None
         
+        self._policy = {}
+
         # constraint info
         self._terminations = None
         self._preconditions = None
@@ -311,6 +313,14 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def reward(self, val):
         self._reward = val
     
+    @property
+    def policy(self):
+        return self._policy
+
+    @policy.setter
+    def policy(self, val):
+        self._policy = val
+
     # ===========================================================================
     # constraints
     # ===========================================================================
@@ -777,6 +787,8 @@ class RDDLLiftedModel(RDDLPlanningModel):
         self._extract_horizon()
         self._extract_discount()
         self._extract_max_actions()
+
+        self._extract_policy()
         
     def _extract_objects(self):
         
@@ -1199,4 +1211,52 @@ class RDDLLiftedModel(RDDLPlanningModel):
             self.max_allowed_actions = sum(map(np.size, self.action_fluents.values()))
         else:
             self.max_allowed_actions = int(numactions)
-
+    
+    def _extract_policy(self):
+        if self.ast.policy is None:
+            self.policy = {}
+            return
+        
+        policy = {}
+        for action in self.ast.policy:
+            name, objects = action.pvar[1]
+            
+            # make sure the action is defined in pvariables {...} scope
+            types = self.variable_params.get(name, None)
+            if types is None or name not in self.action_fluents:
+                raise RDDLUndefinedCPFError(
+                    f'Action <{name}> in policy block is not defined in pvariables block.')
+            
+            # make sure the action is not defined multiple times
+            if name in policy:
+                raise RDDLInvalidExpressionError(
+                    f'Expression for action <{name}> is repeated in policy block.')
+                
+            # make sure the number of parameters matches that in policy {...}
+            if objects is None:
+                objects = []
+            if len(types) != len(objects):
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Left-hand side of expression for action <{name}> requires '
+                    f'{len(types)} parameter(s), got {objects}.')
+            
+            # check that the parameters are not literals
+            for (index, pvar) in enumerate(objects):
+                if not RDDLPlanningModel.is_free_object(pvar):
+                    raise RDDLTypeError(
+                        f'Definition for action <{name}> requires free '
+                        f'object(s) on the left-hand side, but '
+                        f'got the following expression at position {index + 1}:\n' + 
+                        PST(pvar, name))
+                
+            # actions are stored as dictionary that associates action name with a pair 
+            objects = list(zip(objects, types))
+            policy[name] = (objects, action.expr)
+        
+        # make sure all actions have a valid expression in policy {...}
+        for (var, fluent_type) in self.variable_types.items():
+            if fluent_type in {'action-fluent'} and var not in policy:
+                raise RDDLMissingCPFDefinitionError(
+                    f'Action <{var}> of type {fluent_type} is not defined in policy block.')
+                    
+        self.policy = policy

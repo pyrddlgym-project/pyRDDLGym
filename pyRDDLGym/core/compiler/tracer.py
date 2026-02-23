@@ -181,6 +181,38 @@ class RDDLObjectsTracer:
                         f'CPF <{cpf}> expression expects expression of type <{cpf_range}>, '
                         f'got expression of type <{expr_range}>.\n' + 
                         PST(expr, out._current_root))
+        
+        # trace policy block
+        for (name, (objects, expr)) in rddl.policy.items():
+            
+            # check that the parameters are unique
+            pvars = [pvar for (pvar, _) in objects]
+            if len(set(pvars)) != len(pvars):
+                raise RDDLRepeatedVariableError(
+                    f'Repeated parameter(s) {pvars} in definition of policy action <{cpf}>.')
+            
+            # check that the parameters are not literals
+            for (index, (pvar, prange)) in enumerate(objects):
+                if not RDDLPlanningModel.is_free_object(pvar):
+                    raise RDDLTypeError(
+                        f'Definition for action <{cpf}> requires free '
+                        f'object(s) on the left-hand side, but '
+                        f'got the following expression at position {index + 1}:\n' + 
+                        PST(pvar, f'action <{cpf}>'))
+            
+            # trace the expression
+            out._current_root = f'action {cpf}'
+            self._trace(expr, objects, out)
+
+            # for domain-object valued check that type matches expression output
+            act_range = rddl.variable_ranges[cpf]
+            expr_range = out.cached_object_type(expr)
+            if (act_range in rddl.enum_types and expr_range != act_range) \
+            or (act_range not in rddl.type_to_objects and expr_range is not None):
+                raise RDDLTypeError(
+                    f'Action <{cpf}> expression expects expression of type <{act_range}>, '
+                    f'got expression of type <{expr_range}>.\n' + 
+                    PST(expr, out._current_root))
 
         # trace reward, check not object value
         out._current_root = 'reward'

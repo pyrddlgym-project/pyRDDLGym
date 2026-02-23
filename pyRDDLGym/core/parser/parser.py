@@ -62,6 +62,7 @@ class RDDLlex(object):
             'terminal': 'TERMINAL',
             'cpfs': 'CPFS',
             'cdfs': 'CDFS',
+            'policy': 'POLICY',
             'reward': 'REWARD',
             'forall': 'FORALL',
             'exists': 'EXISTS',
@@ -277,6 +278,7 @@ class RDDLParser(object):
         '''rddl_block : rddl_block domain_block
                       | rddl_block instance_block
                       | rddl_block nonfluent_block
+                      | rddl_block policy_block
                       | empty'''
         if p[1] is None:
             p[0] = dict()
@@ -295,6 +297,11 @@ class RDDLParser(object):
         '''domain_block : DOMAIN IDENT LCURLY req_section domain_list RCURLY'''
         d = Domain(p[2], p[4], p[5])
         p[0] = ('domain', d)
+
+    def p_policy_block(self, p):
+        '''policy_block : POLICY LCURLY cpf_list RCURLY SEMI'''
+        p[0] = (p[1], p[3])
+        self._print_verbose('policy')
 
     def p_req_section(self, p):
         '''req_section : REQUIREMENTS ASSIGN_EQUAL LCURLY string_list RCURLY SEMI
