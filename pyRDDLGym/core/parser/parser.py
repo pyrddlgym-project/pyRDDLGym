@@ -298,11 +298,6 @@ class RDDLParser(object):
         d = Domain(p[2], p[4], p[5])
         p[0] = ('domain', d)
 
-    def p_policy_block(self, p):
-        '''policy_block : POLICY LCURLY cpf_list RCURLY'''
-        p[0] = (p[1], p[3])
-        self._print_verbose('policy')
-
     def p_req_section(self, p):
         '''req_section : REQUIREMENTS ASSIGN_EQUAL LCURLY string_list RCURLY SEMI
                        | REQUIREMENTS LCURLY string_list RCURLY SEMI
@@ -1096,6 +1091,66 @@ class RDDLParser(object):
     def p_empty(self, p):
         'empty :'
         pass
+
+    # <-- start of policy block parsing rules (added Feb 23, 2026)
+    
+    def p_policy_block(self, p):
+        '''policy_block : POLICY IDENT LCURLY policy_list RCURLY'''
+        p[4]['reward'] = None
+        d = Domain(p[2], [], p[4])
+        p[0] = ('policy', d)
+        self._print_verbose('policy')
+
+    def p_policy_list(self, p):
+        '''policy_list : policy_list policy_type_section
+                       | policy_list policy_pvar_section
+                       | policy_list cpf_section
+                       | empty'''
+        if p[1] is None:
+            p[0] = dict()
+        else:
+            name, section = p[2]
+            p[1][name] = section
+            p[0] = p[1]
+
+    def p_policy_type_section(self, p):
+        '''policy_type_section : TYPES LCURLY policy_type_list RCURLY SEMI'''
+        p[0] = ('types', p[3])
+        self._print_verbose('policy_types')
+
+    def p_policy_type_list(self, p):
+        '''policy_type_list : policy_type_list policy_type_def
+                            | empty'''
+        if p[1] is None:
+            p[0] = []
+        else:
+            p[1].append(p[2])
+            p[0] = p[1]
+
+    def p_policy_type_def(self, p):
+        '''policy_type_def : IDENT COLON LCURLY enum_list RCURLY SEMI'''
+        p[0] = (p[1], p[4])
+
+    def p_policy_pvar_section(self, p):
+        '''policy_pvar_section : PVARIABLES LCURLY policy_pvar_list RCURLY SEMI'''
+        p[0] = ('pvariables', p[3])
+        self._print_verbose('policy_pvariables')
+
+    def p_policy_pvar_list(self, p):
+        '''policy_pvar_list : policy_pvar_list policy_pvar_def
+                            | empty'''
+        if p[1] is None:
+            p[0] = []
+        else:
+            p[1].append(p[2])
+            p[0] = p[1]
+
+    def p_policy_pvar_def(self, p):
+        '''policy_pvar_def : nonfluent_def
+                           | derivedfluent_def'''
+        p[0] = p[1]
+
+    # end of policy block parsing rules (added Feb 23, 2026) -->
 
     def p_error(self, p):
         line_err = p.lineno - 1
