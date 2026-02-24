@@ -299,7 +299,7 @@ class RDDLParser(object):
         p[0] = ('domain', d)
 
     def p_policy_block(self, p):
-        '''policy_block : POLICY LCURLY cpf_list RCURLY SEMI'''
+        '''policy_block : POLICY LCURLY cpf_list RCURLY'''
         p[0] = (p[1], p[3])
         self._print_verbose('policy')
 
