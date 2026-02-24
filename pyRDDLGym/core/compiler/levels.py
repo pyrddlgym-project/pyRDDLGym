@@ -233,6 +233,7 @@ class RDDLLevelAnalysis:
         '''
         rddl = self.rddl
         graph = self.build_call_graph()
+        _ = self.build_policy_call_graph()    # do this to check validity
         order = _topological_sort(graph)
         
         # use the graph structure to group CPFs into levels 0, 1, 2, ...
