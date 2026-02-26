@@ -564,13 +564,15 @@ class RDDLParser(object):
 
     def p_term_list_item(self, p):
         # CHANGED BY MIKE ON JAN 15
-        '''term_list_item : VAR
-                          | ENUM_VAL
-                          | pvar_expr
+        '''term_list_item : pvar_expr
                           | argmaxmin_expr
                           | randomvar_from_pvar_expr'''        
         if isinstance(p[1], tuple):
-            p[0] = Expression(p[1])
+            # ?x and @o return the original object since it is part of a list
+            if p[1][0] == 'pvar_expr' and p[1][1][0].startswith(('?', "@")):
+                p[0] = p[1][1][0]
+            else:
+                p[0] = Expression(p[1])
         else:
             p[0] = p[1]
 
@@ -1016,8 +1018,7 @@ class RDDLParser(object):
 
     def p_objects_list(self, p):
         '''objects_list : objects_list objects_def
-                        | objects_def
-                        | empty'''
+                        | objects_def'''
         if len(p) == 3:
             p[1].append(p[2])
             p[0] = p[1]
