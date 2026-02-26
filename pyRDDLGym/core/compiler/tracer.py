@@ -267,7 +267,17 @@ class RDDLObjectsTracer:
                     raise RDDLTypeError(
                         f'Policy CPF <{cpf}> expression expects expression '
                         f'of type <{cpf_range}>, got expression of type <{expr_range}>.\n' + 
-                        PST(expr, out._current_root))      
+                        PST(expr, out._current_root))  
+
+        # log the fluent types
+        if self.logger is not None:
+            message = '[info] computed whether each policy CPF expression is fluent:\n'
+            for cpfs in levels.values():
+                for cpf in cpfs:
+                    is_fluent = out._cached_is_fluent_cpf[cpf]
+                    message += f'\t{cpf}: {is_fluent}\n'
+            self.logger.log(message)
+
         return out  
     
     # ===========================================================================

@@ -91,10 +91,7 @@ class RDDLValueInitializer:
                 f'shape={v.shape if type(v) is np.ndarray else ()}, '
                 f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
             ) for (k, v) in np_init_values.items())
-            message = (
-                f'[info] initializing pvariable tensors:' 
-                f'\n\t{tensor_info}\n'
-            )
+            message = f'[info] initializing pvariable tensors:\n\t{tensor_info}\n'
             self.logger.log(message)
         
         return np_init_values
@@ -138,8 +135,18 @@ class RDDLValueInitializer:
             # convert a parameterized variable to dimensioned numpy array
             ptypes = policy.variable_params[var]
             shape = rddl.object_counts(ptypes) if ptypes else None
-            np_init_values[var] = self._create_np_tensor(var, init_values, shape, prange)        
-        
+            np_init_values[var] = self._create_np_tensor(var, init_values, shape, prange)    
+
+        # log shapes of initial values
+        if self.logger is not None:
+            tensor_info = '\n\t'.join((
+                f'{k}{policy.variable_params[k]}, '
+                f'shape={v.shape if type(v) is np.ndarray else ()}, '
+                f'dtype={v.dtype if type(v) is np.ndarray else type(v).__name__}'
+            ) for (k, v) in np_init_values.items())
+            message = f'[info] initializing policy pvariable tensors:\n\t{tensor_info}\n'
+            self.logger.log(message)
+
         return np_init_values
     
     def _create_np_tensor(self, var, init_values, shape, prange):   
