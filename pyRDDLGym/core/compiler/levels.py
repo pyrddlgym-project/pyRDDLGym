@@ -39,6 +39,11 @@ class RDDLLevelAnalysis:
         'precondition': {'state-fluent', 'action-fluent', 'non-fluent'},
         'termination': {'state-fluent', 'non-fluent'}
     }
+
+    VALID_DEPENDENCIES_POLICY = {
+        'derived-fluent': {'state-fluent', 'derived-fluent', 'non-fluent'},
+        'action-fluent': {'state-fluent', 'action-fluent', 'derived-fluent', 'non-fluent'}
+    }
     
     def __init__(self, rddl: RDDLPlanningModel,
                  allow_synchronous_state: bool=True,
@@ -137,10 +142,6 @@ class RDDLLevelAnalysis:
         elif not expr.is_constant_expression():
             self._update_call_graph(graph, cpf, expr.args, nfs)
     
-    # ===========================================================================
-    # call graph validation
-    # ===========================================================================
-    
     def _validate_dependencies(self, graph):
         for (cpf, deps) in graph.items():
             cpf_type = self.rddl.variable_types.get(cpf, cpf)
@@ -192,7 +193,114 @@ class RDDLLevelAnalysis:
                     f'CPF <{cpf}> of type {fluent_type} is not defined in cpfs block.')
                     
     # ===========================================================================
-    # topological sort
+    # call graph construction for policy
+    # ===========================================================================
+    
+    def build_call_graph_policy(self, include_non_fluents: bool=True) -> Dict[str, List[str]]:
+        '''Builds a call graph for the policy.
+        '''
+        if self.rddl.policy is None:
+            return {}
+
+        # build policy call graph and check validity
+        cpf_graph = {}
+        for (name, (_, expr)) in self.rddl.policy.cpfs.items():
+            self._update_call_graph_policy(cpf_graph, name, expr, include_non_fluents)
+        self._validate_dependencies_policy(cpf_graph)
+
+        # produce reproducible order of graph dependencies
+        cpf_graph = {name: sorted(deps) 
+                     for (name, deps) in cpf_graph.items()}
+        return cpf_graph
+
+    def _update_call_graph_policy(self, graph, cpf, expr, nfs):
+        if isinstance(expr, (tuple, list, set)):
+            for arg in expr:
+                self._update_call_graph_policy(graph, cpf, arg, nfs)
+        
+        elif not isinstance(expr, Expression):
+            pass
+        
+        elif expr.is_pvariable_expression():
+            name, pvars = expr.args
+            rddl = self.rddl
+            
+            # free objects (e.g., ?x) are ignored
+            if RDDLPlanningModel.is_free_object(name):
+                pass
+            
+            # objects are ignored
+            elif not pvars and rddl.is_object(
+                name, f'Please check expression for CPF <{cpf}>.'): 
+                pass
+            
+            # variable defined in pvariables {..} scope
+            else:
+                
+                # check that name is valid variable
+                var_type = rddl.variable_types.get(
+                    name, rddl.policy.variable_types.get(name, None))
+                if var_type is None:
+                    raise RDDLUndefinedVariableError(
+                        f'Variable <{name}> is not defined in '
+                        f'expression for policy CPF <{cpf}>.')
+                
+                # if var is a fluent assign it as dependent of cpf
+                elif nfs or var_type != 'non-fluent':
+                    graph.setdefault(cpf, set()).add(name)
+                
+                # if a nested fluent
+                if pvars is not None:
+                    self._update_call_graph_policy(graph, cpf, pvars, nfs)
+        
+        # scan compound expression
+        elif not expr.is_constant_expression():
+            self._update_call_graph_policy(graph, cpf, expr.args, nfs)
+    
+    def _validate_dependencies_policy(self, graph):
+        rddl = self.rddl
+        policy = rddl.policy
+
+        for (cpf, deps) in graph.items():
+
+            # check if cpf is action fluent or policy derived fluent
+            if cpf in rddl.action_fluents:
+                cpf_type = rddl.variable_types[cpf]
+            elif cpf in policy.derived_fluents:
+                cpf_type = policy.variable_types[cpf]
+            else:
+                raise RDDLInvalidDependencyInCPFError(
+                    f'Policy CPF definition for <{cpf}> is not valid, '
+                    f'must be a domain-defined action-fluent or policy derived-fluent.')
+
+            # not a recognized type
+            if cpf_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES_POLICY:
+                raise RDDLNotImplementedError(
+                    f'Type <{cpf_type}> of policy CPF <{cpf}> is not valid.')
+            
+            # check that all dependencies are valid
+            for dep in deps: 
+                if dep in rddl.variable_types:
+                    dep_type = rddl.variable_types[dep]
+                elif dep in policy.variable_types:
+                    dep_type = policy.variable_types[dep]
+                else:
+                    dep_type = dep
+                    
+                # completely illegal dependency
+                if dep_type not in RDDLLevelAnalysis.VALID_DEPENDENCIES_POLICY[cpf_type]:
+                    raise RDDLInvalidDependencyInCPFError(
+                        f'Policy CPF <{cpf}> of type {cpf_type} '
+                        f'can not depend on variable <{dep}> of type {dep_type}.') 
+                
+                # derived-fluent dependency must be policy defined
+                if dep_type == 'derived-fluent' and dep not in policy.variable_types:
+                    raise RDDLInvalidDependencyInCPFError(
+                        f'Policy CPF <{cpf}> can not depend on derived-fluent <{dep}> '
+                        f'defined in the domain.') 
+
+    # ===========================================================================
+    # level and reachability analysis
     # ===========================================================================
     
     def compute_levels(self) -> Dict[int, List[str]]:
@@ -203,23 +311,7 @@ class RDDLLevelAnalysis:
         rddl = self.rddl
         graph = self.build_call_graph()
         order = _topological_sort(graph)
-        
-        # use the graph structure to group CPFs into levels 0, 1, 2, ...
-        # two CPFs in the same level cannot depend on each other
-        # a CPF can only depend on another CPF of a lower level than it
-        levels, result = {}, {}
-        for var in order:
-            if var in rddl.cpfs:
-                level = 0
-                for child in graph[var]:
-                    if child in rddl.cpfs:
-                        level = max(level, levels[child] + 1)
-                result.setdefault(level, set()).add(var)
-                levels[var] = level
-        
-        # produce reproducible order of graph dependencies
-        result = {level: sorted(cpfs) 
-                  for (level, cpfs) in result.items()}
+        result = _group_by_level(graph, order, rddl.cpfs)
         
         # log dependency graph information to file
         if self.logger is not None: 
@@ -236,34 +328,38 @@ class RDDLLevelAnalysis:
         
         return result
     
-    # ===========================================================================
-    # reachability analysis
-    # ===========================================================================
-
     def compute_dependencies(self, include_non_fluents: bool=False) -> Dict[str, Set[str]]:
         '''Computes all direct/indirect dependencies between fluents for the current RDDL.
 
         :param include_non_fluents: whether to include non-fluents in call graph
         '''
         graph = self.build_call_graph(include_non_fluents=include_non_fluents)
+        return _bfs_search(graph)
+    
+    # ===========================================================================
+    # level and reachability analysis for the policy
+    # ===========================================================================
 
-        # compute reachability for given node
-        def bfs(start):
-            queue = deque([start])
-            visited = set([start])
-            while queue:
-                node = queue.popleft()
-                for neighbor in graph.get(node, []):
-                    if neighbor not in visited:
-                        visited.add(neighbor)
-                        queue.append(neighbor)
-            visited.remove(start)
-            return visited 
+    def compute_levels_policy(self) -> Dict[int, List[str]]:
+        '''Constructs a call graph for the current RDDL policy, and then runs a 
+        topological sort to determine the optimal order in which the CPFs in the 
+        policy should be be evaluated.
+        '''
+        if self.rddl.policy is None:
+            return {}
+        graph = self.build_call_graph_policy()
+        order = _topological_sort(graph)
+        result = _group_by_level(graph, order, self.rddl.policy.cpfs)
+        return result
     
-        # compute reachability for all nodes
-        reachability = {node: bfs(node) for node in graph}
-        return reachability
-    
+    def compute_dependencies_policy(self, include_non_fluents: bool=True) -> Dict[str, Set[str]]:
+        '''Computes all direct/indirect dependencies between fluents for the current RDDL policy.
+
+        :param include_non_fluents: whether to include non-fluents in call graph
+        '''
+        graph = self.build_call_graph_policy(include_non_fluents=include_non_fluents)
+        return _bfs_search(graph)
+        
 # ===========================================================================
 # helper functions for performing topological sort
 # ===========================================================================
@@ -301,4 +397,34 @@ def _sort_variables(order, graph, var, unmarked, temp):
         temp.remove(var)
         unmarked.remove(var)
         order.append(var)
-    
+
+
+def _group_by_level(graph, order, cpfs):
+    levels, result = {}, {}
+    for var in order:
+        if var in cpfs:
+            level = 0
+            for child in graph[var]:
+                if child in cpfs:
+                    level = max(level, levels[child] + 1)
+            result.setdefault(level, set()).add(var)
+            levels[var] = level
+    result = {level: sorted(cpfs) 
+              for (level, cpfs) in result.items()}
+    return result
+
+
+def _bfs_search(graph):
+    def bfs(start):
+        queue = deque([start])
+        visited = set([start])
+        while queue:
+            node = queue.popleft()
+            for neighbor in graph.get(node, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        visited.remove(start)
+        return visited 
+    reachability = {node: bfs(node) for node in graph}
+    return reachability

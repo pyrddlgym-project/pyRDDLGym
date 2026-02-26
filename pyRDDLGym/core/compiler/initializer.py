@@ -79,45 +79,10 @@ class RDDLValueInitializer:
                         f'please specify initial value(s) in the instance.')
                 prange = 'int'
             
-            # get default value and dtype
-            default = RDDLValueInitializer.DEFAULT_VALUES.get(prange, None)
-            dtype = RDDLValueInitializer.NUMPY_TYPES.get(prange, None)
-            if default is None or dtype is None:
-                raise RDDLTypeError(
-                    f'Range <{prange}> of pvariable <{var}> is not valid, '
-                    f'must be an object type in {set(rddl.type_to_objects.keys())} '
-                    f'or a numeric type in '
-                    f'{set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.')
-                        
             # convert a parameterized variable to dimensioned numpy array
             ptypes = rddl.variable_params[var]
-            if ptypes:
-                shape = rddl.object_counts(ptypes)     
-                values = init_values.get(var, None)           
-                if values is None:
-                    values = np.full(shape=shape, fill_value=default, dtype=dtype)
-                else:
-                    values = np.reshape(
-                        [(default if v is None else v) for v in values], shape, order='C')
-                    
-                    # cast to the required type
-                    if not np.can_cast(values, dtype):
-                        raise RDDLTypeError(
-                            f'Initial values {values} of pvariable <{var}> '
-                            f'can not all be cast to required type <{prange}>.')
-                    values = np.asarray(values, dtype=dtype)
-            
-            # convert scalar variable to scalar numpy array
-            else:
-                values = init_values.get(var, default)
-                if isinstance(values, str) \
-                or not np.can_cast(np.atleast_1d(values), dtype):
-                    raise RDDLTypeError(
-                        f'Initial values {values} of pvariable <{var}> '
-                        f'can not all be cast to required type <{prange}>.')
-                values = dtype(values)         
-                       
-            np_init_values[var] = values
+            shape = rddl.object_counts(ptypes) if ptypes else None
+            np_init_values[var] = self._create_np_tensor(var, init_values, shape, prange)    
         
         # log shapes of initial values
         if self.logger is not None:
@@ -134,6 +99,87 @@ class RDDLValueInitializer:
         
         return np_init_values
     
+    def initialize_policy(self) -> Dict[str, Union[np.ndarray, np.integer, np.floating, bool]]:
+        rddl = self.rddl
+        policy = rddl.policy
+        if policy is None:
+            return {}
+        
+        # initial values are just policy non-fluents, only allow numerical types
+        init_values = {}
+        for (var, values) in policy.non_fluents.items():
+            prange = policy.variable_ranges[var]
+            if prange in rddl.type_to_objects:
+                raise RDDLTypeError(
+                    f'Range <{prange}> of policy non-fluent is not valid, '
+                    f'must be a numeric type.')
+            if values is None:
+                raise RDDLTypeError(
+                    f'Policy non-fluent <{var}> does not have a default value.')
+            init_values[var] = values
+
+        # create a tensor for each pvar with the init_values
+        # if the init_values are missing use the default value of range
+        np_init_values = {}
+        for (var, prange) in policy.variable_ranges.items():
+            
+            # domain objects are treated as int
+            if prange in rddl.type_to_objects:
+
+                # do not allow default statements for non-enum types
+                if prange not in rddl.enum_types \
+                and policy.variable_defaults.get(var, None) is not None:
+                    raise RDDLTypeError(
+                        f'Setting a default value for policy pvariable <{var}> of '
+                        f'range <{prange}> would require a concrete object '
+                        f'that can not be specified in the domain.')
+                prange = 'int'
+            
+            # convert a parameterized variable to dimensioned numpy array
+            ptypes = policy.variable_params[var]
+            shape = rddl.object_counts(ptypes) if ptypes else None
+            np_init_values[var] = self._create_np_tensor(var, init_values, shape, prange)        
+        
+        return np_init_values
+    
+    def _create_np_tensor(self, var, init_values, shape, prange):   
+
+        # get the numpy dtype and default value
+        default = RDDLValueInitializer.DEFAULT_VALUES.get(prange, None)
+        dtype = RDDLValueInitializer.NUMPY_TYPES.get(prange, None)
+        if default is None or dtype is None:
+            raise RDDLTypeError(
+                f'Range <{prange}> of pvariable <{var}> is not valid, '
+                f'must be an object type in {set(self.rddl.type_to_objects.keys())} '
+                f'or a numeric type in {set(RDDLValueInitializer.DEFAULT_VALUES.keys())}.'
+            )
+
+        # has a valid shape and objects 
+        if shape is not None:
+            values = init_values.get(var, None)    
+            if values is None:
+                values = np.full(shape=shape, fill_value=default, dtype=dtype)
+            else:
+                values = np.reshape(
+                    [(default if v is None else v) for v in values], shape, order='C')
+                
+                # cast to the required type
+                if not np.can_cast(values, dtype):
+                    raise RDDLTypeError(
+                        f'Initial values {values} of pvariable <{var}> '
+                        f'can not all be cast to required type <{prange}>.')
+                values = np.asarray(values, dtype=dtype)
+        
+        # scalar pvariable
+        else:
+            values = init_values.get(var, default)
+            if isinstance(values, str) or not np.can_cast(np.atleast_1d(values), dtype):
+                raise RDDLTypeError(
+                    f'Initial values {values} of pvariable <{var}> '
+                    f'can not all be cast to required type <{prange}>.')
+            values = dtype(values)
+        return values
+            
     def _objects_to_ints(self, literals, prange, var):
         is_scalar = isinstance(literals, str)
         if is_scalar:
