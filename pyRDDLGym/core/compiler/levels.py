@@ -339,7 +339,15 @@ class RDDLLevelAnalysis:
     # ===========================================================================
     # level and reachability analysis for the policy
     # ===========================================================================
-
+    
+    def variable_type_from_rddl_or_policy(self, var, default=None):
+        rddl = self.rddl
+        return rddl.variable_types.get(
+            var, 
+            (default if rddl.policy is None 
+             else rddl.policy.variable_types.get(var, default))
+        )
+    
     def compute_levels_policy(self) -> Dict[int, List[str]]:
         '''Constructs a call graph for the current RDDL policy, and then runs a 
         topological sort to determine the optimal order in which the CPFs in the 
@@ -350,6 +358,20 @@ class RDDLLevelAnalysis:
         graph = self.build_call_graph_policy()
         order = _topological_sort(graph)
         result = _group_by_level(graph, order, self.rddl.policy.cpfs)
+        
+        # log dependency graph information to file
+        if self.logger is not None: 
+            graph_info = '\n\t'.join(f"{self.variable_type_from_rddl_or_policy(k)} {k}: "
+                                     f"{{{', '.join(v)}}}"
+                                     for (k, v) in graph.items())
+            self.logger.log(f'[info] computed fluent dependencies in policy CPFs:\n' 
+                            f'\t{graph_info}\n')
+            
+            levels_info = '\n\t'.join(f"{k}: {{{', '.join(v)}}}"
+                                      for (k, v) in result.items())
+            self.logger.log(f'[info] computed order of policy CPF evaluation:\n' 
+                            f'\t{levels_info}\n')
+            
         return result
     
     def compute_dependencies_policy(self, include_non_fluents: bool=True) -> Dict[str, Set[str]]:
