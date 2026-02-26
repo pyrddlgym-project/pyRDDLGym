@@ -33,6 +33,7 @@ class RDDL(object):
         self.domain = blocks['domain']
         self.non_fluents = blocks['non_fluents']
         self.instance = blocks['instance']
+        self.policy = blocks.get('policy', None)
 
     def build(self):
         self.domain.build()

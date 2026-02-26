@@ -138,9 +138,28 @@ class RDDLObjectsTracer:
         different IDs; this generally shouldn't happen in typical use cases, but
         any manual AST construction can simply ensure that all expressions to be
         shared across different AST instances are (deep) copied.'''   
-        rddl = self.rddl 
-        out = RDDLTracedObjects()   
         
+        out = RDDLTracedObjects()        
+        self._trace_cpfs(out)
+        self._trace_reward(out)
+        self._trace_invariants(out)
+        self._trace_preconditions(out)
+        self._trace_terminations(out)
+        
+        # log the fluent types
+        if self.logger is not None:
+            message = '[info] computed whether each CPF expression is fluent:\n'
+            for cpfs in self.cpf_levels.values():
+                for cpf in cpfs:
+                    is_fluent = out._cached_is_fluent_cpf[cpf]
+                    message += f'\t{cpf}: {is_fluent}\n'
+            self.logger.log(message)
+            
+        return out
+    
+    def _trace_cpfs(self, out):
+        rddl = self.rddl
+
         # compute trace order for CPFs
         levels = self.cpf_levels
         if levels is None:
@@ -180,38 +199,77 @@ class RDDLObjectsTracer:
                     raise RDDLTypeError(
                         f'CPF <{cpf}> expression expects expression of type <{cpf_range}>, '
                         f'got expression of type <{expr_range}>.\n' + 
-                        PST(expr, out._current_root))
-
-        # trace reward, check not object value
+                        PST(expr, out._current_root))  
+        
+    def _trace_reward(self, out):
+        rddl = self.rddl
         out._current_root = 'reward'
         self._trace(rddl.reward, [], out)
         RDDLObjectsTracer._check_not_object(rddl.reward, rddl.reward, out, 'reward')
-        
-        # trace constraints, check not object
-        for (i, expr) in enumerate(rddl.invariants):
+
+    def _trace_invariants(self, out):        
+        for (i, expr) in enumerate(self.rddl.invariants):
             out._current_root = f'Invariant {i + 1}'
             self._trace(expr, [], out)
             RDDLObjectsTracer._check_not_object(expr, expr, out, out._current_root)
-        for (i, expr) in enumerate(rddl.preconditions):
+
+    def _trace_preconditions(self, out):
+        for (i, expr) in enumerate(self.rddl.preconditions):
             out._current_root = f'Precondition {i + 1}'
             self._trace(expr, [], out)
             RDDLObjectsTracer._check_not_object(expr, expr, out, out._current_root)
-        for (i, expr) in enumerate(rddl.terminations):
+    
+    def _trace_terminations(self, out):
+        for (i, expr) in enumerate(self.rddl.terminations):
             out._current_root = f'Termination {i + 1}'
             self._trace(expr, [], out)
             RDDLObjectsTracer._check_not_object(expr, expr, out, out._current_root)
-        
-        # log the fluent types
-        if self.logger is not None:
-            message = '[info] computed whether each CPF expression is fluent:\n'
-            for cpfs in levels.values():
-                for cpf in cpfs:
-                    is_fluent = out._cached_is_fluent_cpf[cpf]
-                    message += f'\t{cpf}: {is_fluent}\n'
-            self.logger.log(message)
-            
-        return out
-        
+
+    def trace_policy(self, out: RDDLTracedObjects) -> RDDLTracedObjects:
+        '''Traces all expressions in the current RDDL policy file and annotates
+        AST nodes with object information. 
+        '''
+        rddl = self.rddl
+        if rddl.policy is None:
+            return out
+
+        # trace CPFs
+        levels = RDDLLevelAnalysis(rddl).compute_levels_policy()
+        for cpfs in levels.values():
+            for cpf in cpfs:
+                objects, expr = rddl.policy.cpfs[cpf]
+                
+                # check that the parameters are unique
+                pvars = [pvar for (pvar, _) in objects]
+                if len(set(pvars)) != len(pvars):
+                    raise RDDLRepeatedVariableError(
+                        f'Repeated parameter(s) {pvars} in definition of policy CPF <{cpf}>.')
+                
+                # check that the parameters are not literals
+                for (index, (pvar, prange)) in enumerate(objects):
+                    if not RDDLPlanningModel.is_free_object(pvar):
+                        raise RDDLTypeError(
+                            f'Definition for policy CPF <{cpf}> requires free '
+                            f'object(s) on the left-hand side, but '
+                            f'got the following expression at position {index + 1}:\n' + 
+                            PST(pvar, f'policy CPF <{cpf}>'))
+                
+                # trace the expression
+                out._current_root = f'policy CPF {cpf}'
+                self._trace(expr, objects, out)
+                out._cached_is_fluent_cpf[cpf] = out.cached_is_fluent(expr)
+
+                # for domain-object valued check that type matches expression output
+                cpf_range = self.variable_range_from_rddl_or_policy(cpf)
+                expr_range = out.cached_object_type(expr)
+                if (cpf_range in rddl.enum_types and expr_range != cpf_range) \
+                or (cpf_range not in rddl.type_to_objects and expr_range is not None):
+                    raise RDDLTypeError(
+                        f'Policy CPF <{cpf}> expression expects expression '
+                        f'of type <{cpf_range}>, got expression of type <{expr_range}>.\n' + 
+                        PST(expr, out._current_root))      
+        return out  
+    
     # ===========================================================================
     # start of tracing subroutines
     # ===========================================================================
@@ -247,6 +305,30 @@ class RDDLObjectsTracer:
                 f'Internal error: expression type {etype} is not supported.\n' + 
                 PST(expr, out._current_root))
     
+    def variable_type_from_rddl_or_policy(self, var, default=None):
+        rddl = self.rddl
+        return rddl.variable_types.get(
+            var, 
+            (default if rddl.policy is None 
+             else rddl.policy.variable_types.get(var, default))
+        )
+    
+    def variable_range_from_rddl_or_policy(self, var, default=None):
+        rddl = self.rddl
+        return rddl.variable_ranges.get(
+            var, 
+            (default if rddl.policy is None 
+             else rddl.policy.variable_ranges.get(var, default))
+        )
+    
+    def variable_param_from_rddl_or_policy(self, var, default=None):
+        rddl = self.rddl
+        return rddl.variable_params.get(
+            var, 
+            (default if rddl.policy is None 
+             else rddl.policy.variable_params.get(var, default))
+        )
+
     # ===========================================================================
     # leaves
     # ===========================================================================
@@ -333,7 +415,7 @@ class RDDLObjectsTracer:
                         )
                         self.logger.log(message)
             else:
-                is_fluent = rddl.variable_types[var] != 'non-fluent'
+                is_fluent = self.variable_type_from_rddl_or_policy(var) != 'non-fluent'
 
             # recursively trace nested pvariables
             if pvars is not None: 
@@ -345,7 +427,7 @@ class RDDLObjectsTracer:
             # find a way to map value tensor of expr to match objects
             cached_sim_info = (False, self._map(expr, objects, out))    
                
-            prange = rddl.variable_ranges.get(var, None)
+            prange = self.variable_range_from_rddl_or_policy(var)
             obj_type = prange if rddl.is_type(prange) else None
             out._append(expr, objects, obj_type, is_fluent, cached_sim_info)
         
@@ -366,7 +448,7 @@ class RDDLObjectsTracer:
         # check that the number of input objects match fluent type definition
         if args is None:
             args = []
-        args_types = rddl.variable_params.get(var, [])
+        args_types = self.variable_param_from_rddl_or_policy(var, [])
         if len(args) != len(args_types):
             raise RDDLInvalidNumberOfArgumentsError(
                 f'Variable <{var}> requires {len(args_types)} argument(s), '
@@ -779,7 +861,7 @@ class RDDLObjectsTracer:
             
         # type in pvariables scope must be a domain object
         var, _ = pred.args
-        enum_type = rddl.variable_ranges.get(var, None)
+        enum_type = self.variable_range_from_rddl_or_policy(var)
         if enum_type not in rddl.enum_types:
             raise RDDLTypeError(
                 f'Range <{enum_type}> of switch predicate <{var}> is not an '
@@ -1039,7 +1121,7 @@ class RDDLObjectsTracer:
                 arg, expr, out, f'Argument {i + 1} of {op}') 
         
             # record types represented by _
-            ptypes = self.rddl.variable_params[name]
+            ptypes = self.variable_param_from_rddl_or_policy(name)
             enum_types.update({ptypes[j] for j in underscores})
             
         # types represented by _ must be the same

@@ -80,6 +80,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         self._discount = None
         self._horizon = None
         self._max_allowed_actions = None   
+
+        # policy info
+        self._policy = {}
         
     # ===========================================================================
     # base properties
@@ -366,6 +369,18 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     @max_allowed_actions.setter
     def max_allowed_actions(self, val):
         self._max_allowed_actions = val
+
+    # ===========================================================================
+    # policy block
+    # ===========================================================================
+    
+    @property
+    def policy(self):
+        return self._policy
+
+    @policy.setter
+    def policy(self, val):
+        self._policy = val
 
     # ===========================================================================
     # class methods for general RDDL syntax rules
@@ -777,6 +792,10 @@ class RDDLLiftedModel(RDDLPlanningModel):
         self._extract_horizon()
         self._extract_discount()
         self._extract_max_actions()
+
+        # extract policy last: important since domain does not depend on policy definitions
+        # but policy depend on domain definitions
+        self._extract_policy()
         
     def _extract_objects(self):
         
@@ -1200,3 +1219,291 @@ class RDDLLiftedModel(RDDLPlanningModel):
         else:
             self.max_allowed_actions = int(numactions)
 
+    def _extract_policy(self):
+        if self.ast.policy is None:
+            self.policy = None
+        else:
+            self.policy = RDDLLiftedPolicy(self)
+
+
+class RDDLLiftedPolicy:
+    '''A class representing a policy in lifted form.'''
+
+    def __init__(self, parent: RDDLLiftedModel) -> None:
+        self.parent = parent
+        
+        # variable info
+        self._variable_types = None
+        self._variable_ranges = None
+        self._variable_params = None
+        self._variable_defaults = None
+        self._variable_groundings = None     
+        
+        self._non_fluents = None     
+        self._derived_fluents = None
+        
+        self._cpfs = None
+
+        # extraction
+        self._extract_objects()
+        self._extract_variable_information()
+        self._extract_non_fluents()
+        self._extract_derived()
+        self._extract_cpfs()
+    
+    @property
+    def policy_name(self):
+        if self.parent.ast is None or self.parent.ast.policy is None:
+            return None
+        else:
+            return self.parent.ast.policy.name
+        
+    @property
+    def variable_types(self):
+        return self._variable_types
+
+    @variable_types.setter
+    def variable_types(self, val):
+        self._variable_types = val
+    
+    @property
+    def variable_ranges(self):
+        return self._variable_ranges
+
+    @variable_ranges.setter
+    def variable_ranges(self, val):
+        self._variable_ranges = val
+    
+    @property
+    def variable_params(self):
+        return self._variable_params
+
+    @variable_params.setter
+    def variable_params(self, val):
+        self._variable_params = val
+    
+    @property
+    def variable_defaults(self):
+        return self._variable_defaults
+    
+    @variable_defaults.setter
+    def variable_defaults(self, val):
+        self._variable_defaults = val
+        
+    @property
+    def variable_groundings(self):
+        return self._variable_groundings
+
+    @variable_groundings.setter
+    def variable_groundings(self, val):
+        self._variable_groundings = val
+    
+    @property
+    def non_fluents(self):
+        return self._non_fluents
+
+    @non_fluents.setter
+    def non_fluents(self, val):
+        self._non_fluents = val
+
+    @property
+    def derived_fluents(self):
+        return self._derived_fluents
+
+    @derived_fluents.setter
+    def derived_fluents(self, val):
+        self._derived_fluents = val
+
+    @property
+    def cpfs(self):
+        return self._cpfs
+
+    @cpfs.setter
+    def cpfs(self, val):
+        self._cpfs = val
+    
+    def _extract_objects(self):
+        # currently do not allow type defs in the policy due to complexity
+        if self.parent.ast.policy.types:
+            raise RDDLNotImplementedError(
+                f'Policy-defined types are currently not supported.')
+
+    def _extract_variable_information(self):
+        var_types, var_ranges, var_params, var_default, var_ground = {}, {}, {}, {}, {}        
+        for pvar in self.parent.ast.policy.pvariables: 
+            name = pvar.name
+
+            # make sure variable is not defined in the domain
+            if name in self.parent.variable_params:
+                raise RDDLRepeatedVariableError(
+                    f'Policy pvariable <{name}> is already defined in the domain.')
+            
+            # make sure variable is not defined more than once
+            if name in var_params:
+                raise RDDLRepeatedVariableError(
+                    f'Policy pvariable <{name}> of type {pvar.fluent_type} has the same name as '
+                    f'another policy pvariable of type {var_types[name]}.')
+                
+            # make sure name does not contain separators
+            for separator in (RDDLPlanningModel.FLUENT_SEP, RDDLPlanningModel.OBJECT_SEP):
+                if separator in name:
+                    raise RDDLInvalidObjectError(
+                        f'pvariable name <{name}> contains an illegal separator {separator}.')
+            
+            # record variable type, range
+            var_types[name] = pvar.fluent_type
+            var_ranges[name] = pvar.range 
+            
+            # record variable parameters
+            ptypes = pvar.param_types
+            if ptypes is None:
+                ptypes = []
+            var_params[name] = ptypes     
+            
+            # record default value
+            var_default[name] = self._extract_default_value(pvar)
+            
+            # record possible groundings
+            var_ground[name] = [
+                RDDLPlanningModel.ground_var(name, objects)
+                for objects in self.parent.ground_types(ptypes)
+            ]            
+        self.variable_types = var_types
+        self.variable_ranges = var_ranges
+        self.variable_params = var_params
+        self.variable_defaults = var_default
+        self.variable_groundings = var_ground
+
+    def _extract_default_value(self, pvar):
+        prange, default = pvar.range, pvar.default
+        if default is not None:
+            
+            # is an object
+            if isinstance(default, str):
+                default = RDDLPlanningModel.strip_literal(default)
+                if default not in self.parent.type_to_objects.get(prange, set()):
+                    raise RDDLTypeError(
+                        f'Default value <{default}> of policy pvariable <{pvar.name}> '
+                        f'is not an object of type <{prange}>.')                     
+            
+            # is a primitive
+            else:
+                dtype = RDDLPlanningModel.PRIMITIVE_TYPES.get(prange, None)
+                if dtype is None:
+                    raise RDDLTypeError(
+                        f'Range <{prange}> of policy pvariable <{pvar.name}> is an object '
+                        f'or enumerated type, but assigned a default value <{default}>.')
+                
+                # type cast
+                if not np.can_cast(np.atleast_1d(default), dtype):
+                    raise RDDLTypeError(
+                        f'Default value <{default}> of policy pvariable <{pvar.name}> '
+                        f'can not be cast to required type <{prange}>.')
+                default = dtype(default)
+            
+        return default
+    
+    def _grounded_dict_to_dict_of_list(self, grounded_dict):
+        new_dict = {}
+        for (var, values_dict) in grounded_dict.items():
+            grounded_names = list(values_dict.values())
+            if self.variable_params[var]:
+                new_dict[var] = grounded_names
+            else:
+                assert len(grounded_names) == 1
+                new_dict[var] = grounded_names[0]
+        return new_dict
+    
+    def _validate_initial_values(self, values_dict):
+        for (name, values) in values_dict.items():
+            if values is None or (isinstance(values, (tuple, list, set)) and None in values):
+               raise RDDLUndefinedVariableError(
+                    f'Policy pvariable <{name}> does not have a default value.')
+                
+    def _extract_non_fluents(self):
+        
+        # extract non-fluents values from the domain defaults
+        non_fluents = {}
+        for pvar in self.parent.ast.policy.pvariables:
+            if pvar.is_non_fluent():
+                name = pvar.name
+                default = self.variable_defaults[name] 
+                non_fluents[name] = {gname: default
+                                     for gname in self.variable_groundings[name]}
+
+        # no instance file to ground from     
+        self.non_fluents = self._grounded_dict_to_dict_of_list(non_fluents)
+        self._validate_initial_values(self.non_fluents)
+    
+    def _value_list_or_scalar_from_default(self, pvar):
+        default = self.variable_defaults[pvar.name]
+        ptypes = pvar.param_types   
+        if ptypes is None:
+            return default
+        else:
+            num_variations = 1
+            for ptype in ptypes:
+                num_variations *= len(self.parent.type_to_objects[ptype])
+            return [default] * num_variations
+    
+    def _extract_derived(self):
+        derived = {}
+        for pvar in self.parent.ast.policy.pvariables:
+            if pvar.is_derived_fluent():
+                derived[pvar.name] = self._value_list_or_scalar_from_default(pvar)
+        self.derived_fluents = derived
+    
+    def _extract_cpfs(self):
+        policy = {}
+        for action in self.parent.ast.policy.cpfs[1]:
+            name, objects = action.pvar[1]
+            
+            # for action
+            if name not in self.parent.action_fluents and name not in self.variable_types:
+                raise RDDLUndefinedCPFError(
+                    f'policy cpfs block has expression for <{name}> '
+                    f'that is not an action-fluent and not a policy derived-fluent.')
+
+            # make sure the cpf is not defined multiple times
+            if name in policy:
+                raise RDDLInvalidExpressionError(
+                    f'Expression for policy pvariable <{name}> is repeated in cpfs block.')
+                
+            # make sure the number of parameters matches definitions
+            if name in self.parent.action_fluents:
+                types = self.parent.variable_params.get(name, None)
+            else:
+                types = self.variable_params.get(name, None)
+            if objects is None:
+                objects = []
+            if len(types) != len(objects):
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Left-hand side of expression for policy pvariable <{name}> requires '
+                    f'{len(types)} parameter(s), got {objects}.')
+            
+            # check that the parameters are not literals
+            for (index, pvar) in enumerate(objects):
+                if not RDDLPlanningModel.is_free_object(pvar):
+                    raise RDDLTypeError(
+                        f'Definition for policy action <{name}> requires free '
+                        f'object(s) on the left-hand side, but '
+                        f'got the following expression at position {index + 1}:\n' + 
+                        PST(pvar, name))
+                
+            # actions are stored as dictionary that associates action name with a pair 
+            objects = list(zip(objects, types))
+            policy[name] = (objects, action.expr)
+        
+        # make sure all actions have a valid expression in policy cpfs block
+        for var in self.parent.action_fluents:
+            if var not in policy:
+                raise RDDLMissingCPFDefinitionError(
+                    f'Action <{var}> is not defined in policy cpfs block.')
+        
+        # make sure all policy derived have a valid expression
+        for var in self.derived_fluents:
+            if var not in policy:
+                raise RDDLMissingCPFDefinitionError(
+                    f'Derived-fluent <{var}> is not defined in policy cpfs block.')
+
+        self.cpfs = policy
