@@ -551,8 +551,8 @@ class RDDLParser(object):
         p[0] = p[1]
 
     def p_term_list(self, p):
-        '''term_list : term_list COMMA term
-                     | term
+        '''term_list : term_list COMMA term_list_item
+                     | term_list_item
                      | empty'''
         if p[1] is None:
             p[0] = []
@@ -562,13 +562,13 @@ class RDDLParser(object):
         elif len(p) == 2:
             p[0] = [p[1]]
 
-    def p_term(self, p):
+    def p_term_list_item(self, p):
         # CHANGED BY MIKE ON JAN 15
-        '''term : VAR
-                | ENUM_VAL
-                | pvar_expr
-                | argmaxmin_expr
-                | randomvar_from_pvar_expr'''        
+        '''term_list_item : VAR
+                          | ENUM_VAL
+                          | pvar_expr
+                          | argmaxmin_expr
+                          | randomvar_from_pvar_expr'''        
         if isinstance(p[1], tuple):
             p[0] = Expression(p[1])
         else:
@@ -691,7 +691,6 @@ class RDDLParser(object):
     def p_control_expr(self, p):
         '''control_expr : IF LPAREN expr RPAREN THEN expr ELSE expr %prec IF
                         | SWITCH LPAREN expr RPAREN LCURLY case_list RCURLY'''
-                        # | SWITCH LPAREN term RPAREN LCURLY case_list RCURLY
         # if-then-else
         if len(p) == 9:
             p[0] = (p[1], (p[3], p[6], p[8]))
@@ -823,7 +822,7 @@ class RDDLParser(object):
             p[0] = [p[1]]
 
     def p_case_def(self, p):
-        '''case_def : CASE term COLON expr
+        '''case_def : CASE term_list_item COLON expr
                     | DEFAULT COLON expr'''
         if len(p) == 5:
             p[0] = ('case', (p[2], p[4]))
