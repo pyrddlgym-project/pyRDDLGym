@@ -1102,7 +1102,8 @@ class RDDLParser(object):
         self._print_verbose('policy')
 
     def p_policy_list(self, p):
-        '''policy_list : policy_list policy_type_section
+        '''policy_list : policy_list domain_section
+                       | policy_list policy_type_section
                        | policy_list policy_pvar_section
                        | policy_list cpf_section
                        | empty'''
