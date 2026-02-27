@@ -14,7 +14,7 @@ from pyRDDLGym.core.parser.instance import Instance
 from pyRDDLGym.core.parser.pvariable import PVariable
 from pyRDDLGym.core.parser.expr import Expression
 from pyRDDLGym.core.parser.cpf import CPF
-from pyRDDLGym.core.debug.exception import RDDLParseError
+from pyRDDLGym.core.debug.exception import RDDLParseError, raise_warning
 
 alpha = r'[A-Za-z]'
 digit = r'[0-9]'
@@ -216,7 +216,11 @@ class RDDLlex(object):
         return t
 
     def t_error(self, t):
-        print("Illegal character: {} at line {}".format(t.value[0], self._lexer.lineno))
+        raise_warning(
+            "Lexer: skipping illegal character {} at line {}".format(
+                t.value[0], self._lexer.lineno), 
+            color='yellow'
+        )
         t.lexer.skip(1)
 
     def build(self, **kwargs):
