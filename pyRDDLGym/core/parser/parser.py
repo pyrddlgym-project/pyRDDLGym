@@ -217,8 +217,7 @@ class RDDLlex(object):
 
     def t_error(self, t):
         raise_warning(
-            "Lexer: skipping illegal character {} at line {}".format(
-                t.value[0], self._lexer.lineno), 
+            f"Lexer: skipping illegal character {t.value[0]} at line {self._lexer.lineno}.", 
             color='yellow'
         )
         t.lexer.skip(1)
@@ -1221,7 +1220,7 @@ class RDDLParser(object):
         line2 = min(line_err + 5, len(lines) - 1)
         
         # print source of error
-        exception_str = 'Syntax error on line {}:\n...'.format(line_err + 1)
+        exception_str = f'Syntax error on line {line_err + 1}:\n...'
         for l in range(line1, line2):
             if l == line_err:
                 exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[0m'
@@ -1240,7 +1239,7 @@ class RDDLParser(object):
                 exception_str += '\n' + f'Invalid use of symbol or keyword: {p.value}.'
 
         if self.debugging:
-            exception_str += 'See log file {} for details.'.format(self.parsing_logfile)
+            exception_str += '\n' + f'See log file {self.parsing_logfile} for details.'
         
         raise RDDLParseError(exception_str)
 
@@ -1258,4 +1257,4 @@ class RDDLParser(object):
 
     def _print_verbose(self, p_name):
         if self._verbose:
-            print('>> Parsed `{}` ...'.format(p_name))
+            print(f'>> Parsed `{p_name}` ...')
