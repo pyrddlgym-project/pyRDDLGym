@@ -14,7 +14,7 @@ from pyRDDLGym.core.parser.instance import Instance
 from pyRDDLGym.core.parser.pvariable import PVariable
 from pyRDDLGym.core.parser.expr import Expression
 from pyRDDLGym.core.parser.cpf import CPF
-from pyRDDLGym.core.debug.exception import RDDLParseError
+from pyRDDLGym.core.debug.exception import RDDLParseError, raise_warning
 
 alpha = r'[A-Za-z]'
 digit = r'[0-9]'
@@ -216,7 +216,10 @@ class RDDLlex(object):
         return t
 
     def t_error(self, t):
-        print("Illegal character: {} at line {}".format(t.value[0], self._lexer.lineno))
+        raise_warning(
+            f"Lexer: skipping illegal character {t.value[0]} at line {self._lexer.lineno}.", 
+            color='yellow'
+        )
         t.lexer.skip(1)
 
     def build(self, **kwargs):
@@ -270,6 +273,10 @@ class RDDLParser(object):
         self.parsing_logfile = None
         self.debugging = False
 
+    # ===========================================================================
+    # RDDL
+    # ===========================================================================
+    
     def p_rddl(self, p):
         '''rddl : rddl_block'''
         p[0] = RDDL(p[1])
@@ -293,6 +300,14 @@ class RDDLParser(object):
             p[1][name] = block
             p[0] = p[1]
 
+    def p_empty(self, p):
+        'empty :'
+        pass
+
+    # ===========================================================================
+    # domain {} block
+    # ===========================================================================
+    
     def p_domain_block(self, p):
         '''domain_block : DOMAIN IDENT LCURLY req_section domain_list RCURLY'''
         d = Domain(p[2], p[4], p[5])
@@ -307,6 +322,18 @@ class RDDLParser(object):
         elif len(p) == 6:
             p[0] = p[3]
         self._print_verbose('requirements')
+
+    def p_string_list(self, p):
+        '''string_list : string_list COMMA IDENT
+                       | IDENT
+                       | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
 
     def p_domain_list(self, p):
         '''domain_list : domain_list type_section
@@ -325,6 +352,10 @@ class RDDLParser(object):
             p[1][name] = section
             p[0] = p[1]
 
+    # ===========================================================================
+    # domain - types {} block
+    # ===========================================================================
+    
     def p_type_section(self, p):
         '''type_section : TYPES LCURLY type_list RCURLY SEMI'''
         p[0] = ('types', p[3])
@@ -359,6 +390,10 @@ class RDDLParser(object):
         elif len(p) == 2:
             p[0] = [p[1]]
 
+    # ===========================================================================
+    # domain - pvariables {} block
+    # ===========================================================================
+    
     def p_pvar_section(self, p):
         '''pvar_section : PVARIABLES LCURLY pvar_list RCURLY SEMI'''
         p[0] = ('pvariables', p[3])
@@ -431,6 +466,59 @@ class RDDLParser(object):
         '''observfluent_def : IDENT param_list LCURLY OBSERVATION COMMA type_spec RCURLY SEMI'''
         p[0] = PVariable(name=p[1], fluent_type='observ-fluent', range_type=p[6], param_types=p[2])
 
+    def p_param_list(self, p):
+        '''param_list : COLON
+                      | LPAREN param_list2 RPAREN COLON'''
+        if len(p) == 2:
+            p[0] = None
+        else:
+            p[0] = p[2]
+
+    def p_param_list2(self, p):
+        '''param_list2 : type_spec
+                       | param_list2 COMMA type_spec'''
+        if len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        else:
+            p[0] = [p[1]]
+
+    def p_type_spec(self, p):
+        '''type_spec : IDENT
+                     | INT
+                     | REAL
+                     | BOOL'''
+        p[0] = p[1]
+
+    def p_range_const(self, p):
+        '''range_const : bool_type
+                       | double_type
+                       | int_type
+                       | ENUM_VAL
+                       | IDENT'''
+        p[0] = p[1]
+
+    def p_bool_type(self, p):
+        '''bool_type : TRUE
+                     | FALSE'''
+        p[0] = True if p[1] == 'true' else False
+
+    def p_double_type(self, p):
+        '''double_type : DOUBLE
+                       | MINUS DOUBLE
+                       | POS_INF
+                       | NEG_INF'''
+        p[0] = p[1] if len(p) == 2 else -p[2]
+
+    def p_int_type(self, p):
+        '''int_type : INTEGER
+                    | MINUS INTEGER'''
+        p[0] = p[1] if len(p) == 2 else -p[2]
+
+    # ===========================================================================
+    # domain - cpfs {} block
+    # ===========================================================================
+    
     def p_cpf_section(self, p):
         '''cpf_section : cpf_header LCURLY cpf_list RCURLY SEMI'''
         '''cpf_section : cpf_header LCURLY cpf_list RCURLY SEMI'''
@@ -452,15 +540,47 @@ class RDDLParser(object):
             p[0] = p[1]
 
     def p_cpf_def(self, p):
-        '''cpf_def : pvar_expr ASSIGN_EQUAL expr SEMI
-                   | pvar_expr ASSIGN_EQUAL randomvector_expr SEMI'''
+        '''cpf_def : cpf_pvar_expr ASSIGN_EQUAL expr SEMI
+                   | cpf_pvar_expr ASSIGN_EQUAL randomvector_expr SEMI'''
         p[0] = CPF(pvar=p[1], expr=p[3])
 
+    def p_cpf_pvar_expr(self, p):
+        '''cpf_pvar_expr : IDENT LPAREN cpf_term_list RPAREN
+                         | IDENT'''
+        if len(p) == 2:
+            p[0] = ('pvar_expr', (p[1], None))
+        elif len(p) == 5:
+            p[0] = ('pvar_expr', (p[1], p[3]))
+
+    def p_cpf_term_list(self, p):
+        '''cpf_term_list : cpf_term_list COMMA cpf_term_list_item
+                         | cpf_term_list_item
+                         | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_cpf_term_list_item(self, p):
+        '''cpf_term_list_item : VAR'''        
+        p[0] = p[1]
+
+    # ===========================================================================
+    # domain - reward
+    # ===========================================================================
+    
     def p_reward_section(self, p):
         '''reward_section : REWARD ASSIGN_EQUAL expr SEMI'''
         p[0] = ('reward', p[3])
         self._print_verbose('reward')
 
+    # ===========================================================================
+    # domain - terminations {} block
+    # ===========================================================================
+    
     def p_termination_section(self, p):
         '''termination_section  : TERMINATION LCURLY termination_list RCURLY SEMI
                                 |  TERMINATION LCURLY RCURLY SEMI'''
@@ -484,6 +604,10 @@ class RDDLParser(object):
         '''termination_cond_def : expr SEMI'''
         p[0] = p[1]
 
+    # ===========================================================================
+    # domain - action-preconditions {} block
+    # ===========================================================================
+    
     def p_action_precond_section(self, p):
         '''action_precond_section : ACTION_PRECONDITIONS LCURLY action_precond_list RCURLY SEMI
                                   | ACTION_PRECONDITIONS LCURLY RCURLY SEMI'''
@@ -506,6 +630,10 @@ class RDDLParser(object):
         '''action_precond_def : expr SEMI'''
         p[0] = p[1]
 
+    # ===========================================================================
+    # domain - state-invariants {} block
+    # ===========================================================================
+    
     def p_state_action_constraint_section(self, p):
         '''state_action_constraint_section : STATE_ACTION_CONSTRAINTS LCURLY state_cons_list RCURLY SEMI
                                            | STATE_ACTION_CONSTRAINTS LCURLY RCURLY SEMI'''
@@ -550,32 +678,11 @@ class RDDLParser(object):
         '''state_invariant_def : expr SEMI'''
         p[0] = p[1]
 
-    def p_term_list(self, p):
-        '''term_list : term_list COMMA term_list_item
-                     | term_list_item
-                     | empty'''
-        if p[1] is None:
-            p[0] = []
-        elif len(p) == 4:
-            p[1].append(p[3])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
-
-    def p_term_list_item(self, p):
-        # CHANGED BY MIKE ON JAN 15
-        '''term_list_item : VAR
-                          | ENUM_VAL
-                          | pvar_expr
-                          | argmaxmin_expr
-                          | randomvar_from_pvar_expr'''        
-        if isinstance(p[1], tuple):
-            p[0] = Expression(p[1])
-        else:
-            p[0] = p[1]
-
+    # ===========================================================================
+    # expressions - core
+    # ===========================================================================
+    
     def p_expr(self, p):
-        # CHANGED BY MIKE ON JAN 15
         '''expr : pvar_expr
                 | group_expr
                 | function_expr
@@ -593,7 +700,6 @@ class RDDLParser(object):
         p[0] = Expression(p[1])
     
     def p_pvar_expr(self, p):
-        # CHANGED BY MIKE ON JAN 15
         '''pvar_expr : IDENT LPAREN term_list RPAREN
                      | IDENT
                      | ENUM_VAL
@@ -602,6 +708,31 @@ class RDDLParser(object):
             p[0] = ('pvar_expr', (p[1], None))
         elif len(p) == 5:
             p[0] = ('pvar_expr', (p[1], p[3]))
+
+    def p_term_list(self, p):
+        '''term_list : term_list COMMA term_list_item
+                     | term_list_item
+                     | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_term_list_item(self, p):
+        '''term_list_item : pvar_expr
+                          | argmaxmin_expr
+                          | randomvar_from_pvar_expr'''        
+        if isinstance(p[1], tuple):
+            # ?x and @o return the original object since it is part of a list
+            if p[1][0] == 'pvar_expr' and p[1][1][0].startswith(('?', "@")):
+                p[0] = p[1][1][0]
+            else:
+                p[0] = Expression(p[1])
+        else:
+            p[0] = p[1]
 
     def p_group_expr(self, p):
         '''group_expr : LBRACK expr RBRACK
@@ -612,7 +743,15 @@ class RDDLParser(object):
         '''function_expr : IDENT LBRACK expr_list RBRACK'''
         p[0] = ('func', (p[1], p[3]))
 
-    # added by Mike on Aug 18, 2025    
+    def p_expr_list(self, p):
+        '''expr_list : expr_list COMMA expr
+                     | expr'''
+        if len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
     def p_pyfunction_term_list(self, p):
         '''pyfunction_term_list : pyfunction_term_list COMMA randomvector_pvar_expr
                                 | randomvector_pvar_expr
@@ -662,6 +801,19 @@ class RDDLParser(object):
                            | EXISTS UNDERSCORE LCURLY typed_var_list RCURLY expr %prec EXISTS'''
         p[0] = (p[1], (*p[4], p[6]))
 
+    def p_typed_var_list(self, p):
+        '''typed_var_list : typed_var_list COMMA typed_var
+                          | typed_var'''
+        if len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_typed_var(self, p):
+        '''typed_var : VAR COLON IDENT'''
+        p[0] = ('typed_var', (p[1], p[3]))
+
     def p_numerical_expr(self, p):
         '''numerical_expr : expr PLUS expr
                           | expr MINUS expr
@@ -682,7 +834,6 @@ class RDDLParser(object):
         '''aggregation_expr : IDENT UNDERSCORE LCURLY typed_var_list RCURLY expr %prec AGG_OPER'''
         p[0] = (p[1], (*p[4], p[6]))
     
-    # CHANGED BY MIKE ON JAN 15
     def p_argmaxmin_expr(self, p):
         '''argmaxmin_expr : ARGMAX UNDERSCORE LCURLY typed_var_list RCURLY expr %prec ARGMAX
                           | ARGMIN UNDERSCORE LCURLY typed_var_list RCURLY expr %prec ARGMIN'''
@@ -698,6 +849,27 @@ class RDDLParser(object):
         elif len(p) == 8:
             p[0] = (p[1], (p[3], *p[6]))
 
+    def p_case_list(self, p):
+        '''case_list : case_list COMMA case_def
+                     | case_def'''
+        if len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_case_def(self, p):
+        '''case_def : CASE term_list_item COLON expr
+                    | DEFAULT COLON expr'''
+        if len(p) == 5:
+            p[0] = ('case', (p[2], p[4]))
+        elif len(p) == 4:
+            p[0] = ('default', p[3])
+
+    # ===========================================================================
+    # expressions - random sampling
+    # ===========================================================================
+    
     def p_randomvar_expr(self, p):
         '''randomvar_expr : BERNOULLI LPAREN expr RPAREN
                           | DIRAC_DELTA LPAREN expr RPAREN
@@ -731,104 +903,6 @@ class RDDLParser(object):
         elif len(p) == 5:
             p[0] = ('randomvar', (p[1], (p[3],)))
     
-    # CHANGED BY MIKE ON JAN 16
-    def p_randomvar_from_pvar_expr(self, p):
-        '''randomvar_from_pvar_expr : DISCRETE UNDERSCORE LCURLY typed_var_list RCURLY expr %prec DISCRETE
-                                    | UNNORMDISCRETE UNDERSCORE LCURLY typed_var_list RCURLY expr %prec UNNORMDISCRETE'''
-        p[0] = ('randomvar', (p[1] + '(p)', (*p[4], (p[6],))))
-    
-    # CHANGED BY MIKE ON JAN 17
-    def p_randomvector_expr(self, p):
-        '''randomvector_expr : MULTIVARIATENORMAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
-                             | MULTIVARIATESTUDENT LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
-                             | DIRICHLET LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr RPAREN
-                             | MULTINOMIAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN'''
-        if len(p) == 12:
-            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8], p[10])))))
-        elif len(p) == 10:
-            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8])))))
-        else:
-            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6],)))))
-        
-    # CHANGED BY MIKE ON JAN 17
-    def p_randomvector_pvar_expr(self, p):
-        '''randomvector_pvar_expr : IDENT LPAREN randomvector_term_list RPAREN
-                                  | IDENT'''
-        if len(p) == 2:
-            p[0] = Expression(('pvar_expr', (p[1], None)))
-        elif len(p) == 5:
-            p[0] = Expression(('pvar_expr', (p[1], p[3])))
-        
-    # CHANGED BY MIKE ON JAN 17
-    def p_randomvector_term_list(self, p):
-        '''randomvector_term_list : randomvector_term_list COMMA randomvector_term
-                                  | randomvector_term
-                                  | empty'''
-        if p[1] is None:
-            p[0] = []
-        elif len(p) == 4:
-            p[1].append(p[3])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
-
-    # CHANGED BY MIKE ON JAN 17
-    def p_randomvector_term(self, p):
-        '''randomvector_term : VAR
-                             | ENUM_VAL
-                             | UNDERSCORE'''        
-        p[0] = p[1]
-    
-    # CHANGED BY MIKE ON JAN 22
-    def p_matrix_expr(self, p):
-        '''matrix_expr : DET UNDERSCORE LCURLY typed_var COMMA typed_var RCURLY expr %prec AGG_OPER
-                       | INVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK
-                       | PSEUDOINVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK
-                       | CHOLESKY LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK'''
-        if len(p) == 9:
-            p[0] = (p[1], (p[4], p[6], p[8]))
-        elif len(p) == 14:
-            p[0] = (p[1], ([p[5], p[9]], p[12]))
-        
-    def p_typed_var_list(self, p):
-        '''typed_var_list : typed_var_list COMMA typed_var
-                          | typed_var'''
-        if len(p) == 4:
-            p[1].append(p[3])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
-
-    def p_typed_var(self, p):
-        '''typed_var : VAR COLON IDENT'''
-        p[0] = ('typed_var', (p[1], p[3]))
-
-    def p_expr_list(self, p):
-        '''expr_list : expr_list COMMA expr
-                     | expr'''
-        if len(p) == 4:
-            p[1].append(p[3])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
-
-    def p_case_list(self, p):
-        '''case_list : case_list COMMA case_def
-                     | case_def'''
-        if len(p) == 4:
-            p[1].append(p[3])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
-
-    def p_case_def(self, p):
-        '''case_def : CASE term_list_item COLON expr
-                    | DEFAULT COLON expr'''
-        if len(p) == 5:
-            p[0] = ('case', (p[2], p[4]))
-        elif len(p) == 4:
-            p[0] = ('default', p[3])
-
     def p_lconst_case_list(self, p):
         '''lconst_case_list : lconst COLON expr
                             | lconst COLON OTHERWISE
@@ -844,68 +918,66 @@ class RDDLParser(object):
                   | ENUM_VAL'''
         p[0] = p[1]
 
-    # new definitions
-    def p_param_list(self, p):
-        '''param_list : COLON
-                      | LPAREN param_list2 RPAREN COLON'''
-        if len(p) == 2:
-            p[0] = None
+    def p_randomvar_from_pvar_expr(self, p):
+        '''randomvar_from_pvar_expr : DISCRETE UNDERSCORE LCURLY typed_var_list RCURLY expr %prec DISCRETE
+                                    | UNNORMDISCRETE UNDERSCORE LCURLY typed_var_list RCURLY expr %prec UNNORMDISCRETE'''
+        p[0] = ('randomvar', (p[1] + '(p)', (*p[4], (p[6],))))
+    
+    # ===========================================================================
+    # expressions - random vectors and matrix
+    # ===========================================================================
+    
+    def p_randomvector_expr(self, p):
+        '''randomvector_expr : MULTIVARIATENORMAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
+                             | MULTIVARIATESTUDENT LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN
+                             | DIRICHLET LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr RPAREN
+                             | MULTINOMIAL LBRACK randomvector_term_list RBRACK LPAREN randomvector_pvar_expr COMMA randomvector_pvar_expr RPAREN'''
+        if len(p) == 12:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8], p[10])))))
+        elif len(p) == 10:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6], p[8])))))
         else:
-            p[0] = p[2]
-
-    def p_param_list2(self, p):
-        '''param_list2 : type_spec
-                       | param_list2 COMMA type_spec'''
-        if len(p) == 4:
+            p[0] = Expression(('randomvector', (p[1], (p[3], (p[6],)))))
+        
+    def p_randomvector_pvar_expr(self, p):
+        '''randomvector_pvar_expr : IDENT LPAREN randomvector_term_list RPAREN
+                                  | IDENT'''
+        if len(p) == 2:
+            p[0] = Expression(('pvar_expr', (p[1], None)))
+        elif len(p) == 5:
+            p[0] = Expression(('pvar_expr', (p[1], p[3])))
+        
+    def p_randomvector_term_list(self, p):
+        '''randomvector_term_list : randomvector_term_list COMMA randomvector_term
+                                  | randomvector_term
+                                  | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
             p[1].append(p[3])
             p[0] = p[1]
-        else:
+        elif len(p) == 2:
             p[0] = [p[1]]
 
-    # def p_param_list(self, p):
-    #     '''param_list : LPAREN string_list RPAREN
-    #                   | empty'''
-    #     if (len(p) == 3):
-    #         p[0] = p[1]
-    #     else:
-    #         p[0] = []
-
-    def p_type_spec(self, p):
-        '''type_spec : IDENT
-                     | INT
-                     | REAL
-                     | BOOL'''
+    def p_randomvector_term(self, p):
+        '''randomvector_term : VAR
+                             | ENUM_VAL
+                             | UNDERSCORE'''        
         p[0] = p[1]
-
-    def p_range_const(self, p):
-        '''range_const : bool_type
-                       | double_type
-                       | int_type
-                       | ENUM_VAL
-                       | IDENT'''
-        p[0] = p[1]
-
-    def p_bool_type(self, p):
-        '''bool_type : TRUE
-                     | FALSE'''
-        p[0] = True if p[1] == 'true' else False
-
-    def p_double_type(self, p):
-        '''double_type : DOUBLE
-                       | MINUS DOUBLE
-                       | POS_INF
-                       | NEG_INF'''
-        p[0] = p[1] if len(p) == 2 else -p[2]
-
-    def p_int_type(self, p):
-        '''int_type : INTEGER
-                    | MINUS INTEGER'''
-        p[0] = p[1] if len(p) == 2 else -p[2]
-
-    def p_pos_int_type_or_pos_inf(self, p):
-        '''pos_int_type_or_pos_inf : INTEGER
-                                   | POS_INF'''
-        p[0] = p[1]
+    
+    def p_matrix_expr(self, p):
+        '''matrix_expr : DET UNDERSCORE LCURLY typed_var COMMA typed_var RCURLY expr %prec AGG_OPER
+                       | INVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK
+                       | PSEUDOINVERSE LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK
+                       | CHOLESKY LBRACK ROW ASSIGN_EQUAL VAR COMMA COLUMN ASSIGN_EQUAL VAR RBRACK LBRACK expr RBRACK'''
+        if len(p) == 9:
+            p[0] = (p[1], (p[4], p[6], p[8]))
+        elif len(p) == 14:
+            p[0] = (p[1], ([p[5], p[9]], p[12]))
+        
+    # ===========================================================================
+    # instance {} block
+    # ===========================================================================
     
     def fake_nonfluents_block(self, inst):
         nonfluents = None
@@ -968,6 +1040,28 @@ class RDDLParser(object):
         p[0] = ('objects', p[3])
         self._print_verbose('objects')
 
+    def p_objects_list(self, p):
+        '''objects_list : objects_list objects_def
+                        | objects_def'''
+        if len(p) == 3:
+            p[1].append(p[2])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_objects_def(self, p):
+        '''objects_def : IDENT COLON LCURLY object_const_list RCURLY SEMI'''
+        p[0] = (p[1], p[4])
+
+    def p_object_const_list(self, p):
+        '''object_const_list : object_const_list COMMA IDENT
+                             | IDENT'''
+        if len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
     def p_init_state_section(self, p):
         '''init_state_section : INIT_STATE LCURLY pvar_inst_list RCURLY SEMI'''
         p[0] = ('init_state', p[3])
@@ -987,11 +1081,20 @@ class RDDLParser(object):
             p[0] = ('horizon', p[5])
         self._print_verbose('horizon')
 
+    def p_pos_int_type_or_pos_inf(self, p):
+        '''pos_int_type_or_pos_inf : INTEGER
+                                   | POS_INF'''
+        p[0] = p[1]
+    
     def p_discount_section(self, p):
         '''discount_section : DISCOUNT ASSIGN_EQUAL DOUBLE SEMI'''
         p[0] = ('discount', p[3])
         self._print_verbose('discount')
 
+    # ===========================================================================
+    # non-fluents {} block
+    # ===========================================================================
+    
     def p_nonfluent_block(self, p):
         '''nonfluent_block : NON_FLUENTS IDENT LCURLY nonfluent_list RCURLY'''
         nf = NonFluents(p[2], p[4])
@@ -1013,29 +1116,6 @@ class RDDLParser(object):
         '''init_non_fluent_section : NON_FLUENTS LCURLY pvar_inst_list RCURLY SEMI'''
         p[0] = ('init_non_fluent', p[3])
         self._print_verbose('init-non-fluent')
-
-    def p_objects_list(self, p):
-        '''objects_list : objects_list objects_def
-                        | objects_def
-                        | empty'''
-        if len(p) == 3:
-            p[1].append(p[2])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
-
-    def p_objects_def(self, p):
-        '''objects_def : IDENT COLON LCURLY object_const_list RCURLY SEMI'''
-        p[0] = (p[1], p[4])
-
-    def p_object_const_list(self, p):
-        '''object_const_list : object_const_list COMMA IDENT
-                             | IDENT'''
-        if len(p) == 4:
-            p[1].append(p[3])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
 
     def p_pvar_inst_list(self, p):
         '''pvar_inst_list : pvar_inst_list pvar_inst_def
@@ -1075,23 +1155,9 @@ class RDDLParser(object):
         elif len(p) == 2:
             p[0] = [p[1]]
 
-    def p_string_list(self, p):
-        '''string_list : string_list COMMA IDENT
-                       | IDENT
-                       | empty'''
-        if p[1] is None:
-            p[0] = []
-        elif len(p) == 4:
-            p[1].append(p[3])
-            p[0] = p[1]
-        elif len(p) == 2:
-            p[0] = [p[1]]
-
-    def p_empty(self, p):
-        'empty :'
-        pass
-
-    # <-- start of policy block parsing rules (added Feb 23, 2026)
+    # ===========================================================================
+    # policy {} block
+    # ===========================================================================
     
     def p_policy_block(self, p):
         '''policy_block : POLICY IDENT LCURLY policy_list RCURLY'''
@@ -1150,7 +1216,26 @@ class RDDLParser(object):
                            | derivedfluent_def'''
         p[0] = p[1]
 
-    # end of policy block parsing rules (added Feb 23, 2026) -->
+    # ===========================================================================
+    # error handling and build
+    # ===========================================================================
+    
+    def _check_balanced_parenthesis(self, text):
+        pairs = {'(': ')', '{': '}', '[': ']'}
+        stack = []
+        for idx, ch in enumerate(text):
+            if ch in pairs:
+                stack.append((ch, idx))
+            elif ch in pairs.values():
+                if not stack:
+                    return ch, idx
+                last, pos = stack.pop()
+                if pairs[last] != ch:
+                    return last, idx
+        if stack:
+            last, pos = stack[-1]
+            return last, pos
+        return None
 
     def p_error(self, p):
         line_err = p.lineno - 1
@@ -1159,23 +1244,26 @@ class RDDLParser(object):
         line2 = min(line_err + 5, len(lines) - 1)
         
         # print source of error
-        exception_str = 'Syntax error on line {}:\n...'.format(line_err + 1)
+        exception_str = f'Syntax error on line {line_err + 1}:\n...'
         for l in range(line1, line2):
             if l == line_err:
-                exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[0m'
+                exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[24m'
             else:
-                exception_str += '\n   ' + lines[l]
+                exception_str += '\n    ' + lines[l]
         exception_str += '\n...'
 
         # try to identify cause of error
-        if p and p.type in self.reverse_tokens:
-            exception_str += '\n' + (f'Invalid use of reserved keyword: '
-                                     f'{self.reverse_tokens[p.type]}.')
-        elif p:
-            exception_str += '\n' + f'Invalid symbol or keyword: {p.value}.'
+        if p:
+            if p.type in self.reverse_tokens:
+                exception_str += '\n' + (f'Incorrect use of reserved keyword: '
+                                         f'{self.reverse_tokens[p.type]}.')
+            elif self._check_balanced_parenthesis(self._input) is not None:
+                exception_str += '\n' + f'Unbalanced parenthesis.'
+            else:
+                exception_str += '\n' + f'Incorrect use of symbol or keyword: {p.value}.'
 
         if self.debugging:
-            exception_str += 'See log file {} for details.'.format(self.parsing_logfile)
+            exception_str += '\n' + f'See log file {self.parsing_logfile} for details.'
         
         raise RDDLParseError(exception_str)
 
@@ -1193,4 +1281,4 @@ class RDDLParser(object):
 
     def _print_verbose(self, p_name):
         if self._verbose:
-            print('>> Parsed `{}` ...'.format(p_name))
+            print(f'>> Parsed `{p_name}` ...')
