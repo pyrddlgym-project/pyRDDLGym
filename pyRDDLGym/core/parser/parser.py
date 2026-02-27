@@ -1193,6 +1193,23 @@ class RDDLParser(object):
     # error handling and build
     # ===========================================================================
     
+    def _check_balanced_parenthesis(self, text):
+        pairs = {'(': ')', '{': '}', '[': ']'}
+        stack = []
+        for idx, ch in enumerate(text):
+            if ch in pairs:
+                stack.append((ch, idx))
+            elif ch in pairs.values():
+                if not stack:
+                    return ch, idx
+                last, pos = stack.pop()
+                if pairs[last] != ch:
+                    return last, idx
+        if stack:
+            last, pos = stack[-1]
+            return last, pos
+        return None
+
     def p_error(self, p):
         line_err = p.lineno - 1
         lines = self._input.splitlines()
@@ -1213,7 +1230,10 @@ class RDDLParser(object):
             exception_str += '\n' + (f'Invalid use of reserved keyword: '
                                      f'{self.reverse_tokens[p.type]}.')
         elif p:
-            exception_str += '\n' + f'Invalid symbol or keyword: {p.value}.'
+            if self._check_balanced_parenthesis(self._input) is not None:
+                exception_str += '\n' + f'Unbalanced parenthesis.'
+            else:
+                exception_str += '\n' + f'Invalid symbol or keyword: {p.value}.'
 
         if self.debugging:
             exception_str += 'See log file {} for details.'.format(self.parsing_logfile)
