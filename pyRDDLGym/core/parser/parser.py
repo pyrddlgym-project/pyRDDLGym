@@ -540,9 +540,33 @@ class RDDLParser(object):
             p[0] = p[1]
 
     def p_cpf_def(self, p):
-        '''cpf_def : pvar_expr ASSIGN_EQUAL expr SEMI
-                   | pvar_expr ASSIGN_EQUAL randomvector_expr SEMI'''
+        '''cpf_def : cpf_pvar_expr ASSIGN_EQUAL expr SEMI
+                   | cpf_pvar_expr ASSIGN_EQUAL randomvector_expr SEMI'''
         p[0] = CPF(pvar=p[1], expr=p[3])
+
+    def p_cpf_pvar_expr(self, p):
+        '''cpf_pvar_expr : IDENT LPAREN cpf_term_list RPAREN
+                         | IDENT'''
+        if len(p) == 2:
+            p[0] = ('pvar_expr', (p[1], None))
+        elif len(p) == 5:
+            p[0] = ('pvar_expr', (p[1], p[3]))
+
+    def p_cpf_term_list(self, p):
+        '''cpf_term_list : cpf_term_list COMMA cpf_term_list_item
+                         | cpf_term_list_item
+                         | empty'''
+        if p[1] is None:
+            p[0] = []
+        elif len(p) == 4:
+            p[1].append(p[3])
+            p[0] = p[1]
+        elif len(p) == 2:
+            p[0] = [p[1]]
+
+    def p_cpf_term_list_item(self, p):
+        '''cpf_term_list_item : VAR'''        
+        p[0] = p[1]
 
     # ===========================================================================
     # domain - reward
