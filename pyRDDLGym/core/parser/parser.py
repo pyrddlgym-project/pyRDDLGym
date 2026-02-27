@@ -1247,7 +1247,7 @@ class RDDLParser(object):
         exception_str = f'Syntax error on line {line_err + 1}:\n...'
         for l in range(line1, line2):
             if l == line_err:
-                exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[0m'
+                exception_str += '\n >> ' + '\033[4m' + lines[l] + '\033[24m'
             else:
                 exception_str += '\n    ' + lines[l]
         exception_str += '\n...'
@@ -1255,12 +1255,12 @@ class RDDLParser(object):
         # try to identify cause of error
         if p:
             if p.type in self.reverse_tokens:
-                exception_str += '\n' + (f'Invalid use of reserved keyword: '
-                                        f'{self.reverse_tokens[p.type]}.')
+                exception_str += '\n' + (f'Incorrect use of reserved keyword: '
+                                         f'{self.reverse_tokens[p.type]}.')
             elif self._check_balanced_parenthesis(self._input) is not None:
                 exception_str += '\n' + f'Unbalanced parenthesis.'
             else:
-                exception_str += '\n' + f'Invalid use of symbol or keyword: {p.value}.'
+                exception_str += '\n' + f'Incorrect use of symbol or keyword: {p.value}.'
 
         if self.debugging:
             exception_str += '\n' + f'See log file {self.parsing_logfile} for details.'
