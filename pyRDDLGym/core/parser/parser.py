@@ -1233,7 +1233,7 @@ class RDDLParser(object):
             if self._check_balanced_parenthesis(self._input) is not None:
                 exception_str += '\n' + f'Unbalanced parenthesis.'
             else:
-                exception_str += '\n' + f'Invalid symbol or keyword: {p.value}.'
+                exception_str += '\n' + f'Invalid use of symbol or keyword: {p.value}.'
 
         if self.debugging:
             exception_str += 'See log file {} for details.'.format(self.parsing_logfile)
