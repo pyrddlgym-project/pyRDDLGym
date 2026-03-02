@@ -1241,6 +1241,10 @@ class RDDLLiftedPolicy:
         
         self._non_fluents = None     
         self._derived_fluents = None
+        self._state_fluents = None
+        self._state_ranges = None
+        self._prev_state = None
+        self._next_state = None    
         
         self._cpfs = None
 
@@ -1249,6 +1253,7 @@ class RDDLLiftedPolicy:
         self._extract_variable_information()
         self._extract_non_fluents()
         self._extract_derived()
+        self._extract_states()
         self._extract_cpfs()
     
     @property
@@ -1315,6 +1320,38 @@ class RDDLLiftedPolicy:
         self._derived_fluents = val
 
     @property
+    def state_fluents(self):
+        return self._state_fluents
+
+    @state_fluents.setter
+    def state_fluents(self, val):
+        self._state_fluents = val
+    
+    @property
+    def state_ranges(self):
+        return self._state_ranges
+
+    @state_ranges.setter
+    def state_ranges(self, value):
+        self._state_ranges = value
+
+    @property
+    def next_state(self):
+        return self._next_state
+
+    @next_state.setter
+    def next_state(self, val):
+        self._next_state = val
+
+    @property
+    def prev_state(self):
+        return self._prev_state
+
+    @prev_state.setter
+    def prev_state(self, val):
+        self._prev_state = val
+
+    @property
     def cpfs(self):
         return self._cpfs
 
@@ -1332,6 +1369,11 @@ class RDDLLiftedPolicy:
         var_types, var_ranges, var_params, var_default, var_ground = {}, {}, {}, {}, {}        
         for pvar in self.parent.ast.policy.pvariables: 
             name = pvar.name
+
+            # add the primed name
+            primed_name = name = pvar.name
+            if pvar.is_state_fluent():
+                primed_name = name + RDDLPlanningModel.NEXT_STATE_SYM
 
             # make sure variable is not defined in the domain
             if name in self.parent.variable_params:
@@ -1352,13 +1394,15 @@ class RDDLLiftedPolicy:
             
             # record variable type, range
             var_types[name] = pvar.fluent_type
-            var_ranges[name] = pvar.range 
+            if pvar.is_state_fluent():
+                var_types[primed_name] = 'next-state-fluent'  
+            var_ranges[name] = var_ranges[primed_name] = pvar.range 
             
             # record variable parameters
             ptypes = pvar.param_types
             if ptypes is None:
                 ptypes = []
-            var_params[name] = ptypes     
+            var_params[name] = var_params[primed_name] = ptypes     
             
             # record default value
             var_default[name] = self._extract_default_value(pvar)
@@ -1368,6 +1412,12 @@ class RDDLLiftedPolicy:
                 RDDLPlanningModel.ground_var(name, objects)
                 for objects in self.parent.ground_types(ptypes)
             ]            
+            if pvar.is_state_fluent():
+                var_ground[primed_name] = [
+                    RDDLPlanningModel.ground_var(primed_name, objects)
+                    for objects in self.parent.ground_types(ptypes)
+                ]
+
         self.variable_types = var_types
         self.variable_ranges = var_ranges
         self.variable_params = var_params
@@ -1453,16 +1503,40 @@ class RDDLLiftedPolicy:
                 derived[pvar.name] = self._value_list_or_scalar_from_default(pvar)
         self.derived_fluents = derived
     
+    def _extract_states(self):
+        PRIME = RDDLPlanningModel.NEXT_STATE_SYM
+        
+        # get the information for each state from the domain
+        states, statesranges, nextstates, prevstates = {}, {}, {}, {}
+        for pvar in self.parent.ast.policy.pvariables:
+            if pvar.is_state_fluent():
+                name = pvar.name
+                statesranges[name] = pvar.range
+                nextstates[name] = name + PRIME
+                prevstates[name + PRIME] = name
+                default = self.variable_defaults[name]
+                states[name] = {gname: default
+                                for gname in self.variable_groundings[name]}
+        
+        # no instance file to ground from     
+        self.state_fluents = self._grounded_dict_to_dict_of_list(states)
+        self._validate_initial_values(self.state_fluents)
+        self.state_ranges = statesranges   
+        self.next_state = nextstates
+        self.prev_state = prevstates
+    
     def _extract_cpfs(self):
         policy = {}
         for action in self.parent.ast.policy.cpfs[1]:
             name, objects = action.pvar[1]
             
             # for action
-            if name not in self.parent.action_fluents and name not in self.variable_types:
+            if (name not in self.parent.action_fluents 
+                and name not in self.prev_state) and name not in self.variable_types:
                 raise RDDLUndefinedCPFError(
                     f'policy cpfs block has expression for <{name}> '
-                    f'that is not an action-fluent and not a policy derived-fluent.')
+                    f'that is not an action-fluent, policy state-fluent, or '
+                    f'policy derived-fluent.')
 
             # make sure the cpf is not defined multiple times
             if name in policy:
@@ -1505,5 +1579,11 @@ class RDDLLiftedPolicy:
             if var not in policy:
                 raise RDDLMissingCPFDefinitionError(
                     f'Derived-fluent <{var}> is not defined in policy cpfs block.')
-
+        
+        # do the same for state fluents
+        for var in self.prev_state:
+            if var not in policy:
+                raise RDDLMissingCPFDefinitionError(
+                    f'Policy state-fluent <{var}> is not defined in policy cpfs block.')
+            
         self.cpfs = policy

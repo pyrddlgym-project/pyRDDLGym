@@ -1213,7 +1213,8 @@ class RDDLParser(object):
 
     def p_policy_pvar_def(self, p):
         '''policy_pvar_def : nonfluent_def
-                           | derivedfluent_def'''
+                           | derivedfluent_def
+                           | statefluent_def'''
         p[0] = p[1]
 
     # ===========================================================================

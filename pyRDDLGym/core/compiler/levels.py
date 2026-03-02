@@ -42,7 +42,9 @@ class RDDLLevelAnalysis:
 
     VALID_DEPENDENCIES_POLICY = {
         'derived-fluent': {'state-fluent', 'derived-fluent', 'non-fluent'},
-        'action-fluent': {'state-fluent', 'action-fluent', 'derived-fluent', 'non-fluent'}
+        'action-fluent': {'state-fluent', 'action-fluent', 'derived-fluent', 'non-fluent'},
+        'next-state-fluent': {'action-fluent', 'state-fluent', 'derived-fluent',
+                              'next-state-fluent', 'non-fluent'}
     }
     
     def __init__(self, rddl: RDDLPlanningModel,
@@ -266,7 +268,7 @@ class RDDLLevelAnalysis:
             # check if cpf is action fluent or policy derived fluent
             if cpf in rddl.action_fluents:
                 cpf_type = rddl.variable_types[cpf]
-            elif cpf in policy.derived_fluents:
+            elif cpf in policy.variable_types:
                 cpf_type = policy.variable_types[cpf]
             else:
                 raise RDDLInvalidDependencyInCPFError(
@@ -294,9 +296,10 @@ class RDDLLevelAnalysis:
                         f'can not depend on variable <{dep}> of type {dep_type}.') 
                 
                 # derived-fluent dependency must be policy defined
-                if dep_type == 'derived-fluent' and dep not in policy.variable_types:
+                if (dep_type == 'derived-fluent' or dep_type == 'next-state-fluent') \
+                and dep not in policy.variable_types:
                     raise RDDLInvalidDependencyInCPFError(
-                        f'Policy CPF <{cpf}> can not depend on derived-fluent <{dep}> '
+                        f'Policy CPF <{cpf}> can not depend on {dep_type} <{dep}> '
                         f'defined in the domain.') 
 
     # ===========================================================================

@@ -102,8 +102,15 @@ class RDDLValueInitializer:
         if policy is None:
             return {}
         
-        # initial values are just policy non-fluents, only allow numerical types
+        # for policy state-fluents, domain objects are converted to integers
         init_values = {}
+        for (var, values) in policy.state_fluents.items():
+            prange = policy.variable_ranges[var]
+            if prange in rddl.type_to_objects:
+                values = self._objects_to_ints(values, prange, var)
+            init_values[var] = values
+        
+        # for policy non-fluents only allow numerical types
         for (var, values) in policy.non_fluents.items():
             prange = policy.variable_ranges[var]
             if prange in rddl.type_to_objects:
