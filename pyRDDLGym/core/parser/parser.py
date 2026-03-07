@@ -55,6 +55,7 @@ class RDDLlex(object):
             'derived-fluent': 'DERIVED_FLUENT',
             'observ-fluent': 'OBSERVATION',
             'action-fluent': 'ACTION',
+            'param-fluent': 'PARAM_FLUENT',
             'level': 'LEVEL',
             'default': 'DEFAULT',
             'max-nondef-actions': 'MAX_NONDEF_ACTIONS',
@@ -1214,8 +1215,21 @@ class RDDLParser(object):
     def p_policy_pvar_def(self, p):
         '''policy_pvar_def : nonfluent_def
                            | derivedfluent_def
-                           | statefluent_def'''
+                           | statefluent_def
+                           | paramfluent_def'''
         p[0] = p[1]
+    
+    def p_paramfluent_def(self, p):
+        #    0                1    2          3        4         5    6          7   8           9           10         11
+        '''paramfluent_def : IDENT param_list LCURLY PARAM_FLUENT COMMA type_spec COMMA DEFAULT ASSIGN_EQUAL range_const RCURLY SEMI
+                           | IDENT param_list LCURLY PARAM_FLUENT COMMA type_spec RCURLY SEMI'''
+        if len(p) == 13:
+            p[0] = PVariable(name=p[1], fluent_type='param-fluent', range_type=p[6], param_types=p[2], default=p[10])
+        elif len(p) == 9:
+            p[0] = PVariable(name=p[1], fluent_type='param-fluent', range_type=p[6], param_types=p[2], default=None)
+        else:
+            p[0] = PVariable(name=p[1], fluent_type='param-fluent', range_type=p[6], default=p[10])
+
 
     # ===========================================================================
     # error handling and build

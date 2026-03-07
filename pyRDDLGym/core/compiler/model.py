@@ -1239,6 +1239,7 @@ class RDDLLiftedPolicy:
         self._variable_defaults = None
         self._variable_groundings = None     
         
+        self._param_fluents = None
         self._non_fluents = None     
         self._derived_fluents = None
         self._state_fluents = None
@@ -1254,6 +1255,7 @@ class RDDLLiftedPolicy:
         self._extract_non_fluents()
         self._extract_derived()
         self._extract_states()
+        self._extract_param_fluents()
         self._extract_cpfs()
     
     @property
@@ -1303,6 +1305,14 @@ class RDDLLiftedPolicy:
     def variable_groundings(self, val):
         self._variable_groundings = val
     
+    @property
+    def param_fluents(self):
+        return self._param_fluents
+
+    @param_fluents.setter
+    def param_fluents(self, val):
+        self._param_fluents = val
+
     @property
     def non_fluents(self):
         return self._non_fluents
@@ -1525,18 +1535,32 @@ class RDDLLiftedPolicy:
         self.next_state = nextstates
         self.prev_state = prevstates
     
+    def _extract_param_fluents(self):
+        
+        # extract param-fluents values from the domain defaults
+        param_fluents = {}
+        for pvar in self.parent.ast.policy.pvariables:
+            if pvar.is_param_fluent():
+                name = pvar.name
+                default = self.variable_defaults[name] 
+                param_fluents[name] = {gname: default
+                                       for gname in self.variable_groundings[name]}
+
+        # no instance file to ground from     
+        self.param_fluents = self._grounded_dict_to_dict_of_list(param_fluents)
+        self._validate_initial_values(self.param_fluents)
+    
     def _extract_cpfs(self):
         policy = {}
-        for action in self.parent.ast.policy.cpfs[1]:
-            name, objects = action.pvar[1]
+        for cpf in self.parent.ast.policy.cpfs[1]:
+            name, objects = cpf.pvar[1]
             
-            # for action
-            if (name not in self.parent.action_fluents 
-                and name not in self.prev_state) and name not in self.variable_types:
+            # make sure the CPF is defined in policy pvariables {...} scope
+            # or it is an action-fluent
+            if name not in self.parent.action_fluents and name not in self.variable_types:
                 raise RDDLUndefinedCPFError(
-                    f'policy cpfs block has expression for <{name}> '
-                    f'that is not an action-fluent, policy state-fluent, or '
-                    f'policy derived-fluent.')
+                    f'Policy CPF <{name}> is not declared in policy pvariables block '
+                    f'and not an action-fluent.')
 
             # make sure the cpf is not defined multiple times
             if name in policy:
@@ -1566,7 +1590,7 @@ class RDDLLiftedPolicy:
                 
             # actions are stored as dictionary that associates action name with a pair 
             objects = list(zip(objects, types))
-            policy[name] = (objects, action.expr)
+            policy[name] = (objects, cpf.expr)
         
         # make sure all actions have a valid expression in policy cpfs block
         for var in self.parent.action_fluents:

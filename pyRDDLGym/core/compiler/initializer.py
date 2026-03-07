@@ -111,16 +111,17 @@ class RDDLValueInitializer:
             init_values[var] = values
         
         # for policy non-fluents only allow numerical types
-        for (var, values) in policy.non_fluents.items():
-            prange = policy.variable_ranges[var]
-            if prange in rddl.type_to_objects:
-                raise RDDLTypeError(
-                    f'Range <{prange}> of policy non-fluent is not valid, '
-                    f'must be a numeric type.')
-            if values is None:
-                raise RDDLTypeError(
-                    f'Policy non-fluent <{var}> does not have a default value.')
-            init_values[var] = values
+        for pvar_dict in [policy.non_fluents, policy.param_fluents]:
+            for (var, values) in pvar_dict.items():
+                prange = policy.variable_ranges[var]
+                if prange in rddl.type_to_objects:
+                    raise RDDLTypeError(
+                        f'Range <{prange}> of policy non-fluent is not valid, '
+                        f'must be a numeric type.')
+                if values is None:
+                    raise RDDLTypeError(
+                        f'Policy non-fluent <{var}> does not have a default value.')
+                init_values[var] = values
 
         # create a tensor for each pvar with the init_values
         # if the init_values are missing use the default value of range
