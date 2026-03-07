@@ -75,6 +75,10 @@ class PVariable(object):
         '''Returns True if fluent is of observ-fluent type. False, otherwise.'''
         return self.fluent_type == 'observ-fluent'
 
+    def is_param_fluent(self) -> bool:
+        '''Returns True if fluent is of param-fluent type. False, otherwise.'''
+        return self.fluent_type == 'param-fluent'
+    
     def __str__(self) -> str:
         '''Returns string value of PVariable.'''
         return '{}/{}'.format(self.name, self.arity)
