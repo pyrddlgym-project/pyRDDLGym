@@ -86,7 +86,8 @@ html_theme = 'sphinx_book_theme'
 
 html_theme_options = {
     "repository_url": "https://github.com/pyrddlgym-project/pyRDDLGym",
-    "use_repository_button": True
+    "use_repository_button": True,
+    "use_mathjax": True
 }
 
 html_title = "Documentation for the pyRDDLGym Project"
@@ -141,7 +142,7 @@ myst_enable_extensions = [
     "amsmath",
     "dollarmath",
 ]
-
+nb_render_text_lexer = "myst-extended"
 
 # -- Options for HTMLHelp output ---------------------------------------------
 #
