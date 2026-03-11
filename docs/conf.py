@@ -42,7 +42,6 @@ release = '2.1.0'
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.mathjax",
     #"sphinxcontrib.napoleon",
     "sphinx_book_theme",
     "nbsphinx",
@@ -87,12 +86,15 @@ html_theme = 'sphinx_book_theme'
 
 html_theme_options = {
     "repository_url": "https://github.com/pyrddlgym-project/pyRDDLGym",
-    "use_repository_button": True,
-    "use_mathjax": True
+    "use_repository_button": True
 }
 
 html_title = "Documentation for the pyRDDLGym Project"
 html_logo = "rddllogo.gif"
+
+html_js_files = [
+    "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML"
+]
 
 # thumbnails for nbsphinx
 nbsphinx_thumbnails = {
