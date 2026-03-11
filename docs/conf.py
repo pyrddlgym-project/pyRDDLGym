@@ -44,7 +44,7 @@ extensions = [
     "sphinx.ext.autodoc",
     #"sphinxcontrib.napoleon",
     "sphinx_book_theme",
-    "nbsphinx",
+    #"nbsphinx",
     "sphinx_gallery.load_style",    
     "myst_nb",
     "sphinx_toolbox.collapse"
