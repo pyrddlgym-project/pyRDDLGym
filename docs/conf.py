@@ -43,10 +43,10 @@ release = '2.1.0'
 extensions = [
     "sphinx.ext.autodoc",
     #"sphinxcontrib.napoleon",
-    "sphinx_book_theme",
-    #"nbsphinx",
-    "sphinx_gallery.load_style",    
+    "sphinx_book_theme", 
     "myst_nb",
+    "nbsphinx",
+    "sphinx_gallery.load_style",   
     "sphinx_toolbox.collapse"
 ]
 
@@ -93,16 +93,13 @@ html_theme_options = {
 html_title = "Documentation for the pyRDDLGym Project"
 html_logo = "rddllogo.gif"
 
-html_js_files = [
-    "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML"
-]
-
 # thumbnails for nbsphinx
 nbsphinx_thumbnails = {
     'notebooks/*': '_static/notebook_icon.png'
 }
 
 # precache notebooks
+nbsphinx_allow_latex = True
 nbsphinx_execute = 'never'
 jupyter_execute_notebooks = "off"
 
