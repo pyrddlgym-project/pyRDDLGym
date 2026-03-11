@@ -42,6 +42,7 @@ release = '2.1.0'
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.mathjax",
     #"sphinxcontrib.napoleon",
     "sphinx_book_theme",
     "nbsphinx",
@@ -132,6 +133,12 @@ autodoc_default_options = {
     "special-members": "special-members",
     "private-members": "private-members",
 }
+
+myst_enable_extensions = [
+    "amsmath",
+    "dollarmath",
+]
+
 
 # -- Options for HTMLHelp output ---------------------------------------------
 #
