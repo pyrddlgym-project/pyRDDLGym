@@ -40,6 +40,7 @@ JaxPlan
    notebooks/accelerating_simulation_with_jax
    notebooks/risk_aware_planning_with_jaxplan
    notebooks/bayesian_mdp_planning_with_jaxplan
+   notebooks/pomdp_planning_from_images_with_jaxplan
   
 
 pyRDDLGym-rl
