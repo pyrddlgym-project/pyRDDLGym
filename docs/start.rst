@@ -292,6 +292,13 @@ To assign a custom visualizer object ``MyDomainViz`` that implements a valid ``r
 All visualizers can be activated in an environment by calling ``env.render()``
 on each call to ``env.step()`` or ``env.reset()``, just like regular Gym/Gymnasium.
 
+.. raw:: html 
+
+   <a href="notebooks/building_custom_visualizer_with_pyrddlgym.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Building a custom visualizer in pyRDDLGym.
+   </a>
+
 
 Logging Information
 -------------

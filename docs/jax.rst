@@ -211,6 +211,13 @@ To use periodic replanning, simply change the controller type to:
        <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
        Related example: Closed-loop replanning with JaxPlan.
    </a>
+
+.. raw:: html 
+
+   <a href="notebooks/pomdp_planning_from_images_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: POMDP planning from images with JaxPlan.
+   </a>
    
    
 To use a deep reactive policy, simply change the ``plan`` type to:
