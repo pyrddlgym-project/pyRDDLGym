@@ -41,6 +41,13 @@ Below are the commonly used functions of ``sampler`` that can be accessed direct
    * - ``check_terminal_states()``
      - returns a bool indicating if any termination condition is satisfied
 
+.. raw:: html 
+
+   <a href="notebooks/checking_constraints_in_pyrddlgym.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Checking constraints in pyRDDLGym.
+   </a>
+   
 
 Inspecting the Model
 -------------------
