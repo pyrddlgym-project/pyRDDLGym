@@ -138,6 +138,14 @@ A simpler solution is to create a new environment by passing the modified model 
 
 The ``new_env`` is a copy of ``env`` with a modified cart mass.
 
+.. raw:: html 
+
+   <a href="notebooks/modifying_a_problem_with_pyrddlgym.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Modifying a problem with pyRDDLGym.
+   </a>
+
+
 Grounding a Problem
 ------
 
