@@ -12,6 +12,7 @@ pyRDDLGym
    notebooks/recording_movies_in_pyrddlgym
    notebooks/building_custom_visualizer_with_pyrddlgym
    notebooks/checking_constraints_in_pyrddlgym
+   notebooks/modifying_a_problem_with_pyrddlgym
    notebooks/grounding_a_problem_with_pyrddlgym
    notebooks/extracting_info_from_compiled_model_with_pyrddlgym
    notebooks/analyzing_fluent_dependencies
