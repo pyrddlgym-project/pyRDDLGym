@@ -1071,7 +1071,7 @@ class RDDLIntervalAnalysis:
         _ = self._bound(n, intervals)
         (lp, up) = self._bound(p, intervals)
 
-        lower = np.ones(shape=np.shape(lp), dtype=np.int64)
+        lower = np.zeros(shape=np.shape(lp), dtype=np.int64)
         upper = np.full(shape=np.shape(up), fill_value=np.inf, dtype=np.float64)
         lower = self._mask_assign(lower, (up <= 0), np.inf)
         upper = self._mask_assign(upper, (lp >= 1), 0)
