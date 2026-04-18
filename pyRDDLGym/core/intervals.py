@@ -645,7 +645,8 @@ class RDDLIntervalAnalysis:
     
     @staticmethod
     def _next_multiple(start, offset, period=2 * np.pi):
-        multiples = -np.floor_divide(start - offset, -period)
+        with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+            multiples = -np.floor_divide(start - offset, -period)
         next_up = period * multiples + offset
         return next_up
     
@@ -668,7 +669,8 @@ class RDDLIntervalAnalysis:
         elif name == 'sin':
             
             # by default evaluate at end points
-            sin_l, sin_u = np.sin(l), np.sin(u)
+            with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+                sin_l, sin_u = np.sin(l), np.sin(u)
             lower = np.minimum(sin_l, sin_u)
             upper = np.maximum(sin_l, sin_u)
             
@@ -688,7 +690,8 @@ class RDDLIntervalAnalysis:
         elif name == 'cos':
             
             # by default evaluate at end points
-            cos_l, cos_u = np.cos(l), np.cos(u)
+            with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+                cos_l, cos_u = np.cos(l), np.cos(u)
             lower = np.minimum(cos_l, cos_u)
             upper = np.maximum(cos_l, cos_u)
             
@@ -708,7 +711,8 @@ class RDDLIntervalAnalysis:
         elif name == 'tan':
             
             # by default evaluate at end points
-            tan_l, tan_u = np.tan(l), np.tan(u)
+            with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+                tan_l, tan_u = np.tan(l), np.tan(u)
             lower = np.minimum(tan_l, tan_u)
             upper = np.maximum(tan_l, tan_u)
             
