@@ -764,9 +764,9 @@ class RDDLIntervalAnalysis:
         lower = mask_fn(lower, case1 & pow_even, 0)
         upper = mask_fn(upper, case1 & (pow_ == 0), 1)
         with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
-            case1_upper_even = np.maximum(l1 ** pow_, l2 ** pow_)
+            case1_upper_even = np.maximum(l1 ** pow_, u1 ** pow_)
             case1_lower_odd = l1 ** pow_
-            case1_upper_odd = l2 ** pow_
+            case1_upper_odd = u1 ** pow_
         upper = mask_fn(upper, case1 & (pow_ > 0) & pow_even, case1_upper_even, True)
         lower = mask_fn(lower, case1 & ~pow_even, case1_lower_odd, True)
         upper = mask_fn(upper, case1 & ~pow_even, case1_upper_odd, True)
