@@ -1,3 +1,4 @@
+from abc import ABCMeta, abstractmethod
 import numpy as np
 import traceback
 from typing import Dict, Optional, Tuple, Union
@@ -30,6 +31,20 @@ except Exception:
     stats = None
 
 
+class IntervalPolicy(metaclass=ABCMeta):
+    '''Interface for user-provided interval policies to calculate action bounds'''
+
+    @abstractmethod
+    def action_bounds(self, state_bounds: Bounds, epoch: int) -> Bounds:
+        '''Returns bounds on action fluents given bounds on state fluents.
+        
+        :param state_bounds: bounds on state fluents; keys are fluent names and
+        values are tuples of (lower bound, upper bound) as numpy arrays
+        :param epoch: the decision epoch for which the bounds should be valid
+        '''
+        pass
+        
+
 class RDDLIntervalAnalysis:
     
     def __init__(self, rddl: RDDLPlanningModel, logger: Optional[Logger]=None) -> None:
@@ -51,13 +66,12 @@ class RDDLIntervalAnalysis:
         
         self.NUMPY_LITERAL_TO_INT = np.vectorize(self.rddl.object_to_index.__getitem__)
         
-    def bound(self, action_bounds: Optional[Bounds]=None, 
+    def bound(self, interval_policy: IntervalPolicy, 
               per_epoch: bool=False,
               state_bounds: Optional[Bounds]=None) -> Bounds:
         '''Computes intervals on all fluents and reward for the planning problem.
         
-        :param action_bounds: optional bounds on action fluents (defaults to
-        a "random" policy otherwise)
+        :param interval_policy: policy that maps state fluent bounds to action bounds
         :param per_epoch: if True, the returned bounds are tensors with leading
         dimension indicating the decision epoch; if False, the returned bounds
         are valid across all decision epochs
@@ -71,7 +85,9 @@ class RDDLIntervalAnalysis:
             result = {}
         
         # propagate bounds across time
-        for _ in range(self.rddl.horizon):
+        for epoch in range(self.rddl.horizon):
+            state_intervals = {var: intervals[var] for var in self.rddl.state_fluents}
+            action_bounds = interval_policy.action_bounds(state_intervals, epoch)
             self._bound_next_epoch(
                 intervals, action_bounds=action_bounds, per_epoch=per_epoch)
             if per_epoch:
@@ -603,9 +619,14 @@ class RDDLIntervalAnalysis:
     @staticmethod
     def _bound_func_monotone(interval, func):
         l, u = interval
-        fl, fu = func(l), func(u)
+        with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+            fl, fu = func(l), func(u)
         lower = np.minimum(fl, fu)
         upper = np.maximum(fl, fu)
+        invalid = np.isnan(lower) | np.isnan(upper)
+        mask_fn = RDDLIntervalAnalysis._mask_assign
+        lower = mask_fn(lower, invalid, -np.inf)
+        upper = mask_fn(upper, invalid, +np.inf)
         return (lower, upper)
     
     @staticmethod
@@ -727,8 +748,9 @@ class RDDLIntervalAnalysis:
         upper = mask_fn(upper, l1 > 0, u1pos, True)
             
         # otherwise, defined if the power is an integer point
-        l2_is_int = np.equal(np.mod(l2, 1), 0)
-        u2_is_int = np.equal(np.mod(u2, 1), 0)
+        with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+            l2_is_int = np.equal(np.mod(l2, 1), 0)
+            u2_is_int = np.equal(np.mod(u2, 1), 0)
         pow_valid = l2_is_int & u2_is_int & (l2 >= 0) & (l2 == u2)
         pow_ = l2.astype(np.int64) if np.shape(l2) else int(l2)
         pow_even = (np.mod(pow_, 2) == 0)
@@ -737,19 +759,27 @@ class RDDLIntervalAnalysis:
         case1 = pow_valid & (0 >= l1) & (0 <= u1)
         lower = mask_fn(lower, case1 & pow_even, 0)
         upper = mask_fn(upper, case1 & (pow_ == 0), 1)
-        upper = mask_fn(upper, case1 & (pow_ > 0) & pow_even, 
-                        np.maximum(l1 ** pow_, l2 ** pow_), True)
-        lower = mask_fn(lower, case1 & ~pow_even, l1 ** pow_, True)
-        upper = mask_fn(upper, case1 & ~pow_even, l2 ** pow_, True)
+        with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+            case1_upper_even = np.maximum(l1 ** pow_, l2 ** pow_)
+            case1_lower_odd = l1 ** pow_
+            case1_upper_odd = l2 ** pow_
+        upper = mask_fn(upper, case1 & (pow_ > 0) & pow_even, case1_upper_even, True)
+        lower = mask_fn(lower, case1 & ~pow_even, case1_lower_odd, True)
+        upper = mask_fn(upper, case1 & ~pow_even, case1_upper_odd, True)
             
         # if the base is strictly negative
         case2 = pow_valid & (u1 < 0)
         lower = mask_fn(lower, case2 & (pow_ == 0), 1)
         upper = mask_fn(upper, case2 & (pow_ == 0), 1)
-        lower = mask_fn(lower, case2 & pow_even, u1 ** pow_, True)
-        upper = mask_fn(upper, case2 & pow_even, l1 ** pow_, True)
-        lower = mask_fn(lower, case2 & ~pow_even, l1 ** pow_, True)
-        upper = mask_fn(upper, case2 & ~pow_even, u1 ** pow_, True)
+        with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+            case2_lower_even = u1 ** pow_
+            case2_upper_even = l1 ** pow_
+            case2_lower_odd = l1 ** pow_
+            case2_upper_odd = u1 ** pow_
+        lower = mask_fn(lower, case2 & pow_even, case2_lower_even, True)
+        upper = mask_fn(upper, case2 & pow_even, case2_upper_even, True)
+        lower = mask_fn(lower, case2 & ~pow_even, case2_lower_odd, True)
+        upper = mask_fn(upper, case2 & ~pow_even, case2_upper_odd, True)
         return (lower, upper)
     
     @staticmethod

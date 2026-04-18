@@ -2,12 +2,13 @@
 
 The syntax for running this example is:
 
-    python run_intervals.py <domain> <instance> <policy>
+    python run_intervals.py <domain> <instance> <policy> <method>
     
 where:
     <domain> is the name of a domain located in the /Examples directory
     <instance> is the instance number
     <policy> is either "random" or "noop"
+    <method> is either "support", "mean", or a number p in (0, 0.5) for percentile
 '''
 import sys
 import numpy as np
@@ -41,11 +42,21 @@ def main(domain, instance, policy, method):
                 lower = np.full(np.shape(lower), fill_value=0, dtype=int)
                 upper = np.full(np.shape(upper), fill_value=1, dtype=int)
             action_bounds[action] = (lower, upper)
+        
+        class RandomIntervalPolicy:
+            def action_bounds(self, state_bounds, epoch):
+                return action_bounds
+        interval_policy = RandomIntervalPolicy()
+        
+    # no-op policy
     else:
-        action_bounds = None
+        class NoopIntervalPolicy:
+            def action_bounds(self, state_bounds, epoch):
+                return {}
+        interval_policy = NoopIntervalPolicy()
     
     # evaluate lower and upper bounds on accumulated reward of random policy
-    bounds = analysis.bound(action_bounds=action_bounds, per_epoch=True)
+    bounds = analysis.bound(interval_policy, per_epoch=True)
     reward_lower, reward_upper = bounds['reward']    
     print(f'value lower bound = {np.sum(reward_lower)}, '
           f'value upper bound = {np.sum(reward_upper)}')
