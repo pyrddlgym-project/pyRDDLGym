@@ -723,14 +723,19 @@ class RDDLIntervalAnalysis:
             
             # an asymptote is inside the open interval, set to [-inf, inf]
             next_asymptote = RDDLIntervalAnalysis._next_multiple(l, np.pi / 2, np.pi)
-            asymptote_in_open = (l < next_asymptote) & (u > next_asymptote)
+            next_asymptote_open = np.where(
+                next_asymptote <= l, next_asymptote + np.pi, next_asymptote)
+            asymptote_in_open = u > next_asymptote_open
             lower = mask_fn(lower, asymptote_in_open, -np.inf)
             upper = mask_fn(upper, asymptote_in_open, +np.inf)
             
             # an asymptote is on an edge
-            lower = mask_fn(lower, l == next_asymptote, -np.inf)
-            upper = mask_fn(upper, u == next_asymptote, +np.inf)
-            upper = mask_fn(upper, u == next_asymptote + np.pi, +np.inf)            
+            left_edge_asymptote = l == RDDLIntervalAnalysis._next_multiple(
+                l, np.pi / 2, np.pi)
+            right_edge_asymptote = u == RDDLIntervalAnalysis._next_multiple(
+                u, np.pi / 2, np.pi)
+            lower = mask_fn(lower, left_edge_asymptote, -np.inf)
+            upper = mask_fn(upper, right_edge_asymptote, +np.inf)
             return lower, upper
         
         else:
