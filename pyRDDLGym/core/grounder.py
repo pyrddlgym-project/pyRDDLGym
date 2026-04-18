@@ -140,6 +140,8 @@ class RDDLGrounder(BaseRDDLGrounder):
         model.horizon = self._ground_horizon()
         model.discount = self._ground_discount()        
         
+        model.policy = None   # TODO: allow grounding this
+        
         return model
 
     def _extract_objects(self):
