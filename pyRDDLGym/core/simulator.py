@@ -23,6 +23,7 @@ Args = Dict[str, Union[Value, np.ndarray]]
 
         
 class RDDLSimulator:
+    '''Simulates a RDDL model by sampling from the CPF expressions.'''
     
     def __init__(self, rddl: RDDLPlanningModel,
                  allow_synchronous_state: bool=True,
@@ -174,10 +175,12 @@ class RDDLSimulator:
         
     @property
     def states(self) -> Args:
+        '''Returns the current state as a dictionary mapping state-fluent to its value.'''
         return self.state.copy()
 
     @property
     def is_pomdp(self) -> bool:
+        '''Returns True if the RDDL model is a POMDP, i.e., has observation fluents.'''
         return self._pomdp
     
     # ===========================================================================
@@ -1438,8 +1441,10 @@ def lngamma(x):
                             1 + 1 / (910 * x_squared / 3))))))
 
 
-# A container class for compiling a simulator but from external info
 class RDDLSimulatorPrecompiled(RDDLSimulator):
+    '''A simulator that is compiled from external info instead of the RDDL model. 
+    This is used for loading a simulator from a saved trace, where we can save the 
+    compiled info to avoid recompilation when loading.'''
     
     def __init__(self, rddl: RDDLPlanningModel, 
                  init_values: Args, 

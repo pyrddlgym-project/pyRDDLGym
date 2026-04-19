@@ -36,7 +36,11 @@ class RDDLDecompiler:
     
     def decompile_exprs(self, rddl: 'RDDLPlanningModel', level: int=0) -> Dict[str, Union[str, Dict[str, str], List[str]]]:
         '''Converts a RDDL model to a dictionary of decompiled expression strings,
-        as they would appear in the domain description file.'''
+        as they would appear in the domain description file.
+        
+        :param rddl: the RDDL model to convert
+        :param level: indentation level for the expressions
+        '''
         decompiled = {}
         decompiled['cpfs'] = {name: self.decompile_expr(expr, level)
                               for (name, (_, expr)) in rddl.cpfs.items()}

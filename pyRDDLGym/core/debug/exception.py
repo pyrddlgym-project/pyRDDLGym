@@ -10,7 +10,9 @@ except:
 ERROR_MESSAGE_DECOMPILER = RDDLDecompiler()
 
 
-def print_stack_trace(expr):
+def print_stack_trace(expr) -> str:
+    '''Prints a stack trace for the given expression, showing the sequence of operations 
+    that led to it.'''
     if isinstance(expr, Expression):
         trace = ERROR_MESSAGE_DECOMPILER.decompile_expr(expr)
     else:
@@ -18,11 +20,14 @@ def print_stack_trace(expr):
     return f'>> {trace}'
 
 
-def print_stack_trace_root(expr, root):
+def print_stack_trace_root(expr, root) -> str:
+    '''Prints a stack trace for the given expression, showing the sequence of operations
+    that led to it, and also includes the root expression for context.'''
     return print_stack_trace(expr) + '\n' + f'Please check expression for {root}.' 
 
 
-def raise_warning(message, color='yellow'):
+def raise_warning(message: str, color: str='yellow') -> None:
+    '''Raises a warning with the given message, optionally colored.'''
     if termcolor is not None:
         message = termcolor.colored(message, color)
     warnings.warn(message)

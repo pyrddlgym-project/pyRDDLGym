@@ -29,25 +29,22 @@ AGGREG_OP_TO_STRING_DICT = {
 
 
 class BaseRDDLGrounder(metaclass=abc.ABCMeta):
-    '''Base class for all grounder classes.
-    '''
+    '''Base class for all grounder classes.'''
 
     @abc.abstractmethod
     def ground(self) -> RDDLGroundedModel:
-        '''Produces a grounded representation of the current RDDL.
-        '''
+        '''Produces a grounded representation of the current RDDL.'''
         pass
 
 
 class RDDLGrounder(BaseRDDLGrounder):
     '''Standard class for grounding RDDL pvariables. Does not support new 
-    languages features currently.
-    '''
+    languages features currently.'''
 
     def __init__(self, RDDL_AST) -> None:
-        '''Creates a new grounder object for grounding the specified RDDL file.
-        '''
+        '''Creates a new grounder object for grounding the specified RDDL file.'''
         super(RDDLGrounder, self).__init__()
+
         self.AST = RDDL_AST
         
         self.fluent_sep = RDDLGroundedModel.FLUENT_SEP
@@ -86,6 +83,7 @@ class RDDLGrounder(BaseRDDLGrounder):
         self.invariants = []
 
     def ground(self) -> RDDLGroundedModel:
+        '''Grounds the RDDL pvariables and produces a grounded model.'''
         self._extract_objects()
         self._ground_pvariables_and_cpf()
         self._ground_init_state()

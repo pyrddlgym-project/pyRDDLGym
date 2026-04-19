@@ -8,6 +8,8 @@ from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
 class ChartVisualizer(BaseViz):
+    '''Provides functionality to visualize the history of state fluents in a RDDL domain 
+    as a chart.'''
 
     def __init__(self, model: RDDLPlanningModel,
                  steps_history=None,

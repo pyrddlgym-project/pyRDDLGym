@@ -193,6 +193,9 @@ class RDDLEnv(gym.Env):
         return result
     
     def seed(self, seed: Optional[int]=None) -> List[Optional[int]]:
+        '''Sets the seed for the environment's random number generator.
+        
+        :param seed: the seed to use for the random number generator.'''
         self.sampler.seed(seed)
         return [seed]
     
@@ -202,7 +205,16 @@ class RDDLEnv(gym.Env):
         'text': TextVisualizer
     }
     
-    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False, **viz_kwargs):
+    def set_visualizer(self, viz, movie_gen=None, movie_per_episode=False, 
+                       **viz_kwargs) -> None:
+        '''Sets the visualizer for the environment.
+        
+        :param viz: the visualizer to use, either a string specifying the type of
+        visualizer, or an instance of a visualizer class
+        :param movie_gen: the movie generator to use for saving frames
+        :param movie_per_episode: whether to generate a movie for each episode
+        :param viz_kwargs: additional keyword arguments to pass to the visualizer class.
+        '''
         if viz is not None:
             if isinstance(viz, str):
                 viz = self.VISUALIZER_CLASSES.get(viz.lower(), None)
@@ -217,6 +229,12 @@ class RDDLEnv(gym.Env):
         self.to_render = False
     
     def step(self, actions: Any) -> Tuple[Any, float, bool, bool, Any]:
+        '''Takes a step in the environment with the given action.
+        
+        :param actions: the action to take, represented as a dictionary mapping
+        action-fluent name to its value, where the value is either a scalar or a 
+        numpy array depending on the vectorized setting.
+        '''
         sampler = self.sampler
         
         if self.done:
@@ -262,6 +280,11 @@ class RDDLEnv(gym.Env):
 
     def reset(self, seed: Optional[int]=None, 
               options: Optional[Any]=None) -> Tuple[Any, Any]:
+        '''Resets the environment to the initial state.
+        
+        :param seed: the seed to use for the random number generator
+        :param options: additional options for resetting the environment (not used).
+        '''
         if seed is not None:
             self.seed(seed)
         
@@ -302,10 +325,15 @@ class RDDLEnv(gym.Env):
         return obs, {}
 
     def pilImageToSurface(self, pilImage):
+        '''Converts a PIL image to a Pygame surface.'''
         return pygame.image.fromstring(
             pilImage.tobytes(), pilImage.size, pilImage.mode).convert()
 
     def render(self, to_display: bool=True) -> Any:
+        '''Renders the current state of the environment and returns it.
+        
+        :param to_display: whether to display the rendered image in a window.
+        '''
         image = None
         if self._visualizer is not None:
             if self.vectorized:
@@ -340,6 +368,7 @@ class RDDLEnv(gym.Env):
         return image
     
     def close(self) -> None:
+        '''Closes the environment and any associated resources.'''
         if self.simlogger:
             self.simlogger.close()
         
