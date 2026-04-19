@@ -60,8 +60,7 @@ class RDDLTracedObjects:
         return self._cached_sim_info[expr.id]
     
     def lookup(self, identifier: int) -> Expression:
-        '''Returns the expression with given identifier, or None if does not 
-        exist.'''
+        '''Returns the expression with given identifier, or None if does not exist.'''
         return self._expr_from_id.get(identifier, None)
     
 
@@ -105,11 +104,9 @@ class RDDLObjectsTracer:
         
         :param rddl: the RDDL domain to trace
         :param logger: to log compilation information during tracing to file
-        :param cpf_levels: pre-computed CPF levels (will be computed internally
-        if None)
+        :param cpf_levels: pre-computed CPF levels (will be computed internally if None)
         :param stochastic_is_fluent: whether any stochastic sampling is 
-        considered a fluent expression for propagating is_fluent flags to 
-        expressions
+        considered a fluent expression for propagating is_fluent flags to expressions
         '''
         self.rddl = rddl
         self.logger = logger
@@ -227,8 +224,7 @@ class RDDLObjectsTracer:
 
     def trace_policy(self, out: RDDLTracedObjects) -> RDDLTracedObjects:
         '''Traces all expressions in the current RDDL policy file and annotates
-        AST nodes with object information. 
-        '''
+        AST nodes with object information.'''
         rddl = self.rddl
         if rddl.policy is None:
             return out

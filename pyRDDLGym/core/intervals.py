@@ -46,6 +46,7 @@ class IntervalPolicy(metaclass=ABCMeta):
         
 
 class RDDLIntervalAnalysis:
+    '''Provides functionality to compute bounds on fluents and reward for a RDDL domain.'''
     
     def __init__(self, rddl: RDDLPlanningModel, logger: Optional[Logger]=None) -> None:
         '''Creates a new interval analysis object for the given RDDL domain.

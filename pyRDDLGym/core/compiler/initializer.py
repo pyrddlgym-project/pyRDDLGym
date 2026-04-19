@@ -11,8 +11,7 @@ from pyRDDLGym.core.debug.logger import Logger
 
 class RDDLValueInitializer:
     '''Compiles all initial values in pvariables scope and init-fluents scope
-    in a RDDL domain + instance to scalars or numpy arrays.
-    '''
+    in a RDDL domain + instance to scalars or numpy arrays.'''
     
     INT = np.int64
     REAL = np.float64
@@ -97,6 +96,7 @@ class RDDLValueInitializer:
         return np_init_values
     
     def initialize_policy(self) -> Dict[str, Union[np.ndarray, np.integer, np.floating, bool]]:
+        '''Compiles all initial values of policy pvariables for the current RDDL file.'''
         rddl = self.rddl
         policy = rddl.policy
         if policy is None:

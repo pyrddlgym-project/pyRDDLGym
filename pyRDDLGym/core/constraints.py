@@ -6,8 +6,7 @@ from pyRDDLGym.core.simulator import RDDLSimulator
 
 class RDDLConstraints:
     '''Provides added functionality to understand a set of action-preconditions
-    and state invariants in a RDDL file.
-    '''
+    and state invariants in a RDDL file.'''
     
     def __init__(self, simulator: RDDLSimulator,
                  max_bound: float=np.inf,
@@ -80,7 +79,31 @@ class RDDLConstraints:
                                       for (k, v) in self._bounds.items())
             simulator.logger.log(f'[info] computed simulation bounds:\n' 
                                  f'\t{bounds_info}\n')
-        
+    
+    @property
+    def bounds(self):
+        '''Returns the current bounds as a dictionary mapping fluent name to a pair of 
+        lower and upper bounds.'''
+        return self._bounds
+
+    @bounds.setter
+    def bounds(self, value):
+        '''Sets the bounds to a new dictionary mapping fluent name to a pair of lower 
+        and upper bounds.'''
+        self._bounds = value
+    
+    @property
+    def is_box_preconditions(self):
+        '''Returns True if the preconditions are in a box form, i.e., each fluent has 
+        independent bounds.'''
+        return self._is_box_precond
+    
+    @property
+    def is_box_invariants(self):
+        '''Returns True if the invariants are in a box form, i.e., each fluent has 
+        independent bounds.'''
+        return self._is_box_invariant
+
     def _parse_bounds(self, tag, expr, objects, search_vars):
         etype, op = expr.etype
         
@@ -204,20 +227,4 @@ class RDDLConstraints:
                 if op == '>':
                     eps = -self.epsilon
         return eps, loc
-
-    @property
-    def bounds(self):
-        return self._bounds
-
-    @bounds.setter
-    def bounds(self, value):
-        self._bounds = value
-    
-    @property
-    def is_box_preconditions(self):
-        return self._is_box_precond
-    
-    @property
-    def is_box_invariants(self):
-        return self._is_box_invariant
     

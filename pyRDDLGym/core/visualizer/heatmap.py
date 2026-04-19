@@ -9,6 +9,12 @@ from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
 class HeatmapVisualizer(BaseViz):
+    '''Visualizer that renders the history of state fluents as a heatmap, where each row 
+    corresponds to a fluent and each column corresponds to a decision epoch. The color of 
+    each cell corresponds to the value of the fluent at that epoch, with a colorbar 
+    indicating the mapping from values to colors. The visualizer can be configured to 
+    scale the color range based on the full history of values for each fluent, or based 
+    on specified ranges for each fluent.'''
 
     def __init__(self, model: RDDLPlanningModel,
                  steps_history=None,

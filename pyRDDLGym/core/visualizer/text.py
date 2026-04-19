@@ -10,6 +10,7 @@ from pyRDDLGym.core.visualizer.viz import BaseViz
 
 
 class TextVisualizer(BaseViz):
+    '''Provides a simple visualizer that renders the current state as text.'''
 
     def __init__(self, model: RDDLPlanningModel,
                  figure_size=(5, 10),

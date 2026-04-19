@@ -14,11 +14,17 @@ class RDDLSimClient:
     designed to interact with rddlsim (https://github.com/ssanner/rddlsim)."""
 
     def __init__(self, policy: BaseAgent, port: int=2323):
+        '''Initializes the client with the provided policy and port.
+        
+        :param policy: The policy to use for action selection
+        :param port: The port to listen to for messages from the server.
+        '''
         self.policy = policy
         self.address = ("127.0.0.1", port)
     
     def run(self):
-
+        '''Runs the client by connecting to the server and passing messages between the 
+        policy and the server.'''
         print("INFO: Establishing socket...", flush=True)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         with sock:

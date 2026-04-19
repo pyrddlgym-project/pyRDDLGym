@@ -21,8 +21,7 @@ from pyRDDLGym.core.parser.expr import Expression, Value
 
 
 class RDDLPlanningModel(metaclass=ABCMeta):
-    '''The base class representing all RDDL domains + instances.
-    '''
+    '''The base class representing all RDDL domains + instances.'''
     
     # grounded variable is var___obj1__obj2...
     FLUENT_SEP = '___'
@@ -36,7 +35,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     }
     
     def __init__(self) -> None:
-        
+        '''Initializes a new RDDL planning model.'''
+
         # base
         self._AST = None
         
@@ -388,15 +388,13 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     
     @staticmethod
     def is_free_object(name: str) -> bool:
-        '''Determines whether the name is a free object (e.g., ?x).
-        '''
+        '''Determines whether the name is a free object (e.g., ?x).'''
         return name[0] == '?'
     
     @staticmethod
     def strip_literal(name: str) -> str:
         '''Returns the canonical name of an enum literal 
-        (e.g., given @x returns x). All other strings are returned unmodified.
-        '''
+        (e.g., given @x returns x). All other strings are returned unmodified.'''
         if name[0] == '@':
             name = name[1:]
         return name
@@ -404,14 +402,16 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     @staticmethod
     def strip_literals(names: Iterable[str]) -> List[str]:
         '''Returns the canonical names of given enum literals 
-        (e.g., given @x returns x). All other strings are returned unmodified.
-        '''
+        (e.g., given @x returns x). All other strings are returned unmodified.'''
         return list(map(RDDLPlanningModel.strip_literal, names))
         
     @staticmethod
     def ground_var(name: str, objects: Iterable[str]) -> str:
         '''Given a variable name and list of objects as arguments, produces the
         grounded representation <variable>___<obj1>__<obj2>__...
+        
+        :param name: the variable name
+        :param objects: the objects to ground the variable with
         '''
         PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         is_primed = name.endswith(PRIME)
@@ -428,8 +428,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     @staticmethod
     def parse_grounded(expr: str) -> Tuple[str, List[str]]:
         '''Parses a variable of the form <name>___<type1>__<type2>...
-        into a tuple (<name>, [<type1>, <type2>, ...]).
-        '''
+        into a tuple (<name>, [<type1>, <type2>, ...]).'''
         PRIME = RDDLPlanningModel.NEXT_STATE_SYM
         is_primed = expr.endswith(PRIME)
         if is_primed:
@@ -450,8 +449,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     # ===========================================================================
     
     def is_type(self, value: str) -> bool:
-        '''Returns whether the given value is a valid type.
-        '''
+        '''Returns whether the given value is a valid type.'''
         return value in self.type_to_objects or value in self.enum_types
         
     def is_object(self, name: str, msg='') -> bool:
@@ -460,6 +458,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         Raises an exception if an object is identified as an enum literal (@x)
         but is not defined, or if it is an object that shares
         the same name as a pvariable with no parameters.
+
+        :param name: the name to check
+        :param msg: an error message to print in case the check fails
         '''        
         # must be an object
         if name[0] == '@':
@@ -486,8 +487,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         return False
     
     def is_literal(self, name: str) -> bool:
-        '''Returns whether the given name is a valid enumerated (domain) object.
-        '''
+        '''Returns whether the given name is a valid enumerated (domain) object.'''
         if RDDLPlanningModel.is_free_object(name):
             return False
         name = RDDLPlanningModel.strip_literal(name)
@@ -501,6 +501,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         orders they are defined in the instance.
         
         Raises an exception if an object is not defined in the domain.
+
+        :param objects: a list of object names
+        :param msg: an error message to print in case the calculation fails.
         '''
         object_to_index = self.object_to_index
         try:
@@ -532,8 +535,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def ground_types(self, ptypes: Iterable[str]) -> Iterable[Tuple[str, ...]]:
         '''Given a list of valid types in the domain, produces an iterator
         of all possible assignments of objects to the types (groundings).
-        
         Raises an exception if a type is invalid.
+
+        :param ptypes: a list of RDDL types
         '''
         if ptypes is None or not ptypes:
             return [()]
@@ -550,6 +554,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def ground_var_with_value(self, var: str, value: Value) -> Iterable[Tuple[str, Value]]:
         '''Converts a dictionary of var -> value associations to a dictionary
         of ground(var) -> value, where ground(var) is a grounding of var.
+
+        :param var: a variable name
+        :param value: a value to assign to all groundings of var
         '''
         # get the variable groundings
         groundings = self.variable_groundings.get(var, None)
@@ -564,6 +571,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         '''Converts a dictionary of vars -> value associations to a dictionary 
         of ground(var) -> value, var is in vars, and ground(var) is a grounding 
         of var.
+
+        :param dict_values: a dictionary of var -> value associations
         '''
         grounded = {}
         for (var, value) in dict_values.items():
@@ -572,7 +581,10 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     
     def ground_var_with_values(self, var: str, values: Iterable[Value]) -> Iterable[Tuple[str, Value]]:
         '''Returns an iterator of (ground(var), value) pairs, where ground(var) is
-        a grounding of var and value is the corresponding value in values.        
+        a grounding of var and value is the corresponding value in values.     
+
+        :param var: a variable name
+        :param values: a list of values to assign to the groundings of var   
         '''
         # get the variable groundings
         groundings = self.variable_groundings.get(var, None)
@@ -594,6 +606,8 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         '''Converts a dictionary of vars -> values associations to a dictionary 
         of ground(var) -> value, var is in vars, ground(var) is a grounding of 
         var and value is the value in values.
+
+        :param dict_values: a dictionary of var -> values associations
         '''
         grounded = {}
         for (var, values) in dict_values.items():
@@ -603,6 +617,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def index_to_object_string_array(self, vtype: str, values: np.ndarray) -> np.ndarray:
         '''Given an object type and integer values array, returns an array where each
         element of the values array is replaced by the object string with that index.
+
+        :param vtype: the type of the objects
+        :param values: an array of integer indices corresponding to objects of type vtype
         '''
 
         # get the objects of the type
@@ -624,6 +641,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def object_string_to_index_array(self, vtype: str, values: np.ndarray) -> np.ndarray:
         '''Given an object type and string object array, returns an array where each
         element of the values array is replaced by the index of the object.
+
+        :param vtype: the type of the objects
+        :param values: an array of string object names corresponding to objects of type vtype
         '''
 
         # get the objects of the type
@@ -652,6 +672,9 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     def is_compatible(self, var: str, objects: List[str]) -> bool:
         '''Determines whether or not the given variable can be assigned the
         list of objects in the given order to its type parameters.
+
+        :param var: the variable name
+        :param objects: a list of object names to check compatibility with
         '''
         ptypes = self.variable_params.get(var, None)
         if ptypes is None:
@@ -733,8 +756,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     
     def expr_to_str(self) -> Dict[str, Any]:
         '''Returns a dictionary containing string representations of all 
-        expressions in the current RDDL.
-        '''
+        expressions in the current RDDL.'''
         printed = {
             'cpfs': {name: str(expr) for (name, (_, expr)) in self.cpfs.items()},
             'reward': str(self.reward),
@@ -749,8 +771,7 @@ class RDDLPlanningModel(metaclass=ABCMeta):
 
     
 class RDDLGroundedModel(RDDLPlanningModel):
-    '''A class representing a RDDL domain + instance in grounded form.
-    '''
+    '''A class representing a RDDL domain + instance in grounded form.'''
 
     def __init__(self):
         super().__init__()
@@ -768,8 +789,7 @@ class RDDLGroundedModel(RDDLPlanningModel):
 
 
 class RDDLLiftedModel(RDDLPlanningModel):
-    '''A class representing a RDDL domain + instance in lifted form.
-    '''
+    '''A class representing a RDDL domain + instance in lifted form.'''
     
     def __init__(self, rddl) -> None:
         super(RDDLLiftedModel, self).__init__()

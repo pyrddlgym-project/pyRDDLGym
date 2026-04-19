@@ -26,6 +26,7 @@ enum_value = r'\@(' + alpha + r'|' + digit + r'|\-|\_)*(' + alpha + r'|' + digit
 
 
 class RDDLlex(object):
+    '''Implements a lexer for RDDL domain and instance files.'''
 
     def __init__(self):
         self.reserved = {
@@ -243,6 +244,7 @@ class RDDLlex(object):
 
 
 class RDDLParser(object):
+    '''Implements a parser for RDDL domain and instance files.'''
 
     def __init__(self, lexer=None, verbose=False):
         if lexer is None:

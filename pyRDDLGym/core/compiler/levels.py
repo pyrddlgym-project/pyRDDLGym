@@ -18,8 +18,7 @@ class RDDLLevelAnalysis:
     '''Performs graphical analysis of a RDDL domain, including dependency
     structure of CPFs, performs topological sort to figure out order of evaluation,
     and checks for cyclic dependencies and ensures dependencies are valid 
-    according to the RDDL language specification.     
-    '''
+    according to the RDDL language specification.'''
         
     # this specifies the valid dependencies that can occur between variable types
     # in the RDDL language
@@ -200,8 +199,7 @@ class RDDLLevelAnalysis:
     # ===========================================================================
     
     def build_call_graph_policy(self, include_non_fluents: bool=True) -> Dict[str, List[str]]:
-        '''Builds a call graph for the policy.
-        '''
+        '''Builds a call graph for the policy.'''
         if self.rddl.policy is None:
             return {}
 
@@ -312,8 +310,7 @@ class RDDLLevelAnalysis:
     def compute_levels(self) -> Dict[int, List[str]]:
         '''Constructs a call graph for the current RDDL, and then runs a 
         topological sort to determine the optimal order in which the CPFs in the 
-        RDDL should be be evaluated.
-        '''
+        RDDL should be be evaluated.'''
         rddl = self.rddl
         graph = self.build_call_graph()
         order = _topological_sort(graph)
