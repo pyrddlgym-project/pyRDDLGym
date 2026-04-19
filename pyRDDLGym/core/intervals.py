@@ -294,17 +294,31 @@ class RDDLIntervalAnalysis:
     
     @staticmethod
     def _op_without_overflow(x, y, op):
+        x_dtype = np.result_type(x)
+        y_dtype = np.result_type(y)
+        result_dtype = np.result_type(x, y)
+
         if op == '+':
             value = 1. * x + 1. * y
         elif op == '-':
             value = 1. * x - 1. * y
         elif op == '*':
             value = (1. * x) * y
+            zero_times_inf = ((x == 0) & np.isinf(y)) | ((y == 0) & np.isinf(x))
+            value = RDDLIntervalAnalysis._mask_assign(value, zero_times_inf, 0.0)
         else:
             raise RDDLNotImplementedError(f'Safe operation {op} is not supported.')
-        if np.issubdtype(np.result_type(x), np.integer) \
-        and np.issubdtype(np.result_type(y), np.integer) \
-        and np.any(np.abs(value) >= 2 ** 64 - 1):
+
+        # check for overflow for integer types
+        if (np.issubdtype(result_dtype, np.integer) and not 
+            np.issubdtype(result_dtype, np.bool_)):
+            dtype_info = np.iinfo(result_dtype)
+            would_overflow = np.any((value < dtype_info.min) | (value > dtype_info.max))
+        else:
+            would_overflow = False
+
+        if (np.issubdtype(x_dtype, np.integer) and np.issubdtype(y_dtype, np.integer) and 
+            would_overflow):
             raise_warning(f'Arguments of operation {op} are integer, '
                           f'but the operation would result in overflow: '
                           f'casting arguments to float.')
@@ -314,7 +328,11 @@ class RDDLIntervalAnalysis:
         elif op == '-':
             return x - y
         elif op == '*':
-            return x * y
+            if (np.issubdtype(np.result_type(x), np.integer) and 
+                np.issubdtype(np.result_type(y), np.integer)):
+                return x * y
+            else:
+                return value
         
     @staticmethod
     def bound_arithmetic_expr(int1: Interval, int2: Interval, op: str) -> Interval:
@@ -632,7 +650,8 @@ class RDDLIntervalAnalysis:
     @staticmethod
     def _bound_func_u_shaped(interval, x_crit, func):
         l, u = interval
-        fl, fu = func(l), func(u)
+        with np.errstate(divide='ignore', over='ignore', under='ignore', invalid='ignore'):
+            fl, fu = func(l), func(u)
         f_crit = func(x_crit)
         lower = np.full(shape=np.shape(l), fill_value=f_crit)
         upper = np.maximum(fl, fu)
