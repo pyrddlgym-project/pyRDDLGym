@@ -789,6 +789,30 @@ with additional arguments specifying the hyper-parameters of the utility functio
        Related example: Risk-aware planning with RAPTOR in JaxPlan.
    </a>
 
+Handling RDDL-Defined Policies
+-------------------
+
+In many control applications, it is desirable to optimize the parameters of a policy
+with a fixed symbolic structure, e.g., for compactness, to prevent overfitting or for interpretability.
+
+To switch to a RDDL-defined policy solver, set the following in the config file:
+
+.. code-block:: shell
+
+    [Planner]
+    method='JaxRDDLPolicy'
+
+Assuming the policy block exists and contains at least one valid param-fluent, 
+JaxPlan automatically optimizes the param-fluents of a RDDL-defined policy, 
+and applies the usual operator relaxations to the CPFs of the policy block exactly
+as to the CPFs of the domain block. 
+
+.. raw:: html 
+
+   <a href="notebooks/building_structured_rddl_policy_with_jaxplan.html"> 
+       <img src="_static/notebook_icon.png" alt="Jupyter Notebook" style="width:64px;height:64px;margin-right:5px;margin-top:5px;margin-bottom:5px;">
+       Related example: Building structured RDDL policies with JaxPlan.
+   </a>
 
 Dealing with Non-Differentiability
 -------------------
