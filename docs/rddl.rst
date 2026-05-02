@@ -975,4 +975,33 @@ Below we discuss the most common use cases:
     output(?p, ?q) = $MyFunctionName[?q](pvar1(_, ?p), pvar2(?p));
     output(?q, ?r, ?s) = $MyFunctionName[?q, ?r, ?s](pvar1(_), pvar2(_));
 
+
+.. _policy-blocks:
   
+Policy Blocks
+^^^^^^^^^^^^^^^^^^^
+
+As of pyRDDLGym 2.7, RDDL now supports the specification of policies directly in the RDDL document.
+This is done using the ``policy`` block, which has the following syntax:
+
+.. code-block:: shell
+
+    policy <policy_name> {
+      pvariables { <code> };
+      cpfs { <code> };
+    }
+
+The ``pvariables`` and ``cpfs`` sections of the policy block have the same syntax as the 
+corresponding sections in the domain block, but they are used to specify the policy rather 
+than the domain dynamics.
+
+``pvariables`` in the policy block cannot have the same names as pvariables in the domain block.
+Domain cpfs also cannot depend on any policy-defined pvariables, to maintain a strict separation between domain and the policy.
+Policy pvariables are restricted to the following types:
+* param-fluents: trainable parameters of the policy
+* action-fluents: pvariables are defined in the domain pvariables block, but each action-fluent must
+have a cpf expression in the policy cpf block with the action name on the left hand side
+* state-fluents: maintain internal policy state across time and are distinct from domain state-fluents
+* derived-fluents
+* non-fluents
+
