@@ -998,10 +998,13 @@ than the domain dynamics.
 ``pvariables`` in the policy block cannot have the same names as pvariables in the domain block.
 Domain cpfs also cannot depend on any policy-defined pvariables, to maintain a strict separation between domain and the policy.
 Policy pvariables are restricted to the following types:
-* param-fluents: trainable parameters of the policy
-* action-fluents: pvariables are defined in the domain pvariables block, but each action-fluent must
-have a cpf expression in the policy cpf block with the action name on the left hand side
-* state-fluents: maintain internal policy state across time and are distinct from domain state-fluents
-* derived-fluents
-* non-fluents
 
+* param-fluents: trainable parameters of the policy
+
+* action-fluents: pvariables are defined in the domain pvariables block, but each action-fluent must have a cpf expression in the policy cpf block with the action name on the left hand side
+
+* state-fluents: maintain internal policy state across time and are distinct from domain state-fluents
+
+* derived-fluents: pvariables that are derived from other pvariables
+
+* non-fluents: pvariables that are not updated across time and are distinct from domain non-fluents
