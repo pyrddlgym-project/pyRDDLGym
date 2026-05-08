@@ -17,6 +17,7 @@ pyRDDLGym
    notebooks/extracting_info_from_compiled_model_with_pyrddlgym
    notebooks/analyzing_fluent_dependencies
    notebooks/calling_external_functions
+   notebooks/interval_analysis_in_pyrddlgym
    
 
 
