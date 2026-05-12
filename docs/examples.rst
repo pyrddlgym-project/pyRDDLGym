@@ -46,6 +46,7 @@ JaxPlan
    notebooks/risk_aware_planning_with_jaxplan
    notebooks/bayesian_mdp_planning_with_jaxplan
    notebooks/pomdp_planning_from_images_with_jaxplan
+   notebooks/calling_external_pytorch_modules
   
 
 pyRDDLGym-rl
