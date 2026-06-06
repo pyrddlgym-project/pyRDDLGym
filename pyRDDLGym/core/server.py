@@ -17,7 +17,7 @@ class RDDLSimServer:
     designed to interact with rddlsim (https://github.com/ssanner/rddlsim)."""
 
     def __init__(self, domain: str, instance: str, numrounds: int, time: int, 
-                 port: int=2323, seed: Optional[int]=None):
+                 port: int=2323, seed: Optional[int]=None, **env_kwargs):
         # concatenate domain and instance files
         f = open(domain)
         self.task = f.read()
@@ -33,10 +33,11 @@ class RDDLSimServer:
 
         # create RDDLEnv
         print("INFO: Creating RDDL environment...", flush=True)
-        self.env = RDDLEnv(domain=domain, instance=instance)
+        self.env = RDDLEnv(domain=domain, instance=instance, **env_kwargs)
         if seed is not None:
             self.env.seed(seed)
         print("INFO: Created RDDL environment.\n", flush=True)
+        
         # initialize RDDLSimAgent
         self.roundsleft = numrounds
         self.currentround = 0

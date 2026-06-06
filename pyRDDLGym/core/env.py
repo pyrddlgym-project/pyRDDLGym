@@ -15,6 +15,7 @@ from pyRDDLGym.core.debug.exception import (
 )
 from pyRDDLGym.core.debug.logger import Logger, SimLogger
 from pyRDDLGym.core.parser.parser import RDDLParser
+from pyRDDLGym.core.parser.preprocessor import RDDLPreprocessor
 from pyRDDLGym.core.parser.reader import RDDLReader
 from pyRDDLGym.core.simulator import RDDLSimulator
 from pyRDDLGym.core.visualizer.chart import ChartVisualizer
@@ -45,7 +46,8 @@ class RDDLEnv(gym.Env):
                  debug_path: Optional[str]=None,
                  log_path: Optional[str]=None,
                  backend: Type[RDDLSimulator]=RDDLSimulator,
-                 backend_kwargs: typing.Dict={}) -> None:
+                 backend_kwargs: typing.Dict={},
+                 preprocessor: Optional[RDDLPreprocessor]=None) -> None:
         '''Creates a new gym environment from the given RDDL domain + instance.
         
         :param domain: the RDDL domain
@@ -64,6 +66,7 @@ class RDDLEnv(gym.Env):
         simulation (currently supports numpy and Jax)
         :param backend_kwargs: dictionary of additional named arguments to
         pass to backend (must not include logger)
+        :param preprocessor: an optional RDDLPreprocessor to apply to the raw RDDL text
         '''
         super(RDDLEnv, self).__init__()
         
@@ -77,7 +80,7 @@ class RDDLEnv(gym.Env):
         if isinstance(domain, RDDLLiftedModel):
             self.model = domain
         else:
-            reader = RDDLReader(domain, instance)
+            reader = RDDLReader(domain, instance, preprocessor=preprocessor)
             domain = reader.rddltxt
             parser = RDDLParser(lexer=None, verbose=False)
             parser.build()
