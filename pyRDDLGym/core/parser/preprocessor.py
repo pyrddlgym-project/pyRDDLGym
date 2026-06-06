@@ -14,7 +14,7 @@ class RDDLPreprocessor(metaclass=ABCMeta):
 
 
 class RDDLPreprocessorChain(RDDLPreprocessor):
-    ''''A chain of RDDL preprocessors that applies them sequentially.'''
+    '''A chain of RDDL preprocessors that applies them sequentially.'''
 
     def __init__(self, preprocessors: List[RDDLPreprocessor]):
         self.preprocessors = preprocessors
