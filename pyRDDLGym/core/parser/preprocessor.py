@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from itertools import product
 import re
+from typing import List
 
 
 class RDDLPreprocessor(metaclass=ABCMeta):
@@ -15,7 +16,7 @@ class RDDLPreprocessor(metaclass=ABCMeta):
 class RDDLPreprocessorChain(RDDLPreprocessor):
     ''''A chain of RDDL preprocessors that applies them sequentially.'''
 
-    def __init__(self, preprocessors: list[RDDLPreprocessor]):
+    def __init__(self, preprocessors: List[RDDLPreprocessor]):
         self.preprocessors = preprocessors
 
     def preprocess(self, rddl_str: str) -> str:
@@ -34,7 +35,7 @@ class RDDLPreprocessorIdentity(RDDLPreprocessor):
 class RDDLEnumPreprocessor(RDDLPreprocessor):
     '''A preprocessor that replaces enum definitions with their corresponding values.'''
 
-    OUTER = re.compile(r'\{\{\s*@([\w-]*)((?:\[\s*\d+\s*,\s*\d+\s*\])+)\s*\}\}')
+    OUTER = re.compile(r'\{\{\s*@([\w-]*)\s*((?:\[\s*\d+\s*,\s*\d+\s*\])+)\s*\}\}')
     RANGE  = re.compile(r'\[\s*(\d+)\s*,\s*(\d+)\s*\]')
 
     @staticmethod
