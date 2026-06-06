@@ -1,6 +1,8 @@
 import re
+from typing import Optional
 
 from pyRDDLGym.core.debug.exception import RDDLParseError
+from pyRDDLGym.core.parser.preprocessor import RDDLPreprocessor
 
 REPLACEMENT_CHAR_BYTES = b"\xef\xbf\xbd"
 
@@ -13,12 +15,15 @@ class RDDLReader(object):
     nonfluent_block = r"(?s)non-fluents[^=]*?\{.*?\}[^;]"
     instance_block = r"(?s)instance.*?\{.*\}[^;]"
 
-    def __init__(self, dom, inst=None):
+    def __init__(self, dom, inst=None, preprocessor: Optional[RDDLPreprocessor]=None):
+       
+        # read domain and instance files, remove comments, and concatenate
         with open(dom, encoding="utf-8", errors="replace") as file:
             dom_txt = file.read()
         dom_txt = self._remove_comments(dom_txt)
         dom_txt = dom_txt + "\n"
 
+        # instance file is optional, but if provided, read and concatenate with domain
         if inst is not None:
             with open(inst, encoding="utf-8", errors="replace") as file:
                 inst_txt = file.read()
@@ -69,6 +74,10 @@ class RDDLReader(object):
             raise RDDLParseError(
                 "instance {...} block is missing or contains a syntax error."
             )
+
+        # apply preprocessor if provided
+        if preprocessor is not None:
+            dom_txt = preprocessor.preprocess(dom_txt)
 
         self.dom_txt = dom_txt
 
