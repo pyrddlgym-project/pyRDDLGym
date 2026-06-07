@@ -290,6 +290,33 @@ must respect both the input and output signatures as they are described in the R
     However, functions that use non-JAX operations (including for example pyTorch or TensorFlow operations) can still be used in pyRDDLGym!
    
 
+Preprocessors
+-------------------
+
+In many applications, RDDL constructs can be tedious or difficult to write explicitly.
+For example, consider the arduous task of enumerating a large number of objects of a given type, e.g.,
+``my-type : { @o1, @o2, ... @o10000 }; ``. 
+
+pyRDDLGym provides a convenient API for writing preprocessors that can be used to automatically 
+modify RDDL description files before they are parsed and compiled. The ``RDDLEnumPreprocessor`` 
+is a built-in preprocessor that allows you to replace the above type enumeration with the compact
+``my-type : {{ @o[1,1000 }};``, which is automatically expanded to the full enumeration before parsing.
+
+To apply this preprocessor, simply replace ``my-type`` in your RDDL description with the above expression,
+and pass it to your ``RDDLEnv`` instance or ``pyRDDLGym.make()`` call as follows:
+
+.. code-block:: python
+    from pyRDDLGym.core.parser.preprocessor import RDDLEnumPreprocessor
+    env = pyRDDLGym.make(..., preprocessor=RDDLEnumPreprocessor())
+
+The syntax allows multi-index enumerations as well, e.g., ``my-type : {{ @o[1,1000][2,500] }};``.
+
+Preprocessors can be chained together by using the ``RDDLPreprocessorChain``. 
+You can define your own preprocessor by inheriting from the ``RDDLPreprocessor`` 
+class and implementing the ``preprocess()`` function, which takes in a RDDL string and 
+outputs a modified RDDL string.
+
+
 The pyRDDLGym Compiler (for Advanced Users)
 -------------------
 
