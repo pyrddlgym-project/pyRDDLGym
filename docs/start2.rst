@@ -293,12 +293,13 @@ must respect both the input and output signatures as they are described in the R
 Preprocessors
 -------------------
 
-In many applications, RDDL constructs can be tedious or difficult to write explicitly.
+In many applications, custom RDDL syntax rules may be required. 
 For example, consider the arduous task of enumerating a large number of objects of a given type, e.g.,
-``my-type : { @o1, @o2, ... @o10000 };``. 
+``my-type : { @o1, @o2, ... @o10000 };``, which is impractical to write with standard RDDL syntax.
 
 pyRDDLGym provides a convenient API for writing preprocessors that can be used to automatically 
-modify RDDL description files before they are parsed and compiled. The ``RDDLEnumPreprocessor`` 
+modify RDDL description files with new syntax rewriting rules, before they are parsed and compiled. 
+The ``RDDLEnumPreprocessor`` 
 is a built-in preprocessor that allows you to replace the above type enumeration with the compact
 ``my-type : {{ @o[1,1000] }};``, which is automatically expanded to the full enumeration before parsing.
 
