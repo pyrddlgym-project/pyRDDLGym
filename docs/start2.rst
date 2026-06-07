@@ -295,17 +295,18 @@ Preprocessors
 
 In many applications, RDDL constructs can be tedious or difficult to write explicitly.
 For example, consider the arduous task of enumerating a large number of objects of a given type, e.g.,
-``my-type : { @o1, @o2, ... @o10000 }; ``. 
+``my-type : { @o1, @o2, ... @o10000 };``. 
 
 pyRDDLGym provides a convenient API for writing preprocessors that can be used to automatically 
 modify RDDL description files before they are parsed and compiled. The ``RDDLEnumPreprocessor`` 
 is a built-in preprocessor that allows you to replace the above type enumeration with the compact
-``my-type : {{ @o[1,1000 }};``, which is automatically expanded to the full enumeration before parsing.
+``my-type : {{ @o[1,1000] }};``, which is automatically expanded to the full enumeration before parsing.
 
 To apply this preprocessor, simply replace ``my-type`` in your RDDL description with the above expression,
 and pass it to your ``RDDLEnv`` instance or ``pyRDDLGym.make()`` call as follows:
 
 .. code-block:: python
+
     from pyRDDLGym.core.parser.preprocessor import RDDLEnumPreprocessor
     env = pyRDDLGym.make(..., preprocessor=RDDLEnumPreprocessor())
 
