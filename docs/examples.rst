@@ -47,6 +47,7 @@ JaxPlan
    notebooks/bayesian_mdp_planning_with_jaxplan
    notebooks/pomdp_planning_from_images_with_jaxplan
    notebooks/calling_external_pytorch_modules
+   notebooks/planning_through_diffrax_ode_cpfs_with_jaxplan
   
 
 pyRDDLGym-rl
