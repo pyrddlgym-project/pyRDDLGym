@@ -27,7 +27,7 @@ class RDDLSimulator:
     
     def __init__(self, rddl: RDDLPlanningModel,
                  allow_synchronous_state: bool=True,
-                 rng: np.random.Generator=np.random.default_rng(),
+                 rng: Optional[np.random.Generator]=None,
                  logger: Optional[Logger]=None,
                  keep_tensors: bool=False,
                  objects_as_strings: bool=True,
@@ -46,7 +46,7 @@ class RDDLSimulator:
         '''
         self.rddl = rddl
         self.allow_synchronous_state = allow_synchronous_state
-        self.rng = rng
+        self.rng = np.random.default_rng() if rng is None else rng
         self.logger = logger
         self.keep_tensors = keep_tensors
         self.objects_as_strings = objects_as_strings
@@ -453,7 +453,7 @@ class RDDLSimulator:
         for (cpf, expr, dtype) in self.cpfs:
             sample = self._sample(expr, subs)
             RDDLSimulator._check_type(sample, dtype, cpf, expr)
-            subs[cpf] = sample
+            subs[cpf] = np.asarray(sample, dtype=dtype)[()]
         
         # evaluate reward
         reward = self.sample_reward()
@@ -930,7 +930,7 @@ class RDDLSimulator:
         
         # can short circuit if all elements of predicate tensor equal
         cases, default = self.traced.cached_sim_info(expr)  
-        first_elem = bool(sample_pred.flat[0] 
+        first_elem = int(sample_pred.flat[0] 
                           if self.traced.cached_objects_in_scope(expr) 
                           else sample_pred)
         all_equal = np.all(sample_pred == first_elem)
@@ -1050,7 +1050,7 @@ class RDDLSimulator:
         sample_pr = self._sample(pr, subs)
         RDDLSimulator._check_range(sample_pr, 0, 1, 'Bernoulli p', expr)
         size = sample_pr.shape if self.traced.cached_objects_in_scope(expr) else None
-        return self.rng.uniform(size=size) <= sample_pr
+        return self.rng.uniform(size=size) < sample_pr
     
     def _sample_normal(self, expr, subs):
         args = expr.args
@@ -1155,7 +1155,7 @@ class RDDLSimulator:
         sample_scale = self._sample(scale, subs)
         RDDLSimulator._check_positive(sample_shape, True, 'Pareto shape', expr)        
         RDDLSimulator._check_positive(sample_scale, True, 'Pareto scale', expr)        
-        return sample_scale * self.rng.pareto(a=sample_shape)
+        return sample_scale * (1.0 + self.rng.pareto(a=sample_shape))
     
     def _sample_student(self, expr, subs):
         args = expr.args
@@ -1250,6 +1250,7 @@ class RDDLSimulator:
             raise RDDLValueOutOfRangeError(
                 f'Discrete probabilities must sum to 1, got {cdf[..., -1]}.\n' + 
                 print_stack_trace(expr))     
+        cdf[..., -1] = 1.0
         
         # use inverse CDF sampling                  
         U = self.rng.random(size=cdf.shape[:-1] + (1,))
@@ -1317,12 +1318,13 @@ class RDDLSimulator:
         sample_df = self._sample(df, subs)
         RDDLSimulator._check_positive(sample_df, True, 'MultivariateStudent df', expr)
         
-        # reparameterization trick MN(m, LL') = LZ + m, where Z ~ StudentT(0, 1)
-        sample_df = sample_df[..., np.newaxis, np.newaxis]
-        sample_df = np.broadcast_to(sample_df, shape=sample_mean.shape + (1,))
+        # reparameterization trick MT(m, LL', df) = LZ / sqrt(W / df) + m, 
+        # where Z ~ Normal(0, I) and W ~ ChiSquare(df) is shared across the vector
         L = np.linalg.cholesky(sample_cov)
-        Z = self.rng.standard_t(df=sample_df)
-        sample = np.matmul(L, Z)[..., 0] + sample_mean
+        Z = self.rng.standard_normal(size=sample_mean.shape + (1,))
+        W = self.rng.chisquare(df=sample_df)
+        scale = np.expand_dims(np.sqrt(W / sample_df), axis=-1)
+        sample = np.matmul(L, Z)[..., 0] / scale + sample_mean
         
         # since the sampling is done in the last dimension we need to move it
         # to match the order of the CPF variables
@@ -1450,7 +1452,7 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
                  init_values: Args, 
                  levels: Dict[int, Set[str]], 
                  trace_info: object,
-                 rng: np.random.Generator=np.random.default_rng(),
+                 rng: Optional[np.random.Generator]=None,
                  keep_tensors: bool=False, 
                  objects_as_strings: bool=True,
                  python_functions: Optional[Dict[str, Callable]]=None) -> None:
