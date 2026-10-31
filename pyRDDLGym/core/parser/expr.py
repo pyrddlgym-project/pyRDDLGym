@@ -2,6 +2,7 @@
 # https://github.com/thiagopbueno/pyrddl
 # it was adapted and extended for pyRDDLGym
 
+from functools import cached_property
 from typing import Tuple, Sequence, Set, Union
 
 Value = Union[bool, int, float]
@@ -24,7 +25,7 @@ class Expression(object):
     def __getitem__(self, i):
         return self._expr[i]
 
-    @property
+    @cached_property
     def etype(self) -> Tuple[str, str]:
         '''Returns the expression's type.'''
         if self._expr[0] in ['number', 'boolean']:
@@ -78,7 +79,7 @@ class Expression(object):
         else:
             return ('UNKOWN', 'UNKOWN')
 
-    @property
+    @cached_property
     def args(self) -> Union[Value, Sequence[ExprArg]]:
         '''Returns the expression's arguments.'''
         if self._expr[0] in ['number', 'boolean']:
