@@ -106,6 +106,8 @@ class BaseAgent(metaclass=ABCMeta):
                 state = next_state
                 if done:
                     break
+            if render:
+                env.render()
             
             if verbose:
                 print(f'\n'

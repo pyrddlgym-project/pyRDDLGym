@@ -287,6 +287,7 @@ class RDDLEnv(gym.Env):
         :param seed: the seed to use for the random number generator
         :param options: additional options for resetting the environment (not used).
         '''
+        super().reset(seed=seed)
         if seed is not None:
             self.seed(seed)
         
@@ -374,13 +375,13 @@ class RDDLEnv(gym.Env):
         if self.simlogger:
             self.simlogger.close()
         
-        # close rendering and save animation  
+        # close rendering
         if self.to_render:
             pygame.display.quit()
             pygame.quit()    
-            
-            # prepare the animation from captured frames
-            if self._movie_generator is not None:
-                self._movie_generator.save_animation(
-                    self._movie_generator.env_name + '_' + str(self._movies))
-                self._movies += 1
+        
+        # prepare the animation from captured frames
+        if self._movie_generator is not None:
+            self._movie_generator.save_animation(
+                self._movie_generator.env_name + '_' + str(self._movies))
+            self._movies += 1

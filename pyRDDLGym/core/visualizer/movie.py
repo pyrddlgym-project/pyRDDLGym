@@ -33,6 +33,7 @@ class ImageWriter:
         :param save_format: the format in which to save individual frames
         '''
         self.save_dir = save_dir
+        os.makedirs(save_dir, exist_ok=True)
         self.save_path = os.path.join(save_dir, env_name + '_{}_temp' + '.' + save_format)
         self.env_name = env_name
         self.max_frames = max_frames

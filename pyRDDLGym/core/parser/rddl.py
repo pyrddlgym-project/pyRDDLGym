@@ -31,7 +31,7 @@ class RDDL(object):
 
     def __init__(self, blocks: Dict[str, Block]) -> None:
         self.domain = blocks['domain']
-        self.non_fluents = blocks['non_fluents']
+        self.non_fluents = blocks.get('non_fluents', NonFluents('', {}))
         self.instance = blocks['instance']
         self.policy = blocks.get('policy', None)
 
