@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+import functools
 import numpy as np
 import traceback
 from typing import Dict, Optional, Tuple, Union
@@ -82,28 +83,35 @@ class RDDLIntervalAnalysis:
         
         # get initial values as bounds
         intervals = self._bound_initial_values(state_bounds)
-        if per_epoch:
-            result = {}
-        
+        init_states = {var: intervals[var] for var in self.rddl.state_fluents}
+        result = {}
+
         # propagate bounds across time
         for epoch in range(self.rddl.horizon):
             state_intervals = {var: intervals[var] for var in self.rddl.state_fluents}
             action_bounds = interval_policy.action_bounds(state_intervals, epoch)
-            self._bound_next_epoch(
-                intervals, action_bounds=action_bounds, per_epoch=per_epoch)
-            if per_epoch:
-                for (name, (lower, upper)) in intervals.items():
-                    lower_all, upper_all = result.setdefault(name, ([], []))
-                    lower_all.append(lower)
-                    upper_all.append(upper)
-        
+            self._bound_next_epoch(intervals, action_bounds=action_bounds)
+            for (name, (lower, upper)) in intervals.items():
+                lower_all, upper_all = result.setdefault(name, ([], []))
+                lower_all.append(lower)
+                upper_all.append(upper)
+
         # concatenate bounds across time dimension
         if per_epoch:
             result = {name: (np.asarray(lower), np.asarray(upper))
                       for (name, (lower, upper)) in result.items()}
             return result
-        else:
-            return intervals
+
+        # bounds valid across all epochs: union over epochs and the initial state
+        for (name, (lower, upper)) in init_states.items():
+            result[name][0].append(lower)
+            result[name][1].append(upper)
+        def _union(name, values, op):
+            if name in self.rddl.variable_ranges:
+                values = [self._cast_enum_values_to_int(name, v) for v in values]
+            return functools.reduce(op, values)
+        return {name: (_union(name, lower, np.minimum), _union(name, upper, np.maximum))
+                for (name, (lower, upper)) in result.items()}
     
     def _bound_initial_values(self, state_bounds=None):
         rddl = self.rddl 
@@ -129,7 +137,7 @@ class RDDLIntervalAnalysis:
                 intervals[name] = (values, values)
         return intervals
             
-    def _bound_next_epoch(self, intervals, action_bounds=None, per_epoch=False):
+    def _bound_next_epoch(self, intervals, action_bounds=None):
         rddl = self.rddl 
         
         # update action bounds from user
@@ -154,13 +162,7 @@ class RDDLIntervalAnalysis:
         for cpfs in self.cpf_levels.values():
             for cpf in cpfs:
                 _, expr = rddl.cpfs[cpf]
-                lb1, ub1 = self._bound(expr, intervals)
-                if per_epoch or cpf in rddl.interm_fluents \
-                or cpf in rddl.derived_fluents or cpf in rddl.prev_state:
-                    intervals[cpf] = (lb1, ub1)
-                else:
-                    lb0, ub0 = intervals[cpf]
-                    intervals[cpf] = (np.minimum(lb0, lb1), np.maximum(ub0, ub1))
+                intervals[cpf] = self._bound(expr, intervals)
         
         # compute bounds on reward
         reward_bounds = self._bound(rddl.reward, intervals)
@@ -288,6 +290,9 @@ class RDDLIntervalAnalysis:
         if np.shape(dest):
             if mask_value:
                 value = value[mask]
+            if np.issubdtype(dest.dtype, np.integer) \
+            and np.issubdtype(np.result_type(value), np.floating):
+                dest = dest.astype(np.float64)
             dest[mask] = value
         elif mask:
             dest = value
@@ -295,6 +300,7 @@ class RDDLIntervalAnalysis:
     
     @staticmethod
     def _op_without_overflow(x, y, op):
+        x, y = 1 * x, 1 * y
         x_dtype = np.result_type(x)
         y_dtype = np.result_type(y)
         result_dtype = np.result_type(x, y)
@@ -614,10 +620,10 @@ class RDDLIntervalAnalysis:
     # ===========================================================================
     
     UNARY_MONOTONE = {
-        'sgn': lambda x: np.sign(x).astype(np.int64),
-        'round': lambda x: np.round(x).astype(np.int64),
-        'floor': lambda x: np.floor(x).astype(np.int64),
-        'ceil': lambda x: np.ceil(x).astype(np.int64),
+        'sgn': np.sign,
+        'round': np.round,
+        'floor': np.floor,
+        'ceil': np.ceil,
         'acos': np.arccos,
         'asin': np.arcsin,
         'atan': np.arctan,
@@ -849,6 +855,11 @@ class RDDLIntervalAnalysis:
             lu = RDDLIntervalAnalysis.bound_arithmetic_expr(pow1, pow2, '+')
             return RDDLIntervalAnalysis.bound_unary_func(lu, 'sqrt')
         
+        # mod(x, y) has the sign of y and |mod(x, y)| < |y|
+        elif name in ('mod', 'fmod'):
+            zeros = np.zeros(np.broadcast_shapes(np.shape(l1), np.shape(l2)))
+            return (np.minimum(zeros, l2), np.maximum(zeros, u2))
+
         else:
             raise RDDLNotImplementedError(f'Binary function {name} is not supported.\n')        
 
@@ -1382,10 +1393,10 @@ class RDDLIntervalAnalysisMean(RDDLIntervalAnalysis):
         (lsh, ush) = self._bound(shape, intervals)
         lusc = self._bound(scale, intervals)
 
-        # exp(shape) * Ei(-shape) / scale
-        ei = self._bound_func_monotone((-ush, -lsh), scipy.special.expi)
+        # exp(shape) * E1(shape) / scale
+        e1 = self._bound_func_monotone((lsh, ush), scipy.special.exp1)
         exp = self.bound_unary_func((lsh, ush), 'exp')
-        prod = self.bound_arithmetic_expr(exp, ei, '*')
+        prod = self.bound_arithmetic_expr(exp, e1, '*')
         return self.bound_arithmetic_expr(prod, lusc, '/')
     
     def _bound_chisquare(self, expr, intervals):
