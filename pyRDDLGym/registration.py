@@ -1,4 +1,5 @@
 import importlib
+import importlib.util
 import os
 from typing import Optional, Type, Union
 
@@ -37,8 +38,9 @@ def make(domain: Union[str, RDDLLiftedModel],
         return env
             
     # check if arguments are file paths
+    # instance None means the domain file also contains the instance
     domain_is_file = os.path.isfile(domain)
-    instance_is_file = os.path.isfile(instance)
+    instance_is_file = domain_is_file if instance is None else os.path.isfile(instance)
     if domain_is_file != instance_is_file:
         raise ValueError(f'Domain and instance must either be both valid file '
                          f'paths or neither, but got {domain} and {instance}.')
@@ -46,7 +48,8 @@ def make(domain: Union[str, RDDLLiftedModel],
     # if they are files, check they are RDDL files
     if domain_is_file:
         domain_is_rddl = str(os.path.splitext(domain)[1]).lower() == VALID_EXT
-        instance_is_rddl = str(os.path.splitext(instance)[1]).lower() == VALID_EXT
+        instance_is_rddl = instance is None or \
+            str(os.path.splitext(instance)[1]).lower() == VALID_EXT
         if not domain_is_rddl or not instance_is_rddl:
             raise ValueError(f'Domain and instance paths {domain} and {instance} '
                              f'are not valid RDDL ({VALID_EXT}) files.')
