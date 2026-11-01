@@ -385,7 +385,7 @@ class RDDLGrounder(BaseRDDLGrounder):
             updated_dict = copy.deepcopy(original_dict)
             updated_dict.update(zip(new_variables_list, instance))
             new_children.append(self._scan_expr_tree(expression, updated_dict))
-        if operation_string in ('min', 'max'):
+        if operation_string in ('min', 'max') or len(new_children) == 1:
             new_expr = new_children[0]
             for expr in new_children[1:]:
                 new_expr = Expression(('func', (operation_string, (new_expr, expr))))
@@ -578,7 +578,8 @@ class RDDLGrounder(BaseRDDLGrounder):
             for init_vals in self.AST.instance.init_state:
                 (key, subs), val = init_vals
                 if subs:
-                    key = self._append_variation_to_name(key, subs)
+                    key = self._append_variation_to_name(
+                        key, RDDLGroundedModel.strip_literals(subs))
                 if key in self.states:
                     self.states[key] = val
                 else:
@@ -592,7 +593,7 @@ class RDDLGrounder(BaseRDDLGrounder):
                 (key, variations_list), val = init_vals
                 if variations_list is not None:
                     key = self._generate_grounded_names(
-                        key, [variations_list], 
+                        key, [RDDLGroundedModel.strip_literals(variations_list)], 
                         return_grounding_param_dict=False)[0]  
                 if key in self.nonfluents:
                     self.nonfluents[key] = val

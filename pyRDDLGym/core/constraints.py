@@ -191,7 +191,19 @@ class RDDLConstraints:
             const = self.sim._sample(const_expr, self.sim.subs)
             eps, loc = self._get_op_code(op, left_pvar)
             lim = const + eps
-            
+
+            # lim has one axis per quantified object (in forall order): take the
+            # tightest bound over objects the pvariable does not use, then permute
+            # the remaining axes into the pvariable's argument order
+            if objects:
+                names = [name for (name, _) in objects]
+                lim = np.broadcast_to(
+                    lim, self.rddl.object_counts([ptype for (_, ptype) in objects]))
+                axes = [names.index(arg) for arg in args if not self.rddl.is_literal(arg)]
+                unused = tuple(i for i in range(len(names)) if i not in axes)
+                lim = (np.max if loc == 0 else np.min)(lim, axis=unused)
+                lim = np.transpose(lim, np.argsort(np.argsort(axes)))
+
             # finally, since the pvariable expression may contain literals,
             # construct a slice that would assign the above constant value to it
             rddl = self.rddl

@@ -10,7 +10,7 @@
 *.pyc
 *.out
 .gitignore.bak
-Parser/parsetab.py
+parsetab.py
 
 img_folder/
 genViz.py

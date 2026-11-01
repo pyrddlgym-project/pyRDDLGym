@@ -1,5 +1,6 @@
 import base64
 import json
+import numpy as np
 import socket
 import xml.etree.ElementTree as xmltree
 from typing import Optional
@@ -9,6 +10,11 @@ from pyRDDLGym.core.env import RDDLEnv
 
 
 EOM = '\n\n\n'
+
+
+def _to_json(values):
+    '''Converts numpy scalars in a fluent dictionary to json-serializable values.'''
+    return {k: (v.item() if isinstance(v, np.generic) else v) for (k, v) in values.items()}
 
 
 class RDDLSimServer:
@@ -117,22 +123,11 @@ class RDDLSimServer:
             actions = self.process_action(data)
 
             self.logs[-1].append({
-                "state": json.loads(
-                    str(state)
-                    .replace('\'', '"')
-                    .replace('np.True_', 'true')
-                    .replace('np.False_', 'false')
-                    .replace('True', 'true')
-                    .replace('False', 'false')
-                ),
-                "actions": json.loads(
-                    str(actions)
-                    .replace('\'', '"')
-                    .replace('"true"', 'true')
-                ),
+                "state": _to_json(state),
+                "actions": _to_json(actions),
             })
 
-            next_state, reward, _, _, _ = self.env.step(actions)
+            next_state, reward, terminated, truncated, _ = self.env.step(actions)
 
             self.logs[-1][-1]["reward"] = float(reward)
 
@@ -140,19 +135,13 @@ class RDDLSimServer:
             state = next_state
 
             turn = turn + 1
-            if turn == self.env.horizon:
+            if terminated or truncated:
                 msg = self.build_round_end_msg(reward, round_reward)
                 self.send_message(connection, msg)
                 self.total_reward += round_reward
 
                 self.logs[-1].append({
-                    "state": json.loads(
-                        str(state)
-                        .replace('\'', '"')
-                        .replace('np.True_', 'true')
-                        .replace('np.False_', 'false')
-                        .replace('True', 'true')
-                        .replace('False', 'false')),
+                    "state": _to_json(state),
                     "actions": False,
                     "round_reward": float(round_reward)
                 })
@@ -211,7 +200,7 @@ class RDDLSimServer:
             fluent_name = key.split(RDDLPlanningModel.FLUENT_SEP)[0]
             objects = key.split(RDDLPlanningModel.FLUENT_SEP)[1:]
             objects = RDDLPlanningModel.FLUENT_SEP.join(objects)
-            objects = objects.split(RDDLPlanningModel.OBJECT_SEP)
+            objects = objects.split(RDDLPlanningModel.OBJECT_SEP) if objects else []
             var = key.split("_")
             msg = msg + "<fluent-name>" + fluent_name + "</fluent-name>"
             for object in objects:
@@ -227,7 +216,7 @@ class RDDLSimServer:
         msg = msg + "<client-name>" + self.client + "</client-name>"
         msg = msg + "<round-num>" + str(self.currentround) + "</round-num>"
         msg = msg + "<round-reward>" + str(round_reward) + "</round-reward>"
-        msg = msg + "<turns-used>" + str(self.env.horizon) + "</turns-used>"
+        msg = msg + "<turns-used>" + str(self.env.timestep) + "</turns-used>"
         msg = msg + "<time-left>1000</time-left>"
         msg = msg + "<immediate-reward>" + str(rew) + "</immediate-reward>"
         msg = msg + "</round-end>"
@@ -291,6 +280,17 @@ class RDDLSimServer:
             for arg in args:
                 name = name + separator + arg.text
                 separator = RDDLPlanningModel.OBJECT_SEP
-            value = act.find("action-value").text
+            
+            # XML values are text: convert to the action's range
+            value = act.find("action-value").text.strip()
+            prange = self.env.model.action_ranges.get(act.find("action-name").text)
+            if prange == 'bool':
+                value = value.lower() in ('true', '1')
+            elif prange == 'int':
+                value = int(value)
+            elif prange == 'real':
+                value = float(value)
+            else:
+                value = RDDLPlanningModel.strip_literal(value)
             result[name] = value
         return result
