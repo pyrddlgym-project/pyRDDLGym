@@ -180,8 +180,8 @@ class RDDLEnv(gym.Env):
             # integer values converted to Discrete space
             elif prange == 'int':
                 low, high = self._bounds[var]
-                low = np.maximum(low, np.iinfo(np.int32).min)
-                high = np.minimum(high, np.iinfo(np.int32).max)
+                low = np.maximum(np.ceil(low), np.iinfo(np.int32).min)
+                high = np.minimum(np.floor(high), np.iinfo(np.int32).max)
                 if self.vectorized:
                     result[var] = Box(low, high, shape=shape, dtype=np.int32)
                 else:
@@ -267,10 +267,9 @@ class RDDLEnv(gym.Env):
         if self.simlogger is not None:
             if self.vectorized:
                 log_obs = self.model.ground_vars_with_values(obs)
-                log_action = self.model.ground_vars_with_values(actions)
             else:
                 log_obs = obs
-                log_action = actions
+            log_action = self.model.ground_vars_with_values(sim_actions)
             self.simlogger.log(log_obs, log_action, reward, self.done, self.timestep)
         
         # update step horizon

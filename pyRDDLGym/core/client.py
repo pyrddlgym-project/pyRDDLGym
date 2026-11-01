@@ -105,7 +105,7 @@ class RDDLSimClient:
             fluent_name = key.split(RDDLPlanningModel.FLUENT_SEP)[0]
             objects = key.split(RDDLPlanningModel.FLUENT_SEP)[1:]
             objects = RDDLPlanningModel.FLUENT_SEP.join(objects)
-            objects = objects.split(RDDLPlanningModel.OBJECT_SEP)
+            objects = objects.split(RDDLPlanningModel.OBJECT_SEP) if objects else []
             msg = msg + "<action-name>" + fluent_name + "</action-name>"
             for object in objects:
                 msg = msg + "<action-arg>" + object + "</action-arg>"

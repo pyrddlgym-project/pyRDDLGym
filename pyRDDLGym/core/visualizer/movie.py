@@ -2,7 +2,6 @@ import glob
 import numpy as np
 import os
 from PIL import Image
-import re
 from typing import Any, Iterable, Optional
 
 from pyRDDLGym.core.debug.exception import raise_warning
@@ -70,13 +69,7 @@ class ImageWriter:
 
     def load_frames(self) -> Iterable[Any]:
         '''Loads the images saved on disk as a sequences of PIL images.'''
-        load_path = self.save_path.format('*')
-
-        def getOrder(frame):
-            return int(re.search('\d+', frame).group(0))
-
-        files = glob.glob(load_path)
-        files.sort(key=getOrder)
+        files = sorted(glob.glob(self.save_path.format('*')))
         images = map(Image.open, files)
         return images
 
@@ -141,12 +134,13 @@ class MovieGenerator:
 
         video_writer, w, h = None, None, None
         fps = 1000 / self.frame_duration
-        for file in images:
-            frame = cv2.imread(file)
+        save_path = os.path.join(self.writer.save_dir, file_name + '.mp4')
+        for image in images:
+            frame = cv2.cvtColor(np.asarray(image.convert('RGB')), cv2.COLOR_RGB2BGR)
             if w is None:
                 h, w, _ = frame.shape
                 fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-                video_writer = cv2.VideoWriter(file_name + '.mp4', fourcc, fps, (w, h))
+                video_writer = cv2.VideoWriter(save_path, fourcc, fps, (w, h))
             video_writer.write(frame)
         if video_writer is not None:
             video_writer.release()

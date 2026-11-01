@@ -860,7 +860,8 @@ class RDDLSimulator:
                 print_stack_trace(expr))
     
         # check the output shape of captured part is correct
-        captured_types = [t for (p, t) in scope_vars if p in captured_vars]
+        scope_types = dict(scope_vars)
+        captured_types = [scope_types[p] for p in captured_vars]  # pyfunc output order
         require_dims = self.rddl.object_counts(captured_types)
         pyfunc_dims = np.shape(output)[1:]
         if len(require_dims) != len(pyfunc_dims):

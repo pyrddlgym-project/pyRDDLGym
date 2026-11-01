@@ -170,7 +170,7 @@ class RandomAgent(BaseAgent):
             selected_actions = self.rng.sample(list(s), self.num_actions)
             for sample in selected_actions:
                 if isinstance(self.action_space[sample], gym.spaces.Box):
-                    action[sample] = s[sample][0].item()
+                    action[sample] = s[sample].item()
                 elif isinstance(self.action_space[sample], gym.spaces.Discrete):
                     action[sample] = s[sample]
         else:
