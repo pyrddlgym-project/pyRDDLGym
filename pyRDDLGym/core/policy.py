@@ -6,6 +6,7 @@ import shutil
 from typing import Any, Dict, Optional
 import sys
 
+from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.env import RDDLEnv
 from pyRDDLGym.core.debug.exception import RDDLRandPolicyVecNotImplemented
 
@@ -28,19 +29,79 @@ class BaseAgent(metaclass=ABCMeta):
         pass
     
     @staticmethod
+    def _format_key(key):
+        '''Shows grounded fluents in RDDL notation, e.g. burning___x1__y1 -> burning(x1, y1).'''
+        try:
+            name, objects = RDDLPlanningModel.parse_grounded(str(key))
+        except Exception:
+            return str(key)
+        return f'{name}({", ".join(objects)})' if objects else name
+
+    @staticmethod
+    def _format_value(value):
+        if isinstance(value, np.ndarray) and value.ndim > 0:
+            return np.array2string(value, precision=4, floatmode='fixed', separator=', ',
+                                   sign=' ')
+        elif isinstance(value, (float, np.floating)):
+            if value != 0 and not 1e-4 <= abs(value) < 1e9:
+                return f'{value: .4e}'
+            else:
+                return f'{value: .4f}'
+        else:
+            return str(value)
+    
+    @staticmethod
     def _format(state, width=80, indent=4):
         if len(state) == 0:
-            return str(state)
-        state = {key: str(value) for (key, value) in state.items()}
-        klen = max(map(len, state.keys())) + 1
-        vlen = max(map(len, state.values())) + 1
-        cols = max(1, (width - indent) // (klen + vlen + 3))
-        result = ' ' * indent
-        for (count, (key, value)) in enumerate(state.items(), 1):
-            result += f'{key.rjust(klen)} = {value.ljust(vlen)}'
-            if count % cols == 0:
-                result += '\n' + ' ' * indent
-        return result
+            return ' ' * indent + '{}'
+        pad = ' ' * indent
+        values = {key: BaseAgent._format_value(value) for (key, value) in state.items()}
+
+        # arrays (vectorized) are one per row, aligned under the value
+        if any('\n' in value or value.startswith('[') for value in values.values()):
+            klen = max(len(str(key)) for key in values)
+            cont = '\n' + ' ' * (indent + klen + 2)
+            text = '\n'.join(f'{pad}{str(key).rjust(klen)}  {value.replace(chr(10), cont)}'
+                             for (key, value) in values.items())
+            return '\n'.join(line.rstrip() for line in text.split('\n'))
+
+        # each fluent is a row of its values by objects
+        rows = {}
+        for (key, value) in values.items():
+            try:
+                name, objects = RDDLPlanningModel.parse_grounded(str(key))
+            except Exception:
+                name, objects = str(key), []
+            rows.setdefault(name, {})[', '.join(objects)] = value
+        tables = {}
+        for (name, row) in rows.items():
+            tables.setdefault(tuple(row), []).append((name, row))
+
+        # print each table, split into several if its columns do not fit the width,
+        # with fluent names right-aligned so that all tables start at the same column
+        nlen = max(len(name) for name in rows)
+        lines = []
+        for (columns, table) in tables.items():
+            widths = [max(len(column), *(len(row[column]) for (_, row) in table))
+                      for column in columns]
+            start = 0
+            while start < len(columns):
+                end, used = start + 1, indent + nlen + 2 + widths[start]
+                while end < len(columns) and used + 2 + widths[end] <= width:
+                    used += 2 + widths[end]
+                    end += 1
+                if any(columns):
+                    lines.append(pad + ' ' * nlen + ''.join(
+                        '  ' + columns[c].rjust(widths[c]) for c in range(start, end)))
+                for (name, row) in table:
+
+                    # a single fluent continued from the previous rows is not named again
+                    if start and len(table) == 1:
+                        name = ''
+                    lines.append(pad + name.rjust(nlen) + ''.join(
+                        '  ' + row[columns[c]].rjust(widths[c]) for c in range(start, end)))
+                start = end
+        return '\n'.join(line.rstrip() for line in lines)
         
     def evaluate(self, env: RDDLEnv, episodes: int=1, 
                  verbose: bool=False, render: bool=False,
@@ -79,10 +140,6 @@ class BaseAgent(metaclass=ABCMeta):
             self.reset()
             state, _ = env.reset(seed=seed)
             
-            # printing
-            if verbose:
-                print(f'initial state = \n{self._format(state, width)}')
-            
             # simulate to end of horizon
             for step in range(env.horizon):
                 if render:
@@ -98,20 +155,21 @@ class BaseAgent(metaclass=ABCMeta):
                 # printing
                 if verbose: 
                     print(f'{sep_bar}\n'
-                          f'step   = {step}\n'
-                          f'action = \n{self._format(action, width)}\n'
-                          f'state  = \n{self._format(next_state, width)}\n'
-                          f'reward = {reward}\n'
-                          f'done   = {done}')
+                          f'step {step}   reward {self._format_value(reward).strip()}   '
+                          f'done {done}\n'
+                          f'state\n{self._format(state, width)}\n'
+                          f'action\n{self._format(action, width)}')
                 state = next_state
                 if done:
                     break
+            
             if render:
                 env.render()
-            
             if verbose:
-                print(f'\n'
-                      f'episode {episode + 1} ended with return {total_reward}\n'
+                print(f'{sep_bar}\n'
+                      f'final state\n{self._format(state, width)}\n\n'
+                      f'episode {episode + 1} ended with return '
+                      f'{self._format_value(total_reward).strip()}\n'
                       f'{"=" * width}')
             history[episode] = total_reward
             
@@ -169,8 +227,8 @@ class RandomAgent(BaseAgent):
         s = self.action_space.sample()
         action = {}
         if not self.vectorized:
-            selected_actions = self.rng.sample(list(s), self.num_actions)
-            for sample in selected_actions:
+            selected_actions = set(self.rng.sample(list(s), self.num_actions))
+            for sample in (key for key in s if key in selected_actions):
                 if isinstance(self.action_space[sample], gym.spaces.Box):
                     action[sample] = s[sample].item()
                 elif isinstance(self.action_space[sample], gym.spaces.Discrete):
