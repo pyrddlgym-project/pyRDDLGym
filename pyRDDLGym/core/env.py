@@ -124,9 +124,12 @@ class RDDLEnv(gym.Env):
         else:
             state_ranges = self.model.state_ranges
         if not self.vectorized:
-            state_ranges = self.model.ground_vars_with_value(state_ranges)   
-             
-        self.observation_space = self._rddl_to_gym_bounds(state_ranges)
+            state_ranges = self.model.ground_vars_with_value(state_ranges)
+        if self.vectorized:
+            obs_shapes = {var: shape or (1,) for (var, shape) in self._shapes.items()}
+        else:
+            obs_shapes = self._shapes
+        self.observation_space = self._rddl_to_gym_bounds(state_ranges, obs_shapes)
         
         # construct the gym action space      
         if self.vectorized:
@@ -152,10 +155,12 @@ class RDDLEnv(gym.Env):
         self.timestep = 0
         self.done = False
             
-    def _rddl_to_gym_bounds(self, ranges):
+    def _rddl_to_gym_bounds(self, ranges, shapes=None):
+        if shapes is None:
+            shapes = self._shapes
         result = Dict()
         for (var, prange) in ranges.items():
-            shape = self._shapes[var]
+            shape = shapes[var]
             
             # enumerated values converted to Discrete space
             if prange in self.model.type_to_objects:
@@ -168,7 +173,7 @@ class RDDLEnv(gym.Env):
             # real values define a box
             elif prange == 'real':
                 low, high = self._bounds[var]
-                result[var] = Box(low, high, dtype=np.float32)
+                result[var] = Box(low, high, shape=shape, dtype=np.float32)
             
             # boolean values converted to Discrete space
             elif prange == 'bool':

@@ -14,7 +14,7 @@ from pyRDDLGym.core.debug.exception import RDDLRandPolicyVecNotImplemented
 class BaseAgent(metaclass=ABCMeta):
     '''Base class for policies.'''
     
-    use_tensor_obs = False  # uses internal tensor representation of state
+    use_tensor_obs = False  # uses internal tensor representation of state (None: either)
     
     @abstractmethod
     def sample_action(self, state: Any) -> Any:
@@ -119,7 +119,7 @@ class BaseAgent(metaclass=ABCMeta):
         '''
         
         # check compatibility with environment
-        if env.vectorized != self.use_tensor_obs:
+        if self.use_tensor_obs is not None and env.vectorized != self.use_tensor_obs:
             raise ValueError(f'RDDLEnv vectorized flag must match use_tensor_obs '
                              f'of current policy, got {env.vectorized} and '
                              f'{self.use_tensor_obs}, respectively.')
@@ -189,12 +189,19 @@ class BaseAgent(metaclass=ABCMeta):
 class RandomAgent(BaseAgent):
     '''Uniformly pseudo-random policy.'''
 
+    use_tensor_obs = None
+
     def __init__(self, action_space: Any, 
-                 num_actions: int=1, seed: Optional[int]=None) -> None:
+                 num_actions: int=1, seed: Optional[int]=None,
+                 noop_actions: Optional[Dict[str, Any]]=None) -> None:
         '''Creates a new uniformly pseudo-random policy.
         
         :param action_space: the set of actions from which to sample uniformly
         :param num_actions: the number of samples to produce
+        :param seed: optional RNG seed
+        :param noop_actions: default value of each action-fluent (e.g.
+        env.sampler.noop_actions), required in a vectorized environment if
+        num_actions is less than the number of actions, to set the actions not sampled
         '''
         self.action_space = action_space
         self.action_buckets = []
@@ -202,23 +209,25 @@ class RandomAgent(BaseAgent):
 
         self.vectorized = False
         for key, value in self.action_space.items():
-            if len(value.shape) >= 1:
-                if value.shape[0] > 1:
-                    self.vectorized = True
-                self.action_buckets.append(value.shape[0])
-            else:
-                self.action_buckets.append(1)
+            if len(value.shape) >= 1 and value.shape[0] > 1:
+                self.vectorized = True
+            self.action_buckets.append(int(np.prod(value.shape)))
+
+        # a vectorized environment has the same (lifted) action-fluents as noop_actions
+        if noop_actions is not None and set(action_space.keys()) == set(noop_actions.keys()):
+            self.vectorized = True
         if sum(self.action_buckets) - num_actions > 0:
             self.full_action_space = False
 
-        if self.vectorized and not self.full_action_space:
+        if self.vectorized and not self.full_action_space and noop_actions is None:
             raise RDDLRandPolicyVecNotImplemented(
-                f'Random Agent does not support vectorized spaces '
-                f'for partial action specification, '
+                f'Random Agent requires noop_actions (e.g. env.sampler.noop_actions) '
+                f'in vectorized spaces for partial action specification, '
                 f'number of required actions is {num_actions}, '
                 f'where {sum(self.action_buckets)} is expected.')
 
         self.num_actions = num_actions
+        self.noop_actions = noop_actions
         self.rng = random.Random(seed)
         if seed is not None:
             self.action_space.seed(seed)
@@ -233,14 +242,28 @@ class RandomAgent(BaseAgent):
                     action[sample] = s[sample].item()
                 elif isinstance(self.action_space[sample], gym.spaces.Discrete):
                     action[sample] = s[sample]
-        else:
+
+        elif self.full_action_space:
             action = s
+
+        # sample which elements of all action arrays are set, the rest are default
+        else:
+            offsets = np.cumsum([0] + self.action_buckets)
+            chosen = np.asarray(self.rng.sample(range(offsets[-1]), int(self.num_actions)))
+            for (i, key) in enumerate(s):
+                index = chosen[(chosen >= offsets[i]) & (chosen < offsets[i + 1])] - offsets[i]
+                if index.size:
+                    value = np.array(self.noop_actions[key])
+                    value.flat[index] = np.ravel(s[key])[index]
+                    action[key] = value
         return action
 
 
 class NoOpAgent(BaseAgent):
     '''No-op policy.'''
-    
+
+    use_tensor_obs = None
+
     def __init__(self, action_space, num_actions=0):
         '''Creates a new no-op policy.
             
