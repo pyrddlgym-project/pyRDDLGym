@@ -773,7 +773,7 @@ class RDDLSimulator:
         sample = self._sample(arg, subs)                
         if op in self.AGGREGATION_BOOL:
             RDDLSimulator._check_type(sample, bool, op, expr, arg='')
-        else:
+        elif op in ('minimum', 'maximum') and np.asarray(sample).dtype == bool:
             sample = 1 * sample
         _, axes = self.traced.cached_sim_info(expr)
         return numpy_op(sample, axis=axes)
