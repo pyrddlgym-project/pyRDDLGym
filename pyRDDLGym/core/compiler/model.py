@@ -426,6 +426,14 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         return var
     
     @staticmethod
+    def _ground_all(name: str, groundings: Iterable[Tuple[str, ...]]) -> List[str]:
+        '''Same as ground_var for each objects in groundings, but faster for the
+        many groundings of an unprimed variable.'''
+        prefix = name + RDDLPlanningModel.FLUENT_SEP
+        join = RDDLPlanningModel.OBJECT_SEP.join
+        return [prefix + join(objects) if objects else name for objects in groundings]
+
+    @staticmethod
     def parse_grounded(expr: str) -> Tuple[str, List[str]]:
         '''Parses a variable of the form <name>___<type1>__<type2>...
         into a tuple (<name>, [<type1>, <type2>, ...]).'''
@@ -912,15 +920,10 @@ class RDDLLiftedModel(RDDLPlanningModel):
             var_default[name] = self._extract_default_value(pvar)
             
             # record possible groundings
-            var_ground[name] = [
-                RDDLPlanningModel.ground_var(name, objects)
-                for objects in self.ground_types(ptypes)
-            ]
+            var_ground[name] = RDDLPlanningModel._ground_all(name, self.ground_types(ptypes))
             if pvar.is_state_fluent():
                 var_ground[primed_name] = [
-                    RDDLPlanningModel.ground_var(primed_name, objects)
-                    for objects in self.ground_types(ptypes)
-                ]
+                    gname + RDDLPlanningModel.NEXT_STATE_SYM for gname in var_ground[name]]
             
         self.variable_types = var_types
         self.variable_ranges = var_ranges
@@ -1438,15 +1441,11 @@ class RDDLLiftedPolicy:
             var_default[name] = self._extract_default_value(pvar)
             
             # record possible groundings
-            var_ground[name] = [
-                RDDLPlanningModel.ground_var(name, objects)
-                for objects in self.parent.ground_types(ptypes)
-            ]            
+            var_ground[name] = RDDLPlanningModel._ground_all(
+                name, self.parent.ground_types(ptypes))
             if pvar.is_state_fluent():
                 var_ground[primed_name] = [
-                    RDDLPlanningModel.ground_var(primed_name, objects)
-                    for objects in self.parent.ground_types(ptypes)
-                ]
+                    gname + RDDLPlanningModel.NEXT_STATE_SYM for gname in var_ground[name]]
 
         self.variable_types = var_types
         self.variable_ranges = var_ranges

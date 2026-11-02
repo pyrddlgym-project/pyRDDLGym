@@ -158,29 +158,43 @@ class RDDLEnv(gym.Env):
     def _rddl_to_gym_bounds(self, ranges, shapes=None):
         if shapes is None:
             shapes = self._shapes
+
+        # grounded fluents have scalar spaces, which are shared between fluents with
+        # the same space to save time and memory with many fluents
+        shared = {}
+        def scalar_space(space_type, *args, **kwargs):
+            key = (space_type, args, tuple(kwargs.items()))
+            if key not in shared:
+                shared[key] = space_type(*args, **kwargs)
+            return shared[key]
+
         result = Dict()
         for (var, prange) in ranges.items():
             shape = shapes[var]
-            
+
             # enumerated values converted to Discrete space
             if prange in self.model.type_to_objects:
                 num_objects = len(self.model.type_to_objects[prange])
                 if self.vectorized:
                     result[var] = Box(0, num_objects - 1, shape=shape, dtype=np.int32)
                 else:
-                    result[var] = Discrete(num_objects) 
+                    result[var] = scalar_space(Discrete, num_objects)
             
             # real values define a box
             elif prange == 'real':
                 low, high = self._bounds[var]
-                result[var] = Box(low, high, shape=shape, dtype=np.float32)
-            
+                if self.vectorized:
+                    result[var] = Box(low, high, shape=shape, dtype=np.float32)
+                else:
+                    result[var] = scalar_space(
+                        Box, low, high, shape=shape, dtype=np.float32)
+
             # boolean values converted to Discrete space
             elif prange == 'bool':
                 if self.vectorized:
                     result[var] = Box(0, 1, shape=shape, dtype=np.int32)
                 else:
-                    result[var] = Discrete(2)
+                    result[var] = scalar_space(Discrete, 2)
             
             # integer values converted to Discrete space
             elif prange == 'int':
@@ -190,7 +204,8 @@ class RDDLEnv(gym.Env):
                 if self.vectorized:
                     result[var] = Box(low, high, shape=shape, dtype=np.int32)
                 else:
-                    result[var] = Discrete(int(high - low + 1), start=int(low))
+                    result[var] = scalar_space(
+                        Discrete, int(high - low + 1), start=int(low))
             
             # unknown type
             else:
