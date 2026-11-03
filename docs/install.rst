@@ -3,7 +3,7 @@ Installation Guide
 
 Requirements
 ------------
-We require Python 3.8+ and the packages `listed here <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/requirements.txt>`_.
+We require Python 3.9+ and the packages `listed here <https://github.com/pyrddlgym-project/pyRDDLGym/blob/main/pyproject.toml>`_.
 
 Installation
 -----------------

@@ -1,7 +1,0 @@
-matplotlib>=3.5.0
-pillow>=9.2.0
-gymnasium
-numpy>=1.22
-pygame-ce
-ply
-termcolor

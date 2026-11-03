@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyRDDLGym"
+version = "2.7"
+description = "pyRDDLGym: RDDL automatic generation tool for OpenAI Gym"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9,<3.15"
+authors = [
+    {name = "Ayal Taitler", email = "ataitler@gmail.com"},
+    {name = "Michael Gimelfarb", email = "mgimelfarb@yahoo.ca"},
+    {name = "Scott Sanner", email = "ssanner@mie.utoronto.ca"},
+    {name = "Jihwan Jeong", email = "jhjeong@mie.utoronto.ca"},
+    {name = "Sriram Gopalakrishnan", email = "sriram.gopalakrishnan@jpmchase.com"},
+    {name = "Martin Mladenov", email = "mmladenov@google.com"},
+    {name = "Jack Liu", email = "xiaotian.liu@mail.utoronto.ca"},
+]
+dependencies = [
+    "ply",
+    "pillow>=9.2.0",
+    "matplotlib>=3.5.0",
+    "numpy>=1.22",
+    "gymnasium",
+    "pygame-ce",
+    "termcolor",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/pyrddlgym-project/pyRDDLGym"
+
+[tool.setuptools.packages.find]
+include = ["pyRDDLGym*"]
