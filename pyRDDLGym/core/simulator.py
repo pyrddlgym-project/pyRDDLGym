@@ -56,6 +56,11 @@ class RDDLSimulator:
         
         self._compile()
         
+        # must be replaced and never written into
+        for value in self.init_values.values():
+            if isinstance(value, np.ndarray):
+                value.flags.writeable = False
+        
         # basic operations
         self.ARITHMETIC_OPS = {
             '+': np.add,
@@ -453,7 +458,10 @@ class RDDLSimulator:
         for (cpf, expr, dtype) in self.cpfs:
             sample = self._sample(expr, subs)
             RDDLSimulator._check_type(sample, dtype, cpf, expr)
-            subs[cpf] = np.asarray(sample, dtype=dtype)[()]
+            value = np.asarray(sample, dtype=dtype)[()]
+            if isinstance(value, np.ndarray):
+                value.flags.writeable = False
+            subs[cpf] = value
         
         # evaluate reward
         reward = self.sample_reward()
