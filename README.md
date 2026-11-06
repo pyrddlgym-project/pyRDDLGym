@@ -100,7 +100,7 @@ Policies map states to actions through the ``sample_action(obs)`` function, and 
 
 ```python
 from pyRDDLGym.core.policy import RandomAgent
-agent = RandomAgent(action_space=env.action_space, num_actions=env.max_allowed_actions)
+agent = RandomAgent(env)
 ```
 
 You can use the policy to directly interact with the environment:

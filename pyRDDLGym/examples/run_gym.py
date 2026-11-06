@@ -19,17 +19,9 @@ from pyRDDLGym.core.policy import RandomAgent
 
 
 def main(domain, instance, episodes=1, seed=42):
-    
-    # create the environment
-    env = pyRDDLGym.make(domain, instance, enforce_action_constraints=True)
-    
-    # set up a random policy
-    agent = RandomAgent(action_space=env.action_space,
-                        num_actions=env.max_allowed_actions,
-                        seed=seed)
+    env = pyRDDLGym.make(domain, instance)
+    agent = RandomAgent(env, seed=seed)
     agent.evaluate(env, episodes=episodes, verbose=True, render=True, seed=seed)
-    
-    # important when logging to save all traces
     env.close()
 
 

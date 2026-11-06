@@ -40,7 +40,7 @@ class RDDLEnv(gym.Env):
     
     def __init__(self, domain: Union[str, RDDLLiftedModel],
                  instance: Optional[str],
-                 enforce_action_constraints: bool=False,
+                 enforce_action_constraints: bool=True,
                  enforce_action_count_non_bool: bool=True,
                  vectorized: bool=False,
                  debug_path: Optional[str]=None,
