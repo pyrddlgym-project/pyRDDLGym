@@ -9,6 +9,7 @@ import sys
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.env import RDDLEnv
 from pyRDDLGym.core.debug.exception import RDDLActionPreconditionNotSatisfiedError
+from pyRDDLGym.core.simulator import RDDLSimulator
 
 
 class BaseAgent(metaclass=ABCMeta):
@@ -270,6 +271,109 @@ class RandomAgent(BaseAgent):
         if env is not self.env:
             self._set_env(env)
         return super().evaluate(env, *args, **kwargs)
+
+
+class RolloutAgent(RandomAgent):
+    '''Monte Carlo rollout policy, which samples legal actions with the random policy and
+    returns the one with the highest return, averaged over simulated rollouts that follow
+    the random policy after the first step. Sequential halving decides how many rollouts
+    each candidate gets.'''
+
+    def __init__(self, env: RDDLEnv, num_candidates: int, num_rollouts: int,
+                 horizon: Optional[int]=None, num_actions: Optional[int]=None,
+                 seed: Optional[int]=None, max_tries: int=1000) -> None:
+        '''Creates a new rollout policy.
+
+        :param env: the environment to simulate, using the default simulator backend
+        :param num_candidates: how many legal actions to compare per sample
+        :param num_rollouts: how many rollouts per candidate action on average, with
+        more given to the better candidates
+        :param horizon: the most steps per rollout (defaults to the env horizon)
+        :param num_actions: the most action elements to set per action (defaults to
+        env.max_allowed_actions)
+        :param seed: optional RNG seed
+        :param max_tries: how many actions to try per sample of the random policy
+        '''
+        self.num_candidates = num_candidates
+        self.num_rollouts = num_rollouts
+        self.horizon = horizon
+        self.rollout_rng = np.random.default_rng(seed)
+        super().__init__(env, num_actions, seed, max_tries)
+
+    def _set_env(self, env: RDDLEnv) -> None:
+        if type(env.sampler) is not RDDLSimulator:
+            raise ValueError('RolloutAgent requires the default RDDLSimulator backend.')
+        elif env.sampler.is_pomdp:
+            raise ValueError('RolloutAgent does not support POMDPs.')
+        super()._set_env(env)
+
+    def _rollout(self, action: Any) -> float:
+        env = self.env
+        sampler = env.sampler
+        steps = env.horizon - env.timestep
+        if self.horizon is not None:
+            steps = min(steps, self.horizon)
+
+        total_reward, cuml_gamma = 0.0, 1.0
+        for _ in range(steps):
+            _, reward, done = sampler.step(sampler.prepare_actions_for_sim(action))
+            total_reward += reward * cuml_gamma
+            cuml_gamma *= env.discount
+            if done or not sampler.check_state_invariants(silent=True):
+                break
+            try:
+                action = super().sample_action()
+            except RDDLActionPreconditionNotSatisfiedError:
+                break
+        return total_reward
+
+    def sample_action(self, state: Any=None) -> Any:
+        sampler = self.env.sampler
+        subs, sim_state, rng = sampler.subs, sampler.state, sampler.rng
+        sampler.rng = self.rollout_rng
+        try:
+            actions = []
+            for _ in range(self.num_candidates):
+                sampler.subs = subs.copy()
+                actions.append(super().sample_action())
+
+            # sequential halving
+            alive = np.arange(self.num_candidates)
+            values = np.zeros(self.num_candidates)
+            budget = self.num_candidates * self.num_rollouts
+            for rounds in range(int(np.ceil(np.log2(alive.size))), 0, -1):
+                rollouts = budget // (alive.size * rounds)
+                rollouts = max(rollouts, int(alive.size == self.num_candidates))
+                budget -= rollouts * alive.size
+                for index in alive:
+                    for _ in range(rollouts):
+                        sampler.subs = subs.copy()
+                        values[index] += self._rollout(actions[index])
+                order = np.argsort(-values[alive], kind='stable')
+                alive = alive[order[:(alive.size + 1) // 2]]
+            return actions[alive[0]]
+        finally:
+            sampler.subs, sampler.state, sampler.rng = subs, sim_state, rng
+
+
+class RandomShootingAgent(RolloutAgent):
+    '''Random shooting policy, which simulates one random action sequence per candidate
+    and returns the first action of the sequence with the highest return.'''
+
+    def __init__(self, env: RDDLEnv, num_candidates: int,
+                 horizon: Optional[int]=None, num_actions: Optional[int]=None,
+                 seed: Optional[int]=None, max_tries: int=1000) -> None:
+        '''Creates a new random shooting policy.
+
+        :param env: the environment to simulate, using the default simulator backend
+        :param num_candidates: how many action sequences to compare per sample
+        :param horizon: the most steps per sequence (defaults to the env horizon)
+        :param num_actions: the most action elements to set per action (defaults to
+        env.max_allowed_actions)
+        :param seed: optional RNG seed
+        :param max_tries: how many actions to try per sample of the random policy
+        '''
+        super().__init__(env, num_candidates, 1, horizon, num_actions, seed, max_tries)
 
 
 class NoOpAgent(BaseAgent):
