@@ -19,14 +19,8 @@ from pyRDDLGym.core.policy import RandomAgent
 
 
 def main(domain, instance, episodes=1, seed=42):
-    
-    # set up the environment
-    env = pyRDDLGym.make(domain, instance, enforce_action_constraints=True)
-    
-    # set up an example agent
-    agent = RandomAgent(action_space=env.action_space,
-                        num_actions=env.max_allowed_actions,
-                        seed=seed)
+    env = pyRDDLGym.make(domain, instance)
+    agent = RandomAgent(env, seed=seed)
     
     # main evaluation loop, same as the following line:
     # agent.evaluate(env, episodes=episodes, verbose=True, render=True)
@@ -49,8 +43,6 @@ def main(domain, instance, episodes=1, seed=42):
                 break
         print(f'episode {episode} ended with return {total_reward}')
         seed = None
-    
-    # important when logging to save all traces
     env.close()
 
 

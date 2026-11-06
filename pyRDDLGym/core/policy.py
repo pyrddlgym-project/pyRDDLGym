@@ -8,7 +8,7 @@ import sys
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.env import RDDLEnv
-from pyRDDLGym.core.debug.exception import RDDLRandPolicyVecNotImplemented
+from pyRDDLGym.core.debug.exception import RDDLActionPreconditionNotSatisfiedError
 
 
 class BaseAgent(metaclass=ABCMeta):
@@ -187,76 +187,89 @@ class BaseAgent(metaclass=ABCMeta):
 
 
 class RandomAgent(BaseAgent):
-    '''Uniformly pseudo-random policy.'''
+    '''Random policy that only samples actions satisfying the action preconditions in
+    the current state of the environment, which must be the state being acted on.
+
+    Each try sets a random number of action elements to non-default values, or none with
+    the same probability as setting any one element. Actions that are legal are not
+    equally likely, and an exception is raised if none is found in max_tries tries.'''
 
     use_tensor_obs = None
 
-    def __init__(self, action_space: Any, 
-                 num_actions: int=1, seed: Optional[int]=None,
-                 noop_actions: Optional[Dict[str, Any]]=None) -> None:
-        '''Creates a new uniformly pseudo-random policy.
-        
-        :param action_space: the set of actions from which to sample uniformly
-        :param num_actions: the number of samples to produce
+    def __init__(self, env: RDDLEnv, num_actions: Optional[int]=None,
+                 seed: Optional[int]=None, max_tries: int=1000) -> None:
+        '''Creates a new random policy.
+
+        :param env: the environment whose action preconditions are checked
+        :param num_actions: the most action elements to set per action (defaults to
+        env.max_allowed_actions)
         :param seed: optional RNG seed
-        :param noop_actions: default value of each action-fluent (e.g.
-        env.sampler.noop_actions), required in a vectorized environment if
-        num_actions is less than the number of actions, to set the actions not sampled
+        :param max_tries: how many actions to try per sample
         '''
-        self.action_space = action_space
-        self.action_buckets = []
-        self.full_action_space = True
-
-        self.vectorized = False
-        for key, value in self.action_space.items():
-            if len(value.shape) >= 1 and value.shape[0] > 1:
-                self.vectorized = True
-            self.action_buckets.append(int(np.prod(value.shape)))
-
-        # a vectorized environment has the same (lifted) action-fluents as noop_actions
-        if noop_actions is not None and set(action_space.keys()) == set(noop_actions.keys()):
-            self.vectorized = True
-        if sum(self.action_buckets) - num_actions > 0:
-            self.full_action_space = False
-
-        if self.vectorized and not self.full_action_space and noop_actions is None:
-            raise RDDLRandPolicyVecNotImplemented(
-                f'Random Agent requires noop_actions (e.g. env.sampler.noop_actions) '
-                f'in vectorized spaces for partial action specification, '
-                f'number of required actions is {num_actions}, '
-                f'where {sum(self.action_buckets)} is expected.')
-
-        self.num_actions = num_actions
-        self.noop_actions = noop_actions
+        self.requested_actions = num_actions
+        self.seed = seed
+        self.max_tries = max_tries
         self.rng = random.Random(seed)
-        if seed is not None:
-            self.action_space.seed(seed)
+        self._set_env(env)
+
+    def _set_env(self, env: RDDLEnv) -> None:
+        sampler = env.sampler
+        self.env = env
+        self.noop_actions = (sampler.noop_actions if env.vectorized
+                             else sampler.grounded_noop_actions)
+
+        # an element whose only possible value is its default cannot be set
+        self.elements = [(key, index) for (key, value) in self.noop_actions.items()
+                         for index in range(np.size(value))
+                         if self._has_choice(env.action_space[key], index)]
+        num_actions = self.requested_actions
+        if num_actions is None:
+            num_actions = env.max_allowed_actions
+        self.num_actions = min(num_actions, env.max_allowed_actions, len(self.elements))
+        if self.seed is not None:
+            env.action_space.seed(self.seed)
+
+    @staticmethod
+    def _has_choice(space: Any, index: int) -> bool:
+        if isinstance(space, gym.spaces.Discrete):
+            return space.n > 1
+        else:
+            return np.ravel(space.low)[index] < np.ravel(space.high)[index]
+
+    def _sample_non_default(self, key: str, index: int) -> Any:
+        default = np.ravel(self.noop_actions[key])[index]
+        if isinstance(default, np.bool_):
+            return not default
+        while True:
+            value = np.ravel(self.env.action_space[key].sample())[index]
+            if value != default:
+                return value
+
+    def _sample_elements(self) -> Dict[str, Any]:
+        if self.num_actions < 1 or self.rng.randrange(len(self.elements) + 1) == 0:
+            return {}
+        count = self.rng.randint(1, self.num_actions)
+        action = {}
+        for (key, index) in self.rng.sample(self.elements, count):
+            values = action.setdefault(key, np.array(self.noop_actions[key]))
+            values.flat[index] = self._sample_non_default(key, index)
+        return {key: values[()] for (key, values) in action.items()}
 
     def sample_action(self, state: Any=None) -> Any:
-        s = self.action_space.sample()
-        action = {}
-        if not self.vectorized:
-            selected_actions = set(self.rng.sample(list(s), self.num_actions))
-            for sample in (key for key in s if key in selected_actions):
-                if isinstance(self.action_space[sample], gym.spaces.Box):
-                    action[sample] = s[sample].item()
-                elif isinstance(self.action_space[sample], gym.spaces.Discrete):
-                    action[sample] = s[sample]
+        sampler = self.env.sampler
+        for _ in range(self.max_tries):
+            action = self._sample_elements()
+            sim_actions = sampler.prepare_actions_for_sim(action)
+            if sampler.check_action_preconditions(sim_actions, silent=True):
+                return action
+        raise RDDLActionPreconditionNotSatisfiedError(
+            f'No action satisfying the action preconditions was found in '
+            f'{self.max_tries} tries: num_actions may be too small or too large.')
 
-        elif self.full_action_space:
-            action = s
-
-        # sample which elements of all action arrays are set, the rest are default
-        else:
-            offsets = np.cumsum([0] + self.action_buckets)
-            chosen = np.asarray(self.rng.sample(range(offsets[-1]), int(self.num_actions)))
-            for (i, key) in enumerate(s):
-                index = chosen[(chosen >= offsets[i]) & (chosen < offsets[i + 1])] - offsets[i]
-                if index.size:
-                    value = np.array(self.noop_actions[key])
-                    value.flat[index] = np.ravel(s[key])[index]
-                    action[key] = value
-        return action
+    def evaluate(self, env: RDDLEnv, *args, **kwargs) -> Dict[str, float]:
+        if env is not self.env:
+            self._set_env(env)
+        return super().evaluate(env, *args, **kwargs)
 
 
 class NoOpAgent(BaseAgent):
