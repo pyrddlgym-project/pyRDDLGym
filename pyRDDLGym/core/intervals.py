@@ -190,6 +190,7 @@ class RDDLIntervalAnalysis:
             result = self._bound_logical(expr, intervals)
         elif etype == 'aggregation':
             result = self._bound_aggregation(expr, intervals)
+            # TODO: argmax and argmin
         elif etype == 'func':
             result = self._bound_func(expr, intervals)
         elif etype == 'control':
@@ -220,7 +221,7 @@ class RDDLIntervalAnalysis:
     # ===========================================================================
     
     def _cast_enum_values_to_int(self, var, values):
-        if self.rddl.variable_ranges[var] in self.rddl.enum_types \
+        if self.rddl.is_type(self.rddl.variable_ranges[var]) \
         and not np.issubdtype(np.atleast_1d(values).dtype, np.number):
             return self.NUMPY_LITERAL_TO_INT(values).astype(np.int64)
         else:
@@ -254,10 +255,14 @@ class RDDLIntervalAnalysis:
         if cached_info is not None:
             slices, axis, shape, op_code, op_args = cached_info
             if slices:
-                for slice in slices:
-                    if slice is None:
-                        raise RDDLNotImplementedError(
-                            'Nested pvariables are not supported.\n' + PST(expr))
+                if op_code == RDDLObjectsTracer.NUMPY_OP_CODE.NESTED_SLICE:
+                    axes = tuple(i for (i, _slice) in enumerate(slices) if _slice is None)
+                    lower = np.min(lower, axis=axes, keepdims=True)
+                    upper = np.max(upper, axis=axes, keepdims=True)
+                    scope = self.trace.cached_objects_in_scope(expr)
+                    zeros = np.zeros(
+                        self.rddl.object_counts(t for (_, t) in scope), dtype=np.int64)
+                    slices = tuple(zeros if _slice is None else _slice for _slice in slices)
                 lower = lower[slices]
                 upper = upper[slices]
             if axis:
