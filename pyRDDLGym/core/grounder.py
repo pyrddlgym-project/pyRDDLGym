@@ -523,6 +523,14 @@ class RDDLGrounder(BaseRDDLGrounder):
 
     def _scan_expr_tree(self, expr: Expression, dic) -> Expression:
         """Main dispatch method for recursively grounding the expression tree."""
+        key = getattr(expr, 'probe_key', None)
+        if key is not None:
+            inner = Expression(expr)
+            inner.probe_key = None
+            grounded = Expression(self._scan_expr_tree(inner, dic))
+            grounded.probe_key = self._append_variation_to_name(key, dic.values()) if dic else key
+            return grounded
+        
         scan_expr_tree_noop = lambda expr, _: expr
         dispatch_dict = {
             'noop': scan_expr_tree_noop,

@@ -259,6 +259,7 @@ class RDDLEnv(gym.Env):
         numpy array depending on the vectorized setting.
         '''
         sampler = self.sampler
+        sampler.probes = {}
         
         if self.done:
             raise RDDLEpisodeAlreadyEndedError(
@@ -298,7 +299,7 @@ class RDDLEnv(gym.Env):
             truncated = True
             self.done = True
         
-        return obs, reward, terminated, truncated, {}
+        return obs, reward, terminated, truncated, {'probes': dict(sampler.probes)}
 
     def reset(self, seed: Optional[int]=None, 
               options: Optional[Any]=None) -> Tuple[Any, Any]:
@@ -313,6 +314,7 @@ class RDDLEnv(gym.Env):
         
         # reset counters and internal state
         sampler = self.sampler
+        sampler.probes = {}
         obs, terminated = sampler.reset()
         self.done = terminated
         self.state = sampler.states
@@ -345,7 +347,7 @@ class RDDLEnv(gym.Env):
                     '######################################################')
             self.simlogger.log_free(text)
             
-        return obs, {}
+        return obs, {'probes': dict(sampler.probes)}
 
     def pilImageToSurface(self, pilImage):
         '''Converts a PIL image to a Pygame surface.'''

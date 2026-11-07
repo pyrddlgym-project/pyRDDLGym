@@ -148,7 +148,7 @@ class BaseAgent(metaclass=ABCMeta):
                 
                 # take a step in the environment
                 action = self.sample_action(state)   
-                next_state, reward, terminated, truncated, _ = env.step(action)
+                next_state, reward, terminated, truncated, info = env.step(action)
                 total_reward += reward * cuml_gamma
                 cuml_gamma *= gamma
                 done = terminated or truncated
@@ -159,7 +159,8 @@ class BaseAgent(metaclass=ABCMeta):
                           f'step {step}   reward {self._format_value(reward).strip()}   '
                           f'done {done}\n'
                           f'state\n{self._format(state, width)}\n'
-                          f'action\n{self._format(action, width)}')
+                          f'action\n{self._format(action, width)}\n'
+                          f'probes\n{self._format(info["probes"], width)}')
                 state = next_state
                 if done:
                     break

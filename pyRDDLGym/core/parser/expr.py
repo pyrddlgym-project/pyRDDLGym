@@ -21,6 +21,7 @@ class Expression(object):
     def __init__(self, expr: Union['Expression', Tuple]) -> None:
         self._expr = expr
         self.id = None
+        self.probe_key = getattr(expr, 'probe_key', None)
 
     def __getitem__(self, i):
         return self._expr[i]

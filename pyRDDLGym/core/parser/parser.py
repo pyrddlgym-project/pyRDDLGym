@@ -14,7 +14,7 @@ from pyRDDLGym.core.parser.instance import Instance
 from pyRDDLGym.core.parser.pvariable import PVariable
 from pyRDDLGym.core.parser.expr import Expression
 from pyRDDLGym.core.parser.cpf import CPF
-from pyRDDLGym.core.debug.exception import RDDLParseError, raise_warning
+from pyRDDLGym.core.debug.exception import RDDLParseError, RDDLTypeError, raise_warning
 
 alpha = r'[A-Za-z]'
 digit = r'[0-9]'
@@ -713,8 +713,8 @@ class RDDLParser(object):
             p[0] = ('pvar_expr', (p[1], p[3]))
 
     def p_term_list(self, p):
-        '''term_list : term_list COMMA term_list_item
-                     | term_list_item
+        '''term_list : term_list COMMA term_arg
+                     | term_arg
                      | empty'''
         if p[1] is None:
             p[0] = []
@@ -723,6 +723,19 @@ class RDDLParser(object):
             p[0] = p[1]
         elif len(p) == 2:
             p[0] = [p[1]]
+
+    def p_term_arg(self, p):
+        '''term_arg : term_list_item
+                    | IDENT LBRACK term_arg COMMA IDENT RBRACK'''
+        if len(p) == 2:
+            p[0] = p[1]
+        elif p[1] == 'probe' and not isinstance(p[3], str) and p[3].probe_key is None:
+            p[3].probe_key = p[5]
+            p[0] = p[3]
+        else:
+            raise RDDLTypeError(
+                f'Syntax error on line {p.lineno(1)}: '
+                f'a fluent argument can only be wrapped once as probe[fluent, key].')
 
     def p_term_list_item(self, p):
         '''term_list_item : pvar_expr
@@ -744,7 +757,22 @@ class RDDLParser(object):
 
     def p_function_expr(self, p):
         '''function_expr : IDENT LBRACK expr_list RBRACK'''
-        p[0] = ('func', (p[1], p[3]))
+        if p[1] == 'probe':
+            p[0] = self._probe_expr(p[3], p.lineno(1))
+        else:
+            p[0] = ('func', (p[1], p[3]))
+
+    @staticmethod
+    def _probe_expr(args, lineno):
+        if len(args) == 2:
+            arg, key = args
+            if arg.probe_key is None and key.is_pvariable_expression() and key.args[1] is None \
+            and not key.args[0].startswith(('?', '@')):
+                arg.probe_key = key.args[0]
+                return arg
+        raise RDDLTypeError(
+            f'Syntax error on line {lineno}: '
+            f'probe must have the form probe[expression, key], where key is a bare name.')
 
     def p_expr_list(self, p):
         '''expr_list : expr_list COMMA expr
