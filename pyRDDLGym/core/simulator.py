@@ -53,6 +53,7 @@ class RDDLSimulator:
         if python_functions is None:
             python_functions = {}
         self.python_functions = python_functions
+        self.probes = {}
         
         self._compile()
         
@@ -514,6 +515,26 @@ class RDDLSimulator:
     # ===========================================================================
     
     def _sample(self, expr, subs):
+        value = self._sample_expr(expr, subs)
+        if expr.probe_key is not None:
+            self._store_probe(expr, value)
+        return value
+
+    def _store_probe(self, expr, value):
+        '''Stores a probed value in the same form as the state.'''
+        rddl = self.rddl
+        ptype = self.traced.cached_object_type(expr)
+        if self.objects_as_strings and ptype is not None:
+            value = rddl.index_to_object_string_array(ptype, value)
+        if self.keep_tensors:
+            self.probes[expr.probe_key] = np.array(value, ndmin=1)
+        else:
+            ptypes = [ptype for (_, ptype) in self.traced.cached_objects_in_scope(expr)]
+            names = [rddl.ground_var(expr.probe_key, objects)
+                     for objects in rddl.ground_types(ptypes)]
+            self.probes.update(zip(names, np.ravel(value)))
+
+    def _sample_expr(self, expr, subs):
         etype, _ = expr.etype
         if etype == 'constant':
             return self._sample_constant(expr, subs)

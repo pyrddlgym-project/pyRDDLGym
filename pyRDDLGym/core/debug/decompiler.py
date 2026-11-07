@@ -244,6 +244,10 @@ class RDDLDecompiler:
     # ===========================================================================
 
     def _decompile(self, expr, enclose, level):
+        if expr.probe_key is not None:
+            inner = Expression(expr)
+            inner.probe_key = None
+            return f'probe[{self._decompile(inner, False, level)}, {expr.probe_key}]'
         etype, _ = expr.etype
         if etype == 'constant':
             return self._decompile_constant(expr, enclose, level)
