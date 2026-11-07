@@ -729,7 +729,11 @@ class RDDLParser(object):
                     | IDENT LBRACK term_arg COMMA IDENT RBRACK'''
         if len(p) == 2:
             p[0] = p[1]
-        elif p[1] == 'probe' and not isinstance(p[3], str) and p[3].probe_key is None:
+        elif p[1] == 'probe' and isinstance(p[3], str):
+            raise_warning(f'Probe key <{p[5]}> on line {p.lineno(1)} is ignored: '
+                          f'<{p[3]}> can not be probed.')
+            p[0] = p[3]
+        elif p[1] == 'probe' and p[3].probe_key is None:
             p[3].probe_key = p[5]
             p[0] = p[3]
         else:

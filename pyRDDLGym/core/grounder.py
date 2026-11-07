@@ -416,6 +416,14 @@ class RDDLGrounder(BaseRDDLGrounder):
                     variation_list.append(arg)
                 else:
                     if isinstance(arg, Expression):
+                        if arg.is_pvariable_expression() and arg.args[1] is None \
+                        and self.objects_rev.get(arg.args[0]) in self.enum_types \
+                        and arg.args[0] not in self.variable_params:
+                            if arg.probe_key is not None:
+                                raise_warning(f'Probe key <{arg.probe_key}> is ignored: '
+                                              f'<{arg.args[0]}> can not be probed when grounded.')
+                            variation_list.append(arg.args[0])
+                            continue
                         raise RDDLNotImplementedError(
                             'Nested pvariables can not currently be grounded.')
                     elif arg not in dic:                       
@@ -528,6 +536,9 @@ class RDDLGrounder(BaseRDDLGrounder):
             inner = Expression(expr)
             inner.probe_key = None
             grounded = Expression(self._scan_expr_tree(inner, dic))
+            if grounded.probe_key is not None:
+                raise_warning(f'Probe key <{grounded.probe_key}> is ignored: '
+                              f'<{key}> is on the same expression when grounded.')
             grounded.probe_key = self._append_variation_to_name(key, dic.values()) if dic else key
             return grounded
         
