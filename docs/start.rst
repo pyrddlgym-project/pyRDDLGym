@@ -338,10 +338,10 @@ readable CSV file for later analysis:
 
 .. code-block:: python
 	
-    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", log_path="/path/to/output.csv")
+    env = pyRDDLGym.make("CartPole_Continuous_gym", "0", log_path="/path/to/output")
                             
-Upon interacting with the environment, pyRDDLGym appends the new observations to the log file at the
-specified path. Logging continues until ``env.close()`` is called.
+Upon interacting with the environment, pyRDDLGym appends the new observations to the log file
+``/path/to/output_log.csv``. Logging continues until ``env.close()`` is called.
 
 
 Debugging Logs

@@ -291,7 +291,8 @@ class RDDLEnv(gym.Env):
             else:
                 log_obs = obs
             log_action = self.model.ground_vars_with_values(sim_actions)
-            self.simlogger.log(log_obs, log_action, reward, self.done, self.timestep)
+            done = self.done or self.timestep + 1 == self.horizon
+            self.simlogger.log(log_obs, log_action, reward, done, self.timestep)
         
         # update step horizon
         self.timestep += 1
