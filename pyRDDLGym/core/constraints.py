@@ -178,6 +178,10 @@ class RDDLConstraints:
             if args is None:
                 args = []
                 
+            # bounds only apply to fluents whose arguments are objects
+            if not all(isinstance(arg, str) for arg in args):
+                return None, 0.0, None, []
+
             if not self.rddl.is_non_fluent_expression(const_expr):
                 raise_warning(
                     f'{tag} contains a fluent expression '
@@ -191,6 +195,11 @@ class RDDLConstraints:
             const = self.sim._sample(const_expr, self.sim.subs)
             eps, loc = self._get_op_code(op, left_pvar)
             lim = const + eps
+            if self.rddl.variable_ranges[var] == 'int':
+                if loc == 0:
+                    lim = np.floor(const) + 1 if eps else np.ceil(const)
+                else:
+                    lim = np.ceil(const) - 1 if eps else np.floor(const)
 
             # lim has one axis per quantified object (in forall order): take the
             # tightest bound over objects the pvariable does not use, then index the
