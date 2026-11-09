@@ -248,8 +248,9 @@ class RDDLParser(object):
 
     def __init__(self, lexer=None, verbose=False):
         if lexer is None:
-            self.lexer = RDDLlex()
-            self.lexer.build()
+            lexer = RDDLlex()
+            lexer.build()
+        self.lexer = lexer
 
         self._verbose = verbose
 
