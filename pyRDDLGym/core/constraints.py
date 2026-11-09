@@ -193,16 +193,16 @@ class RDDLConstraints:
             lim = const + eps
 
             # lim has one axis per quantified object (in forall order): take the
-            # tightest bound over objects the pvariable does not use, then permute
-            # the remaining axes into the pvariable's argument order
+            # tightest bound over objects the pvariable does not use, then index the
+            # pvariable by one index array per remaining axis (f(?x, ?x) is a diagonal)
             if objects:
                 names = [name for (name, _) in objects]
                 lim = np.broadcast_to(
                     lim, self.rddl.object_counts([ptype for (_, ptype) in objects]))
-                axes = [names.index(arg) for arg in args if not self.rddl.is_literal(arg)]
+                axes = sorted({names.index(arg) for arg in args if not self.rddl.is_literal(arg)})
                 unused = tuple(i for i in range(len(names)) if i not in axes)
                 lim = (np.max if loc == 0 else np.min)(lim, axis=unused)
-                lim = np.transpose(lim, np.argsort(np.argsort(axes)))
+                grids = dict(zip(axes, np.ix_(*map(np.arange, lim.shape))))
 
             # finally, since the pvariable expression may contain literals,
             # construct a slice that would assign the above constant value to it
@@ -213,7 +213,7 @@ class RDDLConstraints:
                     arg = rddl.strip_literal(arg)
                     slices.append(rddl.object_to_index[arg])
                 else:
-                    slices.append(slice(None))
+                    slices.append(grids[names.index(arg)] if objects else slice(None))
             slices = tuple(slices)
             
             return var, lim, loc, slices
