@@ -65,13 +65,15 @@ class RDDLLevelAnalysis:
     # call graph construction
     # ===========================================================================
     
-    def build_call_graph(self, include_non_fluents: bool=False) -> Dict[str, List[str]]:
+    def build_call_graph(self, include_non_fluents: bool=False,
+                         include_reward: bool=False) -> Dict[str, List[str]]:
         '''Builds a call graph for the current RDDL, where keys represent parent
-        expressions (e.g., CPFs, reward) and values are sets of variables on 
-        which each parent depends. Also handles validation of the call graph to
-        make sure it follows RDDL rules.
+        expressions (CPFs, and the reward if include_reward) and values are the 
+        sorted lists of variables on which each parent depends. Also handles 
+        validation of the call graph to make sure it follows RDDL rules.
 
         :param include_non_fluents: whether to include non-fluents in call graph
+        :param include_reward: whether to include the reward in call graph'
         '''
         rddl = self.rddl
         
@@ -95,10 +97,14 @@ class RDDLLevelAnalysis:
             for expr in exprs:
                 self._update_call_graph(call_graph_expr, name, expr, include_non_fluents)
             self._validate_dependencies(call_graph_expr)
+            if name == 'reward':
+                reward_deps = call_graph_expr.get(name, set())
         
         # produce reproducible order of graph dependencies
         cpf_graph = {name: sorted(deps) 
                      for (name, deps) in cpf_graph.items()}
+        if include_reward:
+            cpf_graph['reward'] = sorted(reward_deps)
         return cpf_graph
     
     def _update_call_graph(self, graph, cpf, expr, nfs):

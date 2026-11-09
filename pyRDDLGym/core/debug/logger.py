@@ -1,4 +1,5 @@
 import datetime
+import os
 
 
 class Logger:
@@ -34,7 +35,7 @@ class SimLogger:
         fp.write('')
         fp.close()
         self.data = []
-        self.write_head = True
+        self.write_head = os.path.getsize(self.filename) == 0
         self.iteration = 0
 
     def _write_data(self):

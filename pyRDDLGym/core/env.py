@@ -340,13 +340,6 @@ class RDDLEnv(gym.Env):
                 self._movies += 1
             self._movie_generator.save_frame(image)            
         
-        # logging
-        if self.simlogger:
-            text = ('######################################################\n'
-                    'New Trial\n'
-                    '######################################################')
-            self.simlogger.log_free(text)
-            
         return obs, {'probes': dict(sampler.probes)}
 
     def pilImageToSurface(self, pilImage):
