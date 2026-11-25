@@ -57,13 +57,6 @@ class RDDLSimulator:
         
         self._compile()
 
-        # for init-state expressions
-        if not hasattr(self, 'init_state_schedule'):
-            if rddl.init_state_exprs:
-                raise RDDLNotImplementedError(
-                    f'{type(self).__name__} does not support expressions in init-state.')
-            self.init_state_schedule = []
-
         # must be replaced and never written into
         for value in self.init_values.values():
             if isinstance(value, np.ndarray):
@@ -422,9 +415,7 @@ class RDDLSimulator:
         subs = self.subs = self.init_values.copy()
         keep_tensors = self.keep_tensors
 
-        # sample init-state expressions
-        for (name, expr, target, _) in self.init_state_schedule:
-            subs[name] = self._sample_init_state(name, expr, target, subs[name])
+        self.sample_init_state()
 
         # update state
         self.state = {}
@@ -457,14 +448,20 @@ class RDDLSimulator:
         done = self.check_terminal_states()
         return obs, done
     
-    def _sample_init_state(self, name, expr, target, values):
-        prange = self.rddl.variable_ranges[name]
-        dtype = RDDLValueInitializer.NUMPY_TYPES.get(prange, RDDLValueInitializer.INT)
-        sample = self._sample(expr, self.subs)
-        RDDLSimulator._check_type(sample, dtype, f'Init-state expression for <{name}>', expr)
-        values = RDDLSimulator.write_init_state(values, np.asarray(sample, dtype=dtype), target)
-        values.flags.writeable = False
-        return values[()]
+    def sample_init_state(self) -> None:
+        '''Samples the groundings defined by init-state expressions into the current
+        values, in the order of the init-state schedule.'''
+        subs = self.subs
+        for (name, expr, target, _) in self.init_state_schedule:
+            prange = self.rddl.variable_ranges[name]
+            dtype = RDDLValueInitializer.NUMPY_TYPES.get(prange, RDDLValueInitializer.INT)
+            sample = self._sample(expr, subs)
+            RDDLSimulator._check_type(
+                sample, dtype, f'Init-state expression for <{name}>', expr)
+            values = RDDLSimulator.write_init_state(
+                subs[name], np.asarray(sample, dtype=dtype), target)
+            values.flags.writeable = False
+            subs[name] = values[()]
     
     @staticmethod
     def write_init_state(values, sample, target):
