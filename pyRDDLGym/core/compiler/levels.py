@@ -1,4 +1,6 @@
 from collections import deque
+import itertools
+import numpy as np
 
 from typing import Dict, Optional, List, Set
 
@@ -390,7 +392,222 @@ class RDDLLevelAnalysis:
         '''
         graph = self.build_call_graph_policy(include_non_fluents=include_non_fluents)
         return _bfs_search(graph)
-        
+
+
+class RDDLInitStateAnalysis:
+    '''Computes the evaluation order of init-state expressions.'''
+
+    MATRIX_OPS = ('inverse', 'pinverse', 'cholesky')
+
+    def __init__(self, rddl: RDDLPlanningModel) -> None:
+        self.rddl = rddl
+        self._non_fluents = None
+
+    def compute_schedule(self) -> list:
+        '''Returns the schedule of the init-state: its assignments in evaluation order, as
+        tuples (name, expr, target, copy), where target is a tuple of object indices or a
+        boolean mask of the groundings to write, and copy is the grounding (objects) when
+        expr is the lifted entry's expression evaluated for that grounding on its own.'''
+        rddl = self.rddl
+        exprs = rddl.init_state_exprs
+        defined = {(name, grounding) for (name, entry) in exprs.items()
+                   for grounding in itertools.chain(entry['covered'], entry['ground'])}
+
+        # dependencies of each grounding
+        graph, discarded_reads = {}, {}
+        for (name, entry) in exprs.items():
+            for (grounding, expr) in entry['ground'].items():
+                graph[(name, grounding)] = self._reads(expr, {}, (name, grounding), defined)
+            if entry['lifted'] is None:
+                continue
+            objects, expr = entry['lifted']
+            variables = [var for (var, _) in objects]
+            covered = set(entry['covered'])
+            discarded_reads[name] = set()
+            scope = {var: tuple(rddl.type_to_objects[ptype]) for (var, ptype) in objects}
+            if not self._reads(expr, scope, (name, tuple(variables)), defined):
+                graph.update(((name, grounding), set()) for grounding in covered)
+                continue
+            for grounding in rddl.ground_types(rddl.variable_params[name]):
+                scope = {var: (obj,) for (var, obj) in zip(variables, grounding)}
+                reads = self._reads(expr, scope, (name, grounding), defined)
+                if grounding in covered:
+                    graph[(name, grounding)] = reads
+                else:
+                    discarded_reads[name].update(reads)
+        levels, users = self._levels_of_groundings(graph)
+
+        # level of each lifted evaluation
+        lifted_level = {}
+        for (name, reads) in discarded_reads.items():
+            covered = exprs[name]['covered']
+            if covered:
+                lifted_level[name] = max(itertools.chain(
+                    (levels[(name, grounding)] for grounding in covered),
+                    (levels[node] + 1 for node in reads)))
+        read_by_lifted = set().union(*discarded_reads.values())
+
+        schedule = []
+        masks = {name: np.zeros(rddl.object_counts(rddl.variable_params[name]), dtype=bool)
+                 for name in lifted_level}
+        for (node, level) in levels.items():
+            name, grounding = node
+            entry = exprs[name]
+            indices = rddl.object_indices(grounding)
+            if grounding in entry['ground']:
+                schedule.append((level, name, entry['ground'][grounding], indices, None))
+                continue
+            at = lifted_level[name]
+            if node in read_by_lifted or any(
+                    levels[user] <= at for user in users.get(node, ())):
+                objects, expr = entry['lifted']
+                literals = {var: '@' + obj for ((var, _), obj) in zip(objects, grounding)}
+                op = self._matrix_op_over(expr, set(literals))
+                if op is not None:
+                    lifted = self.grounding_str((name, tuple(literals)))
+                    raise RDDLNotImplementedError(
+                        f'Init-state grounding <{self.grounding_str(node)}> is read before '
+                        f'<{lifted}> can be evaluated, so it must be evaluated on its '
+                        f'own, but {op} over the parameters of <{lifted}> requires '
+                        f'the whole matrix.')
+                schedule.append(
+                    (level, name, self._substitute(expr, literals), indices, grounding))
+            else:
+                masks[name][indices] = True
+
+        for (name, mask) in masks.items():
+            if mask.any():
+                schedule.append(
+                    (lifted_level[name], name, exprs[name]['lifted'][1], mask, None))
+        schedule.sort(key=lambda assignment: assignment[0])
+        return [assignment[1:] for assignment in schedule]
+
+    @staticmethod
+    def _substitute(expr, literals):
+        '''Returns a copy of expr with free variables replaced by object literals.'''
+        if isinstance(expr, Expression):
+            return Expression((expr[0], RDDLInitStateAnalysis._substitute(expr[1], literals)))
+        elif isinstance(expr, (tuple, list)):
+            return type(expr)(RDDLInitStateAnalysis._substitute(arg, literals) for arg in expr)
+        else:
+            return literals.get(expr, expr) if isinstance(expr, str) else expr
+
+    @staticmethod
+    def _matrix_op_over(expr, variables):
+        '''Returns the first matrix operation in expr with a row or column parameter
+        in variables, or None.'''
+        if isinstance(expr, Expression):
+            etype, op = expr.etype
+            if etype == 'matrix' and op in RDDLInitStateAnalysis.MATRIX_OPS \
+            and variables.intersection(expr.args[0]):
+                return op
+            expr = expr[1]
+        if isinstance(expr, (tuple, list)):
+            for arg in expr:
+                op = RDDLInitStateAnalysis._matrix_op_over(arg, variables)
+                if op is not None:
+                    return op
+        return None
+
+    def _reads(self, expr, scope, node, defined):
+        references = set()
+        self._references(expr, scope, references, node)
+        return references.intersection(defined)
+
+    def _references(self, expr, scope, references, node):
+        rddl = self.rddl
+        if isinstance(expr, (tuple, list)):
+            for arg in expr:
+                self._references(arg, scope, references, node)
+        elif not isinstance(expr, Expression) or expr.is_constant_expression():
+            pass
+        elif not expr.is_pvariable_expression():
+            for arg in expr.args:
+                if isinstance(arg, tuple) and arg[:1] == ('typed_var',):
+                    var, ptype = arg[1]
+                    scope = {**scope, var: tuple(rddl.type_to_objects[ptype])}
+
+            # row and column parameters come from the outer scope, but range over
+            # the whole matrix inside the operation
+            etype, op = expr.etype
+            if etype == 'matrix' and op in RDDLInitStateAnalysis.MATRIX_OPS:
+                scope = {**scope, **{
+                    var: tuple(rddl.type_to_objects[rddl.object_to_type[scope[var][0]]])
+                    for var in expr.args[0]}}
+            self._references(expr.args, scope, references, node)
+        else:
+            name, args = expr.args
+            var_type = rddl.variable_types.get(name, None)
+            if var_type is None or (not args and rddl.is_object(name)):
+                return
+            elif var_type not in ('state-fluent', 'non-fluent'):
+                raise RDDLInvalidDependencyInCPFError(
+                    f'Init-state expression for <{self.grounding_str(node)}> can not '
+                    f'depend on <{name}> of type {var_type}.')
+            args = args or []
+            self._references(args, scope, references, node)
+            if var_type == 'state-fluent':
+                choices = [self._objects(arg, ptype, scope) 
+                           for (arg, ptype) in zip(args, rddl.variable_params[name])]
+                references.update((name, objs) for objs in itertools.product(*choices))
+
+    @staticmethod
+    def grounding_str(node):
+        name, objects = node
+        return f'{name}({", ".join(objects)})' if objects else name
+
+    @staticmethod
+    def _levels_of_groundings(graph):
+        '''Returns the level of each node and the nodes that depend on each node.'''
+        users = {}
+        for (node, deps) in graph.items():
+            for dep in deps:
+                users.setdefault(dep, []).append(node)
+        waiting = {node: len(deps) for (node, deps) in graph.items()}
+        levels, level = {}, 0
+        current = [node for (node, count) in waiting.items() if count == 0]
+        while current:
+            following = []
+            for node in current:
+                levels[node] = level
+                for user in users.get(node, ()):
+                    waiting[user] -= 1
+                    if waiting[user] == 0:
+                        following.append(user)
+            current, level = following, level + 1
+        if len(levels) < len(graph):
+            nodes = sorted(set(graph).difference(levels))
+            nodes = ', '.join(map(RDDLInitStateAnalysis.grounding_str, nodes))
+            raise RDDLInvalidDependencyInCPFError(
+                f'Cyclic dependency in init-state: groundings {{{nodes}}} are in '
+                f'or depend on a cycle.')
+        return levels, users
+
+    def _objects(self, arg, ptype, scope):
+        '''The objects an argument can evaluate to, resolved at compile time for objects, 
+        bound variables and non-fluents.'''
+        rddl = self.rddl
+        if isinstance(arg, str):
+            if arg == '_':
+                return tuple(rddl.type_to_objects[ptype])
+            elif RDDLPlanningModel.is_free_object(arg):
+                return scope[arg]
+            else:
+                return (RDDLPlanningModel.strip_literal(arg),)
+        name, args = arg.args if arg.is_pvariable_expression() else (None, None)
+        if name is not None and not args and rddl.is_object(name):
+            return (RDDLPlanningModel.strip_literal(name),)
+        elif rddl.variable_types.get(name, None) == 'non-fluent':
+            if self._non_fluents is None:
+                self._non_fluents = rddl.ground_vars_with_values(rddl.non_fluents)
+            choices = [self._objects(a, t, scope) 
+                       for (a, t) in zip(args or [], rddl.variable_params[name])]
+            return tuple({self._non_fluents[rddl.ground_var(name, objs)] 
+                          for objs in itertools.product(*choices)})
+        else:
+            return tuple(rddl.type_to_objects[ptype])
+    
+
 # ===========================================================================
 # helper functions for performing topological sort
 # ===========================================================================

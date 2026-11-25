@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-from pyRDDLGym.core.compiler.levels import RDDLLevelAnalysis
+from pyRDDLGym.core.compiler.levels import RDDLInitStateAnalysis, RDDLLevelAnalysis
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.debug.exception import (
     print_stack_trace_root as PST,
@@ -112,7 +112,9 @@ class RDDLObjectsTracer:
         self.logger = logger
         self.cpf_levels = cpf_levels
         self.stochastic_is_fluent = stochastic_is_fluent
-            
+        self._literal_types = rddl.enum_types
+        self._tracing_init_state = False
+
     @staticmethod
     def _check_not_object(arg, expr, out, msg):
         obj_type = out.cached_object_type(arg)
@@ -142,6 +144,7 @@ class RDDLObjectsTracer:
         self._trace_invariants(out)
         self._trace_preconditions(out)
         self._trace_terminations(out)
+        self._trace_init_state(out)
         
         # log the fluent types
         if self.logger is not None:
@@ -221,6 +224,39 @@ class RDDLObjectsTracer:
             out._current_root = f'Termination {i + 1}'
             self._trace(expr, [], out)
             RDDLObjectsTracer._check_not_object(expr, expr, out, out._current_root)
+
+    def _trace_init_state(self, out):
+        rddl = self.rddl
+        self._literal_types = rddl.type_to_objects
+        self._tracing_init_state = True
+        try:
+            for (name, entry) in rddl.init_state_exprs.items():
+                exprs = [([],) + grounding for grounding in entry['ground'].items()]
+                if entry['lifted'] is not None:
+                    objects, expr = entry['lifted']
+                    exprs.append((objects, tuple(var for (var, _) in objects), expr))
+                prange = rddl.variable_ranges[name]
+                expected = prange if prange in rddl.type_to_objects else None
+                for (objects, grounding, expr) in exprs:
+                    entry_str = RDDLInitStateAnalysis.grounding_str((name, grounding))
+                    out._current_root = f'init-state {entry_str}'
+                    self._trace(expr, objects, out)
+                    if out.cached_object_type(expr) != expected:
+                        raise RDDLTypeError(
+                            f'Init-state entry for <{entry_str}> expects expression of '
+                            f'type <{prange}>, got <{out.cached_object_type(expr)}>.\n' +
+                            PST(expr, out._current_root))
+
+            # the schedule
+            out.init_state_schedule = RDDLInitStateAnalysis(rddl).compute_schedule()
+            for (name, expr, _, copy) in out.init_state_schedule:
+                if copy is not None:
+                    entry_str = RDDLInitStateAnalysis.grounding_str((name, copy))
+                    out._current_root = f'init-state {entry_str}'
+                    self._trace(expr, [], out)
+        finally:
+            self._literal_types = rddl.enum_types
+            self._tracing_init_state = False
 
     def trace_policy(self, out: RDDLTracedObjects) -> RDDLTracedObjects:
         '''Traces all expressions in the current RDDL policy file and annotates
@@ -387,7 +423,7 @@ class RDDLObjectsTracer:
             # check var is a domain object
             literal = RDDLPlanningModel.strip_literal(var)        
             enum_type = rddl.object_to_type[literal]  
-            if enum_type not in rddl.enum_types:
+            if enum_type not in self._literal_types:
                 raise RDDLInvalidObjectError(
                     f'<{var}> must be of an enumerated type in {rddl.enum_types}, '
                     f'got type <{enum_type}>. '
@@ -406,7 +442,13 @@ class RDDLObjectsTracer:
         
         # if the pvar has free objects (e.g., ?x)...
         else:
-            
+            # the level analysis checks this for all other expressions
+            if self._tracing_init_state \
+            and self.variable_type_from_rddl_or_policy(var) is None:
+                raise RDDLUndefinedVariableError(
+                    f'Variable <{var}> is not defined in expression for '
+                    f'{out._current_root}.\n' + PST(expr, out._current_root))
+
             # check if pvar is fluent
             primed_var = rddl.next_state.get(var, var)
             if primed_var in rddl.cpfs:
@@ -521,7 +563,7 @@ class RDDLObjectsTracer:
                         f'of type <{enum_type}>.\n' + PST(expr, out._current_root))
                 
                 # only allow enumerated types as literals
-                if enum_type not in rddl.enum_types:
+                if enum_type not in self._literal_types:
                     raise RDDLInvalidObjectError(
                         f'Argument {i + 1} of variable <{var}> '
                         f'must be of an enumerated type in {rddl.enum_types}, '
@@ -868,7 +910,7 @@ class RDDLObjectsTracer:
         # type in pvariables scope must be a domain object
         var, _ = pred.args
         enum_type = self.variable_range_from_rddl_or_policy(var)
-        if enum_type not in rddl.enum_types:
+        if enum_type not in self._literal_types:
             raise RDDLTypeError(
                 f'Range <{enum_type}> of switch predicate <{var}> is not an '
                 f'enumerated type, must be one of {rddl.enum_types}.\n' + 
@@ -969,7 +1011,7 @@ class RDDLObjectsTracer:
         (_, enum_type), *cases = expr.args
             
         # object type must be a valid domain object type
-        if enum_type not in rddl.enum_types:
+        if enum_type not in self._literal_types:
             raise RDDLTypeError(
                 f'Type <{enum_type}> in Discrete distribution is not an '
                 f'enumerated type, must be one of {rddl.enum_types}.\n' + 

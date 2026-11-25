@@ -18,7 +18,7 @@ from pyRDDLGym.core.debug.exception import (
     RDDLUndefinedVariableError
 )
 from pyRDDLGym.core.debug.logger import Logger
-from pyRDDLGym.core.simulator import lngamma
+from pyRDDLGym.core.simulator import RDDLSimulator, lngamma
 
 # try to load scipy
 try:
@@ -135,6 +135,17 @@ class RDDLIntervalAnalysis:
                 intervals[name] = state_bounds[name]
             else:
                 intervals[name] = (values, values)
+        
+        # groundings defined by init-state expressions take the expression bounds
+        for (name, expr, target, _) in self.trace.init_state_schedule:
+            if state_bounds is None or name not in state_bounds:
+                bounds = self._bound(expr, intervals)
+                new_bounds = []
+                for (values, bound) in zip(intervals[name], bounds):
+                    values = self._cast_enum_values_to_int(name, values)
+                    values = np.asarray(values, dtype=np.result_type(values, bound))
+                    new_bounds.append(RDDLSimulator.write_init_state(values, bound, target))
+                intervals[name] = tuple(new_bounds)
         return intervals
             
     def _bound_next_epoch(self, intervals, action_bounds=None):

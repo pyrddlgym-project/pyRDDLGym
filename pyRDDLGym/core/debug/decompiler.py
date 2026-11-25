@@ -200,19 +200,33 @@ class RDDLDecompiler:
         initstate_statements = []
         for (name, values) in rddl.state_fluents.items():
             default_value = rddl.variable_defaults[name]
+            
+            # groundings defined by expressions hold placeholders
+            entry = rddl.init_state_exprs.get(name, rddl.init_state_entry())
+            skip = set(entry['covered']).union(entry['ground'])
             if isinstance(values, (list, tuple, set)):
                 for (gname, gvalue) in rddl.ground_var_with_values(name, values):
-                    if gvalue != default_value:
-                        gvar, objects = rddl.parse_grounded(gname)
+                    gvar, objects = rddl.parse_grounded(gname)
+                    if tuple(objects) not in skip and (
+                            gvalue != default_value or entry['lifted'] is not None):
                         objects_str = ('(' + ','.join(objects) + ')') if objects else ''
                         gvalue = self._value_to_string(gvalue)
                         assign_expr = f'\t\t{gvar}{objects_str} = {gvalue};'
                         initstate_statements.append(assign_expr)
             else:
-                if values != default_value:
+                if values != default_value and not skip:
                     values = self._value_to_string(values)
                     assign_expr = f'\t\t{name} = {values};'
                     initstate_statements.append(assign_expr)
+            if entry['lifted'] is not None:
+                objects, expr = entry['lifted']
+                params = ', '.join(var for (var, _) in objects)
+                initstate_statements.append(
+                    f'\t\t{name}({params}) = {self.decompile_expr(expr, level=2)};')
+            for (objects, expr) in entry['ground'].items():
+                objects_str = ('(' + ','.join(objects) + ')') if objects else ''
+                initstate_statements.append(
+                    f'\t\t{name}{objects_str} = {self.decompile_expr(expr, level=2)};')
         if initstate_statements:
             decompiled_initstate = '\n\tinit-state {'
             decompiled_initstate += '\n' + '\n'.join(initstate_statements)

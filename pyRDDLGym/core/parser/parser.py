@@ -276,6 +276,7 @@ class RDDLParser(object):
         )
         self.parsing_logfile = None
         self.debugging = False
+        self._inst_def_lines = {}
 
     # ===========================================================================
     # RDDL
@@ -779,6 +780,17 @@ class RDDLParser(object):
             f'Syntax error on line {lineno}: '
             f'probe must have the form probe[expression, key], where key is a bare name.')
 
+    @staticmethod
+    def _contains_probe(expr):
+        '''Returns whether expr has a probe anywhere in it.'''
+        if isinstance(expr, Expression):
+            if expr.probe_key is not None:
+                return True
+            expr = expr[1]
+        if isinstance(expr, (tuple, list)):
+            return any(map(RDDLParser._contains_probe, expr))
+        return False
+
     def p_expr_list(self, p):
         '''expr_list : expr_list COMMA expr
                      | expr'''
@@ -1100,6 +1112,13 @@ class RDDLParser(object):
 
     def p_init_state_section(self, p):
         '''init_state_section : INIT_STATE LCURLY pvar_inst_list RCURLY SEMI'''
+        for entry in p[3]:
+            ((name, _), value) = entry
+            if RDDLParser._contains_probe(value):
+                raise RDDLTypeError(
+                    f'Error on line {self._inst_def_lines[id(entry)]}: '
+                    f'probes are not allowed in the init-state block, '
+                    f'but the entry for <{name}> has one.')
         p[0] = ('init_state', p[3])
         self._print_verbose('init-state')
 
@@ -1150,6 +1169,13 @@ class RDDLParser(object):
 
     def p_init_non_fluent_section(self, p):
         '''init_non_fluent_section : NON_FLUENTS LCURLY pvar_inst_list RCURLY SEMI'''
+        for entry in p[3]:
+            ((name, params), value) = entry
+            if isinstance(value, Expression) or any(o.startswith('?') for o in params or []):
+                raise RDDLTypeError(
+                    f'Error on line {self._inst_def_lines[id(entry)]}: '
+                    f'non-fluent <{name}> must be assigned a constant value '
+                    f'with objects as arguments in the non-fluents block.')
         p[0] = ('init_non_fluent', p[3])
         self._print_verbose('init-non-fluent')
 
@@ -1167,8 +1193,8 @@ class RDDLParser(object):
                          | IDENT SEMI
                          | NOT IDENT LPAREN lconst_list RPAREN SEMI
                          | NOT IDENT SEMI
-                         | IDENT LPAREN lconst_list RPAREN ASSIGN_EQUAL range_const SEMI
-                         | IDENT ASSIGN_EQUAL range_const SEMI'''
+                         | IDENT LPAREN lconst_list RPAREN ASSIGN_EQUAL pvar_inst_value SEMI
+                         | IDENT ASSIGN_EQUAL pvar_inst_value SEMI'''
         if len(p) == 6:
             p[0] = ((p[1], p[3]), True)
         elif len(p) == 3:
@@ -1182,9 +1208,32 @@ class RDDLParser(object):
         elif len(p) == 5:
             p[0] = ((p[1], None), p[3])
 
+        # the non-fluents block reports the line of an invalid entry
+        self._inst_def_lines[id(p[0])] = p.lineno(1)
+
+    def p_pvar_inst_value(self, p):
+        '''pvar_inst_value : expr
+                           | POS_INF
+                           | NEG_INF'''
+        value = p[1]
+        if isinstance(value, Expression) and value.probe_key is None:
+            etype, op = value.etype
+            if etype == 'constant':
+                value = value.args
+            elif etype == 'pvar' and value.args[1] is None and value.args[0][0] != '?':
+                value = value.args[0]
+            elif (etype == 'arithmetic' and op in ('-', '+') and len(value.args) == 1
+                  and value.args[0].etype[0] == 'constant'
+                  and value.args[0].probe_key is None
+                  and not isinstance(value.args[0].args, bool)):
+                value = -value.args[0].args if op == '-' else value.args[0].args
+        p[0] = value
+
     def p_lconst_list(self, p):
         '''lconst_list : lconst_list COMMA lconst
-                       | lconst'''
+                       | lconst_list COMMA VAR
+                       | lconst
+                       | VAR'''
         if len(p) == 4:
             p[1].append(p[3])
             p[0] = p[1]
@@ -1322,6 +1371,7 @@ class RDDLParser(object):
 
     def parse(self, input):
         self._input = input
+        self._inst_def_lines = {}
         if self.debugging:
             self.parsing_logfile = os.path.join(tempfile.gettempdir(), 'rddl_parse.log')
             log = logging.getLogger(__name__)

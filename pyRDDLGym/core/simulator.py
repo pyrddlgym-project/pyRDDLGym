@@ -56,7 +56,14 @@ class RDDLSimulator:
         self.probes = {}
         
         self._compile()
-        
+
+        # for init-state expressions
+        if not hasattr(self, 'init_state_schedule'):
+            if rddl.init_state_exprs:
+                raise RDDLNotImplementedError(
+                    f'{type(self).__name__} does not support expressions in init-state.')
+            self.init_state_schedule = []
+
         # must be replaced and never written into
         for value in self.init_values.values():
             if isinstance(value, np.ndarray):
@@ -163,6 +170,7 @@ class RDDLSimulator:
         # trace expressions to cache information to be used later
         tracer = RDDLObjectsTracer(rddl, logger=self.logger, cpf_levels=self.levels)
         self.traced = tracer.trace()
+        self.init_state_schedule = self.traced.init_state_schedule
         
         # initialize all fluent and non-fluent values        
         self.subs = self.init_values.copy()
@@ -413,7 +421,11 @@ class RDDLSimulator:
         rddl = self.rddl
         subs = self.subs = self.init_values.copy()
         keep_tensors = self.keep_tensors
-        
+
+        # sample init-state expressions
+        for (name, expr, target, _) in self.init_state_schedule:
+            subs[name] = self._sample_init_state(name, expr, target, subs[name])
+
         # update state
         self.state = {}
         for state in rddl.state_fluents:
@@ -444,6 +456,25 @@ class RDDLSimulator:
         
         done = self.check_terminal_states()
         return obs, done
+    
+    def _sample_init_state(self, name, expr, target, values):
+        prange = self.rddl.variable_ranges[name]
+        dtype = RDDLValueInitializer.NUMPY_TYPES.get(prange, RDDLValueInitializer.INT)
+        sample = self._sample(expr, self.subs)
+        RDDLSimulator._check_type(sample, dtype, f'Init-state expression for <{name}>', expr)
+        values = RDDLSimulator.write_init_state(values, np.asarray(sample, dtype=dtype), target)
+        values.flags.writeable = False
+        return values[()]
+    
+    @staticmethod
+    def write_init_state(values, sample, target):
+        '''Returns a copy of values with the groundings in target replaced by sample.'''
+        values = np.array(values)
+        if isinstance(target, np.ndarray):
+            values[target] = np.broadcast_to(sample, values.shape)[target]
+        else:
+            values[target] = sample
+        return values
     
     def step(self, actions: Args) -> Args:
         '''Samples and returns the next state from the CPF expressions.
@@ -1511,6 +1542,7 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
                 dtype = RDDLValueInitializer.NUMPY_TYPES.get(
                     prange, RDDLValueInitializer.INT)
                 self.cpfs.append((cpf, expr, dtype))
+        self.init_state_schedule = self.traced.init_state_schedule
                 
         # initialize all fluent and non-fluent values        
         self.subs = self.init_values.copy()

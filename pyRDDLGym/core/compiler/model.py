@@ -65,6 +65,13 @@ class RDDLPlanningModel(metaclass=ABCMeta):
         self._observ_fluents = None
         self._observ_ranges = None
         
+        # init-state entries with expressions, re-sampled at every reset:
+        # {state-fluent: {'lifted': None or (objects, expr) for f(?x, ...) = expr,
+        #                 'covered': groundings (object tuples) of the lifted entry,
+        #                 'ground': {grounding: expr}}}
+        # these groundings hold placeholder values in state_fluents
+        self._init_state_exprs = {}
+        
         # cpf info
         self._cpfs = None
         self._level_to_cpfs = None
@@ -213,6 +220,14 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     @state_ranges.setter
     def state_ranges(self, value):
         self._state_ranges = value
+
+    @property
+    def init_state_exprs(self):
+        return self._init_state_exprs
+
+    @init_state_exprs.setter
+    def init_state_exprs(self, value):
+        self._init_state_exprs = value
 
     @property
     def next_state(self):
@@ -386,6 +401,66 @@ class RDDLPlanningModel(metaclass=ABCMeta):
     # class methods for general RDDL syntax rules
     # ===========================================================================
     
+    @staticmethod
+    def init_state_expression(name, params, value, object_to_type, variable_params):
+        '''Returns the value of an init-state entry as an expression, or None if it is
+        a constant of a ground entry. A bare name denotes an object, as it always has,
+        or else a 0-ary pvariable; a name that is both is ambiguous.'''
+        lifted = params is not None and any(p.startswith('?') for p in params)
+        if lifted:
+            if not all(p.startswith('?') for p in params):
+                raise RDDLNotImplementedError(
+                    f'Left-hand side of init-state entry <{name}({", ".join(params)})> '
+                    f'can not mix free variables and objects.')
+            elif len(params) != len(variable_params[name]):
+                raise RDDLInvalidNumberOfArgumentsError(
+                    f'Init-state entry for <{name}> requires '
+                    f'{len(variable_params[name])} parameter(s), got {params}.')
+            elif len(set(params)) != len(params):
+                raise RDDLRepeatedVariableError(
+                    f'Repeated parameter(s) {params} in init-state entry for <{name}>.')
+        if isinstance(value, str) and value[0] != '@' and value in variable_params:
+            if value in object_to_type and not variable_params[value]:
+                raise RDDLInvalidObjectError(
+                    f'Can not disambiguate reference to object or pvariable with '
+                    f'identical names <{value}> in init-state block.')
+            elif value not in object_to_type:
+                return Expression(('pvar_expr', (value, None)))
+        if isinstance(value, Expression):
+            return value
+        elif not lifted:
+            return None
+        elif isinstance(value, str):
+            if RDDLPlanningModel.strip_literal(value) not in object_to_type:
+                raise RDDLInvalidObjectError(
+                    f'State-fluent <{name}> is initialized in init-state block '
+                    f'with undefined object <{value}>.')
+            return Expression(('pvar_expr', (value, None)))
+        else:
+            return Expression(('boolean' if isinstance(value, bool) else 'number', value))
+    
+    @staticmethod
+    def init_state_entry(lifted=None, ground=None):
+        '''Returns an entry of RDDLPlanningModel.init_state_exprs.'''
+        return {'lifted': lifted, 'covered': [], 'ground': {} if ground is None else ground}
+
+    @staticmethod
+    def init_state_placeholder(name, prange, type_to_objects):
+        '''Returns the value held by a grounding of a state-fluent without a default
+        that is defined by an init-state expression, until it is sampled.'''
+        if prange in RDDLPlanningModel.PRIMITIVE_TYPES:
+            return RDDLPlanningModel.PRIMITIVE_TYPES[prange]()
+        elif prange not in type_to_objects:
+            raise RDDLTypeError(
+                f'Range <{prange}> of state-fluent <{name}> is not a valid type, '
+                f'must be one of {set(type_to_objects.keys())}.')
+        elif not type_to_objects[prange]:
+            raise RDDLTypeError(
+                f'Range <{prange}> of state-fluent <{name}> has no objects, '
+                f'so it can not be initialized.')
+        else:
+            return type_to_objects[prange][0]
+
     @staticmethod
     def is_free_object(name: str) -> bool:
         '''Determines whether the name is a free object (e.g., ?x).'''
@@ -770,8 +845,17 @@ class RDDLPlanningModel(metaclass=ABCMeta):
             'reward': str(self.reward),
             'invariants': [str(expr) for expr in self.invariants],
             'preconditions': [str(expr) for expr in self.preconditions],
-            'terminations': [str(expr) for expr in self.terminations]
+            'terminations': [str(expr) for expr in self.terminations],
+            'init_state': {}
         }
+        for (name, entry) in self.init_state_exprs.items():
+            if entry['lifted'] is not None:
+                objects, expr = entry['lifted']
+                params = ', '.join(var for (var, _) in objects)
+                printed['init_state'][f'{name}({params})'] = str(expr)
+            for (objects, expr) in entry['ground'].items():
+                key = f'{name}({", ".join(objects)})' if objects else name
+                printed['init_state'][key] = str(expr)
         return printed
     
     def __str__(self):
@@ -1011,6 +1095,7 @@ class RDDLLiftedModel(RDDLPlanningModel):
         # update the state values with the values in the instance
         init_state_info = getattr(self.ast.instance, 'init_state', [])
         already_set = {}
+        exprs, lifted = {}, {}
         for ((name, params), value) in init_state_info:
                 
             # check whether name is a valid state-fluent
@@ -1019,6 +1104,16 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 raise RDDLUndefinedVariableError(
                     f'Variable <{name}> referenced in init-state block '
                     f'is not a valid state-fluent.')
+            
+            # lifted entries are applied after all ground entries
+            expr = RDDLPlanningModel.init_state_expression(
+                name, params, value, self.object_to_type, self.variable_params)
+            if params is not None and params[0].startswith('?'):
+                if name in lifted:
+                    raise RDDLRepeatedVariableError(
+                        f'State-fluent <{name}> has more than one lifted init-state entry.')
+                lifted[name] = (list(zip(params, self.variable_params[name])), expr)
+                continue
                     
             # extract the grounded name and check that parameters are valid
             if params is not None:
@@ -1030,6 +1125,16 @@ class RDDLLiftedModel(RDDLPlanningModel):
                     f'Parameter(s) {params} of state-fluent <{name}> '
                     f'declared in the init-state block are not valid, '
                     f'must be of type(s) {required_types}.')
+            
+            # an expression can not share a grounding with another entry
+            key = (name, tuple(params or ()))
+            if key in exprs or (expr is not None and gname in already_set):
+                raise RDDLRepeatedVariableError(
+                    f'Multiple initial values assigned to state-fluent <{gname}> '
+                    f'in the instance, at least one of which is an expression.')
+            if expr is not None:
+                exprs[key] = expr
+                continue
                 
             # make sure value is correct type
             if isinstance(value, str):
@@ -1057,6 +1162,25 @@ class RDDLLiftedModel(RDDLPlanningModel):
                 already_set[gname] = value
 
             grounded_states[gname] = value
+        
+        # a lifted entry defines all groundings with no ground entry
+        init_state_exprs = {name: RDDLPlanningModel.init_state_entry(entry) 
+                            for (name, entry) in lifted.items()}
+        for ((name, objects), expr) in exprs.items():
+            init_state_exprs.setdefault(
+                name, RDDLPlanningModel.init_state_entry())['ground'][objects] = expr
+        for (name, entry) in init_state_exprs.items():
+            placeholder = RDDLPlanningModel.init_state_placeholder(
+                name, statesranges[name], self.type_to_objects)
+            for objects in self.ground_types(self.variable_params[name]):
+                gname = RDDLPlanningModel.ground_var(name, objects)
+                covered = (entry['lifted'] is not None and gname not in already_set
+                           and objects not in entry['ground'])
+                if covered:
+                    entry['covered'].append(objects)
+                if (covered or objects in entry['ground']) and states[name][gname] is None:
+                    states[name][gname] = placeholder
+        self.init_state_exprs = init_state_exprs
         
         self.state_fluents = self._grounded_dict_to_dict_of_list(states)  
         self.state_ranges = statesranges   

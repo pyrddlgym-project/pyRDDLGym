@@ -2,10 +2,12 @@
 # https://github.com/thiagopbueno/pyrddl
 # it was adapted and extended for pyRDDLGym
 
-from typing import Dict, List, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-FluentTuple = Tuple[Union[str, None]]
-Value = Union[bool, int, float]
+from pyRDDLGym.core.parser.expr import Expression
+
+FluentTuple = Tuple[str, Optional[List[str]]]
+Value = Union[bool, int, float, str, Expression]
 FluentInitializer = Tuple[FluentTuple, Value]
 FluentInitializerList = List[FluentInitializer]
 

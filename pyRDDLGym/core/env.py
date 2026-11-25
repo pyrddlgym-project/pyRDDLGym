@@ -317,6 +317,7 @@ class RDDLEnv(gym.Env):
         sampler = self.sampler
         sampler.probes = {}
         obs, terminated = sampler.reset()
+        sampler.check_state_invariants(silent=False)
         self.done = terminated
         self.state = sampler.states
         self.trial += 1
