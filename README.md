@@ -2,6 +2,7 @@
 
 # pyRDDLGym
 
+[![arXiv](https://img.shields.io/badge/arXiv-2211.05939-b31b1b)](https://arxiv.org/abs/2211.05939)
 ![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
 [![PyPI Version](https://img.shields.io/pypi/v/pyRDDLGym.svg)](https://pypi.org/project/pyRDDLGym/)
 [![Documentation Status](https://readthedocs.org/projects/pyrddlgym/badge/?version=latest)](https://pyrddlgym.readthedocs.io/en/latest/)
