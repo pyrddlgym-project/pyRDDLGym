@@ -1,3 +1,5 @@
+<div align="center">
+
 # pyRDDLGym
 
 ![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
@@ -7,18 +9,20 @@
 
 **Write a planning problem in a few lines of RDDL, get a Gym environment. The official parser, simulator and evaluation system for RDDL in Python.**
 
-<img src="Images/examples.gif" margin=0/>
+[Why pyRDDLGym?](#why-pyrddlgym) &nbsp;&middot;&nbsp; [Installation](#installation) &nbsp;&middot;&nbsp; [Quick start](#quick-start) &nbsp;&middot;&nbsp; [Usage](#usage) &nbsp;&middot;&nbsp; [Planners](#planners) &nbsp;&middot;&nbsp; [Learning RDDL](#learning-rddl) &nbsp;&middot;&nbsp; [Citing](#citing-pyrddlgym)
 
-[Why pyRDDLGym?](#why-pyrddlgym) | [Installation](#installation) | [Quick start](#quick-start) | [Usage](#usage) | [Planners](#planners) | [Learning RDDL](#learning-rddl) | [Citing](#citing-pyrddlgym)
+<img src="Images/examples.gif"/>
+
+</div>
 
 ## Why pyRDDLGym?
 
-- **Compact.** A few lines of RDDL describe a dynamic, stochastic control problem: compare [CartPole in RDDL](https://github.com/pyrddlgym-project/rddlrepository/blob/main/rddlrepository/archive/standalone/CartPole/Continuous/domain.rddl#L61) with [200 lines of Python in Gym](https://github.com/openai/gym/blob/master/gym/envs/classic_control/cartpole.py#L130).
-- **Scalable.** Domains are relational templates, so an instance grows from one object to thousands without touching the domain, as in [Wildfire](https://ataitler.github.io/IPPC2023/pyrddlgym_rddl_tutorial.html) and [Reservoir Control](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing).
-- **Gym-compatible.** Every problem is a Gym environment, so it fits right into your existing workflow.
-- **Visual.** Built-in and custom [visualizers](#visualization) and [movie recording](#recording-movies) make domains easy to debug and plans easy to understand, like this student project [visualizing JaxPlan plans](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/CISC813%20Gifs/V2_5Moving_2.gif) in a [sailing domain](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/Version2/USV_obstacle_nav_v2_Domain.rddl).
-- **Analyzable.** Compile domains into [Dynamic Bayesian Networks](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic?tab=readme-ov-file#visualizing-dbns-with-xadd) and [XADDs](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic?tab=readme-ov-file#xadd-compilation-of-cpfs) to study causal dependencies and transition distributions.
-- **Ready to plan.** Plug in [planners and RL agents](#planners) out of the box, in [Python](#installation) or in the browser with the [RDDL Playground on Colab](https://colab.research.google.com/drive/1XjPnlujsJPNUqhHK5EuWSVWQY2Pvxino?usp=sharing).
+- ✍️ **Compact.** A few lines of RDDL describe a dynamic, stochastic control problem: compare [CartPole in RDDL](https://github.com/pyrddlgym-project/rddlrepository/blob/main/rddlrepository/archive/standalone/CartPole/Continuous/domain.rddl#L61) with [200 lines of Python in Gym](https://github.com/openai/gym/blob/master/gym/envs/classic_control/cartpole.py#L130).
+- 📈 **Scalable.** Domains are relational templates, so an instance grows from one object to thousands without touching the domain, as in [Wildfire](https://ataitler.github.io/IPPC2023/pyrddlgym_rddl_tutorial.html) and [Reservoir Control](https://colab.research.google.com/drive/19O-vgPsEX7t32cqV0bABmAdRaSWSMa4g?usp=sharing).
+- 🤸 **Gym-compatible.** Every problem is a Gym environment, so it fits right into your existing workflow.
+- 🎨 **Visual.** Built-in and custom [visualizers](#visualization) and [movie recording](#recording-movies) make domains easy to debug and plans easy to understand, like this student project [visualizing JaxPlan plans](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/CISC813%20Gifs/V2_5Moving_2.gif) in a [sailing domain](https://github.com/CowboyTime/CISC813-Project-USV-Nav/blob/main/Version2/USV_obstacle_nav_v2_Domain.rddl).
+- 🔍 **Analyzable.** Compile domains into [Dynamic Bayesian Networks](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic?tab=readme-ov-file#visualizing-dbns-with-xadd) and [XADDs](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic?tab=readme-ov-file#xadd-compilation-of-cpfs) to study causal dependencies and transition distributions.
+- 🤖 **Ready to plan.** Plug in [planners and RL agents](#planners) out of the box, in [Python](#installation) or in the browser with the [RDDL Playground on Colab](https://colab.research.google.com/drive/1XjPnlujsJPNUqhHK5EuWSVWQY2Pvxino?usp=sharing).
 
 ## Installation
 
@@ -165,18 +169,18 @@ pyRDDLGym comes with scripts that show its core features:
 
 pyRDDLGym environments work out of the box with these planners and learners:
 
-* [JaxPlan](https://github.com/pyrddlgym-project/pyRDDLGym-jax): planning through automatic differentiation
-* [GurobiPlan](https://github.com/pyrddlgym-project/pyRDDLGym-gurobi): planning through mixed discrete-continuous optimization
-* [PROST](https://github.com/pyrddlgym-project/pyRDDLGym-prost): Monte Carlo tree search
-* [Deep reinforcement learning](https://github.com/pyrddlgym-project/pyRDDLGym-rl): DQN, PPO and other algorithms from Stable Baselines and RLlib
-* [Symbolic dynamic programming](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic): exact symbolic regression-based planning and policy evaluation
+* ⚡ [JaxPlan](https://github.com/pyrddlgym-project/pyRDDLGym-jax): planning through automatic differentiation
+* 🧮 [GurobiPlan](https://github.com/pyrddlgym-project/pyRDDLGym-gurobi): planning through mixed discrete-continuous optimization
+* 🌳 [PROST](https://github.com/pyrddlgym-project/pyRDDLGym-prost): Monte Carlo tree search
+* 🧠 [Deep reinforcement learning](https://github.com/pyrddlgym-project/pyRDDLGym-rl): DQN, PPO and other algorithms from Stable Baselines and RLlib
+* ∑ [Symbolic dynamic programming](https://github.com/pyrddlgym-project/pyRDDLGym-symbolic): exact symbolic regression-based planning and policy evaluation
 
 ## Learning RDDL
 
-* [Web-based introduction](https://ataitler.github.io/IPPC2023/pyrddlgym_rddl_tutorial.html)
-* [Full tutorial](https://pyrddlgym-project.github.io/AAAI24-lab)
-* [Language specification](https://pyrddlgym.readthedocs.io/en/latest/rddl.html)
-* [rddlrepository](https://github.com/pyRDDLGym-project/rddlrepository): a library of domains written in the latest RDDL syntax, good starting points for your own
+* 🌐 [Web-based introduction](https://ataitler.github.io/IPPC2023/pyrddlgym_rddl_tutorial.html)
+* 🎓 [Full tutorial](https://pyrddlgym-project.github.io/AAAI24-lab)
+* 📖 [Language specification](https://pyrddlgym.readthedocs.io/en/latest/rddl.html)
+* 📦 [rddlrepository](https://github.com/pyRDDLGym-project/rddlrepository): a library of domains written in the latest RDDL syntax, good starting points for your own
 
 ## Related projects
 
