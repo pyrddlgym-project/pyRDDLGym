@@ -1539,8 +1539,17 @@ class RDDLSimulatorPrecompiled(RDDLSimulator):
                 dtype = RDDLValueInitializer.NUMPY_TYPES.get(
                     prange, RDDLValueInitializer.INT)
                 self.cpfs.append((cpf, expr, dtype))
-        self.init_state_schedule = self.traced.init_state_schedule
-                
+
+        # a trace made without trace() has no schedule
+        schedule = getattr(self.traced, 'init_state_schedule', None)
+        if schedule is None:
+            if any(e['covered'] or e['ground'] for e in rddl.init_state_exprs.values()):
+                raise RDDLNotImplementedError(
+                    'Trace has no init-state schedule, but the model has '
+                    'init-state expressions.')
+            schedule = []
+        self.init_state_schedule = schedule
+
         # initialize all fluent and non-fluent values        
         self.subs = self.init_values.copy()
         self.state = None  
