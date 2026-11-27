@@ -516,6 +516,12 @@ class RDDLObjectsTracer:
                 new_objects.append((new_pvar, args_types[i]))
                 underscore_names[i] = new_pvar
         objects = objects + new_objects
+
+        # unwrap expressions that are bare objects
+        args = [arg.args[0] if isinstance(arg, Expression)
+                and arg.is_pvariable_expression() and arg.args[1] is None
+                and rddl.is_object(arg.args[0], msg='\n' + PST(expr, out._current_root))
+                else arg for arg in args]
         
         # test for nested expressions
         is_arg_expr = [isinstance(arg, Expression) for arg in args]
