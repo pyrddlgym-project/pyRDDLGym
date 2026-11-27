@@ -907,19 +907,13 @@ class RDDLObjectsTracer:
         rddl = self.rddl
         pred, *cases = expr.args
         
-        # predicate must be a pvar
-        if not pred.is_pvariable_expression():
-            raise RDDLNotImplementedError(
-                'Switch predicate is not a pvariable.\n' + 
-                PST(expr, out._current_root))
-            
-        # type in pvariables scope must be a domain object
-        var, _ = pred.args
-        enum_type = self.variable_range_from_rddl_or_policy(var)
+        # predicate must evaluate to a domain object
+        self._trace(pred, objects, out)
+        enum_type = out.cached_object_type(pred)
         if enum_type not in self._literal_types:
             raise RDDLTypeError(
-                f'Range <{enum_type}> of switch predicate <{var}> is not an '
-                f'enumerated type, must be one of {rddl.enum_types}.\n' + 
+                f'Range <{enum_type}> of switch predicate is not an '
+                f'enumerated type, must be one of {rddl.enum_types}.\n' +
                 PST(expr, out._current_root))
             
         # default statement becomes ("default", expr)
@@ -941,8 +935,7 @@ class RDDLObjectsTracer:
         # order cases by canonical ordering of objects
         cached_sim_info = self._order_cases(enum_type, case_dict, expr, out)
         
-        # trace predicate and cases
-        self._trace(pred, objects, out)
+        # trace cases
         is_fluent = out.cached_is_fluent(pred)
         for arg in case_dict.values():
             self._trace(arg, objects, out)
@@ -1093,10 +1086,15 @@ class RDDLObjectsTracer:
             is_fluent = is_fluent or out.cached_is_fluent(arg)
                 
             # argument cannot be object type
-            RDDLObjectsTracer._check_not_object(
-                arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}') 
+            if expr.etype[1] != 'KronDelta':
+                RDDLObjectsTracer._check_not_object(
+                    arg, expr, out, f'Argument {i + 1} of {expr.etype[1]}')
         
-        out._append(expr, objects, None, is_fluent, None)
+        # KronDelta returns its argument, so it has the same object type
+        obj_type = None
+        if expr.etype[1] == 'KronDelta':
+            obj_type = out.cached_object_type(expr.args[0])
+        out._append(expr, objects, obj_type, is_fluent, None)
         
     # ===========================================================================
     # random vector
@@ -1303,8 +1301,12 @@ class RDDLObjectsTracer:
         RDDLObjectsTracer._check_not_object(
             arg, expr, out, f'Argument of matrix {op}')     
         
-        # save the location of the moved indices in objects
-        pvar_indices = (index_pvar1, index_pvar2)
+        # save the location of the moved indices in objects: the (pseudo-)inverse
+        # of a (row x col) matrix is a (col x row) matrix
+        if op == 'cholesky':
+            pvar_indices = (index_pvar1, index_pvar2)
+        else:
+            pvar_indices = (index_pvar2, index_pvar1)
         out._append(expr, objects, None, is_fluent, pvar_indices)
         
         # log information about matrix operation

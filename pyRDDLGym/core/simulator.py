@@ -488,6 +488,11 @@ class RDDLSimulator:
             sample = self._sample(expr, subs)
             RDDLSimulator._check_type(sample, dtype, cpf, expr)
             value = np.asarray(sample, dtype=dtype)[()]
+            if np.shape(value) != np.shape(subs[cpf]):
+                raise RDDLTypeError(
+                    f'CPF <{cpf}> evaluated to shape {np.shape(value)}, '
+                    f'expected {np.shape(subs[cpf])} from its parameters.\n' +
+                    print_stack_trace(expr))
             if isinstance(value, np.ndarray):
                 value.flags.writeable = False
             subs[cpf] = value
