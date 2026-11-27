@@ -514,6 +514,8 @@ class RDDLParser(object):
                        | POS_INF
                        | NEG_INF'''
         p[0] = p[1] if len(p) == 2 else -p[2]
+        if isinstance(p[0], str):
+            p[0] = float('inf') if p[0] == 'pos-inf' else -float('inf')
 
     def p_int_type(self, p):
         '''int_type : INTEGER
@@ -910,7 +912,11 @@ class RDDLParser(object):
         '''case_def : CASE term_list_item COLON expr
                     | DEFAULT COLON expr'''
         if len(p) == 5:
-            p[0] = ('case', (p[2], p[4]))
+            label = p[2]
+            if isinstance(label, Expression) and label.is_pvariable_expression() \
+            and label.args[1] is None:
+                label = label.args[0]
+            p[0] = ('case', (label, p[4]))
         elif len(p) == 4:
             p[0] = ('default', p[3])
 
@@ -1129,10 +1135,10 @@ class RDDLParser(object):
 
     def p_horizon_spec_section(self, p):
         '''horizon_spec_section : HORIZON ASSIGN_EQUAL pos_int_type_or_pos_inf SEMI
-                                | HORIZON ASSIGN_EQUAL TERMINATE_WHEN LPAREN expr RPAREN'''
+                                | HORIZON ASSIGN_EQUAL TERMINATE_WHEN LPAREN expr RPAREN SEMI'''
         if len(p) == 5:
             p[0] = ('horizon', p[3])
-        elif len(p) == 7:
+        elif len(p) == 8:
             p[0] = ('horizon', p[5])
         self._print_verbose('horizon')
 
@@ -1227,6 +1233,8 @@ class RDDLParser(object):
                   and value.args[0].probe_key is None
                   and not isinstance(value.args[0].args, bool)):
                 value = -value.args[0].args if op == '-' else value.args[0].args
+        elif isinstance(value, str):
+            value = float('inf') if value == 'pos-inf' else -float('inf')
         p[0] = value
 
     def p_lconst_list(self, p):

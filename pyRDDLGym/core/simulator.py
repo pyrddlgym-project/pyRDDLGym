@@ -318,7 +318,7 @@ class RDDLSimulator:
                 if np.asarray(value).dtype.type is np.str_:
                     value = rddl.object_string_to_index_array(ptype, value)
                 RDDLSimulator._check_type(value, np.asarray(tensor).dtype, action, expr='')
-                sim_actions[action] = value
+                sim_actions[action] = np.array(value)
 
         # check action ranges for enum valued
         for (action, value) in sim_actions.items(): 

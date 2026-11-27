@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 
 from pyRDDLGym.core.compiler.model import RDDLPlanningModel
 from pyRDDLGym.core.visualizer.viz import BaseViz
@@ -38,21 +39,8 @@ class HeatmapVisualizer(BaseViz):
         self._img = None
         
         if steps_history is None:
-            steps_history = model.horizon
+            steps_history = model.horizon if model.horizon != sys.maxsize else 100
         self._steps = steps_history
-        self._state_hist = {}
-        self._state_shapes = {}
-        self._labels = {}
-        self._historic_min_max = {}
-        for (state, values) in self._model.state_fluents.items():
-            values = np.atleast_1d(values)
-            self._state_hist[state] = np.full(
-                shape=(len(values), self._steps), fill_value=np.nan)
-            self._state_shapes[state] = self._model.object_counts(
-                self._model.variable_params[state])
-            self._labels[state] = list(map(
-                ','.join, self._model.ground_types(self._model.variable_params[state])))
-            self._historic_min_max[state] = (np.inf, -np.inf)
         self._step = 0
         self._drawn_artists = False
         
@@ -70,7 +58,20 @@ class HeatmapVisualizer(BaseViz):
             ax.set_yticklabels(labels)
 
     def _setup(self):
-        
+        self._state_hist = {}
+        self._state_shapes = {}
+        self._labels = {}
+        self._historic_min_max = {}
+        for (state, values) in self._model.state_fluents.items():
+            values = np.atleast_1d(values)
+            self._state_hist[state] = np.full(
+                shape=(len(values), self._steps), fill_value=np.nan)
+            self._state_shapes[state] = self._model.object_counts(
+                self._model.variable_params[state])
+            self._labels[state] = list(map(
+                ','.join, self._model.ground_types(self._model.variable_params[state])))
+            self._historic_min_max[state] = (np.inf, -np.inf)
+
         # prepare plot
         self._fig, self._ax = plt.subplots(
             len(self._state_hist), 1,

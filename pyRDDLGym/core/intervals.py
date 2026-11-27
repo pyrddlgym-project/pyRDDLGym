@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 import functools
 import numpy as np
+import sys
 import traceback
 from typing import Dict, Optional, Tuple, Union
 
@@ -80,7 +81,9 @@ class RDDLIntervalAnalysis:
         :param state_bounds: optional bounds on state fluents (defaults to
         the initial state values otherwise).
         '''
-        
+        if self.rddl.horizon == sys.maxsize:
+            raise ValueError('Interval analysis requires a finite horizon.')
+
         # get initial values as bounds
         intervals = self._bound_initial_values(state_bounds)
         init_states = {var: intervals[var] for var in self.rddl.state_fluents}

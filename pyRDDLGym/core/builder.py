@@ -1,5 +1,7 @@
 from typing import Any, Iterable
 
+from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
+
 
 class RDDLBuilder:
     '''A general class for building RDDL domain and instance code programmatically.'''
@@ -91,7 +93,7 @@ class RDDLBuilder:
             if default is None:
                 default_str = ''
             else:
-                default_str = f', default={default}'
+                default_str = f', default={RDDLDecompiler._value_to_string(default)}'
             result += f'\t\t{pname}{params_str} : {{ {ptype}, {prange}{default_str} }};\n'
         result += '\t};\n\n'
 
@@ -181,7 +183,7 @@ class RDDLBuilder:
         if self.nonfluent_inits:
             result += '\n\tnon-fluents {\n'
             for (name, value) in self.nonfluent_inits.items():
-                result += f'\t\t{name} = {value};\n'
+                result += f'\t\t{name} = {RDDLDecompiler._value_to_string(value)};\n'
             result += '\t};\n'
         
         result += '}\n\n'
@@ -193,7 +195,7 @@ class RDDLBuilder:
         if self.init_states:
             result += '\n\tinit-state {\n'
             for (name, value) in self.init_states.items():
-                result += f'\t\t{name} = {value};\n'
+                result += f'\t\t{name} = {RDDLDecompiler._value_to_string(value)};\n'
             result += '\t};\n\n'
         
         # write constants

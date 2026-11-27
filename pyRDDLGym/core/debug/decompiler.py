@@ -1,4 +1,5 @@
 import numpy as np
+import sys
 from typing import Dict, List, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from pyRDDLGym.core.compiler.model import RDDLPlanningModel
@@ -84,7 +85,8 @@ class RDDLDecompiler:
                 dv = self._value_to_string(rddl.variable_defaults[name])
                 if prange not in ['real', 'int', 'bool']:
                     dv = f'@{dv}'
-                if ptype in ['interm-fluent', 'derived-fluent', 'observ-fluent']:
+                if ptype in ['interm-fluent', 'derived-fluent', 'observ-fluent'] \
+                or rddl.variable_defaults[name] is None:
                     decompiled_pvars += f'\n\t\t{name}{decompiled_params} : ' + \
                                         f'{{ {ptype}, {prange} }};'
                 else:
@@ -235,7 +237,8 @@ class RDDLDecompiler:
         # decompile constants
         max_allowed_actions = getattr(rddl.ast.instance, 'max_nondef_actions', 'pos-inf')
         decompiled_maxnondefactions = f'\tmax-nondef-actions = {max_allowed_actions};'
-        decompiled_horizon = f'\thorizon = {rddl.horizon};'
+        horizon = 'pos-inf' if rddl.horizon == sys.maxsize else rddl.horizon
+        decompiled_horizon = f'\thorizon = {horizon};'
         decompiled_discount = f'\tdiscount = {rddl.discount};'
 
         # decompile instance overall block
@@ -302,6 +305,8 @@ class RDDLDecompiler:
         if value is None:
             return 'None'
         elif isinstance(value, float):
+            if np.isinf(value):
+                return 'pos-inf' if value > 0 else 'neg-inf'
             value = np.format_float_positional(value)
             if value.endswith('.'):
                 value += '0'

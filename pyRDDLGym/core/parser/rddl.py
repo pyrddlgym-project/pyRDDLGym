@@ -3,9 +3,11 @@
 
 import collections
 import itertools
+import sys
 from typing import Dict, List, Sequence, Optional, Tuple, Union
 
 from pyRDDLGym.core.parser.domain import Domain
+from pyRDDLGym.core.parser.expr import Expression
 from pyRDDLGym.core.parser.instance import Instance
 from pyRDDLGym.core.parser.nonfluents import NonFluents
 
@@ -34,6 +36,13 @@ class RDDL(object):
         self.non_fluents = blocks.get('non_fluents', NonFluents('', {}))
         self.instance = blocks['instance']
         self.policy = blocks.get('policy', None)
+
+        horizon = getattr(self.instance, 'horizon', None)
+        if isinstance(horizon, Expression):
+            self.domain.terminals = self.domain.terminals + [horizon]
+            horizon = 'pos-inf'
+        if horizon == 'pos-inf':
+            self.instance.horizon = sys.maxsize
 
     def build(self):
         self.domain.build()

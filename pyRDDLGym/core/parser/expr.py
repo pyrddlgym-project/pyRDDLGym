@@ -155,6 +155,9 @@ class Expression(object):
         #    print('my name is neighbor')
         
         # CHANGED BY MIKE ON JAN 10
+        if isinstance(expr, tuple):
+            args = '\n'.join(cls.__expr_str(arg, level + 1) for arg in expr)
+            return '{}(\n{})'.format(ident, args)
         if not isinstance(expr, Expression):
             return '{}{}'.format(ident, str(expr))
 

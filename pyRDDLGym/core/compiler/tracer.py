@@ -1288,7 +1288,7 @@ class RDDLObjectsTracer:
                     PST(expr, out._current_root))
         
         # move the matrix parameters to end of objects
-        batch_objects = [pvar for pvar in objects if pvar[0] not in scope_pvars]
+        batch_objects = [pvar for pvar in objects if pvar[0] not in pvars]
         new_objects = batch_objects + [(pvar1, ptype1), (pvar2, ptype2)]
         
         # trace the matrix expression
