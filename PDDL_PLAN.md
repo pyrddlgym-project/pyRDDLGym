@@ -43,7 +43,7 @@ Only the constructs the translator actually translates:
 - Domain: `:requirements`, `:types` (multi-level, `either`), `:constants`, `:predicates`, `:functions`, `:derived`, `:action`.
 - Problem: `:objects`, `:init`, `:goal`, `:metric`.
 - Formulas: `and/or/not/imply/exists/forall/when`, `=`, comparisons, arithmetic, `increase/decrease/assign/scale-up/scale-down`.
-- PPDDL (step 3): `probabilistic` (in effects and in `:init`), the `(reward)` fluent, `:goal-reward`, `:goal-probability`.
+- PPDDL (step 3): `probabilistic` (in effects and in `:init`), the `(reward)` fluent, `:goal-reward`, and `(goal-probability)` as the whole metric.
 - Entry points: `PDDLParser.parse_domain(text)` and `PDDLParser.parse_problem(text, domain)`. The parser has no module-level functions.
 
 **What is recognized and rejected**
@@ -76,7 +76,7 @@ These raise `PDDLParseError`, because otherwise pyRDDLGym would later fail with 
 **Supported**
 `strips, typing, negative/disjunctive/existential/universal preconditions, equality, conditional-effects, adl, derived-predicates (non-recursive), numeric-fluents, action-costs`.
 
-Everything else raises `PDDLUnsupportedError`. That includes recursive axioms, metrics other than those listed below, and PPDDL until step 3.
+Everything else raises `PDDLUnsupportedError`. That includes recursive axioms and metrics other than those listed below. PPDDL is step 3.
 
 **Names**
 - RDDL identifiers must match `[A-Za-z]([A-Za-z0-9_-]*[A-Za-z0-9])?`. Any other character is mangled. `__` is collapsed too, because pyRDDLGym uses it to separate objects in grounded names.
@@ -145,10 +145,12 @@ An argument that is a variable appearing only once is substituted directly inste
 ---
 
 ## Step 3 — PPDDL
-- Each `(probabilistic p1 e1 … pk ek)` becomes an `interm-fluent` `OUT-<α>-<n>(ȳ, z̄)`. Its value is an enum `{@o0 … @ok}`, where `@o0` is the remainder with no effect, and it is sampled with `Discrete(...)`. Every trigger inside branch i also requires `OUT-… == @oi`.
-- Nested blocks each get their own outcome fluent.
-- A block that affects a single literal compiles to an inline `Bernoulli`.
-- Rewards: `(increase (reward) e)` becomes a term in the reward; `:goal-reward` and `:goal-probability` become a goal bonus. Goals still map to `termination`.
+- One enum type `Outcome : {@O0 … @OK}` serves every block, where K is the largest number of branches. `@O0` is the remainder with no effect.
+- Each `(probabilistic p1 e1 … pk ek)` in an action becomes an `interm-fluent` `OUT-<α>-<n>(ȳ, z̄)`: one sample per grounding of the action parameters and the enclosing `forall` variables. It is sampled with `Discrete(Outcome, @O0 : 1−Σp, @O1 : p1, …)`, with 0 for unused values, and every trigger inside branch i also requires `OUT-… == @Oi`. Probabilities may be expressions over the current state; one that reads a partly initialized function raises.
+- A block with a single branch uses a `bool` interm-fluent sampled with `Bernoulli(p)` instead.
+- Nested blocks each get their own outcome fluent, and their triggers carry every enclosing outcome test. `when` conditions are not part of sampling: every block is sampled every step, which gives the same distribution.
+- Preconditions cannot read interm-fluents, so the `DEFINED-f` precondition of a numeric effect inside a branch applies whatever the outcome.
+- Rewards: `(reward)` is an ordinary metric function, so `(:metric maximize (reward))` turns each `(increase (reward) e)` into a reward term through the step 2 rules. `(:goal-reward n)` adds `n·coef(reward)·goal'` (the goal on the next state), and `(:metric maximize (goal-probability))` adds `1·goal'`. Goals still map to `termination`, so the bonus is paid once. If the initial state already satisfies the goal, the episode still takes one step.
 
 **Random initial states (`(probabilistic ...)` in `:init`)**
 
@@ -161,17 +163,17 @@ The parser already rejects these cases:
 - a numeric fluent that is set only in some outcomes and has no deterministic value (`PDDLUnsupportedError`).
 
 Translation into RDDL `init-state` expressions:
-- **Outcome fluents.** Each block `n` with `k` branches becomes a state-fluent `INIT-OUT-n : { state-fluent, init-out-n, default = @o0 }`. Its enum is `{@o0 … @ok}`, where `@o0` is the remainder with no effect. Its CPF is the identity, and its init-state entry is `INIT-OUT-n = Discrete(init-out-n, @o0 : 1-Σp, @o1 : p1, …)`.
-  - A block whose only effect is a single literal in a single branch skips the fluent and inlines `Bernoulli(p)` (or `~Bernoulli(p)` for a delete).
-  - Nested blocks get their own outcome fluent. A nested block's condition is ANDed with the condition of the branch it sits in. Sampling every block, even inside a branch that wasn't chosen, gives the same distribution.
-- **Conditions.** An effect in branch `i` of block `n` fires when `cond = (INIT-OUT-n == @oi)`, ANDed with the conditions of the enclosing branches.
-- **Atoms.** An atom becomes `p(ō) = OR(add conds) | (det(ō) ^ ~OR(del conds))`, where `det(ō)` is whether the atom is in `init_atoms`. Simplify when `det` is constant, and emit an entry only when it differs from the default.
+- **Outcome fluents.** Each block `n` becomes a 0-ary state-fluent `INIT-OUT-n : { state-fluent, Outcome, default = @O0 }`, numbered in source order with nested blocks after their parent. Its CPF is the identity, and its init-state entry is `INIT-OUT-n = Discrete(Outcome, @O0 : 1-Σp, @O1 : p1, …)`.
+  - A single-branch block uses a `bool` fluent with `Bernoulli(p)` instead.
+  - Nested blocks get their own outcome fluent. Sampling every block, even inside a branch that wasn't chosen, gives the same distribution.
+- **Conditions.** An effect in branch `i` of block `n` fires when `cond = (INIT-OUT-n == @Oi)`, ANDed with the conditions of the enclosing branches.
+- **Atoms.** An atom becomes `p(ō) = OR(add conds) | (det(ō) ^ ~OR(del conds))`, where `det(ō)` is whether the atom is in `init_atoms`. `det` is a constant, so this is `OR(adds)` or `OR(adds) | ~OR(dels)`, and an atom whose value can't change gets no entry.
 - **Numeric fluents.** `f(ō) = if (c1) then v1 else if (c2) then v2 … else det(ō)`. The parser guarantees that conditions with different values never both fire, so the order of the chain doesn't matter. When the fluent has no deterministic value, the parser guarantees the conditions cover every outcome, and the last condition becomes the `else`.
-- **Referencing other fluents.** pyRDDLGym resolves init-state entries that refer to other state fluents in dependency order, per grounding, so the order of the entries doesn't matter.
+- **Referencing other fluents.** pyRDDLGym resolves init-state entries that refer to other state fluents in dependency order, per grounding, so the order of the entries doesn't matter. This includes the lifted entries of derived predicates, which read the sampled atoms.
 - **Visibility.** The outcome fluents are part of the observed state. They don't change the dynamics, because no CPF other than their own identity reads them.
 
-**Exit criteria (step 3)**
-1. The emitted RDDL compiles for IPPC 2004/2006/2008 PPDDL domains.
+**Exit criteria (step 3)** — status 2026-11-28: criteria 1, 2, 3 and 5 are met; 4 is deferred with step 2's plan replay.
+1. The emitted RDDL compiles for IPPC 2004/2006/2008 PPDDL domains. The corpus has IPPC 2008 and the Little–Thiébaux domains: all 24 PPDDL cases load in both modes (rectangle-tireworld stays malformed).
 2. On tiny hand-written domains, sampled outcome frequencies from `RDDLEnv` match the probabilities written in the domain, using a seeded chi-square test. One case must change several fluents together, so correlated effects are checked.
 3. The same seeded test runs over `RDDLEnv.reset()` for random initial states. It must cover:
    - a block that sets several atoms together, checking the joint frequencies;
@@ -182,7 +184,7 @@ Translation into RDDL `init-state` expressions:
 
    Run it in both vectorized and non-vectorized modes.
 4. Plan replay (step 2) runs only on problems with a deterministic `:init`. For a problem with a random `:init`, replay the plan only after a seeded reset whose sampled initial state matches the state the plan assumes.
-5. Rejection tests for PPDDL constructs the translator doesn't support.
+5. Rejection tests for PPDDL constructs the translator doesn't support: a probability that reads a partly initialized function, and the step 2 metric rules (assign on `(reward)`, `(reward)` read by the domain).
 
 ---
 

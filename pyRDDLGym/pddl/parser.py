@@ -1057,7 +1057,13 @@ class PDDLParser:
     def _parse_metric(self, section, problem):
         if len(section) != 3 or section[1] not in ('minimize', 'maximize'):
             raise self._err(section, 'expected (:metric minimize|maximize <expression>)')
-        problem.metric = (str(section[1]), self.num_term(section[2], {}))
+        expr = section[2]
+        if isinstance(expr, SList) and expr == ['goal-probability'] \
+                and 'goal-probability' not in self.domain.functions:
+            # PPDDL: the probability of reaching the goal, as a 0-ary function
+            problem.metric = (str(section[1]), FTerm('goal-probability', (), self._loc(expr)))
+            return
+        problem.metric = (str(section[1]), self.num_term(expr, {}))
 
     def _parse_goal_reward(self, section, problem):
         if len(section) != 2 or not self._is_number(section[1]):

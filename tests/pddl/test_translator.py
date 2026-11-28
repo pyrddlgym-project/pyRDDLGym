@@ -1,3 +1,5 @@
+from collections import Counter
+
 import numpy as np
 import pytest
 
@@ -217,7 +219,6 @@ def test_partially_initialized_fluents():
     ('(:derived (far ?p - pkg) (not (near ?p)))',
      '(:derived (far ?p - pkg) (not (near ?p))) (:derived (near ?p - pkg) (far ?p))', 'recursive'),
     ('(at ?p ?b) (decrease', '(at ?p ?b) (near ?p) (decrease', 'changes the derived predicate'),
-    ('(at ?p ?b) (decrease', '(probabilistic 0.5 (at ?p ?b)) (decrease', 'probabilistic effects'),
 ])
 def test_unsupported_fluents(old, new, message):
     with pytest.raises(PDDLUnsupportedError, match=message):
@@ -330,7 +331,8 @@ def grounded_state(env, obs):
     '''The observation as {grounded name: bool or float}, in either mode.'''
     if env.vectorized:
         obs = dict(env.model.ground_vars_with_values(obs))
-    return {k: bool(v) if np.asarray(v).dtype == bool else float(v) for (k, v) in obs.items()}
+    return {k: bool(v) if np.asarray(v).dtype == bool else
+            float(v) if np.asarray(v).dtype.kind in 'iuf' else str(v) for (k, v) in obs.items()}
 
 
 def vector_action(env, grounded):
@@ -493,12 +495,8 @@ def line_of(text, marker):
 
 
 @pytest.mark.parametrize('dom_old, dom_new, prob_old, prob_new, where, marker, message', [
-    ('(at ?p ?b) (decrease', '(at ?p ?b)\n(probabilistic 0.5 (at ?p ?a)) (decrease', '', '',
-     'domain', '(probabilistic 0.5', 'probabilistic effects'),
-    ('', '', '(= (total-cost) 0)', '(= (total-cost) 0)\n(probabilistic 0.5 (road y x))',
-     'problem', '(probabilistic 0.5', 'probabilistic initial states'),
-    ('(:types loc pkg)', '(:types loc pkg) (:functions (reward))', '', '', 'domain', None,
-     'PPDDL rewards'),
+    ('(at ?p ?b) (decrease', '(at ?p ?b)\n(probabilistic (/ 1 (dist ?a ?b)) (at ?p ?a)) (decrease',
+     '', '', 'domain', '(probabilistic (/', 'partially initialized function'),
     ('(at ?p ?b) (decrease', '(at ?p ?b)\n(near ?p) (decrease', '', '',
      'domain', '(near ?p) (decrease', 'changes the derived predicate'),
     ('(:derived (far ?p - pkg) (not (near ?p)))',
@@ -518,11 +516,117 @@ def test_rejections_point_at_the_construct(dom_old, dom_new, prob_old, prob_new,
                                            marker, message):
     domain = FLUENTS.replace(dom_old, dom_new) if dom_old else FLUENTS
     problem = FLUENTS_PROBLEM.replace(prob_old, prob_new) if prob_old else FLUENTS_PROBLEM
-    if message == 'PPDDL rewards':
-        domain = domain.replace(':derived-predicates', ':derived-predicates :rewards').replace(
-            '(:functions (reward))', '').replace('(increase (total-cost) 1)',
-                                                 '(increase (total-cost) 1)\n(increase (reward) 1)')
-        marker = '(increase (reward) 1)'
     with pytest.raises(PDDLUnsupportedError, match=message) as e:
         translate_pddl(domain, problem)
     assert e.value.line == line_of(domain if where == 'domain' else problem, marker)
+
+
+# =============================================================================
+# PPDDL
+# =============================================================================
+
+PPDDL = """(define (domain r) (:requirements :typing :probabilistic-effects :rewards :fluents)
+  (:types cell)
+  (:constants c1 - cell)
+  (:predicates (a ?c - cell) (b ?c - cell) (p) (done))
+  (:functions (height ?c - cell))
+  (:action roll :parameters (?c - cell)
+    :effect (probabilistic 0.2 (and (a ?c) (b ?c)) 0.5 (and (a ?c) (increase (height ?c) 1))))
+  (:action spread :parameters () :effect (forall (?c - cell) (probabilistic 0.5 (b ?c))))
+  (:action toss :parameters () :effect (probabilistic (/ (height c1) 4) (p)))
+  (:action finish :parameters () :effect (and (done) (increase (reward) 3))))"""
+
+PPDDL_PROBLEM = """(define (problem q) (:domain r) (:objects c2 - cell)
+  (:init (= (height c1) 2) (= (height c2) 0))
+  (:goal (done)) (:goal-reward 10) (:metric maximize (reward)))"""
+
+RANDOM_INIT_PROBLEM = """(define (problem q) (:domain r) (:objects c2 - cell)
+  (:init (p) (= (height c1) 0) (= (height c2) 5)
+    (probabilistic 0.3 (and (a c1) (b c1) (not (p)))
+                   0.4 (probabilistic 0.5 (a c2)))
+    (probabilistic 0.5 (and (a c1) (= (height c1) 2)) 0.5 (= (height c2) 7)))
+  (:goal (done)))"""
+
+CRITICAL = {1: 10.83, 3: 16.27, 2: 13.82, 5: 20.52}  # chi-square, p = 0.001, by df
+
+
+def assert_frequencies(samples, expected):
+    counts = Counter(samples)
+    assert set(counts) <= set(expected), set(counts) - set(expected)
+    n = len(samples)
+    stat = sum((counts[k] - n * p) ** 2 / (n * p) for (k, p) in expected.items())
+    assert stat < CRITICAL[len(expected) - 1], (counts, stat)
+
+
+def test_outcome_fluents():
+    b = translate_pddl(PPDDL, PPDDL_PROBLEM).builder
+    assert b.enum_types == {'Outcome': ['@O0', '@O1', '@O2']}
+    assert b.pvariable_defs['OUT-roll-1'] == (('cell',), 'interm-fluent', 'Outcome', None)
+    assert b.cpf_defs['OUT-roll-1'] == (
+        ('?c',), 'Discrete(Outcome, @O0 : 0.3, @O1 : 0.2, @O2 : 0.5)')
+    assert b.cpf_defs['OUT-spread-1'] == (('?c',), 'Bernoulli(0.5)')
+    assert b.cpf_defs['b'] == (('?c',), '(roll(?c) ^ (OUT-roll-1(?c) == @O1)) | '
+                                        '(spread ^ OUT-spread-1(?c)) | b(?c)')
+
+
+def test_probabilistic_effects_frequencies(tmp_path):
+    tr = translate_pddl(PPDDL, PPDDL_PROBLEM)
+    cases = [
+        ({'roll___c1': True}, ('a___c1', 'b___c1', 'height___c1'),  # correlated effects
+         {(True, True, 2.0): 0.2, (True, False, 3.0): 0.5, (False, False, 2.0): 0.3}),
+        ({'spread': True}, ('b___c1', 'b___c2'),  # one sample per forall grounding
+         {(x, y): 0.25 for x in (False, True) for y in (False, True)}),
+        ({'toss': True}, ('p',), {(True,): 0.5, (False,): 0.5}),  # probability (height c1) / 4
+    ]
+    for env in make_envs(tr, tmp_path):
+        for (action, keys, expected) in cases:
+            samples = []
+            for seed in range(2000):
+                env.reset(seed=seed)
+                obs = env.step(vector_action(env, action) if env.vectorized else action)[0]
+                state = grounded_state(env, obs)
+                samples.append(tuple(state[k] for k in keys))
+            assert_frequencies(samples, expected)
+
+
+def test_goal_reward(tmp_path):
+    for env in make_envs(translate_pddl(PPDDL, PPDDL_PROBLEM), tmp_path):
+        env.reset(seed=0)
+        (_, r1, done1, *_) = env.step({})
+        (_, r2, done2, *_) = env.step(vector_action(env, {'finish': True})
+                                      if env.vectorized else {'finish': True})
+        assert (r1, done1, r2, done2) == (-1.0, False, 13.0, True)  # 3 + goal reward 10
+
+
+def test_goal_probability_metric():
+    problem = PPDDL_PROBLEM.replace('(reward)', '(goal-probability)')
+    b = translate_pddl(PPDDL, problem).builder
+    assert b.reward_def.startswith("(1.0 * done') - ")  # (reward) is no longer counted
+
+
+def test_random_init_expressions():
+    b = translate_pddl(PPDDL, RANDOM_INIT_PROBLEM).builder
+    assert b.init_states['INIT-OUT-1'] == 'Discrete(Outcome, @O0 : 0.3, @O1 : 0.3, @O2 : 0.4)'
+    assert b.init_states['INIT-OUT-2'] == 'Bernoulli(0.5)'
+    assert b.init_states['a(c1)'] == '((INIT-OUT-1 == @O1)) | ((INIT-OUT-3 == @O1))'
+    assert b.init_states['a(c2)'] == '((INIT-OUT-1 == @O2) ^ INIT-OUT-2)'
+    assert b.init_states['p'] == '~(((INIT-OUT-1 == @O1)))'
+    assert b.init_states['height(c2)'] == 'if ((INIT-OUT-3 == @O2)) then 7.0 else 5.0'
+
+
+def test_random_init_frequencies(tmp_path):
+    keys = ('a___c1', 'b___c1', 'p', 'a___c2', 'height___c1', 'height___c2')
+    expected = {  # block 1 x nested block x block 2, outcomes with equal states merged
+        (True, True, False, False, 2.0, 5.0): 0.15,
+        (True, True, False, False, 0.0, 7.0): 0.15,
+        (True, False, True, True, 2.0, 5.0): 0.1,
+        (False, False, True, True, 0.0, 7.0): 0.1,
+        (True, False, True, False, 2.0, 5.0): 0.25,
+        (False, False, True, False, 0.0, 7.0): 0.25,
+    }
+    for env in make_envs(translate_pddl(PPDDL, RANDOM_INIT_PROBLEM), tmp_path):
+        samples = []
+        for seed in range(3000):
+            state = grounded_state(env, env.reset(seed=seed)[0])
+            samples.append(tuple(state[k] for k in keys))
+        assert_frequencies(samples, expected)

@@ -1,7 +1,9 @@
-'''Translates the PDDL IR built by PDDLParser into lifted RDDL (PDDL_PLAN.md, step 2).
+'''Translates the PDDL and PPDDL IR built by PDDLParser into lifted RDDL (PDDL_PLAN.md,
+steps 2 and 3).
 
-Generated names contain upper-case letters (IS-t, OBJ-c, DEFINED-f, Object). The
-parser lower-cases every PDDL name, so generated names never collide with PDDL ones.
+Generated names contain upper-case letters (IS-t, OBJ-c, DEFINED-f, Object, OUT-a-n,
+INIT-OUT-n, Outcome). The parser lower-cases every PDDL name, so generated names never
+collide with PDDL ones.
 '''
 
 import dataclasses
@@ -35,11 +37,11 @@ class PDDLToRDDLTranslator:
         self.names: Dict[Tuple[str, str], str] = {}  # (kind, PDDL name) -> RDDL name
         self._taken = {'var': set(), 'obj': set()}
         self.primed = False  # whether formulas read state-fluents on the next state
-        self._check_supported()
         self._translate_names()
         self._translate_types()
         self._translate_fluents()
         self._translate_actions()
+        self.occurrences = self._occurrences()
         self._translate_effects()
         self._translate_goal_and_reward(noop_cost)
 
@@ -48,18 +50,6 @@ class PDDLToRDDLTranslator:
         loc = getattr(node, 'loc', None)
         return PDDLUnsupportedError(message, getattr(loc, 'line', None),
                                     getattr(loc, 'col', None))
-
-    def _check_supported(self) -> None:
-        '''PPDDL is converted in step 3; until then it is rejected.'''
-        for block in self.nodes_in(self.domain.actions, Probabilistic):
-            raise self._unsupported('probabilistic effects are not supported', block)
-        if self.problem.init_effects:
-            raise self._unsupported('probabilistic initial states are not supported',
-                                    self.problem.init_effects[0])
-        if self.domain.has_rewards() or self.problem.goal_reward is not None:
-            first = next((e for e in self.nodes_in(self.domain.actions, NumEffect)
-                          if e.target.name == 'reward'), None)
-            raise self._unsupported('PPDDL rewards are not supported', first)
 
     # ===========================================================================
     # IR helpers
@@ -209,6 +199,12 @@ class PDDLToRDDLTranslator:
                 for obj in self.members((t,)):
                     self.builder.add_nonfluent_init(guard, [self.names[('obj', obj)]], True)
 
+        # outcomes of probabilistic blocks with several branches; @O0 is "no effect"
+        blocks = self.nodes_in((self.domain.actions, self.problem.init_effects), Probabilistic)
+        self.outcomes = max((len(b.branches) for b in blocks), default=0)
+        if self.outcomes > 1:
+            self.builder.add_enum_type('Outcome', [f'@O{i}' for i in range(self.outcomes + 1)])
+
     def members(self, types: Tuple[str, ...]) -> list:
         '''The PDDL objects that have one of the types.'''
         return [o for (o, ot) in self.objects.items()
@@ -246,15 +242,17 @@ class PDDLToRDDLTranslator:
     # ===========================================================================
 
     def _translate_fluents(self) -> None:
-        '''Predicates and functions that an effect changes become state-fluents, derived
-        predicates derived-fluents, and everything else non-fluents. Functions in the
-        metric that nothing reads become reward terms (step 5), not fluents. A function
+        '''Predicates and functions that an effect or a random :init changes become
+        state-fluents, and so do derived predicates; everything else is a non-fluent.
+        Functions in the metric that nothing reads become reward terms, not fluents. A function
         that the problem initializes only for some objects gets a non-fluent DEFINED-f,
         and every read of it is guarded by it.'''
         domain, problem = self.domain, self.problem
         derived = {r.name for r in domain.derived}
-        changed_preds = {e.atom.pred for e in self.nodes_in(domain.actions, (Add, Del))}
-        changed_funcs = {e.target.name for e in self.nodes_in(domain.actions, NumEffect)}
+        # a random :init needs init-state expressions, so what it sets is a state-fluent
+        changers = (domain.actions, problem.init_effects)
+        changed_preds = {e.atom.pred for e in self.nodes_in(changers, (Add, Del))}
+        changed_funcs = {e.target.name for e in self.nodes_in(changers, NumEffect)}
         assigned = {}  # function -> its first assign effect
         for e in self.nodes_in(domain.actions, NumEffect):
             if e.op == 'assign':
@@ -268,7 +266,9 @@ class PDDLToRDDLTranslator:
         reads = [problem.goal, [a.precondition for a in domain.actions.values()],
                  [r.body for r in domain.derived],
                  [w.condition for w in self.nodes_in(domain.actions, When)],
-                 [e.expr for e in self.nodes_in(domain.actions, NumEffect)]]
+                 [e.expr for e in self.nodes_in(domain.actions, NumEffect)],
+                 [p for b in self.nodes_in(domain.actions, Probabilistic)
+                  for (p, _) in b.branches]]
         read_funcs = {t.name for t in self.nodes_in(reads, FTerm)}
         self.reward_funcs = {t.name for t in self.nodes_in(problem.metric, FTerm)} - read_funcs
 
@@ -277,9 +277,12 @@ class PDDLToRDDLTranslator:
             kind = 'state-fluent' if pred in changed_preds | derived else 'non-fluent'
             self._declare(self.names[('pred', pred)], params, kind, 'bool', False)
 
-        defined = {}
+        # the parser ensures a function set by a random :init has a value in every outcome
+        defined = {}  # function -> {defined args: None}, ordered for deterministic output
         for (f, args) in problem.init_numeric:
-            defined.setdefault(f, []).append(args)
+            defined.setdefault(f, {})[args] = None
+        for e in self.nodes_in(problem.init_effects, NumEffect):
+            defined.setdefault(e.target.name, {})[tuple(a.name for a in e.target.args)] = None
         self.partial = set()
         for (func, params) in domain.functions.items():
             if func in self.reward_funcs:
@@ -300,13 +303,16 @@ class PDDLToRDDLTranslator:
                     self._init('DEFINED-' + name, args, True)
 
         # initial values
-        for atom in problem.init_atoms:
+        random_atoms = [e.atom for e in self.nodes_in(problem.init_effects, (Add, Del))]
+        for atom in problem.init_atoms + tuple(random_atoms):
             if atom.pred in derived:
                 raise self._unsupported(f'the derived predicate "{atom.pred}" is in :init', atom)
+        for atom in problem.init_atoms:
             self._init(self.names[('pred', atom.pred)], [a.name for a in atom.args], True)
         for ((func, args), value) in problem.init_numeric.items():
             if func not in self.reward_funcs:
                 self._init(self.names[('func', func)], args, value)
+        self._translate_random_init()
 
         self._translate_derived()
 
@@ -325,6 +331,101 @@ class PDDLToRDDLTranslator:
             self.builder.add_init_state(name, objs, value)
         else:
             self.builder.add_nonfluent_init(name, objs, value)
+
+    def _translate_random_init(self) -> None:
+        '''A PPDDL (probabilistic ...) in :init is applied to the deterministic initial
+        state as one simultaneous effect, as in mdpsim: an add beats a delete, and a
+        branch may delete a deterministic atom. Each block gets an outcome state-fluent
+        INIT-OUT-n sampled at reset, and each fluent it sets gets an init-state
+        expression over those outcomes.'''
+        changes = {}  # (kind, PDDL name, objects) -> [(effect, condition)]
+
+        def walk(effect, conds):
+            if isinstance(effect, AndEffect):
+                for e in effect.effects:
+                    walk(e, conds)
+            elif isinstance(effect, Probabilistic):
+                name = self._outcome(f'INIT-OUT-{len(blocks) + 1}', effect, (), init=True)
+                blocks.append(name)
+                for (i, (_, branch)) in enumerate(effect.branches):
+                    walk(branch, conds + [self.outcome_test(name, i, ())])
+            else:
+                if isinstance(effect, NumEffect):
+                    if effect.target.name in self.reward_funcs:
+                        return
+                    (kind, term) = ('func', effect.target)
+                else:
+                    (kind, term) = ('pred', effect.atom)
+                key = (kind, term.pred if kind == 'pred' else term.name,
+                       tuple(a.name for a in term.args))
+                changes.setdefault(key, []).append((effect, ' ^ '.join(conds)))
+
+        blocks = []
+        for block in self.problem.init_effects:
+            walk(block, [])
+
+        atoms = {(a.pred, tuple(t.name for t in a.args)) for a in self.problem.init_atoms}
+        for ((kind, pddl_name, args), effects) in changes.items():
+            name = self.names[(kind, pddl_name)]
+            if kind == 'pred':
+                adds = [f'({c})' for (e, c) in effects if isinstance(e, Add)]
+                dels = [f'({c})' for (e, c) in effects if isinstance(e, Del)]
+                if (pddl_name, args) in atoms:
+                    if not dels:
+                        continue
+                    adds.append(f'~({" | ".join(dels)})')
+                if adds:
+                    self._init(name, args, ' | '.join(adds))
+            else:
+                # the parser ensures that values which can be set together agree, and
+                # that without a deterministic value some condition always holds
+                cases = [(c, self.num(e.expr, {})) for (e, c) in effects]
+                value = self.problem.init_numeric.get((pddl_name, args))
+                expr = self.num(Num(value), {}) if value is not None else cases.pop()[1]
+                for (c, v) in reversed(cases):
+                    expr = f'if ({c}) then {v} else {expr}'
+                self._init(name, args, expr)
+
+    def _outcome(self, name, block, binders, init=False) -> str:
+        '''Declares name to sample which branch of a probabilistic block happens: a bool
+        Bernoulli for a single branch, else an Outcome Discrete in which @O0 means no
+        branch. Inside an action (binders given), it is an interm-fluent with one value
+        per grounding of the binders; in :init (init=True), a state-fluent sampled at
+        reset.'''
+        used = set()
+        variables = [self.fresh(used, p.name) for p in binders]
+        scope = {p.name: v for (p, v) in zip(binders, variables)}
+        probs = [p for (p, _) in block.branches]
+        for t in self.nodes_in(probs, FTerm):
+            if t.name in self.partial:
+                raise self._unsupported(f'a probability reads the partially initialized '
+                                        f'function "{t.name}"', block)
+        probs = [self.num(p, scope) for p in probs]
+        if len(probs) == 1:
+            (prange, default, expr) = ('bool', False, f'Bernoulli({probs[0]})')
+        else:
+            if all(isinstance(p, Num) for (p, _) in block.branches):
+                rest = sum(p.value for (p, _) in block.branches)
+                rest = self.num(Num(max(0.0, round(1.0 - rest, 12))), {})  # 1 - 0.7 = 0.3
+            else:
+                rest = f'(1.0 - ({" + ".join(probs)}))'
+            cases = [rest] + probs + ['0.0'] * (self.outcomes - len(probs))
+            (prange, default) = ('Outcome', '@O0')
+            expr = 'Discrete(Outcome, ' + ', '.join(
+                f'@O{i} : {p}' for (i, p) in enumerate(cases)) + ')'
+        if init:
+            self._declare(name, (), 'state-fluent', prange, default)
+            self.builder.add_init_state(name, (), expr)
+        else:
+            self.builder.add_pvariable(name, [self.rddl_type(p.types) for p in binders],
+                                       'interm-fluent', prange, None)
+            self.builder.add_cpf(name, variables, expr)
+        return name
+
+    def outcome_test(self, name, i, args) -> str:
+        '''The condition that branch i of the block sampled by name happens.'''
+        call = self.call(name, args)
+        return call if self.builder.pvariable_defs[name][2] == 'bool' else f'({call} == @O{i + 1})'
 
     def _translate_derived(self) -> None:
         '''pyRDDLGym does not allow derived or interm fluents in preconditions or
@@ -402,7 +503,9 @@ class PDDLToRDDLTranslator:
         '''Every Add, Del and NumEffect of every action, as (action, binders, conditions,
         effect). binders are the action parameters then the enclosing forall parameters;
         conditions are the enclosing (when ...) conditions as (number of binders in
-        scope, formula).'''
+        scope, formula) and the enclosing probabilistic branches as (number of binders
+        in scope, (outcome fluent, branch index)). Declares the outcome fluents, so it
+        runs once.'''
         result = []
 
         def walk(effect, act, binders, conds):
@@ -413,21 +516,28 @@ class PDDLToRDDLTranslator:
                 walk(effect.effect, act, binders + effect.params, conds)
             elif isinstance(effect, When):
                 walk(effect.effect, act, binders, conds + ((len(binders), effect.condition),))
+            elif isinstance(effect, Probabilistic):
+                blocks.append(effect)
+                name = self._outcome(f'OUT-{self.names[("action", act)]}-{len(blocks)}',
+                                     effect, binders)
+                for (i, (_, branch)) in enumerate(effect.branches):
+                    walk(branch, act, binders, conds + ((len(binders), (name, i)),))
             else:
                 result.append((act, binders, conds, effect))
 
         for (act, action) in self.domain.actions.items():
+            blocks = []
             walk(action.effect, act, action.params, ())
         return result
 
-    def _context(self, occ, cpf_vars=(), args=()):
+    def _context(self, occ, cpf_vars=(), args=(), sampled=True):
         '''Returns (decls, conjuncts, scope) for an effect occurrence: the RDDL
         declarations of its free variables, the conditions under which it fires (the
-        action, the type guards and the when conditions, read on the current state)
-        and the scope for its expressions. When cpf_vars are given, args are the PDDL
-        arguments of the changed fluent: a binder that occurs once in args is replaced
-        by the CPF variable at its position, and the other positions are matched by
-        equalities.'''
+        action, the type guards, the when conditions read on the current state and,
+        if sampled, the probabilistic outcomes) and the scope for its expressions.
+        When cpf_vars are given, args are the PDDL arguments of the changed fluent: a
+        binder that occurs once in args is replaced by the CPF variable at its
+        position, and the other positions are matched by equalities.'''
         (act, binders, conds, _) = occ
         innermost = {p.name: i for (i, p) in enumerate(binders)}
         counts = Counter(a.name for a in args if isinstance(a, Var))
@@ -453,7 +563,11 @@ class PDDLToRDDLTranslator:
         action_scope = scopes[len(params)]
         conjuncts.insert(0, self.call(self.names[('action', act)],
                                       [action_scope[p.name] for p in params]))
-        conjuncts.extend(self.formula(c, scopes[depth]) for (depth, c) in conds)
+        for (depth, c) in conds:
+            if not isinstance(c, tuple):
+                conjuncts.append(self.formula(c, scopes[depth]))
+            elif sampled:
+                conjuncts.append(self.outcome_test(c[0], c[1], names[:depth]))
         scope = scopes[-1]
         for (a, v) in zip(args, cpf_vars):
             if isinstance(a, Var):
@@ -485,7 +599,7 @@ class PDDLToRDDLTranslator:
         the same step, which PDDL forbids anyway. Effects on the metric's reward-only
         functions are left to the reward.'''
         changes = {}
-        for occ in self._occurrences():
+        for occ in self.occurrences:
             effect = occ[3]
             if isinstance(effect, NumEffect):
                 if effect.target.name in self.reward_funcs:
@@ -547,7 +661,8 @@ class PDDLToRDDLTranslator:
     def _require_defined(self, occ) -> None:
         '''PDDL cannot apply an effect that reads or changes an undefined numeric value,
         so for partially initialized functions the action's precondition requires
-        DEFINED-f wherever the effect fires.'''
+        DEFINED-f wherever the effect fires. Preconditions cannot read sampled outcomes,
+        so DEFINED-f is required whatever the outcome.'''
         effect = occ[3]
         if not isinstance(effect, NumEffect):
             return
@@ -555,7 +670,7 @@ class PDDLToRDDLTranslator:
                   if t.name in self.partial]
         if not fterms:
             return
-        (decls, conj, scope) = self._context(occ)
+        (decls, conj, scope) = self._context(occ, sampled=False)
         tests = [self.apply('DEFINED-' + self.names[('func', t.name)], t.args, scope, 'exists')
                  for t in fterms]
         rule = f'({" ^ ".join(conj)}) => ({" ^ ".join(tests)})'
@@ -572,7 +687,9 @@ class PDDLToRDDLTranslator:
         costs 1. With (:metric minimize M), M must be a linear combination of
         reward-only functions (changed only by increase and decrease, and read by
         nothing), and the cost of a step is the change in M, so the total reward is
-        minus the final value of M (plus its initial value); maximize flips the sign.'''
+        minus the final value of M (plus its initial value); maximize flips the sign.
+        PPDDL's goal reward and (goal-probability) are paid when the next state is a
+        goal.'''
         if self.problem.goal is not None:
             self.builder.add_termination(self.formula(self.problem.goal, {}))
 
@@ -586,7 +703,17 @@ class PDDLToRDDLTranslator:
             (sense, expr) = metric
             coefs = self._linear(expr)
             terms = []
-            for occ in self._occurrences():
+            # PPDDL's (:goal-reward n) increases (reward) by n when the goal is reached,
+            # and (goal-probability) is 1 once it is reached
+            weight = coefs.get('reward', 0.0) * (self.problem.goal_reward or 0.0) + \
+                coefs.get('goal-probability', 0.0)
+            weight *= -1 if sense == 'minimize' else 1
+            if weight and self.problem.goal is not None:
+                self.primed = True
+                goal = self.formula(self.problem.goal, {})
+                self.primed = False
+                terms.append(f'({self.num(Num(weight), {})} * {goal})')
+            for occ in self.occurrences:
                 effect = occ[3]
                 if not (isinstance(effect, NumEffect) and effect.target.name in coefs):
                     continue

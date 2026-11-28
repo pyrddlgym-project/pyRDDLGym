@@ -524,6 +524,8 @@ def test_ppddl_problem_goal_reward():
     prob = parse_problem(text, parse_domain(PPDDL))
     assert prob.goal_reward == 500.0
     assert prob.metric == ('maximize', FTerm('reward', ()))
+    prob = parse_problem(text.replace('(reward)', '(goal-probability)'), parse_domain(PPDDL))
+    assert prob.metric == ('maximize', FTerm('goal-probability', ()))
 
 
 @pytest.mark.parametrize('effect', [
