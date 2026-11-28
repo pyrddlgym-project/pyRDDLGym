@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from pyRDDLGym.core.env import RDDLEnv
@@ -76,7 +77,7 @@ def test_either_merges_groups_and_subtypes_get_guards():
     assert b.pvariable_defs['IS-vehicle'] == (('vehicle',), 'non-fluent', 'bool', False)
     assert b.nonfluent_inits == {'IS-truck(t1)': True, 'IS-car(c1)': True,
                                  'IS-vehicle(t1)': True, 'IS-vehicle(c1)': True,
-                                 'IS-pkg(b1)': True}
+                                 'IS-pkg(b1)': True, 'OBJ-t1(t1)': True}  # goal object
     assert tr.guard('?v', ('vehicle', 'pkg')) == '(IS-vehicle(?v) | IS-pkg(?v))'
     assert tr.guard('?p', ('place',)) is None
 
@@ -141,19 +142,19 @@ def test_fluent_kinds_and_initial_values():
     kinds = {name: d[1] for (name, d) in b.pvariable_defs.items()}
     assert kinds == {'at': 'state-fluent', 'road': 'non-fluent', 'near': 'state-fluent',
                      'far': 'state-fluent', 'dist': 'non-fluent', 'DEFINED-dist': 'non-fluent',
-                     'fuel': 'state-fluent', 'OBJ-home': 'non-fluent'}
+                     'fuel': 'state-fluent', 'OBJ-home': 'non-fluent',
+                     'move': 'action-fluent', 'OBJ-b': 'non-fluent'}
     assert b.pvariable_defs['dist'] == (('loc', 'loc'), 'non-fluent', 'real', 0.0)
     assert b.init_states['at(b, x)'] is True and b.init_states['fuel'] == 10.0
     assert b.nonfluent_inits['road(x, y)'] is True
     assert b.nonfluent_inits['dist(x, y)'] == 2.0
     assert b.nonfluent_inits['DEFINED-dist(x, y)'] is True
-    assert b.cpf_defs['at'] == (('?p', '?l'), 'at(?p, ?l)')
 
 
 def test_derived_predicates_are_state_fluents_with_next_state_cpfs():
     b = translate_pddl(FLUENTS, FLUENTS_PROBLEM).builder
-    near = ('exists_{?l : loc}[(at%s(?p, ?l) ^ '
-            'exists_{?home : loc}[OBJ-home(?home) ^ road(?l, ?home)])]')
+    near = ('(exists_{?l : loc}[(at%s(?p, ?l) ^ '
+            '(exists_{?home : loc}[OBJ-home(?home) ^ road(?l, ?home)]))])')
     assert b.cpf_defs['near'] == (('?p',), near % "'")
     assert b.init_states['near(?p)'] == near % ''
     assert b.cpf_defs['far'] == (('?p',), "~(near'(?p))")
@@ -179,7 +180,7 @@ def test_formulas():
         '(at(?p, ?a) ^ road(?a, ?b) ^ (DEFINED-dist(?a, ?b) ^ (fuel > dist(?a, ?b))))')
     goal = translate_pddl(FLUENTS, FLUENTS_PROBLEM).problem.goal
     assert tr.formula(goal, {}) == (
-        'exists_{?b : pkg, ?home : loc}[OBJ-b(?b) ^ OBJ-home(?home) ^ at(?b, ?home)]')
+        '(exists_{?b : pkg, ?home : loc}[OBJ-b(?b) ^ OBJ-home(?home) ^ at(?b, ?home)])')
 
 
 def test_quantifier_guards_and_fresh_variables():
@@ -190,8 +191,8 @@ def test_quantifier_guards_and_fresh_variables():
     tr = translate_pddl(domain, '''(define (problem p) (:domain d)
       (:objects t1 - truck c1 - car b1 - pkg x - place) (:init) (:goal (any)))''')
     assert tr.builder.init_states['any'] == (
-        'exists_{?x : vehicle}[IS-truck(?x) ^ forall_{?x-2 : vehicle}[(IS-car(?x-2)) => '
-        '(q(?x-2) ^ (?x-2 == ?x-2))]]')
+        '(exists_{?x : vehicle}[IS-truck(?x) ^ (forall_{?x-2 : vehicle}[(IS-car(?x-2)) => '
+        '(q(?x-2) ^ (?x-2 == ?x-2))])])')
 
 
 def test_reward_only_functions_are_not_fluents():
@@ -226,3 +227,302 @@ def test_unsupported_fluents(old, new, message):
 def test_derived_atom_in_init_rejected():
     with pytest.raises(PDDLUnsupportedError, match='in :init'):
         translate_pddl(FLUENTS, FLUENTS_PROBLEM.replace('(at b x)', '(at b x) (near b)'))
+
+
+# =============================================================================
+# actions and preconditions
+# =============================================================================
+
+def test_action_fluents_and_preconditions():
+    b = translate_pddl(FLUENTS, FLUENTS_PROBLEM).builder
+    assert b.pvariable_defs['move'] == (('pkg', 'loc', 'loc'), 'action-fluent', 'bool', False)
+    assert b.precondition_defs == [
+        '(forall_{?p : pkg, ?a : loc, ?b : loc}[move(?p, ?a, ?b) => '
+        '((at(?p, ?a) ^ road(?a, ?b) ^ (DEFINED-dist(?a, ?b) ^ (fuel > dist(?a, ?b)))))])',
+        '(forall_{?p : pkg, ?a : loc, ?b : loc}[(move(?p, ?a, ?b)) => (DEFINED-dist(?a, ?b))])']
+    assert b.maxnondef == 1
+
+
+def test_action_parameter_guards_and_no_precondition():
+    domain = TYPED[:-1] + '''
+      (:action drive :parameters (?t - truck ?p - place) :effect (at ?t ?p))
+      (:action noop :parameters () :effect (and)))'''
+    b = translate_pddl(domain, '''(define (problem p) (:domain d)
+      (:objects t1 - truck c1 - car x - place) (:init) (:goal (at t1 x)))''').builder
+    assert b.precondition_defs == [
+        '(forall_{?t : vehicle, ?p : place}[drive(?t, ?p) => (IS-truck(?t))])']
+    assert b.pvariable_defs['noop'] == ((), 'action-fluent', 'bool', False)
+
+
+def test_preconditions_in_env(tmp_path):
+    from pyRDDLGym.core.debug.exception import (
+        RDDLActionPreconditionNotSatisfiedError, RDDLInvalidActionError)
+    tr = translate_pddl(FLUENTS, FLUENTS_PROBLEM)
+    (plain, vec) = make_envs(tr, tmp_path)
+    plain.reset(seed=0)
+    plain.step({})                              # no action is allowed
+    plain.step({'move___b__x__y': True})        # applicable: at(b, x), road(x, y), 10 > 2
+    with pytest.raises(RDDLActionPreconditionNotSatisfiedError):
+        plain.step({'move___b__y__x': True})    # road(y, x) is false
+    with pytest.raises(RDDLInvalidActionError):
+        plain.step({'move___b__x__y': True, 'move___b__y__home': True})
+    vec.reset(seed=0)
+    move = vec.sampler.subs['move'].copy()
+    loc = {o: i for (i, o) in enumerate(['home', 'x', 'y'])}
+    move[0, loc['x'], loc['y']] = True
+    vec.step({'move': move})
+
+
+def test_quantifiers_do_not_swallow_what_follows(tmp_path):
+    # RDDL reads "forall_{?p : t}[a] | b" as "forall_{?p : t}([a] | b)"
+    domain = '''(define (domain d) (:requirements :typing :adl) (:types p)
+      (:predicates (vip ?x - p) (served ?x - p) (done))
+      (:action stop :parameters ()
+        :precondition (or (forall (?x - p) (imply (vip ?x) (served ?x)))
+                          (exists (?x - p) (served ?x)))
+        :effect (done)))'''
+    tr = translate_pddl(domain, '''(define (problem q) (:domain d) (:objects a b - p)
+      (:init (vip a)) (:goal (done)))''')
+    for env in make_envs(tr, tmp_path):
+        env.reset(seed=0)
+        assert env.sampler.check_action_preconditions(
+            {'stop': True} if env.vectorized else {'stop': True}, silent=True) is False
+
+
+
+# =============================================================================
+# effects
+# =============================================================================
+
+def test_effect_cpfs():
+    b = translate_pddl(FLUENTS, FLUENTS_PROBLEM).builder
+    assert b.cpf_defs['at'] == (('?p', '?l'), (
+        '(exists_{?a : loc}[move(?p, ?a, ?l)]) | '
+        '(at(?p, ?l) ^ ~((exists_{?b : loc}[move(?p, ?l, ?b)])))'))
+    assert b.cpf_defs['fuel'] == ((), (
+        '(fuel - (sum_{?p : pkg, ?a : loc, ?b : loc}[(move(?p, ?a, ?b)) * dist(?a, ?b)]))'))
+    assert 'road' not in b.cpf_defs
+
+
+EFFECTS = '''(define (domain e) (:requirements :typing :adl :fluents :derived-predicates)
+  (:types box - item item)
+  (:constants k - item)
+  (:predicates (on ?x - item) (link ?x ?y - item) (lit) (any-on))
+  (:functions (count) (w ?x - item))
+  (:derived (any-on) (exists (?x - item) (on ?x)))
+  (:action flip :parameters (?x - item) :effect (and (on ?x) (not (on ?x))))
+  (:action spread :parameters (?x - item)
+    :effect (forall (?y - item) (when (link ?x ?y) (and (on ?y) (increase (count) 1)))))
+  (:action self-link :parameters (?x - item) :effect (link ?x ?x))
+  (:action light :parameters () :effect (and (lit) (on k)))
+  (:action box-only :parameters (?b - box) :effect (not (on ?b)))
+  (:action weigh :parameters (?x - item)
+    :effect (and (assign (w ?x) (+ (w ?x) 4)) (scale-up (count) 2) (decrease (count) (w ?x))))
+  (:action shift :parameters (?x ?y - item)
+    :effect (and (when (on ?x) (on ?y)) (when (on ?x) (not (on ?x))))))'''
+
+EFFECTS_PROBLEM = '''(define (problem q) (:domain e) (:objects a - item b - box)
+  (:init (link a b) (link a k) (= (count) 0) (= (w a) 1) (= (w b) 1) (= (w k) 1))
+  (:goal (lit)))'''
+
+
+def grounded_state(env, obs):
+    '''The observation as {grounded name: bool or float}, in either mode.'''
+    if env.vectorized:
+        obs = dict(env.model.ground_vars_with_values(obs))
+    return {k: bool(v) if np.asarray(v).dtype == bool else float(v) for (k, v) in obs.items()}
+
+
+def vector_action(env, grounded):
+    from pyRDDLGym.core.compiler.model import RDDLPlanningModel
+    actions = {}
+    for (key, value) in grounded.items():
+        (var, objs) = RDDLPlanningModel.parse_grounded(key)
+        array = actions.setdefault(var, np.zeros_like(env.sampler.subs[var]))  # all bool
+        array[tuple(env.model.object_to_index[o] for o in objs)] = value
+    return actions
+
+
+def run(env, steps):
+    states = [grounded_state(env, env.reset(seed=0)[0])]
+    for action in steps:
+        obs = env.step(vector_action(env, action) if env.vectorized else action)[0]
+        states.append(grounded_state(env, obs))
+    return states
+
+
+def test_transitions(tmp_path):
+    steps = [{'flip___a': True},          # add wins over delete
+             {'spread___a': True},        # forall + when: on(b), on(k), count += 2
+             {'self-link___b': True},     # repeated variable
+             {'weigh___a': True},         # assign, scale-up and decrease read the old state
+             {'shift___b__a': True},      # conditions read the current state
+             {'shift___a__a': True},      # add beats delete on the same atom
+             {'light': True}]             # constant argument
+    results = [run(env, steps) for env in make_envs(translate_pddl(EFFECTS, EFFECTS_PROBLEM),
+                                                    tmp_path)]
+    assert results[0] == results[1]  # vectorized and non-vectorized agree
+    s = results[0]
+    assert (s[0]['on___a'], s[0]['any-on']) == (False, False)
+    assert (s[1]['on___a'], s[1]['any-on']) == (True, True)
+    assert (s[2]['on___b'], s[2]['on___k'], s[2]['count']) == (True, True, 2.0)
+    assert (s[3]['link___b__b'], s[3]['link___a__a']) == (True, False)
+    assert (s[4]['w___a'], s[4]['w___b'], s[4]['count']) == (5.0, 1.0, 2 * 2.0 - 1.0)
+    assert (s[5]['on___a'], s[5]['on___b']) == (True, False)
+    assert s[6]['on___a'] is True
+    assert (s[7]['lit'], s[7]['on___k']) == (True, True)
+
+
+def test_subtype_guard_on_action_parameter(tmp_path):
+    from pyRDDLGym.core.debug.exception import RDDLActionPreconditionNotSatisfiedError
+    (env, _) = make_envs(translate_pddl(EFFECTS, EFFECTS_PROBLEM), tmp_path)
+    env.reset(seed=0)
+    env.step({'box-only___b': True})
+    with pytest.raises(RDDLActionPreconditionNotSatisfiedError):
+        env.step({'box-only___a': True})
+
+
+def test_effect_on_undefined_value_is_not_applicable(tmp_path):
+    from pyRDDLGym.core.debug.exception import RDDLActionPreconditionNotSatisfiedError
+    domain = FLUENTS.replace('(and (at ?p ?a) (road ?a ?b) (> (fuel) (dist ?a ?b)))',
+                             '(and (at ?p ?a) (road ?a ?b))')
+    (env, _) = make_envs(translate_pddl(domain, FLUENTS_PROBLEM), tmp_path)
+    env.reset(seed=0)
+    env.step({'move___b__x__y': True})  # dist(x, y) is defined
+    with pytest.raises(RDDLActionPreconditionNotSatisfiedError):
+        env.step({'move___b__y__home': True})  # dist(y, home) is not
+
+
+
+# =============================================================================
+# goal, reward and translate
+# =============================================================================
+
+def test_goal_becomes_termination():
+    b = translate_pddl(FLUENTS, FLUENTS_PROBLEM).builder
+    assert b.termination_defs == [
+        '(exists_{?b : pkg, ?home : loc}[OBJ-b(?b) ^ OBJ-home(?home) ^ at(?b, ?home)])']
+
+
+def test_reward_from_total_cost_and_noop():
+    b = translate_pddl(FLUENTS, FLUENTS_PROBLEM).builder
+    assert b.reward_def == (
+        '((-1.0) * (sum_{?p : pkg, ?a : loc, ?b : loc}[(move(?p, ?a, ?b)) * 1.0])) - '
+        '(1.0 * ~((exists_{?p : pkg, ?a : loc, ?b : loc}[move(?p, ?a, ?b)])))')
+
+
+def test_reward_without_metric_counts_actions():
+    problem = FLUENTS_PROBLEM.replace(' (:metric minimize (total-cost))', '')
+    b = translate_pddl(FLUENTS, problem).builder
+    assert b.reward_def.startswith('-((sum_{?p : pkg, ?a : loc, ?b : loc}[move(?p, ?a, ?b)]))')
+
+
+def test_linear_metric():
+    domain = FLUENTS.replace('(fuel) (total-cost)', '(fuel) (total-cost) (used)').replace(
+        '(increase (total-cost) 1)', '(increase (total-cost) 1) (increase (used) (dist ?a ?b))')
+    problem = FLUENTS_PROBLEM.replace(
+        '(:metric minimize (total-cost))',
+        '(:metric maximize (- 10 (+ (* 2 (total-cost)) (/ (used) 4))))')
+    tr = translate_pddl(domain, problem)
+    assert tr._linear(tr.problem.metric[1]) == {'total-cost': -2.0, 'used': -0.25}
+    assert tr.builder.reward_def.startswith('((-2.0) * (sum_')
+
+
+@pytest.mark.parametrize('metric, message', [
+    ('minimize (fuel)', 'read by the domain'),
+    ('minimize (* (total-cost) (total-cost))', 'not linear'),
+])
+def test_unsupported_metrics(metric, message):
+    with pytest.raises(PDDLUnsupportedError, match=message):
+        translate_pddl(FLUENTS, FLUENTS_PROBLEM.replace('(:metric minimize (total-cost))',
+                                                        f'(:metric {metric})'))
+
+
+def test_metric_function_must_only_increase():
+    domain = FLUENTS.replace('(increase (total-cost) 1)', '(assign (total-cost) 1)')
+    with pytest.raises(PDDLUnsupportedError, match='changed by assign'):
+        translate_pddl(domain, FLUENTS_PROBLEM)
+
+
+def test_translate_end_to_end(tmp_path):
+    (dom_path, prob_path) = (tmp_path / 'domain.pddl', tmp_path / 'problem.pddl')
+    dom_path.write_text(FLUENTS)
+    prob_path.write_text(FLUENTS_PROBLEM)
+    (domain, instance) = PDDLToRDDLTranslator.translate(str(dom_path), FLUENTS_PROBLEM, horizon=20)
+    assert domain.startswith('domain d {') and 'instance p {' in instance
+    assert 'horizon = 20;' in instance and 'discount = 1.0;' in instance
+    (tmp_path / 'd.rddl').write_text(domain)
+    (tmp_path / 'i.rddl').write_text(instance)
+    for vec in (False, True):
+        env = RDDLEnv(str(tmp_path / 'd.rddl'), str(tmp_path / 'i.rddl'), vectorized=vec)
+        env.reset(seed=0)
+        rewards, done = [], False
+        for action in [{'move___b__x__y': True}, {}]:
+            (_, r, done, _, _) = env.step(vector_action(env, action) if vec else action)
+            rewards.append(r)
+        assert rewards == [-1.0, -1.0] and not done  # one move, one no-op
+
+
+def test_translate_reaches_goal_and_combined_file(tmp_path):
+    problem = FLUENTS_PROBLEM.replace('(= (dist x y) 2)', '(= (dist x y) 2) (= (dist y home) 3)')
+    (domain, instance) = PDDLToRDDLTranslator.translate(FLUENTS + problem, FLUENTS + problem,
+                                                        horizon=5, noop_cost=0.0)
+    (tmp_path / 'd.rddl').write_text(domain)
+    (tmp_path / 'i.rddl').write_text(instance)
+    for vec in (False, True):
+        env = RDDLEnv(str(tmp_path / 'd.rddl'), str(tmp_path / 'i.rddl'), vectorized=vec)
+        env.reset(seed=0)
+        total, done = 0.0, False
+        for action in [{'move___b__x__y': True}, {'move___b__y__home': True}]:
+            (_, r, done, _, _) = env.step(vector_action(env, action) if vec else action)
+            total += r
+        assert (total, done) == (-2.0, True)  # plan cost 2, goal reached on the last step
+
+
+def test_translate_validates_horizon():
+    with pytest.raises(ValueError):
+        PDDLToRDDLTranslator.translate(FLUENTS, FLUENTS_PROBLEM, horizon=0)
+
+
+# =============================================================================
+# rejections point at the construct
+# =============================================================================
+
+def line_of(text, marker):
+    return next(i for (i, line) in enumerate(text.splitlines(), start=1) if marker in line)
+
+
+@pytest.mark.parametrize('dom_old, dom_new, prob_old, prob_new, where, marker, message', [
+    ('(at ?p ?b) (decrease', '(at ?p ?b)\n(probabilistic 0.5 (at ?p ?a)) (decrease', '', '',
+     'domain', '(probabilistic 0.5', 'probabilistic effects'),
+    ('', '', '(= (total-cost) 0)', '(= (total-cost) 0)\n(probabilistic 0.5 (road y x))',
+     'problem', '(probabilistic 0.5', 'probabilistic initial states'),
+    ('(:types loc pkg)', '(:types loc pkg) (:functions (reward))', '', '', 'domain', None,
+     'PPDDL rewards'),
+    ('(at ?p ?b) (decrease', '(at ?p ?b)\n(near ?p) (decrease', '', '',
+     'domain', '(near ?p) (decrease', 'changes the derived predicate'),
+    ('(:derived (far ?p - pkg) (not (near ?p)))',
+     '(:derived (near ?p - pkg) (far ?p))\n(:derived (far ?p - pkg) (not (near ?p)))', '', '',
+     'domain', '(:derived (far', 'recursive'),
+    ('', '', '(at b x)', '(at b x)\n(near b)', 'problem', '(near b)', 'is in :init'),
+    ('(decrease (fuel) (dist ?a ?b))', '\n(assign (dist ?a ?b) 1)', '', '',
+     'domain', '(assign (dist', 'assigned by effects'),
+    ('(increase (total-cost) 1)', '\n(assign (total-cost) 1)', '', '',
+     'domain', '(assign (total-cost)', 'changed by assign'),
+    ('', '', '(:metric minimize (total-cost))', '(:metric\nminimize (fuel))',
+     'problem', 'minimize (fuel)', 'read by the domain'),
+    ('', '', '(:metric minimize (total-cost))', '(:metric minimize\n(* (total-cost) (total-cost)))',
+     'problem', '(* (total-cost)', 'not linear'),
+])
+def test_rejections_point_at_the_construct(dom_old, dom_new, prob_old, prob_new, where,
+                                           marker, message):
+    domain = FLUENTS.replace(dom_old, dom_new) if dom_old else FLUENTS
+    problem = FLUENTS_PROBLEM.replace(prob_old, prob_new) if prob_old else FLUENTS_PROBLEM
+    if message == 'PPDDL rewards':
+        domain = domain.replace(':derived-predicates', ':derived-predicates :rewards').replace(
+            '(:functions (reward))', '').replace('(increase (total-cost) 1)',
+                                                 '(increase (total-cost) 1)\n(increase (reward) 1)')
+        marker = '(increase (reward) 1)'
+    with pytest.raises(PDDLUnsupportedError, match=message) as e:
+        translate_pddl(domain, problem)
+    assert e.value.line == line_of(domain if where == 'domain' else problem, marker)

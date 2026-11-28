@@ -79,21 +79,25 @@ These raise `PDDLParseError`, because otherwise pyRDDLGym would later fail with 
 Everything else raises `PDDLUnsupportedError`. That includes recursive axioms, metrics other than those listed below, and PPDDL until step 3.
 
 **Names**
-- RDDL identifiers must match `[A-Za-z]([A-Za-z0-9_-]*[A-Za-z0-9])?`. Any other character is mangled.
-- Names that collide with RDDL reserved words are mangled.
-- PDDL keeps predicates, functions, actions and types in separate namespaces, but RDDL shares one namespace for all of them. On a collision we prefix the name.
+- RDDL identifiers must match `[A-Za-z]([A-Za-z0-9_-]*[A-Za-z0-9])?`. Any other character is mangled. `__` is collapsed too, because pyRDDLGym uses it to separate objects in grounded names.
+- PDDL keeps predicates, functions, actions and types in separate namespaces, but RDDL shares one namespace for all of them. A name that collides with an RDDL reserved word or an earlier name gets its kind as a prefix (`action-move`), then a number.
+- Generated names contain upper-case letters (`IS-t`, `OBJ-o`, `DEFINED-f`, `Object`, `NONE`). The parser lower-cases PDDL, so they can't collide with PDDL names.
 - Output is deterministic.
 
 **Types**
 - Group PDDL's top-level types with union-find. Two groups merge whenever some parameter or `either` type spans both.
 - Each group becomes one RDDL `: object` type.
 - Each narrower subtype becomes a non-fluent `IS-<type>(?o)` membership predicate. It guards every parameter and quantifier variable whose type is narrower than its group.
-- Domain constants are added to every instance and referenced as `@c`. Check that pyRDDLGym accepts `@obj` for object types; if it doesn't, use a singleton non-fluent per constant.
+- A parameter typed `object` merges every group into one RDDL type, `Object`. That is also the case for untyped domains.
+- pyRDDLGym allows only enum literals in domain expressions, so `@c` is not available for object types. Each object referenced in an expression (domain constants and goal objects) gets a non-fluent `OBJ-o(?x)` that is true only for `o`. A read of `p(?x, o)` becomes `(exists_{?k : T}[OBJ-o(?k) ^ p(?x, ?k)])`, or a `sum` for numbers.
+- RDDL has no empty types, so a group with no objects gets the object `NONE`, and every type in that group is guarded, which excludes it.
+- Known cost: an untyped domain puts everything in one type, so an action with k parameters has |objects|^k groundings. zenotravel's 5-parameter actions take about a minute to load in non-vectorized mode. Inferring types from static unary predicates would fix this; it is deferred.
 
 **Fluents**
 - Predicates or functions that some effect modifies, or that a probabilistic `:init` sets in any grounding, become `state-fluent`. All others become `non-fluent`. A state-fluent that is never modified gets the identity CPF `p'(x̄) = p(x̄)`. The reason: RDDL init-state entries can be random expressions, but the non-fluents block accepts only constants.
-- Derived predicates become `derived-fluent bool`. A cycle in their dependency graph (found with strongly connected components) raises.
-- Numeric functions the problem only partly initializes get a non-fluent `DEFINED-f(x̄)` guard on reads. Assigning to an undefined fluent raises.
+- Derived predicates become state-fluents, not `derived-fluent`. pyRDDLGym deprecates `derived-fluent`, and its `VALID_DEPENDENCIES` forbids derived and interm fluents in preconditions and termination. Each derived predicate's CPF evaluates its rules on the next state (`p'(x̄) = body` with the state-fluents in `body` primed). A lifted init-state entry `p(x̄) = body` evaluates them on the initial state. So `p` always equals its rules on the current state. Recursive rules raise, and so do effects on derived predicates and derived atoms in `:init`.
+- Numeric functions the problem only partly initializes get a non-fluent `DEFINED-f(x̄)`. It guards every comparison that reads `f`. For an effect that reads or changes `f`, the precondition requires `DEFINED` wherever the effect fires, because PDDL cannot apply such an effect to an undefined value. Definedness stays fixed only if `f` is never assigned, so a partly initialized function that some effect assigns raises.
+- Functions in the metric that nothing reads, such as `total-cost`, are not declared as fluents; they become reward terms.
 
 **Actions**
 - Each schema becomes a `bool` action-fluent.
@@ -105,13 +109,15 @@ For each fluent `p(x̄)`, every effect occurrence of `p(t̄)` inside some action
 `exists_{free vars}[ α(ȳ) ^ c ^ guards ^ ⋀ x_i == t_i ]`.
 An argument that is a variable appearing only once is substituted directly instead of being matched with `==`.
 - Boolean fluents: `p'(x̄) = OR(add) | (p(x̄) ^ ~OR(del))`. This keeps PDDL's rule that adds win over deletes. Every condition is read from the current state, as PDDL requires.
-- Numeric fluents: `f'(x̄) = if (assign) then v else f(x̄) + Σinc − Σdec`, with scale effects as multiplicative factors. When two effects of one action conflict, the order of the `if` chain decides and is documented.
+- Numeric fluents: `f'(x̄) = if (assign) then v else f(x̄) × Πscale-up ÷ Πscale-down + Σinc − Σdec`. Increases under `forall` add up over every grounding that fires. An assign wins over every other effect on the same fluent; PDDL forbids that combination anyway. If several assigns of one grounding fire in the same step, their values are summed (marked `ponytail:` in the code); PDDL calls such plans invalid.
+- RDDL aggregations extend as far right as possible: `forall_{?x : t}[a] | b` means `forall_{?x : t}([a] | b)`. So every emitted `exists`, `forall`, `sum` and `prod` is parenthesized.
 
 **Goal, reward and horizon**
 - `termination { goal }`.
 - `reward = −Σ_α cost_α·α − noop_cost·[no action]`.
-  - `cost_α` is the action's increment to `total-cost`, or 1 if the domain has no costs.
-  - Allowed metrics: `minimize (total-cost)`, or a linear metric over fluents that change only through `increase`/`decrease`. Anything else raises.
+  - Without a metric, each action costs 1.
+  - With `(:metric minimize M)`, `M` must be a linear combination, with constant coefficients, of 0-ary functions that nothing reads and that change only through `increase`/`decrease`. A step's reward is minus the change in `M`, so the total reward is minus the final value of `M` (plus its initial value). `maximize` flips the sign. Anything else raises.
+- The entry point is `PDDLToRDDLTranslator.translate(domain, problem, *, horizon, noop_cost=1.0)`. Each argument may be a file path or PDDL text, and passing the same text twice handles combined files.
 - Taking no action is allowed. It doesn't change which goals can be reached, and it avoids having no legal action in dead-end states.
 - `horizon` is required. `discount = 1.0`. RDDL also accepts `horizon = pos-inf;`, but it isn't offered as a default: with dead ends and discount 1, an episode would never end.
 
@@ -120,8 +126,8 @@ An argument that is a variable appearing only once is substituted directly inste
 - `build_instance` raises `ValueError` naming any object type that has no objects.
 - `build_instance` leaves out `max-nondef-actions` when it is unset, and pyRDDLGym then defaults to `pos-inf`. It raises `ValueError` when `horizon` or `discount` is unset, since pyRDDLGym has no default for either.
 
-**Exit criteria (step 2)**
-1. The emitted RDDL parses and compiles in pyRDDLGym, in both vectorized and non-vectorized modes, for every supported benchmark.
+**Exit criteria (step 2)** — status 2026-11-28: criteria 1, 4 and 5 are met. Criteria 2 and 3 are deferred: no Linux machine for Fast Downward and VAL, and WSL, Docker or pyperplan (STRIPS-only) are the options.
+1. The emitted RDDL parses and compiles in pyRDDLGym, in both vectorized and non-vectorized modes, for every supported benchmark. This is `tests/pddl/test_benchmarks.py`: all 48 supported corpus cases load in both modes, and a no-op step keeps the state and costs `noop_cost`.
 2. **Plan replay:** plans for the benchmark problems are produced once with Fast Downward, validated with VAL, and stored as plain text next to their problems in the local corpus, so they are not committed either. Neither tool is a dependency. Each plan, run in `RDDLEnv`:
    - has every step pass the action preconditions
    - terminates exactly on the last step
