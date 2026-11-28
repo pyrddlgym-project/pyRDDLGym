@@ -9,7 +9,7 @@ class RDDLBuilder:
     def __init__(self) -> None:
 
         # domain definitions
-        self.object_types = []  # a list, so the output order is deterministic
+        self.object_types = []
         self.enum_types = {}
         self.pvariable_defs = {}
         self.cpf_defs = {}
@@ -208,7 +208,7 @@ class RDDLBuilder:
             result += '\t};\n\n'
         
         # write constants
-        if self.maxnondef is not None:  # pyRDDLGym defaults to pos-inf
+        if self.maxnondef is not None:
             result += f'\tmax-nondef-actions = {self.maxnondef};\n'
         result += f'\thorizon = {self.horizon};\n'
         result += f'\tdiscount = {self.discount};\n'

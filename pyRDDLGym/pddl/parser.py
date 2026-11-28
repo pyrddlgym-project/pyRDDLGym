@@ -1,13 +1,3 @@
-'''Parser for the subset of PDDL and PPDDL that can be converted to RDDL.
-
-This module uses only the Python standard library. It reads PDDL text into an
-intermediate representation (IR) of frozen dataclasses mirroring the PDDL syntax,
-and checks that all symbols are declared, have the correct arity and are well-typed.
-Constructs that are valid PDDL but cannot be converted to RDDL (durative actions,
-processes, events, PDDL3 constraints and preferences, timed initial literals and
-object-valued functions) are recognized and raise PDDLUnsupportedError.
-'''
-
 import re
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Tuple, Union
@@ -236,8 +226,7 @@ class Domain:
         return False
 
     def fits(self, arg_types: Tuple[str, ...], param_types: Tuple[str, ...]) -> bool:
-        '''Whether every object of a type in arg_types belongs to some type in
-        param_types.'''
+        '''Whether every object of a type in arg_types belongs to some type in param_types.'''
         return all(any(self.is_subtype(a, p) for p in param_types) for a in arg_types)
 
     def has_rewards(self) -> bool:
@@ -248,10 +237,7 @@ class Domain:
 @dataclass
 class Problem:
     '''The initial state is init_atoms and init_numeric, then the PPDDL init_effects
-    applied to it as one simultaneous effect (deletes first, then adds, as in mdpsim):
-    a branch may delete an atom of init_atoms, and an add beats a delete. Every
-    init_effects branch is a ground Add, Del, AndEffect, Probabilistic or
-    NumEffect('assign', ..., Num).'''
+    applied to it as one simultaneous effect (deletes first, then adds, as in mdpsim).'''
     name: str
     domain_name: str
     objects: Dict[str, Tuple[str, ...]]        # excludes domain constants
@@ -291,8 +277,7 @@ class SList(list):
 # ===========================================================================
 
 class PDDLParser:
-    '''Turns PDDL text into IR. An instance holds the declarations in scope; the
-    entry points are the static methods parse_domain and parse_problem.'''
+    '''Turns PDDL text into IR. An instance holds the declarations in scope.'''
 
     NUMBER = re.compile(r'^[-+]?(\d+/\d+|\d+(\.\d*)?|\.\d+)$')  # PPDDL allows rationals
     DELIMITERS = '();'
@@ -332,11 +317,10 @@ class PDDLParser:
         # declarations are processed before actions and derived predicates
         seen = set()
         for (key, section) in sections:
-            if key in (':action', ':derived'):
-                continue
-            if key in seen:
-                raise PDDLParser._err(section, f'duplicate {key} section')
-            seen.add(key)
+            if key not in (':action', ':derived'):
+                if key in seen:
+                    raise PDDLParser._err(section, f'duplicate {key} section')
+                seen.add(key)
         handlers = {
             ':requirements': parser._parse_requirements,
             ':types': parser._parse_types,
@@ -386,8 +370,10 @@ class PDDLParser:
             ':goal-reward': parser._parse_goal_reward,
             ':length': lambda *args: None,
         }
+
+        # process in a fixed order: objects before init and goal
         seen = set()
-        for key in handlers:  # process in a fixed order: objects before init and goal
+        for key in handlers:
             for (k, section) in sections:
                 if k == key:
                     if k in seen:
@@ -409,13 +395,13 @@ class PDDLParser:
 
     @staticmethod
     def _err(node, message):
-        return PDDLParseError(message, getattr(node, 'line', None),
-                              getattr(node, 'col', None))
+        return PDDLParseError(
+            message, getattr(node, 'line', None), getattr(node, 'col', None))
 
     @staticmethod
     def _unsupported(node, message):
-        return PDDLUnsupportedError(message, getattr(node, 'line', None),
-                                    getattr(node, 'col', None))
+        return PDDLUnsupportedError(
+            message, getattr(node, 'line', None), getattr(node, 'col', None))
 
     @staticmethod
     def _read(text: str) -> list:
@@ -441,7 +427,7 @@ class PDDLParser:
                 done = stack.pop()
                 if stack:
                     stack[-1].append(done)
-                elif PDDLParser._head(done) != 'in-package':  # legacy Lisp header, ignored
+                elif PDDLParser._head(done) != 'in-package':
                     tops.append(done)
                 col, i = col + 1, i + 1
             else:
@@ -454,7 +440,6 @@ class PDDLParser:
                     raise PDDLParser._err(
                         token, f'unexpected token "{token}" outside of parentheses')
                 if len(token) > 1 and token[0] == '-' and token[1].isalpha():
-                    # "?x -type": names start with a letter, so this is "- type"
                     stack[-1].append(Sym('-', line, col))
                     token = Sym(token[1:], line, col + 1)
                 stack[-1].append(token)
@@ -481,7 +466,8 @@ class PDDLParser:
             if int(den) == 0:
                 raise PDDLParser._err(node, f'division by zero in "{node}"')
             return int(num) / int(den)
-        return float(node)
+        else:
+            return float(node)
 
     @staticmethod
     def _is_name(node) -> bool:
@@ -496,7 +482,8 @@ class PDDLParser:
     def _head(node) -> Optional[str]:
         if isinstance(node, SList) and node and isinstance(node[0], Sym):
             return str(node[0])
-        return None
+        else:
+            return None
 
     @staticmethod
     def _tail(node) -> SList:
@@ -508,7 +495,8 @@ class PDDLParser:
     def _show(node) -> str:
         if isinstance(node, SList):
             return '(' + ' '.join(PDDLParser._show(n) for n in node) + ')'
-        return f'"{node}"'
+        else:
+            return f'"{node}"'
 
     @staticmethod
     def _show_types(types) -> str:
@@ -586,7 +574,7 @@ class PDDLParser:
     def type_spec(self, node) -> Tuple[str, ...]:
         if self._is_name(node):
             return (str(node),)
-        if self._head(node) == 'either' and len(node) > 1 \
+        elif self._head(node) == 'either' and len(node) > 1 \
         and all(map(self._is_name, node[1:])):
             return tuple(str(t) for t in node[1:])
         raise self._err(node, f'expected a type, got {self._show(node)}')
@@ -620,7 +608,7 @@ class PDDLParser:
             if node not in scope:
                 raise self._err(node, f'undeclared variable "{node}"')
             return Var(str(node), self._loc(node)), scope[node]
-        if self._is_name(node):
+        elif self._is_name(node):
             if node not in self.objects:
                 raise self._err(node, f'undeclared object or constant "{node}"')
             return Obj(str(node), self._loc(node)), self.objects[node]
@@ -707,28 +695,31 @@ class PDDLParser:
             if head in ('and', 'or'):
                 args = tuple(self.formula(a, scope) for a in node[1:])
                 return (And if head == 'and' else Or)(args, loc)
-            if head == 'not':
+            elif head == 'not':
                 self.expect_len(node, 2)
                 return Not(self.formula(node[1], scope), loc)
-            if head == 'imply':
+            elif head == 'imply':
                 self.expect_len(node, 3)
-                return Imply(self.formula(node[1], scope), self.formula(node[2], scope), loc)
-            if head in ('exists', 'forall'):
+                return Imply(
+                    self.formula(node[1], scope), self.formula(node[2], scope), loc)
+            elif head in ('exists', 'forall'):
                 self.expect_len(node, 3)
                 params = self.params(node[1])
                 inner = dict(scope)
                 inner.update((p.name, p.types) for p in params)
                 body = self.formula(node[2], inner)
                 return (Exists if head == 'exists' else Forall)(params, body, loc)
-            if head in self.COMPARISONS:
+            elif head in self.COMPARISONS:
                 self.expect_len(node, 3)
                 left, right = node[1], node[2]
-                if head == '=' and not any(isinstance(a, SList) or self._is_number(a)
-                                           or self._is_bare_fterm(a) for a in (left, right)):
-                    return Equals(self.obj_term(left, scope)[0],
-                                  self.obj_term(right, scope)[0], loc)
-                return Compare(head, self.num_term(left, scope),
-                               self.num_term(right, scope), loc)
+                if head == '=' and not any(
+                        isinstance(a, SList) or self._is_number(a)
+                        or self._is_bare_fterm(a) for a in (left, right)):
+                    return Equals(
+                        self.obj_term(left, scope)[0], self.obj_term(right, scope)[0], loc)
+                else:
+                    return Compare(
+                        head, self.num_term(left, scope), self.num_term(right, scope), loc)
         return self.atom(node, scope)
 
     def expect_len(self, node, n):
@@ -748,29 +739,28 @@ class PDDLParser:
         if head is not None and head not in self.domain.predicates:
             if head == 'and':
                 return AndEffect(tuple(self.effect(e, scope) for e in node[1:]), loc)
-            if head == 'not':
+            elif head == 'not':
                 self.expect_len(node, 2)
                 return Del(self.atom(node[1], scope), loc)
-            if head == 'forall':
+            elif head == 'forall':
                 self.expect_len(node, 3)
                 params = self.params(node[1])
                 inner = dict(scope)
                 inner.update((p.name, p.types) for p in params)
                 return ForallEffect(params, self.effect(node[2], inner), loc)
-            if head == 'when':
+            elif head == 'when':
                 self.expect_len(node, 3)
                 return When(self.formula(node[1], scope), self.effect(node[2], scope), loc)
-            if head in self.NUMERIC_EFFECTS:
+            elif head in self.NUMERIC_EFFECTS:
                 self.expect_len(node, 3)
-                return NumEffect(head, self.fterm(node[1], scope),
-                                 self.num_term(node[2], scope), loc)
-            if head == 'probabilistic':
+                return NumEffect(
+                    head, self.fterm(node[1], scope), self.num_term(node[2], scope), loc)
+            elif head == 'probabilistic':
                 return self.probabilistic(node, scope)
         return Add(self.atom(node, scope), loc)
 
     def probabilistic(self, node, scope, init=False):
-        '''Parses (probabilistic p1 e1 ... pk ek). In :init (init=True) the
-        probabilities must be numbers and each ei is an init element.'''
+        '''Parses (probabilistic p1 e1 ... pk ek).'''
         items = node[1:]
         if not items or len(items) % 2 != 0:
             raise self._err(node, '"probabilistic" expects pairs of probability and effect')
@@ -944,9 +934,7 @@ class PDDLParser:
         return (target, self._number(item[2]))
 
     def init_element(self, node):
-        '''Parses one element of a (probabilistic ...) branch in :init: a ground
-        literal, a numeric value (= (f ...) n), (and ...) or a nested
-        (probabilistic ...).'''
+        '''Parses one element of a (probabilistic ...) branch in :init.'''
         if isinstance(node, SList) and not node:
             return AndEffect((), self._loc(node))
         head = self._head(node)
@@ -954,12 +942,12 @@ class PDDLParser:
         if head is not None and head not in self.domain.predicates:
             if head == 'and':
                 return AndEffect(tuple(self.init_element(e) for e in node[1:]), loc)
-            if head == 'not':
+            elif head == 'not':
                 self.expect_len(node, 2)
                 return Del(self.atom(node[1], {}), loc)
-            if head == 'probabilistic':
+            elif head == 'probabilistic':
                 return self.probabilistic(node, {}, init=True)
-            if self._is_init_value(node):
+            elif self._is_init_value(node):
                 (target, value) = self._init_value(node)
                 return NumEffect('assign', target, Num(value, self._loc(node[2])), loc)
         return Add(self.atom(node, {}), loc)
@@ -973,7 +961,6 @@ class PDDLParser:
             if head == 'probabilistic' and head not in self.domain.predicates:
                 effects.append(self.probabilistic(item, {}, init=True))
             elif head == 'not' and 'not' not in self.domain.predicates:
-                # redundant under the closed-world assumption, but must be consistent
                 self.expect_len(item, 2)
                 negated.append((self.atom(item[1], {}), item))
             elif self._is_init_value(item):
@@ -996,8 +983,7 @@ class PDDLParser:
 
     def _check_init_assignments(self, effects, numeric):
         '''Each numeric fluent assigned inside a probabilistic :init must have a value
-        in every outcome: a deterministic value, or an assignment that happens with
-        probability 1. Two assignments that can happen together must agree.'''
+        in every outcome.'''
 
         # collect every assignment with its path of (block, branch index) choices
         found = {}
@@ -1060,7 +1046,6 @@ class PDDLParser:
         expr = section[2]
         if isinstance(expr, SList) and expr == ['goal-probability'] \
                 and 'goal-probability' not in self.domain.functions:
-            # PPDDL: the probability of reaching the goal, as a 0-ary function
             problem.metric = (str(section[1]), FTerm('goal-probability', (), self._loc(expr)))
             return
         problem.metric = (str(section[1]), self.num_term(expr, {}))

@@ -2,9 +2,8 @@ from typing import Optional
 
 
 class PDDLError(Exception):
-    '''Base class for errors raised while reading PDDL, with an optional location.'''
 
-    def __init__(self, message: str, line: Optional[int]=None,
+    def __init__(self, message: str, line: Optional[int]=None, 
                  col: Optional[int]=None) -> None:
         self.message = message
         self.line = line
@@ -15,10 +14,8 @@ class PDDLError(Exception):
 
 
 class PDDLParseError(PDDLError):
-    '''The PDDL text is malformed or refers to undeclared or mistyped symbols.'''
     pass
 
 
 class PDDLUnsupportedError(PDDLError):
-    '''The PDDL text is valid but uses a construct that cannot be converted to RDDL.'''
     pass

@@ -1,11 +1,3 @@
-'''Translates the PDDL and PPDDL IR built by PDDLParser into lifted RDDL (PDDL_PLAN.md,
-steps 2 and 3).
-
-Generated names contain upper-case letters (IS-t, OBJ-c, DEFINED-f, Object, OUT-a-n,
-INIT-OUT-n, Outcome). The parser lower-cases every PDDL name, so generated names never
-collide with PDDL ones.
-'''
-
 import dataclasses
 import math
 import os
@@ -18,8 +10,10 @@ from pyRDDLGym.core.debug.decompiler import RDDLDecompiler
 from pyRDDLGym.core.parser.parser import RDDLlex
 from pyRDDLGym.pddl.errors import PDDLUnsupportedError
 from pyRDDLGym.pddl.parser import (
-    PDDLParser, Domain, Problem, Param, Var, Num, FTerm, Arith, Atom, Equals, Not, And, Or, Imply,
-    Exists, Forall, Compare, Add, Del, NumEffect, AndEffect, ForallEffect, When, Probabilistic,
+    PDDLParser, Domain, Problem, 
+    Param, Var, Num, FTerm, Arith, Atom, Equals, Not, And, Or, Imply,
+    Exists, Forall, Compare, Add, Del, 
+    NumEffect, AndEffect, ForallEffect, When, Probabilistic,
 )
 
 
@@ -27,7 +21,7 @@ class PDDLToRDDLTranslator:
     '''Translates a parsed PDDL domain and problem into RDDL through RDDLBuilder.'''
 
     RESERVED = frozenset(RDDLlex().reserved)
-    OBJECT = 'Object'  # the RDDL type of a group that contains PDDL's "object"
+    OBJECT = 'Object'
 
     def __init__(self, domain: Domain, problem: Problem, noop_cost: float=1.0) -> None:
         self.domain = domain
@@ -35,10 +29,10 @@ class PDDLToRDDLTranslator:
         if not domain.types:
             self._infer_types()
         self.builder = RDDLBuilder()
-        self.objects = {**self.domain.constants, **self.problem.objects}  # object -> PDDL types
-        self.names: Dict[Tuple[str, str], str] = {}  # (kind, PDDL name) -> RDDL name
+        self.objects = {**self.domain.constants, **self.problem.objects}
+        self.names: Dict[Tuple[str, str], str] = {}
         self._taken = {'var': set(), 'obj': set()}
-        self.primed = False  # whether formulas read state-fluents on the next state
+        self.primed = False
         self._translate_names()
         self._translate_types()
         self._translate_fluents()
@@ -50,8 +44,8 @@ class PDDLToRDDLTranslator:
     @staticmethod
     def _unsupported(message, node=None):
         loc = getattr(node, 'loc', None)
-        return PDDLUnsupportedError(message, getattr(loc, 'line', None),
-                                    getattr(loc, 'col', None))
+        return PDDLUnsupportedError(
+            message, getattr(loc, 'line', None), getattr(loc, 'col', None))
 
     # ===========================================================================
     # IR helpers
@@ -93,31 +87,27 @@ class PDDLToRDDLTranslator:
         '''A copy of the IR node with each Param p given the types types_of(p).'''
         if isinstance(node, Param):
             return dataclasses.replace(node, types=types_of(node))
-        if dataclasses.is_dataclass(node):
+        elif dataclasses.is_dataclass(node):
             return dataclasses.replace(node, **{
                 f.name: PDDLToRDDLTranslator.retyped(getattr(node, f.name), types_of)
                 for f in dataclasses.fields(node)})
-        if isinstance(node, (tuple, list)):
+        elif isinstance(node, (tuple, list)):
             return type(node)(PDDLToRDDLTranslator.retyped(x, types_of) for x in node)
-        if isinstance(node, dict):
-            return {k: PDDLToRDDLTranslator.retyped(v, types_of) for (k, v) in node.items()}
-        return node
+        elif isinstance(node, dict):
+            return {k: PDDLToRDDLTranslator.retyped(v, types_of) 
+                    for (k, v) in node.items()}
+        else:
+            return node
 
     def _infer_types(self) -> None:
         '''An untyped domain puts every object in one RDDL type, so an action with k
-        parameters has |objects|^k groundings. This rewrites the IR as if it were typed.
-        Each object's type is its signature, the set of static unary predicates that
-        hold for it in :init. An action parameter may have the signatures that satisfy
-        the static unary atoms the precondition requires of it (as a conjunct). A
-        predicate or function position has every signature that some argument there
-        can have, so every atom that can hold fits its declaration. Quantified variables
-        may have any signature.'''
+        parameters has |objects|^k groundings.'''
         (domain, problem) = (self.domain, self.problem)
         objects = {**domain.constants, **problem.objects}
         if not objects:
             return
-        changed = {e.atom.pred for e in self.nodes_in((domain.actions, problem.init_effects),
-                                                       (Add, Del))}
+        changed = {e.atom.pred for e in self.nodes_in(
+            (domain.actions, problem.init_effects), (Add, Del))}
         derived = {r.name for r in domain.derived}
         static = {p for (p, params) in domain.predicates.items()
                   if len(params) == 1 and p not in changed | derived}
@@ -126,7 +116,9 @@ class PDDLToRDDLTranslator:
             if atom.pred in static:
                 signature[atom.args[0].name].add(atom.pred)
         empty = 'untyped'
-        while empty in static:  # the type name of objects without static unary predicates
+
+        # the type name of objects without static unary predicates
+        while empty in static:
             empty += ' '
         obj_type = {o: ' '.join(sorted(s)) or empty for (o, s) in signature.items()}
         preds = {t: signature[o] for (o, t) in obj_type.items()}  # type -> its predicates
@@ -141,12 +133,12 @@ class PDDLToRDDLTranslator:
                 elif isinstance(f, Atom) and f.pred in static and \
                         isinstance(f.args[0], Var) and f.args[0].name == var:
                     conjuncts.append(f.pred)
-            return frozenset(t for t in every if all(c in preds[t] for c in conjuncts)) or every
+            return frozenset(
+                t for t in every if all(c in preds[t] for c in conjuncts)) or every
 
-        # what may be passed at each (kind, name, position): a set of types, or the
-        # (kind, name, position) of a derived predicate's parameter
+        # what may be passed at each (kind, name, position)
         uses = []
-        fixed = {}  # id(Param) -> types, or the position whose types it takes
+        fixed = {}
         tops = [(problem.init_atoms, {}), (problem.init_effects, {}), (problem.goal, {}),
                 (problem.metric, {})]
         for action in domain.actions.values():
@@ -171,7 +163,7 @@ class PDDLToRDDLTranslator:
 
         positions = {}
         size = -1
-        while size != sum(map(len, positions.values())):  # until nothing grows
+        while size != sum(map(len, positions.values())):
             size = sum(map(len, positions.values()))
             for (key, source) in uses:
                 positions.setdefault(key, set()).update(
@@ -179,12 +171,11 @@ class PDDLToRDDLTranslator:
         for (kind, table) in (('pred', domain.predicates), ('func', domain.functions)):
             for (name, params) in table.items():
                 for (i, p) in enumerate(params):
-                    # an unused position can have any one type
                     fixed[id(p)] = positions.get((kind, name, i)) or {min(every)}
 
         def types_of(p):
             types = fixed.get(id(p), every)
-            if isinstance(types, tuple):  # a derived predicate's parameter
+            if isinstance(types, tuple):
                 types = fixed[id(domain.predicates[types[1]][types[2]])]
             return tuple(sorted(types))
 
@@ -200,8 +191,7 @@ class PDDLToRDDLTranslator:
 
     @staticmethod
     def mangle(name: str) -> str:
-        '''Makes a lower-case PDDL name a valid RDDL identifier. "__" is also removed,
-        because pyRDDLGym uses it to separate the objects of a grounded name.'''
+        '''Makes a lower-case PDDL name a valid RDDL identifier.'''
         name = re.sub(r'[^a-z0-9_-]', '-', name)
         name = re.sub(r'_{2,}', '_', name)
         if not name[0].isalpha():
@@ -211,10 +201,7 @@ class PDDLToRDDLTranslator:
         return name
 
     def _assign(self, kind: str, name: str) -> None:
-        '''Gives (kind, name) a unique RDDL name. Types, predicates, functions and
-        actions share one RDDL namespace and objects another. A name that clashes with
-        an RDDL reserved word or an earlier name gets the kind as a prefix, and then
-        a number.'''
+        '''Gives (kind, name) a unique RDDL name.'''
         space = 'obj' if kind == 'obj' else 'var'
         base = candidate = self.mangle(name)
         n = 1
@@ -225,9 +212,10 @@ class PDDLToRDDLTranslator:
         self.names[(kind, name)] = candidate
 
     def _translate_names(self) -> None:
-        for (kind, names) in (('type', self.domain.types), ('pred', self.domain.predicates),
-                              ('func', self.domain.functions), ('action', self.domain.actions),
-                              ('obj', self.objects)):
+        for (kind, names) in (
+                ('type', self.domain.types), ('pred', self.domain.predicates),
+                ('func', self.domain.functions), ('action', self.domain.actions),
+                ('obj', self.objects)):
             for name in names:
                 self._assign(kind, name)
 
@@ -256,10 +244,7 @@ class PDDLToRDDLTranslator:
         return frozenset(result)
 
     def _translate_types(self) -> None:
-        '''Groups PDDL's top-level types into RDDL object types with union-find: two
-        groups merge when some type, parameter or object spans both. A group that
-        contains "object" contains every type. A type narrower than its group gets a
-        non-fluent membership guard IS-t.'''
+        '''Groups PDDL's top-level types into RDDL object types with union-find.'''
         parent = {}
 
         def find(x):
@@ -281,15 +266,22 @@ class PDDLToRDDLTranslator:
             union(p.types)
         for types in self.objects.values():
             union(types)
+
         # RDDL cannot compare objects of different types, so (= x y) merges their types
         tops = [(self.problem.goal, {})]
-        tops += [(a, {p.name: p.types for p in a.params}) for a in self.domain.actions.values()]
-        tops += [(r.body, {p.name: p.types for p in r.params}) for r in self.domain.derived]
+        tops += [(a, {p.name: p.types for p in a.params}) 
+                 for a in self.domain.actions.values()]
+        tops += [(r.body, {p.name: p.types for p in r.params}) 
+                 for r in self.domain.derived]
         for (top, scope) in tops:
             for (node, inner) in self.scoped(top, scope, lambda p: p.types):
                 if isinstance(node, Equals) and Var in (type(node.left), type(node.right)):
-                    union(tuple(t for side in (node.left, node.right) for t in (
-                        inner[side.name] if isinstance(side, Var) else self.objects[side.name])))
+                    union(tuple(
+                        t for side in (node.left, node.right) for t in (
+                            inner[side.name] if isinstance(side, Var) 
+                            else self.objects[side.name]
+                        )
+                    ))
         if 'object' in parent:
             union(('object',) + tuple(self.domain.types))
 
@@ -297,20 +289,20 @@ class PDDLToRDDLTranslator:
         group_roots = {}
         for t in parent:
             group_roots.setdefault(find(t), []).append(t)
-        self.group = {}  # PDDL type -> RDDL type
+        self.group = {}
         for roots in group_roots.values():
             if 'object' in roots:
                 name = self.OBJECT
             else:
-                name = self.names[('type', next(t for t in self.domain.types if t in roots))]
+                name = self.names[
+                    ('type', next(t for t in self.domain.types if t in roots))]
             for r in roots:
                 self.group[r] = name
         for t in self.domain.types:
             self.group[t] = self.group[next(iter(self.roots(t)))]
         self.group_roots = {self.group[rep]: roots for (rep, roots) in group_roots.items()}
 
-        # objects per RDDL type, in declaration order (constants first); RDDL has no
-        # empty types, so an empty group gets the object NONE, which every guard excludes
+        # objects per RDDL type, in declaration order (constants first)
         members = {name: [] for name in self.group_roots}
         for (obj, types) in self.objects.items():
             members[self.group[types[0]]].append(self.names[('obj', obj)])
@@ -328,19 +320,23 @@ class PDDLToRDDLTranslator:
         for t in self.domain.types:
             if self.needs_guard(t):
                 guard = 'IS-' + self.names[('type', t)]
-                self.builder.add_pvariable(guard, [self.group[t]], 'non-fluent', 'bool', False)
+                self.builder.add_pvariable(
+                    guard, [self.group[t]], 'non-fluent', 'bool', False)
                 for obj in self.members((t,)):
                     self.builder.add_nonfluent_init(guard, [self.names[('obj', obj)]], True)
 
         # outcomes of probabilistic blocks with several branches; @O0 is "no effect"
-        blocks = self.nodes_in((self.domain.actions, self.problem.init_effects), Probabilistic)
+        blocks = self.nodes_in(
+            (self.domain.actions, self.problem.init_effects), Probabilistic)
         self.outcomes = max((len(b.branches) for b in blocks), default=0)
         if self.outcomes > 1:
-            self.builder.add_enum_type('Outcome', [f'@O{i}' for i in range(self.outcomes + 1)])
+            self.builder.add_enum_type(
+                'Outcome', [f'@O{i}' for i in range(self.outcomes + 1)])
 
     def members(self, types: Tuple[str, ...]) -> list:
         '''The PDDL objects that have one of the types.'''
-        return [o for (o, ot) in self.objects.items()
+        return [o 
+                for (o, ot) in self.objects.items()
                 if any(self.domain.is_subtype(a, t) for a in ot for t in types)]
 
     def needs_guard(self, t: str) -> bool:
@@ -360,13 +356,11 @@ class PDDLToRDDLTranslator:
         return tests[0] if len(tests) == 1 else '(' + ' | '.join(tests) + ')'
 
     def obj_test(self, var: str, obj: str) -> str:
-        '''The RDDL condition var == obj. pyRDDLGym allows only enum literals in domain
-        expressions, so each referenced object o gets a non-fluent OBJ-o that is true
-        only for o.'''
+        '''The RDDL condition var == obj.'''
         test = 'OBJ-' + self.names[('obj', obj)]
         if test not in self.builder.pvariable_defs:
-            self.builder.add_pvariable(test, [self.rddl_type(self.objects[obj])],
-                                       'non-fluent', 'bool', False)
+            self.builder.add_pvariable(
+                test, [self.rddl_type(self.objects[obj])], 'non-fluent', 'bool', False)
             self.builder.add_nonfluent_init(test, [self.names[('obj', obj)]], True)
         return f'{test}({var})'
 
@@ -376,24 +370,22 @@ class PDDLToRDDLTranslator:
 
     def _translate_fluents(self) -> None:
         '''Predicates and functions that an effect or a random :init changes become
-        state-fluents, and so do derived predicates; everything else is a non-fluent.
-        Functions in the metric that nothing reads become reward terms, not fluents. A function
-        that the problem initializes only for some objects gets a non-fluent DEFINED-f,
-        and every read of it is guarded by it.'''
+        state-fluents, and so do derived predicates.'''
         domain, problem = self.domain, self.problem
         derived = {r.name for r in domain.derived}
+
         # a random :init needs init-state expressions, so what it sets is a state-fluent
         changers = (domain.actions, problem.init_effects)
         changed_preds = {e.atom.pred for e in self.nodes_in(changers, (Add, Del))}
         changed_funcs = {e.target.name for e in self.nodes_in(changers, NumEffect)}
-        assigned = {}  # function -> its first assign effect
+        assigned = {}
         for e in self.nodes_in(domain.actions, NumEffect):
             if e.op == 'assign':
                 assigned.setdefault(e.target.name, e)
         for e in self.nodes_in(domain.actions, (Add, Del)):
             if e.atom.pred in derived:
-                raise self._unsupported(f'an effect changes the derived predicate '
-                                        f'"{e.atom.pred}"', e)
+                raise self._unsupported(
+                    f'an effect changes the derived predicate "{e.atom.pred}"', e)
 
         # functions read anywhere other than as the target of an effect
         reads = [problem.goal, [a.precondition for a in domain.actions.values()],
@@ -405,13 +397,14 @@ class PDDLToRDDLTranslator:
         read_funcs = {t.name for t in self.nodes_in(reads, FTerm)}
         self.reward_funcs = {t.name for t in self.nodes_in(problem.metric, FTerm)} - read_funcs
 
-        self.cpf_vars = {}  # RDDL state-fluent -> its CPF parameters
+        # RDDL state-fluent -> its CPF parameters
+        self.cpf_vars = {}
         for (pred, params) in domain.predicates.items():
             kind = 'state-fluent' if pred in changed_preds | derived else 'non-fluent'
             self._declare(self.names[('pred', pred)], params, kind, 'bool', False)
 
         # the parser ensures a function set by a random :init has a value in every outcome
-        defined = {}  # function -> {defined args: None}, ordered for deterministic output
+        defined = {}
         for (f, args) in problem.init_numeric:
             defined.setdefault(f, {})[args] = None
         for e in self.nodes_in(problem.init_effects, NumEffect):
@@ -425,7 +418,6 @@ class PDDLToRDDLTranslator:
             self._declare(name, params, kind, 'real', 0.0)
             total = math.prod(len(self.members(p.types)) for p in params)
             if len(defined.get(func, ())) < total:
-                # definedness is fixed unless an assign can define a value
                 if func in assigned:
                     raise self._unsupported(
                         f'the numeric fluent "{func}" is assigned by effects but the problem '
@@ -439,7 +431,8 @@ class PDDLToRDDLTranslator:
         random_atoms = [e.atom for e in self.nodes_in(problem.init_effects, (Add, Del))]
         for atom in problem.init_atoms + tuple(random_atoms):
             if atom.pred in derived:
-                raise self._unsupported(f'the derived predicate "{atom.pred}" is in :init', atom)
+                raise self._unsupported(
+                    f'the derived predicate "{atom.pred}" is in :init', atom)
         for atom in problem.init_atoms:
             self._init(self.names[('pred', atom.pred)], [a.name for a in atom.args], True)
         for ((func, args), value) in problem.init_numeric.items():
@@ -450,12 +443,13 @@ class PDDLToRDDLTranslator:
         self._translate_derived()
 
     def _declare(self, name, params, kind, prange, default) -> None:
-        self.builder.add_pvariable(name, [self.rddl_type(p.types) for p in params], kind,
-                                   prange, default)
-        if kind == 'state-fluent':  # unchanged unless an effect changes it (step 4)
+        self.builder.add_pvariable(
+            name, [self.rddl_type(p.types) for p in params], kind, prange, default)
+        if kind == 'state-fluent':
             used = set()
             self.cpf_vars[name] = [self.fresh(used, p.name) for p in params]
-            self.builder.add_cpf(name, self.cpf_vars[name], self.call(name, self.cpf_vars[name]))
+            self.builder.add_cpf(
+                name, self.cpf_vars[name], self.call(name, self.cpf_vars[name]))
 
     def _init(self, name, args, value) -> None:
         kind = self.builder.pvariable_defs[name][1]
@@ -467,11 +461,8 @@ class PDDLToRDDLTranslator:
 
     def _translate_random_init(self) -> None:
         '''A PPDDL (probabilistic ...) in :init is applied to the deterministic initial
-        state as one simultaneous effect, as in mdpsim: an add beats a delete, and a
-        branch may delete a deterministic atom. Each block gets an outcome state-fluent
-        INIT-OUT-n sampled at reset, and each fluent it sets gets an init-state
-        expression over those outcomes.'''
-        changes = {}  # (kind, PDDL name, objects) -> [(effect, condition)]
+        state as one simultaneous effect, as in mdpsim.'''
+        changes = {}
 
         def walk(effect, conds):
             if isinstance(effect, AndEffect):
@@ -510,8 +501,6 @@ class PDDLToRDDLTranslator:
                 if adds:
                     self._init(name, args, ' | '.join(adds))
             else:
-                # the parser ensures that values which can be set together agree, and
-                # that without a deterministic value some condition always holds
                 cases = [(c, self.num(e.expr, {})) for (e, c) in effects]
                 value = self.problem.init_numeric.get((pddl_name, args))
                 expr = self.num(Num(value), {}) if value is not None else cases.pop()[1]
@@ -520,26 +509,23 @@ class PDDLToRDDLTranslator:
                 self._init(name, args, expr)
 
     def _outcome(self, name, block, binders, init=False) -> str:
-        '''Declares name to sample which branch of a probabilistic block happens: a bool
-        Bernoulli for a single branch, else an Outcome Discrete in which @O0 means no
-        branch. Inside an action (binders given), it is an interm-fluent with one value
-        per grounding of the binders; in :init (init=True), a state-fluent sampled at
-        reset.'''
+        '''Declares name to sample which branch of a probabilistic block happens.'''
         used = set()
         variables = [self.fresh(used, p.name) for p in binders]
         scope = {p.name: v for (p, v) in zip(binders, variables)}
         probs = [p for (p, _) in block.branches]
         for t in self.nodes_in(probs, FTerm):
             if t.name in self.partial:
-                raise self._unsupported(f'a probability reads the partially initialized '
-                                        f'function "{t.name}"', block)
+                raise self._unsupported(
+                    f'a probability reads the partially initialized function "{t.name}"', 
+                    block)
         probs = [self.num(p, scope) for p in probs]
         if len(probs) == 1:
             (prange, default, expr) = ('bool', False, f'Bernoulli({probs[0]})')
         else:
             if all(isinstance(p, Num) for (p, _) in block.branches):
                 rest = sum(p.value for (p, _) in block.branches)
-                rest = self.num(Num(max(0.0, round(1.0 - rest, 12))), {})  # 1 - 0.7 = 0.3
+                rest = self.num(Num(max(0.0, round(1.0 - rest, 12))), {})
             else:
                 rest = f'(1.0 - ({" + ".join(probs)}))'
             cases = [rest] + probs + ['0.0'] * (self.outcomes - len(probs))
@@ -550,22 +536,22 @@ class PDDLToRDDLTranslator:
             self._declare(name, (), 'state-fluent', prange, default)
             self.builder.add_init_state(name, (), expr)
         else:
-            self.builder.add_pvariable(name, [self.rddl_type(p.types) for p in binders],
-                                       'interm-fluent', prange, None)
+            self.builder.add_pvariable(
+                name, [self.rddl_type(p.types) for p in binders], 
+                'interm-fluent', prange, None)
             self.builder.add_cpf(name, variables, expr)
         return name
 
     def outcome_test(self, name, i, args) -> str:
         '''The condition that branch i of the block sampled by name happens.'''
         call = self.call(name, args)
-        return call if self.builder.pvariable_defs[name][2] == 'bool' else f'({call} == @O{i + 1})'
+        return call if self.builder.pvariable_defs[name][2] == 'bool' \
+            else f'({call} == @O{i + 1})'
 
     def _translate_derived(self) -> None:
         '''pyRDDLGym does not allow derived or interm fluents in preconditions or
         termination, so each derived predicate becomes a state-fluent that always holds
-        the disjunction of its rules: its CPF evaluates the rules on the next state, and
-        a lifted init-state entry evaluates them on the initial state. Recursive rules
-        raise.'''
+        the disjunction of its rules.'''
         rules = {}
         for rule in self.domain.derived:
             rules.setdefault(rule.name, []).append(rule)
@@ -573,7 +559,8 @@ class PDDLToRDDLTranslator:
 
         def visit(pred, rule):
             if state.get(pred) == 1:
-                raise self._unsupported(f'the derived predicate "{pred}" is recursive', rule)
+                raise self._unsupported(
+                    f'the derived predicate "{pred}" is recursive', rule)
             if state.get(pred) is None:
                 state[pred] = 1
                 for r in rules[pred]:
@@ -593,8 +580,9 @@ class PDDLToRDDLTranslator:
                 for rule in rs:
                     scope = {p.name: v for (p, v) in zip(rule.params, cpf_vars)}
                     body = self.formula(rule.body, scope)
-                    guards = [self.guard(v, p.types) for (p, d, v) in
-                              zip(rule.params, declared, cpf_vars) if p.types != d.types]
+                    guards = [self.guard(v, p.types) 
+                              for (p, d, v) in zip(rule.params, declared, cpf_vars) 
+                              if p.types != d.types]
                     guards = [g for g in guards if g is not None]
                     disjuncts.append(f'({" ^ ".join(guards + [body])})' if guards else body)
                 if primed:
@@ -608,14 +596,13 @@ class PDDLToRDDLTranslator:
     # ===========================================================================
 
     def _translate_actions(self) -> None:
-        '''Each action schema becomes a bool action-fluent. At most one action is taken
-        per step, and taking none is allowed. When an action is taken, its precondition
-        and the type guards of its parameters must hold.'''
-        self.action_scope = {}  # PDDL action -> (scope, RDDL declarations, call)
+        '''Each action schema becomes a bool action-fluent.'''
+        self.action_scope = {}
         for (act, action) in self.domain.actions.items():
             name = self.names[('action', act)]
-            self.builder.add_pvariable(name, [self.rddl_type(p.types) for p in action.params],
-                                       'action-fluent', 'bool', False)
+            self.builder.add_pvariable(
+                name, [self.rddl_type(p.types) for p in action.params], 
+                'action-fluent', 'bool', False)
             (scope, decls, guards) = self.bind({}, action.params)
             call = self.call(name, [scope[p.name] for p in action.params])
             self.action_scope[act] = (scope, decls, call)
@@ -634,11 +621,7 @@ class PDDLToRDDLTranslator:
 
     def _occurrences(self) -> list:
         '''Every Add, Del and NumEffect of every action, as (action, binders, conditions,
-        effect). binders are the action parameters then the enclosing forall parameters;
-        conditions are the enclosing (when ...) conditions as (number of binders in
-        scope, formula) and the enclosing probabilistic branches as (number of binders
-        in scope, (outcome fluent, branch index)). Declares the outcome fluents, so it
-        runs once.'''
+        effect).'''
         result = []
 
         def walk(effect, act, binders, conds):
@@ -651,8 +634,8 @@ class PDDLToRDDLTranslator:
                 walk(effect.effect, act, binders, conds + ((len(binders), effect.condition),))
             elif isinstance(effect, Probabilistic):
                 blocks.append(effect)
-                name = self._outcome(f'OUT-{self.names[("action", act)]}-{len(blocks)}',
-                                     effect, binders)
+                name = self._outcome(
+                    f'OUT-{self.names[("action", act)]}-{len(blocks)}', effect, binders)
                 for (i, (_, branch)) in enumerate(effect.branches):
                     walk(branch, act, binders, conds + ((len(binders), (name, i)),))
             else:
@@ -664,17 +647,12 @@ class PDDLToRDDLTranslator:
         return result
 
     def _context(self, occ, cpf_vars=(), args=(), sampled=True):
-        '''Returns (decls, conjuncts, scope) for an effect occurrence: the RDDL
-        declarations of its free variables, the conditions under which it fires (the
-        action, the type guards, the when conditions read on the current state and,
-        if sampled, the probabilistic outcomes) and the scope for its expressions.
-        When cpf_vars are given, args are the PDDL arguments of the changed fluent: a
-        binder that occurs once in args is replaced by the CPF variable at its
-        position, and the other positions are matched by equalities.'''
+        '''Returns (decls, conjuncts, scope) for an effect occurrence.'''
         (act, binders, conds, _) = occ
         innermost = {p.name: i for (i, p) in enumerate(binders)}
         counts = Counter(a.name for a in args if isinstance(a, Var))
-        subst = {innermost[a.name]: v for (a, v) in zip(args, cpf_vars)
+        subst = {innermost[a.name]: v 
+                 for (a, v) in zip(args, cpf_vars)
                  if isinstance(a, Var) and counts[a.name] == 1}
         used = set(cpf_vars)
         names = [subst[i] if i in subst else self.fresh(used, p.name)
@@ -694,8 +672,8 @@ class PDDLToRDDLTranslator:
                 conjuncts.append(guard)
         params = self.domain.actions[act].params
         action_scope = scopes[len(params)]
-        conjuncts.insert(0, self.call(self.names[('action', act)],
-                                      [action_scope[p.name] for p in params]))
+        conjuncts.insert(0, self.call(
+            self.names[('action', act)], [action_scope[p.name] for p in params]))
         for (depth, c) in conds:
             if not isinstance(c, tuple):
                 conjuncts.append(self.formula(c, scopes[depth]))
@@ -721,16 +699,11 @@ class PDDLToRDDLTranslator:
         cond = ' ^ '.join(conjuncts)
         if decls:
             return f'(sum_{{{", ".join(decls)}}}[({cond}) * {value}])'
-        return f'(if ({cond}) then {value} else 0.0)'
+        else:
+            return f'(if ({cond}) then {value} else 0.0)'
 
     def _translate_effects(self) -> None:
-        '''Builds each state-fluent's CPF from the effects that change it. For a boolean
-        fluent, p' = adds | (p ^ ~deletes): an add wins over a delete, and every
-        condition is read on the current state. For a numeric fluent,
-        f' = if (assign) then value else f * scale-ups / scale-downs + increases -
-        decreases. An assign therefore wins over other effects on the same fluent in
-        the same step, which PDDL forbids anyway. Effects on the metric's reward-only
-        functions are left to the reward.'''
+        '''Builds each state-fluent's CPF from the effects that change it.'''
         changes = {}
         for occ in self.occurrences:
             effect = occ[3]
@@ -785,8 +758,6 @@ class PDDLToRDDLTranslator:
                     expr = f'({expr} + {t})'
                 for t in terms['decrease']:
                     expr = f'({expr} - {t})'
-                # ponytail: assumes at most one assign of a grounding fires per step, as
-                # PDDL requires; several with different values would be summed
                 for (cond, total) in reversed(terms['assign']):
                     expr = f'(if {cond} then {total} else {expr})'
             self.builder.add_cpf(name, cpf_vars, expr)
@@ -794,8 +765,7 @@ class PDDLToRDDLTranslator:
     def _require_defined(self, occ) -> None:
         '''PDDL cannot apply an effect that reads or changes an undefined numeric value,
         so for partially initialized functions the action's precondition requires
-        DEFINED-f wherever the effect fires. Preconditions cannot read sampled outcomes,
-        so DEFINED-f is required whatever the outcome.'''
+        DEFINED-f wherever the effect fires.'''
         effect = occ[3]
         if not isinstance(effect, NumEffect):
             return
@@ -804,29 +774,24 @@ class PDDLToRDDLTranslator:
         if not fterms:
             return
         (decls, conj, scope) = self._context(occ, sampled=False)
-        tests = [self.apply('DEFINED-' + self.names[('func', t.name)], t.args, scope, 'exists')
+        tests = [self.apply(
+                    'DEFINED-' + self.names[('func', t.name)], t.args, scope, 'exists')
                  for t in fterms]
         rule = f'({" ^ ".join(conj)}) => ({" ^ ".join(tests)})'
-        self.builder.add_precondition(f'(forall_{{{", ".join(decls)}}}[{rule}])'
-                                      if decls else rule)
+        self.builder.add_precondition(
+            f'(forall_{{{", ".join(decls)}}}[{rule}])' if decls else rule)
 
     # ===========================================================================
     # goal and reward
     # ===========================================================================
 
     def _translate_goal_and_reward(self, noop_cost: float) -> None:
-        '''The goal becomes termination. The reward of a step is minus its cost, and
-        noop_cost is charged when no action is taken. Without a metric each action
-        costs 1. With (:metric minimize M), M must be a linear combination of
-        reward-only functions (changed only by increase and decrease, and read by
-        nothing), and the cost of a step is the change in M, so the total reward is
-        minus the final value of M (plus its initial value); maximize flips the sign.
-        PPDDL's goal reward and (goal-probability) are paid when the next state is a
-        goal.'''
+        '''The goal becomes termination.'''
         if self.problem.goal is not None:
             self.builder.add_termination(self.formula(self.problem.goal, {}))
 
-        taken = [self.exists(decls, [call]) for (_, decls, call) in self.action_scope.values()]
+        taken = [self.exists(decls, [call]) 
+                 for (_, decls, call) in self.action_scope.values()]
         metric = self.problem.metric
         if metric is None:
             terms = [f'(sum_{{{", ".join(decls)}}}[{call}])' if decls else call
@@ -836,6 +801,7 @@ class PDDLToRDDLTranslator:
             (sense, expr) = metric
             coefs = self._linear(expr)
             terms = []
+
             # PPDDL's (:goal-reward n) increases (reward) by n when the goal is reached,
             # and (goal-probability) is 1 once it is reached
             weight = coefs.get('reward', 0.0) * (self.problem.goal_reward or 0.0) + \
@@ -860,23 +826,23 @@ class PDDLToRDDLTranslator:
                 total = self.fired_sum(decls, conj, self.num(effect.expr, scope))
                 terms.append(f'({self.num(Num(weight), {})} * {total})')
             reward = ' + '.join(terms) if terms else '0'
+
         if noop_cost and taken:
             reward = f'{reward} - ({self.num(Num(noop_cost), {})} * ~({" | ".join(taken)}))'
         self.builder.add_reward(reward)
 
     def _linear(self, expr) -> Dict[str, float]:
-        '''The coefficient of each function in a linear metric expression; constant
-        terms do not change and are dropped.'''
+        '''The coefficient of each function in a linear metric expression.'''
         if isinstance(expr, Num):
             return {}
-        if isinstance(expr, FTerm):
+        elif isinstance(expr, FTerm):
             if expr.name not in self.reward_funcs or expr.args:
                 raise self._unsupported(
                     f'the metric uses "{expr.name}", which is read by the domain or has '
                     f'arguments; only functions that are only increased and decreased are '
                     f'supported', expr)
             return {expr.name: 1.0}
-        if isinstance(expr, Arith):
+        elif isinstance(expr, Arith):
             parts = [self._linear(a) for a in expr.args]
             if expr.op == '+' or (expr.op == '-' and len(parts) == 2):
                 result = dict(parts[0])
@@ -885,12 +851,12 @@ class PDDLToRDDLTranslator:
                     for (f, c) in part.items():
                         result[f] = result.get(f, 0.0) + sign * c
                 return result
-            if expr.op == '-':
+            elif expr.op == '-':
                 return {f: -c for (f, c) in parts[0].items()}
-            if expr.op == '*' and sum(map(bool, parts)) <= 1:
+            elif expr.op == '*' and sum(map(bool, parts)) <= 1:
                 factor = math.prod(self._constant(a) for (a, p) in zip(expr.args, parts) if not p)
                 return {f: c * factor for part in parts for (f, c) in part.items()}
-            if expr.op == '/' and not parts[1]:
+            elif expr.op == '/' and not parts[1]:
                 return {f: c / self._constant(expr.args[1]) for (f, c) in parts[0].items()}
         raise self._unsupported('the metric is not linear', expr)
 
@@ -901,13 +867,14 @@ class PDDLToRDDLTranslator:
         values = [self._constant(a) for a in expr.args]
         if len(values) == 1:
             return -values[0]
-        if expr.op == '+':
+        elif expr.op == '+':
             return sum(values)
-        if expr.op == '*':
+        elif expr.op == '*':
             return math.prod(values)
-        if expr.op == '-':
+        elif expr.op == '-':
             return values[0] - values[1]
-        return values[0] / values[1]
+        else:
+            return values[0] / values[1]
 
     # ===========================================================================
     # entry point
@@ -916,11 +883,7 @@ class PDDLToRDDLTranslator:
     @staticmethod
     def translate(domain: str, problem: str, *, horizon: int,
                   noop_cost: float=1.0) -> Tuple[str, str]:
-        '''Translates PDDL into lifted RDDL; returns (domain RDDL, instance RDDL).
-
-        domain and problem may each be a file path or PDDL text, and may be the same
-        when one file holds both. horizon is the number of decision steps; the
-        discount is 1. noop_cost is charged on steps where no action is taken.'''
+        '''Translates PDDL into lifted RDDL; returns (domain RDDL, instance RDDL).'''
         if not (isinstance(horizon, int) and horizon >= 1):
             raise ValueError(f'horizon must be a positive integer, got {horizon!r}')
         texts = []
@@ -935,8 +898,10 @@ class PDDLToRDDLTranslator:
         builder = translator.builder
         builder.add_horizon(horizon)
         builder.add_discount(1.0)
-        (dname, iname) = (PDDLToRDDLTranslator.block_name(n) for n in (dom.name, prob.name))
-        return (builder.build_domain(dname), builder.build_instance(dname, iname, iname + '-nf'))
+        (dname, iname) = (PDDLToRDDLTranslator.block_name(n) 
+                          for n in (dom.name, prob.name))
+        return (builder.build_domain(dname), 
+                builder.build_instance(dname, iname, iname + '-nf'))
 
     @staticmethod
     def block_name(name: str) -> str:
@@ -956,9 +921,7 @@ class PDDLToRDDLTranslator:
     # "forall_{?x : t}([a] | b)"), so every aggregation emitted here is parenthesized
 
     def apply(self, name, args, scope, aggregation) -> str:
-        '''name(args) for PDDL terms. RDDL domain expressions cannot name objects, so
-        each object argument becomes a fresh variable fixed to the object by OBJ-o
-        inside an aggregation: "exists" for booleans, "sum" for numbers.'''
+        '''name(args) for PDDL terms.'''
         used = set(scope.values())
         terms, decls, tests = [], [], []
         for arg in args:
@@ -974,13 +937,13 @@ class PDDLToRDDLTranslator:
         expr = self.call(name, terms)
         if not decls:
             return expr
-        if aggregation == 'exists':
+        elif aggregation == 'exists':
             return f'(exists_{{{", ".join(decls)}}}[{" ^ ".join(tests + [expr])}])'
-        return f'(sum_{{{", ".join(decls)}}}[({" ^ ".join(tests)}) * {expr}])'
+        else:
+            return f'(sum_{{{", ".join(decls)}}}[({" ^ ".join(tests)}) * {expr}])'
 
     def bind(self, scope, params):
-        '''Binds quantified PDDL params to fresh RDDL variables; returns the inner scope,
-        the RDDL declarations and the type guards.'''
+        '''Binds quantified PDDL params to fresh RDDL variables.'''
         inner = dict(scope)
         used = set(scope.values())
         decls, guards = [], []
@@ -994,31 +957,31 @@ class PDDLToRDDLTranslator:
         return (inner, decls, guards)
 
     def formula(self, node, scope) -> str:
-        '''The RDDL boolean expression for a PDDL formula; scope maps PDDL variables to
-        RDDL variables.'''
+        '''The RDDL boolean expression for a PDDL formula.'''
         if isinstance(node, Atom):
             return self.apply(self.names[('pred', node.pred)], node.args, scope, 'exists')
-        if isinstance(node, Equals):
+        elif isinstance(node, Equals):
             terms = [scope[t.name] if isinstance(t, Var) else t.name
                      for t in (node.left, node.right)]
             (left, right) = (node.left, node.right)
             if isinstance(left, Var) and isinstance(right, Var):
                 return f'({terms[0]} == {terms[1]})'
-            if isinstance(left, Var):
+            elif isinstance(left, Var):
                 return self.obj_test(terms[0], right.name)
-            if isinstance(right, Var):
+            elif isinstance(right, Var):
                 return self.obj_test(terms[1], left.name)
-            return 'true' if left.name == right.name else 'false'
-        if isinstance(node, Not):
+            else:
+                return 'true' if left.name == right.name else 'false'
+        elif isinstance(node, Not):
             return f'~({self.formula(node.arg, scope)})'
-        if isinstance(node, (And, Or)):
+        elif isinstance(node, (And, Or)):
             if not node.args:
                 return 'true' if isinstance(node, And) else 'false'
             op = ' ^ ' if isinstance(node, And) else ' | '
             return '(' + op.join(self.formula(a, scope) for a in node.args) + ')'
-        if isinstance(node, Imply):
+        elif isinstance(node, Imply):
             return f'({self.formula(node.left, scope)} => {self.formula(node.right, scope)})'
-        if isinstance(node, (Exists, Forall)):
+        elif isinstance(node, (Exists, Forall)):
             (inner, decls, guards) = self.bind(scope, node.params)
             body = self.formula(node.body, inner)
             if not decls:
@@ -1028,7 +991,7 @@ class PDDLToRDDLTranslator:
             if guards:
                 body = f'({" ^ ".join(guards)}) => {body}'
             return f'(forall_{{{", ".join(decls)}}}[{body}])'
-        if isinstance(node, Compare):
+        elif isinstance(node, Compare):
             op = '==' if node.op == '=' else node.op
             test = f'({self.num(node.left, scope)} {op} {self.num(node.right, scope)})'
             return self.defined(node, scope, test)
@@ -1045,11 +1008,12 @@ class PDDLToRDDLTranslator:
         if isinstance(node, Num):
             value = RDDLDecompiler._value_to_string(float(node.value))
             return f'({value})' if value.startswith('-') else value
-        if isinstance(node, FTerm):
+        elif isinstance(node, FTerm):
             return self.apply(self.names[('func', node.name)], node.args, scope, 'sum')
-        if isinstance(node, Arith):
+        elif isinstance(node, Arith):
             args = [self.num(a, scope) for a in node.args]
             if len(args) == 1:
                 return f'(-{args[0]})'
-            return '(' + f' {node.op} '.join(args) + ')'
+            else:
+                return '(' + f' {node.op} '.join(args) + ')'
         raise TypeError(f'not a numeric expression: {node}')
