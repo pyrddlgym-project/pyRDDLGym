@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyRDDLGym"
-version = "2.7"
+version = "3.0"
 description = "pyRDDLGym: RDDL automatic generation tool for OpenAI Gym"
 license = "MIT"
 license-files = ["LICENSE"]
