@@ -2,8 +2,8 @@
 
 The corpus is not committed (see PDDL_PLAN.md); these tests skip when it is missing.
 Each case is a folder with problem.pddl and, unless the domain is inside
-problem.pddl, domain.pddl. Untyped domains with many-parameter actions (zenotravel,
-logistics00) take about a minute each in non-vectorized mode.
+problem.pddl, domain.pddl. The slowest case, logistics00 adl-98-prob02, takes about 25
+seconds.
 '''
 
 import os

@@ -32,8 +32,10 @@ class PDDLToRDDLTranslator:
     def __init__(self, domain: Domain, problem: Problem, noop_cost: float=1.0) -> None:
         self.domain = domain
         self.problem = problem
+        if not domain.types:
+            self._infer_types()
         self.builder = RDDLBuilder()
-        self.objects = {**domain.constants, **problem.objects}  # object -> PDDL types
+        self.objects = {**self.domain.constants, **self.problem.objects}  # object -> PDDL types
         self.names: Dict[Tuple[str, str], str] = {}  # (kind, PDDL name) -> RDDL name
         self._taken = {'var': set(), 'obj': set()}
         self.primed = False  # whether formulas read state-fluents on the next state
@@ -69,6 +71,128 @@ class PDDLToRDDLTranslator:
         elif isinstance(node, dict):
             for item in node.values():
                 yield from PDDLToRDDLTranslator.nodes_in(item, cls)
+
+    @staticmethod
+    def scoped(node, scope, bind):
+        '''Yields (n, scope) for every IR node n inside node, where scope maps the PDDL
+        variables in scope at n to values; quantifiers bind each parameter p to bind(p).'''
+        yield (node, scope)
+        if isinstance(node, (Exists, Forall, ForallEffect)):
+            scope = {**scope, **{p.name: bind(p) for p in node.params}}
+        if dataclasses.is_dataclass(node):
+            children = [getattr(node, f.name) for f in dataclasses.fields(node)]
+        elif isinstance(node, (tuple, list)):
+            children = node
+        else:
+            children = node.values() if isinstance(node, dict) else ()
+        for child in children:
+            yield from PDDLToRDDLTranslator.scoped(child, scope, bind)
+
+    @staticmethod
+    def retyped(node, types_of):
+        '''A copy of the IR node with each Param p given the types types_of(p).'''
+        if isinstance(node, Param):
+            return dataclasses.replace(node, types=types_of(node))
+        if dataclasses.is_dataclass(node):
+            return dataclasses.replace(node, **{
+                f.name: PDDLToRDDLTranslator.retyped(getattr(node, f.name), types_of)
+                for f in dataclasses.fields(node)})
+        if isinstance(node, (tuple, list)):
+            return type(node)(PDDLToRDDLTranslator.retyped(x, types_of) for x in node)
+        if isinstance(node, dict):
+            return {k: PDDLToRDDLTranslator.retyped(v, types_of) for (k, v) in node.items()}
+        return node
+
+    def _infer_types(self) -> None:
+        '''An untyped domain puts every object in one RDDL type, so an action with k
+        parameters has |objects|^k groundings. This rewrites the IR as if it were typed.
+        Each object's type is its signature, the set of static unary predicates that
+        hold for it in :init. An action parameter may have the signatures that satisfy
+        the static unary atoms the precondition requires of it (as a conjunct). A
+        predicate or function position has every signature that some argument there
+        can have, so every atom that can hold fits its declaration. Quantified variables
+        may have any signature.'''
+        (domain, problem) = (self.domain, self.problem)
+        objects = {**domain.constants, **problem.objects}
+        if not objects:
+            return
+        changed = {e.atom.pred for e in self.nodes_in((domain.actions, problem.init_effects),
+                                                       (Add, Del))}
+        derived = {r.name for r in domain.derived}
+        static = {p for (p, params) in domain.predicates.items()
+                  if len(params) == 1 and p not in changed | derived}
+        signature = {o: set() for o in objects}
+        for atom in problem.init_atoms:
+            if atom.pred in static:
+                signature[atom.args[0].name].add(atom.pred)
+        empty = 'untyped'
+        while empty in static:  # the type name of objects without static unary predicates
+            empty += ' '
+        obj_type = {o: ' '.join(sorted(s)) or empty for (o, s) in signature.items()}
+        preds = {t: signature[o] for (o, t) in obj_type.items()}  # type -> its predicates
+        every = frozenset(preds)
+
+        def allowed(precondition, var):
+            conjuncts, todo = [], [precondition]
+            while todo:
+                f = todo.pop()
+                if isinstance(f, And):
+                    todo.extend(f.args)
+                elif isinstance(f, Atom) and f.pred in static and \
+                        isinstance(f.args[0], Var) and f.args[0].name == var:
+                    conjuncts.append(f.pred)
+            return frozenset(t for t in every if all(c in preds[t] for c in conjuncts)) or every
+
+        # what may be passed at each (kind, name, position): a set of types, or the
+        # (kind, name, position) of a derived predicate's parameter
+        uses = []
+        fixed = {}  # id(Param) -> types, or the position whose types it takes
+        tops = [(problem.init_atoms, {}), (problem.init_effects, {}), (problem.goal, {}),
+                (problem.metric, {})]
+        for action in domain.actions.values():
+            scope = {p.name: allowed(action.precondition, p.name) for p in action.params}
+            fixed.update((id(p), scope[p.name]) for p in action.params)
+            tops.append((action, scope))
+        for rule in domain.derived:
+            scope = {p.name: ('pred', rule.name, i) for (i, p) in enumerate(rule.params)}
+            fixed.update((id(p), scope[p.name]) for p in rule.params)
+            tops.append((rule.body, scope))
+        for (top, scope) in tops:
+            for (node, inner) in self.scoped(top, scope, lambda p: every):
+                if isinstance(node, (Atom, FTerm)):
+                    (kind, name) = ('pred', node.pred) if isinstance(node, Atom) \
+                        else ('func', node.name)
+                    for (i, a) in enumerate(node.args):
+                        uses.append(((kind, name, i), inner[a.name] if isinstance(a, Var)
+                                     else frozenset({obj_type[a.name]})))
+        for (func, args) in problem.init_numeric:
+            for (i, a) in enumerate(args):
+                uses.append((('func', func, i), frozenset({obj_type[a]})))
+
+        positions = {}
+        size = -1
+        while size != sum(map(len, positions.values())):  # until nothing grows
+            size = sum(map(len, positions.values()))
+            for (key, source) in uses:
+                positions.setdefault(key, set()).update(
+                    source if isinstance(source, frozenset) else positions.get(source, ()))
+        for (kind, table) in (('pred', domain.predicates), ('func', domain.functions)):
+            for (name, params) in table.items():
+                for (i, p) in enumerate(params):
+                    # an unused position can have any one type
+                    fixed[id(p)] = positions.get((kind, name, i)) or {min(every)}
+
+        def types_of(p):
+            types = fixed.get(id(p), every)
+            if isinstance(types, tuple):  # a derived predicate's parameter
+                types = fixed[id(domain.predicates[types[1]][types[2]])]
+            return tuple(sorted(types))
+
+        self.domain = self.retyped(domain, types_of)
+        self.problem = self.retyped(problem, types_of)
+        self.domain.types = {t: ('object',) for t in sorted(every)}
+        self.domain.constants = {c: (obj_type[c],) for c in domain.constants}
+        self.problem.objects = {o: (obj_type[o],) for o in problem.objects}
 
     # ===========================================================================
     # names
@@ -157,6 +281,15 @@ class PDDLToRDDLTranslator:
             union(p.types)
         for types in self.objects.values():
             union(types)
+        # RDDL cannot compare objects of different types, so (= x y) merges their types
+        tops = [(self.problem.goal, {})]
+        tops += [(a, {p.name: p.types for p in a.params}) for a in self.domain.actions.values()]
+        tops += [(r.body, {p.name: p.types for p in r.params}) for r in self.domain.derived]
+        for (top, scope) in tops:
+            for (node, inner) in self.scoped(top, scope, lambda p: p.types):
+                if isinstance(node, Equals) and Var in (type(node.left), type(node.right)):
+                    union(tuple(t for side in (node.left, node.right) for t in (
+                        inner[side.name] if isinstance(side, Var) else self.objects[side.name])))
         if 'object' in parent:
             union(('object',) + tuple(self.domain.types))
 

@@ -94,13 +94,45 @@ def test_object_parameter_merges_everything():
     assert tr.guard('?p', ('place',)) == 'IS-place(?p)'
 
 
-def test_untyped_domain():
-    domain = '''(define (domain d) (:requirements :strips)
-      (:predicates (p ?x)) (:action a :parameters (?x) :effect (p ?x)))'''
-    tr = translate_pddl(domain, '(define (problem q) (:domain d) (:objects a b) (:init) (:goal (p a)))')
-    assert tr.builder.object_values == {'Object': ['a', 'b']}
-    assert not any(p.startswith('IS-') for p in tr.builder.pvariable_defs)
-    assert tr.guard('?x', ('object',)) is None
+def test_equality_merges_the_types_it_compares():
+    domain = TYPED.replace('(big ?t - truck)))', '''(big ?t - truck))
+      (:action a :parameters (?t - truck ?p - place) :precondition (not (= ?t ?p)) :effect (big ?t)))''')
+    tr = translate_pddl(domain, '''(define (problem p) (:domain d)
+      (:objects t1 - truck x - place) (:init) (:goal (big t1)))''')
+    assert tr.group['truck'] == tr.group['place']  # RDDL cannot compare different types
+
+
+UNTYPED = '''(define (domain u) (:requirements :strips :equality)
+  (:predicates (person ?x) (plane ?x) (city ?x) (at ?x ?c) (in ?p ?a) (seen ?x))
+  (:action board :parameters (?p ?a ?c)
+    :precondition (and (person ?p) (plane ?a) (city ?c) (at ?p ?c) (at ?a ?c))
+    :effect (and (in ?p ?a) (not (at ?p ?c))))
+  (:action fly :parameters (?a ?c1 ?c2)
+    :precondition (and (plane ?a) (city ?c1) (city ?c2) (not (= ?c1 ?c2)) (at ?a ?c1))
+    :effect (and (at ?a ?c2) (not (at ?a ?c1)))))'''
+
+UNTYPED_PROBLEM = '''(define (problem q) (:domain u) (:objects p1 a1 c1 c2 x)
+  (:init (person p1) (plane a1) (city c1) (city c2) (at p1 c1) (at a1 c1))
+  (:goal (in p1 a1)))'''
+
+
+def test_untyped_domain_infers_types(tmp_path):
+    tr = translate_pddl(UNTYPED, UNTYPED_PROBLEM)
+    # an object's type is its set of static unary predicates
+    assert tr.objects == {'p1': ('person',), 'a1': ('plane',), 'c1': ('city',),
+                          'c2': ('city',), 'x': ('untyped',)}
+    assert tr.domain.actions['board'].params[1].types == ('plane',)
+    assert tr.domain.predicates['at'][0].types == ('person', 'plane')
+    # "at" receives persons and planes, so they share an RDDL type
+    assert tr.builder.object_values == {'city': ['c1', 'c2'], 'person': ['p1', 'a1'],
+                                        'untyped': ['x']}
+    assert tr.builder.pvariable_defs['board'][0] == ('person', 'person', 'city')
+    results = [run(env, [{'board___p1__a1__c1': True}]) for env in make_envs(tr, tmp_path)]
+    assert results[0] == results[1] and results[0][1]['in___p1__a1'] is True
+    # an unguarded parameter may have any type, which merges every type that reaches it
+    look = '(:action look :parameters (?x) :effect (seen ?x)))'
+    tr = translate_pddl(UNTYPED[:-1] + look, UNTYPED_PROBLEM)
+    assert tr.builder.object_values == {'city': ['p1', 'a1', 'c1', 'c2', 'x']}
 
 
 def test_empty_group_gets_guarded_dummy_object():

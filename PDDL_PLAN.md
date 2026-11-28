@@ -91,7 +91,13 @@ Everything else raises `PDDLUnsupportedError`. That includes recursive axioms an
 - A parameter typed `object` merges every group into one RDDL type, `Object`. That is also the case for untyped domains.
 - pyRDDLGym allows only enum literals in domain expressions, so `@c` is not available for object types. Each object referenced in an expression (domain constants and goal objects) gets a non-fluent `OBJ-o(?x)` that is true only for `o`. A read of `p(?x, o)` becomes `(exists_{?k : T}[OBJ-o(?k) ^ p(?x, ?k)])`, or a `sum` for numbers.
 - RDDL has no empty types, so a group with no objects gets the object `NONE`, and every type in that group is guarded, which excludes it.
-- Known cost: an untyped domain puts everything in one type, so an action with k parameters has |objects|^k groundings. zenotravel's 5-parameter actions take about a minute to load in non-vectorized mode. Inferring types from static unary predicates would fix this; it is deferred.
+- RDDL cannot compare objects of different types with `==`, so an equality `(= x y)` merges the groups of the two types it compares.
+- **Untyped domains.** Without types, everything would share one RDDL type, and an action with k parameters would have |objects|^k groundings (zenotravel took over a minute to load). So when a domain declares no types, the IR is first rewritten as if it were typed:
+  - An object's type is its signature: the set of static unary predicates (never changed by an effect or a random `:init`, not derived) that hold for it in `:init`. Objects with none get the type `untyped`.
+  - An action parameter may have the signatures that satisfy every static unary atom that the precondition requires of it as a top-level conjunct. With no such atom, it may have any signature.
+  - Each predicate and function position gets every signature that some argument there can have: from actions, derived rules (whose parameters take their predicate's positions, solved by a fixpoint), `:init`, the goal and the metric. So every atom that can hold fits its declaration.
+  - Quantified variables may have any signature. That is sound, but it merges every type that reaches them.
+  - The usual grouping then applies, and the precondition's unary atoms become redundant with the `IS-t` guards. zenotravel's `zoom` goes from 14⁶ groundings to 4·3·3·7³.
 
 **Fluents**
 - Predicates or functions that some effect modifies, or that a probabilistic `:init` sets in any grounding, become `state-fluent`. All others become `non-fluent`. A state-fluent that is never modified gets the identity CPF `p'(x̄) = p(x̄)`. The reason: RDDL init-state entries can be random expressions, but the non-fluents block accepts only constants.
