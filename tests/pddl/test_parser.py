@@ -395,6 +395,41 @@ def test_only_one_definition_allowed():
     assert e.value.line == line_of(BLOCKS + '\n(define (domain other))', 'domain other')
 
 
+def test_domain_and_problem_in_one_file():
+    text = BLOCKS + BLOCKS_PROBLEM
+    prob = parse_problem(text, parse_domain(text))
+    assert prob.name == 'p1'
+    with pytest.raises(PDDLParseError) as e:
+        parse_problem(text + BLOCKS_PROBLEM.replace('p1', 'p2'), parse_domain(text))
+    assert 'more than one problem' in e.value.message
+    with pytest.raises(PDDLParseError) as e:
+        parse_problem(BLOCKS, parse_domain(BLOCKS))
+    assert 'expected (define (problem' in e.value.message
+
+
+def test_type_glued_to_dash():
+    text = '''(define (domain d) (:requirements :typing) (:types zone)
+      (:predicates (at ?z -zone)))'''
+    assert parse_domain(text).predicates['at'] == (Param('?z', ('zone',)),)
+
+
+def test_bare_zero_ary_function():
+    # PDDL 2.1 allows <f-head> ::= <function-symbol>
+    body = '''(:action a :parameters (?x - t)
+      :precondition (and (< g 5) (= g (f ?x)))
+      :effect (and (increase g 1) (assign (f ?x) g)))'''
+    act = parse_domain(minimal_domain(body)).actions['a']
+    g, fx = FTerm('g', ()), FTerm('f', (Var('?x'),))
+    assert act.precondition == And((Compare('<', g, Num(5.0)), Compare('=', g, fx)))
+    assert act.effect == AndEffect((NumEffect('increase', g, Num(1.0)),
+                                    NumEffect('assign', fx, g)))
+    text = '''(define (problem p) (:domain d) (:objects o - t)
+      (:init (= g 2) (probabilistic 0.5 (= g 3))) (:goal (p o)))'''
+    prob = parse_problem(text, numeric_domain())
+    assert prob.init_numeric == {('g', ()): 2.0}
+    assert prob.init_effects[0].branches[0][1] == NumEffect('assign', g, Num(3.0))
+
+
 def test_predicate_declaration_may_repeat_variable_names():
     text = '''(define (domain d) (:requirements :strips)
       (:predicates (in ?obj ?obj)))'''

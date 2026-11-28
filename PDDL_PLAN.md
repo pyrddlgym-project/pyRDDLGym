@@ -35,6 +35,8 @@ Reuse:
 - Everything is lowercased, since PDDL is case-insensitive.
 - Tokens: `(`, `)`, names, `?vars`, numbers, `-`.
 - Every node keeps its line and column. Errors look like `line:col: expected X, got Y`.
+- A file may hold a domain and a problem together, as IPPC files do. Each entry point picks its own `define`, and two definitions of the same kind are an error.
+- A 0-ary function can be written without parentheses (PDDL 2.1 allows `<f-head> ::= <function-symbol>`). A type glued to its dash, as in `?x -type`, is read as `- type`.
 
 **What gets built into the IR**
 Only the constructs the converter actually translates:

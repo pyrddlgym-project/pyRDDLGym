@@ -323,8 +323,7 @@ class PDDLParser:
     @staticmethod
     def parse_domain(text: str) -> Domain:
         '''Parses PDDL or PPDDL domain text into a Domain.'''
-        root = PDDLParser._read(text)
-        name = PDDLParser._define_header(root, 'domain')
+        (root, name) = PDDLParser._definition(PDDLParser._read(text), 'domain')
         domain = Domain(name=name, requirements=frozenset(), types={}, constants={},
                         predicates={}, functions={}, actions={}, derived=())
         parser = PDDLParser(domain, domain.constants)
@@ -369,8 +368,7 @@ class PDDLParser:
     @staticmethod
     def parse_problem(text: str, domain: Domain) -> Problem:
         '''Parses PDDL or PPDDL problem text for the given domain into a Problem.'''
-        root = PDDLParser._read(text)
-        name = PDDLParser._define_header(root, 'problem')
+        (root, name) = PDDLParser._definition(PDDLParser._read(text), 'problem')
         sections = PDDLParser._sections(root, 2, {':constraints': 'PDDL3 constraints'})
 
         parser = PDDLParser(domain, dict(domain.constants))
@@ -420,10 +418,10 @@ class PDDLParser:
                                     getattr(node, 'col', None))
 
     @staticmethod
-    def _read(text: str) -> SList:
-        '''Reads the text as exactly one s-expression.'''
+    def _read(text: str) -> list:
+        '''Reads the text as a list of top-level s-expressions.'''
         stack = []
-        top = None
+        tops = []
         line, col, i, n = 1, 1, 0, len(text)
         while i < n:
             ch = text[i]
@@ -444,10 +442,7 @@ class PDDLParser:
                 if stack:
                     stack[-1].append(done)
                 elif PDDLParser._head(done) != 'in-package':  # legacy Lisp header, ignored
-                    if top is not None:
-                        raise PDDLParser._err(
-                            done, 'unexpected text after the end of the definition')
-                    top = done
+                    tops.append(done)
                 col, i = col + 1, i + 1
             else:
                 start = i
@@ -458,13 +453,17 @@ class PDDLParser:
                 if not stack:
                     raise PDDLParser._err(
                         token, f'unexpected token "{token}" outside of parentheses')
+                if len(token) > 1 and token[0] == '-' and token[1].isalpha():
+                    # "?x -type": names start with a letter, so this is "- type"
+                    stack[-1].append(Sym('-', line, col))
+                    token = Sym(token[1:], line, col + 1)
                 stack[-1].append(token)
                 col += i - start
         if stack:
             raise PDDLParser._err(stack[-1], 'unclosed "("')
-        if top is None:
+        if not tops:
             raise PDDLParseError('empty input', 1, 1)
-        return top
+        return tops
 
     @staticmethod
     def _is_sym(node) -> bool:
@@ -531,12 +530,22 @@ class PDDLParser:
         return result
 
     @staticmethod
-    def _define_header(root, kind):
-        if PDDLParser._head(root) != 'define' or len(root) < 2 \
-        or PDDLParser._head(root[1]) != kind \
-        or len(root[1]) != 2 or not PDDLParser._is_name(root[1][1]):
-            raise PDDLParser._err(root, f'expected (define ({kind} <name>) ...)')
-        return str(root[1][1])
+    def _definition(forms, kind):
+        '''Returns (form, name) for the one (define (<kind> <name>) ...) among the
+        top-level forms. A file may hold a domain and its problem, as IPPC files do.'''
+        found = []
+        for form in forms:
+            if PDDLParser._head(form) != 'define' or len(form) < 2 \
+            or PDDLParser._head(form[1]) not in ('domain', 'problem') \
+            or len(form[1]) != 2 or not PDDLParser._is_name(form[1][1]):
+                raise PDDLParser._err(form, f'expected (define ({kind} <name>) ...)')
+            if form[1][0] == kind:
+                found.append(form)
+        if not found:
+            raise PDDLParser._err(forms[0], f'expected (define ({kind} <name>) ...)')
+        if len(found) > 1:
+            raise PDDLParser._err(found[1], f'more than one {kind} definition')
+        return (found[0], str(found[0][1][1]))
 
     # ===========================================================================
     # typed lists
@@ -638,6 +647,8 @@ class PDDLParser:
         if self._is_sym(node):
             if node in ('?duration', '#t'):
                 raise self._unsupported(node, f'"{node}" is only meaningful in temporal PDDL')
+            if self._is_bare_fterm(node):
+                return FTerm(str(node), (), self._loc(node))
             raise self._err(node, f'expected a numeric expression, got "{node}"')
         head = self._head(node)
         if head is None:
@@ -657,8 +668,16 @@ class PDDLParser:
             return FTerm(head, args, self._loc(node))
         raise self._err(node, f'undeclared function "{head}"')
 
+    def _is_bare_fterm(self, node) -> bool:
+        '''Whether node is a 0-ary function written without parentheses, such as
+        "reward", which PDDL 2.1 allows (<f-head> ::= <function-symbol>).'''
+        return self._is_sym(node) and self.domain.functions.get(node) == () \
+            and node not in self.objects
+
     def fterm(self, node, scope) -> FTerm:
         head = self._head(node)
+        if self._is_bare_fterm(node):
+            head = str(node)
         if head is None or head not in self.domain.functions:
             raise self._err(node, f'expected a numeric fluent, got {self._show(node)}')
         return self.num_term(node, scope)
@@ -705,7 +724,7 @@ class PDDLParser:
                 self.expect_len(node, 3)
                 left, right = node[1], node[2]
                 if head == '=' and not any(isinstance(a, SList) or self._is_number(a)
-                                           for a in (left, right)):
+                                           or self._is_bare_fterm(a) for a in (left, right)):
                     return Equals(self.obj_term(left, scope)[0],
                                   self.obj_term(right, scope)[0], loc)
                 return Compare(head, self.num_term(left, scope),
@@ -915,7 +934,7 @@ class PDDLParser:
 
     def _is_init_value(self, item) -> bool:
         return self._head(item) == '=' and len(item) == 3 \
-            and self._head(item[1]) in self.domain.functions
+            and (self._head(item[1]) in self.domain.functions or self._is_bare_fterm(item[1]))
 
     def _init_value(self, item):
         '''Parses (= (f o...) n) in :init into (FTerm, value).'''
