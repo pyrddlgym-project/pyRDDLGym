@@ -9,7 +9,7 @@ class RDDLBuilder:
     def __init__(self) -> None:
 
         # domain definitions
-        self.object_types = set()
+        self.object_types = []  # a list, so the output order is deterministic
         self.enum_types = {}
         self.pvariable_defs = {}
         self.cpf_defs = {}
@@ -31,7 +31,8 @@ class RDDLBuilder:
     # ===========================================================================
     
     def add_object_type(self, name: str) -> None:
-        self.object_types.add(name)
+        if name not in self.object_types:
+            self.object_types.append(name)
     
     def add_enum_type(self, name: str, objects: Iterable[str]) -> None:
         self.enum_types[name] = list(objects)
@@ -168,6 +169,14 @@ class RDDLBuilder:
         self.horizon = value
     
     def build_instance(self, domain_name: str, instance_name: str, nonfluents_name: str) -> str:
+        for otype in self.object_types:
+            if not self.object_values.get(otype):
+                raise ValueError(f'Object type <{otype}> has no objects.')
+        if self.horizon is None:
+            raise ValueError('The horizon must be set with add_horizon().')
+        if self.discount is None:
+            raise ValueError('The discount must be set with add_discount().')
+
         result = f'non-fluents {nonfluents_name} {{\n\n'
         result += f'\tdomain = {domain_name};\n'
 
@@ -199,7 +208,8 @@ class RDDLBuilder:
             result += '\t};\n\n'
         
         # write constants
-        result += f'\tmax-nondef-actions = {self.maxnondef};\n'
+        if self.maxnondef is not None:  # pyRDDLGym defaults to pos-inf
+            result += f'\tmax-nondef-actions = {self.maxnondef};\n'
         result += f'\thorizon = {self.horizon};\n'
         result += f'\tdiscount = {self.discount};\n'
 

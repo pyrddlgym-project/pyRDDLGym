@@ -15,12 +15,12 @@ Decisions already made:
 ## Deliverable (new subpackage `pyRDDLGym/pddl/`, 4 files)
 ```
 pyRDDLGym/pddl/
-  __init__.py     # convert(domain, problem, *, horizon, noop_cost=1.0) -> (domain_rddl, instance_rddl)
+  __init__.py     # re-exports PDDLParser, PDDLCompiler and the errors
   errors.py       # PDDLParseError, PDDLUnsupportedError (both carry line/col)
-  parser.py       # lexer + s-expression reader + IR dataclasses + symbol checks (stdlib only)
-  compiler.py     # IR -> RDDL via RDDLBuilder (naming, types, effects, reward, termination)
+  parser.py       # PDDLParser: lexer + s-expression reader + IR dataclasses + symbol checks (stdlib only)
+  compiler.py     # PDDLCompiler: IR -> RDDL via RDDLBuilder (naming, types, effects, reward, termination)
 ```
-`domain` and `problem` may each be a file path or PDDL text. No new runtime dependencies.
+The entry point is the static method `PDDLCompiler.convert(domain, problem, *, horizon, noop_cost=1.0) -> (domain_rddl, instance_rddl)`. `domain` and `problem` may each be a file path or PDDL text. There are no module-level functions: helpers are static methods of the class that uses them. No new runtime dependencies.
 
 Reuse:
 - `RDDLBuilder` (`pyRDDLGym/core/builder.py`) to emit the RDDL.
@@ -41,7 +41,8 @@ Only the constructs the converter actually translates:
 - Domain: `:requirements`, `:types` (multi-level, `either`), `:constants`, `:predicates`, `:functions`, `:derived`, `:action`.
 - Problem: `:objects`, `:init`, `:goal`, `:metric`.
 - Formulas: `and/or/not/imply/exists/forall/when`, `=`, comparisons, arithmetic, `increase/decrease/assign/scale-up/scale-down`.
-- PPDDL (step 3): `probabilistic`, the `(reward)` fluent, `:goal-reward`, `:goal-probability`.
+- PPDDL (step 3): `probabilistic` (in effects and in `:init`), the `(reward)` fluent, `:goal-reward`, `:goal-probability`.
+- Entry points: `PDDLParser.parse_domain(text)` and `PDDLParser.parse_problem(text, domain)`. The parser has no module-level functions.
 
 **What is recognized and rejected**
 Constructs the converter can't translate are detected by keyword and raise `PDDLUnsupportedError(construct, line, col)` immediately, without building a representation for them:
@@ -62,7 +63,9 @@ These raise `PDDLParseError`, because otherwise pyRDDLGym would later fail with 
 **Exit criteria (step 1)**
 1. Unit tests check the IR built for small inputs of each construct.
 2. Negative tests: each malformed or unsupported input asserts the error class and the line number.
-3. Every file in a small benchmark corpus in `tests/pddl/benchmarks/` either parses or raises `PDDLUnsupportedError`, never anything else. The corpus is about 20 IPC classical and numeric domains plus IPPC PPDDL domains, with the source and license of each noted.
+3. Every file in a small benchmark corpus either parses or raises `PDDLUnsupportedError`, never anything else. The corpus is about 20 IPC classical and numeric domains plus IPPC PPDDL domains.
+   - **Local only, never committed.** It lives in `tests/pddl/benchmarks/`, which is listed in `.gitignore`, so it is never redistributed. A local `SOURCES.md` there records where each file came from.
+   - Tests that use the corpus skip when the directory is missing. Run them locally before each commit. CI runs only the committed hand-written tests.
 
 ---
 
@@ -86,7 +89,7 @@ Everything else raises `PDDLUnsupportedError`. That includes recursive axioms, m
 - Domain constants are added to every instance and referenced as `@c`. Check that pyRDDLGym accepts `@obj` for object types; if it doesn't, use a singleton non-fluent per constant.
 
 **Fluents**
-- Predicates or functions that some effect modifies become `state-fluent`. All others become `non-fluent`.
+- Predicates or functions that some effect modifies, or that a probabilistic `:init` sets in any grounding, become `state-fluent`. All others become `non-fluent`. A state-fluent that is never modified gets the identity CPF `p'(x̄) = p(x̄)`. The reason: RDDL init-state entries can be random expressions, but the non-fluents block accepts only constants.
 - Derived predicates become `derived-fluent bool`. A cycle in their dependency graph (found with strongly connected components) raises.
 - Numeric functions the problem only partly initializes get a non-fluent `DEFINED-f(x̄)` guard on reads. Assigning to an undefined fluent raises.
 
@@ -108,16 +111,16 @@ An argument that is a variable appearing only once is substituted directly inste
   - `cost_α` is the action's increment to `total-cost`, or 1 if the domain has no costs.
   - Allowed metrics: `minimize (total-cost)`, or a linear metric over fluents that change only through `increase`/`decrease`. Anything else raises.
 - Taking no action is allowed. It doesn't change which goals can be reached, and it avoids having no legal action in dead-end states.
-- `horizon` is required. `discount = 1.0`.
+- `horizon` is required. `discount = 1.0`. RDDL also accepts `horizon = pos-inf;`, but it isn't offered as a default: with dead ends and discount 1, an episode would never end.
 
-**`RDDLBuilder` fixes (these are bugs in their own right)**
-- `object_types` is a `set`, so the output order is nondeterministic. Make it insertion-ordered.
-- `build_instance` raises `KeyError` for an object type with no objects. Decide the behaviour for empty types and raise a clear error.
-- `build_instance` prints `None` when `maxnondef`, `horizon` or `discount` were never set. Validate them, or leave them out.
+**`RDDLBuilder` fixes (done, 2026-11-28)**
+- `object_types` is now an insertion-ordered list, so the output order is deterministic.
+- `build_instance` raises `ValueError` naming any object type that has no objects.
+- `build_instance` leaves out `max-nondef-actions` when it is unset, and pyRDDLGym then defaults to `pos-inf`. It raises `ValueError` when `horizon` or `discount` is unset, since pyRDDLGym has no default for either.
 
 **Exit criteria (step 2)**
 1. The emitted RDDL parses and compiles in pyRDDLGym, in both vectorized and non-vectorized modes, for every supported benchmark.
-2. **Plan replay:** plans for the benchmark problems are produced once with Fast Downward, validated with VAL, and checked in as plain text fixtures. Neither tool is a dependency. Each plan, run in `RDDLEnv`:
+2. **Plan replay:** plans for the benchmark problems are produced once with Fast Downward, validated with VAL, and stored as plain text next to their problems in the local corpus, so they are not committed either. Neither tool is a dependency. Each plan, run in `RDDLEnv`:
    - has every step pass the action preconditions
    - terminates exactly on the last step
    - gives total reward = −plan cost
@@ -139,13 +142,42 @@ An argument that is a variable appearing only once is substituted directly inste
 - A block that affects a single literal compiles to an inline `Bernoulli`.
 - Rewards: `(increase (reward) e)` becomes a term in the reward; `:goal-reward` and `:goal-probability` become a goal bonus. Goals still map to `termination`.
 
+**Random initial states (`(probabilistic ...)` in `:init`)**
+
+The parser stores the deterministic part in `Problem.init_atoms` and `init_numeric`, and the blocks in `Problem.init_effects`. Semantics follow mdpsim: all blocks are applied to the deterministic part as one simultaneous effect, deletes first and then adds, so an add wins and a branch may delete a deterministic atom. Each block is sampled once per reset, independently of the other blocks.
+
+The parser already rejects these cases:
+- a probability that isn't a number;
+- probabilities that sum to more than 1;
+- two different values for one numeric fluent that can occur in the same outcome;
+- a numeric fluent that is set only in some outcomes and has no deterministic value (`PDDLUnsupportedError`).
+
+Translation into RDDL `init-state` expressions:
+- **Outcome fluents.** Each block `n` with `k` branches becomes a state-fluent `INIT-OUT-n : { state-fluent, init-out-n, default = @o0 }`. Its enum is `{@o0 … @ok}`, where `@o0` is the remainder with no effect. Its CPF is the identity, and its init-state entry is `INIT-OUT-n = Discrete(init-out-n, @o0 : 1-Σp, @o1 : p1, …)`.
+  - A block whose only effect is a single literal in a single branch skips the fluent and inlines `Bernoulli(p)` (or `~Bernoulli(p)` for a delete).
+  - Nested blocks get their own outcome fluent. A nested block's condition is ANDed with the condition of the branch it sits in. Sampling every block, even inside a branch that wasn't chosen, gives the same distribution.
+- **Conditions.** An effect in branch `i` of block `n` fires when `cond = (INIT-OUT-n == @oi)`, ANDed with the conditions of the enclosing branches.
+- **Atoms.** An atom becomes `p(ō) = OR(add conds) | (det(ō) ^ ~OR(del conds))`, where `det(ō)` is whether the atom is in `init_atoms`. Simplify when `det` is constant, and emit an entry only when it differs from the default.
+- **Numeric fluents.** `f(ō) = if (c1) then v1 else if (c2) then v2 … else det(ō)`. The parser guarantees that conditions with different values never both fire, so the order of the chain doesn't matter. When the fluent has no deterministic value, the parser guarantees the conditions cover every outcome, and the last condition becomes the `else`.
+- **Referencing other fluents.** pyRDDLGym resolves init-state entries that refer to other state fluents in dependency order, per grounding, so the order of the entries doesn't matter.
+- **Visibility.** The outcome fluents are part of the observed state. They don't change the dynamics, because no CPF other than their own identity reads them.
+
 **Exit criteria (step 3)**
 1. The emitted RDDL compiles for IPPC 2004/2006/2008 PPDDL domains.
 2. On tiny hand-written domains, sampled outcome frequencies from `RDDLEnv` match the probabilities written in the domain, using a seeded chi-square test. One case must change several fluents together, so correlated effects are checked.
-3. Rejection tests for PPDDL constructs the converter doesn't support.
+3. The same seeded test runs over `RDDLEnv.reset()` for random initial states. It must cover:
+   - a block that sets several atoms together, checking the joint frequencies;
+   - a nested block;
+   - a branch that deletes a deterministic atom;
+   - an atom set by two blocks;
+   - numeric fluents.
+
+   Run it in both vectorized and non-vectorized modes.
+4. Plan replay (step 2) runs only on problems with a deterministic `:init`. For a problem with a random `:init`, replay the plan only after a seeded reset whose sampled initial state matches the state the plan assumes.
+5. Rejection tests for PPDDL constructs the converter doesn't support.
 
 ---
 
 ## Ancillary
 - `pyproject.toml`: `[project.optional-dependencies] test = ["pytest"]`.
-- Docs: one short page with a supported/unsupported table, the meaning of goal, reward and no-op, and a `convert(...)` example.
+- Docs: one short page with a supported/unsupported table, the meaning of goal, reward and no-op, and a `PDDLCompiler.convert(...)` example.

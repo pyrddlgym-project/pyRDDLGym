@@ -6,11 +6,14 @@ import pytest
 
 from pyRDDLGym.pddl.errors import PDDLError, PDDLParseError, PDDLUnsupportedError
 from pyRDDLGym.pddl.parser import (
-    parse_domain, parse_problem,
+    PDDLParser,
     Param, Var, Obj, Num, FTerm, Arith,
     Atom, Equals, Not, And, Or, Imply, Exists, Forall, Compare,
     Add, Del, NumEffect, AndEffect, ForallEffect, When, Probabilistic,
 )
+
+parse_domain = PDDLParser.parse_domain
+parse_problem = PDDLParser.parse_problem
 
 
 def line_of(text, marker):
@@ -518,14 +521,76 @@ def test_goal_optional_when_domain_has_rewards():
     assert prob.goal is None
 
 
-def test_probabilistic_initial_state_unsupported():
-    text = '''(define (problem p) (:domain coin) (:objects o - t)
+def test_probabilistic_initial_state():
+    text = '''(define (problem p) (:domain coin) (:objects o u - t)
       (:init (heads o)
-             (probabilistic 0.5 (tails o)))
+             (probabilistic 0.5 (tails o)
+                            0.25 (and (tails u) (not (heads o))
+                                      (probabilistic 1/3 (heads u)))))
       (:goal (heads o)))'''
-    with pytest.raises(PDDLUnsupportedError) as e:
-        parse_problem(text, parse_domain(PPDDL))
-    assert e.value.line == line_of(text, '(probabilistic 0.5')
+    prob = parse_problem(text, parse_domain(PPDDL))
+    o, u = Obj('o'), Obj('u')
+    assert prob.init_atoms == (Atom('heads', (o,)),)
+    assert prob.init_effects == (Probabilistic((
+        (Num(0.5), Add(Atom('tails', (o,)))),
+        (Num(0.25), AndEffect((Add(Atom('tails', (u,))), Del(Atom('heads', (o,))),
+                               Probabilistic(((Num(1 / 3), Add(Atom('heads', (u,)))),))))),
+    )),)
+    assert prob.init_effects[0].loc.line == line_of(text, '(probabilistic 0.5')
+
+
+def test_probabilistic_initial_numeric_values():
+    text = '''(define (problem p) (:domain d) (:objects o - t)
+      (:init (= (f o) 1) (= (g) 0)
+             (probabilistic 0.5 (= (f o) 3) 0.5 (and (= (f o) 4) (p o)))
+             (probabilistic 0.2 (= (g) 7)))
+      (:goal (p o)))'''
+    prob = parse_problem(text, numeric_domain())
+    assert prob.init_numeric == {('f', ('o',)): 1.0, ('g', ()): 0.0}
+    (fo, g) = (FTerm('f', (Obj('o'),)), FTerm('g', ()))
+    assert prob.init_effects == (
+        Probabilistic(((Num(0.5), NumEffect('assign', fo, Num(3.0))),
+                       (Num(0.5), AndEffect((NumEffect('assign', fo, Num(4.0)),
+                                             Add(Atom('p', (Obj('o'),)))))))),
+        Probabilistic(((Num(0.2), NumEffect('assign', g, Num(7.0))),)),
+    )
+
+
+@pytest.mark.parametrize('init', [
+    '(probabilistic 0.5 (= (f o) 3) 0.5 (= (f o) 4))',            # always assigned
+    '(probabilistic 1 (probabilistic 0.5 (= (f o) 3) 0.5 (= (f o) 3)))',
+    '(probabilistic 0.5 (= (f o) 3)) (probabilistic 0.5 (= (f o) 3)) (= (f o) 0)',
+])
+def test_probabilistic_initial_values_accepted(init):
+    text = f'''(define (problem p) (:domain d) (:objects o - t)
+      (:init {init}) (:goal (p o)))'''
+    parse_problem(text, numeric_domain())
+
+
+@pytest.mark.parametrize('init, marker, exc, message', [
+    ('(probabilistic 0.5 (p o))\n(probabilistic (g) (p o))', '(probabilistic (g)',
+     PDDLParseError, 'must be numbers'),
+    ('(probabilistic 0.7 (p o)\n0.4 (p c))', '(probabilistic 0.7', PDDLParseError,
+     'exceeds 1'),
+    ('(probabilistic 0.5\n(at 10 (p o)))', '(at 10', PDDLParseError, 'undeclared predicate'),
+    ('(probabilistic 0.5 (and (p o)\n(= (f o) x)))', '(= (f o) x)', PDDLParseError,
+     'expected a number'),
+    ('(probabilistic 0.5\n(= (f o) 3))', '(= (f o) 3)', PDDLUnsupportedError,
+     'no deterministic initial value'),
+    ('(probabilistic 0.5\n(= (f o) 3) 0.4 (= (f o) 4))', '(= (f o) 3)', PDDLUnsupportedError,
+     'no deterministic initial value'),
+    ('(= (f o) 0) (probabilistic 0.5 (= (f o) 3))\n(probabilistic 0.5 (= (f o) 4))',
+     '(probabilistic 0.5 (= (f o) 4))', PDDLParseError, 'both 3.0 and 4.0'),
+    ('(= (f o) 0) (probabilistic 0.5 (and (= (f o) 3)\n(probabilistic 0.5 (= (f o) 4))))',
+     '(probabilistic 0.5 (= (f o) 4))', PDDLParseError, 'both 3.0 and 4.0'),
+])
+def test_probabilistic_initial_state_errors(init, marker, exc, message):
+    text = f'''(define (problem p) (:domain d) (:objects o - t)
+      (:init {init}) (:goal (p o)))'''
+    with pytest.raises(exc) as e:
+        parse_problem(text, numeric_domain())
+    assert e.value.line == line_of(text, marker)
+    assert message in e.value.message
 
 
 def test_bare_zero_ary_atom_rejected():

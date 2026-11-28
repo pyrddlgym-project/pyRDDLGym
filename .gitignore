@@ -22,6 +22,7 @@ VizRDDL/
 # Competition/
 TestingDomain/
 docs/_build
+tests/pddl/benchmarks/
 
 # macOS
 .DS_Store
