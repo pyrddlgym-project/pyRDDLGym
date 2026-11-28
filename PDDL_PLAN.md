@@ -1,26 +1,26 @@
-# Plan: PDDL → RDDL converter in pyRDDLGym
+# Plan: PDDL → RDDL translator in pyRDDLGym
 
 ## Context
-pyRDDLGym should accept PDDL (and later PPDDL) by converting it automatically into lifted RDDL. If a domain uses a construct that has no faithful RDDL equivalent, the converter raises an error naming that construct and where it appears.
+pyRDDLGym should accept PDDL (and later PPDDL) by converting it automatically into lifted RDDL. If a domain uses a construct that has no faithful RDDL equivalent, the translator raises an error naming that construct and where it appears.
 
 This is an **RDDL package feature, not a PDDL toolkit**. The deliverable is the minimum needed for PDDL text → RDDL text. Simulation, PDDL pretty-printing, plan tools, a CLI, environment helpers and action encoding/decoding are all **out of scope**. RDDL→PDDL is also out of scope.
 
 No existing paper or tool does PDDL→RDDL. The building blocks are standard: Reiter-style per-fluent update rules for effects, and intermediate fluents for correlated probabilistic effects (from Sanner's RDDL spec and tutorial).
 
 Decisions already made:
-- The converter lives inside pyRDDLGym.
+- The translator lives inside pyRDDLGym.
 - It uses a custom parser with no external dependencies.
 - Order of work: parser → v1 (deterministic) → PPDDL.
 
 ## Deliverable (new subpackage `pyRDDLGym/pddl/`, 4 files)
 ```
 pyRDDLGym/pddl/
-  __init__.py     # re-exports PDDLParser, PDDLCompiler and the errors
+  __init__.py     # re-exports PDDLParser, PDDLToRDDLTranslator and the errors
   errors.py       # PDDLParseError, PDDLUnsupportedError (both carry line/col)
   parser.py       # PDDLParser: lexer + s-expression reader + IR dataclasses + symbol checks (stdlib only)
-  compiler.py     # PDDLCompiler: IR -> RDDL via RDDLBuilder (naming, types, effects, reward, termination)
+  translator.py   # PDDLToRDDLTranslator: IR -> RDDL via RDDLBuilder (naming, types, effects, reward, termination)
 ```
-The entry point is the static method `PDDLCompiler.convert(domain, problem, *, horizon, noop_cost=1.0) -> (domain_rddl, instance_rddl)`. `domain` and `problem` may each be a file path or PDDL text. There are no module-level functions: helpers are static methods of the class that uses them. No new runtime dependencies.
+The entry point is the static method `PDDLToRDDLTranslator.translate(domain, problem, *, horizon, noop_cost=1.0) -> (domain_rddl, instance_rddl)`. `domain` and `problem` may each be a file path or PDDL text. There are no module-level functions: helpers are static methods of the class that uses them. No new runtime dependencies.
 
 Reuse:
 - `RDDLBuilder` (`pyRDDLGym/core/builder.py`) to emit the RDDL.
@@ -39,7 +39,7 @@ Reuse:
 - A 0-ary function can be written without parentheses (PDDL 2.1 allows `<f-head> ::= <function-symbol>`). A type glued to its dash, as in `?x -type`, is read as `- type`.
 
 **What gets built into the IR**
-Only the constructs the converter actually translates:
+Only the constructs the translator actually translates:
 - Domain: `:requirements`, `:types` (multi-level, `either`), `:constants`, `:predicates`, `:functions`, `:derived`, `:action`.
 - Problem: `:objects`, `:init`, `:goal`, `:metric`.
 - Formulas: `and/or/not/imply/exists/forall/when`, `=`, comparisons, arithmetic, `increase/decrease/assign/scale-up/scale-down`.
@@ -47,7 +47,7 @@ Only the constructs the converter actually translates:
 - Entry points: `PDDLParser.parse_domain(text)` and `PDDLParser.parse_problem(text, domain)`. The parser has no module-level functions.
 
 **What is recognized and rejected**
-Constructs the converter can't translate are detected by keyword and raise `PDDLUnsupportedError(construct, line, col)` immediately, without building a representation for them:
+Constructs the translator can't translate are detected by keyword and raise `PDDLUnsupportedError(construct, line, col)` immediately, without building a representation for them:
 - `:durative-action`, `:process`, `:event`
 - `:constraints`, `preference`
 - timed initial literals
@@ -71,7 +71,7 @@ These raise `PDDLParseError`, because otherwise pyRDDLGym would later fail with 
 
 ---
 
-## Step 2 — v1 converter (`compiler.py`, deterministic)
+## Step 2 — v1 translator (`translator.py`, deterministic)
 
 **Supported**
 `strips, typing, negative/disjunctive/existential/universal preconditions, equality, conditional-effects, adl, derived-predicates (non-recursive), numeric-fluents, action-costs`.
@@ -176,10 +176,10 @@ Translation into RDDL `init-state` expressions:
 
    Run it in both vectorized and non-vectorized modes.
 4. Plan replay (step 2) runs only on problems with a deterministic `:init`. For a problem with a random `:init`, replay the plan only after a seeded reset whose sampled initial state matches the state the plan assumes.
-5. Rejection tests for PPDDL constructs the converter doesn't support.
+5. Rejection tests for PPDDL constructs the translator doesn't support.
 
 ---
 
 ## Ancillary
 - `pyproject.toml`: `[project.optional-dependencies] test = ["pytest"]`.
-- Docs: one short page with a supported/unsupported table, the meaning of goal, reward and no-op, and a `PDDLCompiler.convert(...)` example.
+- Docs: one short page with a supported/unsupported table, the meaning of goal, reward and no-op, and a `PDDLToRDDLTranslator.translate(...)` example.
